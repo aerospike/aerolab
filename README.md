@@ -2,7 +2,9 @@
 
 #### Spin up Aerospike clusters quickly in aws, docker on mac or docker/lxc on ubuntu 18.04)
 
-### Note: if running on osx, grab bin/osx-aio (all in one) version.
+### Note: if running on osx, grab aerolab-osx-aio (all in one) version.
+
+### Grab it from [releases](https://github.com/citrusleaf/aerolab/releases)
 
 ### Supported backends
 
@@ -27,7 +29,7 @@ To achive that, follow [this](tunnel-container/README.md) simple instruction.
 
 #### See [here](docs/README.md) for usage instructions and howto. Especially the "Using help" and "Quick start"
 
-### Grab it from [bin/](bin/)
+### Grab it from [releases](https://github.com/citrusleaf/aerolab/releases)
 
 ###### See [FUTURE.md](FUTURE.md) for future features list
 

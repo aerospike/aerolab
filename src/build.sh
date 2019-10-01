@@ -16,11 +16,10 @@ if [ $(basename $(pwd)) != "src" ]; then
 cd src || exit 1
 fi
 MPATH=$(pwd)
-env GOOS=linux GOARCH=amd64 go build -gcflags=-trimpath=$MPATH -asmflags=-trimpath=$MPATH -o ../bin/linux/aerolab
-env GOOS=darwin GOARCH=amd64 go build -gcflags=-trimpath=$MPATH -asmflags=-trimpath=$MPATH -o ../bin/osx/aerolab
+env GOOS=linux GOARCH=amd64 go build -gcflags=-trimpath=$MPATH -asmflags=-trimpath=$MPATH -o ../bin/aerolab-linux
+env GOOS=darwin GOARCH=amd64 go build -gcflags=-trimpath=$MPATH -asmflags=-trimpath=$MPATH -o ../bin/aerolab-osx
 cd ../bin || exit 1
-mkdir -p osx-aio
-cp osx/aerolab osx-aio/aerolab || exit 1
-echo -n ">>>>aerolab-osx-aio>>>>" >> osx-aio/aerolab
-cat linux/aerolab >> osx-aio/aerolab
-echo -n "<<<<aerolab-osx-aio" >> osx-aio/aerolab
+cp aerolab-osx aerolab-osx-aio || exit 1
+echo -n ">>>>aerolab-osx-aio>>>>" >> aerolab-osx-aio
+cat aerolab-linux >> aerolab-osx-aio || exit 1
+echo -n "<<<<aerolab-osx-aio" >> aerolab-osx-aio
