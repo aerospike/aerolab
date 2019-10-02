@@ -1,3 +1,6 @@
+#### 2.40
+* AWS auto-discovery of AMIs based on default region in ~/.aws/config
+
 #### 2.39
 * AWS updated AMIs
 
