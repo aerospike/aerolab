@@ -205,29 +205,31 @@ func (b b_aws) ClusterStart(name string, nodes []int) error {
 	stateCodes = append(stateCodes, int64(0), int64(16))
 	for _, reservation := range instances.Reservations {
 		for _, instance := range reservation.Instances {
-			var nodeNumber int
-			for _, tag := range instance.Tags {
-				if *tag.Key == "NodeNumber" {
-					nodeNumber, err = strconv.Atoi(*tag.Value)
-					if err != nil {
-						return errors.New("Problem with node numbers in the given cluster. Investigate manually.")
+			if *instance.State.Code != int64(48) {
+				var nodeNumber int
+				for _, tag := range instance.Tags {
+					if *tag.Key == "NodeNumber" {
+						nodeNumber, err = strconv.Atoi(*tag.Value)
+						if err != nil {
+							return errors.New("Problem with node numbers in the given cluster. Investigate manually.")
+						}
 					}
 				}
-			}
-			if inArray(nodes, nodeNumber) != -1 {
-				if instance.State.Code != &stateCodes[0] && instance.State.Code != &stateCodes[1] {
-					input := &ec2.StartInstancesInput{
-						InstanceIds: []*string{
-							aws.String(*instance.InstanceId),
-						},
-						DryRun: aws.Bool(false),
+				if inArray(nodes, nodeNumber) != -1 {
+					if instance.State.Code != &stateCodes[0] && instance.State.Code != &stateCodes[1] {
+						input := &ec2.StartInstancesInput{
+							InstanceIds: []*string{
+								aws.String(*instance.InstanceId),
+							},
+							DryRun: aws.Bool(false),
+						}
+						result, err := b.ec2svc.StartInstances(input)
+						if err != nil {
+							return errors.New(fmt.Sprintf("Error starting instance %s\n%s\n%s", *instance.InstanceId, result, err))
+						}
 					}
-					result, err := b.ec2svc.StartInstances(input)
-					if err != nil {
-						return errors.New(fmt.Sprintf("Error starting instance %s\n%s\n%s", *instance.InstanceId, result, err))
-					}
+					instList = append(instList, instance.InstanceId)
 				}
-				instList = append(instList, instance.InstanceId)
 			}
 		}
 	}
@@ -263,26 +265,28 @@ func (b b_aws) ClusterStop(name string, nodes []int) error {
 	var instList []*string
 	for _, reservation := range instances.Reservations {
 		for _, instance := range reservation.Instances {
-			var nodeNumber int
-			for _, tag := range instance.Tags {
-				if *tag.Key == "NodeNumber" {
-					nodeNumber, err = strconv.Atoi(*tag.Value)
-					if err != nil {
-						return errors.New("Problem with node numbers in the given cluster. Investigate manually.")
+			if *instance.State.Code != int64(48) {
+				var nodeNumber int
+				for _, tag := range instance.Tags {
+					if *tag.Key == "NodeNumber" {
+						nodeNumber, err = strconv.Atoi(*tag.Value)
+						if err != nil {
+							return errors.New("Problem with node numbers in the given cluster. Investigate manually.")
+						}
 					}
 				}
-			}
-			if inArray(nodes, nodeNumber) != -1 {
-				input := &ec2.StopInstancesInput{
-					InstanceIds: []*string{
-						aws.String(*instance.InstanceId),
-					},
-					DryRun: aws.Bool(false),
-				}
-				instList = append(instList, instance.InstanceId)
-				result, err := b.ec2svc.StopInstances(input)
-				if err != nil {
-					return errors.New(fmt.Sprintf("Error starting instance %s\n%s\n%s", *instance.InstanceId, result, err))
+				if inArray(nodes, nodeNumber) != -1 {
+					input := &ec2.StopInstancesInput{
+						InstanceIds: []*string{
+							aws.String(*instance.InstanceId),
+						},
+						DryRun: aws.Bool(false),
+					}
+					instList = append(instList, instance.InstanceId)
+					result, err := b.ec2svc.StopInstances(input)
+					if err != nil {
+						return errors.New(fmt.Sprintf("Error starting instance %s\n%s\n%s", *instance.InstanceId, result, err))
+					}
 				}
 			}
 		}
@@ -320,26 +324,28 @@ func (b b_aws) ClusterDestroy(name string, nodes []int) error {
 
 	for _, reservation := range instances.Reservations {
 		for _, instance := range reservation.Instances {
-			var nodeNumber int
-			for _, tag := range instance.Tags {
-				if *tag.Key == "NodeNumber" {
-					nodeNumber, err = strconv.Atoi(*tag.Value)
-					if err != nil {
-						return errors.New("Problem with node numbers in the given cluster. Investigate manually.")
+			if *instance.State.Code != int64(48) {
+				var nodeNumber int
+				for _, tag := range instance.Tags {
+					if *tag.Key == "NodeNumber" {
+						nodeNumber, err = strconv.Atoi(*tag.Value)
+						if err != nil {
+							return errors.New("Problem with node numbers in the given cluster. Investigate manually.")
+						}
 					}
 				}
-			}
-			if inArray(nodes, nodeNumber) != -1 {
-				instanceIds = append(instanceIds, instance.InstanceId)
-				input := &ec2.TerminateInstancesInput{
-					InstanceIds: []*string{
-						aws.String(*instance.InstanceId),
-					},
-					DryRun: aws.Bool(false),
-				}
-				result, err := b.ec2svc.TerminateInstances(input)
-				if err != nil {
-					return errors.New(fmt.Sprintf("Error starting instance %s\n%s\n%s", *instance.InstanceId, result, err))
+				if inArray(nodes, nodeNumber) != -1 {
+					instanceIds = append(instanceIds, instance.InstanceId)
+					input := &ec2.TerminateInstancesInput{
+						InstanceIds: []*string{
+							aws.String(*instance.InstanceId),
+						},
+						DryRun: aws.Bool(false),
+					}
+					result, err := b.ec2svc.TerminateInstances(input)
+					if err != nil {
+						return errors.New(fmt.Sprintf("Error starting instance %s\n%s\n%s", *instance.InstanceId, result, err))
+					}
 				}
 			}
 		}
