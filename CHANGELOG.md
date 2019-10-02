@@ -1,3 +1,6 @@
+#### 2.41
+* AWS support will now ignore instances in 'terminated' state, as it should
+
 #### 2.40
 * AWS auto-discovery of AMIs based on default region in ~/.aws/config
 
