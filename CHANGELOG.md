@@ -1,3 +1,6 @@
+#### 2.38
+* AWS backend - can now specify subnetID
+
 #### 2.37
 * fix issue with directory creation make-cluster
 

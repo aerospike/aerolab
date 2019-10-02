@@ -30,6 +30,14 @@ Otherwise, you can create a security group that will have access to all ports. T
 $ export aerolabSecurityGroupId=sg-940b23ef
 ```
 
+#### Optional: Environment variables: aws subnet ID to use
+
+Default: default
+
+```bash
+$ export aerolabSubnetId=subnet-944515d9
+```
+
 ## Deploy cluster in aws
 
 Name cluster 'robert', with 3 nodes, mesh (you must use mesh) and a t2.small with 10GB disk.
