@@ -885,7 +885,7 @@ func (b b_aws) killKey(clusterName string) (keyName string, keyPath string, err 
 }
 
 func (b b_aws) getAmi(filter string) (ami string, err error) {
-	out, err := exec.Command("aws", "ec2", "describe-images", "--owners 099720109477", "--filters", filter, "Name=state,Values=available", "--query", "reverse(sort_by(Images, &CreationDate))[:1].ImageId", "--output", "text").CombinedOutput()
+	out, err := exec.Command("aws", "ec2", "describe-images", "--owners", "099720109477", "--filters", filter, "Name=state,Values=available", "--query", "reverse(sort_by(Images, &CreationDate))[:1].ImageId", "--output", "text").CombinedOutput()
 	if err != nil {
 		return string(out), err
 	}
