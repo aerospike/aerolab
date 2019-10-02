@@ -893,11 +893,11 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 		}
 	}
 	ami := make(map[string]string)
-	ami["ubuntubionic"] = "ami-00035f41c82244dab"
-	ami["ubuntu18.04"] = "ami-00035f41c82244dab"
-	ami["ubuntu16.04"] = "ami-09f0b8b3e41191524"
-	ami["ubuntu14.04"] = "ami-02699dba41e68180a"
-	ami["ubuntu12.04"] = "ami-02699dba41e68180a"
+	ami["ubuntubionic"] = "ami-021225f6fa049d781"
+	ami["ubuntu18.04"] = "ami-021225f6fa049d781"
+	ami["ubuntu16.04"] = "ami-03ef731cc103c9f09"
+	ami["ubuntu14.04"] = "ami-059044979614b0a40"
+	ami["ubuntu12.04"] = "ami-059044979614b0a40"
 
 	// start VM
 	templateId := ami[fmt.Sprintf("%s%s", v.distroName, v.distroVersion)]
