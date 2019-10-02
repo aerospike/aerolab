@@ -1,3 +1,6 @@
+#### 2.39
+* AWS updated AMIs
+
 #### 2.38
 * AWS backend - can now specify subnetID
 
