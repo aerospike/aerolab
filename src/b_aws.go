@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -883,6 +884,14 @@ func (b b_aws) killKey(clusterName string) (keyName string, keyPath string, err 
 	return
 }
 
+func (b b_aws) getAmi(filter string) (ami string, err error) {
+	out, err := exec.Command("aws", "ec2", "describe-images", "--owners 099720109477", "--filters", filter, "Name=state,Values=available", "--query", "reverse(sort_by(Images, &CreationDate))[:1].ImageId", "--output", "text").CombinedOutput()
+	if err != nil {
+		return string(out), err
+	}
+	return strings.Trim(string(out), " \r\n"), nil
+}
+
 // deploy a template, naming it with version, running 'script' inside for installation and copying 'files' into it
 func (b b_aws) DeployTemplate(v version, script string, files []fileList) error {
 	keyName, keyPath, err := b.getKey("template")
@@ -893,11 +902,26 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 		}
 	}
 	ami := make(map[string]string)
-	ami["ubuntubionic"] = "ami-021225f6fa049d781"
-	ami["ubuntu18.04"] = "ami-021225f6fa049d781"
-	ami["ubuntu16.04"] = "ami-03ef731cc103c9f09"
-	ami["ubuntu14.04"] = "ami-059044979614b0a40"
-	ami["ubuntu12.04"] = "ami-059044979614b0a40"
+	ami["ubuntubionic"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-18.04-amd64-server-????????")
+	if err != nil {
+		return makeError("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntubionic"])
+	}
+	ami["ubuntu18.04"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-18.04-amd64-server-????????")
+	if err != nil {
+		return makeError("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntu18.04"])
+	}
+	ami["ubuntu16.04"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-16.04-amd64-server-????????")
+	if err != nil {
+		return makeError("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntu16.04"])
+	}
+	ami["ubuntu14.04"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-14.04-amd64-server-????????")
+	if err != nil {
+		return makeError("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntu14.04"])
+	}
+	ami["ubuntu12.04"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-14.04-amd64-server-????????")
+	if err != nil {
+		return makeError("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntu14.04"])
+	}
 
 	// start VM
 	templateId := ami[fmt.Sprintf("%s%s", v.distroName, v.distroVersion)]
