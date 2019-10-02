@@ -600,6 +600,10 @@ func (b b_aws) DeployCluster(v version, name string, nodeCount int, exposePorts 
 		input.DryRun = aws.Bool(false)
 		secgroupIds := os.Getenv("aerolabSecurityGroupId")
 		input.SecurityGroupIds = []*string{&secgroupIds}
+		subnetId := os.Getenv("aerolabSubnetId")
+		if subnetId != "" {
+			input.SubnetId = &subnetId
+		}
 		input.ImageId = aws.String(templateId)
 		input.InstanceType = aws.String(b.hostType)
 		var keyname string
@@ -956,8 +960,8 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
 	secgroupIds := os.Getenv("aerolabSecurityGroupId")
-	subnetId := os.Getenv("aerolabSubnetId")
 	input.SecurityGroupIds = []*string{&secgroupIds}
+	subnetId := os.Getenv("aerolabSubnetId")
 	if subnetId != "" {
 		input.SubnetId = &subnetId
 	}
