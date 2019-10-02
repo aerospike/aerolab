@@ -932,7 +932,11 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
 	secgroupIds := os.Getenv("aerolabSecurityGroupId")
+	subnetId := os.Getenv("aerolabSubnetId")
 	input.SecurityGroupIds = []*string{&secgroupIds}
+	if subnetId != "" {
+		input.SubnetId = &subnetId
+	}
 	input.DryRun = aws.Bool(false)
 	input.ImageId = aws.String(templateId)
 	input.InstanceType = aws.String("t2.micro")
