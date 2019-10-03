@@ -1,3 +1,8 @@
+#### 2.43
+* added message on conf-fix-mesh to inform user that aerospike must be restarted
+* handle invalid command line parameters without crashing
+* correctly identify latest version of aerospike/amc when asked to install latest
+
 #### 2.42
 * added -A to make-cluster, to allow for fix of access-address if using AWS backend
 

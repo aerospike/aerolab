@@ -3,14 +3,15 @@ package main
 import (
 	"errors"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/bestmethod/go-logger"
 	"os"
 	"os/user"
 	"path"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/BurntSushi/toml"
+	Logger "github.com/bestmethod/go-logger"
 )
 
 func main() {
@@ -74,6 +75,11 @@ func (c *config) main() int {
 }
 
 func (c *config) parseCommandLineParameters(startOffset int, ignoreOffsets []int) (commandOffset int, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			c.log.Fatalf(999, "Invalid command line parameters")
+		}
+	}()
 	for i := startOffset; i < len(os.Args); i++ {
 		if inArray(ignoreOffsets, i) > -1 {
 			continue
