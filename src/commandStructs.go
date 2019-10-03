@@ -315,6 +315,7 @@ type makeClusterStruct struct {
 	MulticastPort           string `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	AutoStartAerospike      string `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
 	ExposePortsToHost       string `short:"h" long:"expose-ports" description:"Only on docker, if a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
+	PublicIP                int    `short:"A" long:"aws-public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections" default:"0" type:"bool"`
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker|lxc)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
 	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`
