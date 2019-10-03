@@ -40,16 +40,24 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 		if err != nil {
 			return "", "", err
 		}
+		ver := ""
 		for _, line := range strings.Split(string(responseData), "\n") {
 			if strings.Contains(line, "folder.gif") {
 				rp := regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+[\.]*[0-9]*`)
-				if version[len(version)-1] != 'c' {
-					version = rp.FindString(line)
+				nver := rp.FindString(line)
+				if ver == "" {
+					ver = nver
 				} else {
-					version = rp.FindString(line) + "c"
+					if VersionOrdinal(nver) > VersionOrdinal(ver) {
+						ver = nver
+					}
 				}
-				break
 			}
+		}
+		if version[len(version)-1] != 'c' {
+			version = ver
+		} else {
+			version = ver + "c"
 		}
 	}
 
@@ -221,4 +229,33 @@ func fixAerospikeConfig(conf string, mgroup string, mesh string, mesh_ip_list []
 		newconf = conf
 	}
 	return newconf, nil
+}
+
+func VersionOrdinal(version string) string {
+	// ISO/IEC 14651:2011
+	const maxByte = 1<<8 - 1
+	vo := make([]byte, 0, len(version)+8)
+	j := -1
+	for i := 0; i < len(version); i++ {
+		b := version[i]
+		if '0' > b || b > '9' {
+			vo = append(vo, b)
+			j = -1
+			continue
+		}
+		if j == -1 {
+			vo = append(vo, 0x00)
+			j = len(vo) - 1
+		}
+		if vo[j] == 1 && vo[j+1] == '0' {
+			vo[j+1] = b
+			continue
+		}
+		if vo[j]+1 > maxByte {
+			panic("VersionOrdinal: invalid version")
+		}
+		vo = append(vo, b)
+		vo[j]++
+	}
+	return string(vo)
 }

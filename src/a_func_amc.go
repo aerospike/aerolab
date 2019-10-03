@@ -35,16 +35,25 @@ func aeroFindUrlAmc(version string, user string, pass string) (url string, v str
 		if err != nil {
 			return "", "", err
 		}
+
+		ver := ""
 		for _, line := range strings.Split(string(responseData), "\n") {
 			if strings.Contains(line, "folder.gif") {
 				rp := regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+[\.]*[0-9]*`)
-				if version[len(version)-1] != 'c' {
-					version = rp.FindString(line)
+				nver := rp.FindString(line)
+				if ver == "" {
+					ver = nver
 				} else {
-					version = rp.FindString(line) + "c"
+					if VersionOrdinal(nver) > VersionOrdinal(ver) {
+						ver = nver
+					}
 				}
-				break
 			}
+		}
+		if version[len(version)-1] != 'c' {
+			version = ver
+		} else {
+			version = ver + "c"
 		}
 	}
 

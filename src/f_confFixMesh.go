@@ -74,6 +74,7 @@ func (c *config) F_confFixMesh() (err error, ret int64) {
 	}
 
 	// done
+	c.log.Info("Conf fixed, be aware you may need to restart Aerospike on the affected nodes for the changes to take effect")
 	c.log.Info(INFO_DONE)
 	return
 }
