@@ -356,6 +356,46 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 		}
 	}
 
+	// aws-public-ip
+	if c.ClusterGrow.PublicIP == 1 {
+		var systemdScript fileList
+		var accessAddressScript fileList
+		systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
+		systemdScript.fileContents = []byte(`[Unit]
+		Description=Fix Aerospike access-address and alternate-access-address
+		RequiredBy=aerospike.service
+		Before=aerospike.service
+				
+		[Service]
+		Type=oneshot
+		ExecStart=/bin/bash /usr/local/bin/aerospike-access-address.sh
+				
+		[Install]
+		WantedBy=multi-user.target`)
+		accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
+		accessAddressScript.fileContents = []byte(`grep 'alternate-access-address' /etc/aerospike/aerospike.conf
+if [ $? -ne 0 ]
+then
+sed -i 's/address any/address any\naccess-address\nalternate-access-address\n/g' /etc/aerospike/aerospike.conf
+fi
+sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/meta-data/local-ipv4)/g" -e "s/alternate-access-address.*/alternate-access-address $(curl http://169.254.169.254/latest/meta-data/public-ipv4)/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
+`)
+		err = b.CopyFilesToCluster(c.ClusterGrow.ClusterName, []fileList{systemdScript, accessAddressScript}, nodeList)
+		if err != nil {
+			ret = E_MAKECLUSTER_START
+			return makeError("Could not make access-address script in aws: %s", err), ret
+		}
+		bouta, err := b.RunCommand(c.ClusterGrow.ClusterName, [][]string{[]string{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, []string{"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, []string{"systemctl", "daemon-reload"}, []string{"systemctl", "enable", "aerospike-access-address.service"}, []string{"service", "aerospike-access-address", "start"}}, nodeList)
+		if err != nil {
+			ret = E_MAKECLUSTER_START
+			nstr := ""
+			for _, bout := range bouta {
+				nstr = fmt.Sprintf("%s\n%s", nstr, string(bout))
+			}
+			return makeError("Could not register access-address script in aws: %s\n%s", err, nstr), ret
+		}
+	}
+
 	// start cluster
 	if c.ClusterGrow.AutoStartAerospike == "y" {
 		var comm [][]string

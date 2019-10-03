@@ -1,3 +1,6 @@
+#### 2.42
+* added -A to make-cluster, to allow for fix of access-address if using AWS backend
+
 #### 2.41
 * AWS support will now ignore instances in 'terminated' state, as it should
 
