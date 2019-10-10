@@ -14,7 +14,7 @@ Once you deploy, and configure your MAC (should be about 5 minutes work,  out of
 
 1. Ensure you have no other containers running (i.e. all are stopped)
 2. Download this repo
-3. cd tunnel-container
+3. cd tunnel-container-openssh-proxycap
 4. chmod 755 *sh && ./RUNME.sh
 
 ## Allowing your MAC to use the tunnel
