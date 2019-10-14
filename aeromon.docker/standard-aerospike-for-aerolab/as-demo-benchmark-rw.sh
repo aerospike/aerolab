@@ -1,0 +1,27 @@
+#!/bin/bash
+
+PATH=$PATH:.
+
+HOST=172.17.0.3
+NAMESPACE=device
+KEYS=100000
+BIN_COUNT=3
+RATE=100
+OBJECT_SPEC1=I
+OBJECT_SPEC2=B:50
+OBJECT_SPEC3=S:25
+THREADS=32
+
+
+run_benchmarks \
+	-h $HOST \
+	-p 3000 \
+	-n $NAMESPACE \
+	-k $KEYS \
+	-b $BIN_COUNT \
+	-o $OBJECT_SPEC1 \
+	-o $OBJECT_SPEC2 \
+	-o $OBJECT_SPEC3 \
+        -g $RATE
+	-w RU,25 \
+	-z $THREADS
