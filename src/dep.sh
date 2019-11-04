@@ -1,9 +1,9 @@
-go get github.com/BurntSushi/toml
-go get github.com/aerospike/aerospike-client-go
-go get github.com/aws/aws-sdk-go/aws
-go get github.com/aws/aws-sdk-go/aws/session
-go get github.com/aws/aws-sdk-go/service/ec2
-go get github.com/bestmethod/go-logger
-go get github.com/kballard/go-shellquote
-go get golang.org/x/crypto/ssh
-go get golang.org/x/crypto/ssh/terminal
+go get -u github.com/BurntSushi/toml
+go get -u github.com/aerospike/aerospike-client-go
+go get -u github.com/aws/aws-sdk-go/aws
+go get -u github.com/aws/aws-sdk-go/aws/session
+go get -u github.com/aws/aws-sdk-go/service/ec2
+go get -u github.com/bestmethod/go-logger
+go get -u github.com/kballard/go-shellquote
+go get -u golang.org/x/crypto/ssh
+go get -u golang.org/x/crypto/ssh/terminal
