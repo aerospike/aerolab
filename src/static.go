@@ -4,13 +4,13 @@ var loggerServiceName = "AERO-LAB"
 var loggerHeader = ""
 
 var aerospikeInstallScript = map[string]string{
-	"ubuntu": `apt-get update && apt-get -y install python3-distutils; apt-get update && apt-get -y install iptables wget dnsutils tcpdump python net-tools vim binutils iproute2 python3 && wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz && tar -zxvf tc.tar.gz && mv tcconfig-ubuntu-venv-tc /tcconfig && cd /root && tar -zxf installer.tgz && cd aerospike-server-* && ./asinstall && apt-get -y install libldap-2.4-2; apt -y --fix-broken install; apt-get -y install libldap-2.4-2`,
+	"ubuntu": `apt-get update && apt-get -y install python3-distutils; apt-get -y install python3-setuptools; apt-get update && apt-get -y install iptables wget dnsutils tcpdump python net-tools vim binutils iproute2 python3 && wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz && tar -zxvf tc.tar.gz && mv tcconfig-ubuntu-venv-tc /tcconfig && cd /root && tar -zxf installer.tgz && cd aerospike-server-* && ./asinstall && apt-get -y install libldap-2.4-2; apt -y --fix-broken install; apt-get -y install libldap-2.4-2`,
 	"el":     `yum -y update && yum -y install iptables wget tcpdump dnsutils python which binutils iproute iproute-tc centos-release-scl && yum install -y rh-python36 && cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall`,
 	//"el":     `yum -y update && yum -y install iptables wget tcpdump dnsutils python which binutils iproute iproute-tc centos-release-scl && yum install -y rh-python36 && scl enable rh-python36 bash && pip3 install tcconfig && cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall`,
 }
 
 var aerospikeInstallScriptDocker = map[string]string{
-	"ubuntu": `apt-get update && apt-get -y install python3-distutils; apt-get update && apt-get -y install iptables wget dnsutils tcpdump python net-tools vim binutils iproute2 python3 && wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz && tar -zxvf tc.tar.gz && mv /tcconfig-ubuntu-venv-tc /tcconfig && cd /root && tar -zxf installer.tgz && cd aerospike-server-* && ./asinstall && apt-get -y install libldap-2.4-2; apt -y --fix-broken install; apt-get -y install libldap-2.4-2; cat <<'EOF' > /etc/init.d/aerospike
+	"ubuntu": `apt-get update && apt-get -y install python3-distutils; apt-get -y install python3-setuptools; apt-get update && apt-get -y install iptables wget dnsutils tcpdump python net-tools vim binutils iproute2 python3 && wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz && tar -zxvf tc.tar.gz && mv /tcconfig-ubuntu-venv-tc /tcconfig && cd /root && tar -zxf installer.tgz && cd aerospike-server-* && ./asinstall && apt-get -y install libldap-2.4-2; apt -y --fix-broken install; apt-get -y install libldap-2.4-2; cat <<'EOF' > /etc/init.d/aerospike
 #!/bin/sh
 # Start/stop the aerospike daemon.
 #

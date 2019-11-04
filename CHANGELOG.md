@@ -1,3 +1,7 @@
+#### 2.44
+* attempt to install python3-setuptools as well as python3-distutils - because ubuntu loves making changes
+* updated dependency versions and aerospike library to latest
+
 #### 2.43
 * added message on conf-fix-mesh to inform user that aerospike must be restarted
 * handle invalid command line parameters without crashing
