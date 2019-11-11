@@ -144,7 +144,11 @@ func (b b_aws) GetNodeIpMap(name string) (map[int]string, error) {
 						}
 					}
 				}
-				nodeList[nodeNumber] = *instance.PublicIpAddress
+				if instance.PublicIpAddress != nil {
+					nodeList[nodeNumber] = *instance.PublicIpAddress
+				} else {
+					nodeList[nodeNumber] = "N/A"
+				}
 			}
 		}
 	}
