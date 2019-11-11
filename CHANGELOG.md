@@ -1,3 +1,6 @@
+#### 2.45
+* AWS BACKEND FIX - small bug when dealing with IP address of nodes
+
 #### 2.44
 * attempt to install python3-setuptools as well as python3-distutils - because ubuntu loves making changes
 * updated dependency versions and aerospike library to latest
