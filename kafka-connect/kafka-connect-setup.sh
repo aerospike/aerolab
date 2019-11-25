@@ -119,11 +119,4 @@ done
 
 docker-compose up -d
 echo "Kafka / kafka-connect & zookeeper initialized"
-# docker-compose up --scale kafka=3 -d
-# echo "Kafka scaled to 3 nodes"
-
-
-#echo "Prometheus / Grafana containers created"
-#echo
-#echo "You should find your Grafana dashboards on localhost:3000"
-#echo "and your Prometheus endpoint at localhost:9090"
+echo See README for further instructions
