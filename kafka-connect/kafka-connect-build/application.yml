@@ -1,0 +1,12 @@
+connector:
+  format: json
+  routing:
+    topic: aerospike
+    mode: static
+  kafka:
+    bootstrapServers:
+      - kafka:9092
+    producerPoolSize: 1
+  ticker:
+    enabled: true
+    period: 10s
