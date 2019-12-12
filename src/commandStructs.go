@@ -44,6 +44,7 @@ type config struct {
 	InsertData       insertDataStruct         `type:"command" name:"insert-data" method:"F_insertData" description:"Insert data into a cluster"`
 	Help             int                      `type:"command" name:"help" method:"F_help" description:"This help screen"`
 	Version          interactiveStruct        `type:"command" name:"version" method:"F_version" description:"Display version information"`
+	StarWars         interactiveStruct        `type:"command" name:"star-wars" method:"F_starwars" description:"Plays Star Wars IV (A New Hope) through telnet (your fw must allow port 23 out)"`
 	WebInterface     webInterfaceStruct       `type:"command" name:"web-interface" method:"F_webserver" description:"Launch a web interface (webserver) so you can run your aerolab tasks from the browser"`
 	Common           commonConfigStruct
 	tail             []string

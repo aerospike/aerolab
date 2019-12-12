@@ -9,13 +9,27 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	Logger "github.com/bestmethod/go-logger"
+	"github.com/reiver/go-telnet"
 )
 
 func main() {
 	var c config
+	if len(os.Args) == 2 && os.Args[1] == "excuse" {
+		go func() {
+			time.Sleep(1 * time.Second)
+			os.Exit(1)
+		}()
+		var caller telnet.Caller = telnet.StandardCaller
+		errtel := telnet.DialToAndCall("towel.blinkenlights.nl:666", caller)
+		if errtel != nil {
+			panic(errtel)
+		}
+		return
+	}
 	if err := c.log.Init(loggerHeader, loggerServiceName, Logger.LEVEL_DEBUG|Logger.LEVEL_INFO|Logger.LEVEL_WARN, Logger.LEVEL_ERROR|Logger.LEVEL_CRITICAL, Logger.LEVEL_NONE); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, ERR_MAIN_LOGGER, err)
 		os.Exit(E_MAIN_LOGGER)

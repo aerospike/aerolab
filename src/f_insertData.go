@@ -31,7 +31,7 @@ func (c *config) F_insertData() (err error, ret int64) {
 			return makeError("insert-data: error running stat self: %s", err), E_BACKEND_ERROR
 		}
 		size := fi.Size()
-		if size > 40*1024*1024 { // if file bigger than 40 MB, this will be aio version
+		if size > 10*1024*1024 { // if file bigger than 10 MB, this will be aio version
 			file, err := os.Open(myBinary)
 			if err != nil {
 				return makeError("insert-data: error opening self for reading: %s", err), E_BACKEND_ERROR

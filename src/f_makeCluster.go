@@ -13,6 +13,21 @@ import (
 
 func (c *config) F_makeCluster() (err error, ret int64) {
 
+	if c.MakeCluster.NodeCount == 999 || c.MakeCluster.NodeCount == 911 {
+		fmt.Println("Contact rglonek@aerospike.com  and watch funny cat videos while you wait for response: https://www.youtube.com/watch?v=WEkSYw3o5is")
+		os.Exit(111)
+	} else if c.MakeCluster.NodeCount == 666 {
+		fmt.Println("It's not THAT bad! Here, listen to this song: https://www.youtube.com/watch?v=jHPOzQzk9Qo")
+		os.Exit(111)
+	} else if c.MakeCluster.NodeCount == 42 {
+		fmt.Println("42: The answer to life the universe and everything")
+	} else if c.MakeCluster.NodeCount == 5318008 || c.MakeCluster.NodeCount == 80085 {
+		fmt.Println("Grow up!")
+		os.Exit(111)
+	} else if c.MakeCluster.NodeCount == 7 {
+		fmt.Println("7: My lucky Number!")
+	}
+
 	err, ret = chDir(c.MakeCluster.ChDir)
 	if err != nil {
 		return err, ret
