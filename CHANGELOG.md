@@ -1,3 +1,7 @@
+#### 2.46
+* minor bugfixes
+* shruink binary size to 12MB from 56MB
+
 #### 2.45
 * AWS BACKEND FIX - small bug when dealing with IP address of nodes
 
