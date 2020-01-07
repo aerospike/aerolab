@@ -25,6 +25,13 @@ $ rm templates/ldap_custom.conf
 $ aerolab node-attach -n ldap -- aql --auth EXTERNAL_INSECURE -Ubadwan -Pblastoff -c "show bins"
 ```
 
+### Add query-user-dn and query-user-password-file if aerospike roles permissions are needed
+
+        ```
+        query-user-dn cn=admin,dc=aerospike,dc=com
+        query-user-password-file /tmp/password.txt
+        ```
+
 ### Remove cluster
 
 ```bash
