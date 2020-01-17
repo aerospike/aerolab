@@ -1,3 +1,9 @@
+#### 2.48
+* fixed -u switch in insert-data
+
+#### 2.47
+* fixed setting correct writepolicy on aerospike insertData
+
 #### 2.46
 * minor bugfixes
 * shruink binary size to 12MB from 56MB
