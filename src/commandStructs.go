@@ -96,7 +96,7 @@ type insertDataStruct struct {
 	PkEndNumber             int    `short:"z" long:"pk-end-number" description:"The end ID of the unique PK names" default:"1000"`
 	ReadAfterWrite          int    `short:"f" long:"read-after-write" description:"Should we read (get) after write. Set -f 1" default:"0" type:"bool"`
 	RunDirect               int    `short:"d" long:"run-direct" description:"If set, will ignore backend, cluster name and node ID and connect to SeedNode directly from running machine. To enable: -d 1" default:"0" type:"bool"`
-	UseMultiThreaded        int    `short:"u" long:"multi-thread" description:"If set, will use multithreading. Set to the number of threads you want processing." default:"0" type:"bool"`
+	UseMultiThreaded        int    `short:"u" long:"multi-thread" description:"If set, will use multithreading. Set to the number of threads you want processing." default:"0"`
 	UserPassword            string `short:"q" long:"userpass" description:"If set, will use this user-pass to authenticate to aerospike cluster. Format: username:password" default:""`
 	TlsCaCert               string `short:"y" long:"tls-ca-cert" description:"Tls CA certificate path" default:""`
 	TlsClientCert           string `short:"w" long:"tls-client-cert" description:"Tls client cerrtificate path" default:""`

@@ -335,18 +335,17 @@ func (c *config) F_insertData_perform(i int, client *as.Client) (err error, ret 
 		return errors.New(fmt.Sprintf("insert-data: as.NewKey error: %s", err)), 1
 	}
 	realBin := as.NewBin(bin, binc)
-
 	nkey := key
 	nbin := realBin
-	wp := as.WritePolicy{}
+	wp := as.NewWritePolicy(0, as.TTLServerDefault)
 	wp.TotalTimeout = time.Second * 5
 	wp.SocketTimeout = 0
 	wp.MaxRetries = 2
-	erra := client.PutBins(&wp, nkey, nbin)
+	erra := client.PutBins(wp, nkey, nbin)
 	for erra != nil {
 		if strings.Contains(fmt.Sprint(erra), "i/o timeout") || strings.Contains(fmt.Sprint(erra), "command execution timed out on client") {
 			time.Sleep(100 * time.Millisecond)
-			erra = client.PutBins(&wp, nkey, nbin)
+			erra = client.PutBins(wp, nkey, nbin)
 			if erra != nil {
 				c.log.Info("Client.Put error, giving up: %s", erra)
 			}
