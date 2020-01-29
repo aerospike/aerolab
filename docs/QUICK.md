@@ -22,12 +22,24 @@ $ cat ~/aero-lab-common.conf
 Username="USER"
 Password="PASS"
 ```
+Also, need a features.conf file, which internally you can get from https://newkey.aerospike.com/gen/ Otherwise, you get an error:
+
+```bash
+      Jan 29 19:14:55+0000 AERO-LAB[3224]: WARN     WARNING: you are attempting to install version 4.6+ and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or inside your ~/aero-lab-common.conf
+```
 
 #### Use it forever
 
 ##### 1. Start docker if not running on your mac
 
 ##### 2. Run aerolab and be happy
+
+Give me a hint how to run aerolab here.
+Simply typing ./aerolab fails because there is no command:
+```bash
+aerolab % /Users/alexlange/Desktop/aerolab/aerolab-osx-aio            
+Jan 29 19:12:39+0000 AERO-LAB[3167]: INFO     No command specified. Try running: /Users/alexlange/Desktop/aerolab/aerolab-osx-aio help
+```
 
 ###### Deploy a cluster called 'testme' with 5 nodes and using mesh
 ```
