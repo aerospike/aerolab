@@ -15,7 +15,10 @@
 $ chmod 755 aerolab
 ```
 
-##### 6. Create a 'common' config file so we don't have to type in the username and password for downloads all the time when making clusters (aerospike enterprise download password)
+##### 6. Create a 'common' config file
+
+###### you need this for downloads of versions below 4.6 only
+
 ```bash
 $ cat ~/aero-lab-common.conf 
 [Common]
@@ -23,11 +26,24 @@ Username="USER"
 Password="PASS"
 ```
 
+###### you need this for downloads of versions 4.6+ instead for licensing purposes
+```bash
+$ cat ~/aero-lab-common.conf 
+[Common]
+FeaturesFilePath="/path/to/your/features.conf"
+```
+
+###### NOTE: you can have both, user/pass and features file in the config file, this will allow downloads and use of all versions
+
 #### Use it forever
 
 ##### 1. Start docker if not running on your mac
 
 ##### 2. Run aerolab and be happy
+
+```
+$ ./aerolab help
+```
 
 ###### Deploy a cluster called 'testme' with 5 nodes and using mesh
 ```
