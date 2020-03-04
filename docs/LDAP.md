@@ -20,6 +20,13 @@ $ aerolab make-cluster -n ldap -c 2 -o templates/ldap_custom.conf -f features.co
 $ rm templates/ldap_custom.conf
 ```
 
+Add password file for ldap query user on each container:
+
+```bash
+docker exec -ti aero-ldap_1 bash -c 'echo -n "admin" > /tmp/password.txt'
+docker exec -ti aero-ldap_2 bash -c 'echo -n "admin" > /tmp/password.txt'
+```
+
 ### Test that the connection is working
 ```bash
 $ aerolab node-attach -n ldap -- aql --auth EXTERNAL_INSECURE -Ubadwan -Pblastoff -c "show bins"
