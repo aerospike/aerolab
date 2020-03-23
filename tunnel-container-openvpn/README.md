@@ -27,7 +27,7 @@ Once you deploy, and configure your MAC (should be about 5 minutes work,  out of
 6. Close the Tunnelblick window
 
 ## Allowing your Windows to use the tunnel
-1. Download OpenVPN from [here](https://openvpn.net/client-connect-vpn-for-windows/) (if you VPN to MV office, you should already have it)
+1. Download OpenVPN Connect from [here](https://openvpn.net/client-connect-vpn-for-windows/) (if you VPN to MV office, you should already have it)
 2. Click the Plus button
 3. Click "Import from file"
 4. Rename `tunnel-container-openvpn/build-run/keys/client.conf` to `tunnel-container-openvpn/build-run/keys/client.ovpn`
