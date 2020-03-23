@@ -26,6 +26,14 @@ Once you deploy, and configure your MAC (should be about 5 minutes work,  out of
 5. Choose either "Only Me" or "All Users", not really important
 6. Close the Tunnelblick window
 
+## Allowing your Windows to use the tunnel
+1. Download OpenVPN from [here](https://openvpn.net/client-connect-vpn-for-windows/) (if you VPN to MV office, you should already have it)
+2. Click the Plus button
+3. Click "Import from file"
+4. Rename `tunnel-container-openvpn/build-run/keys/client.conf` to `tunnel-container-openvpn/build-run/keys/client.ovpn`
+5. Drag-drop `tunnel-container-openvpn/build-run/keys/client.ovpn` into the window and click "Add"
+6. Connect VPN
+
 And that's it, from now on, every time you start docker on mac/windows, this special container will auto-start (you never need to run RUNME.sh or any such thing again).
 
 ## Usage following installation
