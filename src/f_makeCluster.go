@@ -17,7 +17,7 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 		fmt.Println("Contact rglonek@aerospike.com  and watch funny cat videos while you wait for response: https://www.youtube.com/watch?v=WEkSYw3o5is")
 		os.Exit(111)
 	} else if c.MakeCluster.NodeCount == 666 {
-		fmt.Println("It's not THAT bad! Here, listen to this song: https://www.youtube.com/watch?v=jHPOzQzk9Qo")
+		fmt.Println("It's not THAT bad! Here, listen to this song: https://www.youtube.com/watch?v=kE186w91YVU")
 		os.Exit(111)
 	} else if c.MakeCluster.NodeCount == 42 {
 		fmt.Println("42: The answer to life the universe and everything")
