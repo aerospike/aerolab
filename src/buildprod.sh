@@ -10,6 +10,7 @@ go get -u "github.com/kballard/go-shellquote"
 go get -u "github.com/BurntSushi/toml"
 go get -u "golang.org/x/crypto/ssh"
 go get -u "golang.org/x/crypto/ssh/terminal"
+go get -u "github.com/reiver/go-telnet"
 
 fi
 
