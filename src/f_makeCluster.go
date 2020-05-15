@@ -475,5 +475,8 @@ func checkUbuntuAerospikeVersion(aeroVer string) []string {
 	if a == 4 && b >= 2 {
 		return []string{"18.04", "16.04", "14.04"}
 	}
+	if a == 5 {
+		return []string{"18.04", "16.04", "14.04"}
+	}
 	return []string{}
 }
