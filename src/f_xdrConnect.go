@@ -69,6 +69,13 @@ xdr {
 
 }
 `
+	if c.XdrConnect.Xdr5 == 1 {
+		xdr_stanza = `
+xdr {
+
+}
+`
+	}
 
 	_, err = b.RunCommand(c.XdrConnect.SourceClusterName, [][]string{[]string{"mkdir", "-p", "/opt/aerospike/xdr"}}, sourceNodeList)
 	if err != nil {
@@ -96,6 +103,12 @@ xdr {
 		}
 
 		//find start and end of xdr stanza, find configured DCs
+		dcStanzaName := "datacenter"
+		nodeAddressPort := "dc-node-address-port"
+		if c.XdrConnect.Xdr5 == 1 {
+			dcStanzaName = "dc"
+			nodeAddressPort = "node-address-port"
+		}
 		xdr_start := -1
 		xdr_end := -1
 		lvl := 0
@@ -109,10 +122,10 @@ xdr {
 			} else if strings.Contains(confs[i], "}") && xdr_start != -1 {
 				lvl = lvl - strings.Count(confs[i], "}")
 			}
-			if strings.Contains(confs[i], "datacenter ") && xdr_start != -1 && strings.HasSuffix(confs[i], "{") {
+			if strings.Contains(confs[i], dcStanzaName+" ") && xdr_start != -1 && strings.HasSuffix(confs[i], "{") {
 				tmp := strings.Split(confs[i], " ")
 				for j := 0; j < len(tmp); j++ {
-					if strings.Contains(tmp[j], "datacenter") {
+					if strings.Contains(tmp[j], dcStanzaName) {
 						xdr_dcs = append(xdr_dcs, tmp[j+1])
 						break
 					}
@@ -126,6 +139,7 @@ xdr {
 
 		//filter to find which DCs we need to add only, build DC "add string"
 		dc_to_add := ""
+		dc2namespace := make(map[string][]string)
 		for i := 0; i < len(destinations); i++ {
 			found := destinations[i]
 			for _, k := range xdr_dcs {
@@ -135,10 +149,21 @@ xdr {
 				}
 			}
 			if found != "" {
-				dc_to_add = dc_to_add + fmt.Sprintf("\n\tdatacenter %s {\n", found)
+				dc_to_add = dc_to_add + fmt.Sprintf("\n\t%s %s {\n", dcStanzaName, found)
 				dst_cluster_ips := destIpList[found]
 				for j := 0; j < len(dst_cluster_ips); j++ {
-					dc_to_add = dc_to_add + fmt.Sprintf("\t\tdc-node-address-port %s 3000\n", dst_cluster_ips[j])
+					dc_to_add = dc_to_add + fmt.Sprintf("\t\t%s %s 3000\n", nodeAddressPort, dst_cluster_ips[j])
+					if c.XdrConnect.Xdr5 == 1 {
+						if _, ok := dc2namespace[found]; !ok {
+							dc2namespace[found] = []string{}
+						}
+						for _, nspace := range namespaces {
+							if inArray(dc2namespace[found], nspace) == -1 {
+								dc2namespace[found] = append(dc2namespace[found], nspace)
+								dc_to_add = dc_to_add + fmt.Sprintf("\t\tnamespace %s {\n\t\t}\n", nspace)
+							}
+						}
+					}
 				}
 				dc_to_add = dc_to_add + "\t}\n"
 			}
@@ -153,56 +178,58 @@ xdr {
 		}
 		confsx = append(confsx, confsy...)
 
-		//now latest config is in confsx
-		//update namespaces to enable XDR in them
-		for i := 0; i < len(namespaces); i++ {
-			nsname := ""
-			nsloc := -1
-			lvl := 0
-			has_enable_xdr := false
-			var has_dc_list []string
-			for j := 0; j < len(confsx); j++ {
-				if strings.HasPrefix(confsx[j], "namespace ") {
-					nsloc = j
-					atmp := strings.Split(confsx[j], " ")
-					nsname = atmp[1]
-					lvl = 1
-				} else if strings.Contains(confsx[j], "{") && nsloc != -1 {
-					lvl = lvl + strings.Count(confsx[j], "{")
-				} else if strings.Contains(confsx[j], "}") && nsloc != -1 {
-					lvl = lvl - strings.Count(confsx[j], "}")
-				} else if (strings.Contains(confsx[j], "enable-xdr true") && strings.Contains(confsx[j], "-enable-xdr true") == false) && nsloc != -1 && namespaces[i] == nsname {
-					has_enable_xdr = true
-				} else if strings.Contains(confsx[j], "xdr-remote-datacenter ") && nsloc != -1 && namespaces[i] == nsname {
-					tmp := strings.Split(confsx[j], " ")
-					for k := 0; k < len(tmp); k++ {
-						if strings.Contains(tmp[k], "xdr-remote-datacenter") {
-							has_dc_list = append(has_dc_list, tmp[k+1])
-							break
-						}
-					}
-				}
-				if lvl == 0 && nsloc != -1 && nsname == namespaces[i] {
-					//if has_enable_xdr is false, add that after confsx[nsloc]
-					if has_enable_xdr == false {
-						confsx[nsloc] = confsx[nsloc] + "\nenable-xdr true"
-					}
-					//for each dc, if not found in has_dc_list, add like above, as remote-datacenter
-					for k := 0; k < len(destinations); k++ {
-						found := false
-						for _, l := range has_dc_list {
-							if destinations[k] == l {
-								found = true
+		if c.XdrConnect.Xdr5 == 0 {
+			//now latest config is in confsx
+			//update namespaces to enable XDR in them
+			for i := 0; i < len(namespaces); i++ {
+				nsname := ""
+				nsloc := -1
+				lvl := 0
+				has_enable_xdr := false
+				var has_dc_list []string
+				for j := 0; j < len(confsx); j++ {
+					if strings.HasPrefix(confsx[j], "namespace ") {
+						nsloc = j
+						atmp := strings.Split(confsx[j], " ")
+						nsname = atmp[1]
+						lvl = 1
+					} else if strings.Contains(confsx[j], "{") && nsloc != -1 {
+						lvl = lvl + strings.Count(confsx[j], "{")
+					} else if strings.Contains(confsx[j], "}") && nsloc != -1 {
+						lvl = lvl - strings.Count(confsx[j], "}")
+					} else if (strings.Contains(confsx[j], "enable-xdr true") && strings.Contains(confsx[j], "-enable-xdr true") == false) && nsloc != -1 && namespaces[i] == nsname {
+						has_enable_xdr = true
+					} else if strings.Contains(confsx[j], "xdr-remote-datacenter ") && nsloc != -1 && namespaces[i] == nsname {
+						tmp := strings.Split(confsx[j], " ")
+						for k := 0; k < len(tmp); k++ {
+							if strings.Contains(tmp[k], "xdr-remote-datacenter") {
+								has_dc_list = append(has_dc_list, tmp[k+1])
+								break
 							}
 						}
-						if found == false {
-							confsx[nsloc] = confsx[nsloc] + fmt.Sprintf("\nxdr-remote-datacenter %s", destinations[k])
-						}
 					}
-					has_dc_list = has_dc_list[:0]
-					nsloc = -1
-					nsname = ""
-					has_enable_xdr = false
+					if lvl == 0 && nsloc != -1 && nsname == namespaces[i] {
+						//if has_enable_xdr is false, add that after confsx[nsloc]
+						if has_enable_xdr == false {
+							confsx[nsloc] = confsx[nsloc] + "\nenable-xdr true"
+						}
+						//for each dc, if not found in has_dc_list, add like above, as remote-datacenter
+						for k := 0; k < len(destinations); k++ {
+							found := false
+							for _, l := range has_dc_list {
+								if destinations[k] == l {
+									found = true
+								}
+							}
+							if found == false {
+								confsx[nsloc] = confsx[nsloc] + fmt.Sprintf("\nxdr-remote-datacenter %s", destinations[k])
+							}
+						}
+						has_dc_list = has_dc_list[:0]
+						nsloc = -1
+						nsname = ""
+						has_enable_xdr = false
+					}
 				}
 			}
 		}

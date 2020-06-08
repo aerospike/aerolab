@@ -187,6 +187,7 @@ type netControlStruct struct {
 type xdrConnectStruct struct {
 	SourceClusterName       string `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
 	DestinationClusterNames string `short:"d" long:"destinations" description:"Destination Cluster names, comma separated." default:"mydc-xdr"`
+	Xdr5                    int    `short:"5" long:"version5" description:"if specified, will use xdr version 5 configuration specification" default:"0" type:"bool"`
 	Namespaces              string `short:"m" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker|lxc)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
