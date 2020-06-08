@@ -1,3 +1,10 @@
+#### 2.49
+* added 'latest' recognition fix for aerospike version 5
+* insert-data multithread switch fix
+* add OS discovery for aerospike 5+
+* fix links in aerolab downloads
+* NEW: xdr-connect supports xdr in asd v5+, using the '-1' switch
+
 #### 2.48
 * fixed -u switch in insert-data
 
