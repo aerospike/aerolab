@@ -1,3 +1,7 @@
+#### 2.50
+* deprecated deploy-amc
+* new feature: deploy-container
+
 #### 2.49
 * added 'latest' recognition fix for aerospike version 5
 * insert-data multithread switch fix

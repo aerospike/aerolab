@@ -40,6 +40,7 @@ type config struct {
 	Upload           uploadStruct             `type:"command" name:"upload" method:"F_upload" description:"Copy a file to the container"`
 	Download         downloadStruct           `type:"command" name:"download" method:"F_download" description:"Copy a file from the container"`
 	DeployAmc        deployAmcStruct          `type:"command" name:"deploy-amc" method:"F_deployAmc" description:"Deploy a container with AMC installed in it"`
+	DeployContainer  deployContainerStruct    `type:"command" name:"deploy-container" method:"F_deployContainer" description:"Deploy an empty ubuntu container"`
 	GetLogs          getLogs                  `type:"command" name:"get-logs" method:"F_getLogs" description:"Get logs from nodes in a cluster to a local directory"`
 	InsertData       insertDataStruct         `type:"command" name:"insert-data" method:"F_insertData" description:"Insert data into a cluster"`
 	Help             int                      `type:"command" name:"help" method:"F_help" description:"This help screen"`
@@ -119,6 +120,16 @@ type copyTlsCertsStruct struct {
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker|lxc)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
 	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`
+}
+
+type deployContainerStruct struct {
+	ContainerName           string `short:"n" long:"name" description:"container name" default:"container"`
+	ExposePorts             string `short:"p" long:"ports" description:"Which ports to expose, format HOST_PORT:CONTAINER_PORT,HOST_PORT:CONTAINER_PORT,..."`
+	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker|lxc)" default:""`
+	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
+	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`
+	Privileged              int    `short:"B" long:"privileged" description:"Docker only: run container in privileged mode" default:"0" type:"bool"`
+	ChDir                   string `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
 }
 
 type deployAmcStruct struct {
