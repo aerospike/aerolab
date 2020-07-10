@@ -208,7 +208,7 @@ func (c *config) F_deployContainer() (err error, ret int64) {
 	if inArray(templates, version{"ubuntu", "18.04", "empty"}) == -1 {
 		// make template here
 		c.log.Info(INFO_MAKETEMPLATE)
-		err = b.DeployTemplate(version{"ubuntu", "18.04", "empty"}, "apt-get update; apt-get -y install wget net-tools curl wget", []fileList{})
+		err = b.DeployTemplate(version{"ubuntu", "18.04", "empty"}, "apt-get update; apt-get -y install tcpdump dnsutils binutils wget net-tools curl vim less man-db telnet netcat iproute2 iptables", []fileList{})
 		if err != nil {
 			ret = E_MAKECLUSTER_MAKETEMPLATE
 			return err, ret
