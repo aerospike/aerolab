@@ -278,3 +278,23 @@ intermediate key | /INT/private/intermediatekey.pem | the intermediate ca key, w
 client cert | /INT/cert.pem | client cert, signed by the intermediate
 client key | /INT/key.pem | client key, signed by the intermediate
 ca-chain | /INT/ca-chain.pem | the ca chain, this one should 100% be able to verify the client certs as the valid CA chain contains both the intermediate and CA. One should use this as their ca cert, not the intermediate.pem nor the cacert.pem, theoretically.
+
+## cleanup, because we should
+
+To get the certs, either use `aerolab download help` or simply `cat` the files and copy-paste their contents. You only need 3 text files after all.
+
+Using aerolab download to get for example:
+
+```
+rglonek@Roberts-MacBook-Pro ~ % aerolab download -n ssl -i /INT/ca-chain.pem -o ./ca-chain.pem
+rglonek@Roberts-MacBook-Pro ~ % aerolab download -n ssl -i /INT/cert.pem -o ./cert.pem
+rglonek@Roberts-MacBook-Pro ~ % aerolab download -n ssl -i /INT/key.pem -o ./key.pem
+```
+
+Once done: remove the container we used:
+
+```
+rglonek@Roberts-MacBook-Pro ~ % aerolab cluster-destroy -f -n ssl
+```
+
+And all shall be gone.
