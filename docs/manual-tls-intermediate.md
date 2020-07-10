@@ -245,9 +245,11 @@ And so lives certificate chaining. :)
 
 ## verify the certs
 
+```
 root@fa080696bdf3:/INT# openssl x509 -noout -text -in cert.pem
 root@fa080696bdf3:/INT# openssl x509 -noout -text -in intermediate.pem 
 root@fa080696bdf3:/INT# openssl x509 -noout -text -in /CA/cacert.pem
+```
 
 ## ca cert chaining
 
