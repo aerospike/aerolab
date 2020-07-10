@@ -291,7 +291,7 @@ rglonek@Roberts-MacBook-Pro ~ % aerolab download -n ssl -i /INT/cert.pem -o ./ce
 rglonek@Roberts-MacBook-Pro ~ % aerolab download -n ssl -i /INT/key.pem -o ./key.pem
 ```
 
-Once done: remove the container we used:
+Once done: remove the container we used and all evidence we ever tried ;) :
 
 ```
 rglonek@Roberts-MacBook-Pro ~ % aerolab cluster-destroy -f -n ssl
