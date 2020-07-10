@@ -1,3 +1,6 @@
+#### 2.51
+* added more packages to auto-preinstall for deploy-container
+
 #### 2.50
 * deprecated deploy-amc
 * new feature: deploy-container
