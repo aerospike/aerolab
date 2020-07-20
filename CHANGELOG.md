@@ -1,3 +1,6 @@
+#### 2.52
+* allow installation on ubuntu 20.04 and centos 8
+
 #### 2.51
 * added more packages to auto-preinstall for deploy-container
 

@@ -28,7 +28,7 @@ func (c *config) F_upgradeAerospike() (err error, ret int64) {
 	if c.UpgradeAerospike.DistroName == "rhel" {
 		c.UpgradeAerospike.DistroName = "el"
 	}
-	if ((c.UpgradeAerospike.DistroName == "el" && (c.UpgradeAerospike.DistroVersion == "6" || c.UpgradeAerospike.DistroVersion == "7")) || (c.UpgradeAerospike.DistroName == "ubuntu" && (c.UpgradeAerospike.DistroVersion == "18.04" || c.UpgradeAerospike.DistroVersion == "16.04" || c.UpgradeAerospike.DistroVersion == "14.04" || c.UpgradeAerospike.DistroVersion == "12.04" || c.UpgradeAerospike.DistroVersion == "best"))) == false {
+	if ((c.UpgradeAerospike.DistroName == "el" && (c.UpgradeAerospike.DistroVersion == "8" || c.UpgradeAerospike.DistroVersion == "6" || c.UpgradeAerospike.DistroVersion == "7")) || (c.UpgradeAerospike.DistroName == "ubuntu" && (c.UpgradeAerospike.DistroVersion == "20.04" || c.UpgradeAerospike.DistroVersion == "18.04" || c.UpgradeAerospike.DistroVersion == "16.04" || c.UpgradeAerospike.DistroVersion == "14.04" || c.UpgradeAerospike.DistroVersion == "12.04" || c.UpgradeAerospike.DistroVersion == "best"))) == false {
 		err = errors.New(ERR_UNSUPPORTED_OS)
 		ret = E_MAKECLUSTER_VALIDATION
 		return
