@@ -1,3 +1,6 @@
+#### 2.52.1
+* fix fox issues with 2.52
+
 #### 2.52
 * allow installation on ubuntu 20.04 and centos 8
 
