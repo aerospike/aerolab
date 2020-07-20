@@ -37,7 +37,7 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 	if c.ClusterGrow.DistroName == "rhel" {
 		c.ClusterGrow.DistroName = "el"
 	}
-	if ((c.ClusterGrow.DistroName == "el" && (c.ClusterGrow.DistroVersion == "6" || c.ClusterGrow.DistroVersion == "7")) || (c.ClusterGrow.DistroName == "ubuntu" && (c.ClusterGrow.DistroVersion == "18.04" || c.ClusterGrow.DistroVersion == "16.04" || c.ClusterGrow.DistroVersion == "14.04" || c.ClusterGrow.DistroVersion == "12.04" || c.ClusterGrow.DistroVersion == "best"))) == false {
+	if ((c.ClusterGrow.DistroName == "el" && (c.ClusterGrow.DistroVersion == "8" || c.ClusterGrow.DistroVersion == "6" || c.ClusterGrow.DistroVersion == "7")) || (c.ClusterGrow.DistroName == "ubuntu" && (c.ClusterGrow.DistroVersion == "20.04" || c.ClusterGrow.DistroVersion == "18.04" || c.ClusterGrow.DistroVersion == "16.04" || c.ClusterGrow.DistroVersion == "14.04" || c.ClusterGrow.DistroVersion == "12.04" || c.ClusterGrow.DistroVersion == "best"))) == false {
 		err = errors.New(ERR_UNSUPPORTED_OS)
 		ret = E_MAKECLUSTER_VALIDATION
 		return

@@ -59,7 +59,7 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 	if c.MakeCluster.DistroName == "rhel" {
 		c.MakeCluster.DistroName = "el"
 	}
-	if ((c.MakeCluster.DistroName == "el" && (c.MakeCluster.DistroVersion == "6" || c.MakeCluster.DistroVersion == "7")) || (c.MakeCluster.DistroName == "ubuntu" && (c.MakeCluster.DistroVersion == "18.04" || c.MakeCluster.DistroVersion == "16.04" || c.MakeCluster.DistroVersion == "14.04" || c.MakeCluster.DistroVersion == "12.04" || c.MakeCluster.DistroVersion == "best"))) == false {
+	if ((c.MakeCluster.DistroName == "el" && (c.MakeCluster.DistroVersion == "8" || c.MakeCluster.DistroVersion == "6" || c.MakeCluster.DistroVersion == "7")) || (c.MakeCluster.DistroName == "ubuntu" && (c.MakeCluster.DistroVersion == "20.04" || c.MakeCluster.DistroVersion == "18.04" || c.MakeCluster.DistroVersion == "16.04" || c.MakeCluster.DistroVersion == "14.04" || c.MakeCluster.DistroVersion == "12.04" || c.MakeCluster.DistroVersion == "best"))) == false {
 		err = errors.New(ERR_UNSUPPORTED_OS)
 		ret = E_MAKECLUSTER_VALIDATION
 		return
