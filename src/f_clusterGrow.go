@@ -257,7 +257,6 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 			return err, ret
 		}
 
-		// files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf)})
 	} else {
 		if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" {
 			var r [][]string
@@ -274,7 +273,6 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 				ret = E_MAKECLUSTER_FIXCONF
 				return err, ret
 			}
-			// files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf)})
 		}
 	}
     
