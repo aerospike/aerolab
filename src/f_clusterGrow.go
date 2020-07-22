@@ -279,12 +279,16 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 	}
     
     // add cluster name
-    newconf2, err := fixClusteNameConfig(string(newconf), c.ClusterGrow.ClusterName)
-    if err != nil {
-        ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
-        return err, ret
+
+    newconf2 := newconf
+    if c.ClusterGrow.OverrideASClusterName == 0 {
+        newconf2, err = fixClusteNameConfig(string(newconf), c.ClusterGrow.ClusterName)
+        if err != nil {
+            ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
+            return err, ret
+        }
     }
-  
+ 
     files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
 
 

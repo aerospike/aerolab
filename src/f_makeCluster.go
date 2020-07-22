@@ -278,8 +278,6 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 			ret = E_MAKECLUSTER_FIXCONF
 			return err, ret
 		}
-
-		//files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf)})
 	} else {
 		if c.MakeCluster.HeartbeatMode == "mesh" || c.MakeCluster.HeartbeatMode == "mcast" {
 			var r [][]string
@@ -296,15 +294,17 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 				ret = E_MAKECLUSTER_FIXCONF
 				return err, ret
 			}
-			//files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf)})
 		}
 	}
 
     // add cluster name
-    newconf2, err := fixClusteNameConfig(string(newconf), c.MakeCluster.ClusterName)
-    if err != nil {
-        ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
-        return err, ret
+    newconf2 := newconf
+    if c.MakeCluster.OverrideASClusterName == 0 {
+        newconf2, err = fixClusteNameConfig(string(newconf), c.MakeCluster.ClusterName)
+        if err != nil {
+            ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
+            return err, ret
+        }
     }
   
     files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
