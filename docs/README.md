@@ -49,3 +49,7 @@
 ##### [Join aerolab cluster network to another docker network](DOCKERNET.md)
 
 ##### [Compression and raw storage device in Aerolab](RAW_STORE_COMPRESSION.md)
+
+##### [Deploy all-flash](ALLFLASH.md)
+
+##### [Create TLS certs manually, including intermediate CA](manual-tls-intermediate.md)

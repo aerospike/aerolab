@@ -242,21 +242,21 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 		return err, ret
 	}
 
-	// fix config if needed, read custom config file path if needed
 
+    newconf := ""
+	// fix config if needed, read custom config file path if needed
 	if c.ClusterGrow.CustomConfigFilePath != "" {
 		conf, err := ioutil.ReadFile(c.ClusterGrow.CustomConfigFilePath)
 		if err != nil {
 			ret = E_MAKECLUSTER_READCONF
 			return err, ret
 		}
-		newconf, err := fixAerospikeConfig(string(conf), c.ClusterGrow.MulticastAddress, c.ClusterGrow.HeartbeatMode, clusterIps, nodeList)
+		newconf, err = fixAerospikeConfig(string(conf), c.ClusterGrow.MulticastAddress, c.ClusterGrow.HeartbeatMode, clusterIps, nodeList)
 		if err != nil {
 			ret = E_MAKECLUSTER_FIXCONF
 			return err, ret
 		}
 
-		files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf)})
 	} else {
 		if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" {
 			var r [][]string
@@ -268,14 +268,27 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 				return err, ret
 			}
 			// nr has contents of aerospike.conf
-			newconf, err := fixAerospikeConfig(string(nr[0]), c.ClusterGrow.MulticastAddress, c.ClusterGrow.HeartbeatMode, clusterIps, nodeList)
+			newconf, err = fixAerospikeConfig(string(nr[0]), c.ClusterGrow.MulticastAddress, c.ClusterGrow.HeartbeatMode, clusterIps, nodeList)
 			if err != nil {
 				ret = E_MAKECLUSTER_FIXCONF
 				return err, ret
 			}
-			files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf)})
 		}
 	}
+    
+    // add cluster name
+
+    newconf2 := newconf
+    if c.ClusterGrow.OverrideASClusterName == 0 {
+        newconf2, err = fixClusteNameConfig(string(newconf), c.ClusterGrow.ClusterName)
+        if err != nil {
+            ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
+            return err, ret
+        }
+    }
+ 
+    files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
+
 
 	// load features file path if needed
 	if c.ClusterGrow.FeaturesFilePath != "" {

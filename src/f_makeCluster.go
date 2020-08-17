@@ -265,21 +265,19 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 		return err, ret
 	}
 
+    newconf := ""
 	// fix config if needed, read custom config file path if needed
-
 	if c.MakeCluster.CustomConfigFilePath != "" {
 		conf, err := ioutil.ReadFile(c.MakeCluster.CustomConfigFilePath)
 		if err != nil {
 			ret = E_MAKECLUSTER_READCONF
 			return err, ret
 		}
-		newconf, err := fixAerospikeConfig(string(conf), c.MakeCluster.MulticastAddress, c.MakeCluster.HeartbeatMode, clusterIps, nodeList)
+		newconf, err = fixAerospikeConfig(string(conf), c.MakeCluster.MulticastAddress, c.MakeCluster.HeartbeatMode, clusterIps, nodeList)
 		if err != nil {
 			ret = E_MAKECLUSTER_FIXCONF
 			return err, ret
 		}
-
-		files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf)})
 	} else {
 		if c.MakeCluster.HeartbeatMode == "mesh" || c.MakeCluster.HeartbeatMode == "mcast" {
 			var r [][]string
@@ -291,14 +289,26 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 				return err, ret
 			}
 			// nr has contents of aerospike.conf
-			newconf, err := fixAerospikeConfig(string(nr[0]), c.MakeCluster.MulticastAddress, c.MakeCluster.HeartbeatMode, clusterIps, nodeList)
+			newconf, err = fixAerospikeConfig(string(nr[0]), c.MakeCluster.MulticastAddress, c.MakeCluster.HeartbeatMode, clusterIps, nodeList)
 			if err != nil {
 				ret = E_MAKECLUSTER_FIXCONF
 				return err, ret
 			}
-			files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf)})
 		}
 	}
+
+    // add cluster name
+    newconf2 := newconf
+    if c.MakeCluster.OverrideASClusterName == 0 {
+        newconf2, err = fixClusteNameConfig(string(newconf), c.MakeCluster.ClusterName)
+        if err != nil {
+            ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
+            return err, ret
+        }
+    }
+  
+    files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
+        
 
 	// load features file path if needed
 	if c.MakeCluster.FeaturesFilePath != "" {

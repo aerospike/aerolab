@@ -23,7 +23,7 @@ You can now access the containers on aerolab directly (e.g. if your AMC is on 17
 
 You can see what IPs the containers have by executing `aerolab cluster-list`
 
-To achive that, follow [this](tunnel-container/README.md) simple instruction.
+To achive that, follow [this](tunnel-container-openvpn/README.md) simple instruction.
 
 #### See [here](https://drive.google.com/open?id=1voLJV12x0XMLe-lcN_SsP6NLUytMNI_e) for installation video - Install aerolab, docker and spinup 3 clusters with xdr and tls in 20 minutes.
 

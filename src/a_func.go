@@ -157,6 +157,72 @@ func downloadFile(url string, filename string, user string, pass string) (err er
 	return
 }
 
+func fixClusteNameConfig(conf string, cluster_name string) (newconf string, err error) {
+		newconf = ""
+		changed := false
+		service_stenza := 0 // 0 - before, 1 - in, 2 - after
+        network_stenza := false
+        t := ""
+        
+		scanner := bufio.NewScanner(strings.NewReader(string(conf)))
+
+		for scanner.Scan() {
+			t = scanner.Text()
+			if changed == false && service_stenza < 2 && network_stenza == false {
+				
+                // network has a "service" stenza as well, exclude it
+                if strings.Contains(t, "network") {
+                    network_stenza = true
+                } else if network_stenza == true &&
+                  (strings.Contains(t, "security") ||
+                   strings.Contains(t, "logging") ||
+                   strings.Contains(t, "xdr") ||
+                   strings.Contains(t, "namespace") ||
+                   strings.Contains(t, "mod-lua")) {
+                    network_stenza = false
+                }
+                                
+                // only add cluster name if this is the level 0 service and not network's service
+                if strings.Contains(t, "service") && network_stenza == false {
+					service_stenza = 1
+				}
+                
+                if service_stenza == 1 {
+					// cluster name in the config file
+					if strings.Contains(t, "cluster-name") {
+						t = fmt.Sprintf("cluster-name %s", cluster_name)
+						changed = true
+					}
+					// service stenza without cluster name
+					if strings.Contains(t, "}") {
+						service_stenza = 2
+
+                        // handle "service {}" - edge case
+                        if strings.Contains(t, "service") {
+                            t = fmt.Sprintf("service {\ncluster-name %s\n}", cluster_name)
+                        } else {
+                            t = fmt.Sprintf("cluster-name %s\n}", cluster_name)
+                        }
+                        
+						changed = true
+					}
+				}
+			}
+            if strings.TrimSpace(t) != "" {
+                newconf = newconf + "\n" + t
+            }
+		}
+
+		// config file without a service stenza, add it
+		if changed == false {
+			t = fmt.Sprintf("service {\n\tcluster-name %s \n}", cluster_name)
+            newconf = newconf + "\n" + t
+		}
+
+       	return newconf, nil
+
+}
+
 func fixAerospikeConfig(conf string, mgroup string, mesh string, mesh_ip_list []string, node_list []int) (newconf string, err error) {
 	if mesh == "mcast" && mgroup != "" {
 		newconf = ""
