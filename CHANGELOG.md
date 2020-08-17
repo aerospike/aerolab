@@ -1,3 +1,7 @@
+#### 2.53
+* add option to automatically add cluster-name to aerospike.conf
+* add support for aerospike 5.1+
+
 #### 2.52.1
 * fix fox issues with 2.52
 
