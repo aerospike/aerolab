@@ -9,34 +9,34 @@ KAFKA_CONNECT_NETWORK_NAME=kafka-connect_net
 FEATURES_PATH=./cluster-setup/features.conf
 KAFKA_CONNECT_BUILD_DIR=kafka-connect-build
 
-CREDENTIALS_FILE=cluster-setup/credentials.conf
-CITRUSLEAF_USER=citrusleaf
+# CREDENTIALS_FILE=cluster-setup/credentials.conf
+# CITRUSLEAF_USER=citrusleaf
 
-get_citrusleaf_password(){
-	# Check credentials file exists
-	if [ ! -e $CREDENTIALS_FILE ]
-	then
-		echo "Credentials file ${CREDENTIALS_FILE} not found - exiting"
-		exit 1
-	fi
+# get_citrusleaf_password(){
+# 	# Check credentials file exists
+# 	if [ ! -e $CREDENTIALS_FILE ]
+# 	then
+# 		echo "Credentials file ${CREDENTIALS_FILE} not found - exiting"
+# 		exit 1
+# 	fi
 
-	# Check we are using the citrusleaf user
-	USER=$(grep User $CREDENTIALS_FILE | awk 'BEGIN{FS="="}{print $2}'| sed 's/"//g')
+# 	# Check we are using the citrusleaf user
+# 	USER=$(grep User $CREDENTIALS_FILE | awk 'BEGIN{FS="="}{print $2}'| sed 's/"//g')
 
-	if [ ! $USER == $CITRUSLEAF_USER ]
-	then
-		echo "Citrusleaf user ${CITRUSLEAF_USER} not used in $CREDENTIALS_FILE"
-		exit 1
-	fi
+# 	if [ ! $USER == $CITRUSLEAF_USER ]
+# 	then
+# 		echo "Citrusleaf user ${CITRUSLEAF_USER} not used in $CREDENTIALS_FILE"
+# 		exit 1
+# 	fi
 
-	CITRUSLEAF_PASSWORD=$(grep Pass $CREDENTIALS_FILE | awk 'BEGIN{FS="="}{print $2}'| sed 's/"//g')
+# 	CITRUSLEAF_PASSWORD=$(grep Pass $CREDENTIALS_FILE | awk 'BEGIN{FS="="}{print $2}'| sed 's/"//g')
 
-	if [ -z $CITRUSLEAF_PASSWORD ]
-	then
-		echo "Citrusleaf password not found - exiting"
-		exit 1
-	fi	
-}
+# 	if [ -z $CITRUSLEAF_PASSWORD ]
+# 	then
+# 		echo "Citrusleaf password not found - exiting"
+# 		exit 1
+# 	fi	
+# }
 # Test function to see if our docker kafka-connect docker image exists
 kafka_connect_image_exists_output(){
 	KAFKA_CONNECT_IMAGE_EXISTS_OUTPUT=`docker image list | grep $KAFKA_CONNECT_IMAGE_NAME | awk '{print $1}'`	
@@ -64,7 +64,7 @@ if [ $KAFKA_CONNECT_IMAGE_NAME == "$KAFKA_CONNECT_IMAGE_EXISTS_OUTPUT" ]
 then
 	echo KAFKA_CONNECT docker image found in registry
 else
-	get_citrusleaf_password
+	# get_citrusleaf_password
 	echo "Building kafka-connect image"
 	if [ ! -e $FEATURES_PATH ]
 	then
@@ -72,7 +72,7 @@ else
 	else
 		cp $FEATURES_PATH $KAFKA_CONNECT_BUILD_DIR
 	fi
-	docker build --build-arg citrusleaf_pass=${CITRUSLEAF_PASSWORD} -t $KAFKA_CONNECT_IMAGE_NAME $KAFKA_CONNECT_BUILD_DIR
+	docker build -t $KAFKA_CONNECT_IMAGE_NAME $KAFKA_CONNECT_BUILD_DIR
 fi
 
 # Check whether KAFKA_CONNECT image exists
@@ -119,4 +119,11 @@ done
 
 docker-compose up -d
 echo "Kafka / kafka-connect & zookeeper initialized"
-echo See README for further instructions
+# docker-compose up --scale kafka=3 -d
+# echo "Kafka scaled to 3 nodes"
+
+
+#echo "Prometheus / Grafana containers created"
+#echo
+#echo "You should find your Grafana dashboards on localhost:3000"
+#echo "and your Prometheus endpoint at localhost:9090"
