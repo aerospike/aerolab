@@ -6,8 +6,6 @@ In conjunction with aerolab, this project allows you to quickly build a containe
 
 Docker desktop version 17.12 or higher. This to allow use of docker-compose file format 3.5 or above.
 
-citrusleaf credentials for enterprise downloads
-
 ## Aerospike cluster setup
 
 You will need to set up a cluster using aerolab. Quick start is 
@@ -15,34 +13,21 @@ You will need to set up a cluster using aerolab. Quick start is
 1. Make sure aerolab binary is in your path
 2. cd to cluster-setup
 3. Make sure you have a valid features.conf in this directory including the mesg-kafka-connector option
-4. Make sure the citrusleaf password for www.aerospike.com downloads is set correctly in credentials.conf
 4. Create the kafka-connect cluster by cd-ing to ```cluster-setup``` and running ```./make-cluster.sh```. This will make a cluster with name 'kafka-connect'
 5. You can verify your cluster is available via ```aerolab aql -n kafka-connect -l 1``` - aql into 1st node in the 'kafka-connect' cluster
 6. ```aerolab cluster-list``` to see cluster detail 
 
-This sets up a cluster including exposing the kafka connector via xdr.
+This sets up a cluster and replicates the device namespace to the 'kafka' dc (which is the connector)
 
 ```
 xdr {
-        enable-xdr true
-        enable-change-notification true
-        xdr-digestlog-path /opt/aerospike/digestlog 100G
-        xdr-compression-threshold 1000
-        xdr-info-port 3004
-        datacenter kafka-connect {
-                dc-type http
-                http-version v2
-                http-url http://kafka-connect:8080/aerospike/kafka/publish
-        }
+   dc kafka {
+     node-address-port kafka-connect 8080
+     connector true
+     namespace device {
+     }
+   }
 }
-```
-
-and replicating the 'device' namespace to it
-
-```
-namespace device {
-	...
-	xdr-remote-datacenter kafka-connect
 ```
 
 ## kafka-connect start
@@ -65,19 +50,24 @@ b983cc96d42c        aero-ubuntu_18.04:4.6.0.4   "/bin/bash"              About a
 In particular, the kafka-connect container is configured to pass messages to the *aerospike* topic on the *kafka* service
 
 ```
-connector:
-  format: json
-  routing:
-    topic: aerospike
-    mode: static
-  kafka:
-    bootstrapServers:
-      - kafka:9092
-    producerPoolSize: 1
-  ticker:
-    enabled: true
-    period: 10s
+service:
+  port: 8080
+ 
+producer-props:
+  bootstrap.servers:
+  - kafka:9092
+ 
+logging:
+  file: /var/log/aerospike-kafka-outbound/aerospike-kafka-outbound.log
+ 
+format:
+  mode: json
+ 
+routing:
+  mode: static
+  destination: aerospike
 ```
+
 ## Demonstration
 
 Insert some data to your cluster ...

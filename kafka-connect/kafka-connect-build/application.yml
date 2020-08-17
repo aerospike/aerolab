@@ -1,12 +1,16 @@
-connector:
-  format: json
-  routing:
-    topic: aerospike
-    mode: static
-  kafka:
-    bootstrapServers:
-      - kafka:9092
-    producerPoolSize: 1
-  ticker:
-    enabled: true
-    period: 10s
+service:
+  port: 8080
+ 
+producer-props:
+  bootstrap.servers:
+  - kafka:9092
+ 
+logging:
+  file: /var/log/aerospike-kafka-outbound/aerospike-kafka-outbound.log
+ 
+format:
+  mode: json
+ 
+routing:
+  mode: static
+  destination: aerospike
