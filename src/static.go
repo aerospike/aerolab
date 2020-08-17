@@ -69,7 +69,7 @@ EOF
 chmod 755 /etc/init.d/aerospike
 `,
 	"el": `set -o xtrace
-yum -y update && yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc ; yum -y install dnsutils python; yum -y install initscripts; yum -y install redhat-lsb; yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 ; cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall; cat <<'EOF' > /etc/init.d/aerospike
+yum -y update && yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl4-openssl-dev ; yum -y install dnsutils python; yum -y install initscripts; yum -y install redhat-lsb; yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 ; cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall; cat <<'EOF' > /etc/init.d/aerospike
 #!/bin/sh
 # Start/stop the aerospike daemon.
 #
