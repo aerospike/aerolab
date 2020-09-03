@@ -279,7 +279,7 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 			return err, ret
 		}
 	} else {
-		if c.MakeCluster.HeartbeatMode == "mesh" || c.MakeCluster.HeartbeatMode == "mcast" {
+		if c.MakeCluster.HeartbeatMode == "mesh" || c.MakeCluster.HeartbeatMode == "mcast" || c.MakeCluster.OverrideASClusterName == 1 {
 			var r [][]string
 			r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
 			var nr [][]byte
@@ -288,11 +288,14 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 				ret = E_MAKECLUSTER_FIXCONF
 				return err, ret
 			}
-			// nr has contents of aerospike.conf
-			newconf, err = fixAerospikeConfig(string(nr[0]), c.MakeCluster.MulticastAddress, c.MakeCluster.HeartbeatMode, clusterIps, nodeList)
-			if err != nil {
-				ret = E_MAKECLUSTER_FIXCONF
-				return err, ret
+			newconf = string(nr[0])
+			if c.MakeCluster.HeartbeatMode == "mesh" || c.MakeCluster.HeartbeatMode == "mcast" {
+				// nr has contents of aerospike.conf
+				newconf, err = fixAerospikeConfig(string(nr[0]), c.MakeCluster.MulticastAddress, c.MakeCluster.HeartbeatMode, clusterIps, nodeList)
+				if err != nil {
+					ret = E_MAKECLUSTER_FIXCONF
+					return err, ret
+				}
 			}
 		}
 	}
@@ -307,7 +310,9 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 		}
 	}
 
-	files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
+	if c.MakeCluster.HeartbeatMode == "mesh" || c.MakeCluster.HeartbeatMode == "mcast" || c.MakeCluster.OverrideASClusterName == 1 || c.MakeCluster.CustomConfigFilePath != "" {
+		files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
+	}
 
 	// load features file path if needed
 	if c.MakeCluster.FeaturesFilePath != "" {

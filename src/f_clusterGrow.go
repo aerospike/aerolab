@@ -255,9 +255,8 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 			ret = E_MAKECLUSTER_FIXCONF
 			return err, ret
 		}
-
 	} else {
-		if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" {
+		if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" || c.ClusterGrow.OverrideASClusterName == 1 {
 			var r [][]string
 			r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
 			var nr [][]byte
@@ -266,17 +265,19 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 				ret = E_MAKECLUSTER_FIXCONF
 				return err, ret
 			}
-			// nr has contents of aerospike.conf
-			newconf, err = fixAerospikeConfig(string(nr[0]), c.ClusterGrow.MulticastAddress, c.ClusterGrow.HeartbeatMode, clusterIps, nodeList)
-			if err != nil {
-				ret = E_MAKECLUSTER_FIXCONF
-				return err, ret
+			newconf = string(nr[0])
+			if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" {
+				// nr has contents of aerospike.conf
+				newconf, err = fixAerospikeConfig(string(nr[0]), c.ClusterGrow.MulticastAddress, c.ClusterGrow.HeartbeatMode, clusterIps, nodeList)
+				if err != nil {
+					ret = E_MAKECLUSTER_FIXCONF
+					return err, ret
+				}
 			}
 		}
 	}
 
 	// add cluster name
-
 	newconf2 := newconf
 	if c.ClusterGrow.OverrideASClusterName == 1 {
 		newconf2, err = fixClusteNameConfig(string(newconf), c.ClusterGrow.ClusterName)
@@ -286,7 +287,9 @@ func (c *config) F_clusterGrow() (err error, ret int64) {
 		}
 	}
 
-	files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
+	if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" || c.ClusterGrow.OverrideASClusterName == 1 || c.ClusterGrow.CustomConfigFilePath != "" {
+		files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
+	}
 
 	// load features file path if needed
 	if c.ClusterGrow.FeaturesFilePath != "" {
