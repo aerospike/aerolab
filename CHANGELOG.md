@@ -1,3 +1,6 @@
+#### 2.54
+* make cluster-name option inclusive, not exclusive
+
 #### 2.53
 * add option to automatically add cluster-name to aerospike.conf
 * add support for aerospike 5.1+

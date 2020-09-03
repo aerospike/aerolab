@@ -265,7 +265,7 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 		return err, ret
 	}
 
-    newconf := ""
+	newconf := ""
 	// fix config if needed, read custom config file path if needed
 	if c.MakeCluster.CustomConfigFilePath != "" {
 		conf, err := ioutil.ReadFile(c.MakeCluster.CustomConfigFilePath)
@@ -297,18 +297,17 @@ func (c *config) F_makeCluster() (err error, ret int64) {
 		}
 	}
 
-    // add cluster name
-    newconf2 := newconf
-    if c.MakeCluster.OverrideASClusterName == 0 {
-        newconf2, err = fixClusteNameConfig(string(newconf), c.MakeCluster.ClusterName)
-        if err != nil {
-            ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
-            return err, ret
-        }
-    }
-  
-    files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
-        
+	// add cluster name
+	newconf2 := newconf
+	if c.MakeCluster.OverrideASClusterName == 1 {
+		newconf2, err = fixClusteNameConfig(string(newconf), c.MakeCluster.ClusterName)
+		if err != nil {
+			ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
+			return err, ret
+		}
+	}
+
+	files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
 
 	// load features file path if needed
 	if c.MakeCluster.FeaturesFilePath != "" {
