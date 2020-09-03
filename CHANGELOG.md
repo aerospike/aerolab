@@ -1,3 +1,6 @@
+#### 2.55
+* fix multicast mode deployments (broke in 2.53)
+
 #### 2.54
 * make cluster-name option inclusive, not exclusive
 
