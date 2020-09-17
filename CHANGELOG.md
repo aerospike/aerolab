@@ -1,3 +1,6 @@
+#### 2.56
+* add option to specify TTL in insert-data function
+
 #### 2.55
 * fix multicast mode deployments (broke in 2.53)
 

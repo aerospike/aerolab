@@ -338,6 +338,13 @@ func (c *config) F_insertData_perform(i int, client *as.Client) (err error, ret 
 	nkey := key
 	nbin := realBin
 	wp := as.NewWritePolicy(0, as.TTLServerDefault)
+	if c.InsertData.TTL > -1 {
+		if c.InsertData.TTL == 0 {
+			wp.Expiration = as.TTLDontExpire
+		} else {
+			wp.Expiration = uint32(c.InsertData.TTL)
+		}
+	}
 	wp.TotalTimeout = time.Second * 5
 	wp.SocketTimeout = 0
 	wp.MaxRetries = 2

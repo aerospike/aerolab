@@ -102,6 +102,7 @@ type insertDataStruct struct {
 	TlsCaCert               string `short:"y" long:"tls-ca-cert" description:"Tls CA certificate path" default:""`
 	TlsClientCert           string `short:"w" long:"tls-client-cert" description:"Tls client cerrtificate path" default:""`
 	TlsServerName           string `short:"i" long:"tls-server-name" description:"Tls ServerName" default:""`
+	TTL                     int    `short:"T" long:"ttl" description:"set ttl for records. Set to -1 to use server default, 0=don't expire" default:"-1"`
 	ClusterName             string `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
 	Node                    int    `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
 	SeedNode                string `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
@@ -338,7 +339,7 @@ type makeClusterStruct struct {
 	Username                string `short:"U" long:"username" description:"Required for downloading enterprise edition"`
 	Password                string `short:"P" long:"password" description:"Required for downloading enterprise edition"`
 	Privileged              int    `short:"B" long:"privileged" description:"Docker only: run container in privileged mode" default:"0" type:"bool"`
-    OverrideASClusterName   int    `short:"O" long:"override-as-cluster-name" description:"Override setting a cluster name in the aerospike.conf file" default:"0" type:"bool"`
+	OverrideASClusterName   int    `short:"O" long:"override-as-cluster-name" description:"Override setting a cluster name in the aerospike.conf file" default:"0" type:"bool"`
 	ChDir                   string `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
 }
 
