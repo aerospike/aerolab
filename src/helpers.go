@@ -157,6 +157,20 @@ func cut(line string, pos int, split string) string {
 	return ""
 }
 
+func cutSuffix(line string, pos int, split string) string {
+	p := 0
+	ret := ""
+	for _, v := range strings.Split(line, split) {
+		if v != "" {
+			p = p + 1
+		}
+		if p >= pos {
+			ret = ret + " " + v
+		}
+	}
+	return ret
+}
+
 func chDir(dir string) (error, int64) {
 	if dir != "" {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {

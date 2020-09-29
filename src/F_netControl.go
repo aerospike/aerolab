@@ -19,6 +19,9 @@ func (c *config) F_netBlockUnblock(call string) (err error, ret int64) {
 	var t string
 	var ports []string
 	var loc string
+	var statisticMode string
+	var statisticRandom string
+	var statisticEvery string
 	if call == "block" {
 		b, err = getBackend(c.NetBlock.DeployOn, c.NetBlock.RemoteHost, c.NetBlock.AccessPublicKeyFilePath)
 		sc = c.NetBlock.SourceClusterName
@@ -28,6 +31,9 @@ func (c *config) F_netBlockUnblock(call string) (err error, ret int64) {
 		t = c.NetBlock.Type
 		ports = strings.Split(c.NetBlock.Ports, ",")
 		loc = c.NetBlock.BlockOn
+		statisticMode = c.NetBlock.StatisticMode
+		statisticRandom = c.NetBlock.StatisticProbability
+		statisticEvery = c.NetBlock.StatisticEvery
 	} else {
 		b, err = getBackend(c.NetUnblock.DeployOn, c.NetUnblock.RemoteHost, c.NetUnblock.AccessPublicKeyFilePath)
 		sc = c.NetUnblock.SourceClusterName
@@ -37,6 +43,9 @@ func (c *config) F_netBlockUnblock(call string) (err error, ret int64) {
 		t = c.NetUnblock.Type
 		ports = strings.Split(c.NetUnblock.Ports, ",")
 		loc = c.NetUnblock.BlockOn
+		statisticMode = c.NetUnblock.StatisticMode
+		statisticRandom = c.NetUnblock.StatisticProbability
+		statisticEvery = c.NetUnblock.StatisticEvery
 	}
 	if err != nil {
 		ret = E_BACKEND_ERROR
@@ -115,7 +124,17 @@ func (c *config) F_netBlockUnblock(call string) (err error, ret int64) {
 					return err, 999
 				}
 				ip := nodeIps[bb]
-				out, err := b.RunCommand(wherec, [][]string{[]string{"/sbin/iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip, "-j", strings.ToUpper(t)}}, []int{node})
+				nComm := []string{"/sbin/iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip}
+				if statisticMode != "" {
+					nComm = append(nComm, "-m", "statistic", "--mode", statisticMode)
+					if statisticMode == "random" {
+						nComm = append(nComm, "--probability", statisticRandom)
+					} else {
+						nComm = append(nComm, "--every", statisticEvery)
+					}
+				}
+				nComm = append(nComm, "-j", strings.ToUpper(t))
+				out, err := b.RunCommand(wherec, [][]string{nComm}, []int{node})
 				if err != nil {
 					c.log.Error("WARNING: ERROR adding iptables rule on %s to block %s with IP %s\n%s\n", container, fmt.Sprintf("aero-%s_%s", towherec, b), ip, string(out[0]))
 					c.log.Error("RAN: %s %s %s %s %s %s %s %s %s %s %s\n", "iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip, "-j", strings.ToUpper(t))
@@ -123,7 +142,17 @@ func (c *config) F_netBlockUnblock(call string) (err error, ret int64) {
 				}
 				if nodeIpsInternal != nil {
 					ip = nodeIpsInternal[bb]
-					out, err = b.RunCommand(wherec, [][]string{[]string{"/sbin/iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip, "-j", strings.ToUpper(t)}}, []int{node})
+					nComm := []string{"/sbin/iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip}
+					if statisticMode != "" {
+						nComm = append(nComm, "-m", "statistic", "--mode", statisticMode)
+						if statisticMode == "random" {
+							nComm = append(nComm, "--probability", statisticRandom)
+						} else {
+							nComm = append(nComm, "--every", statisticEvery)
+						}
+					}
+					nComm = append(nComm, "-j", strings.ToUpper(t))
+					out, err = b.RunCommand(wherec, [][]string{nComm}, []int{node})
 					if err != nil {
 						c.log.Error("WARNING: ERROR adding iptables rule on %s to block %s with IP %s\n%s\n", container, fmt.Sprintf("aero-%s_%s", towherec, b), ip, string(out[0]))
 						c.log.Error("RAN: %s %s %s %s %s %s %s %s %s %s %s\n", "iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip, "-j", strings.ToUpper(t))
@@ -195,7 +224,8 @@ func (c *config) F_netList() (err error, ret int64) {
 						src := fmt.Sprintf("%s_%d", srcC, srcN)
 						dport := strings.Split(cut(line, 11, " "), ":")[1]
 						dport = strings.Trim(dport, "\n\r")
-						check_out = check_out + fmt.Sprintf("%s => %s:%s %s (rule:INPUT  on:%s)\n", src, fmt.Sprintf("%s_%d", cluster, node), dport, t, fmt.Sprintf("%s_%d", cluster, node))
+						suffix := cutSuffix(line, 12, " ")
+						check_out = check_out + fmt.Sprintf("%s => %s:%s %s (rule:INPUT  on:%s)%s\n", src, fmt.Sprintf("%s_%d", cluster, node), dport, t, fmt.Sprintf("%s_%d", cluster, node), suffix)
 					}
 				}
 			}
@@ -216,7 +246,8 @@ func (c *config) F_netList() (err error, ret int64) {
 						dstC, dstN := find_node_by_ip(nodes, dstIp)
 						dst := fmt.Sprintf("%s_%d", dstC, dstN)
 						dport := strings.Split(cut(line, 11, " "), ":")[1]
-						check_out = check_out + fmt.Sprintf("%s => %s:%s %s (rule:OUTPUT on:%s)\n", fmt.Sprintf("%s_%d", cluster, node), dst, dport, t, fmt.Sprintf("%s_%d", cluster, node))
+						suffix := cutSuffix(line, 12, " ")
+						check_out = check_out + fmt.Sprintf("%s => %s:%s %s (rule:OUTPUT on:%s)%s\n", fmt.Sprintf("%s_%d", cluster, node), dst, dport, t, fmt.Sprintf("%s_%d", cluster, node), suffix)
 					}
 				}
 			}

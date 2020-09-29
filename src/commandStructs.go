@@ -43,12 +43,36 @@ type config struct {
 	DeployContainer  deployContainerStruct    `type:"command" name:"deploy-container" method:"F_deployContainer" description:"Deploy an empty ubuntu container"`
 	GetLogs          getLogs                  `type:"command" name:"get-logs" method:"F_getLogs" description:"Get logs from nodes in a cluster to a local directory"`
 	InsertData       insertDataStruct         `type:"command" name:"insert-data" method:"F_insertData" description:"Insert data into a cluster"`
+	DeleteData       deleteDataStruct         `type:"command" name:"delete-data" method:"F_deleteData" description:"Delete data from a cluster"`
 	Help             int                      `type:"command" name:"help" method:"F_help" description:"This help screen"`
 	Version          interactiveStruct        `type:"command" name:"version" method:"F_version" description:"Display version information"`
 	StarWars         interactiveStruct        `type:"command" name:"star-wars" method:"F_starwars" description:"Plays Star Wars IV (A New Hope) through telnet (your fw must allow port 23 out)"`
 	WebInterface     webInterfaceStruct       `type:"command" name:"web-interface" method:"F_webserver" description:"Launch a web interface (webserver) so you can run your aerolab tasks from the browser"`
 	Common           commonConfigStruct
 	tail             []string
+}
+
+type deleteDataStruct struct {
+	Namespace               string `short:"m" long:"namespace" description:"Namespace name" default:"test"`
+	Set                     string `short:"s" long:"set" description:"Set name." default:"myset"`
+	PkPrefix                string `short:"p" long:"pk-prefix" description:"Prefix to add to primary key." default:""`
+	PkStartNumber           int    `short:"a" long:"pk-start-number" description:"The start ID of the unique PK names" default:"1"`
+	PkEndNumber             int    `short:"z" long:"pk-end-number" description:"The end ID of the unique PK names" default:"1000"`
+	RunDirect               int    `short:"d" long:"run-direct" description:"If set, will ignore backend, cluster name and node ID and connect to SeedNode directly from running machine. To enable: -d 1" default:"0" type:"bool"`
+	UseMultiThreaded        int    `short:"u" long:"multi-thread" description:"If set, will use multithreading. Set to the number of threads you want processing." default:"0"`
+	UserPassword            string `short:"q" long:"userpass" description:"If set, will use this user-pass to authenticate to aerospike cluster. Format: username:password" default:""`
+	TlsCaCert               string `short:"y" long:"tls-ca-cert" description:"Tls CA certificate path" default:""`
+	TlsClientCert           string `short:"w" long:"tls-client-cert" description:"Tls client cerrtificate path" default:""`
+	TlsServerName           string `short:"i" long:"tls-server-name" description:"Tls ServerName" default:""`
+	TTL                     int    `short:"T" long:"ttl" description:"set ttl for records. Set to -1 to use server default, 0=don't expire" default:"-1"`
+	Durable                 int    `short:"D" long:"durable-delete" description:"if set, will use durable deletes" default:"0" type:"bool"`
+	ClusterName             string `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
+	Node                    int    `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
+	SeedNode                string `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
+	LinuxBinaryPath         string `short:"t" long:"path" description:"Path to the linux compiled aerolab binary. This is required if -d isn't set, unless using the osx-aio version." default:""`
+	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker|lxc)" default:""`
+	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
+	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`
 }
 
 type netLossStruct struct {
@@ -60,6 +84,7 @@ type netLossStruct struct {
 	ShowNames               int    `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output" default:"0" type:"bool"`
 	Delay                   string `short:"p" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
 	Loss                    string `short:"P" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
+	RunOnDestination        int    `short:"D" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)" default:"0" type:"bool"`
 	Rate                    string `short:"P" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker|lxc)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
@@ -103,6 +128,7 @@ type insertDataStruct struct {
 	TlsClientCert           string `short:"w" long:"tls-client-cert" description:"Tls client cerrtificate path" default:""`
 	TlsServerName           string `short:"i" long:"tls-server-name" description:"Tls ServerName" default:""`
 	TTL                     int    `short:"T" long:"ttl" description:"set ttl for records. Set to -1 to use server default, 0=don't expire" default:"-1"`
+	ExistsAction            string `short:"E" long:"exists-action" description:"action policy: CREATE_ONLY | REPLACE_ONLY | REPLACE | UPDATE_ONLY | UPDATE" default:""`
 	ClusterName             string `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
 	Node                    int    `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
 	SeedNode                string `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
@@ -191,6 +217,9 @@ type netControlStruct struct {
 	Type                    string `short:"t" long:"type" description:"Block type (reject|drop)." default:"reject"`
 	Ports                   string `short:"p" long:"ports" description:"Comma separated list of ports to block." default:"3000"`
 	BlockOn                 string `short:"b" long:"block-on" description:"Block where (input|output). Input=on destination, output=on source." default:"input"`
+	StatisticMode           string `short:"M" long:"statistic-mode" description:"for partial packet loss, supported are: random | nth. Not set: drop all packets." default:""`
+	StatisticProbability    string `short:"P" long:"probability" description:"for partial packet loss mode random. Supported values are between 0.0 and 1.0 (0% to 100%)" default:"0.5"`
+	StatisticEvery          string `short:"E" long:"every" description:"for partial packet loss mode nth. Match one every nth packet. Default: 2 (50% loss)" default:"2"`
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker|lxc)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
 	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`

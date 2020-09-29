@@ -239,17 +239,41 @@ func (c *config) F_insertData_real() (err error, ret int64) {
 		}
 	}()
 
+	wp := as.NewWritePolicy(0, as.TTLServerDefault)
+	if c.InsertData.TTL > -1 {
+		if c.InsertData.TTL == 0 {
+			wp.Expiration = as.TTLDontExpire
+		} else {
+			wp.Expiration = uint32(c.InsertData.TTL)
+		}
+	}
+	wp.TotalTimeout = time.Second * 5
+	wp.SocketTimeout = 0
+	wp.MaxRetries = 2
+	switch c.InsertData.ExistsAction {
+	case "UPDATE":
+		wp.RecordExistsAction = as.UPDATE
+	case "UPDATE_ONLY":
+		wp.RecordExistsAction = as.UPDATE_ONLY
+	case "REPLACE":
+		wp.RecordExistsAction = as.REPLACE
+	case "REPLACE_ONLY":
+		wp.RecordExistsAction = as.REPLACE_ONLY
+	case "CREATE_ONLY":
+		wp.RecordExistsAction = as.CREATE_ONLY
+	}
+
 	for i := c.InsertData.PkStartNumber; i <= c.InsertData.PkEndNumber; i++ {
 
 		if c.InsertData.UseMultiThreaded == 0 {
-			err, ret = c.F_insertData_perform(i, client)
+			err, ret = c.F_insertData_perform(i, client, wp)
 			if err != nil {
 				return makeError("insert-data: insertData_perform: %s", err), ret
 			}
 		} else {
 			wg <- 1
 			go func(i int, client *as.Client) {
-				err, ret = c.F_insertData_perform(i, client)
+				err, ret = c.F_insertData_perform(i, client, wp)
 				if err != nil {
 					c.log.Error("Insert error while multithreading at: insertData_perform: %s", err)
 				}
@@ -273,7 +297,7 @@ func (c *config) F_insertData_real() (err error, ret int64) {
 	return
 }
 
-func (c *config) F_insertData_perform(i int, client *as.Client) (err error, ret int64) {
+func (c *config) F_insertData_perform(i int, client *as.Client, wp *as.WritePolicy) (err error, ret int64) {
 	setSplit := strings.Split(c.InsertData.Set, ":")
 	var set string
 	if len(setSplit) == 1 {
@@ -337,17 +361,6 @@ func (c *config) F_insertData_perform(i int, client *as.Client) (err error, ret 
 	realBin := as.NewBin(bin, binc)
 	nkey := key
 	nbin := realBin
-	wp := as.NewWritePolicy(0, as.TTLServerDefault)
-	if c.InsertData.TTL > -1 {
-		if c.InsertData.TTL == 0 {
-			wp.Expiration = as.TTLDontExpire
-		} else {
-			wp.Expiration = uint32(c.InsertData.TTL)
-		}
-	}
-	wp.TotalTimeout = time.Second * 5
-	wp.SocketTimeout = 0
-	wp.MaxRetries = 2
 	erra := client.PutBins(wp, nkey, nbin)
 	for erra != nil {
 		if strings.Contains(fmt.Sprint(erra), "i/o timeout") || strings.Contains(fmt.Sprint(erra), "command execution timed out on client") {

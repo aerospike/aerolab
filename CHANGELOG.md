@@ -1,3 +1,9 @@
+#### 2.57
+* insert-data now supports specifying write policy (insert only, update, update_only, replace, replace_only)
+* new option: delete-data, including durable delete
+* packet net-loss-delay function now allows to specify -D to implement rules on destination
+* net-block now allows to specify probability (partial packet loss, without EPERM issues if used on INPUT - destination)
+
 #### 2.56
 * add option to specify TTL in insert-data function
 

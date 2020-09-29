@@ -54,6 +54,8 @@ func (c *config) F_netLoss() (err error, ret int64) {
 	}
 
 	sourceNodeList := []int{}
+	var sourceNodeIpMap map[int]string
+	var sourceNodeIpMapInternal map[int]string
 	if c.NetLoss.SourceNodeList == "" {
 		sourceNodeList, err = b.NodeListInCluster(c.NetLoss.SourceClusterName)
 		if err != nil {
@@ -83,50 +85,60 @@ func (c *config) F_netLoss() (err error, ret int64) {
 		}
 	}
 
+	sourceNodeIpMap, err = b.GetNodeIpMap(c.NetLoss.SourceClusterName)
+	if err != nil {
+		ret = E_BACKEND_ERROR
+		return err, ret
+	}
+
+	sourceNodeIpMapInternal, err = b.GetNodeIpMapInternal(c.NetLoss.SourceClusterName)
+	if err != nil {
+		ret = E_BACKEND_ERROR
+		return err, ret
+	}
+
 	destNodeList := []int{}
 	var destNodeIpMap map[int]string
 	var destNodeIpMapInternal map[int]string
-	if c.NetLoss.Action != "show" && c.NetLoss.Action != "delall" {
-		if c.NetLoss.DestinationNodeList == "" {
-			destNodeList, err = b.NodeListInCluster(c.NetLoss.DestinationClusterName)
+	if c.NetLoss.DestinationNodeList == "" {
+		destNodeList, err = b.NodeListInCluster(c.NetLoss.DestinationClusterName)
+		if err != nil {
+			ret = E_BACKEND_ERROR
+			return err, ret
+		}
+	} else {
+		dnl, err := b.NodeListInCluster(c.NetLoss.DestinationClusterName)
+		if err != nil {
+			ret = E_BACKEND_ERROR
+			return err, ret
+		}
+		dn := strings.Split(c.NetLoss.DestinationNodeList, ",")
+		for _, i := range dn {
+			dnInt, err := strconv.Atoi(i)
 			if err != nil {
 				ret = E_BACKEND_ERROR
 				return err, ret
 			}
-		} else {
-			dnl, err := b.NodeListInCluster(c.NetLoss.DestinationClusterName)
-			if err != nil {
-				ret = E_BACKEND_ERROR
-				return err, ret
-			}
-			dn := strings.Split(c.NetLoss.DestinationNodeList, ",")
-			for _, i := range dn {
-				dnInt, err := strconv.Atoi(i)
+			if inArray(dnl, dnInt) == -1 {
 				if err != nil {
 					ret = E_BACKEND_ERROR
 					return err, ret
 				}
-				if inArray(dnl, dnInt) == -1 {
-					if err != nil {
-						ret = E_BACKEND_ERROR
-						return err, ret
-					}
-				}
-				destNodeList = append(destNodeList, dnInt)
 			}
+			destNodeList = append(destNodeList, dnInt)
 		}
+	}
 
-		destNodeIpMap, err = b.GetNodeIpMap(c.NetLoss.DestinationClusterName)
-		if err != nil {
-			ret = E_BACKEND_ERROR
-			return err, ret
-		}
+	destNodeIpMap, err = b.GetNodeIpMap(c.NetLoss.DestinationClusterName)
+	if err != nil {
+		ret = E_BACKEND_ERROR
+		return err, ret
+	}
 
-		destNodeIpMapInternal, err = b.GetNodeIpMapInternal(c.NetLoss.DestinationClusterName)
-		if err != nil {
-			ret = E_BACKEND_ERROR
-			return err, ret
-		}
+	destNodeIpMapInternal, err = b.GetNodeIpMapInternal(c.NetLoss.DestinationClusterName)
+	if err != nil {
+		ret = E_BACKEND_ERROR
+		return err, ret
 	}
 
 	rest := ""
@@ -149,20 +161,35 @@ func (c *config) F_netLoss() (err error, ret int64) {
 		rest = rest + " --loss " + c.NetLoss.Loss
 	}
 
-	for _, sourceNode := range sourceNodeList {
-		container := fmt.Sprintf("cluster %s node %d", c.NetLoss.SourceClusterName, sourceNode)
+	sysRunOnClusterName := c.NetLoss.SourceClusterName
+	sysLogTheOther := c.NetLoss.DestinationClusterName
+	sysRunOnNodeList := sourceNodeList
+	sysRunOnDestNodeList := destNodeList
+	sysRunOnDestIpMap := destNodeIpMap
+	sysRunOnDestIpMapInternal := destNodeIpMapInternal
+	if c.NetLoss.RunOnDestination != 0 {
+		sysRunOnClusterName = c.NetLoss.DestinationClusterName
+		sysLogTheOther = c.NetLoss.SourceClusterName
+		sysRunOnNodeList = destNodeList
+		sysRunOnDestNodeList = sourceNodeList
+		sysRunOnDestIpMap = sourceNodeIpMap
+		sysRunOnDestIpMapInternal = sourceNodeIpMapInternal
+	}
+	c.log.Info("Run on '%s' nodes '%v', implement loss/delay against '%s' nodes '%v' with IPs '%v' and optional IPs '%v'", sysRunOnClusterName, sysRunOnNodeList, sysLogTheOther, sysRunOnDestNodeList, sysRunOnDestIpMap, sysRunOnDestIpMapInternal)
+	for _, sourceNode := range sysRunOnNodeList {
+		container := fmt.Sprintf("cluster %s node %d", sysRunOnClusterName, sourceNode)
 		if c.NetLoss.Action != "show" && c.NetLoss.Action != "delall" {
-			for _, destNode := range destNodeList {
-				destNodeIp := destNodeIpMap[destNode]
+			for _, destNode := range sysRunOnDestNodeList {
+				destNodeIp := sysRunOnDestIpMap[destNode]
 				command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s --network %s", rest, destNodeIp)}
-				out, err := b.RunCommand(c.NetLoss.SourceClusterName, [][]string{command}, []int{sourceNode})
+				out, err := b.RunCommand(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
 				if err != nil {
 					c.log.Error("%s %s %s", container, err, string(out[0]))
 				}
-				if destNodeIpMapInternal != nil {
-					destNodeIpInternal := destNodeIpMapInternal[destNode]
+				if sysRunOnDestIpMapInternal != nil {
+					destNodeIpInternal := sysRunOnDestIpMapInternal[destNode]
 					command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s --network %s", rest, destNodeIpInternal)}
-					out, err = b.RunCommand(c.NetLoss.SourceClusterName, [][]string{command}, []int{sourceNode})
+					out, err = b.RunCommand(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
 					if err != nil {
 						c.log.Error("%s %s %s", container, err, string(out[0]))
 					}
@@ -170,7 +197,7 @@ func (c *config) F_netLoss() (err error, ret int64) {
 			}
 		} else {
 			command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s", rest)}
-			out, err := b.RunCommand(c.NetLoss.SourceClusterName, [][]string{command}, []int{sourceNode})
+			out, err := b.RunCommand(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
 			if err != nil {
 				c.log.Error("%s %s %s", container, err, string(out[0]))
 			} else if c.NetLoss.Action == "show" {
