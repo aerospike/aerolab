@@ -53,3 +53,5 @@
 ##### [Deploy all-flash](ALLFLASH.md)
 
 ##### [Create TLS certs manually, including intermediate CA](manual-tls-intermediate.md)
+
+##### [Aerolab is stuck, something bad happened, what do?](WHAT_DO.md)
