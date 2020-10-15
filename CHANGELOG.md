@@ -1,3 +1,6 @@
+#### 2.58
+* fix support for running aerolab via symlinks or from a PATH env var
+
 #### 2.57
 * insert-data now supports specifying write policy (insert only, update, update_only, replace, replace_only)
 * new option: delete-data, including durable delete

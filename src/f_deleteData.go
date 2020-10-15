@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -16,6 +17,19 @@ import (
 
 	as "github.com/aerospike/aerospike-client-go"
 )
+
+func findExec() string {
+	ex, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+
+	exReal, err := filepath.EvalSymlinks(ex)
+	if err != nil {
+		return ""
+	}
+	return exReal
+}
 
 func (c *config) F_deleteData() (err error, ret int64) {
 
@@ -28,7 +42,15 @@ func (c *config) F_deleteData() (err error, ret int64) {
 	if c.DeleteData.LinuxBinaryPath == "" {
 		fi, err := os.Stat(myBinary)
 		if err != nil {
-			return makeError("delete-data: error running stat self: %s", err), E_BACKEND_ERROR
+			myBinary = findExec()
+			if myBinary != "" {
+				fi, err = os.Stat(myBinary)
+				if err != nil {
+					return makeError("delete-data: error running stat self: %s", err), E_BACKEND_ERROR
+				}
+			} else {
+				return makeError("delete-data: error running stat self: %s", err), E_BACKEND_ERROR
+			}
 		}
 		size := fi.Size()
 		if size > 10*1024*1024 { // if file bigger than 10 MB, this will be aio version
