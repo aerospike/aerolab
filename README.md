@@ -38,3 +38,19 @@ To achive that, follow [this](tunnel-container-openvpn/README.md) simple instruc
 ###### See [VERSION.md](VERSION.md) for version number
 
 ###### See [AWS HowTo](docs/AWS.md)
+
+###### Seeing dmesg in docker on mac / attaching to the docker host running on mac/windows/linux using nsenter
+
+Merthod 1 (cat ring buffer):
+
+```
+cat /Users/rglonek/Library/Containers/com.docker.docker/Data/vms/0/console-ring
+```
+
+Method 2 (attach to docker host by attaching to another namespace):
+
+```
+docker run -it --rm --privileged --pid=host debian nsenter -t 1 -m -u -n -i sh
+dmesg
+exit
+```
