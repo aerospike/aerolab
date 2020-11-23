@@ -55,3 +55,7 @@
 ##### [Create TLS certs manually, including intermediate CA](manual-tls-intermediate.md)
 
 ##### [Aerolab is stuck, something bad happened, what do?](WHAT_DO.md)
+
+##### [AMS - Aerospike Monitoring Stack - full HOWTO](AMS.md)
+
+##### [AMS script - easy install Aerospike Monitoring Stack](AMS_SCRIPT.md)
