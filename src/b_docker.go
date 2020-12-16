@@ -130,10 +130,17 @@ func (b b_docker) ListTemplates() ([]version, error) {
 		t := scanner.Text()
 		repo := strings.Trim(strings.Split(t, ";")[0], "'\"")
 		if strings.Contains(repo, "aero-") {
-			repo = repo[5:]
-			distVer := strings.Split(repo, "_")
-			tag := strings.Trim(strings.Split(t, ";")[1], "'\"")
-			templateList = append(templateList, version{distVer[0], distVer[1], tag})
+			if len(repo) > 7 {
+				repo = repo[5:]
+				distVer := strings.Split(repo, "_")
+				if len(distVer) == 2 {
+					tagList := strings.Split(t, ";")
+					if len(tagList) > 1 {
+						tag := strings.Trim(tagList[1], "'\"")
+						templateList = append(templateList, version{distVer[0], distVer[1], tag})
+					}
+				}
+			}
 		}
 	}
 	return templateList, nil

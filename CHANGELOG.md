@@ -1,3 +1,8 @@
+#### 2.59
+* error handling improvement: add handling of wrong docker image names
+* updated templates to all have default-ttl 0
+* udpated dependencies to latest version
+
 #### 2.58
 * fix support for running aerolab via symlinks or from a PATH env var
 
