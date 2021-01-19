@@ -22,6 +22,15 @@ Nov 06 09:26:04+0000 AERO-LAB[13764]: INFO     Done
 $ ./aerolab restart-aerospike
 ```
 
+### Connect using aql
+```
+# mutual auth off
+aql --tls-enable --tls-cafile=/etc/aerospike/ssl/tls1/cacert.pem -h 127.0.0.1:tls1:4333
+
+# mutual auth on
+aql --tls-enable --tls-cafile=/etc/aerospike/ssl/tls1/cacert.pem --tls-keyfile=/etc/aerospike/ssl/tls1/key.pem --tls-certfile=/etc/aerospike/ssl/tls1/cert.pem -h 127.0.0.1:tls1:4333
+```
+
 ### Notes on multiple certificates
 
 gen-tls-certs will put certificates in the following path in the containers:
