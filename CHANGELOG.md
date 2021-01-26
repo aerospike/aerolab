@@ -1,3 +1,6 @@
+#### 2.60
+* fix clash in switches in net-loss-delay
+
 #### 2.59
 * error handling improvement: add handling of wrong docker image names
 * updated templates to all have default-ttl 0

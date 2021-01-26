@@ -83,9 +83,9 @@ type netLossStruct struct {
 	Action                  string `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
 	ShowNames               int    `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output" default:"0" type:"bool"`
 	Delay                   string `short:"p" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
-	Loss                    string `short:"P" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
+	Loss                    string `short:"L" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
 	RunOnDestination        int    `short:"D" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)" default:"0" type:"bool"`
-	Rate                    string `short:"P" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
+	Rate                    string `short:"R" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker|lxc)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
 	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`
