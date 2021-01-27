@@ -128,6 +128,9 @@ type insertDataStruct struct {
 	TlsClientCert           string `short:"w" long:"tls-client-cert" description:"Tls client cerrtificate path" default:""`
 	TlsServerName           string `short:"i" long:"tls-server-name" description:"Tls ServerName" default:""`
 	TTL                     int    `short:"T" long:"ttl" description:"set ttl for records. Set to -1 to use server default, 0=don't expire" default:"-1"`
+	InsertToNodes           string `short:"N" long:"to-nodes" description:"insert to specific node(s); provide comma-separated node IDs" default:""`
+	InsertToPartitions      int    `short:"P" long:"to-partitions" description:"insert to X number of partitions at most. to-partitions/to-nodes=partitions-per-node" default:"0"`
+	InsertToPartitionList   string `short:"L" long:"to-partition-list" description:"comma-separated list of partition numbers to insert data to. -P and -L  are ignore if this is specified" default:""`
 	ExistsAction            string `short:"E" long:"exists-action" description:"action policy: CREATE_ONLY | REPLACE_ONLY | REPLACE | UPDATE_ONLY | UPDATE" default:""`
 	ClusterName             string `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
 	Node                    int    `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`

@@ -1,3 +1,6 @@
+#### 2.61
+* insert-data now allows specifying to insert data only to X number of partitions and/or nodes, or to specify exact partition numbers to insert data to
+
 #### 2.60
 * fix clash in switches in net-loss-delay
 

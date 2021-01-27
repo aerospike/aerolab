@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerospike-client-go"
 	as "github.com/aerospike/aerospike-client-go"
 )
 
@@ -271,17 +273,83 @@ func (c *config) F_insertData_real() (err error, ret int64) {
 		wp.RecordExistsAction = as.CREATE_ONLY
 	}
 
-	for i := c.InsertData.PkStartNumber; i <= c.InsertData.PkEndNumber; i++ {
+	var partitionsToInsertTo []int
+	if (c.InsertData.InsertToNodes != "" || c.InsertData.InsertToPartitions != 0) && c.InsertData.InsertToPartitionList == "" {
+		nodes := strings.Split(c.InsertData.InsertToNodes, ",")
+		nodeList := []*aerospike.Node{}
+		for _, node := range nodes {
+			node = strings.ToLower(strings.Trim(node, "\n\t\r ,"))
+			if node != "" {
+				for _, realNode := range client.GetNodes() {
+					realName := strings.ToLower(realNode.GetName())
+					if realName == node {
+						nodeList = append(nodeList, realNode)
+					}
+				}
+			}
+		}
+		if len(nodeList) == 0 {
+			nodeList = client.GetNodes()
+		}
+		partitionsPerNode := c.InsertData.InsertToPartitions / len(nodeList)
+		infoPolicy := as.NewInfoPolicy()
+		partitionMap := make(map[string][]int)
+		for _, node := range nodeList {
+			partitionInfo, err := node.RequestInfo(infoPolicy, "partition-info")
+			if err != nil {
+				return makeError("insert-data: partition-info: %s", err), ret
+			}
+			for _, partition := range strings.Split(partitionInfo["partition-info"], ";") {
+				partitionSplit := strings.Split(partition, ":")
+				if partitionSplit[0] == c.InsertData.Namespace && partitionSplit[4] == "0" {
+					if strings.ToLower(node.GetName()) == strings.ToLower(partitionSplit[6]) {
+						pNo, err := strconv.Atoi(partitionSplit[1])
+						if err == nil {
+							if len(partitionMap[strings.ToLower(node.GetName())]) < partitionsPerNode || partitionsPerNode == 0 {
+								partitionMap[strings.ToLower(node.GetName())] = append(partitionMap[strings.ToLower(node.GetName())], pNo)
+							}
+						}
+					}
+				}
+			}
+		}
+		for _, partitions := range partitionMap {
+			partitionsToInsertTo = append(partitionsToInsertTo, partitions...)
+		}
+	}
 
+	if c.InsertData.InsertToPartitionList != "" {
+		partitionsToInsertToString := strings.Split(c.InsertData.InsertToPartitionList, ",")
+		for _, pTo := range partitionsToInsertToString {
+			pToInt, err := strconv.Atoi(pTo)
+			if err != nil {
+				if err != nil {
+					return makeError("insert-data: partition list not numeric: %s", err), ret
+				}
+			}
+			partitionsToInsertTo = append(partitionsToInsertTo, pToInt)
+		}
+	}
+
+	partNoLoop := 0
+	for i := c.InsertData.PkStartNumber; i <= c.InsertData.PkEndNumber; i++ {
+		partNo := -1
+		if len(partitionsToInsertTo) > 0 {
+			partNo = partitionsToInsertTo[partNoLoop]
+			partNoLoop++
+			if partNoLoop == len(partitionsToInsertTo) {
+				partNoLoop = 0
+			}
+		}
 		if c.InsertData.UseMultiThreaded == 0 {
-			err, ret = c.F_insertData_perform(i, client, wp)
+			err, ret = c.F_insertData_perform(i, client, wp, partNo)
 			if err != nil {
 				return makeError("insert-data: insertData_perform: %s", err), ret
 			}
 		} else {
 			wg <- 1
 			go func(i int, client *as.Client) {
-				err, ret = c.F_insertData_perform(i, client, wp)
+				err, ret = c.F_insertData_perform(i, client, wp, partNo)
 				if err != nil {
 					c.log.Error("Insert error while multithreading at: insertData_perform: %s", err)
 				}
@@ -305,7 +373,7 @@ func (c *config) F_insertData_real() (err error, ret int64) {
 	return
 }
 
-func (c *config) F_insertData_perform(i int, client *as.Client, wp *as.WritePolicy) (err error, ret int64) {
+func (c *config) F_insertData_perform(i int, client *as.Client, wp *as.WritePolicy, partitionNumber int) (err error, ret int64) {
 	setSplit := strings.Split(c.InsertData.Set, ":")
 	var set string
 	if len(setSplit) == 1 {
@@ -360,11 +428,22 @@ func (c *config) F_insertData_perform(i int, client *as.Client, wp *as.WritePoli
 		return errors.New(fmt.Sprintf("insert-data: bin contents error")), 11
 	}
 
-	var pk string
-	pk = fmt.Sprintf("%s%d", c.InsertData.PkPrefix, i)
-	key, err := as.NewKey(c.InsertData.Namespace, set, pk)
-	if err != nil {
-		return errors.New(fmt.Sprintf("insert-data: as.NewKey error: %s", err)), 1
+	var key *aerospike.Key
+	if partitionNumber < 0 {
+		var pk string
+		pk = fmt.Sprintf("%s%d", c.InsertData.PkPrefix, i)
+		key, err = as.NewKey(c.InsertData.Namespace, set, pk)
+		if err != nil {
+			return errors.New(fmt.Sprintf("insert-data: as.NewKey error: %s", err)), 1
+		}
+	} else {
+		digest := make([]byte, 20)
+		binary.LittleEndian.PutUint32(digest, uint32(partitionNumber))
+		binary.LittleEndian.PutUint64(digest[2:], uint64(i))
+		key, err = as.NewKeyWithDigest(c.InsertData.Namespace, set, nil, digest)
+		if err != nil {
+			return errors.New(fmt.Sprintf("insert-data: as.NewKey error: %s", err)), 1
+		}
 	}
 	realBin := as.NewBin(bin, binc)
 	nkey := key
