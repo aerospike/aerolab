@@ -693,6 +693,18 @@ func (b b_aws) DeployCluster(v version, name string, nodeCount int, exposePorts 
 						break
 					}
 				}
+				if nout == nil {
+					return errors.New("aws output is empty(?) and no error happened")
+				}
+				if len(nout.Reservations) == 0 {
+					return errors.New("aws reservations count == 0 and no error happened")
+				}
+				if len(nout.Reservations[0].Instances) == 0 {
+					return errors.New("aws instances count == 0 in reservation[0] and no error happened")
+				}
+				if nout.Reservations[0].Instances[0].PublicIpAddress == nil {
+					return errors.New("NO PUBLIC IP ADDRESS ASSIGNED TO THE INSTANCE!")
+				}
 				_, err = remoteRun("ubuntu", fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "ls")
 				if err == nil {
 					// sort out root/ubuntu issues

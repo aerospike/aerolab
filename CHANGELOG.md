@@ -1,3 +1,9 @@
+#### 2.63
+* satisfy libcurl4 dependency for asd 5.1+
+
+#### 2.62
+* improvement: will now check if instance in aws has public IP assigned before attempting to use the variable
+
 #### 2.61
 * insert-data now allows specifying to insert data only to X number of partitions and/or nodes, or to specify exact partition numbers to insert data to
 
