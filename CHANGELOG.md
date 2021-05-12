@@ -1,3 +1,6 @@
+#### 2.64
+* new aerospike website broke artifacts download links. This works around the problem.
+
 #### 2.63
 * satisfy libcurl4 dependency for asd 5.1+
 
