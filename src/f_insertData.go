@@ -198,8 +198,10 @@ func (c *config) F_insertData_real() (err error, ret int64) {
 			}
 		}
 		var tlsconfig *tls.Config
+		tlsconfig = &tls.Config{}
 		if c.InsertData.TlsCaCert != "" {
 			var cacertpool *x509.CertPool
+			cacertpool = x509.NewCertPool()
 			ncertfile, err := ioutil.ReadFile(c.InsertData.TlsCaCert)
 			if err != nil {
 				return makeError("insert-data: could not read ca cert: %s", err), E_BACKEND_ERROR
@@ -209,6 +211,7 @@ func (c *config) F_insertData_real() (err error, ret int64) {
 		}
 		if c.InsertData.TlsClientCert != "" {
 			var clientcertpool *x509.CertPool
+			clientcertpool = x509.NewCertPool()
 			ncertfile, err := ioutil.ReadFile(c.InsertData.TlsClientCert)
 			if err != nil {
 				return makeError("insert-data: could not read client cert: %s", err), E_BACKEND_ERROR

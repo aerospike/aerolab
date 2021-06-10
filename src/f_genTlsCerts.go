@@ -70,12 +70,12 @@ func (c *config) F_genTlsCerts() (err error, ret int64) {
 	var commands [][]string
 	comm := "openssl"
 	commands = append(commands, []string{"req", "-new", "-nodes", "-x509", "-extensions", "v3_ca", "-keyout", "private/cakey.pem", "-out", "cacert.pem", "-days", "3650", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.GenTlsCerts.TlsName)})
-	commands = append(commands, []string{"req", "-new", "-nodes", "-out", "req.pem", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.GenTlsCerts.TlsName)})
-	commands = append(commands, []string{"ca", "-batch", "-out", "cert.pem", "-config", "./openssl.cnf", "-infiles", "req.pem"})
+	commands = append(commands, []string{"req", "-new", "-nodes", "-extensions", "v3_req", "-out", "req.pem", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.GenTlsCerts.TlsName)})
+	commands = append(commands, []string{"ca", "-batch", "-extensions", "v3_req", "-out", "cert.pem", "-config", "./openssl.cnf", "-infiles", "req.pem"})
 	os.RemoveAll("CA")
 	os.Mkdir("CA", 0755)
 	os.Chdir("./CA")
-	ioutil.WriteFile("openssl.cnf", []byte(tls_create_openssl_config()), 0644)
+	ioutil.WriteFile("openssl.cnf", []byte(tls_create_openssl_config(c.GenTlsCerts.TlsName)), 0644)
 	for _, i := range []string{"private", "newcerts"} {
 		os.RemoveAll(i)
 		os.Mkdir(i, 0755)
@@ -145,7 +145,7 @@ func (c *config) F_genTlsCerts() (err error, ret int64) {
 	return
 }
 
-func tls_create_openssl_config() string {
+func tls_create_openssl_config(tlsName string) string {
 	conf := `#
 # OpenSSL configuration file.
 #
@@ -192,10 +192,16 @@ commonName_default                 = harvey
 basicConstraints	= CA:TRUE
 subjectKeyIdentifier	= hash
 authorityKeyIdentifier	= keyid:always,issuer:always
+subjectAltName = IP:127.0.0.1
 
 [ v3_req ]
 basicConstraints	= CA:FALSE
 subjectKeyIdentifier	= hash
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1   = %s
+IP.1 = 127.0.0.1
 
 [ ca ]
 default_ca		= CA_default
@@ -223,5 +229,5 @@ commonName		= supplied
 emailAddress		= optional
 
 `
-	return conf
+	return fmt.Sprintf(conf, tlsName)
 }

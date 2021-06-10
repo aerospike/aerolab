@@ -1,3 +1,6 @@
+#### 2.65
+* fix tls - new requirements - cannot use Common Name any more
+
 #### 2.64
 * new aerospike website broke artifacts download links. This works around the problem.
 

@@ -6,7 +6,7 @@ import (
 	"github.com/reiver/go-telnet"
 )
 
-var aeroLabVersion = "2.64"
+var aeroLabVersion = "2.65"
 
 func (c *config) F_version() (err error, ret int64) {
 	fmt.Println(aeroLabVersion)
