@@ -15,7 +15,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
   kafka-connect:
-    image: aerospike/kafka-connect
+    image: aerospike/kafka-connect-4.0
 networks:
   default:
     name: kafka-connect_net

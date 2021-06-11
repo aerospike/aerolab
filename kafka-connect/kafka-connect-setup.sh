@@ -4,7 +4,7 @@ CLUSTER_NAME=$1
 
 USAGE="$0 CLUSTER_NAME"
 DEFAULT_CLUSTER_NAME=kafka-connect
-KAFKA_CONNECT_IMAGE_NAME=aerospike/kafka-connect
+KAFKA_CONNECT_IMAGE_NAME=aerospike/kafka-connect-4.0
 KAFKA_CONNECT_NETWORK_NAME=kafka-connect_net
 FEATURES_PATH=./cluster-setup/features.conf
 KAFKA_CONNECT_BUILD_DIR=kafka-connect-build

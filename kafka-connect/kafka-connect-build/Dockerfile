@@ -1,6 +1,6 @@
 FROM centos:7
 ENV PRODUCT_NAME=aerospike-kafka-outbound
-ENV VERSION=3.0.1
+ENV VERSION=4.0.0
 ENV RPM=$PRODUCT_NAME-$VERSION.rpm
 
 RUN yum updateinfo && \
