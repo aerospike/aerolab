@@ -1,3 +1,6 @@
+#### 2.66
+* fix check in aws backend for public IP
+
 #### 2.65
 * fix tls - new requirements - cannot use Common Name any more
 

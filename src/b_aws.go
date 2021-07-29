@@ -1048,6 +1048,24 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 					}
 				}
 
+				if len(nout.Reservations) == 0 {
+					fmt.Println("Got zero reservations back")
+					time.Sleep(time.Second)
+					continue
+				}
+
+				if len(nout.Reservations[0].Instances) == 0 {
+					fmt.Println("AWS returned 0 instances running")
+					time.Sleep(time.Second)
+					continue
+				}
+
+				if nout.Reservations[0].Instances[0].PublicIpAddress == nil {
+					fmt.Println("Have not received Public IP Address from AWS - just slow, or subnet in AWS is misconfigured - must be default provide public IP address")
+					time.Sleep(time.Second)
+					continue
+				}
+
 				_, err = remoteRun("ubuntu", fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "ls")
 				if err == nil {
 					instanceReady = instanceReady + 1
