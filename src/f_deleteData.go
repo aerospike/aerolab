@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerospike-client-go"
 	as "github.com/aerospike/aerospike-client-go"
 )
 
@@ -207,6 +208,11 @@ func (c *config) F_deleteData_real() (err error, ret int64) {
 			} else {
 				policy.User = up[0]
 				policy.Password = up[1]
+				if c.DeleteData.AuthType == 1 {
+					policy.AuthMode = aerospike.AuthModeExternal
+				} else {
+					policy.AuthMode = aerospike.AuthModeInternal
+				}
 			}
 		}
 		var tlsconfig *tls.Config
@@ -238,6 +244,7 @@ func (c *config) F_deleteData_real() (err error, ret int64) {
 		return errors.New(fmt.Sprintf("delete-data: Error connecting: %s", err)), 3
 	}
 
+	client.WarmUp(100)
 	rand.Seed(time.Now().UnixNano())
 
 	total := c.DeleteData.PkEndNumber - c.DeleteData.PkStartNumber + 1

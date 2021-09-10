@@ -1,3 +1,8 @@
+#### 2.67
+* add auth mode external to insert/delete data
+* add client warmup(100) to insert/delete data
+* recompile with aerospike library v5
+
 #### 2.66
 * fix check in aws backend for public IP
 

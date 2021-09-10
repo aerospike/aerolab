@@ -1,4 +1,4 @@
-# Aero-Lab v2.66
+# Aero-Lab v2.67
 
 #### Spin up Aerospike clusters quickly in aws, docker on mac or docker/lxc on ubuntu 18.04)
 
