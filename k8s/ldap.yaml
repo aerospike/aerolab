@@ -1,0 +1,78 @@
+apiVersion: aerospike.com/v1alpha1
+kind: AerospikeCluster
+metadata:
+  name: aerocluster
+  namespace: aerospike
+
+spec:
+  size: 3
+  image: aerospike/aerospike-server-enterprise:5.5.0.15
+  multiPodPerHost: true
+
+  storage:
+    filesystemVolumePolicy:
+      cascadeDelete: true
+      initMethod: deleteFiles
+    volumes:
+      - path: /opt/aerospike
+        storageClass: ssd
+        volumeMode: filesystem
+        sizeInGB: 3
+
+  aerospikeAccessControl:
+    users:
+      - name: admin
+        secretName: auth-secret
+        roles:
+          - sys-admin
+          - user-admin
+      - name: superuser
+        roles:
+        - read-write-udf
+        - user-admin
+        - sys-admin
+        secretName: auth-secret-superuser
+    roles:
+      - name: bob
+        privileges:
+          - user-admin
+          - data-admin
+
+  aerospikeConfigSecret:
+    secretName: aerospike-secret
+    mountPath:  /etc/aerospike/secret
+
+  aerospikeConfig:
+    logging:
+      - name: /var/log/aerospike/aerospike.log
+        any: info
+        clustering: debug
+
+    service:
+      feature-key-file: /etc/aerospike/secret/features.conf
+
+    security:
+      enable-security: true
+      enable-ldap: true
+      ldap:
+        disable-tls: false
+        query-base-dn: dc=aerospike,dc=com
+        server: ldap://172.17.0.4:389
+        disable-tls: true
+        user-dn-pattern: uid=$${escape}{un},ou=People,dc=aerospike,dc=com
+        role-query-search-ou: false
+        role-query-patterns:
+          - (&(objectClass=posixGroup)(memberUid=$${escape}{un}))
+        polling-period: 10
+
+    namespaces:
+      - name: test
+        memory-size: 3000000000
+        replication-factor: 2
+        storage-engine:
+          type: memory
+
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 200m
