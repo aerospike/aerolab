@@ -13,6 +13,8 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - 22181:2181
+    networks:
+      - kafka_default
   
   kafka:
     image: confluentinc/cp-kafka:latest
@@ -28,11 +30,18 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - kafka_default
+
+networks:
+  kafka_default:
+    name: kafka_default
+
 EOF
 
 docker-compose  up -d || exit 1
 
-sleep 5
+sleep 10
 
 docker-compose logs kafka | grep -i started
 
@@ -60,9 +69,9 @@ format:
 # a list of transformations and mappings.
 bin-transforms:
   map:
-   yellow: red
-   transforms: //will be done in order
-   - uppercase
+    yellow: red
+    transforms: //will be done in order
+      - uppercase
 
 routing:
   mode: static

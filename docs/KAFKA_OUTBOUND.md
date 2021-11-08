@@ -13,20 +13,21 @@ For different OS distributions, follow [install](https://docs.docker.com/compose
 
 Get and run [deploy-kafka-outbound.sh](/scripts/deploy-kafka-outbound.sh) file.
 ```bash
-$ ./deploy-kafka-outbound.sh
+$ ./scripts/deploy-kafka-outbound.sh
 ```
 
 ### Change kafka-outbound.conf to point aerospike at the kafka-outbound-connector container
 ```bash
-$ KAFKA-OUTBOUND-IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' as-kafka-outbound)
-$ sed "s/KAFKA-OUTBOUND-IP/$KAFKA-OUTBOUND-IP/g" templates/kafka-outbound.conf > templates/kafka-outbound.conf-custom.conf
+$ KAFKA_OUTBOUND_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' as-kafka-outbound)
+$ sed "s/KAFKA_OUTBOUND_IP/$KAFKA_OUTBOUND_IP/g" templates/kafka-outbound.conf > templates/kafka-outbound-custom.conf
 ```
 
 ### Deploy aerospike with 1 node and kafka-outbound-connector template
 
 ```bash
-$ aerolab make-cluster -n dc1  -o templates/kafka-outbound.conf-custom.conf
-$ rm templates/kafka-outbound.conf-custom.conf
+$ aerolab make-cluster -n dc1  -o templates/kafka-outbound-custom.conf
+$ rm templates/kafka-outbound-custom.conf
+$ docker network connect kafka_default aero-dc1_1
 ```
 
 
