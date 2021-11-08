@@ -17,7 +17,7 @@ PULSAR_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}
 
 # pulsar-outbound setup
 
-cat <<'EOF' > $HOME/Downloads/aerospike-pulsar-outbound.yml
+cat << EOF > $HOME/Downloads/aerospike-pulsar-outbound.yml
 # port that the connector runs on
 service:
   port: 8080
@@ -72,8 +72,8 @@ format:
 bin-transforms:
   map:
     yellow: red
-    transforms: # will be done in order
-     - uppercase
+  transforms: # will be done in order
+    - uppercase
 
 routing:
   mode: static
