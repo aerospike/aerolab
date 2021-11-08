@@ -2,7 +2,7 @@
 
 # Launch single node kafka cluster using docker-compose. docker-compose should be installed on the system.
 
-cat <<'EOF' > docker-compose.yml
+cat <<'EOF' > /tmp/docker-compose.yml
 version: '2'
 services:
   zookeeper:
@@ -39,11 +39,11 @@ networks:
 
 EOF
 
-docker-compose  up -d || exit 1
+docker-compose  -f /tmp/docker-compose.yml up -d || exit 1
 
 sleep 10
 
-docker-compose logs kafka | grep -i started
+docker-compose -f /tmp/docker-compose.yml logs kafka | grep -i started
 
 
 # kafka-outbound setup

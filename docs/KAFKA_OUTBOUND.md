@@ -25,9 +25,9 @@ $ sed "s/KAFKA_OUTBOUND_IP/$KAFKA_OUTBOUND_IP/g" templates/kafka-outbound.conf >
 ### Deploy aerospike with 1 node and kafka-outbound-connector template
 
 ```bash
-$ aerolab make-cluster -n dc1  -o templates/kafka-outbound-custom.conf
+$ aerolab make-cluster -n kafka-dc1  -o templates/kafka-outbound-custom.conf
 $ rm templates/kafka-outbound-custom.conf
-$ docker network connect kafka_default aero-dc1_1
+$ docker network connect kafka_default aero-kafka-dc1_1
 ```
 
 
@@ -35,8 +35,8 @@ $ docker network connect kafka_default aero-dc1_1
 
 Insert record in test namespace on aerospike server
 ```bash
-$ aerolab node-attach -n dc1 -- aql -c "insert into test(PK,a,b) values('2','aaa',124);"
-$ aerolab node-attach -n dc1 -- aql -c "insert into test(PK,a,b) values('3','aaa',124);"
+$ aerolab node-attach -n kafka-dc1 -- aql -c "insert into test(PK,a,b) values('2','aaa',124);"
+$ aerolab node-attach -n kafka-dc1 -- aql -c "insert into test(PK,a,b) values('3','aaa',124);"
 ```
 
 Verify the records on kafka cluster
@@ -53,10 +53,10 @@ $ docker exec -it as-kafka-outbound tail -f /var/log/aerospike-kafka-outbound/ae
 ### Remove cluster
 
 ```bash
-$ aerolab cluster-destroy -f 1 -n dc1
+$ aerolab cluster-destroy -f 1 -n kafka-dc1
 ```
 
-### Remove and kill the ldap server
+### Remove and kill the kafka setup
 
 ```bash
 $ docker stop as-kafka-outbound ; docker rm as-kafka-outbound
