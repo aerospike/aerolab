@@ -15,3 +15,4 @@
 * aerolab testing:
     * test all features with docker and aws backends
     * test and review all templates/ to ensure these work
+* aerolab-macos: codesign
