@@ -1,13 +1,17 @@
-all documentation links that are now empty
-
-change https://github.com/citrusleaf/aerolab to right link in tunnel-container-openvpn-readme.md
-main readme.md:
- * update https://github.com/citrusleaf/aerolab/releases url
-
-scripts/*
- * review all scripts
- * document all scripts
-
-testing:
- * test all features with docker and aws backends
- * test and review all templates/ to ensure these work
+* documentation
+    * advanced usage
+    * scripts
+        * deployenv
+        * ldap
+        * make-certs
+        * sc
+        * sample code
+* scripts dir:
+    * cleanup and test all
+    * add sample code
+* other
+    * change https://github.com/citrusleaf/aerolab to right link in tunnel-container-openvpn-readme.md
+    * main readme.md update https://github.com/citrusleaf/aerolab/releases url
+* aerolab testing:
+    * test all features with docker and aws backends
+    * test and review all templates/ to ensure these work
