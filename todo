@@ -1,18 +1,23 @@
-* documentation
-    * advanced usage
-    * scripts
-        * deployenv
-        * ldap
-        * make-certs
-        * sc
-        * sample code
-* scripts dir:
-    * cleanup and test all
-    * add sample code - write/read code basic, authenticated and TLS
-* other
+* Thursday - AJ:
+    * scripts dir:
+        * cleanup and test all
+        * add sample code - write/read code basic, authenticated and TLS
+
+* Thursday - RG:
+    * aerolab testing:
+        * test all features with docker and aws backends
+        * test and review all templates/ to ensure these work
+
+* Friday RG and AJ:
+    * documentation
+        * scripts
+            * deployenv
+            * ldap
+            * make-certs
+            * sc
+            * sample code
+
+* Other:
+    * aerolab-macos: codesign
     * change https://github.com/citrusleaf/aerolab to right link in tunnel-container-openvpn-readme.md
     * main readme.md update https://github.com/citrusleaf/aerolab/releases url
-* aerolab testing:
-    * test all features with docker and aws backends
-    * test and review all templates/ to ensure these work
-* aerolab-macos: codesign

@@ -15,8 +15,9 @@
 
 ## Advanced
 
+* [Rack-aware](racks.md)
 * [All Flash](all-flash.md)
-* [Loop Devices](loop-dev.md)
 * [Encryption at rest](encryption.md)
 * [Resource limits](limits.md)
 * [Strong consistency](strong.md)
+* [Loop Devices](loop-dev.md)
