@@ -1,4 +1,6 @@
-# Basic usage examples
+# Usage examples
+
+## Basic
 
 * [Cluster commands](cluster.md)
 * [Aerospike commands](aerospike.md)
@@ -10,3 +12,11 @@
 * [Setup TLS](tls.md)
 * [Vanilla container](container.md)
 * [Download aerospike logs](get-logs.md)
+
+## Advanced
+
+* [All Flash](all-flash.md)
+* [Loop Devices](loop-dev.md)
+* [Encryption at rest](encryption.md)
+* [Resource limits](limits.md)
+* [Strong consistency](strong.md)
