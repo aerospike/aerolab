@@ -1,0 +1,32 @@
+#!/bin/sh
+
+mkdir -p /opt/rootca/input
+mkdir -p /opt/rootca/local
+mkdir -p /opt/rootca/output
+
+cd /opt/rootca
+
+echo "Generate Root"
+#openssl genrsa -out local/rootCA.key 2048
+#openssl req -x509 -new -nodes -key local/rootCA.key -sha256 -days 3650 -out local/rootCA.pem -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Support/CN=supportrootca.aerospike.com"
+
+echo
+echo "Generate Requests & Private Key"
+openssl req -new -nodes -extensions v3_req -out input/client1.req -keyout output/client..key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Client/CN=client1"
+openssl req -new -nodes -extensions v3_req -out input/server1.req -keyout output/server1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Server/CN=server1"
+openssl req -new -nodes -extensions v3_req -out input/admin1.req -keyout output/admin1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Admin/CN=admin1"
+openssl req -new -nodes -extensions v3_req -out input/ldap1.req -keyout output/ldap1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Ldap/CN=ldap1"
+openssl req -new -nodes -extensions v3_req -out input/xdr1.req -keyout output/xdr.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=XDR/CN=xdr1"
+openssl req -new -nodes -extensions v3_req -out input/fabric11.req -keyout output/fabric1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Fabric/CN=fabric1"
+openssl req -new -nodes -extensions v3_req -out input/heartbeat1.req -keyout output/heartbeat1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Heartbeat/CN=heartbeat1"
+
+echo
+echo "Generate Certificates"
+openssl x509 -req -in input/server1.req -CA local/rootCA.pem   -CAkey local/rootCA.key  -extensions v3_req -days 3649 -outform PEM -out output/server1.pem -set_serial 101
+openssl x509 -req -in input/ldap1.req -CA local/rootCA.pem   -CAkey local/rootCA.key  -extensions v3_req -days 3649 -outform PEM -out output/ldap1.pem -set_serial 201
+openssl x509 -req -in input/client1.req -CA local/rootCA.pem   -CAkey local/rootCA.key  -extensions v3_req -days 3649 -outform PEM -out output/client.pem -set_serial 301
+openssl x509 -req -in input/admin1.req -CA local/rootCA.pem   -CAkey local/rootCA.key  -extensions v3_req -days 3649 -outform PEM -out output/admin1.pem -set_serial 401
+openssl x509 -req -in input/xdr1.req -CA local/rootCA.pem   -CAkey local/rootCA.key  -extensions v3_req -days 3649 -outform PEM -out output/xdr1.pem -set_serial 501
+openssl x509 -req -in input/fabric1.req -CA local/rootCA.pem   -CAkey local/rootCA.key  -extensions v3_req -days 3649 -outform PEM -out output/fabric1.pem -set_serial 601
+openssl x509 -req -in input/heartbeat1.req -CA local/rootCA.pem   -CAkey local/rootCA.key  -extensions v3_req -days 3649 -outform PEM -out output/heartbeat1.pem -set_serial 701
+echo

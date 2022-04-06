@@ -1,0 +1,11 @@
+image: golang:1.10
+stages:
+    - test
+  
+before_script:
+    - cd /builds/bestmethod/go-logger
+
+test:
+    stage: test
+    script:
+        - go test

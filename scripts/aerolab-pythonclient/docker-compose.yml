@@ -1,0 +1,9 @@
+services:
+  pythonclient:
+    build: .
+    hostname: pythonclient
+    image: centos8
+    network_mode: "bridge"
+    volumes:  
+        - ./clients:/root/clients
+version: '3.8'

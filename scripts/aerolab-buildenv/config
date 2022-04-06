@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#Aerospike Configuration
+TEMPLATE=ldap_tls.conf
+NODES=2
+
+#VERSION should be "-v x.x.x.x"  If it's not set, then Latest will be used
+VERSION=""
+
+#FEATURES should be "-f <pathtofile>"  If it's not set, then ~/aero-lab-common.conf setting will be used
+FEATURES=""
+
+#NETWORKMODE should be "-m <type>"  If it's not set, then ~/aero-lab-common.conf setting will be used
+NETWORKMODE=""
+
+## Should not need to change the below
+#Environment Configuration
+SHORT_LDAP_NAME=ldap1
+CLUSTER_NAME=ldap_test
+SHORT_CLIENT_NAME=pythonclient
+SHORT_GOCLIENT_NAME=goclient
+
+# YES/NO
+BUILD_PYTHON="YES"
+BUILD_GO="YES"

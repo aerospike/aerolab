@@ -1,0 +1,19 @@
+dn: cn=read-write-udf,dc=aerospike,dc=com
+changetype: modify
+add: memberuid
+memberuid: customuser
+
+dn: cn=sys-admin,dc=aerospike,dc=com
+changetype: modify
+add: memberuid
+memberuid: customuser
+
+dn: cn=user-admin,dc=aerospike,dc=com
+changetype: modify
+add: memberuid
+memberuid: customuser
+
+dn: cn=customrole,dc=aerospike,dc=com
+changetype: modify
+add: memberuid
+memberuid: customroleuser

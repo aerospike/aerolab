@@ -1,0 +1,30 @@
+version: '3'
+services:
+    ldap1:
+        hostname: ldap1
+        image: osixia/openldap:1.5.0
+        command: --copy-service
+        volumes:  
+            - ./ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom:ro
+            - ./certs:/container/service/slapd/assets/certs:ro
+        environment:
+            LDAP_ORGANISATION: aerospike
+            LDAP_DOMAIN: aerospike.com
+            LDAP_TLS_CRT_FILENAME: output/ldap1.pem
+            LDAP_TLS_KEY_FILENAME: output/ldap1.key
+            LDAP_TLS_CA_CRT_FILENAME: rootCA.pem
+            LDAP_TLS_DH_PARAM_FILENAME: dhparam.pem
+            LDAP_TLS_VERIFY_CLIENT: try # change 'try' to 'demand' to force 2-way cert auth between ldap server and ldap client
+            LDAP_LOG_LEVEL: 256
+        network_mode: "bridge"
+    ldapadmin:
+        image: osixia/phpldapadmin:0.9.0
+        depends_on:
+            - "ldap1"
+        ports:
+            - "8099:80"
+        volumes:
+            - ./admin/env.yaml:/container/environment/01-custom/env.yaml:ro
+        environment:
+            PHPLDAPADMIN_HTTPS: "false"
+        network_mode: "bridge"

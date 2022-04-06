@@ -1,0 +1,16 @@
+dn: uid=customroleuser,ou=People,dc=aerospike,dc=com
+objectClass: top
+objectClass: account
+objectClass: posixAccount
+objectClass: shadowAccount
+cn: svc.aeros.cam.devp1
+uid: svc.aeros.cam.devp1
+uidNumber: 836
+gidNumber: 683
+homeDirectory: /home/customroleuser
+loginShell: /bin/bash
+gecos: customroleuser
+userPassword: blastoff
+shadowLastChange: 0
+shadowMax: 0
+shadowWarning: 0

@@ -1,0 +1,4 @@
+dn: cn=sys-admin,dc=aerospike,dc=com
+objectClass: top
+objectClass: posixGroup
+gidNumber: 681

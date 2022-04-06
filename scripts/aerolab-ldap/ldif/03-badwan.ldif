@@ -1,0 +1,16 @@
+dn: uid=badwan,ou=People,dc=aerospike,dc=com
+objectClass: top
+objectClass: account
+objectClass: posixAccount
+objectClass: shadowAccount
+cn: svc.aeros.cam.devp1
+uid: svc.aeros.cam.devp1
+uidNumber: 834
+gidNumber: 680
+homeDirectory: /home/badwan
+loginShell: /bin/bash
+gecos: badwan
+userPassword: blastoff
+shadowLastChange: 0
+shadowMax: 0
+shadowWarning: 0
