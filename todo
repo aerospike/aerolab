@@ -8,7 +8,7 @@
         * sample code
 * scripts dir:
     * cleanup and test all
-    * add sample code
+    * add sample code - write/read code basic, authenticated and TLS
 * other
     * change https://github.com/citrusleaf/aerolab to right link in tunnel-container-openvpn-readme.md
     * main readme.md update https://github.com/citrusleaf/aerolab/releases url
