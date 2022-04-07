@@ -1,13 +1,5 @@
-* Friday RG and AJ:
-    * documentation
-        * scripts
-            * deployenv
-            * ldap
-            * make-certs
-            * sc
-            * sample code
+# Below items need to be completed for the release to take place
 
-* Other:
-    * aerolab-macos: codesign
-    * change https://github.com/citrusleaf/aerolab to right link in tunnel-container-openvpn-readme.md
-    * main readme.md update https://github.com/citrusleaf/aerolab/releases url
+* aerolab-macos: codesign
+* change https://github.com/citrusleaf/aerolab to right link in tunnel-container-openvpn-readme.md
+* main readme.md update https://github.com/citrusleaf/aerolab/releases url
