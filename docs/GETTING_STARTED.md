@@ -19,12 +19,28 @@ If using docker-desktop, in the docker tray-icon, go to "Preferences". Configure
 
 ### Download aerolab binary from the releases page
 
-Head to the releases page and download either `aerolab-macos` or `aerolab-linux`. You may find it useful to rename the file to `aerolab` and move it to `/usr/local/bin/` so that it may be globally accessible.
+Head to the releases page and download either `aerolab-macos` or `aerolab-linux`.
+
+#### MacOS
+
+Since aerolab-macos is not macos-signed, the easiest way around it is by performing a copy using the `cat` command, like so:
+
+```
+mkdir -p /usr/local/bin/
+cat aerolab-macos > /usr/local/bin/aerolab
+```
+
+#### Linux / WSL2 on windows
+
+```
+mkdir -p /usr/local/bin/
+mv aerolab-linux /usr/local/bin/aerolab
+```
 
 ### Make it executable
 
 ```
-$ chmod 755 aerolab
+chmod 755 /usr/local/bin/aerolab
 ```
 
 ### Create a 'common' config file
@@ -43,7 +59,7 @@ The `common` section means that these parameters are applied to all functions, f
 
 ### Deploy a cluster called 'testme' with 5 nodes
 ```
-$ ./aerolab make-cluster --name=testme --count=5
+$ aerolab make-cluster --name=testme --count=5
 Nov 04 12:45:08+0000 AERO-LAB[97520]: INFO     Performing sanity checks
 Nov 04 12:45:08+0000 AERO-LAB[97520]: INFO     Checking if version template already exists
 Nov 04 12:45:08+0000 AERO-LAB[97520]: INFO     Checking aerospike version
@@ -53,7 +69,7 @@ Nov 04 12:45:18+0000 AERO-LAB[97520]: INFO     Done
 
 ### Attach to node 2 in that cluster
 ```
-$ ./aerolab node-attach --name=testme --node=2
+$ aerolab node-attach --name=testme --node=2
 root@node:/ $ service aerospike status
 Aerospike running
 root@node:/ $ service aerospike stop
@@ -67,17 +83,17 @@ root@node:/ $ exit
 
 
 ```
-$ ./aerolab node-attach --name=testme -- asadm -e info
+$ aerolab node-attach --name=testme -- asadm -e info
 ```
 
 ### Destroy the cluster, force stop too!
 ```
-$ ./aerolab cluster-destroy --name=testme -f
+$ aerolab cluster-destroy --name=testme -f
 ```
 
 ### Get help on commands list
 ```
-$ ./aerolab help
+$ aerolab help
 Usage: ./aerolab {command} [options] [-- {tail}]
 
 Commands:
@@ -100,7 +116,7 @@ Commands:
 
 ### Get command help
 ```
-$ ./aerolab make-cluster help
+$ aerolab make-cluster help
 Command: make-cluster
 
 -n | --name                	 : Cluster name (default=mydc)

@@ -76,7 +76,7 @@ type deleteDataStruct struct {
 type netLossStruct struct {
 	SourceClusterName       string `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
 	SourceNodeList          string `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
-	DestinationClusterName  string `short:"d" long:"destinations" description:"Destination Cluster name" default:"mydc-xdr"`
+	DestinationClusterName  string `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
 	DestinationNodeList     string `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
 	Action                  string `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
 	ShowNames               int    `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output" default:"0" type:"bool"`
@@ -202,7 +202,7 @@ type netListStruct struct {
 type netControlStruct struct {
 	SourceClusterName       string `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
 	SourceNodeList          string `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
-	DestinationClusterName  string `short:"d" long:"destinations" description:"Destination Cluster name" default:"mydc-xdr"`
+	DestinationClusterName  string `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
 	DestinationNodeList     string `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
 	Type                    string `short:"t" long:"type" description:"Block type (reject|drop)." default:"reject"`
 	Ports                   string `short:"p" long:"ports" description:"Comma separated list of ports to block." default:"3000"`
