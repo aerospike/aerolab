@@ -59,12 +59,12 @@ func (c *config) F_netBlockUnblock(call string) (ret int64, err error) {
 	}
 
 	if inArray(clusterList, sc) == -1 {
-		err = fmt.Errorf("Error, cluster does not exist: %s", c.GenTlsCerts.ClusterName)
+		err = fmt.Errorf("Error, source cluster does not exist: %s", c.GenTlsCerts.ClusterName)
 		ret = E_BACKEND_ERROR
 		return ret, err
 	}
 	if inArray(clusterList, dc) == -1 {
-		err = fmt.Errorf("Error, cluster does not exist: %s", c.GenTlsCerts.ClusterName)
+		err = fmt.Errorf("Error, destination cluster does not exist: %s", c.GenTlsCerts.ClusterName)
 		ret = E_BACKEND_ERROR
 		return ret, err
 	}

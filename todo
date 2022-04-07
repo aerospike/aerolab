@@ -1,13 +1,3 @@
-* Thursday - AJ:
-    * scripts dir:
-        * cleanup and test all
-        * add sample code - write/read code basic, authenticated and TLS
-
-* Thursday - RG:
-    * aerolab testing:
-        * test all features with docker and aws backends
-        * test and review all templates/ to ensure these work
-
 * Friday RG and AJ:
     * documentation
         * scripts
