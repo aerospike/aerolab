@@ -2,6 +2,7 @@
 # import the module
 from __future__ import print_function
 import aerospike
+from aerospike import exception as ex
 import time
 
 #######################################################################################
