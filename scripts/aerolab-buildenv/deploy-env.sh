@@ -164,12 +164,8 @@ then
   GOCLIENTIP=$(getcontainerip $(basename $(pwd)) ${SHORT_GOCLIENT_NAME}) || exit
   GOCLIENT_NAME=$(getcontainername $(basename $(pwd)) ${SHORT_GOCLIENT_NAME}) || exit
 
-  cd go/src/aerospike
-  for i in *.go
-  do
-    sed -i.bak -e "s/CLUSTERIP/${CLUSTERIP}/g" ${i}
-  done
-
+  cd go/src/
+  find . -name "*.go" -exec sed -i.bak -e "s/CLUSTERIP/${CLUSTERIP}/g" {} \;
   cd ${LOC}
 fi
 help
