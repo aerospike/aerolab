@@ -11,9 +11,9 @@ function replaceconf() {
   then
     return
   fi
-  if [ ! -f ~/.docker/config.json.backup ]
+  if [ ! -f ~/.docker/config.json.aerolab.backup ]
   then
-    mv ~/.docker/config.json ~/.docker/config.json.backup || return
+    mv ~/.docker/config.json ~/.docker/config.json.aerolab.backup || return
   fi
   cat <<'EOF' >~/.docker/config.json
 {
@@ -41,7 +41,11 @@ function iscreated() {
 
 # restore docker config to previous setup
 function restoreconf() {
-  mv ~/.docker/config.json.backup ~/.docker/config.json
+  if [ ! -f ~/.docker/config.json.aerolab.backup ]
+  then
+    return
+  fi
+  mv ~/.docker/config.json.aerolab.backup ~/.docker/config.json
 }
 
 # start containers
