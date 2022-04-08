@@ -89,7 +89,8 @@ function help() {
 if [ "${1}" != "" ]
 then
   cd ${LDAPLOC}
-  LDAP_NAME=$(getcontainername $(basename $(pwd)) ${SHORT_LDAP_NAME})  if [ $? -ne 0 ]
+  LDAP_NAME=$(getcontainername $(basename $(pwd)) ${SHORT_LDAP_NAME})
+  if [ $? -ne 0 ]
   then
     echo "Version : "${version}
     echo
