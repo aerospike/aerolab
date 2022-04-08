@@ -63,7 +63,7 @@ function run() {
   fi
   docker-compose up -d --build && getip
   echo "Final Configuration and Init"
-  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; rm -rf /root/go/src/aerospike/* 2>/dev/null; mkdir -p /root/go/src/aerospike ;cd /root/go/src/aerospike; go mod init; go get github.com/aerospike/aerospike-client-go"
+  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/aerospike; go mod init; go get github.com/aerospike/aerospike-client-go"
 }
 
 function getip() {
