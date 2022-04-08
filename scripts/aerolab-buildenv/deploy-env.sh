@@ -38,6 +38,17 @@ CLIENTLOC=../aerolab-pythonclient
 GOCLIENTLOC=../aerolab-goclient
 TEMPLATELOC=../../templates
 function help() {
+  if [ "${BUILD_PYTHON}" = "YES" ]
+  then
+    cd ${CLIENTLOC}
+    CLIENT_NAME=$(getcontainername $(basename $(pwd)) ${SHORT_CLIENT_NAME}) || exit
+  fi
+  if [ "${BUILD_GO}" = "YES" ]
+  then
+    cd ${GOCLIENTLOC}
+    GOCLIENT_NAME=$(getcontainername $(basename $(pwd)) ${SHORT_GOCLIENT_NAME}) || exit
+  fi
+  cd ${LOC}
   echo "Version : "${version}
   echo
   echo
@@ -78,8 +89,7 @@ function help() {
 if [ "${1}" != "" ]
 then
   cd ${LDAPLOC}
-  LDAP_NAME=$(getcontainername $(basename $(pwd)) ${SHORT_LDAP_NAME})
-  if [ $? -ne 0 ]
+  LDAP_NAME=$(getcontainername $(basename $(pwd)) ${SHORT_LDAP_NAME})  if [ $? -ne 0 ]
   then
     echo "Version : "${version}
     echo
@@ -88,6 +98,7 @@ then
   fi
   help
 fi
+cd ${LOC}
 ${LOC}/destroy-env.sh || exit
 
 echo "Configuring LDAP to : "${SHORT_LDAP_NAME}
