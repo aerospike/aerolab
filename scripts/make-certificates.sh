@@ -6,6 +6,7 @@
 ## Note the CN should match the host name for server/client certificates.
 ## For the buildenv scripts, server1,client1,ldap1 and admin1 are used and are bundled with that install.
 
+mkdir -p ~/rootca 2>/dev/null
 rm -rf ~/rootca/* 2>/dev/null
 mkdir -p ~/rootca/input
 mkdir -p ~/rootca/local
@@ -368,17 +369,17 @@ EOF
 
 echo "Generate Root"
 openssl genrsa -out local/rootCA.key 2048
-openssl req -x509 -new -nodes -key local/rootCA.key -sha256 -days 3650 -out local/rootCA.pem -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Support/CN=supportrootca.aerospike.com"
+openssl req -x509 -new -nodes -key local/rootCA.key -sha256 -days 3650 -out local/rootCA.pem -subj "/C=UK/ST=London/L=London/O=aerolab/OU=Support/CN=supportrootca.aerolab"
 
 echo
 echo "Generate Requests & Private Key"
-openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/server1.req -keyout output/server1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Server/CN=server1"
-openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/client1.req -keyout output/client1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Client/CN=client1"
-openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/admin1.req -keyout output/admin1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Admin/CN=admin1"
-openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/ldap1.req -keyout output/ldap1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Ldap/CN=ldap1"
-openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/xdr1.req -keyout output/xdr1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=XDR/CN=xdr1"
-openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/fabric1.req -keyout output/fabric1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Fabric/CN=fabric1"
-openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/heartbeat1.req -keyout output/heartbeat1.key -subj "/C=UK/ST=London/L=London/O=aerospike.com/OU=Heartbeat/CN=heartbeat1"
+openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/server1.req -keyout output/server1.key -subj "/C=UK/ST=London/L=London/O=aerolab/OU=Server/CN=server1"
+openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/client1.req -keyout output/client1.key -subj "/C=UK/ST=London/L=London/O=aerolab/OU=Client/CN=client1"
+openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/admin1.req -keyout output/admin1.key -subj "/C=UK/ST=London/L=London/O=aerolab/OU=Admin/CN=admin1"
+openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/ldap1.req -keyout output/ldap1.key -subj "/C=UK/ST=London/L=London/O=aerolab/OU=Ldap/CN=ldap1"
+openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/xdr1.req -keyout output/xdr1.key -subj "/C=UK/ST=London/L=London/O=aerolab/OU=XDR/CN=xdr1"
+openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/fabric1.req -keyout output/fabric1.key -subj "/C=UK/ST=London/L=London/O=aerolab/OU=Fabric/CN=fabric1"
+openssl req -new -nodes -config openssl.conf -extensions v3_req -out input/heartbeat1.req -keyout output/heartbeat1.key -subj "/C=UK/ST=London/L=London/O=aerolab/OU=Heartbeat/CN=heartbeat1"
 
 echo
 echo "Generate Certificates"
