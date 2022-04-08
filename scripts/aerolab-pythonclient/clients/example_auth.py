@@ -9,9 +9,9 @@ import time
 #######################################################################################
 
 
-# Configure the client CLUSTERIP:3000
+# Configure the client 172.17.0.6:3000
 config = {
-  'hosts': [ ('CLUSTERIP', 3000) ],
+  'hosts': [ ('172.17.0.6', 3000) ],
   'policies': {
       'timeout': 1000,
       'auth_mode': aerospike.AUTH_EXTERNAL_INSECURE
@@ -33,7 +33,7 @@ print("")
 key = ('test', 'demo', 'key1')
 
 # Records are addressable via a tuple of (namespace, set, key)
-print("Writing Key :"+key)
+print("Writing Key : %s" %(key,))
 try:
   # Write a record
   client.put(key, { 'name': 'John Doe', 'age': 50 })
@@ -41,21 +41,21 @@ except Exception as e:
   import sys
   print("error: {0}".format(e), file=sys.stderr)
   time.sleep(1)
-  continue
+  sys.exit(1)
 
 print("")
 
 # Read a record
-print("Reading Key :"+key)
+print("Reading Key : %s" %(key,))
 try:
   (key, metadata, record) = client.get(key)
 except Exception as e:
   import sys
   print("error: {0}".format(e), file=sys.stderr)
   time.sleep(1)
-  continue
+  sys.exit(1)
 
-print("Record : "+record)
+print("Record : %s" % (record,))
 #  time.sleep(.1)
 
 # Close the connection to the Aerospike cluster
