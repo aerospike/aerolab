@@ -8,8 +8,10 @@ import time
 ## This code authenticates with the database, writes a record and then reads it back ##
 #######################################################################################
 
+# Modify CLUSTERIP to be the IP of one of your database nodes
 
-# Configure the client 172.17.0.6:3000
+
+# Configure the client CLUSTERIP:3000
 config = {
   'hosts': [ ('CLUSTERIP', 3000) ],
   'policies': {
