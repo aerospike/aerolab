@@ -114,7 +114,7 @@ do
   NODEIP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' aero-${CLUSTER_NAME}_${NODE}) || exit
   echo "Fix Hosts File for :"${NODEIP}
   aerolab node-attach -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "echo ${LDAPIP} ${SHORT_LDAP_NAME} >> /etc/hosts"
-  aerolab node-attach -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "cp /etc/hosts /tmp/.; cat /tmp/hosts | sed -e 's/^${NODEIP}/${NODEIP} server1/g' >/etc/hosts"
+  aerolab node-attach -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "sed -i.bak -e 's/^${NODEIP}/${NODEIP} server1/g' /etc/hosts"
   echo "Install ldapsearch"
   aerolab node-attach -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "apt-get install ldap-client >/dev/null 2>/dev/null"
   
@@ -134,11 +134,10 @@ then
   CLIENT_NAME=$(getcontainername $(basename $(pwd)) ${SHORT_CLIENT_NAME}) || exit
 
   cd clients
-  rm -rf withserverip
-  mkdir withserverip
   for i in *.py
   do
-    sed "s/CLUSTERIP/${CLUSTERIP}/g" ${i} > withserverip/${i}
+    sed -i.bak -e "s/CLUSTERIP/${CLUSTERIP}/g" ${i}
+    chmod 755 ${i}
   done
 
   cd ${LOC}
