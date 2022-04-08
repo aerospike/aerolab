@@ -63,6 +63,8 @@ function run() {
   fi
   docker-compose up -d --build && getip
   echo "Final Configuration and Init"
+  liburl="github.com/aerospike/aerospike-client-go"
+  # TODO: v5
   docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/aerospike-basic; go mod init; go get ${liburl}"
   docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/aerospike-auth; go mod init; go get ${liburl}"
   docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/aerospike-tls; go mod init; go get ${liburl}"
@@ -126,11 +128,6 @@ then
   checkdeps && destroy
 elif [ "${1}" = "run" ]
 then
-  liburl="github.com/aerospike/aerospike-client-go/v5"
-  if [ "${2}" = "v4" ]
-  then
-    liburl="github.com/aerospike/aerospike-client-go"
-  fi
   checkdeps && run
 elif [ "${1}" = "get" ]
 then
@@ -146,7 +143,6 @@ else
   echo "Usage: ${0} start|stop|destroy|run|get"
   echo ""
   echo "  run     - create and start Client stack"
-  echo "  run v4  - create and start Client stack with go library version 4"
   echo "  start   - start an existing, stopped, Client stack"
   echo "  stop    - stop a running Client stack, without destroying it"
   echo "  get     - get the IPs of Client stack"
