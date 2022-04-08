@@ -7,6 +7,10 @@ version="v1.3"
 
 # fix docker credential config
 function replaceconf() {
+  if [ "$(uname -s)" != "Darwin" ]
+  then
+    return
+  fi
   if [ ! -f ~/.docker/config.json.backup ]
   then
     mv ~/.docker/config.json ~/.docker/config.json.backup || return
