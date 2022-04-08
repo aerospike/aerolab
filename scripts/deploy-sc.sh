@@ -22,8 +22,6 @@ REPLICATION=2
 # Built with STRONGCONSISTENCY
 STRONGCONSISTENCY=true
 
-# If you have the name of a binary here it will copy it to the cluster for testing specific versions
-#ASD="asd-5.7.0.7-2"
 # Select Aerospike version you wish to build with - default is latest
 #ASV="-v 5.2.0.6"
 
@@ -35,7 +33,6 @@ function usage {
   echo " -c|--nodes <node_count> default=${NODES} : Range 1-9"
   echo " -r|--replication <replication_factor> default=${REPLICATION} : Range 1-${NODES}"
   echo " -n|--namespace <namespace> default=${NAMESPACE}"
-  echo " -a|--asdver <new_binary> default=${ASD}"
   echo " -v|--ver <Aerospike Version> default=${ASV}"
   echo " -l|--labname <name_of_cluster> default=${LAB_NAME}"
   echo " -s|--sc <true/false> default=${STRONGCONSISTENCY}"
@@ -55,8 +52,6 @@ do
     -r)             REPLICATION=$2;shift;;
     --namespace)    NAMESPACE=$2;shift;;
     -n)             NAMESPACE=$2;shift;;
-    --asdver)       ASD=$2;shift;;
-    -a)             ASD=$2;shift;;
     --ver)          ASV="-v "$2;shift;;
     -v)             ASV="-v "$2;shift;;
     --labname)      LAB_NAME=$2;shift;;
@@ -74,12 +69,6 @@ done
 if [ ! "${STRONGCONSISTENCY}" = "true" -a ! "${STRONGCONSISTENCY}" = "false" ]
 then
   echo "Invalid Strong Consistency"
-  echo
-  usage
-fi
-if [ ! -z "${ASD}" -a ! -f "${ASD}" ]
-then
-  echo "ASD Binary not found"
   echo
   usage
 fi
@@ -115,12 +104,6 @@ echo
 echo "##############################################################"
 echo "## *** WARNING *** Building a cluster will first destroy it ##"
 echo "##############################################################"
-if [ ! -z ${ASD} ]
-then
-  echo
-  echo "We will upgrade to this binary : ${ASD}"
-  echo
-fi
 echo
 echo "I am going to build the following cluster :-"
 echo "Name      :${LAB_NAME}"
@@ -128,7 +111,6 @@ echo "Nodes     :${NODES}"
 echo "RF        :${REPLICATION}"
 echo "Namespace :${NAMESPACE}"
 echo "SC        :${STRONGCONSISTENCY}"
-echo "Binary    :${ASD}"
 echo "Version   :${ASV}"
 echo
 echo -ne "Continue (Y/N) ?"
@@ -209,12 +191,6 @@ for i in `seq 1 ${NODES}`
 do
    echo "Configuring Node :"${i}
    aerolab upload -n ${LAB_NAME} -l ${i} -i aerospike.conf -o /etc/aerospike/aerospike.conf 2>/dev/null
-   if [ ! -z "${ASD}" ]
-   then
-     echo "Upgrading Binary"
-     aerolab upload -n ${LAB_NAME} -l ${i} -i ${ASD} -o /usr/bin/asd 2>/dev/null
-     aerolab node-attach -n ${LAB_NAME} -l ${i} -- chmod 755 /usr/bin/asd
-   fi
    aerolab node-attach -n ${LAB_NAME} -l ${i} -- sed -i -e "s/NODEID/a${i}/g" -e "s/REPLICATION/${REPLICATION}/g" -e "s/NAMESPACE/${NAMESPACE}/g" -e "s/STRONGCONSISTENCY/${STRONGCONSISTENCY}/g" /etc/aerospike/aerospike.conf
 done
 
