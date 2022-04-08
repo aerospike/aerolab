@@ -21,9 +21,9 @@ config = {
 }
 
 # Create a client and connect it to the cluster
-print("Connecting/Authenticating")
+print("Connecting")
 try:
-  client = aerospike.client(config).connect('badwan','blastoff')
+  client = aerospike.client(config).connect()
 except ex.NotAuthenticated as e:
   import sys
   print("Not Authenticated : {0} [{1}] - {2}".format(e.msg, e.code, config))
