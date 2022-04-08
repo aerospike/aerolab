@@ -86,6 +86,12 @@ function help() {
   exit
 }
 
+if ! command -v aerolab &> /dev/null
+then
+  echo "Aerolab must be installed and configured"
+  exit
+fi
+
 if [ "${1}" != "" ]
 then
   cd ${LDAPLOC}

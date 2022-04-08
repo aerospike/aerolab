@@ -1,17 +1,10 @@
 #!/bin/bash
-# Location of aerolab binary
-AEROLABDEFAULT="~/Aerolab/aerolab-osx-aio"
-if ! AEROLAB="$(type -p aerolab)" || [[ -z $AEROLAB ]]
-then
-  AEROLAB=${AEROLABDEFAULT}
-fi
+# Automatically build SC cluster
 
-if [ ! -e "${AEROLAB}" ]
+if ! command -v aerolab &> /dev/null
 then
-  echo "You need to configure your aerolab binary location"
-  exit 0
-else
-  echo "Found aerolab here : ${AEROLAB}"
+  echo "Aerolab must be installed and configured"
+  exit
 fi
 
 # Name of your cluster
@@ -29,8 +22,6 @@ REPLICATION=2
 # Built with STRONGCONSISTENCY
 STRONGCONSISTENCY=true
 
-# If you have the name of a binary here it will copy it to the cluster for testing specific versions
-#ASD="asd-5.7.0.7-2"
 # Select Aerospike version you wish to build with - default is latest
 #ASV="-v 5.2.0.6"
 
@@ -42,7 +33,6 @@ function usage {
   echo " -c|--nodes <node_count> default=${NODES} : Range 1-9"
   echo " -r|--replication <replication_factor> default=${REPLICATION} : Range 1-${NODES}"
   echo " -n|--namespace <namespace> default=${NAMESPACE}"
-  echo " -a|--asdver <new_binary> default=${ASD}"
   echo " -v|--ver <Aerospike Version> default=${ASV}"
   echo " -l|--labname <name_of_cluster> default=${LAB_NAME}"
   echo " -s|--sc <true/false> default=${STRONGCONSISTENCY}"
@@ -62,8 +52,6 @@ do
     -r)             REPLICATION=$2;shift;;
     --namespace)    NAMESPACE=$2;shift;;
     -n)             NAMESPACE=$2;shift;;
-    --asdver)       ASD=$2;shift;;
-    -a)             ASD=$2;shift;;
     --ver)          ASV="-v "$2;shift;;
     -v)             ASV="-v "$2;shift;;
     --labname)      LAB_NAME=$2;shift;;
@@ -81,12 +69,6 @@ done
 if [ ! "${STRONGCONSISTENCY}" = "true" -a ! "${STRONGCONSISTENCY}" = "false" ]
 then
   echo "Invalid Strong Consistency"
-  echo
-  usage
-fi
-if [ ! -z "${ASD}" -a ! -f "${ASD}" ]
-then
-  echo "ASD Binary not found"
   echo
   usage
 fi
@@ -122,12 +104,6 @@ echo
 echo "##############################################################"
 echo "## *** WARNING *** Building a cluster will first destroy it ##"
 echo "##############################################################"
-if [ ! -z ${ASD} ]
-then
-  echo
-  echo "We will upgrade to this binary : ${ASD}"
-  echo
-fi
 echo
 echo "I am going to build the following cluster :-"
 echo "Name      :${LAB_NAME}"
@@ -135,7 +111,6 @@ echo "Nodes     :${NODES}"
 echo "RF        :${REPLICATION}"
 echo "Namespace :${NAMESPACE}"
 echo "SC        :${STRONGCONSISTENCY}"
-echo "Binary    :${ASD}"
 echo "Version   :${ASV}"
 echo
 echo -ne "Continue (Y/N) ?"
@@ -198,12 +173,12 @@ namespace NAMESPACE {
 EOF
 
 echo "Stop and destroy the cluster if it already exists"
-${AEROLAB} stop-aerospike -n ${LAB_NAME} 2>/dev/null
-${AEROLAB} cluster-stop -n ${LAB_NAME} 2>/dev/null
-${AEROLAB} cluster-destroy -n ${LAB_NAME} 2>/dev/null
+aerolab stop-aerospike -n ${LAB_NAME} 2>/dev/null
+aerolab cluster-stop -n ${LAB_NAME} 2>/dev/null
+aerolab cluster-destroy -n ${LAB_NAME} 2>/dev/null
 
 echo "Make new cluster : "${LAB_NAME}
-${AEROLAB} make-cluster -n ${LAB_NAME} ${ASV} -c ${NODES} -s n 2>/dev/null
+aerolab make-cluster -n ${LAB_NAME} ${ASV} -c ${NODES} -s n 2>/dev/null
 if [ $# -gt 0 ]
 then
   echo "Error Making Cluster"
@@ -215,19 +190,13 @@ sleep 2
 for i in `seq 1 ${NODES}`
 do
    echo "Configuring Node :"${i}
-   ${AEROLAB} upload -n ${LAB_NAME} -l ${i} -i aerospike.conf -o /etc/aerospike/aerospike.conf 2>/dev/null
-   if [ ! -z "${ASD}" ]
-   then
-     echo "Upgrading Binary"
-     ${AEROLAB} upload -n ${LAB_NAME} -l ${i} -i ${ASD} -o /usr/bin/asd 2>/dev/null
-     ${AEROLAB} node-attach -n ${LAB_NAME} -l ${i} -- chmod 755 /usr/bin/asd
-   fi
-   ${AEROLAB} node-attach -n ${LAB_NAME} -l ${i} -- sed -i -e "s/NODEID/a${i}/g" -e "s/REPLICATION/${REPLICATION}/g" -e "s/NAMESPACE/${NAMESPACE}/g" -e "s/STRONGCONSISTENCY/${STRONGCONSISTENCY}/g" /etc/aerospike/aerospike.conf
+   aerolab upload -n ${LAB_NAME} -l ${i} -i aerospike.conf -o /etc/aerospike/aerospike.conf 2>/dev/null
+   aerolab node-attach -n ${LAB_NAME} -l ${i} -- sed -i -e "s/NODEID/a${i}/g" -e "s/REPLICATION/${REPLICATION}/g" -e "s/NAMESPACE/${NAMESPACE}/g" -e "s/STRONGCONSISTENCY/${STRONGCONSISTENCY}/g" /etc/aerospike/aerospike.conf
 done
 
 echo "Fix networking & Start Aerospike"
-${AEROLAB} conf-fix-mesh -n ${LAB_NAME}
-${AEROLAB} start-aerospike -n ${LAB_NAME}
+aerolab conf-fix-mesh -n ${LAB_NAME}
+aerolab start-aerospike -n ${LAB_NAME}
 sleep 5
 
 # Configure observed node list for SC and recluster
@@ -235,11 +204,11 @@ if [ "${STRONGCONSISTENCY}" = "true" ]
 then
   echo "Getting observed list"
   sleep 5
-  OBSERVED=`${AEROLAB} asadm -n ${LAB_NAME} -l 1 -- -e "enable;asinfo -v 'roster:namespace=${NAMESPACE}'" | grep roster= | head -n1 | cut -f4- -d "=" | egrep -o '[A0-9,]+'`
+  OBSERVED=`aerolab asadm -n ${LAB_NAME} -l 1 -- -e "enable;asinfo -v 'roster:namespace=${NAMESPACE}'" | grep roster= | head -n1 | cut -f4- -d "=" | egrep -o '[A0-9,]+'`
   echo "Configure Observered list :"${OBSERVED}": and Recluster"
   
-  ${AEROLAB} asadm -n ${LAB_NAME} -l 1 -- "-e enable;asinfo -v 'roster-set:namespace=${NAMESPACE};nodes=${OBSERVED}'"
-  ${AEROLAB} asadm -n ${LAB_NAME} -l 1 -- "-e enable;asinfo -v 'recluster:'"
+  aerolab asadm -n ${LAB_NAME} -l 1 -- "-e enable;asinfo -v 'roster-set:namespace=${NAMESPACE};nodes=${OBSERVED}'"
+  aerolab asadm -n ${LAB_NAME} -l 1 -- "-e enable;asinfo -v 'recluster:'"
 fi
 
 echo

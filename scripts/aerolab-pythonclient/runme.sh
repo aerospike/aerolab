@@ -63,6 +63,7 @@ function run() {
   fi
   docker-compose up -d --build && getip
   echo "Final Configuration and Init"
+  docker cp ../aerolab-ldap/certs ${container_name}:/root/
 }
 
 function getip() {
