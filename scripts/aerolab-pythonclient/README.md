@@ -28,32 +28,32 @@ cd aerolab/scripts/aerolab-pythonclient
 
 ### Get usage help
 
-```
+```bash
 % ./runme.sh
 ```
 
 ### Create new GoClient container
 
-```
+```bash
 % ./runme.sh run
 ```
 
 ### Attach to container shell
 
-```
+```bash
 % ./runme.sh attach
 $ ls
 ```
 
 ### Destroy
 
-```
+```bash
 % ./runme.sh destroy
 ```
 
 ## Usage
 
-```
+```bash
 % ./runme.sh 
 
 Usage: ./runme.sh start|stop|destroy|run|get
