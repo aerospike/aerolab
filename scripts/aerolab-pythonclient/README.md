@@ -71,8 +71,9 @@ Usage: ./runme.sh start|stop|destroy|run|get
 Once you have attached to the container, you will see the client example code in /root/clients.
 
 There are 3 example pieces of code :-
-```
-example_basic.py - this does a basic database connect, writes a record and reads it back
-example_auth.py - this does an authenticated database connect, writes a record and reads it back.
-example_tls.py - this does an authenticated database connect over TLS, writes a record and reads it back.
-```
+
+Name | Description
+--- | ---
+example_basic.py | This does a basic database connect, writes a record and reads it back
+example_auth.py | This does an authenticated database connect, writes a record and reads it back.
+example_tls.py | This does an authenticated database connect over TLS, writes a record and reads it back.
