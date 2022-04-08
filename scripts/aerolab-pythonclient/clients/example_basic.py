@@ -21,7 +21,7 @@ config = {
 }
 
 # Create a client and connect it to the cluster
-print("Connecting/Authenticating")
+print("Connecting")
 try:
   client = aerospike.client(config).connect()
 except:
