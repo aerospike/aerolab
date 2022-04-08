@@ -5,6 +5,10 @@ version="v1.1"
 container_name=""
 
 function replaceconf() {
+  if [ "$(uname -s)" != "Darwin" ]
+  then
+    return
+  fi
   if [ ! -f ~/.docker/config.json.backup ]
   then
     mv ~/.docker/config.json ~/.docker/config.json.backup || return
