@@ -18,7 +18,6 @@ git clone https://github.com/citrusleaf/aerolab.git
 ```bash
 git clone git@github.com:citrusleaf/aerolab.git
 ```
-```
 
 ## Enter this directory
 
