@@ -11,7 +11,7 @@ import time
 
 # Configure the client 172.17.0.6:3000
 config = {
-  'hosts': [ ('172.17.0.6', 3000) ],
+  'hosts': [ ('CLUSTERIP', 3000) ],
   'policies': {
       'timeout': 1000,
       'auth_mode': aerospike.AUTH_EXTERNAL_INSECURE
