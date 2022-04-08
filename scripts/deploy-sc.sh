@@ -1,4 +1,5 @@
 #!/bin/bash
+# Automatically build SC cluster
 
 if ! command -v aerolab &> /dev/null
 then
