@@ -24,10 +24,15 @@ config = {
 print("Connecting/Authenticating")
 try:
   client = aerospike.client(config).connect('badwan','blastoff')
-except:
+except ex.NotAuthenticated as e:
   import sys
-  print("failed to connect to the cluster with", config['hosts'])
+  print("Not Authenticated : {0} [{1}] - {2}".format(e.msg, e.code, config))
   sys.exit(1)
+except Exception as e:
+  import sys
+  print("Exception : {0} [{1}] - {2}".format(e.msg, e.code, config))
+  sys.exit(1)
+
 
 print("Ready to Read/Write")
 var=input("Press Enter")
@@ -41,7 +46,7 @@ try:
   client.put(key, { 'name': 'John Doe', 'age': 50 })
 except Exception as e:
   import sys
-  print("error: {0}".format(e), file=sys.stderr)
+  print("Exception : {0} [{1}]".format(e.msg, e.code))
   time.sleep(1)
   sys.exit(1)
 
@@ -53,7 +58,7 @@ try:
   (key, metadata, record) = client.get(key)
 except Exception as e:
   import sys
-  print("error: {0}".format(e), file=sys.stderr)
+  print("Exception : {0} [{1}]".format(e.msg, e.code))
   time.sleep(1)
   sys.exit(1)
 
