@@ -13,6 +13,7 @@ mkdir -p ~/rootca/local
 mkdir -p ~/rootca/output
 
 cd ~/rootca
+
 echo "Certificate Authority is here : "$(pwd)
 cat << 'EOF' > openssl.conf
 #
