@@ -1,5 +1,9 @@
 # Deploying LDAP
 
+This script set allows for easy deployment of an LDAP server with and without TLS, and LDAP admin web UI in docker containers.
+
+This can be used on it's own, with the [aerolab-buildenv](../aerolab-buildenv/README.md) script, or in combination with aerolab commands.
+
 ## Usage
 
 ```

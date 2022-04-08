@@ -62,33 +62,26 @@ function run() {
     return
   fi
   docker-compose up -d --build && getip
+  echo "Final Configuration and Init"
 }
 
 function getip() {
-  clientip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${basedir}_${name_host}_1 2>/dev/null)
   container_name=${basedir}_${name_host}_1
+  clientip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${basedir}_${name_host}_1 2>/dev/null)
   if [ $? -ne 0 ]
   then
+    container_name="${basedir}-${name_host}-1"
     clientip=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${basedir}-${name_host}-1 2>/dev/null)
-    container_name=${basedir}-${name_host}_1
     if [ $? -ne 0 ]
     then
         echo "CLIENT IP  not found"
+        container_name=""
         return
     fi
   fi
   echo ""
   echo "CLIENT IP: ${clientip} (${container_name})"
   echo ""
-}
-
-function getcontainername() {
-  name=""
-  docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${basedir}_${name_host}_1 1>/dev/null 2>&1
-  if [ $? -eq 0 ]
-  then
-    name="${basedir}_${name_host}_1"
-  fi
 }
 
 function checkdeps() {
@@ -108,6 +101,16 @@ function checkdeps() {
   fi
 }
 
+function attach() {
+  getip
+  if [ "${container_name}" = "" ]
+  then
+    echo "ERROR: container not found"
+    return
+  fi
+  docker exec -it ${container_name} /bin/bash -c "cd /root/go && /bin/bash"
+}
+
 replaceconf
 if [ "${1}" = "start" ]
 then
@@ -124,6 +127,9 @@ then
 elif [ "${1}" = "get" ]
 then
   checkdeps && getip
+elif [ "${1}" = "attach" ]
+then
+  checkdeps && attach
 elif [ "${1}" = "version" ]
 then
   echo "${version}"
@@ -135,6 +141,7 @@ else
   echo "  start   - start an existing, stopped, Client stack"
   echo "  stop    - stop a running Client stack, without destroying it"
   echo "  get     - get the IPs of Client stack"
+  echo "  attach  - attach to the client container"
   echo "  destroy - stop and destroy the Client stack"
   echo "  version - print version number of this script and stack"
   echo ""
