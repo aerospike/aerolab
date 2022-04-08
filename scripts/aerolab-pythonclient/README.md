@@ -1,47 +1,59 @@
 # Deploying Python Clients
 
-Notes:
-  * at the end of `runme.sh run`, a useful list of commands and IPs is printed to access the client
-  * run `runme.sh get` to get the useful list again :)
+This script allows for quick and easy deployment of a `python` client library with sample code in a docker container.
 
+This can be used on it's own, as part of [aerolab-buildenv](../aerolab-buildenv/README.md) script or combined with the `aerolab` command.
 
-## First clone this repo
+## Deploying
 
-```
-Via Web
-% git clone https://github.com/citrusleaf/aerolab.git
+### First clone this repo
 
-Via SSH
-% git clone git@github.com:citrusleaf/aerolab.git
-```
+#### Using https
 
-## Enter this directory
-
-```
-% cd aerolab/scripts/aerolab-pythonclient
+```bash
+git clone https://github.com/citrusleaf/aerolab.git
 ```
 
-## Get help
+#### Using git keys
 
+```bash
+git clone git@github.com:citrusleaf/aerolab.git
 ```
+
+### Enter this directory
+
+```bash
+cd aerolab/scripts/aerolab-pythonclient
+```
+
+### Get usage help
+
+```bash
 % ./runme.sh
 ```
 
-## Create new PythonClient Node
+### Create new GoClient container
 
-```
+```bash
 % ./runme.sh run
 ```
 
-## Destroy
+### Attach to container shell
 
+```bash
+% ./runme.sh attach
+$ ls
 ```
+
+### Destroy
+
+```bash
 % ./runme.sh destroy
 ```
 
 ## Usage
 
-```
+```bash
 % ./runme.sh 
 
 Usage: ./runme.sh start|stop|destroy|run|get
@@ -50,22 +62,17 @@ Usage: ./runme.sh start|stop|destroy|run|get
   start   - start an existing, stopped, Client Node
   stop    - stop a running Client Node, without destroying it
   get     - get the IPs of Client Node
+  attach  - attach to the client container
   destroy - stop and destroy the Client Node
 ```
 
-## Advanced
+## Code Samples
 
-To access the Python client container, do the following :-
-```
-% ./runme.sh get
-```
-This will return both the client IP and the container name.
+Once you have attached to the container, you will see the client example code in /root/clients.
 
-Then run the following :-
+There are 3 example pieces of code :-
 ```
-% docker exec -it <containername> /bin/bash
+example_basic.py - this does a basic database connect, writes a record and reads it back
+example_auth.py - this does an authenticated database connect, writes a record and reads it back.
+example_tls.py - this does an authenticated database connect over TLS, writes a record and reads it back.
 ```
-This will get you into the container. Once there, in /root/clients you will see the Python code.<br>
-
-If this has been pre-configured with the aerolab-buildenv system there will be a directory called withserverip<br>
-This directory will have the python pre-configured with your Clusters IP Address, if not then just change the CLUSTERIP in the code to point to your seed node.
