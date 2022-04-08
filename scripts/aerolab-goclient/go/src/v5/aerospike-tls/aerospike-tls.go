@@ -15,22 +15,55 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go/v5"
 )
 
 // client connect code
 func connect() (*as.Client, error) {
 	connectPolicy := as.NewClientPolicy()
 	connectPolicy.Timeout = 10 * time.Second
-	connectPolicy.AuthMode = as.AuthModeInternal // internal aerospike auth, as.AuthModeExternal is ldap
-	connectPolicy.User = "admin"
-	connectPolicy.Password = "admin"
+	connectPolicy.AuthMode = as.AuthModeExternal // ldap, as.AuthModeInternal is internal aerospike auth
+	connectPolicy.User = "badwan"
+	connectPolicy.Password = "blastoff"
+	var err error
+	connectPolicy.TlsConfig, err = buildTLSConfig()
+	if err != nil {
+		return nil, err
+	}
 	client, err := as.NewClientWithPolicy(connectPolicy, "CLUSTERIP", 3000)
 	return client, err
+}
+
+func buildTLSConfig() (*tls.Config, error) {
+	nTLS := new(tls.Config)
+	nTLS.InsecureSkipVerify = true                                 // skip certificate verification, WARN: not safe in production
+	nTLS.ServerName = "server1"                                    // server certificate common name
+	caCert, err := ioutil.ReadFile("/root/certs/local/rootCA.pem") // path to the shared root ca
+	if err != nil {
+		return nil, fmt.Errorf("tls: loadca: %s", err)
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+	nTLS.RootCAs = caCertPool
+	// mutual auth, specify the certFile and keyFile of the client certificate:
+	/*
+		certFile := ""
+		keyFile := ""
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("tls: loadkeys: %s", err)
+		}
+		nTLS.Certificates = []tls.Certificate{cert}
+		nTLS.BuildNameToCertificate()
+	*/
+	return nTLS, nil
 }
 
 func main() {

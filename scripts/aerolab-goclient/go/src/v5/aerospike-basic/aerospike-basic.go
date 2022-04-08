@@ -19,16 +19,13 @@ import (
 	"log"
 	"time"
 
-	as "github.com/aerospike/aerospike-client-go"
+	as "github.com/aerospike/aerospike-client-go/v5"
 )
 
 // client connect code
 func connect() (*as.Client, error) {
 	connectPolicy := as.NewClientPolicy()
 	connectPolicy.Timeout = 10 * time.Second
-	connectPolicy.AuthMode = as.AuthModeInternal // internal aerospike auth, as.AuthModeExternal is ldap
-	connectPolicy.User = "admin"
-	connectPolicy.Password = "admin"
 	client, err := as.NewClientWithPolicy(connectPolicy, "CLUSTERIP", 3000)
 	return client, err
 }

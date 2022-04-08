@@ -63,11 +63,14 @@ function run() {
   fi
   docker-compose up -d --build && getip
   echo "Final Configuration and Init"
+  docker cp ../aerolab-ldap/certs ${container_name}:/root/
   liburl="github.com/aerospike/aerospike-client-go"
-  # TODO: v5
-  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/aerospike-basic; go mod init; go get ${liburl}"
-  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/aerospike-auth; go mod init; go get ${liburl}"
-  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/aerospike-tls; go mod init; go get ${liburl}"
+  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/v4/aerospike-basic; go mod init; go get ${liburl}"
+  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/v4/aerospike-auth; go mod init; go get ${liburl}"
+  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/v4/aerospike-tls; go mod init; go get ${liburl}"
+  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/v5/aerospike-basic; go mod init; go get ${liburl}/v5"
+  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/v5/aerospike-auth; go mod init; go get ${liburl}/v5"
+  docker exec -it ${container_name} /bin/bash -c "source /root/.bashrc; cd /root/go/src/v5/aerospike-tls; go mod init; go get ${liburl}/v5"
 }
 
 function getip() {
