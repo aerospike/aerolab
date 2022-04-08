@@ -109,7 +109,7 @@ function attach() {
     echo "ERROR: container not found"
     return
   fi
-  docker exec -it ${container_name} /bin/bash -c "cd /root/go && /bin/bash"
+  docker exec -it ${container_name} /bin/bash -c "cd /root/clients && /bin/bash"
 }
 
 replaceconf
