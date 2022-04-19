@@ -49,10 +49,10 @@ func (c *config) F_deployContainer() (ret int64, err error) {
 		return E_BACKEND_ERROR, err
 	}
 
-	if inArray(templates, version{"ubuntu", "18.04", "empty"}) == -1 {
+	if inArray(templates, version{"ubuntu", "20.04", "empty"}) == -1 {
 		// make template here
 		c.log.Info(INFO_MAKETEMPLATE)
-		err = b.DeployTemplate(version{"ubuntu", "18.04", "empty"}, "apt-get update; apt-get -y install tcpdump dnsutils binutils wget net-tools curl vim less man-db telnet netcat iproute2 iptables", []fileList{})
+		err = b.DeployTemplate(version{"ubuntu", "20.04", "empty"}, "apt-get update; DEBIAN_FRONTEND=noninteractive apt-get -y install tcpdump dnsutils binutils wget net-tools curl vim less man-db telnet netcat iproute2 iptables", []fileList{})
 		if err != nil {
 			ret = E_MAKECLUSTER_MAKETEMPLATE
 			return ret, err
@@ -71,7 +71,7 @@ func (c *config) F_deployContainer() (ret int64, err error) {
 	} else {
 		privileged = false
 	}
-	err = b.DeployClusterWithLimits(version{"ubuntu", "18.04", "empty"}, c.DeployContainer.ContainerName, 1, ep, "", "", "", privileged)
+	err = b.DeployClusterWithLimits(version{"ubuntu", "20.04", "empty"}, c.DeployContainer.ContainerName, 1, ep, "", "", "", privileged)
 	if err != nil {
 		ret = E_MAKECLUSTER_MAKECLUSTER
 		return ret, err

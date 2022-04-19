@@ -929,6 +929,14 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 		}
 	}
 	ami := make(map[string]string)
+	ami["ubuntufocal"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-20.04-amd64-server-????????")
+	if err != nil {
+		return fmt.Errorf("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntubionic"])
+	}
+	ami["ubuntu20.04"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-18.04-amd64-server-????????")
+	if err != nil {
+		return fmt.Errorf("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntubionic"])
+	}
 	ami["ubuntubionic"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-18.04-amd64-server-????????")
 	if err != nil {
 		return fmt.Errorf("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntubionic"])

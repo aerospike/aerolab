@@ -1,3 +1,14 @@
+#### v3.0.1
+* deploy-container move to ubuntu 20.04
+* add basic tools to aerospike server containers
+* set basic ubuntu version to 20.04
+* update version discovery algorythm to allow for new naming conventions
+* add aws backend ubuntu 20.04 discovery options
+* comment out paxos-single-replica-limit in conf files (obsolete as of v6 of Aerospike)
+* fix apt unattended install requirement
+* fix dpkg force confold for unattended upgrades
+* change gen-tls-certs to use 2048-bit keys
+
 #### v3.0.0
 * remove lxc backend
 * code cleanup, lint

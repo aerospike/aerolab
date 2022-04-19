@@ -136,6 +136,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 	}
 
 	nVer := "centos"
+	c.log.Info("Distro = %s:%s ; AerospikeVersion = %s", c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion)
 	if inArray(templates, version{c.ClusterGrow.DistroName, c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion}) == -1 {
 		if c.ClusterGrow.DistroName != "el" || inArray(templates, version{nVer, c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion}) == -1 {
 			// check aerospike version - only required if not downloaded, not checked already above
