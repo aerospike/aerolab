@@ -2,6 +2,7 @@
 # import the module
 from __future__ import print_function
 import aerospike
+from aerospike import exception as ex
 import time
 
 #######################################################################################
@@ -10,13 +11,37 @@ import time
 
 # Modify CLUSTERIP to be the IP of one of your database nodes
 
-
-# Configure the client CLUSTERIP:3000
+# Configure the client CLUSTERIP:4333
 config = {
-  'hosts': [ ('CLUSTERIP', 3000) ],
+  'hosts': [ ('CLUSTERIP', 4333, 'server1') ],
   'policies': {
-      'timeout': 1000,
-      'auth_mode': aerospike.AUTH_EXTERNAL_INSECURE
+    'timeout': 1000,
+    'auth_mode': aerospike.AUTH_EXTERNAL
+  },
+  'tls': {
+    'enable': True,
+
+    # system-wide CA trust.
+    'cafile': '/root/certs/local/rootCA.pem',
+
+    # For mTLS the client must present it's public certificate to the
+    # server during the TLS handshake. This can be removed if Aerospike
+    # Server is not configured for mutual TLS (tls-authenticate-client = false)
+    'certfile': '/root/certs/output/client1.pem',
+
+    # For mTLS the client will need the private key to encrypt messages
+    # sent to the server during the TLS handshake. This can be removed
+    # if Aerospike Server is not configured for mutual TLS
+    # (tls-authenticate-client = false)
+    'keyfile': '/root/certs/output/client1.key',
+
+    # The 'cipher_suite' property is optional, however, it is recommended
+    # to provide a list of valid cipher suites to ensure less secure or
+    # poor-performing algorithms are not available. The cipher suites
+    # can be specified in the 'cipher_suite' as shown below, they can be
+    # specified in the Aerospike configuration using the 'cipher-suite'
+    # directive, or both.
+    'cipher_suite': 'ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-GCM-SHA256'
   }
 }
 

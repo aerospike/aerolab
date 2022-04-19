@@ -33,7 +33,7 @@ function usage {
   echo " -c|--nodes <node_count> default=${NODES} : Range 1-9"
   echo " -r|--replication <replication_factor> default=${REPLICATION} : Range 1-${NODES}"
   echo " -n|--namespace <namespace> default=${NAMESPACE}"
-  echo " -v|--ver <Aerospike Version> default=${ASV}"
+  echo " -v|--ver <Aerospike Version> default=latest"
   echo " -l|--labname <name_of_cluster> default=${LAB_NAME}"
   echo " -s|--sc <true/false> default=${STRONGCONSISTENCY}"
   echo " -?|-h|--help This Messaage"
