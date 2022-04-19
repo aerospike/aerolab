@@ -101,7 +101,7 @@ type upgradeStruct struct {
 	ClusterName             string `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes                   string `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	DistroName              string `short:"d" long:"distro" description:"OS distro to use. One of: ubuntu, rhel. rhel" default:"ubuntu"`
-	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 18.04, 16.04 for ubuntu" default:"best"`
+	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 20.04, 18.04, 16.04 for ubuntu" default:"best"`
 	AerospikeVersion        string `short:"v" long:"aerospike-version" description:"Version of aerospike to use (add 'c' to denote community, e.g. 3.13.0.1c)" default:"latest"`
 	AutoStartAerospike      string `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
 	Username                string `short:"U" long:"username" description:"Required for downloading enterprise edition"`
@@ -236,7 +236,7 @@ type makeXdrClustersStruct struct {
 	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`
 	AerospikeVersion        string `short:"v" long:"aerospike-version" description:"Version of aerospike to use (add 'c' to denote community, e.g. 3.13.0.1c)" default:"latest"`
 	DistroName              string `short:"d" long:"distro" description:"OS distro to use. One of: ubuntu, rhel. rhel" default:"ubuntu"`
-	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 18.04, 16.04 for ubuntu" default:"best"`
+	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 20.04, 18.04, 16.04 for ubuntu" default:"best"`
 	CustomConfigFilePath    string `short:"o" long:"customconf" description:"Custom config file path to install"`
 	FeaturesFilePath        string `short:"f" long:"featurefile" description:"Features file to install"`
 	AutoStartAerospike      string `short:"S" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
@@ -274,7 +274,7 @@ type nodeAttachStruct struct {
 type nukeTemplateStruct struct {
 	AerospikeVersion        string `short:"v" long:"aerospike-version" description:"Version of aerospike to use (add 'c' to denote community, e.g. 3.13.0.1c) OR 'all'" default:"latest"`
 	DistroName              string `short:"d" long:"distro" description:"OS distro to use. One of: ubuntu, rhel. rhel OR 'all'" default:"ubuntu"`
-	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 18.04, 16.04 for ubuntu OR 'all'" default:"18.04"`
+	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 20.04, 18.04, 16.04 for ubuntu OR 'all'" default:"20.04"`
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
 	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`
@@ -331,7 +331,7 @@ type makeClusterStruct struct {
 	NodeCount               int    `short:"c" long:"count" description:"Number of nodes to create" default:"1"`
 	AerospikeVersion        string `short:"v" long:"aerospike-version" description:"Version of aerospike to use (add 'c' to denote community, e.g. 3.13.0.1c)" default:"latest"`
 	DistroName              string `short:"d" long:"distro" description:"OS distro to use. One of: ubuntu, rhel. rhel" default:"ubuntu"`
-	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 18.04, 16.04 for ubuntu" default:"best"`
+	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 20.04, 18.04, 16.04 for ubuntu" default:"best"`
 	CustomConfigFilePath    string `short:"o" long:"customconf" description:"Custom config file path to install"`
 	FeaturesFilePath        string `short:"f" long:"featurefile" description:"Features file to install"`
 	HeartbeatMode           string `short:"m" long:"mode" description:"Heartbeat mode, values are: mcast|mesh|default. Default:don't touch" default:"default"`

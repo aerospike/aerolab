@@ -144,6 +144,7 @@ func (c *config) F_makeCluster() (ret int64, err error) {
 	}
 
 	nVer := "centos"
+	c.log.Info("Distro = %s:%s ; AerospikeVersion = %s", c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion)
 	if inArray(templates, version{c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
 		if c.MakeCluster.DistroName != "el" || inArray(templates, version{nVer, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
 			// check aerospike version - only required if not downloaded, not checked already above
@@ -473,6 +474,9 @@ func checkUbuntuAerospikeVersion(aeroVer string) []string {
 	}
 	if a == 4 && b >= 2 {
 		return []string{"18.04", "16.04", "14.04"}
+	}
+	if a > 5 || (a == 5 && b >= 1) {
+		return []string{"20.04", "18.04", "16.04", "14.04"}
 	}
 	if a > 4 {
 		return []string{"18.04", "16.04", "14.04"}

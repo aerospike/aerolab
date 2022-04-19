@@ -19,9 +19,9 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 	var baseUrl string
 	if version == "latest" || version == "latestc" {
 		if version[len(version)-1] != 'c' {
-			baseUrl = "https://www.aerospike.com/artifacts/aerospike-server-enterprise/"
+			baseUrl = "https://artifacts.aerospike.com/aerospike-server-enterprise/"
 		} else {
-			baseUrl = "https://www.aerospike.com/artifacts/aerospike-server-community/"
+			baseUrl = "https://artifacts.aerospike.com/aerospike-server-community/"
 		}
 		client := &http.Client{}
 		req, err := http.NewRequest("GET", baseUrl, nil)
@@ -46,7 +46,7 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 		ver := ""
 		for _, line := range strings.Split(string(responseData), "\n") {
 			if strings.Contains(line, "folder.gif") {
-				rp := regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+[\.]*[0-9]*`)
+				rp := regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+[\.]*[0-9]*[^/]*`)
 				nver := rp.FindString(line)
 				if ver == "" {
 					ver = nver
@@ -66,9 +66,9 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 
 	if version[len(version)-1] != 'c' {
 		//baseUrl = "https://www.aerospike.com/artifacts/aerospike-server-enterprise/" + version + "/"
-		baseUrl = "https://enterprise.aerospike.com/artifacts/aerospike-server-enterprise/" + version + "/"
+		baseUrl = "https://artifacts.aerospike.com/aerospike-server-enterprise/" + version + "/"
 	} else {
-		baseUrl = "https://www.aerospike.com/artifacts/aerospike-server-community/" + version[:len(version)-1] + "/"
+		baseUrl = "https://artifacts.aerospike.com/aerospike-server-community/" + version[:len(version)-1] + "/"
 	}
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", baseUrl, nil)

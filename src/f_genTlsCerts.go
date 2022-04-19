@@ -154,7 +154,7 @@ func tls_create_openssl_config(tlsName string) string {
 dir			= .
 
 [ req ]
-default_bits  	    = 1024		# Size of keys
+default_bits  	    = 2048		# Size of keys
 default_keyfile     = key.pem		# name of generated keys
 default_md          = sha256		# message digest algorithm
 string_mask         = nombstr		# permitted characters

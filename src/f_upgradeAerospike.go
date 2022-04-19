@@ -191,7 +191,7 @@ func (c *config) F_upgradeAerospike() (ret int64, err error) {
 			return ret, fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// upgrade
-		out, err = b.RunCommand(c.UpgradeAerospike.ClusterName, [][]string{[]string{"/bin/bash", "-c", "cd aerospike-server* && ./asinstall"}}, []int{i})
+		out, err = b.RunCommand(c.UpgradeAerospike.ClusterName, [][]string{[]string{"/bin/bash", "-c", "export DEBIAN_FRONTEND=noninteractive; cd aerospike-server* && ./asinstall"}}, []int{i})
 		if err != nil {
 			ret = E_MAKECLUSTER_VALIDATION
 			return ret, fmt.Errorf("%s : %s", string(out[0]), err)
