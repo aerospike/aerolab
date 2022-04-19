@@ -2,6 +2,7 @@
 # import the module
 from __future__ import print_function
 import aerospike
+from aerospike import exception as ex
 import time
 
 #######################################################################################
@@ -16,7 +17,7 @@ config = {
   'hosts': [ ('CLUSTERIP', 3000) ],
   'policies': {
       'timeout': 1000,
-      'auth_mode': aerospike.AUTH_EXTERNAL_INSECURE
+      'auth_mode': aerospike.AUTH_INTERNAL
   }
 }
 
