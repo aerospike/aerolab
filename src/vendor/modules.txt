@@ -15,6 +15,19 @@ github.com/aerospike/aerospike-client-go/pkg/ripemd160
 github.com/aerospike/aerospike-client-go/types
 github.com/aerospike/aerospike-client-go/types/rand
 github.com/aerospike/aerospike-client-go/utils/buffer
+# github.com/aerospike/aerospike-client-go/v5 v5.8.0
+## explicit; go 1.13
+github.com/aerospike/aerospike-client-go/v5
+github.com/aerospike/aerospike-client-go/v5/internal/atomic
+github.com/aerospike/aerospike-client-go/v5/internal/lua
+github.com/aerospike/aerospike-client-go/v5/internal/lua/resources
+github.com/aerospike/aerospike-client-go/v5/internal/particle_type
+github.com/aerospike/aerospike-client-go/v5/logger
+github.com/aerospike/aerospike-client-go/v5/pkg/bcrypt
+github.com/aerospike/aerospike-client-go/v5/pkg/ripemd160
+github.com/aerospike/aerospike-client-go/v5/types
+github.com/aerospike/aerospike-client-go/v5/types/rand
+github.com/aerospike/aerospike-client-go/v5/utils/buffer
 # github.com/aws/aws-sdk-go v1.43.32
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws

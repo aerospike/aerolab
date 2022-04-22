@@ -1,3 +1,6 @@
+#### v3.0.2
+* add option in insert-data and delete-data to choose aerospike library version (4|5)
+
 #### v3.0.1
 * deploy-container move to ubuntu 20.04
 * add basic tools to aerospike server containers

@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/BurntSushi/toml v1.1.0
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
+	github.com/aerospike/aerospike-client-go/v5 v5.8.0
 	github.com/aws/aws-sdk-go v1.43.32
 	github.com/bestmethod/go-logger v0.0.0-20190212124136-3fc21e2f1810
 	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29
