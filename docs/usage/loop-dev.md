@@ -20,7 +20,7 @@ Deploy clusters, naming them `source` and `destination`, with 2 nodes in each, u
 
 ```bash
 $ aerolab make-cluster -n source -c 2 -s n -o templates/bar-file-store.conf --privileged -v 4.9.0.32
-May 20 13:08:29+0000 AERO-LAB[60638]: INFO     Performing sanity checks, checking if docker/lxc is running and accessible
+May 20 13:08:29+0000 AERO-LAB[60638]: INFO     Performing sanity checks, checking if docker is running and accessible
 May 20 13:08:29+0000 AERO-LAB[60638]: INFO     Checking if version template already exists
 May 20 13:08:29+0000 AERO-LAB[60638]: INFO     Checking aerospike version
 May 20 13:08:41+0000 AERO-LAB[60638]: INFO     Starting deployment
@@ -29,7 +29,7 @@ May 20 13:08:43+0000 AERO-LAB[60638]: INFO     Done
 
 ```bash
 $ aerolab make-cluster -n destination -c 2 -s n -o templates/bar-file-store.conf --privileged -v 4.9.0.32
-May 20 13:09:13+0000 AERO-LAB[60662]: INFO     Performing sanity checks, checking if docker/lxc is running and accessible
+May 20 13:09:13+0000 AERO-LAB[60662]: INFO     Performing sanity checks, checking if docker is running and accessible
 May 20 13:09:13+0000 AERO-LAB[60662]: INFO     Checking if version template already exists
 May 20 13:09:13+0000 AERO-LAB[60662]: INFO     Checking aerospike version
 May 20 13:09:25+0000 AERO-LAB[60662]: INFO     Starting deployment
