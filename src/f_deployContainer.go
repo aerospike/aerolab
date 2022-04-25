@@ -8,7 +8,6 @@ import (
 
 func (c *config) F_deployContainer() (ret int64, err error) {
 	//docker run -it -p 8081:8081 ubuntu:18.04 /bin/bash
-	//lxc = iptables forward rule
 
 	ret, err = chDir(c.DeployContainer.ChDir)
 	if err != nil {

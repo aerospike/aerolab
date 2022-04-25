@@ -130,7 +130,7 @@ Command: make-cluster
 -a | --mcast-address       	 : Multicast address to change to in config file (default=)
 -p | --mcast-port          	 : Multicast port to change to in config file (default=)
 -s | --start               	 : Auto-start aerospike after creation of cluster (y/n) (default=y)
--e | --deploy-on           	 : Deploy where (aws|docker|lxc) (default=)
+-e | --deploy-on           	 : Deploy where (aws|docker) (default=)
 -r | --remote-host         	 : Remote host to use for deployment, as user@ip:port (empty=locally) (default=)
 -k | --pubkey              	 : Public key to use to login to hosts when installing to remote (default=)
 -U | --username            	 : Required for downloading enterprise edition (default=)

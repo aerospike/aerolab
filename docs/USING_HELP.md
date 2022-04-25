@@ -34,7 +34,7 @@ Command: cluster-destroy
 -n | --name                	 : Cluster name (default=mydc)
 -l | --nodes               	 : Nodes list, comma separated. Empty=ALL (default=)
 -f | --force               	 : set to --force=1 to force stop before destroy (default=0)
--e | --deploy-on           	 : Deploy where (aws|docker|lxc) (default=)
+-e | --deploy-on           	 : Deploy where (aws|docker) (default=)
 ...
 ```
 

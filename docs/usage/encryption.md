@@ -3,7 +3,7 @@
 ## Create a cluster using the templates, say 3 nodes, providing feature file too
 ```bash
 $ ./aerolab make-cluster -c 3 -o templates/encryption-at-rest.conf -f feature.conf -s n
-Nov 20 15:01:25+0000 AERO-LAB[60062]: INFO     Performing sanity checks, checking if docker/lxc is running and accessible
+Nov 20 15:01:25+0000 AERO-LAB[60062]: INFO     Performing sanity checks, checking if docker is running and accessible
 Nov 20 15:01:25+0000 AERO-LAB[60062]: INFO     Checking if version template already exists
 Nov 20 15:01:25+0000 AERO-LAB[60062]: INFO     Checking aerospike version
 Nov 20 15:01:32+0000 AERO-LAB[60062]: INFO     Starting deployment
