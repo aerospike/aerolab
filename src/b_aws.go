@@ -707,6 +707,7 @@ func (b b_aws) DeployCluster(v version, name string, nodeCount int, exposePorts 
 				}
 				_, err = remoteRun("ubuntu", fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "ls")
 				if err == nil {
+					fmt.Println("Connection succeeded, continuing installation...")
 					// sort out root/ubuntu issues
 					out, err := remoteRun("ubuntu", fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo mkdir -p /root/.ssh")
 					if err != nil {
@@ -730,7 +731,7 @@ func (b b_aws) DeployCluster(v version, name string, nodeCount int, exposePorts 
 					}
 					instanceReady = instanceReady + 1
 				} else {
-					fmt.Println(err)
+					fmt.Println("Not up yet, waiting: ", err)
 					time.Sleep(time.Second)
 				}
 			}
@@ -933,7 +934,7 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 	if err != nil {
 		return fmt.Errorf("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntubionic"])
 	}
-	ami["ubuntu20.04"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-18.04-amd64-server-????????")
+	ami["ubuntu20.04"], err = b.getAmi("Name=name,Values=ubuntu/images/hvm-ssd/ubuntu-*-20.04-amd64-server-????????")
 	if err != nil {
 		return fmt.Errorf("ERROR performing AMI discovery: %s\n%s", err, ami["ubuntubionic"])
 	}
@@ -1079,7 +1080,7 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 				if err == nil {
 					instanceReady = instanceReady + 1
 				} else {
-					fmt.Println(err)
+					fmt.Println("Not up yet, waiting: ", err)
 					time.Sleep(time.Second)
 				}
 			}
@@ -1091,6 +1092,8 @@ func (b b_aws) DeployTemplate(v version, script string, files []fileList) error 
 	}
 
 	instance := nout.Reservations[0].Instances[0]
+
+	fmt.Println("Connection succeeded, continuing deployment...")
 
 	// sort out root/ubuntu issues
 	out, err := remoteRun("ubuntu", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo mkdir -p /root/.ssh")

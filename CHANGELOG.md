@@ -1,3 +1,7 @@
+#### v3.0.3
+* bugfix: aws backend using ubuntu 20.04 image correctly now
+* aws backend make "waiting for node to come up" messages more explicit
+
 #### v3.0.2
 * add option in insert-data and delete-data to choose aerospike library version (4|5)
 
