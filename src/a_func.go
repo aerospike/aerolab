@@ -51,9 +51,12 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 				if ver == "" {
 					ver = nver
 				} else {
-					if VersionOrdinal(nver) > VersionOrdinal(ver) {
+					if VersionCheck(nver, ver) == -1 {
 						ver = nver
 					}
+					/*if VersionOrdinal(nver) > VersionOrdinal(ver) {
+						ver = nver
+					}*/
 				}
 			}
 		}
@@ -304,6 +307,7 @@ func fixAerospikeConfig(conf string, mgroup string, mesh string, mesh_ip_list []
 	return newconf, nil
 }
 
+/*
 func VersionOrdinal(version string) string {
 	// ISO/IEC 14651:2011
 	const maxByte = 1<<8 - 1
@@ -331,4 +335,60 @@ func VersionOrdinal(version string) string {
 		vo[j]++
 	}
 	return string(vo)
+}
+*/
+
+// VersionCheck returns -1 if v1 is bigger, 1 if v2 is bigger, 0 if same
+func VersionCheck(v1 string, v2 string) int {
+	if v1 == v2 {
+		return 0
+	}
+	v1a, t1 := VersionFromString(v1)
+	v2a, t2 := VersionFromString(v2)
+	for i := range v1a {
+		if len(v2a) > i {
+			if v1a[i] > v2a[i] {
+				return -1
+			}
+			if v2a[i] > v1a[i] {
+				return 1
+			}
+		}
+	}
+	if len(v1a) > len(v2a) {
+		return -1
+	}
+	if len(v1a) < len(v2a) {
+		return 1
+	}
+	if t1 == t2 {
+		return 0
+	}
+	if t1 == "" {
+		return -1
+	}
+	if t2 == "" {
+		return 1
+	}
+	if t1 > t2 {
+		return -1
+	}
+	if t2 > t1 {
+		return 1
+	}
+	return 0
+}
+
+func VersionFromString(v string) (vv []int, tail string) {
+	vlist := strings.Split(strings.ReplaceAll(v, "-", "."), ".")
+	for i, c := range vlist {
+		no, err := strconv.Atoi(c)
+		if err != nil {
+			tail = strings.Join(vlist[i:], ".")
+			return
+		} else {
+			vv = append(vv, no)
+		}
+	}
+	return
 }
