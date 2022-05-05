@@ -17,7 +17,11 @@ import (
 func aeroFindUrl(version string, user string, pass string) (url string, v string, err error) {
 
 	var baseUrl string
-	if version == "latest" || version == "latestc" {
+	partversion := ""
+	if strings.HasSuffix(version, "*") {
+		partversion = strings.TrimSuffix(version, "*")
+	}
+	if version == "latest" || version == "latestc" || strings.HasSuffix(version, "*") {
 		if version[len(version)-1] != 'c' {
 			baseUrl = "https://artifacts.aerospike.com/aerospike-server-enterprise/"
 		} else {
@@ -28,7 +32,7 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 		if err != nil {
 			return url, v, err
 		}
-		req.SetBasicAuth(user, pass)
+		//req.SetBasicAuth(user, pass)
 		response, err := client.Do(req)
 		if err != nil {
 			return "", "", err
@@ -48,17 +52,22 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 			if strings.Contains(line, "folder.gif") {
 				rp := regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+[\.]*[0-9]*[^/]*`)
 				nver := rp.FindString(line)
-				if ver == "" {
-					ver = nver
-				} else {
-					if VersionCheck(nver, ver) == -1 {
+				if partversion == "" || strings.HasPrefix(nver, partversion) {
+					if ver == "" {
 						ver = nver
+					} else {
+						if VersionCheck(nver, ver) == -1 {
+							ver = nver
+						}
+						/*if VersionOrdinal(nver) > VersionOrdinal(ver) {
+							ver = nver
+						}*/
 					}
-					/*if VersionOrdinal(nver) > VersionOrdinal(ver) {
-						ver = nver
-					}*/
 				}
 			}
+		}
+		if ver == "" {
+			return "", "", errors.New("required version not found")
 		}
 		if version[len(version)-1] != 'c' {
 			version = ver

@@ -102,7 +102,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 
 	// check latest version early if needed to find out if template does not exist
 	var url string
-	if (len(c.ClusterGrow.AerospikeVersion) > 5 && c.ClusterGrow.AerospikeVersion[:6] == "latest") || (len(c.ClusterGrow.AerospikeVersion) > 6 && c.ClusterGrow.AerospikeVersion[:7] == "latestc") {
+	if (len(c.ClusterGrow.AerospikeVersion) > 5 && c.ClusterGrow.AerospikeVersion[:6] == "latest") || (len(c.ClusterGrow.AerospikeVersion) > 6 && c.ClusterGrow.AerospikeVersion[:7] == "latestc") || strings.HasSuffix(c.ClusterGrow.AerospikeVersion, "*") {
 		url, ret, err = c.getUrlGrow()
 		if err != nil {
 			return ret, err

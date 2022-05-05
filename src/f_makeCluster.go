@@ -110,7 +110,7 @@ func (c *config) F_makeCluster() (ret int64, err error) {
 
 	// check latest version early if needed to find out if template does not exist
 	var url string
-	if (len(c.MakeCluster.AerospikeVersion) > 5 && c.MakeCluster.AerospikeVersion[:6] == "latest") || (len(c.MakeCluster.AerospikeVersion) > 6 && c.MakeCluster.AerospikeVersion[:7] == "latestc") {
+	if (len(c.MakeCluster.AerospikeVersion) > 5 && c.MakeCluster.AerospikeVersion[:6] == "latest") || (len(c.MakeCluster.AerospikeVersion) > 6 && c.MakeCluster.AerospikeVersion[:7] == "latestc") || strings.HasSuffix(c.MakeCluster.AerospikeVersion, "*") {
 		url, ret, err = c.getUrl()
 		if err != nil {
 			return ret, err
