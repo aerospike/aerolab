@@ -1,3 +1,9 @@
+#### v3.0.4
+* documentation cleanup
+* fix version discovery mechanism
+* add option for specifying partial version, for example `-v '4.9.0.*'` will find and use latest `4.9.0.` version
+* added command `list-versions` to quickly lookup Aerospike versions, with switches for easy sorting and filtering, see `list-versions help` for more details
+
 #### v3.0.3
 * bugfix: aws backend using ubuntu 20.04 image correctly now
 * aws backend make "waiting for node to come up" messages more explicit

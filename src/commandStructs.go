@@ -42,11 +42,19 @@ type config struct {
 	GetLogs          getLogs                  `type:"command" name:"get-logs" method:"F_getLogs" description:"Get logs from nodes in a cluster to a local directory"`
 	InsertData       insertDataStruct         `type:"command" name:"insert-data" method:"F_insertData" description:"Insert data into a cluster"`
 	DeleteData       deleteDataStruct         `type:"command" name:"delete-data" method:"F_deleteData" description:"Delete data from a cluster"`
+	ListVersions     listVersionsStruct       `type:"command" name:"list-versions" method:"F_listVersions" description:"List available Aerospike versions"`
 	Help             int                      `type:"command" name:"help" method:"F_help" description:"This help screen"`
 	Version          interactiveStruct        `type:"command" name:"version" method:"F_version" description:"Display version information"`
 	/*WebInterface     webInterfaceStruct       `type:"command" name:"web-interface" method:"F_webserver" description:"Launch a web interface (webserver) so you can run your aerolab tasks from the browser"`*/
 	Common commonConfigStruct
 	tail   []string
+}
+
+type listVersionsStruct struct {
+	Prefix    string `short:"v" long:"version" description:"Version Prefix to search for" default:""`
+	Community int    `short:"c" long:"community" description:"Set this switch to list community editions" default:"0" type:"bool"`
+	Reverse   int    `short:"r" long:"reverse" description:"Reverse-sort the results" default:"0" type:"bool"`
+	Url       int    `short:"l" long:"show-url" description:"Show direct access url instead of version number" default:"0" type:"bool"`
 }
 
 type deleteDataStruct struct {

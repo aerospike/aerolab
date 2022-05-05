@@ -4,11 +4,15 @@ logDir="./log"
 
 rm -rf ${logDir}
 mkdir -p ${logDir}
-green=$(tput setaf 2)
-blue=$(tput setaf 4)
-red=$(tput setaf 1)
-normal=$(tput sgr0)
 funcno=0
+
+if [ "${1}" == "color" ]
+then
+    green=$(tput setaf 2)
+    blue=$(tput setaf 4)
+    red=$(tput setaf 1)
+    normal=$(tput sgr0)
+fi
 
 function handle() {
     printf "%s %.30s " "${blue}$(date)${normal}" "${1} .................................."
