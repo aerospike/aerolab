@@ -1,3 +1,6 @@
+#### v3.0.5
+* fix `make-xdr-clusters` to support v6 of Aerospike
+
 #### v3.0.4
 * documentation cleanup
 * fix version discovery mechanism
