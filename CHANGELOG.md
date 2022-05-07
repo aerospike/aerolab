@@ -1,5 +1,10 @@
 #### v3.0.5
 * fix `make-xdr-clusters` to support v6 of Aerospike
+* fix bug in `cluster-grow` re discovery of versions
+* fix bug in `cluster-grow` re installation on non-ubuntu script
+* add check in `cluster-grow` and `make-cluster` to confirm that distro version is selected if distro isn't ubuntu
+* add early check in `cluster-grow` and `make-cluster` - if requested version does not exist, error early, with a meaningful message
+* add the `make-cluster -v 5.7.*` version lookup option information to help pages
 
 #### v3.0.4
 * documentation cleanup
