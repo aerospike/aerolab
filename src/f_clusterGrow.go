@@ -19,6 +19,13 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 	}
 
 	c.log.Info(INFO_SANITY)
+
+	if c.ClusterGrow.DistroName != "ubuntu" && c.ClusterGrow.DistroVersion == "best" {
+		err = errors.New("Please specify OS/Distro version (-i switch) when specifying non-ubuntu distro")
+		ret = E_MAKECLUSTER_VALIDATION
+		return
+	}
+
 	// check cluster name
 	if len(c.ClusterGrow.ClusterName) == 0 || len(c.ClusterGrow.ClusterName) > 20 {
 		err = errors.New(ERR_CLUSTER_NAME_SIZE)
@@ -107,6 +114,15 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 		if err != nil {
 			return ret, err
 		}
+	} else {
+		if inArray(templates, version{c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
+			if c.MakeCluster.DistroName != "el" || inArray(templates, version{"centos", c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
+				url, ret, err = c.getUrlGrow()
+				if err != nil {
+					return ret, fmt.Errorf("Version not found: %s", err)
+				}
+			}
+		}
 	}
 
 	if c.ClusterGrow.DistroName == "ubuntu" {
@@ -136,7 +152,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 	}
 
 	nVer := "centos"
-	c.log.Info("Distro = %s:%s ; AerospikeVersion = %s", c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion)
+	c.log.Info("Distro = %s:%s ; AerospikeVersion = %s", c.ClusterGrow.DistroName, c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion)
 	if inArray(templates, version{c.ClusterGrow.DistroName, c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion}) == -1 {
 		if c.ClusterGrow.DistroName != "el" || inArray(templates, version{nVer, c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion}) == -1 {
 			// check aerospike version - only required if not downloaded, not checked already above
@@ -175,9 +191,9 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 			nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile})
 			var nscript string
 			if b.GetBackendName() != "docker" {
-				nscript = aerospikeInstallScript[c.MakeCluster.DistroName]
+				nscript = aerospikeInstallScript[c.ClusterGrow.DistroName]
 			} else {
-				nscript = aerospikeInstallScriptDocker[c.MakeCluster.DistroName]
+				nscript = aerospikeInstallScriptDocker[c.ClusterGrow.DistroName]
 			}
 			err = b.DeployTemplate(version{c.ClusterGrow.DistroName, c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion}, nscript, nFiles)
 			if err != nil {
@@ -198,7 +214,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 		return E_MAKECLUSTER_MAKECLUSTER, errors.New("Aerospike Version is not an int.int.*")
 	}
 	if c.ClusterGrow.FeaturesFilePath == "" && (aver_major > 4 || (aver_major == 4 && aver_minor > 5)) {
-		c.log.Warn("WARNING: you are attempting to install version 4.6+ and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or inside your ~/aero-lab-common.conf as:\n\n[MakeCluster]\nFeaturesFilePath=/path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+		c.log.Warn("WARNING: you are attempting to install version 4.6+ and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or inside your ~/aero-lab-common.conf as:\n\n[ClusterGrow]\nFeaturesFilePath=/path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 		bufio.NewReader(os.Stdin).ReadBytes('\n')
 	}
 

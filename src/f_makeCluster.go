@@ -20,6 +20,12 @@ func (c *config) F_makeCluster() (ret int64, err error) {
 
 	c.log.Info(INFO_SANITY)
 
+	if c.MakeCluster.DistroName != "ubuntu" && c.MakeCluster.DistroVersion == "best" {
+		err = errors.New("Please specify OS/Distro version (-i switch) when specifying non-ubuntu distro")
+		ret = E_MAKECLUSTER_VALIDATION
+		return
+	}
+
 	// check cluster name
 	if len(c.MakeCluster.ClusterName) == 0 || len(c.MakeCluster.ClusterName) > 20 {
 		err = errors.New(ERR_CLUSTER_NAME_SIZE)
@@ -114,6 +120,15 @@ func (c *config) F_makeCluster() (ret int64, err error) {
 		url, ret, err = c.getUrl()
 		if err != nil {
 			return ret, err
+		}
+	} else {
+		if inArray(templates, version{c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
+			if c.MakeCluster.DistroName != "el" || inArray(templates, version{"centos", c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
+				url, ret, err = c.getUrl()
+				if err != nil {
+					return ret, fmt.Errorf("Version not found: %s", err)
+				}
+			}
 		}
 	}
 

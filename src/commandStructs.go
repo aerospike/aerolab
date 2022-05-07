@@ -339,7 +339,7 @@ type confFixMeshStruct struct {
 type makeClusterStruct struct {
 	ClusterName             string `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	NodeCount               int    `short:"c" long:"count" description:"Number of nodes to create" default:"1"`
-	AerospikeVersion        string `short:"v" long:"aerospike-version" description:"Version of aerospike to use (add 'c' to denote community, e.g. 3.13.0.1c)" default:"latest"`
+	AerospikeVersion        string `short:"v" long:"aerospike-version" description:"Aerospike version, full or partial: '5.7.*' to start latest 5.7. (add 'c' to denote community, e.g. 3.13.0.1c)" default:"latest"`
 	DistroName              string `short:"d" long:"distro" description:"OS distro to use. One of: ubuntu, rhel. rhel" default:"ubuntu"`
 	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 20.04, 18.04, 16.04 for ubuntu" default:"best"`
 	CustomConfigFilePath    string `short:"o" long:"customconf" description:"Custom config file path to install"`
