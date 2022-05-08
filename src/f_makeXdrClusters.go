@@ -60,9 +60,10 @@ func (c *config) F_makeXdrClusters() (ret int64, err error) {
 	c.XdrConnect.RemoteHost = c.MakeXdrClusters.RemoteHost
 	c.XdrConnect.DeployOn = c.MakeXdrClusters.DeployOn
 	c.XdrConnect.AccessPublicKeyFilePath = c.MakeXdrClusters.AccessPublicKeyFilePath
-	c.XdrConnect.Xdr5 = 0
-	if strings.HasPrefix(c.MakeXdrClusters.AerospikeVersion, "7.") || strings.HasPrefix(c.MakeXdrClusters.AerospikeVersion, "6.") || strings.HasPrefix(c.MakeXdrClusters.AerospikeVersion, "5.") || strings.HasPrefix(c.MakeXdrClusters.AerospikeVersion, "latest") {
-		c.XdrConnect.Xdr5 = 1
+	c.XdrConnect.Restart = c.MakeXdrClusters.Restart
+	c.XdrConnect.Version = "5"
+	if strings.HasPrefix(c.MakeXdrClusters.AerospikeVersion, "3.") || strings.HasPrefix(c.MakeXdrClusters.AerospikeVersion, "4.") {
+		c.XdrConnect.Version = "4"
 	}
 	ret, err = c.F_xdrConnect()
 	return

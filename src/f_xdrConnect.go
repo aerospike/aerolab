@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -9,6 +11,10 @@ func (c *config) F_xdrConnect() (ret int64, err error) {
 	c.log.Info("XdrConnect running")
 	namespaces := strings.Split(c.XdrConnect.Namespaces, ",")
 	destinations := strings.Split(c.XdrConnect.DestinationClusterNames, ",")
+
+	if c.XdrConnect.Restart != "n" && c.XdrConnect.Restart != "y" {
+		return 999, errors.New("restart-aerospike option only accepts 'y' or 'n'")
+	}
 
 	// get backend
 	b, err := getBackend(c.XdrConnect.DeployOn, c.XdrConnect.RemoteHost, c.XdrConnect.AccessPublicKeyFilePath)
@@ -60,28 +66,36 @@ func (c *config) F_xdrConnect() (ret int64, err error) {
 
 	// we have c.XdrConnect.SourceClusterName, sourceNodeList, destinations, destIpList, namespaces
 
-	//build empty basic xdr stanza
-	xdr_stanza := `
-xdr {
-	enable-xdr true
-	xdr-digestlog-path /opt/aerospike/xdr/digestlog 1G
-
-}
-`
-	if c.XdrConnect.Xdr5 == 1 {
-		xdr_stanza = `
-xdr {
-
-}
-`
-	}
-
 	_, err = b.RunCommand(c.XdrConnect.SourceClusterName, [][]string{[]string{"mkdir", "-p", "/opt/aerospike/xdr"}}, sourceNodeList)
 	if err != nil {
 		return 999, fmt.Errorf("Failed running mkdir /opt/aerospike/xdr: %s", err)
 	}
 	//for each source node
 	for _, snode := range sourceNodeList {
+		xdrVersion := ""
+		switch c.XdrConnect.Version {
+		case "5":
+			xdrVersion = "5"
+		case "4":
+			xdrVersion = "4"
+		case "auto":
+			// perform discovery
+			xdrVersion = "5"
+			out, err := b.RunCommand(c.XdrConnect.SourceClusterName, [][]string{[]string{"cat", "/opt/aerolab.aerospike.version"}}, []int{snode})
+			if err != nil {
+				return 999, fmt.Errorf("Failed running cat /opt/aerolab.aerospike.version, cannot auto-discover: %s", err)
+			}
+			if strings.HasPrefix(string(out[0]), "4.") || strings.HasPrefix(string(out[0]), "3.") {
+				xdrVersion = "4"
+			}
+		default:
+			return 999, fmt.Errorf("Unrecognised xdr-config version: %s", c.XdrConnect.Version)
+		}
+		//build empty basic xdr stanza
+		xdr_stanza := "\nxdr {\n    enable-xdr true\n    xdr-digestlog-path /opt/aerospike/xdr/digestlog 1G\n}\n"
+		if xdrVersion == "5" {
+			xdr_stanza = "\nxdr {\n\n}\n"
+		}
 
 		//read file
 		out, err := b.RunCommand(c.XdrConnect.SourceClusterName, [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, []int{snode})
@@ -104,7 +118,7 @@ xdr {
 		//find start and end of xdr stanza, find configured DCs
 		dcStanzaName := "datacenter"
 		nodeAddressPort := "dc-node-address-port"
-		if c.XdrConnect.Xdr5 == 1 {
+		if xdrVersion == "5" {
 			dcStanzaName = "dc"
 			nodeAddressPort = "node-address-port"
 		}
@@ -152,7 +166,7 @@ xdr {
 				dst_cluster_ips := destIpList[found]
 				for j := 0; j < len(dst_cluster_ips); j++ {
 					dc_to_add = dc_to_add + fmt.Sprintf("\t\t%s %s 3000\n", nodeAddressPort, dst_cluster_ips[j])
-					if c.XdrConnect.Xdr5 == 1 {
+					if xdrVersion == "5" {
 						if _, ok := dc2namespace[found]; !ok {
 							dc2namespace[found] = []string{}
 						}
@@ -177,7 +191,7 @@ xdr {
 		}
 		confsx = append(confsx, confsy...)
 
-		if c.XdrConnect.Xdr5 == 0 {
+		if xdrVersion == "4" {
 			//now latest config is in confsx
 			//update namespaces to enable XDR in them
 			for i := 0; i < len(namespaces); i++ {
@@ -239,6 +253,24 @@ xdr {
 		}
 	}
 
-	c.log.Info("Done, now restart the source cluster for changes to take effect.")
+	if c.XdrConnect.Restart == "n" {
+		c.log.Info("Done, now restart the source cluster for changes to take effect.")
+		return
+	}
+	c.log.Info("Restarting source cluster nodes")
+	snl := []string{}
+	for _, sn := range sourceNodeList {
+		snl = append(snl, strconv.Itoa(sn))
+	}
+	c.RestartAerospike.AccessPublicKeyFilePath = c.XdrConnect.AccessPublicKeyFilePath
+	c.RestartAerospike.DeployOn = c.XdrConnect.DeployOn
+	c.RestartAerospike.RemoteHost = c.XdrConnect.RemoteHost
+	c.RestartAerospike.ClusterName = c.XdrConnect.SourceClusterName
+	c.RestartAerospike.Nodes = strings.Join(snl, ",")
+	r, e := c.F_restartAerospike()
+	if e != nil {
+		return r, e
+	}
+	c.log.Info("Done")
 	return
 }

@@ -331,6 +331,9 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 		}
 	}
 
+	// store deployed aerospike version
+	files = append(files, fileList{"/opt/aerolab.aerospike.version", []byte(c.MakeCluster.AerospikeVersion)})
+
 	// actually save files to nodes in cluster if needed
 	if len(files) > 0 {
 		// copy to those in nodeList which are not in nlic

@@ -325,6 +325,9 @@ func (c *config) F_makeCluster() (ret int64, err error) {
 		files = append(files, fileList{"/etc/aerospike/features.conf", conf})
 	}
 
+	// store deployed aerospike version
+	files = append(files, fileList{"/opt/aerolab.aerospike.version", []byte(c.MakeCluster.AerospikeVersion)})
+
 	// actually save files to nodes in cluster if needed
 	if len(files) > 0 {
 		err := b.CopyFilesToCluster(c.MakeCluster.ClusterName, files, nodeList)

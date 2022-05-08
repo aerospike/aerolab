@@ -228,7 +228,8 @@ type netControlStruct struct {
 type xdrConnectStruct struct {
 	SourceClusterName       string `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
 	DestinationClusterNames string `short:"d" long:"destinations" description:"Destination Cluster names, comma separated." default:"mydc-xdr"`
-	Xdr5                    int    `short:"5" long:"version5" description:"if specified, will use xdr version 5 configuration specification" default:"0" type:"bool"`
+	Version                 string `short:"v" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto"`
+	Restart                 string `short:"t" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y"`
 	Namespaces              string `short:"m" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
@@ -247,6 +248,7 @@ type makeXdrClustersStruct struct {
 	AerospikeVersion        string `short:"v" long:"aerospike-version" description:"Version of aerospike to use (add 'c' to denote community, e.g. 3.13.0.1c)" default:"latest"`
 	DistroName              string `short:"d" long:"distro" description:"OS distro to use. One of: ubuntu, rhel. rhel" default:"ubuntu"`
 	DistroVersion           string `short:"i" long:"distro-version" description:"Version of distro. E.g. 7, 6 for RHEL/centos, 20.04, 18.04, 16.04 for ubuntu" default:"best"`
+	Restart                 string `short:"t" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y"`
 	CustomConfigFilePath    string `short:"o" long:"customconf" description:"Custom config file path to install"`
 	FeaturesFilePath        string `short:"f" long:"featurefile" description:"Features file to install"`
 	AutoStartAerospike      string `short:"S" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
