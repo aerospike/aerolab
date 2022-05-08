@@ -61,7 +61,7 @@ func (c *config) aerospikeStartStopRestart(DeployOn string, RemoteHost string, A
 	} else if command == "restart" {
 		var commands [][]string
 		commands = append(commands, []string{"service", "aerospike", "stop"})
-		commands = append(commands, []string{"sleep", "1"})
+		commands = append(commands, []string{"sleep", "2"})
 		commands = append(commands, []string{"service", "aerospike", "start"})
 		out, err = b.RunCommand(ClusterName, commands, nodes)
 	}

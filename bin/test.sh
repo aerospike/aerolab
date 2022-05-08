@@ -35,7 +35,10 @@ function check_version() {
 
 function check_cluster_destroy() {
     RET=0
-    ${aerolab} cluster-destroy -f -n ${cluster}dst1,${cluster}dst2,${cluster}src5,${cluster}src4,${cluster}srcx5,${cluster}srcx4,${cluster}dstx5,${cluster}dstx4,${cluster}tls || RET=$?
+    for i in ${cluster}dst1 ${cluster}dst2 ${cluster}src5 ${cluster}src4 ${cluster}srcx5 ${cluster}srcx4 ${cluster}dstx5 ${cluster}dstx4 ${cluster}tls
+    do
+        ${aerolab} cluster-destroy -f -n ${i} || RET=$?
+    done
     ${aerolab} cluster-destroy -f -n ${cluster}cont || RET=$?
     ${aerolab} cluster-destroy -n ${cluster} -f || RET=$?
     return ${RET}
@@ -121,16 +124,16 @@ function check_schelp() {
     return $?
 }
 
-function check_xdr_connect_5() {
+function check_xdr_connect_5_auto() {
 	${aerolab} make-cluster -n ${cluster}dst1 -c 2 -m mesh || return $?
 	${aerolab} make-cluster -n ${cluster}dst2 -c 2 -m mesh || return $?
 	${aerolab} make-cluster -n ${cluster}src5 -c 2 -m mesh || return $?
-	${aerolab} xdr-connect -s ${cluster}src5 -d ${cluster}dst1,${cluster}dst2 -5 -m test,bar || return $?
+	${aerolab} xdr-connect -s ${cluster}src5 -d ${cluster}dst1,${cluster}dst2 -m test,bar || return $?
 	${aerolab} restart-aerospike -n ${cluster}src5 || return $?
 	return 0
 }
 
-function check_xdr_connect_4() {
+function check_xdr_connect_4_auto() {
 	${aerolab} make-cluster -n ${cluster}src4 -c 2 -m mesh -v 4.9.0.32 || return $?
 	${aerolab} xdr-connect -s ${cluster}src4 -d ${cluster}dst1,${cluster}dst2 -m test,bar || return $?
 	${aerolab} restart-aerospike -n ${cluster}src4 || return $?
@@ -261,8 +264,8 @@ handle check_node_attach
 handle check_aql
 handle check_asinfo
 handle check_asadm
-handle check_xdr_connect_5
-handle check_xdr_connect_4
+handle check_xdr_connect_5_auto
+handle check_xdr_connect_4_auto
 handle check_make_xdr_clusters_5
 handle check_make_xdr_clusters_4
 handle check_upload_download

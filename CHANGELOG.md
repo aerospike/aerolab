@@ -1,10 +1,14 @@
-#### v3.0.5
+#### v3.1.0
 * fix `make-xdr-clusters` to support v6 of Aerospike
 * fix bug in `cluster-grow` re discovery of versions
 * fix bug in `cluster-grow` re installation on non-ubuntu script
 * add check in `cluster-grow` and `make-cluster` to confirm that distro version is selected if distro isn't ubuntu
 * add early check in `cluster-grow` and `make-cluster` - if requested version does not exist, error early, with a meaningful message
 * add the `make-cluster -v 5.7.*` version lookup option information to help pages
+* store deployed aerospike version in `/opt/aerolab.aerospike.version`
+* deprecate `-5` switch for version selection in `xdr-connect`
+* add `xdr-version` selector in `xdr-connect`, add `auto` option for auto-discovery
+* add `restart-source` option in `xdr-connect` with default of 'yes' to allow for auto-restarting of source on xdr static configuration
 
 #### v3.0.4
 * documentation cleanup
