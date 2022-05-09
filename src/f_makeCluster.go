@@ -119,13 +119,17 @@ func (c *config) F_makeCluster() (ret int64, err error) {
 	if (len(c.MakeCluster.AerospikeVersion) > 5 && c.MakeCluster.AerospikeVersion[:6] == "latest") || (len(c.MakeCluster.AerospikeVersion) > 6 && c.MakeCluster.AerospikeVersion[:7] == "latestc") || strings.HasSuffix(c.MakeCluster.AerospikeVersion, "*") {
 		url, ret, err = c.getUrl()
 		if err != nil {
-			return ret, err
+			return ret, fmt.Errorf("Version not found: %s", err)
 		}
 	} else {
 		if inArray(templates, version{c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
 			if c.MakeCluster.DistroName != "el" || inArray(templates, version{"centos", c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
+				sver := c.MakeCluster.AerospikeVersion
 				url, ret, err = c.getUrl()
 				if err != nil {
+					if (len(strings.Split(sver, ".")) < 4 && !strings.HasSuffix(sver, "*")) || strings.HasSuffix(sver, ".") {
+						return ret, fmt.Errorf("Version not found, did you mean %s* ?", sver)
+					}
 					return ret, fmt.Errorf("Version not found: %s", err)
 				}
 			}
