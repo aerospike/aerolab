@@ -39,7 +39,7 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 		}
 
 		if response.StatusCode != 200 {
-			err = fmt.Errorf(ERR_URL_NOT_FOUND, response.StatusCode)
+			err = fmt.Errorf(ERR_URL_NOT_FOUND, response.StatusCode, baseUrl)
 			return "", "", err
 		}
 
@@ -93,7 +93,7 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 		return
 	}
 	if response.StatusCode != 200 {
-		err = fmt.Errorf(ERR_URL_NOT_FOUND, response.StatusCode)
+		err = fmt.Errorf(ERR_URL_NOT_FOUND, response.StatusCode, baseUrl)
 		return
 	}
 	url = baseUrl

@@ -112,13 +112,17 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 	if (len(c.ClusterGrow.AerospikeVersion) > 5 && c.ClusterGrow.AerospikeVersion[:6] == "latest") || (len(c.ClusterGrow.AerospikeVersion) > 6 && c.ClusterGrow.AerospikeVersion[:7] == "latestc") || strings.HasSuffix(c.ClusterGrow.AerospikeVersion, "*") {
 		url, ret, err = c.getUrlGrow()
 		if err != nil {
-			return ret, err
+			return ret, fmt.Errorf("Version not found: %s", err)
 		}
 	} else {
-		if inArray(templates, version{c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
-			if c.MakeCluster.DistroName != "el" || inArray(templates, version{"centos", c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}) == -1 {
+		if inArray(templates, version{c.ClusterGrow.DistroName, c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion}) == -1 {
+			if c.ClusterGrow.DistroName != "el" || inArray(templates, version{"centos", c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion}) == -1 {
+				sver := c.ClusterGrow.AerospikeVersion
 				url, ret, err = c.getUrlGrow()
 				if err != nil {
+					if (len(strings.Split(sver, ".")) < 4 && !strings.HasSuffix(sver, "*")) || strings.HasSuffix(sver, ".") {
+						return ret, fmt.Errorf("Version not found, did you mean %s* ?", sver)
+					}
 					return ret, fmt.Errorf("Version not found: %s", err)
 				}
 			}
@@ -332,7 +336,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 	}
 
 	// store deployed aerospike version
-	files = append(files, fileList{"/opt/aerolab.aerospike.version", []byte(c.MakeCluster.AerospikeVersion)})
+	files = append(files, fileList{"/opt/aerolab.aerospike.version", []byte(c.ClusterGrow.AerospikeVersion)})
 
 	// actually save files to nodes in cluster if needed
 	if len(files) > 0 {
