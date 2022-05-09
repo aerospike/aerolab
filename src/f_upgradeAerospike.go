@@ -17,6 +17,13 @@ func (c *config) F_upgradeAerospike() (ret int64, err error) {
 	}
 
 	c.log.Info(INFO_SANITY)
+
+	if c.MakeCluster.DistroName != "ubuntu" && c.MakeCluster.DistroVersion == "best" {
+		err = errors.New("Please specify OS/Distro version (-i switch) when specifying non-ubuntu distro")
+		ret = E_MAKECLUSTER_VALIDATION
+		return
+	}
+
 	// check cluster name
 	if len(c.UpgradeAerospike.ClusterName) == 0 || len(c.UpgradeAerospike.ClusterName) > 20 {
 		err = errors.New(ERR_CLUSTER_NAME_SIZE)
@@ -73,10 +80,19 @@ func (c *config) F_upgradeAerospike() (ret int64, err error) {
 
 	// check latest version early if needed to find out if template does not exist
 	var url string
-	if (len(c.UpgradeAerospike.AerospikeVersion) > 5 && c.UpgradeAerospike.AerospikeVersion[:6] == "latest") || (len(c.UpgradeAerospike.AerospikeVersion) > 6 && c.UpgradeAerospike.AerospikeVersion[:7] == "latestc") {
+	if (len(c.UpgradeAerospike.AerospikeVersion) > 5 && c.UpgradeAerospike.AerospikeVersion[:6] == "latest") || (len(c.UpgradeAerospike.AerospikeVersion) > 6 && c.UpgradeAerospike.AerospikeVersion[:7] == "latestc") || strings.HasSuffix(c.MakeCluster.AerospikeVersion, "*") {
 		url, ret, err = c.getUrlUpgrade()
 		if err != nil {
-			return ret, err
+			return ret, fmt.Errorf("Version not found: %s", err)
+		}
+	} else {
+		sver := c.UpgradeAerospike.AerospikeVersion
+		url, ret, err = c.getUrlUpgrade()
+		if err != nil {
+			if (len(strings.Split(sver, ".")) < 4 && !strings.HasSuffix(sver, "*")) || strings.HasSuffix(sver, ".") {
+				return ret, fmt.Errorf("Version not found, did you mean %s* ?", sver)
+			}
+			return ret, fmt.Errorf("Version not found: %s", err)
 		}
 	}
 

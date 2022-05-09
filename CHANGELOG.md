@@ -9,6 +9,7 @@
 * deprecate `-5` switch for version selection in `xdr-connect`
 * add `xdr-version` selector in `xdr-connect`, add `auto` option for auto-discovery
 * add `restart-source` option in `xdr-connect` with default of 'yes' to allow for auto-restarting of source on xdr static configuration
+* bring version discovery features from `make-cluster` into `upgrade-aerospike`
 
 #### v3.0.4
 * documentation cleanup
