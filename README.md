@@ -20,7 +20,15 @@ Windows | aerolab-linux | Install and start using WSL2 on Windows
   * on Windows
 * AWS
 
-## Routing to the containers
+## Community-supported docker backend on MacOS (Intel/M1)
+
+A community-supported version of Docker on Mac exists, with full Intel and M1 chip compatibility. This can be used with AeroLab without any issues.
+
+See [https://github.com/aerospike-community/docker-amd64-mac-m1](https://github.com/aerospike-community/docker-amd64-mac-m1) for installation instructions.
+
+The above Docker installation automatically injects routes into the MacOS routing table, allowing for direct communication between the host and the containers.
+
+## Routing to the containers using other docker solutions
 
 Containers cannot be accessed directly by their IPs in certain docker installations (specifically on Mac and Windows). To work around this, a tunnel can be created to a docker container as a one-off job. Once done, containers on aerolab can be accessed directly (e.g. if your node is on 172.17.0.3 port 3000, you can directly seed from that node on the desktop). This is particularly important when starting multi-node clusters, as client code on the desktop must be able to connect to all nodes.
 
