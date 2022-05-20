@@ -8,6 +8,7 @@ Use one of the below methods to install docker:
 
 * install `docker desktop` on your machine
 * install docker using `minikube` on your machine
+* use the [docker-amd64-mac-m1](https://github.com/aerospike-community/docker-amd64-mac-m1)
 
 ### Start docker
 
