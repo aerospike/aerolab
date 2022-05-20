@@ -21,3 +21,7 @@
 * [Resource limits](limits.md)
 * [Strong consistency](strong.md)
 * [Loop Devices](loop-dev.md)
+
+## Client
+
+* [Python Client](client-python.md)
