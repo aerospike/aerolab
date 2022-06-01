@@ -303,6 +303,8 @@ type startStopAerospikeStruct struct {
 type clusterStartStruct struct {
 	ClusterName             string `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
 	Nodes                   string `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	NoFixMesh               int    `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh" default:"0" type:"bool"`
+	NoStart                 int    `short:"s" long:"no-start" description:"Set to prevent Aerospike from starting on cluster-start" default:"0" type:"bool"`
 	DeployOn                string `short:"e" long:"deploy-on" description:"Deploy where (aws|docker)" default:""`
 	RemoteHost              string `short:"r" long:"remote-host" description:"Remote host to use for deployment, as user@ip:port (empty=locally)"`
 	AccessPublicKeyFilePath string `short:"k" long:"pubkey" description:"Public key to use to login to hosts when installing to remote"`
