@@ -46,8 +46,19 @@ func (c *config) F_confFixMesh() (ret int64, err error) {
 		return ret, err
 	}
 
+	nip, err := b.GetNodeIpMap(c.ConfFixMesh.ClusterName)
+	if err != nil {
+		ret = E_MAKECLUSTER_NODELIST
+		return ret, err
+	}
 	// fix config if needed, read custom config file path if needed
 	for _, i := range nodeList {
+		if _, ok := nip[i]; !ok {
+			continue
+		}
+		if nip[i] == "" {
+			continue
+		}
 		files := []fileList{}
 		var r [][]string
 		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
