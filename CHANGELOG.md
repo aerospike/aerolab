@@ -1,3 +1,8 @@
+#### v3.1.1
+* run `conf-fix-mesh` automatically on `cluster-start`
+* run `start-aerospike` on `cluster-start`
+* make `conf-fix-mesh` work on partially-up clusters
+
 #### v3.1.0
 * fix `make-xdr-clusters` to support v6 of Aerospike
 * fix bug in `cluster-grow` re discovery of versions
