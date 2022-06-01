@@ -84,7 +84,30 @@ func (c *config) clusterStartStopDestroy(DeployOn string, RemoteHost string, Acc
 			nerr = err
 		}
 	}
-	return ret, nerr
+	if nerr != nil {
+		return ret, nerr
+	}
+	if command == "start" {
+		if c.ClusterStart.NoFixMesh == 0 {
+			c.ConfFixMesh.AccessPublicKeyFilePath = c.ClusterStart.AccessPublicKeyFilePath
+			c.ConfFixMesh.DeployOn = c.ClusterStart.DeployOn
+			c.ConfFixMesh.RemoteHost = c.ClusterStart.RemoteHost
+			c.ConfFixMesh.ClusterName = c.ClusterStart.ClusterName
+			r, e := c.F_confFixMesh()
+			if e != nil {
+				return r, e
+			}
+		}
+		if c.ClusterStart.NoStart == 0 {
+			c.StartAerospike.AccessPublicKeyFilePath = c.ClusterStart.AccessPublicKeyFilePath
+			c.StartAerospike.DeployOn = c.ClusterStart.DeployOn
+			c.StartAerospike.RemoteHost = c.ClusterStart.RemoteHost
+			c.StartAerospike.ClusterName = c.ClusterStart.ClusterName
+			c.StartAerospike.Nodes = c.ClusterStart.Nodes
+			return c.F_startAerospike()
+		}
+	}
+	return 0, nil
 }
 
 func (c *config) F_clusterStart() (ret int64, err error) {
