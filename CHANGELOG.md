@@ -3,6 +3,7 @@
 * remove dependency on obsolete `ioutil` package
 * bump to latest `golang` version for compile
 * cgo minimum macos version is locked during build
+* small improvements in build and test scripts
 
 #### v3.1.1
 * run `conf-fix-mesh` automatically on `cluster-start`
