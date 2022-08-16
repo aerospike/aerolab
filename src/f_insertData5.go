@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -142,7 +141,7 @@ func (c *config) F_insertData5() (ret int64, err error) {
 		return ret, fmt.Errorf("insert-data: getBackend: %s", err)
 	}
 
-	contents, err := ioutil.ReadFile(c.InsertData.LinuxBinaryPath)
+	contents, err := os.ReadFile(c.InsertData.LinuxBinaryPath)
 	if err != nil {
 		ret = E_BACKEND_ERROR
 		return ret, fmt.Errorf("insert-data: LinuxBinaryPath read error: %s", err)
@@ -203,7 +202,7 @@ func (c *config) F_insertData_real5() (ret int64, err error) {
 		tlsconfig := &tls.Config{}
 		if c.InsertData.TlsCaCert != "" {
 			cacertpool := x509.NewCertPool()
-			ncertfile, err := ioutil.ReadFile(c.InsertData.TlsCaCert)
+			ncertfile, err := os.ReadFile(c.InsertData.TlsCaCert)
 			if err != nil {
 				return E_BACKEND_ERROR, fmt.Errorf("insert-data: could not read ca cert: %s", err)
 			}
@@ -212,7 +211,7 @@ func (c *config) F_insertData_real5() (ret int64, err error) {
 		}
 		if c.InsertData.TlsClientCert != "" {
 			clientcertpool := x509.NewCertPool()
-			ncertfile, err := ioutil.ReadFile(c.InsertData.TlsClientCert)
+			ncertfile, err := os.ReadFile(c.InsertData.TlsClientCert)
 			if err != nil {
 				return E_BACKEND_ERROR, fmt.Errorf("insert-data: could not read client cert: %s", err)
 			}

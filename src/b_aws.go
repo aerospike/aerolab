@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -894,7 +893,7 @@ func (b b_aws) makeKey(clusterName string) (keyName string, keyPath string, err 
 		err = fmt.Errorf("Could not generate keypair: %s", err)
 		return
 	}
-	err = ioutil.WriteFile(keyPath, []byte(*out.KeyMaterial), 0600)
+	err = os.WriteFile(keyPath, []byte(*out.KeyMaterial), 0600)
 	keyName = fmt.Sprintf("aerolab-%s", clusterName)
 	keyPath = path.Join(os.Getenv("aerolabAWSkeys"), keyName)
 	return

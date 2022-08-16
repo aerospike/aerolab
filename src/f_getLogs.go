@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -65,7 +64,7 @@ func (c *config) F_getLogs() (ret int64, err error) {
 			ret = E_BACKEND_ERROR
 			return ret, err
 		}
-		err = ioutil.WriteFile(path.Join(c.GetLogs.OutputDir, fmt.Sprintf("%s_%d.log", c.GetLogs.ClusterName, node)), out[0], 0644)
+		err = os.WriteFile(path.Join(c.GetLogs.OutputDir, fmt.Sprintf("%s_%d.log", c.GetLogs.ClusterName, node)), out[0], 0644)
 		if err != nil {
 			ret = E_BACKEND_ERROR
 			return ret, err

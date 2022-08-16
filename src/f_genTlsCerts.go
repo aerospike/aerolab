@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strconv"
@@ -74,13 +73,13 @@ func (c *config) F_genTlsCerts() (ret int64, err error) {
 	os.RemoveAll("CA")
 	os.Mkdir("CA", 0755)
 	os.Chdir("./CA")
-	ioutil.WriteFile("openssl.cnf", []byte(tls_create_openssl_config(c.GenTlsCerts.TlsName)), 0644)
+	os.WriteFile("openssl.cnf", []byte(tls_create_openssl_config(c.GenTlsCerts.TlsName)), 0644)
 	for _, i := range []string{"private", "newcerts"} {
 		os.RemoveAll(i)
 		os.Mkdir(i, 0755)
 	}
-	ioutil.WriteFile("index.txt", []byte{}, 0644)
-	ioutil.WriteFile("serial", []byte("01"), 0644)
+	os.WriteFile("index.txt", []byte{}, 0644)
+	os.WriteFile("serial", []byte("01"), 0644)
 	for _, command := range commands {
 		out, err := exec.Command(comm, command...).CombinedOutput()
 		if checkExecRetcode(err) != 0 {
@@ -96,7 +95,7 @@ func (c *config) F_genTlsCerts() (ret int64, err error) {
 	files := []string{"cert.pem", "cacert.pem", "key.pem"}
 	fl := []fileList{}
 	for _, file := range files {
-		ct, _ := ioutil.ReadFile(file)
+		ct, _ := os.ReadFile(file)
 		fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.GenTlsCerts.TlsName, file), ct})
 	}
 	b.CopyFilesToCluster(c.GenTlsCerts.ClusterName, fl, nodes)

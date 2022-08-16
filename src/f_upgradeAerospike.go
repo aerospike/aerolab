@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -172,7 +171,7 @@ func (c *config) F_upgradeAerospike() (ret int64, err error) {
 		}
 	}
 
-	fnContents, err := ioutil.ReadFile(fn)
+	fnContents, err := os.ReadFile(fn)
 	if err != nil {
 		ret = E_MAKECLUSTER_VALIDATION
 		return ret, err

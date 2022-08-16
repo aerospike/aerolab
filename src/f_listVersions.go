@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"regexp"
 	"sort"
@@ -40,7 +40,7 @@ func (c *config) F_listVersions() (ret int64, err error) {
 		return 5, fmt.Errorf("Got status code %d for %s: %s", response.StatusCode, baseUrl, response.Status)
 	}
 
-	responseData, err := ioutil.ReadAll(response.Body)
+	responseData, err := io.ReadAll(response.Body)
 	if err != nil {
 		return 5, fmt.Errorf("Could not read body of %s: %s", baseUrl, err)
 	}

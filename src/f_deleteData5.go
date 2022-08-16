@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -142,7 +141,7 @@ func (c *config) F_deleteData5() (ret int64, err error) {
 		return ret, fmt.Errorf("delete-data: getBackend: %s", err)
 	}
 
-	contents, err := ioutil.ReadFile(c.DeleteData.LinuxBinaryPath)
+	contents, err := os.ReadFile(c.DeleteData.LinuxBinaryPath)
 	if err != nil {
 		ret = E_BACKEND_ERROR
 		return ret, fmt.Errorf("delete-data: LinuxBinaryPath read error: %s", err)
@@ -203,7 +202,7 @@ func (c *config) F_deleteData_real5() (ret int64, err error) {
 		var tlsconfig *tls.Config
 		if c.DeleteData.TlsCaCert != "" {
 			var cacertpool *x509.CertPool
-			ncertfile, err := ioutil.ReadFile(c.DeleteData.TlsCaCert)
+			ncertfile, err := os.ReadFile(c.DeleteData.TlsCaCert)
 			if err != nil {
 				return E_BACKEND_ERROR, fmt.Errorf("delete-data: could not read ca cert: %s", err)
 			}
@@ -212,7 +211,7 @@ func (c *config) F_deleteData_real5() (ret int64, err error) {
 		}
 		if c.DeleteData.TlsClientCert != "" {
 			var clientcertpool *x509.CertPool
-			ncertfile, err := ioutil.ReadFile(c.DeleteData.TlsClientCert)
+			ncertfile, err := os.ReadFile(c.DeleteData.TlsClientCert)
 			if err != nil {
 				return E_BACKEND_ERROR, fmt.Errorf("delete-data: could not read client cert: %s", err)
 			}
