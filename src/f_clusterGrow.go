@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strconv"
@@ -186,7 +185,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 
 			// make template here
 			c.log.Info(INFO_MAKETEMPLATE)
-			packagefile, err := ioutil.ReadFile(edition + "-" + c.ClusterGrow.AerospikeVersion + "-" + c.ClusterGrow.DistroName + c.ClusterGrow.DistroVersion + ".tgz")
+			packagefile, err := os.ReadFile(edition + "-" + c.ClusterGrow.AerospikeVersion + "-" + c.ClusterGrow.DistroName + c.ClusterGrow.DistroVersion + ".tgz")
 			if err != nil {
 				ret = E_MAKECLUSTER_READFILE
 				return ret, err
@@ -272,7 +271,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 	newconf := ""
 	// fix config if needed, read custom config file path if needed
 	if c.ClusterGrow.CustomConfigFilePath != "" {
-		conf, err := ioutil.ReadFile(c.ClusterGrow.CustomConfigFilePath)
+		conf, err := os.ReadFile(c.ClusterGrow.CustomConfigFilePath)
 		if err != nil {
 			ret = E_MAKECLUSTER_READCONF
 			return ret, err
@@ -283,7 +282,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 			return ret, err
 		}
 	} else {
-		if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" || c.ClusterGrow.OverrideASClusterName == 1 {
+		if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" || c.ClusterGrow.NoOverrideClusterName == 0 {
 			var r [][]string
 			r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
 			var nr [][]byte
@@ -306,7 +305,7 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 
 	// add cluster name
 	newconf2 := newconf
-	if c.ClusterGrow.OverrideASClusterName == 1 {
+	if c.ClusterGrow.NoOverrideClusterName == 0 {
 		newconf2, err = fixClusteNameConfig(string(newconf), c.ClusterGrow.ClusterName)
 		if err != nil {
 			ret = E_MAKECLUSTER_FIXCONF_CLUSTER_NAME
@@ -314,13 +313,13 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 		}
 	}
 
-	if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" || c.ClusterGrow.OverrideASClusterName == 1 || c.ClusterGrow.CustomConfigFilePath != "" {
+	if c.ClusterGrow.HeartbeatMode == "mesh" || c.ClusterGrow.HeartbeatMode == "mcast" || c.ClusterGrow.NoOverrideClusterName == 0 || c.ClusterGrow.CustomConfigFilePath != "" {
 		files = append(files, fileList{"/etc/aerospike/aerospike.conf", []byte(newconf2)})
 	}
 
 	// load features file path if needed
 	if c.ClusterGrow.FeaturesFilePath != "" {
-		conf, err := ioutil.ReadFile(c.ClusterGrow.FeaturesFilePath)
+		conf, err := os.ReadFile(c.ClusterGrow.FeaturesFilePath)
 		if err != nil {
 			ret = E_MAKECLUSTER_READFEATURES
 			return ret, err
