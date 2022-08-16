@@ -363,7 +363,7 @@ type makeClusterStruct struct {
 	Username                string `short:"U" long:"username" description:"Required for downloading enterprise edition"`
 	Password                string `short:"P" long:"password" description:"Required for downloading enterprise edition"`
 	Privileged              int    `short:"B" long:"privileged" description:"Docker only: run container in privileged mode" default:"0" type:"bool"`
-	OverrideASClusterName   int    `short:"O" long:"override-as-cluster-name" description:"Override setting a cluster name in the aerospike.conf file" default:"0" type:"bool"`
+	NoOverrideClusterName   int    `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameters to not set cluster-name" default:"0" type:"bool"`
 	ChDir                   string `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
 }
 
