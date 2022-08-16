@@ -242,6 +242,11 @@ function check_tc_del() {
     return $?
 }
 
+function fulldestroy() {
+    ${aerolab} cluster-list |egrep "^aero-${cluster}" |awk -F'_' '{print $1}' |sed 's/^aero-//g' |sort |uniq |while read cn; do aerolab cluster-destroy -f -n $cn; done
+    return 0
+}
+
 function end() {
     return 0
 }
@@ -292,5 +297,6 @@ handle pause
 handle pause
 handle check_get_log
 handle check_cluster_destroy
+handle fulldestroy
 handle check_nuke_templates
 handle end
