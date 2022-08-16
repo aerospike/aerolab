@@ -1,3 +1,9 @@
+#### v3.1.2
+* `make-cluster` and `cluster-grow`: automatically add `cluster-name` to `aerospike.conf` unless specified not to by the `-O` switch
+* remove dependency on obsolete `ioutil` package
+* bump to latest `golang` version for compile
+* cgo minimum macos version is locked during build
+
 #### v3.1.1
 * run `conf-fix-mesh` automatically on `cluster-start`
 * run `start-aerospike` on `cluster-start`
