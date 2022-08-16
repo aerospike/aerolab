@@ -1,7 +1,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -30,7 +30,7 @@ func (c *config) F_upload() (ret int64, err error) {
 			nodesInt = append(nodesInt, nodeInt)
 		}
 	}
-	contents, err := ioutil.ReadFile(c.Upload.InputFile)
+	contents, err := os.ReadFile(c.Upload.InputFile)
 	if err != nil {
 		ret = E_BACKEND_ERROR
 		return ret, err
@@ -54,7 +54,7 @@ func (c *config) F_download() (ret int64, err error) {
 		ret = E_BACKEND_ERROR
 		return ret, err
 	}
-	err = ioutil.WriteFile(c.Download.OutputFile, out[0], 0644)
+	err = os.WriteFile(c.Download.OutputFile, out[0], 0644)
 	if err != nil {
 		ret = E_BACKEND_ERROR
 		return ret, err

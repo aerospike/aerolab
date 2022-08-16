@@ -25,7 +25,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strconv"
@@ -354,7 +353,7 @@ func (b b_docker) CopyFilesToCluster(name string, files []fileList, nodes []int)
 		var tmpfileName string
 		var fpath string
 		if b.host == "" {
-			tmpfile, err = ioutil.TempFile("", "aero-lab-tmp")
+			tmpfile, err = os.CreateTemp("", "aero-lab-tmp")
 			if err != nil {
 				return err
 			}
@@ -747,7 +746,7 @@ func (b b_docker) copyFilesToContainer(name string, files []fileList) error {
 		var tmpfileName string
 		var fpath string
 		if b.host == "" {
-			tmpfile, err = ioutil.TempFile("", "aero-lab-tmp")
+			tmpfile, err = os.CreateTemp("", "aero-lab-tmp")
 			if err != nil {
 				return err
 			}

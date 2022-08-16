@@ -147,7 +147,7 @@ func (c *config) F_webserver() (ret int64, err error) {
 
 				// make template here
 				c.log.Info(INFO_MAKETEMPLATE)
-				packagefile, err := ioutil.ReadFile(edition + "-" + c.UpgradeAerospike.AerospikeVersion + "-" + c.UpgradeAerospike.DistroName + c.UpgradeAerospike.DistroVersion + ".tgz")
+				packagefile, err := os.ReadFile(edition + "-" + c.UpgradeAerospike.AerospikeVersion + "-" + c.UpgradeAerospike.DistroName + c.UpgradeAerospike.DistroVersion + ".tgz")
 				if err != nil {
 					ret = E_MAKECLUSTER_READFILE
 					return ret, err
@@ -205,7 +205,7 @@ func (c *config) F_webserver() (ret int64, err error) {
 			// fix config if needed, read custom config file path if needed
 
 			if c.UpgradeAerospike.CustomConfigFilePath != "" {
-				conf, err := ioutil.ReadFile(c.UpgradeAerospike.CustomConfigFilePath)
+				conf, err := os.ReadFile(c.UpgradeAerospike.CustomConfigFilePath)
 				if err != nil {
 					ret = E_MAKECLUSTER_READCONF
 					return ret, err
@@ -239,7 +239,7 @@ func (c *config) F_webserver() (ret int64, err error) {
 
 			// load features file path if needed
 			if c.UpgradeAerospike.FeaturesFilePath != "" {
-				conf, err := ioutil.ReadFile(c.UpgradeAerospike.FeaturesFilePath)
+				conf, err := os.ReadFile(c.UpgradeAerospike.FeaturesFilePath)
 				if err != nil {
 					ret = E_MAKECLUSTER_READFEATURES
 					return ret, err

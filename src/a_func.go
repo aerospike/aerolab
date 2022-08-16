@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
@@ -43,7 +42,7 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 			return "", "", err
 		}
 
-		responseData, err := ioutil.ReadAll(response.Body)
+		responseData, err := io.ReadAll(response.Body)
 		if err != nil {
 			return "", "", err
 		}
