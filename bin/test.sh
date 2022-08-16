@@ -157,6 +157,7 @@ function pause() {
 }
 
 function cleanup() {
+    fulldestroy
     check_cluster_destroy
     check_nuke_templates
 }
