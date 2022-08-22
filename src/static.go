@@ -15,7 +15,8 @@ force-confdef
 force-confold
 EOF
 `,
-	"el": `yum -y update && yum -y install iptables wget tcpdump which binutils iproute iproute-tc libcurl-openssl-devel ; yum -y install dnsutils python; yum -y install initscripts; yum -y install redhat-lsb; yum -y install centos-release-scl ; yum -y install rh-python36 ; yum -y install python38 ; cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall`,
+	"el":  `yum -y update && yum -y install iptables wget tcpdump which binutils iproute iproute-tc libcurl-openssl-devel ; yum -y install dnsutils python; yum -y install initscripts; yum -y install redhat-lsb; yum -y install centos-release-scl ; yum -y install rh-python36 ; yum -y install python38 ; cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall`,
+	"el8": `dnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y; yum -y update && yum -y install iptables wget tcpdump which binutils iproute iproute-tc libcurl-openssl-devel ; yum -y install dnsutils python; yum -y install initscripts; yum -y install redhat-lsb; yum -y install centos-release-scl ; yum -y install rh-python36 ; yum -y install python38 ; cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall`,
 	//"el":     `yum -y update && yum -y install iptables wget tcpdump dnsutils python which binutils iproute iproute-tc centos-release-scl && yum install -y rh-python36 && scl enable rh-python36 bash && pip3 install tcconfig && cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall`,
 }
 
@@ -90,6 +91,64 @@ chmod 755 /etc/init.d/aerospike
 `,
 	"el": `set -o xtrace
 yum -y update && yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel ; yum -y install dnsutils python; yum -y install initscripts; yum -y install redhat-lsb; yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 ; cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall; cat <<'EOF' > /etc/init.d/aerospike
+#!/bin/sh
+# Start/stop the aerospike daemon.
+#
+### BEGIN INIT INFO
+# Provides:          aerospike
+# Required-Start:    $remote_fs $syslog $time
+# Required-Stop:     $remote_fs $syslog $time
+# Should-Start:      $network $named slapd autofs ypbind nscd nslcd winbind
+# Should-Stop:       $network $named slapd autofs ypbind nscd nslcd winbind
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Aerospike
+# Description:       Aerospike
+### END INIT INFO
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DESC="aerospike daemon"
+NAME=aerospike
+DAEMON=/usr/bin/asd
+PIDFILE=/var/run/asd.pid
+SCRIPTNAME=/etc/init.d/"$NAME"
+
+test -f $DAEMON || exit 0
+
+. /lib/lsb/init-functions
+
+case "$1" in
+start)  log_success_msg "Starting aerospike" "aerospike"
+        start_daemon -p $PIDFILE $DAEMON $EXTRA_OPTS
+        log_success_msg $?
+        ;;
+stop)   log_success_msg "Stopping aerospike" "aerospike"
+		pkill asd
+		sleep 1
+		if [ $? -ne 0 ]; then pkill -9 asd; fi
+        log_success_msg $RETVAL
+        ;;
+restart) log_success_msg "Restarting aerospike" "aerospike"
+        $0 stop
+        $0 start
+        ;;
+coldstart)  log_success_msg "Starting aerospike" "aerospike"
+        start_daemon -p $PIDFILE $DAEMON --cold-start $EXTRA_OPTS
+        log_success_msg $?
+        ;;
+status)
+        status_of_proc -p $PIDFILE $DAEMON $NAME && exit 0 || exit $?
+        ;;
+*)      log_success_msg "Usage: /etc/init.d/aerospike {start|stop|status|restart|coldstart}"
+        exit 2
+        ;;
+esac
+exit 0
+EOF
+chmod 755 /etc/init.d/aerospike
+`,
+	"el8": `set -o xtrace
+dnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y; yum -y update && yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel ; yum -y install dnsutils python; yum -y install initscripts; yum -y install redhat-lsb; yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 ; cd /root && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall; cat <<'EOF' > /etc/init.d/aerospike
 #!/bin/sh
 # Start/stop the aerospike daemon.
 #
