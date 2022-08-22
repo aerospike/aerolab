@@ -200,10 +200,14 @@ func (c *config) F_makeCluster() (ret int64, err error) {
 			nFiles := []fileList{}
 			nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile})
 			var nscript string
+			iscriptname := c.MakeCluster.DistroName
+			if c.MakeCluster.DistroName == "el" && c.MakeCluster.DistroVersion == "8" {
+				iscriptname = "el8"
+			}
 			if b.GetBackendName() != "docker" {
-				nscript = aerospikeInstallScript[c.MakeCluster.DistroName]
+				nscript = aerospikeInstallScript[iscriptname]
 			} else {
-				nscript = aerospikeInstallScriptDocker[c.MakeCluster.DistroName]
+				nscript = aerospikeInstallScriptDocker[iscriptname]
 			}
 			err = b.DeployTemplate(version{c.MakeCluster.DistroName, c.MakeCluster.DistroVersion, c.MakeCluster.AerospikeVersion}, nscript, nFiles)
 			if err != nil {

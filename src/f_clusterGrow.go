@@ -193,10 +193,14 @@ func (c *config) F_clusterGrow() (ret int64, err error) {
 			nFiles := []fileList{}
 			nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile})
 			var nscript string
+			iscriptname := c.MakeCluster.DistroName
+			if c.MakeCluster.DistroName == "el" && c.MakeCluster.DistroVersion == "8" {
+				iscriptname = "el8"
+			}
 			if b.GetBackendName() != "docker" {
-				nscript = aerospikeInstallScript[c.ClusterGrow.DistroName]
+				nscript = aerospikeInstallScript[iscriptname]
 			} else {
-				nscript = aerospikeInstallScriptDocker[c.ClusterGrow.DistroName]
+				nscript = aerospikeInstallScriptDocker[iscriptname]
 			}
 			err = b.DeployTemplate(version{c.ClusterGrow.DistroName, c.ClusterGrow.DistroVersion, c.ClusterGrow.AerospikeVersion}, nscript, nFiles)
 			if err != nil {
