@@ -1,3 +1,6 @@
+#### v3.1.3
+* add support for centos 8 (`dnf` stream repositories needed to be enabled)
+
 #### v3.1.2
 * `make-cluster` and `cluster-grow`: automatically add `cluster-name` to `aerospike.conf` unless specified not to by the `-O` switch
 * remove dependency on obsolete `ioutil` package
