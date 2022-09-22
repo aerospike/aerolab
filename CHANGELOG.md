@@ -6,7 +6,6 @@
 
 #### 4.1.0 - TODO ITEMS
 * add option to deploy AMS (monitoring stack)
-* add install script to install basic linux tools (ip-utils, dns-utils, ping, telnet, netcat, netstat, ss, iostat, mpstat, sar)
 
 #### v4.0.0
 * add support for centos / rhel-based distros v 7 and 8 in aws
@@ -22,6 +21,7 @@
 * update scripts/
 * make help pages work without verifying if backend is working
 * install a script to run before aerospike starts and after it stops
+* add basic troubleshooting tools to templates
 
 #### v3.1.2
 * `make-cluster` and `cluster-grow`: automatically add `cluster-name` to `aerospike.conf` unless specified not to by the `-O` switch
