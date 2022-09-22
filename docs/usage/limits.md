@@ -10,15 +10,15 @@
 
 ### Make a 2-node cluster, giving each node 0.5 of CPU and 500mb of ram + 100mb of swap access
 ```bash
-$ ./aerolab make-cluster -c 2 --cpu-limit=0.5 --ram-limit=500m --swap-limit=600m
+$ ./aerolab cluster create -c 2 --cpu-limit=0.5 --ram-limit=500m --swap-limit=600m
 ```
 
 ### Grow cluster by one node with a 2-core limit, 1gb of RAM and no swap
 ```bash
-$ ./aerolab cluster-grow -c 1 --cpu-limit=2 --ram-limit=1g --swap-limit=1g
+$ ./aerolab cluster grow -c 1 --cpu-limit=2 --ram-limit=1g --swap-limit=1g
 ```
 
 ### Grow cluster by one node with a 0.1-cpu limit, 1gb of RAM and unlimited swap
 ```bash
-$ ./aerolab cluster-grow -c 1 --cpu-limit=0.1 --ram-limit=1g
+$ ./aerolab cluster grow -c 1 --cpu-limit=0.1 --ram-limit=1g
 ```

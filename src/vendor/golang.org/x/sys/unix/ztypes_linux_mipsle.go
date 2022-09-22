@@ -237,10 +237,6 @@ type EpollEvent struct {
 }
 
 const (
-	OPEN_TREE_CLOEXEC = 0x80000
-)
-
-const (
 	POLLRDHUP = 0x2000
 )
 
@@ -249,13 +245,6 @@ type Sigset_t struct {
 }
 
 const _C__NSIG = 0x80
-
-type Siginfo struct {
-	Signo int32
-	Code  int32
-	Errno int32
-	_     [116]byte
-}
 
 type Termios struct {
 	Iflag  uint32

@@ -1,6 +1,6 @@
 # AeroLab
 
-Lab tool to quickly spin up Aerospike clusters on docker or in AWS).
+Lab tool for spinning up Aerospike development and testing clusters on Docker or in AWS.
 
 ## Releases: binaries
 
@@ -44,7 +44,6 @@ IPs of aerolab containers can be seen by running `aerolab cluster-list`
 * [AWS HowTo](docs/aws/README.md)
 * [Useful scripts](scripts/README.md)
   * [Create new certificates](scripts/CERTS.md)
-  * [Deploy Strong Consistency cluster](scripts/STRONG.md)
   * [Deploy LDAP server](scripts/aerolab-ldap/README.md)
   * [Build a cluster with LDAP and TLS](scripts/aerolab-buildenv/README.md)
   * [Quick build client - python](scripts/aerolab-pythonclient/README.md)

@@ -1,0 +1,285 @@
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"log"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+
+	"github.com/bestmethod/inslice"
+)
+
+type tlsGenerateCmd struct {
+	ClusterName string  `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes       string  `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	TlsName     string  `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
+	CaName      string  `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
+	NoUpload    bool    `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
+	ChDir       string  `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
+	Help        helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *tlsGenerateCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	err := chDir(c.ChDir)
+	if err != nil {
+		return err
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat("CA"); err == nil {
+		log.Printf("CA directory exists, reusing existing CAs (%s/CA)", wd)
+	}
+	// get backend
+	log.Print("Generating TLS certificates and reconfiguring hosts")
+
+	var nodes []int
+	if !c.NoUpload {
+		// check cluster exists already
+		clusterList, err := b.ClusterList()
+		if err != nil {
+			return err
+		}
+
+		if !inslice.HasString(clusterList, c.ClusterName) {
+			err = fmt.Errorf("error, cluster does not exist: %s", c.ClusterName)
+			return err
+		}
+
+		var nodeList []int
+		nodeList, err = b.NodeListInCluster(c.ClusterName)
+		if err != nil {
+			return err
+		}
+		if c.Nodes == "" {
+			nodes = nodeList
+		} else {
+			for _, nodeString := range strings.Split(c.Nodes, ",") {
+				nodeInt, err := strconv.Atoi(nodeString)
+				if err != nil {
+					return err
+				}
+				nodes = append(nodes, nodeInt)
+			}
+			for _, i := range nodes {
+				if !inslice.HasInt(nodeList, i) {
+					return fmt.Errorf("node %d does not exist", i)
+				}
+			}
+		}
+	}
+	// we have 'nodes' var with list of nodes to install the cert on
+
+	var commands [][]string
+	comm := "openssl"
+	_, errA := os.Stat("CA/private/" + c.CaName + ".key")
+	_, errB := os.Stat("CA/" + c.CaName + ".pem")
+	if errA != nil || errB != nil {
+		commands = append(commands, []string{"req", "-new", "-nodes", "-x509", "-extensions", "v3_ca", "-keyout", "private/" + c.CaName + ".key", "-out", c.CaName + ".pem", "-days", "3650", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.CaName)})
+	}
+	commands = append(commands, []string{"req", "-new", "-nodes", "-extensions", "v3_req", "-out", "req.pem", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.TlsName)})
+	commands = append(commands, []string{"ca", "-batch", "-extensions", "v3_req", "-out", "cert.pem", "-config", "./openssl.cnf", "-infiles", "req.pem"})
+	//os.RemoveAll("CA")
+	if _, err := os.Stat("CA"); err != nil {
+		os.Mkdir("CA", 0755)
+	}
+	err = os.Chdir("./CA")
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile("openssl.cnf", []byte(tls_create_openssl_config(c.TlsName, c.CaName)), 0644)
+	if err != nil {
+		return err
+	}
+	for _, i := range []string{"private", "newcerts"} {
+		//os.RemoveAll(i)
+		if _, err := os.Stat(i); err != nil {
+			err = os.Mkdir(i, 0755)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	if _, err := os.Stat("index.txt"); err != nil {
+		err = os.WriteFile("index.txt", []byte{}, 0644)
+		if err != nil {
+			return err
+		}
+	}
+	if _, err := os.Stat("serial"); err != nil {
+		err = os.WriteFile("serial", []byte("01"), 0644)
+		if err != nil {
+			return err
+		}
+	}
+	for _, command := range commands {
+		out, err := exec.Command(comm, command...).CombinedOutput()
+		if checkExecRetcode(err) != 0 {
+			return fmt.Errorf("error executing command: %s\n%s\nopenssl %s", err, out, strings.Join(command, " "))
+		}
+	}
+
+	if !c.NoUpload {
+		_, err = b.RunCommands(c.ClusterName, [][]string{[]string{"mkdir", "-p", fmt.Sprintf("/etc/aerospike/ssl/%s", c.TlsName)}}, nodes)
+		if err != nil {
+			return fmt.Errorf("could not mkdir ssl location: %s", err)
+		}
+
+		files := []string{"cert.pem", "key.pem", c.CaName + ".pem"}
+		fl := []fileList{}
+		for _, file := range files {
+			ct, err := os.ReadFile(file)
+			if err != nil {
+				return err
+			}
+			fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), bytes.NewReader(ct), len(ct)})
+		}
+		err = b.CopyFilesToCluster(c.ClusterName, fl, nodes)
+		if err != nil {
+			return err
+		}
+	}
+
+	os.Chdir("..")
+
+	if !c.NoUpload {
+		//for each node, read config
+		var nodeIps []string
+		nodeIps, err = b.GetClusterNodeIps(c.ClusterName)
+		if err != nil {
+			return err
+		}
+		var r [][]string
+		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
+		var conf [][]byte
+		for _, node := range nodes {
+			conf, err = b.RunCommands(c.ClusterName, r, []int{node})
+			if err != nil {
+				return err
+			}
+			if strings.Contains(string(conf[0]), "mode mesh") {
+				//enable tls for mesh
+				newconf := ""
+				scanner := bufio.NewScanner(strings.NewReader(string(conf[0])))
+				for scanner.Scan() {
+					t := scanner.Text()
+					t = strings.Trim(t, "\r")
+					if strings.Contains(t, "port 3002") && !strings.Contains(t, "tls-port") {
+						t = "tls-port 3012\ntls-name " + c.TlsName + "\n"
+						for _, nodeIp := range nodeIps {
+							//t = t + fmt.Sprintf("mesh-seed-address-port %s 3002\n", mesh_ip_list[j])
+							t = t + fmt.Sprintf("tls-mesh-seed-address-port %s 3012\n", nodeIp)
+						}
+					} else if strings.Contains(t, "mesh-seed-address-port") {
+						t = ""
+					}
+					if strings.TrimSpace(t) != "" {
+						newconf = newconf + "\n" + t
+					}
+				}
+				err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)}}, []int{node})
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	log.Print("Done")
+	return nil
+}
+
+func tls_create_openssl_config(tlsName string, caName string) string {
+	conf := `#
+# OpenSSL configuration file.
+#
+
+# Establish working directory.
+
+dir			= .
+
+[ req ]
+default_bits  	    = 2048		# Size of keys
+default_keyfile     = key.pem		# name of generated keys
+default_md          = sha256		# message digest algorithm
+string_mask         = nombstr		# permitted characters
+distinguished_name  = req_distinguished_name
+req_extensions      = v3_req
+
+[ req_distinguished_name ]
+# Variable name		        Prompt string
+#----------------------   ----------------------------------
+0.organizationName        = Organization Name (company)
+organizationalUnitName    = Organizational Unit Name (department, division)
+emailAddress              = Email Address
+emailAddress_max          = 40
+localityName              = Locality Name (city, district)
+stateOrProvinceName       = State or Province Name (full name)
+countryName               = Country Name (2 letter code)
+countryName_min           = 2
+countryName_max           = 2
+commonName                = Common Name (hostname, IP, or your name)
+commonName_max            = 64
+
+# Default values for the above, for consistency and less typing.
+# Variable name			  Value
+#------------------------------	  ------------------------------
+0.organizationName_default         = Aerospike Inc
+organizationalUnitName_default     = operations
+emailAddress_default               = operations@aerospike.com
+localityName_default               = Bangalore
+stateOrProvinceName_default	   = Karnataka
+countryName_default		   = IN
+commonName_default                 = harvey 
+
+[ v3_ca ]
+basicConstraints	= CA:TRUE
+subjectKeyIdentifier	= hash
+authorityKeyIdentifier	= keyid:always,issuer:always
+subjectAltName = IP:127.0.0.1
+
+[ v3_req ]
+basicConstraints	= CA:FALSE
+subjectKeyIdentifier	= hash
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1   = %s
+IP.1 = 127.0.0.1
+
+[ ca ]
+default_ca		= CA_default
+
+[ CA_default ]
+serial			= $dir/serial
+database		= $dir/index.txt
+new_certs_dir		= $dir/newcerts
+certificate		= $dir/%s.pem
+private_key		= $dir/private/%s.key
+default_days		= 365
+default_md		= sha256
+preserve		= no
+email_in_dn		= no
+nameopt			= default_ca
+certopt			= default_ca
+policy			= policy_match
+
+[ policy_match ]
+countryName		= match
+stateOrProvinceName	= match
+organizationName	= match
+organizationalUnitName	= optional
+commonName		= supplied
+emailAddress		= optional
+
+`
+	return fmt.Sprintf(conf, tlsName, caName, caName)
+}

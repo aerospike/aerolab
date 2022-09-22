@@ -1,22 +1,21 @@
-module aerolab
+module github.com/citrusleaf/aerolab
 
-go 1.18
+go 1.19
 
 require (
-	github.com/BurntSushi/toml v1.1.0
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
-	github.com/aerospike/aerospike-client-go/v5 v5.8.0
-	github.com/aws/aws-sdk-go v1.43.32
-	github.com/bestmethod/go-logger v0.0.0-20190212124136-3fc21e2f1810
-	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+	github.com/aerospike/aerospike-client-go/v5 v5.9.1
+	github.com/aerospike/aerospike-client-go/v6 v6.3.0
+	github.com/aws/aws-sdk-go v1.44.99
+	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
+	github.com/jessevdk/go-flags v1.5.0
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
+	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035
 )
 
 require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/onsi/gomega v1.19.0 // indirect
-	github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9 // indirect
+	github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20220405052023-b1e9470b6e64 // indirect
+	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e // indirect
 )

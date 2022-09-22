@@ -5,25 +5,25 @@
 Note: you can download the template configuration file from this repository, in the templates directory.
 
 ```bash
-aerolab make-cluster -o templates/tls.conf -c 2 -n mytest
+aerolab cluster create -o templates/tls.conf -c 2 -n mytest
 ```
 
 ## Generate TLS certificates
 
 ```bash
-aerolab gen-tls-certs -n mytest
+aerolab tls generate -n mytest
 ```
 
 ## Restart aerospike
 
 ```bash
-aerolab restart-aerospike -n mytest
+aerolab aerospike restart -n mytest
 ```
 
 ## Connect using aql
 
 ```bash
-aerolab node-attach -n mytest
+aerolab attach shell -n mytest
 
 # mutual auth off
 aql --tls-enable --tls-cafile=/etc/aerospike/ssl/tls1/cacert.pem -h 127.0.0.1:tls1:4333
@@ -34,7 +34,7 @@ aql --tls-enable --tls-cafile=/etc/aerospike/ssl/tls1/cacert.pem --tls-keyfile=/
 
 ## Notes on multiple certificates
 
-gen-tls-certs will put certificates in the following path in the containers:
+`tls generate` will put certificates in the following path in the containers:
 
 ```
 /etc/aerospike/{TLS_NAME}/cert.pem
@@ -60,6 +60,12 @@ network {
 
 If you use that in your template conf file, snipped to make-cluster with the -o parameter, simply generate separate certificates for those 2 TLS names as follows:
 ```bash
-aerolab gen-tls-certs -t tls1
-aerolab gen-tls-certs -t bob.domain.why.not
+aerolab tls generate -t tls1
+aerolab tls generate -t bob.domain.why.not
 ```
+
+## Other features
+
+TLS generation allows for multiple CA certificates. If a CA cert already exists with the given name, it will be reused. If it doesn't, a new CA with that name will be generated.
+
+Aerolab also has `tls copy` as a handy way to copy tls certificates from one node to another (or one cluster to another).

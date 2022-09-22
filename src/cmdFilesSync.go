@@ -1,0 +1,130 @@
+package main
+
+import (
+	"errors"
+	"log"
+	"os"
+	"path"
+	"strconv"
+	"strings"
+
+	"github.com/bestmethod/inslice"
+)
+
+type filesSyncCmd struct {
+	SourceClusterName string `short:"n" long:"source-name" description:"Source Cluster name" default:"mydc"`
+	SourceNode        int    `short:"l" long:"source-node" description:"Source Node number" default:"1"`
+	DestClusterName   string `short:"d" long:"dest-name" description:"Source Cluster name" default:"mydc"`
+	DestNodes         string `short:"o" long:"dest-nodes" description:"Destination nodes, comma separated; empty = all except source node" default:""`
+	Path              string `short:"p" long:"path" description:"Path to sync"`
+}
+
+func (c *filesSyncCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	log.Print("Running files.list")
+
+	cList, err := b.ClusterList()
+	if err != nil {
+		return err
+	}
+
+	// check source cluster exists
+	if !inslice.HasString(cList, c.SourceClusterName) {
+		return errors.New("source cluster does not exist")
+	}
+
+	// check destination cluster exists
+	if !inslice.HasString(cList, c.DestClusterName) {
+		return errors.New("destination cluster does not exist")
+	}
+
+	sourceNodes, err := b.NodeListInCluster(c.SourceClusterName)
+	if err != nil {
+		return err
+	}
+
+	destNodes := sourceNodes
+	if c.SourceClusterName != c.DestClusterName {
+		destNodes, err = b.NodeListInCluster(c.DestClusterName)
+	}
+	if err != nil {
+		return err
+	}
+
+	// check source node exists
+	if !inslice.HasInt(sourceNodes, c.SourceNode) {
+		return errors.New("source node not found in cluster")
+	}
+
+	// build destination node list
+	destNodeList := []int{}
+	if c.DestNodes == "" {
+		if c.SourceClusterName != c.DestClusterName {
+			destNodeList = destNodes
+		} else {
+			for _, d := range destNodes {
+				if d == c.SourceNode {
+					continue
+				}
+				destNodeList = append(destNodeList, d)
+			}
+		}
+	} else {
+		for _, i := range strings.Split(c.DestNodes, ",") {
+			d, err := strconv.Atoi(i)
+			if err != nil {
+				return err
+			}
+			if c.SourceClusterName == c.DestClusterName && d == c.SourceNode {
+				return errors.New("source node is also specified as a destination node, that's not going to work")
+			}
+			destNodeList = append(destNodeList, d)
+		}
+	}
+
+	if len(destNodeList) == 0 {
+		return errors.New("destination node list is empty, is this a one-node cluster?")
+	}
+
+	// copy c.SourceCluster:c.SourceNode -> c.DestCluster:[destNodeList]
+
+	dir, err := os.MkdirTemp("", "aerolab-synctmp")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+
+	a.opts.Files.Download.ClusterName = c.SourceClusterName
+	a.opts.Files.Download.Nodes = strconv.Itoa(c.SourceNode)
+	a.opts.Files.Download.Files.Source = c.Path
+	a.opts.Files.Download.Files.Destination = dir
+	err = a.opts.Files.Download.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	a.opts.Files.Upload.ClusterName = c.DestClusterName
+	a.opts.Files.Upload.Nodes = intSliceToString(destNodeList, ",")
+	_, src := path.Split(strings.TrimSuffix(c.Path, "/"))
+	a.opts.Files.Upload.Files.Source = path.Join(dir, src)
+	dst, _ := path.Split(strings.TrimSuffix(c.Path, "/"))
+	a.opts.Files.Upload.Files.Destination = dst
+	err = a.opts.Files.Upload.Execute(nil)
+	if err != nil {
+		return err
+	}
+
+	log.Print("Done")
+	return nil
+}
+
+func intSliceToString(a []int, sep string) string {
+	var c string
+	for _, b := range a {
+		c = strconv.Itoa(b) + sep
+	}
+	c = strings.TrimSuffix(c, sep)
+	return c
+}

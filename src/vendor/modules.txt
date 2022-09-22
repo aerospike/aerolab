@@ -1,7 +1,3 @@
-# github.com/BurntSushi/toml v1.1.0
-## explicit; go 1.16
-github.com/BurntSushi/toml
-github.com/BurntSushi/toml/internal
 # github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 ## explicit
 github.com/aerospike/aerospike-client-go
@@ -15,7 +11,7 @@ github.com/aerospike/aerospike-client-go/pkg/ripemd160
 github.com/aerospike/aerospike-client-go/types
 github.com/aerospike/aerospike-client-go/types/rand
 github.com/aerospike/aerospike-client-go/utils/buffer
-# github.com/aerospike/aerospike-client-go/v5 v5.8.0
+# github.com/aerospike/aerospike-client-go/v5 v5.9.1
 ## explicit; go 1.13
 github.com/aerospike/aerospike-client-go/v5
 github.com/aerospike/aerospike-client-go/v5/internal/atomic
@@ -28,7 +24,20 @@ github.com/aerospike/aerospike-client-go/v5/pkg/ripemd160
 github.com/aerospike/aerospike-client-go/v5/types
 github.com/aerospike/aerospike-client-go/v5/types/rand
 github.com/aerospike/aerospike-client-go/v5/utils/buffer
-# github.com/aws/aws-sdk-go v1.43.32
+# github.com/aerospike/aerospike-client-go/v6 v6.3.0
+## explicit; go 1.13
+github.com/aerospike/aerospike-client-go/v6
+github.com/aerospike/aerospike-client-go/v6/internal/atomic
+github.com/aerospike/aerospike-client-go/v6/internal/lua
+github.com/aerospike/aerospike-client-go/v6/internal/lua/resources
+github.com/aerospike/aerospike-client-go/v6/internal/particle_type
+github.com/aerospike/aerospike-client-go/v6/logger
+github.com/aerospike/aerospike-client-go/v6/pkg/bcrypt
+github.com/aerospike/aerospike-client-go/v6/pkg/ripemd160
+github.com/aerospike/aerospike-client-go/v6/types
+github.com/aerospike/aerospike-client-go/v6/types/rand
+github.com/aerospike/aerospike-client-go/v6/utils/buffer
+# github.com/aws/aws-sdk-go v1.44.99
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/awserr
@@ -72,44 +81,43 @@ github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
-# github.com/bestmethod/go-logger v0.0.0-20190212124136-3fc21e2f1810
+# github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 ## explicit
-github.com/bestmethod/go-logger
+github.com/bestmethod/inslice
+# github.com/jessevdk/go-flags v1.5.0
+## explicit; go 1.15
+github.com/jessevdk/go-flags
 # github.com/jmespath/go-jmespath v0.4.0
 ## explicit; go 1.14
 github.com/jmespath/go-jmespath
-# github.com/onsi/ginkgo v1.16.5
-## explicit; go 1.16
-# github.com/onsi/gomega v1.19.0
-## explicit; go 1.18
-# github.com/yuin/gopher-lua v0.0.0-20210529063254-f4c35e4016d9
+# github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da
 ## explicit; go 1.14
 github.com/yuin/gopher-lua
 github.com/yuin/gopher-lua/ast
 github.com/yuin/gopher-lua/parse
 github.com/yuin/gopher-lua/pm
-# golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29
+# golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90
 ## explicit; go 1.17
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/curve25519/internal/field
 golang.org/x/crypto/ed25519
+golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
-golang.org/x/crypto/internal/subtle
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
 # golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 ## explicit
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20220405052023-b1e9470b6e64
+# golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 ## explicit; go 1.17
 golang.org/x/sys/cpu
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
+# golang.org/x/term v0.0.0-20220722155259-a9ba230a4035
 ## explicit; go 1.17
 golang.org/x/term

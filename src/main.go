@@ -1,398 +1,272 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"log"
 	"os"
-	"os/user"
+	"os/exec"
 	"path"
 	"reflect"
-	"strconv"
 	"strings"
 
-	"github.com/BurntSushi/toml"
-	Logger "github.com/bestmethod/go-logger"
+	"github.com/bestmethod/inslice"
+	"github.com/jessevdk/go-flags"
 )
 
-func main() {
-	var c config
-	if err := c.log.Init(loggerHeader, loggerServiceName, Logger.LEVEL_DEBUG|Logger.LEVEL_INFO|Logger.LEVEL_WARN, Logger.LEVEL_ERROR|Logger.LEVEL_CRITICAL, Logger.LEVEL_NONE); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, ERR_MAIN_LOGGER, err)
-		os.Exit(E_MAIN_LOGGER)
-	}
-	defer func() { _ = c.log.Destroy() }()
-	os.Exit(c.main())
+type helpCmd struct{}
+
+type commandsDefaults struct {
+	MakeConfig bool    `hidden:"true" long:"make-config" description:"Make configuration file with current parameters"`
+	DryRun     bool    `hidden:"true" long:"dry-run" description:"Do not run the command (useful with --make-config parameter)"`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *config) main() int {
-
-	var err error
-	// if aero-lab-common.conf exists in user's home or in /etc, add that to the command line parsing
-	if _, err := os.Stat("/etc/aero-lab-common.conf"); err == nil {
-		c.ConfigFiles = append(c.ConfigFiles, "/etc/aero-lab-common.conf")
-	}
-	usr, err := user.Current()
-	if err == nil {
-		usrPath := path.Join(usr.HomeDir, "aero-lab-common.conf")
-		if _, err := os.Stat(usrPath); err == nil {
-			c.ConfigFiles = append(c.ConfigFiles, usrPath)
-		}
-	}
-
-	// parse command line parameters
-	var commandOffset int
-	if commandOffset, err = c.parseCommandLineParameters(1, nil); err != nil {
-		c.log.Fatal(fmt.Sprintf(ERR_MAIN_CMDLINEPARAMS, err), E_MAIN_CMDLINEPARAMS)
-	}
-
-	// parse config file if specified
-	if err := c.parseConfigFile(); err != nil {
-		c.log.Fatal(fmt.Sprintf(ERR_MAIN_CONFIG, err), E_MAIN_CONFIG)
-	}
-
-	// parse command line parameters again - they override config file
-	if _, err = c.parseCommandLineParameters(1, []int{commandOffset}); err != nil {
-		c.log.Fatal(fmt.Sprintf(ERR_MAIN_CMDLINEPARAMS, err), E_MAIN_CMDLINEPARAMS)
-	}
-
-	// parse common config parameters
-	if err = c.parseCommonConfig(); err != nil {
-		c.log.Fatal(fmt.Sprintf(ERR_MAIN_CONFIG, err), E_MAIN_CONFIG)
-	}
-
-	// parse defaults
-	if err := c.parseCommandLineParametersDefaults(); err != nil {
-		c.log.Fatal(fmt.Sprintf(ERR_MAIN_CMDLINEPARAMS, err), E_MAIN_CMDLINEPARAMS)
-	}
-
-	ret, err := c.runCommand()
-	// cycle through features and redirect to the right feature
-	if err != nil {
-		c.log.Fatal(err.Error(), int(ret))
-	}
-
-	return int(ret)
+func (c *helpCmd) Execute(args []string) error {
+	return printHelp("")
 }
 
-func (c *config) parseCommandLineParameters(startOffset int, ignoreOffsets []int) (commandOffset int, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			c.log.Fatalf(999, "Invalid command line parameters")
-		}
-	}()
-	for i := startOffset; i < len(os.Args); i++ {
-		if inArray(ignoreOffsets, i) > -1 {
+func printHelp(extraInfo string) error {
+	params := []string{}
+	for _, comm := range os.Args[1:] {
+		if strings.HasPrefix(comm, "-") {
 			continue
 		}
-		param := os.Args[i]
-		if param == "--" {
-			c.tail = os.Args[i+1:]
-			i = len(os.Args)
-		} else if param[:2] == "--" {
-			p := strings.Split(param[2:], "=")
-			v := ""
-			if len(p) > 2 {
-				err = fmt.Errorf(ERR_MAIN_INVALIDPARAM, param)
-			} else if len(p) == 2 {
-				v = p[1]
-			}
-			if p[0] == "config" {
-				c.ConfigFiles = append(c.ConfigFiles, v)
+		if comm == "help" {
+			continue
+		}
+		params = append(params, comm)
+	}
+	params = append(params, "-h")
+	cmd := exec.Command(os.Args[0], params...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	cmd.Stdin = os.Stdin
+	cmd.Run()
+	if extraInfo != "" {
+		fmt.Print(extraInfo)
+	}
+	os.Exit(1)
+	return nil
+}
+
+type commandPath string
+
+type backendName string
+
+var backendSwitches = make(map[commandPath]map[backendName]interface{})
+
+var b backend
+
+func addBackendSwitch(command string, backend string, switches interface{}) {
+	if _, ok := backendSwitches[commandPath(command)]; !ok {
+		backendSwitches[commandPath(command)] = make(map[backendName]interface{})
+	}
+	backendSwitches[commandPath(command)][backendName(backend)] = switches
+}
+
+type aerolab struct {
+	opts              *commands
+	parser            *flags.Parser
+	iniParser         *flags.IniParser
+	forceFileOptional bool
+	early             bool
+}
+
+var a = &aerolab{
+	opts: new(commands),
+}
+
+func main() {
+	a.main(os.Args[0], os.Args[1:])
+}
+
+var chooseBackendHelpMsg = `
+Create a config file and select a backend first using one of:
+
+$ %s config backend -t docker
+$ %s config backend -t aws [-r region] [-p /custom/path/to/store/ssh/keys/in/]
+
+Default file path is ${HOME}/.aerolab.conf
+
+To specify a custom configuration file, set the environment variable:
+   $ export AEROLAB_CONFIG_FILE=/path/to/file.conf
+
+`
+
+func (a *aerolab) main(name string, args []string) {
+	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+
+	// preload file to load parsers based on backend
+	a.iniParser = flags.NewIniParser(a.parser)
+	ffo := a.forceFileOptional
+	a.forceFileOptional = true
+	a.parseFile()
+	a.forceFileOptional = ffo
+
+	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+	for command, switchList := range backendSwitches {
+		keys := strings.Split(strings.ToLower(string(command)), ".")
+		var nCmd *flags.Command
+		for i, key := range keys {
+			if i == 0 {
+				nCmd = a.parser.Find(key)
 			} else {
-				if err := c.parseCommandLineParametersSwitch("long", p[0], v); err != nil {
-					return -1, err
-				}
+				nCmd = nCmd.Find(key)
 			}
-		} else if param[:1] == "-" {
-			ntype, err := c.parseCommandLineParametersGetType("short", param[1:])
+		}
+		for backend, switches := range switchList {
+			grp, err := nCmd.AddGroup(string(backend), string(backend), switches)
 			if err != nil {
-				return -1, err
+				log.Fatal(err)
 			}
-			i = i + 1
-			if i == len(os.Args) && ntype != "bool" {
-				return -1, fmt.Errorf("Parameter is missing argument: %s", os.Args[i-1])
+			if string(backend) != a.opts.Config.Backend.Type {
+				grp.Hidden = true
 			}
-			if i == len(os.Args) {
-				if err := c.parseCommandLineParametersSwitch("short", param[1:], ""); err != nil {
-					return -1, err
-				}
-			} else if os.Args[i] == "0" || os.Args[i] == "1" || ntype != "bool" {
-				value := os.Args[i]
-				if err := c.parseCommandLineParametersSwitch("short", param[1:], value); err != nil {
-					return -1, err
-				}
+		}
+	}
+
+	// start loading
+	a.iniParser = flags.NewIniParser(a.parser)
+	a.early = true
+	a.parseArgs(args)
+	a.early = false
+	_, err := a.parseFile()
+	if err != nil {
+		_, fna := path.Split(os.Args[0])
+		fmt.Printf(chooseBackendHelpMsg, fna, fna)
+		os.Exit(1)
+	}
+	if !a.forceFileOptional && a.opts.Config.Backend.Type == "" {
+		_, fna := path.Split(os.Args[0])
+		fmt.Printf(chooseBackendHelpMsg, fna, fna)
+		os.Exit(1)
+	}
+
+	a.parseArgs(args)
+}
+
+func earlyProcess(tail []string) (early bool) {
+	return earlyProcessV2(tail, true)
+}
+
+func earlyProcessV2(tail []string, initBackend bool) (early bool) {
+	if inslice.HasString(tail, "help") {
+		a.parser.WriteHelp(os.Stderr)
+		//a.parser.WriteManPage(os.Stderr)
+		os.Exit(1)
+	}
+	if a.early {
+		return true
+	}
+	if a.opts.MakeConfig {
+		err := writeConfigFile()
+		if err != nil {
+			log.Fatalf("Failed to write config file: %s", err)
+		}
+	}
+	if a.opts.DryRun {
+		fmt.Println("OK(dry-run)")
+		os.Exit(0)
+	}
+	var err error
+	b, err = getBackend()
+	if err != nil {
+		logFatal("Could not get backend: %s", err)
+	}
+	if initBackend {
+		if b == nil {
+			logFatal("Invalid backend")
+		}
+		err = b.Init()
+		if err != nil {
+			logFatal("Could not init backend: %s", err)
+		}
+	}
+	return false
+}
+
+func writeConfigFile() error {
+	cfgFile, _, err := a.configFileName()
+	if err != nil {
+		return err
+	}
+	opts := flags.IniOptions(flags.IniIncludeComments | flags.IniIncludeDefaults | flags.IniCommentDefaults)
+	prev := a.opts.MakeConfig
+	prev2 := a.opts.DryRun
+	a.opts.DryRun = false
+	a.opts.MakeConfig = false
+	err = a.iniParser.WriteFile(cfgFile, opts)
+	a.opts.MakeConfig = prev
+	a.opts.DryRun = prev2
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *aerolab) parseArgs(args []string) {
+	_, err := a.parser.ParseArgs(args)
+	if a.early {
+		return
+	}
+	if err != nil {
+		if reflect.TypeOf(err).Elem().String() == "flags.Error" {
+			flagsErr := err.(*flags.Error)
+			if flagsErr.Type == flags.ErrCommandRequired {
+				a.parser.WriteHelp(os.Stderr)
 			} else {
-				i = i - 1
-				if err := c.parseCommandLineParametersSwitch("short", param[1:], ""); err != nil {
-					return -1, err
-				}
+				fmt.Println(err)
 			}
 		} else {
-			if i > 1 {
-				if c.Command == "help" {
-					c.F_helpCommand(param)
-					os.Exit(E_HELP)
-				} else if param == "help" {
-					c.F_helpCommand(c.Command)
-					os.Exit(E_HELP)
-				} else {
-					if c.Command != "" {
-						err = errors.New(ERR_MAIN_MANY_COMMANDS)
-						return -1, err
-					}
-					if err := c.parseCommandLineParametersCommand(param); err != nil {
-						return -1, err
-					} else {
-						commandOffset = i
-					}
-				}
-			} else {
-				if c.Command != "" {
-					err = errors.New(ERR_MAIN_MANY_COMMANDS)
-					return
-				}
-				if err := c.parseCommandLineParametersCommand(param); err != nil {
-					return -1, err
-				} else {
-					commandOffset = i
-				}
-			}
+			fmt.Println(err)
 		}
+		os.Exit(1)
 	}
-	return commandOffset, nil
 }
 
-func (c *config) parseCommandLineParametersDefaults() (err error) {
-	TypeOfC := reflect.TypeOf(c)
-	TypeOfCElem := TypeOfC.Elem()
-	for i := 0; i < TypeOfCElem.NumField(); i++ {
-		cField := TypeOfCElem.Field(i)
-		tagType := cField.Tag.Get("type")
-		if tagType == "command" && cField.Type.Kind() == reflect.Struct {
-			commandField := TypeOfCElem.Field(i)
-			commandFieldType := commandField.Type
-			for j := 0; j < commandFieldType.NumField(); j++ {
-				tagDefault := commandFieldType.Field(j).Tag.Get("default")
-				if tagDefault != "" {
-					if commandFieldType.Field(j).Type.Kind() == reflect.String {
-						if reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).String() == "" {
-							reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).SetString(tagDefault)
-						}
-					} else if commandFieldType.Field(j).Type.Kind() == reflect.Int {
-						if reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).Int() == 0 {
-							num, err := strconv.Atoi(tagDefault)
-							if err != nil {
-								return err
-							}
-							reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).SetInt(int64(num))
-						}
-					} else {
-						err = errors.New(ERR_MAIN_PARSE_TYPE)
-						return
-					}
-				}
-			}
-		}
-	}
-	return
-}
-
-func (c *config) parseCommandLineParametersSwitch(paramType string, param string, value string) (err error) {
-	if c.Command == "" {
-		err = errors.New(ERR_MAIN_COMM_FIRST)
+func (a *aerolab) parseFile() (cfgFile string, err error) {
+	var optional bool
+	cfgFile, optional, err = a.configFileName()
+	if err != nil {
 		return
 	}
-	TypeOfC := reflect.TypeOf(c)
-	TypeOfCElem := TypeOfC.Elem()
-	found := false
-	for i := 0; i < TypeOfCElem.NumField(); i++ {
-		cField := TypeOfCElem.Field(i)
-		tagType := cField.Tag.Get("type")
-		tagCommandName := cField.Tag.Get("name")
-		if tagType == "command" && tagCommandName == c.Command && cField.Type.Kind() == reflect.Struct {
-			commandField := TypeOfCElem.Field(i)
-			commandFieldType := commandField.Type
-			for j := 0; j < commandFieldType.NumField(); j++ {
-				tagSwitch := commandFieldType.Field(j).Tag.Get(paramType)
-				tagFieldType := commandFieldType.Field(j).Tag.Get("type")
-				if tagSwitch == param {
-					found = true
-					if commandFieldType.Field(j).Type.Kind() == reflect.String {
-						reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).SetString(value)
-					} else if commandFieldType.Field(j).Type.Kind() == reflect.Int {
-						if value == "" && tagFieldType == "bool" {
-							value = "1"
-						}
-						num, err := strconv.Atoi(value)
-						if err != nil {
-							return err
-						}
-						reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).SetInt(int64(num))
-					} else {
-						err = errors.New(ERR_MAIN_PARSE_TYPE)
-						return
-					}
-					break
-				}
-			}
-		}
-		if found {
-			break
-		}
-	}
-	if !found {
-		err = fmt.Errorf(ERR_MAIN_UNKNOWN_PARAM, param)
-	}
-	return
-}
 
-func (c *config) parseCommandLineParametersGetType(paramType string, param string) (ntype string, err error) {
-	if c.Command == "" {
-		err = errors.New(ERR_MAIN_COMM_FIRST)
-		return
+	if a.forceFileOptional {
+		optional = true
 	}
-	TypeOfC := reflect.TypeOf(c)
-	TypeOfCElem := TypeOfC.Elem()
-	found := false
-	for i := 0; i < TypeOfCElem.NumField(); i++ {
-		cField := TypeOfCElem.Field(i)
-		tagType := cField.Tag.Get("type")
-		tagCommandName := cField.Tag.Get("name")
-		if tagType == "command" && tagCommandName == c.Command && cField.Type.Kind() == reflect.Struct {
-			commandField := TypeOfCElem.Field(i)
-			commandFieldType := commandField.Type
-			for j := 0; j < commandFieldType.NumField(); j++ {
-				tagSwitch := commandFieldType.Field(j).Tag.Get(paramType)
-				tagFieldType := commandFieldType.Field(j).Tag.Get("type")
-				if tagSwitch == param {
-					found = true
-					if commandFieldType.Field(j).Type.Kind() == reflect.String {
-						ntype = "string"
-					} else if commandFieldType.Field(j).Type.Kind() == reflect.Int {
-						if tagFieldType == "bool" {
-							ntype = "bool"
-						} else {
-							ntype = "int"
-						}
-					} else {
-						err = errors.New(ERR_MAIN_PARSE_TYPE)
-						return
-					}
-					break
-				}
-			}
-		}
-		if found {
-			break
-		}
-	}
-	if !found {
-		err = fmt.Errorf(ERR_MAIN_UNKNOWN_PARAM, param)
-	}
-	return
-}
 
-func (c *config) parseCommandLineParametersCommand(param string) (err error) {
-	for _, p := range strings.Split(param, ",") {
-		TypeOfC := reflect.TypeOf(c)
-		TypeOfCElem := TypeOfC.Elem()
-		found := false
-		for i := 0; i < TypeOfCElem.NumField(); i++ {
-			cField := TypeOfCElem.Field(i)
-			tagType := cField.Tag.Get("type")
-			if tagType == "command" {
-				tagName := cField.Tag.Get("name")
-				if tagName == p {
-					found = true
-					break
-				}
-			}
-		}
-		if !found {
-			err = fmt.Errorf(ERR_MAIN_INVALIDPARAM, param)
+	if _, err = os.Stat(cfgFile); err != nil && os.IsNotExist(err) {
+		if optional {
+			err = nil
+			return
 		} else {
-			c.Command = p
+			return
 		}
+	}
+
+	a.parser.Options = flags.HelpFlag | flags.PassDoubleDash | flags.IgnoreUnknown
+	err = a.iniParser.ParseFile(cfgFile)
+	a.parser.Options = flags.HelpFlag | flags.PassDoubleDash
+	if err != nil {
+		log.Print(err)
 	}
 	return
 }
 
-func (c *config) parseConfigFile() (err error) {
-	if len(c.ConfigFiles) != 0 {
-		for _, ConfigFile := range c.ConfigFiles {
-			c.comm = c.Command
-			_, err = toml.DecodeFile(ConfigFile, c)
-			if c.comm != "" {
-				c.Command = c.comm
-			}
-		}
+func (a *aerolab) configFileName() (cfgFile string, optional bool, err error) {
+	cfgFile, _ = os.LookupEnv("AEROLAB_CONFIG_FILE")
+	optional = false
+	if a.opts.MakeConfig {
+		optional = true
 	}
-	return err
-}
-
-func (c *config) parseCommonConfig() (err error) {
-	TypeOfC := reflect.TypeOf(c)
-	TypeOfCElem := TypeOfC.Elem()
-	var valueS string
-	var valueI int64
-	for i := 0; i < TypeOfCElem.NumField(); i++ {
-		cField := TypeOfCElem.Field(i)
-		tagType := cField.Tag.Get("type")
-		tagCommandName := cField.Tag.Get("name")
-		if tagType == "command" && tagCommandName == c.Command && cField.Type.Kind() == reflect.Struct {
-			commandField := TypeOfCElem.Field(i)
-			commandFieldType := commandField.Type
-			for j := 0; j < commandFieldType.NumField(); j++ {
-				fieldName := commandFieldType.Field(j).Name
-				// get same field value from common
-				TypeOfCommon := reflect.TypeOf(&(c.Common))
-				TypeOfCommonElem := TypeOfCommon.Elem()
-				valueS = ""
-				valueI = 0
-				for k := 0; k < TypeOfCommonElem.NumField(); k++ {
-					commonField := TypeOfCommonElem.Field(k)
-					if commonField.Name == fieldName {
-						if commonField.Type.Kind() == reflect.String {
-							valueS = reflect.ValueOf(&(c.Common)).Elem().Field(k).String()
-						} else if commonField.Type.Kind() == reflect.Int {
-							valueI = reflect.ValueOf(&(c.Common)).Elem().Field(k).Int()
-						}
-						break
-					}
-				}
-				// end
-				if valueI > 0 || valueS != "" {
-					if commandFieldType.Field(j).Type.Kind() == reflect.String && reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).String() == "" {
-						reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).SetString(valueS)
-					} else if commandFieldType.Field(j).Type.Kind() == reflect.Int && reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).Int() == 0 {
-						reflect.ValueOf(c).Elem().FieldByName(commandField.Name).FieldByName(commandFieldType.Field(j).Name).SetInt(int64(valueI))
-					}
-				}
-			}
+	if cfgFile == "" {
+		optional = true
+		var home string
+		home, err = os.UserHomeDir()
+		if err != nil {
+			return
 		}
-	}
-	return
-}
-
-func (c *config) runCommand() (ret int64, err error) {
-	if c.Command == "" {
-		c.log.Info("No command specified. Try running: %s help", os.Args[0])
-		return
-	}
-	TypeOfC := reflect.TypeOf(c)
-	TypeOfCElem := TypeOfC.Elem()
-	for i := 0; i < TypeOfCElem.NumField(); i++ {
-		cField := TypeOfCElem.Field(i)
-		tagType := cField.Tag.Get("type")
-		tagName := cField.Tag.Get("name")
-		if tagType == "command" && tagName == c.Command {
-			tagMethod := cField.Tag.Get("method")
-			reta := reflect.ValueOf(c).MethodByName(tagMethod).Call([]reflect.Value{})
-			if !reta[1].IsNil() {
-				err = errors.New(fmt.Sprint(reta[1].Interface()))
-			}
-			ret = reta[0].Int()
-		}
+		cfgFile = path.Join(home, ".aerolab.conf")
 	}
 	return
 }

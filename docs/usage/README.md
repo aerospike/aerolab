@@ -10,7 +10,6 @@
 * [Insert and Delete data](data.md)
 * [Upload or Download a file to/from container](updown.md)
 * [Setup TLS](tls.md)
-* [Vanilla container](container.md)
 * [Download aerospike logs](get-logs.md)
 
 ## Advanced
@@ -21,7 +20,3 @@
 * [Resource limits](limits.md)
 * [Strong consistency](strong.md)
 * [Loop Devices](loop-dev.md)
-
-## Client
-
-* [Python Client](client-python.md)
