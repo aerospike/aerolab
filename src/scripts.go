@@ -7,6 +7,24 @@ var aerospikeInstallScript = make(map[string]string) //docker:centos:7 = script;
 func init() {
 
 	aerospikeInstallScript["aws:ubuntu:22.04"] = `#!/bin/bash
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
+mkdir -p /etc/systemd/system/aerospike.service.d
+cat <<'EOF' > /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+[Service]
+ExecStartPre=/bin/bash /usr/local/bin/early.sh
+ExecStopPost=/bin/bash /usr/local/bin/late.sh
+EOF
+chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+systemctl daemon-reload
 export DEBIAN_FRONTEND=noninteractive
 apt-get update || exit 1
 apt-get -y install python3-distutils || exit 1
@@ -38,6 +56,24 @@ EOF
 
 	aerospikeInstallScript["aws:centos:7"] = `#!/bin/bash
 set -o xtrace
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
+mkdir -p /etc/systemd/system/aerospike.service.d
+cat <<'EOF' > /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+[Service]
+ExecStartPre=/bin/bash /usr/local/bin/early.sh
+ExecStopPost=/bin/bash /usr/local/bin/late.sh
+EOF
+chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+systemctl daemon-reload
 yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
@@ -51,6 +87,24 @@ cd aerospike-server-* && ./asinstall || exit 1
 
 	aerospikeInstallScript["aws:centos:8"] = `#!/bin/bash
 set -o xtrace
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
+mkdir -p /etc/systemd/system/aerospike.service.d
+cat <<'EOF' > /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+[Service]
+ExecStartPre=/bin/bash /usr/local/bin/early.sh
+ExecStopPost=/bin/bash /usr/local/bin/late.sh
+EOF
+chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+systemctl daemon-reload
 dnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y || exit 1
 yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-devel || exit 1
@@ -68,6 +122,24 @@ systemctl daemon-reload
 
 	aerospikeInstallScript["aws:amazon:2"] = `#!/bin/bash
 set -i xtrace
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
+mkdir -p /etc/systemd/system/aerospike.service.d
+cat <<'EOF' > /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+[Service]
+ExecStartPre=/bin/bash /usr/local/bin/early.sh
+ExecStopPost=/bin/bash /usr/local/bin/late.sh
+EOF
+chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+systemctl daemon-reload
 yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
@@ -92,6 +164,16 @@ mv /tcconfig-ubuntu-venv-tc /tcconfig || exit 1
 mv /tcconfig/lib/* /tcconfig/lib/python$(python3 --version |egrep -o '[0-9]+\.[0-9]+')
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* && ./asinstall || exit 1
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
 apt-get -y install libldap-2.4-2 ; apt -y --fix-broken install ; apt-get -y install libldap-2.4-2
 cat <<'EOF' > /etc/apt/apt.conf.d/local
 Dpkg::Options {
@@ -132,6 +214,7 @@ test -f $DAEMON || exit 0
 
 case "$1" in
 start)  log_daemon_msg "Starting aerospike" "aerospike"
+		/bin/bash /usr/local/bin/early.sh
 		start_daemon -p $PIDFILE $DAEMON $EXTRA_OPTS
 		log_end_msg $?
 		;;
@@ -139,6 +222,7 @@ stop)   log_daemon_msg "Stopping aerospike" "aerospike"
 		pkill asd
 		RETVAL=$?
 		if [ $RETVAL -ne 0 ]; then pkill -9 asd; fi 
+		/bin/bash /usr/local/bin/late.sh
 		log_end_msg $RETVAL
 		;;
 restart) log_daemon_msg "Restarting aerospike" "aerospike"
@@ -176,6 +260,16 @@ yum -y install redhat-lsb || exit 1
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* && ./asinstall || exit 1
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
 cat <<'EOF' > /etc/init.d/aerospike
 #!/bin/sh
 # Start/stop the aerospike daemon.
@@ -205,6 +299,7 @@ test -f $DAEMON || exit 0
 
 case "$1" in
 start)  log_success_msg "Starting aerospike" "aerospike"
+		/bin/bash /usr/local/bin/early.sh
 		start_daemon -p $PIDFILE $DAEMON $EXTRA_OPTS
 		log_success_msg $?
 		;;
@@ -212,6 +307,7 @@ stop)   log_success_msg "Stopping aerospike" "aerospike"
 		pkill asd
 		sleep 1
 		if [ $? -ne 0 ]; then pkill -9 asd; fi
+		/bin/bash /usr/local/bin/late.sh
 		log_success_msg $RETVAL
 		;;
 restart) log_success_msg "Restarting aerospike" "aerospike"
