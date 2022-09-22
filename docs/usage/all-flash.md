@@ -32,7 +32,7 @@ namespace bar {
 Deploying aerolab with the template for all flash requires a privileged container (deploying 3 nodes in this example, using mesh):
 
 ```
-aerolab make-cluster -n someName -c 3 --privileged
+aerolab cluster create -n someName -c 3 --privileged
 ```
 
 That's it, the cluster will be created and use `index-type flash` on `/mnt`. Note that no mountpoints or filesystems are created. We are simply using a pre-existing `/mnt` directory on the root filesystem. this is fine and works as well for testing purposes.

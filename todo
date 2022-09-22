@@ -1,6 +1,0 @@
-# Below items need to be completed for the release to take place
-
-* aerolab-macos: codesign
-* change https://github.com/citrusleaf/aerolab to right link in tunnel-container-openvpn-readme.md
-* main readme.md update https://github.com/citrusleaf/aerolab/releases url
-* grep for the citrusleaf/aerolab in all MD and modify to suit new repo

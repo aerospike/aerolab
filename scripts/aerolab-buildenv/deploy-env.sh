@@ -69,7 +69,7 @@ function help() {
   echo
   echo "Attaching to aerospike & client nodes"
   echo "-------------------------------------"
-  echo "aerolab node-attach -n ${CLUSTER_NAME} -l 1"
+  echo "aerolab attach shell -n ${CLUSTER_NAME} -l 1"
   if [ "${BUILD_PYTHON}" = "YES" ]
   then
     echo "docker exec -it ${CLIENT_NAME} /bin/bash"
@@ -123,21 +123,21 @@ cd ${LOC}
 
 echo
 echo "Build Aerospike"
-aerolab make-cluster -n ${CLUSTER_NAME} -c ${NODES} ${VERSION} -o ${LOC}/${TEMPLATE} ${FEATURES} ${NETWORKMODE} -s n
-aerolab upload -n ${CLUSTER_NAME} -i ${LDAPLOC}/certs/local/rootCA.pem -o /etc/aerospike/rootCA.pem
-aerolab upload -n ${CLUSTER_NAME} -i ${LDAPLOC}/certs/output/server1.pem -o /etc/aerospike/server1.pem
-aerolab upload -n ${CLUSTER_NAME} -i ${LDAPLOC}/certs/output/server1.key -o /etc/aerospike/server1.key
+aerolab cluster create -n ${CLUSTER_NAME} -c ${NODES} ${VERSION} -o ${LOC}/${TEMPLATE} ${FEATURES} ${NETWORKMODE} -s n
+aerolab files upload -n ${CLUSTER_NAME} ${LDAPLOC}/certs/local/rootCA.pem /etc/aerospike/rootCA.pem
+aerolab files upload -n ${CLUSTER_NAME} ${LDAPLOC}/certs/output/server1.pem /etc/aerospike/server1.pem
+aerolab files upload -n ${CLUSTER_NAME} ${LDAPLOC}/certs/output/server1.key /etc/aerospike/server1.key
 for NODE in $(seq 1 ${NODES})
 do
   NODEIP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' aero-${CLUSTER_NAME}_${NODE}) || exit
   echo "Fix Hosts File for :"${NODEIP}
-  aerolab node-attach -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "echo ${LDAPIP} ${SHORT_LDAP_NAME} >> /etc/hosts"
-  aerolab node-attach -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "cp /etc/hosts /tmp/.; cat /tmp/hosts | sed -e 's/^${NODEIP}/${NODEIP} server1/g' >/etc/hosts"
+  aerolab attach shell -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "echo ${LDAPIP} ${SHORT_LDAP_NAME} >> /etc/hosts"
+  aerolab attach shell -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "cp /etc/hosts /tmp/.; cat /tmp/hosts | sed -e 's/^${NODEIP}/${NODEIP} server1/g' >/etc/hosts"
   echo "Install ldapsearch"
-  aerolab node-attach -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "apt-get install ldap-client >/dev/null 2>/dev/null"
+  aerolab attach shell -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "apt-get install ldap-client >/dev/null 2>/dev/null"
   
 done
-aerolab start-aerospike -n ${CLUSTER_NAME}
+aerolab aerospike start -n ${CLUSTER_NAME}
 
 echo "Get CLUSTERIP"
 CLUSTERIP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' aero-${CLUSTER_NAME}_1) || exit

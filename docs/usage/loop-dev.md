@@ -19,21 +19,11 @@ We achieve this by deploying the following setup:
 Deploy clusters, naming them `source` and `destination`, with 2 nodes in each, using the `bar-file-store.conf` template. Do not start aerospike automatically, and enter privileged mode.
 
 ```bash
-$ aerolab make-cluster -n source -c 2 -s n -o templates/bar-file-store.conf --privileged -v 4.9.0.32
-May 20 13:08:29+0000 AERO-LAB[60638]: INFO     Performing sanity checks, checking if docker is running and accessible
-May 20 13:08:29+0000 AERO-LAB[60638]: INFO     Checking if version template already exists
-May 20 13:08:29+0000 AERO-LAB[60638]: INFO     Checking aerospike version
-May 20 13:08:41+0000 AERO-LAB[60638]: INFO     Starting deployment
-May 20 13:08:43+0000 AERO-LAB[60638]: INFO     Done
+$ aerolab cluster create -n source -c 2 -s n -o templates/bar-file-store.conf --privileged -v 4.9.0.32
 ```
 
 ```bash
-$ aerolab make-cluster -n destination -c 2 -s n -o templates/bar-file-store.conf --privileged -v 4.9.0.32
-May 20 13:09:13+0000 AERO-LAB[60662]: INFO     Performing sanity checks, checking if docker is running and accessible
-May 20 13:09:13+0000 AERO-LAB[60662]: INFO     Checking if version template already exists
-May 20 13:09:13+0000 AERO-LAB[60662]: INFO     Checking aerospike version
-May 20 13:09:25+0000 AERO-LAB[60662]: INFO     Starting deployment
-May 20 13:09:27+0000 AERO-LAB[60662]: INFO     Done
+$ aerolab cluster create -n destination -c 2 -s n -o templates/bar-file-store.conf --privileged -v 4.9.0.32
 ```
 
 ## Configure destination cluster
@@ -41,17 +31,17 @@ May 20 13:09:27+0000 AERO-LAB[60662]: INFO     Done
 ### Create raw empty files to use as storage 1024MB (1GB)
 
 ```bash
-aerolab node-attach -n destination -l all -- /bin/bash -c 'dd if=/dev/zero of=/store$NODE.raw bs=1M count=1024'
+aerolab attach shell -n destination -l all -- /bin/bash -c 'dd if=/dev/zero of=/store$NODE.raw bs=1M count=1024'
 ```
 
 ### Loop-mount the files as devices
 
 NOTE: loopback interfaces are global and shared by all containers, as they belong to the docker host. Therefore naming must be unique.
 
-Note that aerolab exposes environment variable `$NODE` to the shell when running the `node-attach` command. We can make use of that to create unique names.
+Note that aerolab exposes environment variable `$NODE` to the shell when running the `attach shell` command. We can make use of that to create unique names.
 
 ```bash
-aerolab node-attach -n destination -l all -- /bin/bash -c 'losetup -f /store$NODE.raw'
+aerolab attach shell -n destination -l all -- /bin/bash -c 'losetup -f /store$NODE.raw'
 ```
 
 ### Perform changes in the aerospike.conf file using sed one-liners
@@ -59,35 +49,33 @@ aerolab node-attach -n destination -l all -- /bin/bash -c 'losetup -f /store$NOD
 Change the file to device backing,  noting the /dev/loopX device created by losetup - need to find the one that is for this container and use it.
 
 ```bash
-aerolab node-attach -n destination -l all -- /bin/bash -c 'sed -i "s~file /opt/aerospike/data/bar.dat~device $(losetup --raw |grep store$NODE.raw |cut -d " " -f 1)~g" /etc/aerospike/aerospike.conf'
+aerolab attach shell -n destination -l all -- /bin/bash -c 'sed -i "s~file /opt/aerospike/data/bar.dat~device $(losetup --raw |grep store$NODE.raw |cut -d " " -f 1)~g" /etc/aerospike/aerospike.conf'
 ```
 
 Remove `filesize 1G`
 
 ```bash
-aerolab node-attach -n destination -l all -- /bin/bash -c 'sed -i "s~filesize 1G~~g" /etc/aerospike/aerospike.conf'
+aerolab attach shell -n destination -l all -- /bin/bash -c 'sed -i "s~filesize 1G~~g" /etc/aerospike/aerospike.conf'
 ```
 
 Change `data-in-memory` from `true` to `false`
 
 ```bash
-aerolab node-attach -n destination -l all -- /bin/bash -c 'sed -i "s~data-in-memory true~data-in-memory false~g" /etc/aerospike/aerospike.conf'
+aerolab attach shell -n destination -l all -- /bin/bash -c 'sed -i "s~data-in-memory true~data-in-memory false~g" /etc/aerospike/aerospike.conf'
 ```
 
 ### Start aerospike on the destination and check logs on node 1
 
 ```bash
-aerolab start-aerospike -n destination
+aerolab aerospike start -n destination
 
-aerolab node-attach -n destination -- cat /var/log/aerospike.log
+aerolab attach shell -n destination -- cat /var/log/aerospike.log
 ```
 
 ## Connect source cluster to destination on namespace bar
 
 ```bash
-$ aerolab xdr-connect -s source -d destination -m bar
-May 20 14:07:14+0000 AERO-LAB[63831]: INFO     XdrConnect running
-May 20 14:07:16+0000 AERO-LAB[63831]: INFO     Done, now restart the source cluster for changes to take effect.
+$ aerolab xdr connect -s source -d destination -m bar
 ```
 
 ## Configure raw file with a filesystem and mount to use in xdr
@@ -95,13 +83,13 @@ May 20 14:07:16+0000 AERO-LAB[63831]: INFO     Done, now restart the source clus
 ### Create file 100MB large
 
 ```bash
-aerolab node-attach -n source -l all -- dd if=/dev/zero of=/xdr.raw bs=1M count=100MB
+aerolab attach shell -n source -l all -- dd if=/dev/zero of=/xdr.raw bs=1M count=100MB
 ```
 
 ### Create filesystem in file
 
 ```bash
-aerolab node-attach -n source -l all -- mkfs.ext4 /xdr.raw
+aerolab attach shell -n source -l all -- mkfs.ext4 /xdr.raw
 ```
 
 ### Mount
@@ -109,15 +97,15 @@ aerolab node-attach -n source -l all -- mkfs.ext4 /xdr.raw
 Mount `/xdr/raw` as `/opt/aerospike/xdr` directory
 
 ```bash
-aerolab node-attach -n source -l all -- mount /xdr.raw /opt/aerospike/xdr
+aerolab attach shell -n source -l all -- mount /xdr.raw /opt/aerospike/xdr
 ```
 
 ### Start aerospike and cat logs of node 1
 
 ```bash
-aerolab start-aerospike -n source
+aerolab aerospike start -n source
 
-aerolab node-attach -n source -- cat /var/log/aerospike.log
+aerolab attach shell -n source -- cat /var/log/aerospike.log
 ```
 
 ## Cleanup - ESSENTIAL
@@ -127,16 +115,16 @@ aerolab node-attach -n source -- cat /var/log/aerospike.log
 NOTE: if you forget this step, stopping docker and starting it will clear loopback interfaces on it's own anyways
 
 ```bash
-aerolab stop-aerospike -n destination
+aerolab aerospike stop -n destination
 
-aerolab node-attach -n destination -- /bin/bash -c 'losetup --raw |grep store |grep raw |cut -d " " -f 1 |while read line; do losetup -d $line; done'
+aerolab attach shell -n destination -- /bin/bash -c 'losetup --raw |grep store |grep raw |cut -d " " -f 1 |while read line; do losetup -d $line; done'
 ```
 
 ### Destroy containers
 
 ```bash
-aerolab cluster-destroy -f -n source
-aerolab cluster-destroy -f -n destination
+aerolab cluster destroy -f -n source
+aerolab cluster destroy -f -n destination
 ```
 
 ## Caveats

@@ -4,86 +4,83 @@ The help features of aerolab are written in a way that using and exploring aerol
 
 ## Command list
 
-Get help on all commands
+### Top-level commands
+
+Get help on top-level commands
 
 ```bash
-$ ./aerolab help
-Usage: ./aerolab {command} [options] [-- {tail}]
+% aerolab help
+Usage:
+  aerolab [OPTIONS] <command>
 
-Commands:
-	interactive
-		Enter interactive mode
-	make-cluster
-		Create a new cluster
-	cluster-start
-		Start cluster machines
-	cluster-stop
-		Stop cluster machines
-	cluster-destroy
-...
+Available commands:
+  config     Show or change aerolab configuration
+  cluster    Create and manage Aerospike clusters and nodes
+  aerospike  Aerospike daemon controls
+  attach     Attach to a node and run a command
+  net        Firewall and latency simulation
+  conf       Manage Aerospike configuration on running nodes
+  tls        Create or copy TLS certificates
+  data       Insert/delete Aerospike data
+  template   Manage or delete template images
+  installer  List or download Aerospike installer versions
+  logs       show or download logs
+  files      Upload/Download files to/from clients or clusters
+  xdr        Manage clusters' xdr configuration
+  roster     Show or apply strong-consistency rosters
+  version    Print AeroLab version
+  help       Print help
 ```
 
-## Command help
+### Sub-commands
+
+Get help on subcommands of each top-level command
+
+```bash
+% aerolab cluster help
+Usage:
+  aerolab [OPTIONS] cluster [command]
+
+Available commands:
+  create   Create a new cluster
+  list     List clusters
+  start    Start cluster
+  stop     Stop cluster
+  grow     Add nodes to cluster
+  destroy  Destroy cluster
+  help     Print help
+```
+
+## Command-specific help
 
 Get help on a specific command
 
 ```bash
-$ ./aerolab cluster-destroy help
-Command: cluster-destroy
+% aerolab cluster stop help
+Usage:
+  aerolab [OPTIONS] cluster stop [stop-OPTIONS] [help]
 
--n | --name                	 : Cluster name (default=mydc)
--l | --nodes               	 : Nodes list, comma separated. Empty=ALL (default=)
--f | --force               	 : set to --force=1 to force stop before destroy (default=0)
--e | --deploy-on           	 : Deploy where (aws|docker) (default=)
-...
+[stop command options]
+      -n, --name=  Cluster names, comma separated OR 'all' to affect all clusters (default: mydc)
+      -l, --nodes= Nodes list, comma separated. Empty=ALL
+
+Available commands:
+  help  Print help
 ```
 
-## Command help mid-way
+## Command-specific help mid-way through typing the command
 
-Get help on a specific command half-way through writing it, without executing the command
+Get help on a specific command half-way through writing it, without executing the command by appending `help` as the last parameter.
 
 ```bash
-$ ./aerolab make-cluster -n test -c 4 help
-Command: make-cluster
+% aerolab cluster create -n test -c 4 help
+Usage:
+  aerolab [OPTIONS] cluster create [create-OPTIONS] [help]
 
--n | --name                	 : Cluster name (default=mydc)
--c | --count               	 : Number of nodes to create (default=1)
--v | --aerospike-version   	 : Version of aerospike to use (add 'c' to denote community, e.g. 3.13.0.1c) (default=latest)
--d | --distro              	 : OS distro to use. One of: ubuntu, rhel. rhel (default=ubuntu)
+[create command options]
+      -n, --name=                     Cluster name (default: mydc)
+      -c, --count=                    Number of nodes (default: 1)
+      -o, --customconf=               Custom config file path to install
+      -f, --featurefile=              Features file to install
 ...
-```
-
-## This also works
-```bash
-$ ./aerolab help make-cluster
-```
-
-## Get full help
-
-Aerolab supports setting basic configuration parameters in `~/aero-lab-common.conf` in a `TOML` format. To find out how to configure a particular function to use defaults from the config file, run:
-
-```bash
-$ ./aerolab make-cluster help --full
-Command: make-cluster
-
--n | --name                	 : Cluster name (default=mydc)
--c | --count               	 : Number of nodes to create (default=1)
-...
-Configuration File Params:
---------------------------
-command=make-cluster
-[MakeCluster]
-ClusterName=
-NodeCount=
-AerospikeVersion=
-DistroName=
-DistroVersion=
-...
-```
-
-If you want to always start 2 nodes by default (unless overwritten with a command line switch), add this to the `~/aero-lab-common.conf` file:
-
-```
-[MakeCluster]
-NodeCount=2
 ```

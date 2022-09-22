@@ -1,5 +1,27 @@
-#### v3.1.3
-* add support for centos 8 (`dnf` stream repositories needed to be enabled)
+#### 4.2.0 - TODO ITEMS
+* add support for limiting cpu, ram, swap, disk and network on both docker and aws
+* bring docker and aws commands on-par with each other
+* add json output support
+* support arm deployments
+
+#### 4.1.0 - TODO ITEMS
+* run script every time the node starts (crontab @reboot)
+* add option to deploy AMS (monitoring stack)
+* add install script to install basic linux tools (ip-utils, dns-utils, ping, telnet, netcat, netstat, ss, iostat, mpstat, sar)
+
+#### v4.0.0
+* add support for centos / rhel-based distros v 7 and 8 in aws
+* add option to rename hostname of nodes to clusterName-nodeNo
+* cleanup command line interface (changes cli usage)
+* make-cluster distro version help page: remove centos 6 and add centos 8 and ubuntu 22.04 to supported values
+* use submodules for common functions and methods
+* remove support for centos 6 / rhel 6
+* add 'edit' command line option for quick-editing a single file
+* add 'sync' option for quick-syncing of files/directories from one node to other nodes
+* make 'download' and 'upload' work on whole directories, recursively, not just files
+* update readme and help pages
+* update scripts/
+* make help pages work without verifying if backend is working
 
 #### v3.1.2
 * `make-cluster` and `cluster-grow`: automatically add `cluster-name` to `aerospike.conf` unless specified not to by the `-O` switch

@@ -1,155 +1,412 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"reflect"
+	"io"
+	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
-	"syscall"
 )
 
-// what it says
-func inArray(array interface{}, element interface{}) (index int) {
-	index = -1
-	s := reflect.ValueOf(array)
-	for i := 0; i < s.Len(); i++ {
-		if reflect.DeepEqual(element, s.Index(i).Interface()) {
-			index = i
+type dlVersion struct {
+	distroName    string
+	distroVersion string
+	url           string
+}
+
+func fixClusterNameConfig(conf string, cluster_name string) (newconf string, err error) {
+	newconf = ""
+	changed := false
+	service_stenza := 0 // 0 - before, 1 - in, 2 - after
+	network_stenza := false
+	t := ""
+
+	scanner := bufio.NewScanner(strings.NewReader(string(conf)))
+
+	for scanner.Scan() {
+		t = scanner.Text()
+		if !changed && service_stenza < 2 && !network_stenza {
+
+			// network has a "service" stenza as well, exclude it
+			if strings.Contains(t, "network") {
+				network_stenza = true
+			} else if network_stenza &&
+				(strings.Contains(t, "security") ||
+					strings.Contains(t, "logging") ||
+					strings.Contains(t, "xdr") ||
+					strings.Contains(t, "namespace") ||
+					strings.Contains(t, "mod-lua")) {
+				network_stenza = false
+			}
+
+			// only add cluster name if this is the level 0 service and not network's service
+			if strings.Contains(t, "service") && !network_stenza {
+				service_stenza = 1
+			}
+
+			if service_stenza == 1 {
+				// cluster name in the config file
+				if strings.Contains(t, "cluster-name") {
+					t = fmt.Sprintf("cluster-name %s", cluster_name)
+					changed = true
+				}
+				// service stenza without cluster name
+				if strings.Contains(t, "}") {
+					service_stenza = 2
+
+					// handle "service {}" - edge case
+					if strings.Contains(t, "service") {
+						t = fmt.Sprintf("service {\ncluster-name %s\n}", cluster_name)
+					} else {
+						t = fmt.Sprintf("cluster-name %s\n}", cluster_name)
+					}
+
+					changed = true
+				}
+			}
+		}
+		if strings.TrimSpace(t) != "" {
+			newconf = newconf + "\n" + t
+		}
+	}
+
+	// config file without a service stenza, add it
+	if !changed {
+		t = fmt.Sprintf("service {\n\tcluster-name %s \n}", cluster_name)
+		newconf = newconf + "\n" + t
+	}
+
+	return newconf, nil
+
+}
+
+func fixAerospikeConfig(conf string, mgroup string, mesh string, mesh_ip_list []string, node_list []int) (newconf string, err error) {
+	if mesh == "mcast" && mgroup != "" {
+		newconf = ""
+		changed := false
+		scanner := bufio.NewScanner(strings.NewReader(string(conf)))
+		for scanner.Scan() {
+			t := scanner.Text()
+			if strings.Contains(t, "multicast-group") {
+				t = fmt.Sprintf("multicast-group %s", mgroup)
+				changed = true
+			}
+			newconf = newconf + "\n" + t
+		}
+		if !changed {
+			err = errors.New(fmt.Sprintln("WARNING: Could not nodify multicast-group in the config file, search failed"))
+			return conf, err
+		}
+	} else if mesh == "mesh" {
+		for range node_list {
+			changed := 0
+			added_mesh_list := false
+			newconf = ""
+			scanner := bufio.NewScanner(strings.NewReader(string(conf)))
+			for scanner.Scan() {
+				t := scanner.Text()
+				t = strings.Trim(t, "\r")
+				if strings.Contains(t, "multicast-group") {
+					t = ""
+					changed = changed + 1
+				} else if strings.Contains(t, "mode multicast") {
+					t = "mode mesh"
+					changed = changed + 1
+				} else if strings.Contains(t, "mode mesh") {
+					changed = changed + 2
+				} else if strings.Contains(t, "mesh-seed-address-port") {
+					t = ""
+				} else if strings.Contains(t, "port 9918") {
+					t = "port 3002\n"
+					for j := 0; j < len(mesh_ip_list); j++ {
+						t = t + fmt.Sprintf("mesh-seed-address-port %s 3002\n", mesh_ip_list[j])
+					}
+					added_mesh_list = true
+				} else if strings.Contains(t, "port 3002") {
+					t = "port 3002\n"
+					for j := 0; j < len(mesh_ip_list); j++ {
+						t = t + fmt.Sprintf("mesh-seed-address-port %s 3002\n", mesh_ip_list[j])
+					}
+					added_mesh_list = true
+				} else if strings.Contains(t, "tls-port 3012") {
+					t = "tls-port 3012\n"
+					for j := 0; j < len(mesh_ip_list); j++ {
+						t = t + fmt.Sprintf("tls-mesh-seed-address-port %s 3012\n", mesh_ip_list[j])
+					}
+					added_mesh_list = true
+				}
+				if strings.TrimSpace(t) != "" {
+					newconf = newconf + "\n" + t
+				}
+			}
+			if changed < 2 {
+				err = errors.New(fmt.Sprintln("WARNING: Tried removing multicast-group and changing 'mode multicast' to 'mode mesh'. One of those ops failed"))
+				return "", err
+			}
+			if !added_mesh_list {
+				err = errors.New(fmt.Sprintln("WARNING: Could not locate line stating 'port 9918' in pleace of which we would put 'port 3002' and mesh address list. Mesh config has no nodes added!!!"))
+				return "", err
+			}
+		}
+	} else if mesh == "default" {
+		newconf = conf
+	}
+	return newconf, nil
+}
+
+func VersionCheck(v1 string, v2 string) int {
+	if v1 == v2 {
+		return 0
+	}
+	v1a, t1 := VersionFromString(v1)
+	v2a, t2 := VersionFromString(v2)
+	for i := range v1a {
+		if len(v2a) > i {
+			if v1a[i] > v2a[i] {
+				return -1
+			}
+			if v2a[i] > v1a[i] {
+				return 1
+			}
+		}
+	}
+	if len(v1a) > len(v2a) {
+		return -1
+	}
+	if len(v1a) < len(v2a) {
+		return 1
+	}
+	if t1 == t2 {
+		return 0
+	}
+	if t1 == "" {
+		return -1
+	}
+	if t2 == "" {
+		return 1
+	}
+	if t1 > t2 {
+		return -1
+	}
+	if t2 > t1 {
+		return 1
+	}
+	return 0
+}
+
+func VersionFromString(v string) (vv []int, tail string) {
+	vlist := strings.Split(strings.ReplaceAll(v, "-", "."), ".")
+	for i, c := range vlist {
+		no, err := strconv.Atoi(c)
+		if err != nil {
+			tail = strings.Join(vlist[i:], ".")
 			return
+		} else {
+			vv = append(vv, no)
 		}
 	}
 	return
 }
 
-// versions struct for backend interface ListTemplates
-type version struct {
-	distroName       string
-	distroVersion    string
-	aerospikeVersion string
-}
-
-// list of files and contents - for putting in the cluster nodes
-type fileList struct {
-	filePath     string
-	fileContents []byte
-}
-
-// get backend interface
-func getBackend(name string, remote string, pubkey string) (backend, error) {
-	if name == "docker" || name == "" {
-		var g backend
-		if remote != "" {
-			var r b_docker
-			g = r.ConfigRemote(remote, pubkey)
-		} else {
-			g = b_docker{}
-		}
-		g, err := g.Init()
-		return g, err
-	} else if name == "aws" {
-		var g backend
-		var r b_aws
-		g = r.ConfigRemote(remote, pubkey)
-		g, err := g.Init()
-		return g, err
-	}
-	return nil, fmt.Errorf(ERR_BACKEND_UNSUPPORTED, name)
-}
-
-// define backend interface
-type backend interface {
-	// return slice of strings holding cluster names, or error
-	ClusterList() ([]string, error)
-	// accept cluster name, return slice of int holding node numbers or error
-	NodeListInCluster(name string) ([]int, error)
-	// return a slice of 'version' structs containing versions of templates available
-	ListTemplates() ([]version, error)
-	// deploy a template, naming it with version, running 'script' inside for installation and copying 'files' into it
-	DeployTemplate(v version, script string, files []fileList) error
-	// destroy template for a given version
-	TemplateDestroy(v version) error
-	// deploy cluster from template, requires version, name of new cluster and node count to deploy
-	DeployCluster(v version, name string, nodeCount int, exposePorts []string) error
-	// deploy cluster from template, requires version, name of new cluster and node count to deploy. accept and use limits
-	DeployClusterWithLimits(v version, name string, nodeCount int, exposePorts []string, cpuLimit string, ramLimit string, swapLimit string, privileged bool) error
-	// copy files to cluster, requires cluster name, list of files to copy and list of nodes in cluster to copy to
-	CopyFilesToCluster(name string, files []fileList, nodes []int) error
-	// run command(s) inside node(s) in cluster. Requires cluster name, commands as slice of command slices, and nodes list slice
-	// returns a slice of byte slices containing each node/command output and error
-	RunCommand(clusterName string, commands [][]string, nodes []int) ([][]byte, error)
-	// returns a string slice containing IPs of given cluster name
-	GetClusterNodeIps(name string) ([]string, error)
-	// used by backend to configure itself for remote access. e.g. store b.user, b.host, b.pubkey from given parameters
-	ConfigRemote(host string, pubkey string) backend
-	// used to initialize the backend, for example check if docker is installed and install it if not on linux (error on mac)
-	Init() (backend, error)
-	// /stop/destroy/start cluster of given name. optional nodes slice to only start particular nodes.
-	ClusterStart(name string, nodes []int) error
-	// /stop/destroy/start cluster of given name. optional nodes slice to only start particular nodes.
-	ClusterStop(name string, nodes []int) error
-	// /stop/destroy/start cluster of given name. optional nodes slice to only start particular nodes.
-	ClusterDestroy(name string, nodes []int) error
-	// returns an unformatted string with list of clusters, to be printed to user
-	ClusterListFull() (string, error)
-	// attach to a node in cluster and run a single command. does not return output of command.
-	AttachAndRun(clusterName string, node int, command []string) (err error)
-	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
-	GetNodeIpMap(name string) (map[int]string, error)
-	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
-	GetNodeIpMapInternal(name string) (map[int]string, error)
-	// get Backend type
-	GetBackendName() string
-}
-
-// check return code from exec function
-func checkExecRetcode(err error) int {
+func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, err error) {
+	var version string
+	url, version, err = aeroFindUrl(bv.aerospikeVersion, user, pass)
 	if err != nil {
-		exiterr, ok := err.(*exec.ExitError)
-		if !ok {
-			return 666
+		if strings.Contains(fmt.Sprintf("%s", err), "401") {
+			err = fmt.Errorf("%s, Unauthorized access, check enterprise download username and password", err)
 		}
-		return exiterr.Sys().(syscall.WaitStatus).ExitStatus()
+		return
 	}
-	return 0
-}
+	bv.aerospikeVersion = version
 
-func cut(line string, pos int, split string) string {
-	p := 0
-	for _, v := range strings.Split(line, split) {
-		if v != "" {
-			p = p + 1
-		}
-		if p == pos {
-			return v
-		}
+	// resolve latest available distro version for the given aerospike version
+	installers, err := aeroFindInstallers(url, user, pass)
+	if err != nil {
+		return url, err
 	}
-	return ""
-}
 
-func cutSuffix(line string, pos int, split string) string {
-	p := 0
-	ret := ""
-	for _, v := range strings.Split(line, split) {
-		if v != "" {
-			p = p + 1
+	if bv.distroVersion != "latest" {
+		for _, installer := range installers {
+			if installer.distroName != bv.distroName {
+				continue
+			}
+			if installer.distroVersion != bv.distroVersion {
+				continue
+			}
+			url = installer.url
+			return
 		}
-		if p >= pos {
-			ret = ret + " " + v
-		}
+		err = errors.New("installer for given OS:VERSION not found")
+		return
 	}
-	return ret
-}
 
-func chDir(dir string) (int64, error) {
-	if dir != "" {
-		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			return 1, fmt.Errorf("Working directory '%s' does not exist", dir)
+	nver := -1
+	found := &dlVersion{}
+	for _, installer := range installers {
+		if installer.distroName != bv.distroName {
+			continue
 		}
-		err := os.Chdir(dir)
+		nv, err := strconv.Atoi(strings.ReplaceAll(installer.distroVersion, ".", ""))
 		if err != nil {
-			return 1, fmt.Errorf("Could not change to working directory '%s'", dir)
+			return url, err
+		}
+		if nver >= nv {
+			continue
+		}
+		nver = nv
+		found = installer
+	}
+	if nver < 0 {
+		return url, errors.New("could not determine best OS version for given aerospike version")
+	}
+	bv.distroVersion = found.distroVersion
+	url = found.url
+	return
+}
+
+func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion, error) {
+	if !strings.HasSuffix(baseUrl, "/") {
+		baseUrl = baseUrl + "/"
+	}
+	ret := []*dlVersion{}
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", baseUrl, nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if response.StatusCode != 200 {
+		err = fmt.Errorf("error code: %d, URL: %s", response.StatusCode, baseUrl)
+		return nil, err
+	}
+
+	s := bufio.NewScanner(response.Body)
+	for s.Scan() {
+		line := strings.Trim(s.Text(), "\t\r\n")
+		ind := strings.Index(line, "<a href=\"aerospike-")
+		if ind < 0 {
+			continue
+		}
+		line = line[ind+9:]
+		ind = strings.Index(line, "\">")
+		line = line[:ind]
+		if !strings.HasSuffix(line, ".tgz") {
+			continue
+		}
+		dlv := &dlVersion{
+			url: baseUrl + line,
+		}
+		line = strings.TrimSuffix(line[strings.LastIndex(line, "-")+1:], ".tgz")
+		if strings.HasPrefix(line, "ubuntu") {
+			dlv.distroName = "ubuntu"
+			dlv.distroVersion = strings.TrimPrefix(line, "ubuntu")
+			ret = append(ret, dlv)
+		} else if strings.HasPrefix(line, "debian") {
+			dlv.distroName = "debian"
+			dlv.distroVersion = strings.TrimPrefix(line, "debian")
+			ret = append(ret, dlv)
+		} else if strings.HasPrefix(line, "el") {
+			dlv.distroName = "centos"
+			dlv.distroVersion = strings.TrimPrefix(line, "el")
+			ret = append(ret, dlv)
+			if dlv.distroName == "centos" && dlv.distroVersion == "7" {
+				dlv2 := &dlVersion{
+					url:           dlv.url,
+					distroName:    "amazon",
+					distroVersion: "2",
+				}
+				ret = append(ret, dlv2)
+			}
 		}
 	}
-	return 0, nil
+	return ret, nil
+}
+
+func aeroFindUrl(version string, user string, pass string) (url string, v string, err error) {
+
+	var baseUrl string
+	partversion := ""
+	if strings.HasSuffix(version, "*") {
+		partversion = strings.TrimSuffix(version, "*")
+	}
+	if version == "latest" || version == "latestc" || strings.HasSuffix(version, "*") {
+		if version[len(version)-1] != 'c' {
+			baseUrl = "https://artifacts.aerospike.com/aerospike-server-enterprise/"
+		} else {
+			baseUrl = "https://artifacts.aerospike.com/aerospike-server-community/"
+		}
+		client := &http.Client{}
+		req, err := http.NewRequest("GET", baseUrl, nil)
+		if err != nil {
+			return url, v, err
+		}
+		response, err := client.Do(req)
+		if err != nil {
+			return "", "", err
+		}
+
+		if response.StatusCode != 200 {
+			err = fmt.Errorf("error code: %d, URL: %s", response.StatusCode, baseUrl)
+			return "", "", err
+		}
+
+		responseData, err := io.ReadAll(response.Body)
+		if err != nil {
+			return "", "", err
+		}
+		ver := ""
+		for _, line := range strings.Split(string(responseData), "\n") {
+			if strings.Contains(line, "folder.gif") {
+				rp := regexp.MustCompile(`[0-9]+\.[0-9]+\.[0-9]+[\.]*[0-9]*[^/]*`)
+				nver := rp.FindString(line)
+				if partversion == "" || strings.HasPrefix(nver, partversion) {
+					if ver == "" {
+						ver = nver
+					} else {
+						if VersionCheck(nver, ver) == -1 {
+							ver = nver
+						}
+					}
+				}
+			}
+		}
+		if ver == "" {
+			return "", "", errors.New("required version not found")
+		}
+		if version[len(version)-1] != 'c' {
+			version = ver
+		} else {
+			version = ver + "c"
+		}
+	}
+
+	if version[len(version)-1] != 'c' {
+		baseUrl = "https://artifacts.aerospike.com/aerospike-server-enterprise/" + version + "/"
+	} else {
+		baseUrl = "https://artifacts.aerospike.com/aerospike-server-community/" + version[:len(version)-1] + "/"
+	}
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", baseUrl, nil)
+	if err != nil {
+		return "", "", err
+	}
+	req.SetBasicAuth(user, pass)
+	response, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	if response.StatusCode != 200 {
+		err = fmt.Errorf("error code: %d, URL: %s", response.StatusCode, baseUrl)
+		return
+	}
+	url = baseUrl
+	v = version
+	return
 }
