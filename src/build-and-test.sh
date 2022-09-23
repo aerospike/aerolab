@@ -87,8 +87,8 @@ function setup() {
     rm -f ${AEROLAB_CONFIG_FILE}
     ${aerolab} config backend -t ${backend} -r us-east-1 || return 1
     ${aerolab} config backend |grep "config.backend.type=${backend}" || return 2
-    ${aerolab} config defaults -k *FeaturesFilePath -v ${featureFile} || return 3
-    ${aerolab} config defaults -k *.HeartbeatMode -v mesh || return 4
+    ${aerolab} config defaults -k '*FeaturesFilePath' -v ${featureFile} || return 3
+    ${aerolab} config defaults -k '*.HeartbeatMode' -v mesh || return 4
     cleanup || return 5
 }
 
