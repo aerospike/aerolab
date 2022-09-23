@@ -307,7 +307,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		return errors.New("aerospike Version is not an int.int.*")
 	}
 	if c.FeaturesFilePath == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
-		log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k *.FeaturesFilePath -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+		log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 		bufio.NewReader(os.Stdin).ReadBytes('\n')
 	}
 	if c.FeaturesFilePath == "" && aver_major == 6 && aver_minor > 0 {
