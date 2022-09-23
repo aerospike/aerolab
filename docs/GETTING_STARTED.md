@@ -83,16 +83,16 @@ Command | Description
 `aerolab config defaults help` | print help for using the defaults command
 `aerolab config defaults` | print all defaults
 `aerolab config defaults -o` | print only the defaults that have been adjusted in the config file
-`aerolab config defaults -k *Features*` | print all defaults containing the word `Features`
-`aerolab config defaults -k *.HeartbeatMode -v mesh` | adjust `HeartbeatMode` default to `mesh` for all available commands
+`aerolab config defaults -k '*Features*'` | print all defaults containing the word `Features`
+`aerolab config defaults -k '*.HeartbeatMode' -v mesh` | adjust `HeartbeatMode` default to `mesh` for all available commands
 
 #### Getting started - configuration basics
 
 It's a good idea to configure the basics so as not to have to use the command line switches each time.
 
-If using a custom features file: `aerolab config defaults -k *FeaturesFilePath -v /path/to/features.conf`
+If using a custom features file: `aerolab config defaults -k '*FeaturesFilePath' -v /path/to/features.conf`
 
-Make aerolab adjust `aerospike.conf` to always use `mesh` heartbeat modes, unless specifically overwritten in the command line: `aerolab config defaults -k *.HeartbeatMode -v mesh`
+Make aerolab adjust `aerospike.conf` to always use `mesh` heartbeat modes, unless specifically overwritten in the command line: `aerolab config defaults -k '*.HeartbeatMode' -v mesh`
 
 ## Basic usage
 

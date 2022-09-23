@@ -26,6 +26,8 @@ type clusterCreateCmd struct {
 	AutoStartAerospike    string                 `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
 	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
 	NoSetHostname         bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
+	ScriptEarly           string                 `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before aerospike starts"`
+	ScriptLate            string                 `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after aerospike stops"`
 	Aws                   clusterCreateCmdAws    `no-flag:"true"`
 	Docker                clusterCreateCmdDocker `no-flag:"true"`
 	Help                  helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -84,6 +86,18 @@ func (c *clusterCreateCmd) preChDir() {
 			c.FeaturesFilePath = path.Join(cur, c.FeaturesFilePath)
 		}
 	}
+
+	if c.ScriptEarly != "" && !strings.HasPrefix(c.ScriptEarly, "/") {
+		if _, err := os.Stat(c.ScriptEarly); err == nil {
+			c.ScriptEarly = path.Join(cur, c.ScriptEarly)
+		}
+	}
+
+	if c.ScriptLate != "" && !strings.HasPrefix(c.ScriptLate, "/") {
+		if _, err := os.Stat(c.ScriptLate); err == nil {
+			c.ScriptLate = path.Join(cur, c.ScriptLate)
+		}
+	}
 }
 
 func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
@@ -106,6 +120,22 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	c.preChDir()
 	if err := chDir(c.ChDir); err != nil {
 		logFatal("ChDir failed: %s", err)
+	}
+
+	var earlySize os.FileInfo
+	var lateSize os.FileInfo
+	var err error
+	if c.ScriptEarly != "" {
+		earlySize, err = os.Stat(c.ScriptEarly)
+		if err != nil {
+			logFatal("Early Script does not exist: %s", err)
+		}
+	}
+	if c.ScriptLate != "" {
+		lateSize, err = os.Stat(c.ScriptLate)
+		if err != nil {
+			logFatal("Late Script does not exist: %s", err)
+		}
 	}
 
 	if len(c.ClusterName) == 0 || len(c.ClusterName) > 20 {
@@ -277,7 +307,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		return errors.New("aerospike Version is not an int.int.*")
 	}
 	if c.FeaturesFilePath == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
-		log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k *.FeaturesFilePath -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+		log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 		bufio.NewReader(os.Stdin).ReadBytes('\n')
 	}
 	if c.FeaturesFilePath == "" && aver_major == 6 && aver_minor > 0 {
@@ -507,6 +537,32 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 				nstr = fmt.Sprintf("%s\n%s", nstr, string(bout))
 			}
 			return fmt.Errorf("could not register access-address script in aws: %s\n%s", err, nstr)
+		}
+	}
+
+	// install early/late scripts
+	if c.ScriptEarly != "" {
+		earlyFile, err := os.Open(c.ScriptEarly)
+		if err != nil {
+			log.Printf("ERROR: could not install early script: %s", err)
+		} else {
+			defer earlyFile.Close()
+			err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, nodeListNew)
+			if err != nil {
+				log.Printf("ERROR: could not install early script: %s", err)
+			}
+		}
+	}
+	if c.ScriptLate != "" {
+		lateFile, err := os.Open(c.ScriptLate)
+		if err != nil {
+			log.Printf("ERROR: could not install late script: %s", err)
+		} else {
+			defer lateFile.Close()
+			err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, nodeListNew)
+			if err != nil {
+				log.Printf("ERROR: could not install late script: %s", err)
+			}
 		}
 	}
 
