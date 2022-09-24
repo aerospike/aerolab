@@ -242,7 +242,7 @@ func (t *TypeDistro) Complete(match string) []flags.Completion {
 }
 
 func (t *TypeAerospikeVersion) Complete(match string) []flags.Completion {
-	clist := []string{"latest"}
+	clist := []string{"latest", "latestc"}
 	out := []flags.Completion{}
 	for _, item := range clist {
 		if match == "" || strings.HasPrefix(item, match) {
