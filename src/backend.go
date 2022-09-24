@@ -79,9 +79,9 @@ type backend interface {
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
-	ClusterListFull() (string, error)
+	ClusterListFull(json bool) (string, error)
 	// return formatted for printing template list
-	TemplateListFull() (string, error)
+	TemplateListFull(json bool) (string, error)
 	// upload files to node
 	Upload(clusterName string, node int, source string, destination string, verbose bool) error
 	// download files from node

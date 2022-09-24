@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -621,15 +622,15 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 }
 
 type clusterListFull struct {
-	clusterName string
-	nodeNumber  string
-	ipAddress   string
-	publicIp    string
-	instanceId  string
-	state       string
+	ClusterName string
+	NodeNumber  string
+	IpAddress   string
+	PublicIp    string
+	InstanceId  string
+	State       string
 }
 
-func (d *backendAws) ClusterListFull() (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 	filter := ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
@@ -642,7 +643,7 @@ func (d *backendAws) ClusterListFull() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not run DescribeInstances\n%s", err)
 	}
-	var clist []clusterListFull
+	clist := []clusterListFull{}
 	for _, reservation := range instances.Reservations {
 		for _, instance := range reservation.Instances {
 			if *instance.State.Code == int64(48) {
@@ -651,23 +652,23 @@ func (d *backendAws) ClusterListFull() (string, error) {
 			clist1 := clusterListFull{}
 			for _, tag := range instance.Tags {
 				if *tag.Key == awsTagClusterName {
-					clist1.clusterName = *tag.Value
+					clist1.ClusterName = *tag.Value
 				}
 				if *tag.Key == awsTagNodeNumber {
-					clist1.nodeNumber = *tag.Value
+					clist1.NodeNumber = *tag.Value
 				}
 			}
 			if instance.PrivateIpAddress != nil {
-				clist1.ipAddress = *instance.PrivateIpAddress
+				clist1.IpAddress = *instance.PrivateIpAddress
 			}
 			if instance.PublicIpAddress != nil {
-				clist1.publicIp = *instance.PublicIpAddress
+				clist1.PublicIp = *instance.PublicIpAddress
 			}
 			if instance.InstanceId != nil {
-				clist1.instanceId = *instance.InstanceId
+				clist1.InstanceId = *instance.InstanceId
 			}
 			if instance.State != nil && instance.State.Name != nil {
-				clist1.state = *instance.State.Name
+				clist1.State = *instance.State.Name
 			}
 			clist = append(clist, clist1)
 		}
@@ -679,47 +680,59 @@ func (d *backendAws) ClusterListFull() (string, error) {
 	instanceId := 20
 	state := 20
 	for _, item := range clist {
-		if len(item.clusterName) > clusterName {
-			clusterName = len(item.clusterName)
+		if len(item.ClusterName) > clusterName {
+			clusterName = len(item.ClusterName)
 		}
-		if len(item.nodeNumber) > nodeNumber {
-			nodeNumber = len(item.nodeNumber)
+		if len(item.NodeNumber) > nodeNumber {
+			nodeNumber = len(item.NodeNumber)
 		}
-		if len(item.ipAddress) > ipAddress {
-			ipAddress = len(item.ipAddress)
+		if len(item.IpAddress) > ipAddress {
+			ipAddress = len(item.IpAddress)
 		}
-		if len(item.publicIp) > publicIp {
-			publicIp = len(item.publicIp)
+		if len(item.PublicIp) > publicIp {
+			publicIp = len(item.PublicIp)
 		}
-		if len(item.instanceId) > instanceId {
-			instanceId = len(item.instanceId)
+		if len(item.InstanceId) > instanceId {
+			instanceId = len(item.InstanceId)
 		}
-		if len(item.state) > state {
-			state = len(item.state)
+		if len(item.State) > state {
+			state = len(item.State)
 		}
 	}
 	sort.Slice(clist, func(i, j int) bool {
-		if clist[i].clusterName < clist[j].clusterName {
+		if clist[i].ClusterName < clist[j].ClusterName {
 			return true
 		}
-		if clist[i].clusterName > clist[j].clusterName {
+		if clist[i].ClusterName > clist[j].ClusterName {
 			return false
 		}
-		ino, _ := strconv.Atoi(clist[i].nodeNumber)
-		jno, _ := strconv.Atoi(clist[j].nodeNumber)
+		ino, _ := strconv.Atoi(clist[i].NodeNumber)
+		jno, _ := strconv.Atoi(clist[j].NodeNumber)
 		return ino < jno
 	})
-	sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s\n"
-	result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State")
-	result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------")
-	for _, item := range clist {
-		result = result + fmt.Sprintf(sprintf, item.clusterName, item.nodeNumber, item.ipAddress, item.publicIp, item.instanceId, item.state)
+	if !isJson {
+		sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s\n"
+		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State")
+		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------")
+		for _, item := range clist {
+			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State)
+		}
+		return result, nil
 	}
-	return result, nil
+	out, err := json.MarshalIndent(clist, "", "    ")
+	return string(out), err
 }
 
-func (d *backendAws) TemplateListFull() (string, error) {
+type templateListFull struct {
+	OsName           string
+	OsVersion        string
+	AerospikeVersion string
+	ImageId          string
+}
+
+func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\n-----------------------------------------\n"
+	resList := []templateListFull{}
 	filterA := ec2.DescribeImagesInput{
 		Filters: []*ec2.Filter{
 			{
@@ -747,9 +760,23 @@ func (d *backendAws) TemplateListFull() (string, error) {
 				imAerVer = *tag.Value
 			}
 		}
+		mid := ""
+		if image.ImageId != nil {
+			mid = *image.ImageId
+		}
 		result = fmt.Sprintf("%s%s\t\t%s\t\t%s\n", result, imOs, imOsVer, imAerVer)
+		resList = append(resList, templateListFull{
+			OsName:           imOs,
+			OsVersion:        imOsVer,
+			AerospikeVersion: imAerVer,
+			ImageId:          mid,
+		})
 	}
-	return result, nil
+	if !isJson {
+		return result, nil
+	}
+	out, err := json.MarshalIndent(resList, "", "    ")
+	return string(out), err
 }
 
 func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
