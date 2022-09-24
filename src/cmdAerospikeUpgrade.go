@@ -15,7 +15,7 @@ import (
 type aerospikeUpgradeCmd struct {
 	aerospikeStartCmd
 	aerospikeVersionSelectorCmd
-	RestartAerospike string `short:"s" long:"restart" description:"Restart aerospike after upgrade (y/n)" default:"y"`
+	RestartAerospike TypeYesNo `short:"s" long:"restart" description:"Restart aerospike after upgrade (y/n)" default:"y"`
 }
 
 func (c *aerospikeUpgradeCmd) Execute(args []string) error {
@@ -30,7 +30,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	}
 
 	var edition string
-	if strings.HasSuffix(c.AerospikeVersion, "c") {
+	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
 	} else {
 		edition = "aerospike-server-enterprise"
@@ -41,25 +41,25 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		return errors.New("max size for clusterName is 20 characters")
 	}
 
-	if !inslice.HasString([]string{"YES", "NO", "Y", "N"}, strings.ToUpper(c.RestartAerospike)) {
+	if !inslice.HasString([]string{"YES", "NO", "Y", "N"}, strings.ToUpper(c.RestartAerospike.String())) {
 		return errors.New("value for restartAerospike should be one of: y|n")
 	}
 
 	// download aerospike
 	bv := &backendVersion{
-		distroName:       c.DistroName,
-		distroVersion:    c.DistroVersion,
-		aerospikeVersion: c.AerospikeVersion,
+		distroName:       c.DistroName.String(),
+		distroVersion:    c.DistroVersion.String(),
+		aerospikeVersion: c.AerospikeVersion.String(),
 	}
 	url, err := aerospikeGetUrl(bv, c.Username, c.Password)
 	if err != nil {
 		return err
 	}
-	c.DistroName = bv.distroName
-	c.DistroVersion = bv.distroVersion
-	c.AerospikeVersion = bv.aerospikeVersion
-	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion, "c")
-	fn := edition + "-" + verNoSuffix + "-" + c.DistroName + c.DistroVersion + ".tgz"
+	c.DistroName = TypeDistro(bv.distroName)
+	c.DistroVersion = TypeDistroVersion(bv.distroVersion)
+	c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
+	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
+	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
 	if _, err := os.Stat(fn); os.IsNotExist(err) {
 		log.Println("Downloading installer")
 		downloadFile(url, fn, c.Username, c.Password)
@@ -85,7 +85,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	if c.Nodes == "" {
 		nodeList = nodes
 	} else {
-		nNodes := strings.Split(c.Nodes, ",")
+		nNodes := strings.Split(c.Nodes.String(), ",")
 		for _, nNode := range nNodes {
 			nNodeInt, err := strconv.Atoi(nNode)
 			if err != nil {
@@ -149,7 +149,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	}
 
 	// start aerospike if selected
-	if inslice.HasString([]string{"YES", "Y"}, strings.ToUpper(c.RestartAerospike)) {
+	if inslice.HasString([]string{"YES", "Y"}, strings.ToUpper(c.RestartAerospike.String())) {
 		a.opts.Aerospike.Start.ClusterName = c.ClusterName
 		a.opts.Aerospike.Start.Nodes = c.Nodes
 		err = a.opts.Aerospike.Start.Execute(nil)

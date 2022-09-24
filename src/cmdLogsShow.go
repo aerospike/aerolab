@@ -9,7 +9,7 @@ import (
 
 type logsShowCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Node        int             `short:"l" long:"node" description:"Node number" default:"1"`
+	Node        TypeNode        `short:"l" long:"node" description:"Node number" default:"1"`
 	Journal     bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
 	LogLocation string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
 	Follow      bool            `short:"f" long:"follow" description:"Follow logs instead of displaying full log"`
@@ -34,7 +34,7 @@ func (c *logsShowCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !inslice.HasInt(nodes, c.Node) {
+	if !inslice.HasInt(nodes, c.Node.Int()) {
 		return errors.New("node in cluter doesn't exist")
 	}
 
@@ -45,7 +45,7 @@ func (c *logsShowCmd) Execute(args []string) error {
 		} else {
 			command = append(command, "--no-pager")
 		}
-		err = b.AttachAndRun(string(c.ClusterName), c.Node, command)
+		err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), command)
 		if err != nil {
 			return fmt.Errorf("journalctl error: %s", err)
 		}
@@ -58,7 +58,7 @@ func (c *logsShowCmd) Execute(args []string) error {
 	} else {
 		command = []string{"cat", c.LogLocation}
 	}
-	err = b.AttachAndRun(string(c.ClusterName), c.Node, command)
+	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), command)
 	if err != nil {
 		return fmt.Errorf("log cat error: %s", err)
 	}

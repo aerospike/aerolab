@@ -11,16 +11,16 @@ import (
 )
 
 type netLossDelayCmd struct {
-	SourceClusterName      TypeClusterName `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
-	SourceNodeList         string          `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
-	DestinationClusterName TypeClusterName `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
-	DestinationNodeList    string          `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
-	Action                 string          `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
-	ShowNames              bool            `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output"`
-	Delay                  string          `short:"p" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
-	Loss                   string          `short:"L" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
-	RunOnDestination       bool            `short:"D" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)"`
-	Rate                   string          `short:"R" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
+	SourceClusterName      TypeClusterName   `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
+	SourceNodeList         TypeNodes         `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
+	DestinationClusterName TypeClusterName   `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
+	DestinationNodeList    TypeNodes         `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
+	Action                 TypeNetLossAction `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
+	ShowNames              bool              `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output"`
+	Delay                  string            `short:"p" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
+	Loss                   string            `short:"L" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
+	RunOnDestination       bool              `short:"D" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)"`
+	Rate                   string            `short:"R" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
 }
 
 func (c *netLossDelayCmd) Execute(args []string) error {
@@ -74,7 +74,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		sn := strings.Split(c.SourceNodeList, ",")
+		sn := strings.Split(c.SourceNodeList.String(), ",")
 		for _, i := range sn {
 			snInt, err := strconv.Atoi(i)
 			if err != nil {
@@ -112,7 +112,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		dn := strings.Split(c.DestinationNodeList, ",")
+		dn := strings.Split(c.DestinationNodeList.String(), ",")
 		for _, i := range dn {
 			dnInt, err := strconv.Atoi(i)
 			if err != nil {

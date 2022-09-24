@@ -17,7 +17,7 @@ func (c *clusterStartCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Println("Running cluster.start")
-	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes)
+	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String())
 	if err != nil {
 		return err
 	}

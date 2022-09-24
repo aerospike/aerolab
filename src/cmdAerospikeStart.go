@@ -2,7 +2,7 @@ package main
 
 type aerospikeStartCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes       string          `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

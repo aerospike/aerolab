@@ -7,9 +7,9 @@ import (
 )
 
 type attachShellCmd struct {
-	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Node        string          `short:"l" long:"node" description:"Node to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
-	Help        attachCmdHelp   `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName        `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Node        TypeNodesPlusAllOption `short:"l" long:"node" description:"Node to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
+	Help        attachCmdHelp          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type attachCmdHelp struct{}
@@ -33,7 +33,7 @@ func (c *attachShellCmd) run(args []string) (err error) {
 			return err
 		}
 	} else {
-		for _, node := range strings.Split(c.Node, ",") {
+		for _, node := range strings.Split(c.Node.String(), ",") {
 			nodeInt, err := strconv.Atoi(node)
 			if err != nil {
 				return err

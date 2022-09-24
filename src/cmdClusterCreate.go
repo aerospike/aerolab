@@ -20,11 +20,11 @@ type clusterCreateCmd struct {
 	NodeCount            int             `short:"c" long:"count" description:"Number of nodes" default:"1"`
 	CustomConfigFilePath flags.Filename  `short:"o" long:"customconf" description:"Custom config file path to install"`
 	FeaturesFilePath     flags.Filename  `short:"f" long:"featurefile" description:"Features file to install"`
-	HeartbeatMode        string          `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"default"`
+	HeartbeatMode        TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"default"`
 	MulticastAddress     string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
 	MulticastPort        string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    string                 `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
+	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
 	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
 	NoSetHostname         bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
 	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before aerospike starts"`
@@ -35,12 +35,12 @@ type clusterCreateCmd struct {
 }
 
 type aerospikeVersionSelectorCmd struct {
-	AerospikeVersion string         `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition" default:"latest"`
-	DistroName       string         `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon" default:"ubuntu"`
-	DistroVersion    string         `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2" default:"latest"`
-	Username         string         `short:"U" long:"username" description:"Required for downloading older enterprise editions"`
-	Password         string         `short:"P" long:"password" description:"Required for downloading older enterprise editions"`
-	ChDir            flags.Filename `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to"`
+	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition" default:"latest"`
+	DistroName       TypeDistro           `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon" default:"ubuntu"`
+	DistroVersion    TypeDistroVersion    `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2" default:"latest"`
+	Username         string               `short:"U" long:"username" description:"Required for downloading older enterprise editions"`
+	Password         string               `short:"P" long:"password" description:"Required for downloading older enterprise editions"`
+	ChDir            flags.Filename       `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to"`
 }
 
 type clusterCreateCmdAws struct {
@@ -173,7 +173,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		logFatal("Cannot use docker export-ports feature with more than 1 node")
 	}
 
-	if err := checkDistroVersion(c.DistroName, c.DistroVersion); err != nil {
+	if err := checkDistroVersion(c.DistroName.String(), c.DistroVersion.String()); err != nil {
 		logFatal(err)
 	}
 
@@ -194,7 +194,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		logFatal("Heartbeat mode %s not supported", c.HeartbeatMode)
 	}
 
-	if !inslice.HasString([]string{"YES", "NO", "Y", "N"}, strings.ToUpper(c.AutoStartAerospike)) {
+	if !inslice.HasString([]string{"YES", "NO", "Y", "N"}, strings.ToUpper(c.AutoStartAerospike.String())) {
 		logFatal("Invalid value for AutoStartAerospike: %s", c.AutoStartAerospike)
 	}
 
@@ -205,7 +205,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	var edition string
-	if strings.HasSuffix(c.AerospikeVersion, "c") {
+	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
 	} else {
 		edition = "aerospike-server-enterprise"
@@ -213,19 +213,19 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	// if we need to lookup version, do it
 	var url string
-	bv := &backendVersion{c.DistroName, c.DistroVersion, c.AerospikeVersion}
-	if strings.HasPrefix(c.AerospikeVersion, "latest") || strings.HasSuffix(c.AerospikeVersion, "*") || strings.HasPrefix(c.DistroVersion, "latest") {
+	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}
+	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
 			return fmt.Errorf("aerospike Version not found: %s", err)
 		}
-		c.AerospikeVersion = bv.aerospikeVersion
-		c.DistroName = bv.distroName
-		c.DistroVersion = bv.distroVersion
+		c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
+		c.DistroName = TypeDistro(bv.distroName)
+		c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 	}
 
 	log.Printf("Distro = %s:%s ; AerospikeVersion = %s", c.DistroName, c.DistroVersion, c.AerospikeVersion)
-	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion, "c")
+	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
 
 	// build extra
 	var ep []string
@@ -249,7 +249,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// check if template exists
-	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName, c.DistroVersion, c.AerospikeVersion}, 1)
+	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}, 1)
 	if err != nil {
 		return err
 	}
@@ -260,12 +260,12 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			if err != nil {
 				return fmt.Errorf("aerospike Version URL not found: %s", err)
 			}
-			c.AerospikeVersion = bv.aerospikeVersion
-			c.DistroName = bv.distroName
-			c.DistroVersion = bv.distroVersion
+			c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
+			c.DistroName = TypeDistro(bv.distroName)
+			c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 		}
 
-		fn := edition + "-" + verNoSuffix + "-" + c.DistroName + c.DistroVersion + ".tgz"
+		fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
 		// download file if not exists
 		if _, err := os.Stat(fn); os.IsNotExist(err) {
 			log.Println("Downloading installer")
@@ -290,7 +290,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		defer packagefile.Close()
 		nFiles := []fileList{}
 		nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile, pfilelen})
-		nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName+":"+c.DistroVersion]
+		nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName.String()+":"+c.DistroVersion.String()]
 		err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 		if err != nil {
 			return err
@@ -298,7 +298,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// version 4.6+ warning check
-	aver := strings.Split(c.AerospikeVersion, ".")
+	aver := strings.Split(c.AerospikeVersion.String(), ".")
 	aver_major, averr := strconv.Atoi(aver[0])
 	if averr != nil {
 		return errors.New("aerospike Version is not an int.int.*")
@@ -346,7 +346,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		if err != nil {
 			return err
 		}
-		newconf, err = fixAerospikeConfig(string(conf), c.MulticastAddress, c.HeartbeatMode, clusterIps, nodeList)
+		newconf, err = fixAerospikeConfig(string(conf), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps, nodeList)
 		if err != nil {
 			return err
 		}
@@ -361,7 +361,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		newconf = string(nr[0])
 		if c.HeartbeatMode == "mesh" || c.HeartbeatMode == "mcast" {
 			// nr has contents of aerospike.conf
-			newconf, err = fixAerospikeConfig(string(nr[0]), c.MulticastAddress, c.HeartbeatMode, clusterIps, nodeList)
+			newconf, err = fixAerospikeConfig(string(nr[0]), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps, nodeList)
 			if err != nil {
 				return err
 			}
@@ -438,7 +438,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// store deployed aerospike version
-	averrd := strings.NewReader(c.AerospikeVersion)
+	averrd := strings.NewReader(c.AerospikeVersion.String())
 	files = append(files, fileList{"/opt/aerolab.aerospike.version", averrd, len(c.AerospikeVersion)})
 
 	// actually save files to nodes in cluster if needed

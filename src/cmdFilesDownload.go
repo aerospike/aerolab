@@ -20,7 +20,7 @@ type filesRestCmd struct {
 
 type filesDownloadCmd struct {
 	ClusterName TypeClusterName     `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes       string              `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
+	Nodes       TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
 	Aws         filesDownloadCmdAws `no-flag:"true"`
 	Files       filesRestCmd        `positional-args:"true"`
 }
@@ -68,7 +68,7 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 	if c.Nodes == "" {
 		nodes = nodesList
 	} else {
-		for _, nodeString := range strings.Split(c.Nodes, ",") {
+		for _, nodeString := range strings.Split(c.Nodes.String(), ",") {
 			nodeInt, err := strconv.Atoi(nodeString)
 			if err != nil {
 				return err
