@@ -5,9 +5,11 @@
 
 #### 4.1.0 - TODO ITEMS
 * add option to deploy AMS (monitoring stack)
+
+#### v4.0.1 - TODO ITEMS
 * bash completion and zsh completion
 
-#### v4.0.0
+#### v4.0.1
 * add support for centos / rhel-based distros v 7 and 8 in aws
 * add option to rename hostname of nodes to clusterName-nodeNo
 * cleanup command line interface (changes cli usage)
