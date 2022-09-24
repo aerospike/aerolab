@@ -11,6 +11,9 @@ import (
 )
 
 func init() {
+	if os.Getenv("GO_FLAGS_COMPLETION") == "" {
+		return
+	}
 	if os.Getenv("AEROLAB_SHELL") == "zsh" {
 		if !strings.HasPrefix(os.Args[len(os.Args)-1], "-") {
 			os.Args = append(os.Args, "")
