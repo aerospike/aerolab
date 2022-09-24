@@ -15,7 +15,7 @@ import (
 
 type tlsGenerateCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes       string          `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	TlsName     string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
 	CaName      string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
 	NoUpload    bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
@@ -63,7 +63,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 		if c.Nodes == "" {
 			nodes = nodeList
 		} else {
-			for _, nodeString := range strings.Split(c.Nodes, ",") {
+			for _, nodeString := range strings.Split(c.Nodes.String(), ",") {
 				nodeInt, err := strconv.Atoi(nodeString)
 				if err != nil {
 					return err

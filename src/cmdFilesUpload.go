@@ -53,7 +53,7 @@ func (c *filesUploadCmd) Execute(args []string) error {
 	if c.Nodes == "" {
 		nodes = nodesList
 	} else {
-		for _, nodeString := range strings.Split(c.Nodes, ",") {
+		for _, nodeString := range strings.Split(c.Nodes.String(), ",") {
 			nodeInt, err := strconv.Atoi(nodeString)
 			if err != nil {
 				return err

@@ -19,9 +19,9 @@ type xdrConnectCmd struct {
 type xdrConnectRealCmd struct {
 	sourceClusterName       TypeClusterName
 	destinationClusterNames TypeClusterName
-	Version                 string `short:"V" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto"`
-	Restart                 string `short:"T" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y"`
-	Namespaces              string `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
+	Version                 TypeXDRVersion `short:"V" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto"`
+	Restart                 TypeYesNo      `short:"T" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y"`
+	Namespaces              string         `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
 }
 
 func (c *xdrConnectCmd) Execute(args []string) error {
@@ -277,7 +277,7 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		snl = append(snl, strconv.Itoa(sn))
 	}
 	a.opts.Aerospike.Restart.ClusterName = c.sourceClusterName
-	a.opts.Aerospike.Restart.Nodes = strings.Join(snl, ",")
+	a.opts.Aerospike.Restart.Nodes = TypeNodes(strings.Join(snl, ","))
 	e := a.opts.Aerospike.Restart.Execute(args)
 	if e != nil {
 		return e

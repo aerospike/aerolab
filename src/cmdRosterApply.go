@@ -41,7 +41,7 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	if c.Nodes == "" {
 		nodesList = nodes
 	} else {
-		for _, nn := range strings.Split(c.Nodes, ",") {
+		for _, nn := range strings.Split(c.Nodes.String(), ",") {
 			n, err := strconv.Atoi(nn)
 			if err != nil {
 				return fmt.Errorf("%s is not a number: %s", nn, err)

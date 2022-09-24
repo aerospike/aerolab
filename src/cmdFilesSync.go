@@ -14,9 +14,9 @@ import (
 
 type filesSyncCmd struct {
 	SourceClusterName TypeClusterName `short:"n" long:"source-name" description:"Source Cluster name" default:"mydc"`
-	SourceNode        int             `short:"l" long:"source-node" description:"Source Node number" default:"1"`
+	SourceNode        TypeNode        `short:"l" long:"source-node" description:"Source Node number" default:"1"`
 	DestClusterName   TypeClusterName `short:"d" long:"dest-name" description:"Source Cluster name" default:"mydc"`
-	DestNodes         string          `short:"o" long:"dest-nodes" description:"Destination nodes, comma separated; empty = all except source node" default:""`
+	DestNodes         TypeNodes       `short:"o" long:"dest-nodes" description:"Destination nodes, comma separated; empty = all except source node" default:""`
 	Path              string          `short:"p" long:"path" description:"Path to sync"`
 }
 
@@ -55,7 +55,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	}
 
 	// check source node exists
-	if !inslice.HasInt(sourceNodes, c.SourceNode) {
+	if !inslice.HasInt(sourceNodes, c.SourceNode.Int()) {
 		return errors.New("source node not found in cluster")
 	}
 
@@ -66,19 +66,19 @@ func (c *filesSyncCmd) Execute(args []string) error {
 			destNodeList = destNodes
 		} else {
 			for _, d := range destNodes {
-				if d == c.SourceNode {
+				if d == c.SourceNode.Int() {
 					continue
 				}
 				destNodeList = append(destNodeList, d)
 			}
 		}
 	} else {
-		for _, i := range strings.Split(c.DestNodes, ",") {
+		for _, i := range strings.Split(c.DestNodes.String(), ",") {
 			d, err := strconv.Atoi(i)
 			if err != nil {
 				return err
 			}
-			if string(c.SourceClusterName) == string(c.DestClusterName) && d == c.SourceNode {
+			if string(c.SourceClusterName) == string(c.DestClusterName) && d == c.SourceNode.Int() {
 				return errors.New("source node is also specified as a destination node, that's not going to work")
 			}
 			destNodeList = append(destNodeList, d)
@@ -98,7 +98,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	defer os.RemoveAll(dir)
 
 	a.opts.Files.Download.ClusterName = c.SourceClusterName
-	a.opts.Files.Download.Nodes = strconv.Itoa(c.SourceNode)
+	a.opts.Files.Download.Nodes = TypeNodes(strconv.Itoa(c.SourceNode.Int()))
 	a.opts.Files.Download.Files.Source = flags.Filename(c.Path)
 	a.opts.Files.Download.Files.Destination = flags.Filename(dir)
 	err = a.opts.Files.Download.Execute(nil)
@@ -107,7 +107,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	}
 
 	a.opts.Files.Upload.ClusterName = c.DestClusterName
-	a.opts.Files.Upload.Nodes = intSliceToString(destNodeList, ",")
+	a.opts.Files.Upload.Nodes = TypeNodes(intSliceToString(destNodeList, ","))
 	_, src := path.Split(strings.TrimSuffix(c.Path, "/"))
 	a.opts.Files.Upload.Files.Source = flags.Filename(path.Join(dir, src))
 	dst, _ := path.Split(strings.TrimSuffix(c.Path, "/"))

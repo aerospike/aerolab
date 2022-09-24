@@ -8,7 +8,7 @@ import (
 
 type filesEditCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Node        int             `short:"l" long:"node" description:"Node number" default:"1"`
+	Node        TypeNode        `short:"l" long:"node" description:"Node number" default:"1"`
 	Editor      string          `short:"e" long:"editor" description:"Editor command; must be present on the node" default:"vi"`
 	Path        filesSingleCmd  `positional-args:"true"`
 }
@@ -32,6 +32,6 @@ func (c *filesEditCmd) Execute(args []string) error {
 		logFatal("Could not init backend: %s", err)
 	}
 	a.opts.Attach.Shell.ClusterName = c.ClusterName
-	a.opts.Attach.Shell.Node = strconv.Itoa(c.Node)
+	a.opts.Attach.Shell.Node = TypeNodesPlusAllOption(strconv.Itoa(c.Node.Int()))
 	return a.opts.Attach.Shell.Execute([]string{c.Editor, string(c.Path.Path)})
 }

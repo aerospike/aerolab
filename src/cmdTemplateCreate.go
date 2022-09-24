@@ -43,21 +43,21 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	}
 
 	var url string
-	bv := &backendVersion{c.DistroName, c.DistroVersion, c.AerospikeVersion}
-	if strings.HasPrefix(c.AerospikeVersion, "latest") || strings.HasSuffix(c.AerospikeVersion, "*") || strings.HasPrefix(c.DistroVersion, "latest") {
+	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}
+	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
 			return fmt.Errorf("aerospike Version not found: %s", err)
 		}
-		c.AerospikeVersion = bv.aerospikeVersion
-		c.DistroName = bv.distroName
-		c.DistroVersion = bv.distroVersion
+		c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
+		c.DistroName = TypeDistro(bv.distroName)
+		c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 	}
 
 	log.Printf("Distro = %s:%s ; AerospikeVersion = %s", c.DistroName, c.DistroVersion, c.AerospikeVersion)
-	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion, "c")
+	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
 	// check if template exists
-	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName, c.DistroVersion, c.AerospikeVersion}, 1)
+	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}, 1)
 	if err != nil {
 		return err
 	}
@@ -69,18 +69,18 @@ func (c *templateCreateCmd) Execute(args []string) error {
 		if err != nil {
 			return fmt.Errorf("aerospike Version URL not found: %s", err)
 		}
-		c.AerospikeVersion = bv.aerospikeVersion
-		c.DistroName = bv.distroName
-		c.DistroVersion = bv.distroVersion
+		c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
+		c.DistroName = TypeDistro(bv.distroName)
+		c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 	}
 
 	var edition string
-	if strings.HasSuffix(c.AerospikeVersion, "c") {
+	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
-	fn := edition + "-" + verNoSuffix + "-" + c.DistroName + c.DistroVersion + ".tgz"
+	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
 	// download file if not exists
 	if _, err := os.Stat(fn); os.IsNotExist(err) {
 		log.Println("Downloading installer")
@@ -105,7 +105,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	defer packagefile.Close()
 	nFiles := []fileList{}
 	nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile, pfilelen})
-	nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName+":"+c.DistroVersion]
+	nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName.String()+":"+c.DistroVersion.String()]
 	extra := &backendExtra{
 		ami:             c.Aws.AMI,
 		instanceType:    c.Aws.InstanceType,

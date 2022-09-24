@@ -7,7 +7,7 @@ import (
 
 type clusterStopCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
-	Nodes       string          `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 	clusterStartStopDestroyCmd
 }
@@ -17,7 +17,7 @@ func (c *clusterStopCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Println("Running cluster.stop")
-	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes)
+	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String())
 	if err != nil {
 		return err
 	}

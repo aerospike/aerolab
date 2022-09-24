@@ -10,17 +10,17 @@ import (
 )
 
 type netBlockCmd struct {
-	SourceClusterName      TypeClusterName `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
-	SourceNodeList         string          `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
-	DestinationClusterName TypeClusterName `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
-	DestinationNodeList    string          `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
-	Type                   string          `short:"t" long:"type" description:"Block type (reject|drop)." default:"reject"`
-	Ports                  string          `short:"p" long:"ports" description:"Comma separated list of ports to block." default:"3000"`
-	BlockOn                string          `short:"b" long:"block-on" description:"Block where (input|output). Input=on destination, output=on source." default:"input"`
-	StatisticMode          string          `short:"M" long:"statistic-mode" description:"for partial packet loss, supported are: random | nth. Not set: drop all packets." default:""`
-	StatisticProbability   string          `short:"P" long:"probability" description:"for partial packet loss mode random. Supported values are between 0.0 and 1.0 (0% to 100%)" default:"0.5"`
-	StatisticEvery         string          `short:"E" long:"every" description:"for partial packet loss mode nth. Match one every nth packet. Default: 2 (50% loss)" default:"2"`
-	Help                   helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	SourceClusterName      TypeClusterName      `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
+	SourceNodeList         TypeNodes            `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
+	DestinationClusterName TypeClusterName      `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
+	DestinationNodeList    TypeNodes            `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
+	Type                   TypeNetType          `short:"t" long:"type" description:"Block type (reject|drop)." default:"reject"`
+	Ports                  string               `short:"p" long:"ports" description:"Comma separated list of ports to block." default:"3000"`
+	BlockOn                TypeNetBlockOn       `short:"b" long:"block-on" description:"Block where (input|output). Input=on destination, output=on source." default:"input"`
+	StatisticMode          TypeNetStatisticMode `short:"M" long:"statistic-mode" description:"for partial packet loss, supported are: random | nth. Not set: drop all packets." default:""`
+	StatisticProbability   string               `short:"P" long:"probability" description:"for partial packet loss mode random. Supported values are between 0.0 and 1.0 (0% to 100%)" default:"0.5"`
+	StatisticEvery         string               `short:"E" long:"every" description:"for partial packet loss mode nth. Match one every nth packet. Default: 2 (50% loss)" default:"2"`
+	Help                   helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *netBlockCmd) Execute(args []string) error {
@@ -48,12 +48,12 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 	var statisticEvery string
 	sc = string(c.SourceClusterName)
 	dc = string(c.DestinationClusterName)
-	sn = strings.Split(c.SourceNodeList, ",")
-	dn = strings.Split(c.DestinationNodeList, ",")
-	t = c.Type
+	sn = strings.Split(c.SourceNodeList.String(), ",")
+	dn = strings.Split(c.DestinationNodeList.String(), ",")
+	t = c.Type.String()
 	ports = strings.Split(c.Ports, ",")
-	loc = c.BlockOn
-	statisticMode = c.StatisticMode
+	loc = c.BlockOn.String()
+	statisticMode = c.StatisticMode.String()
 	statisticRandom = c.StatisticProbability
 	statisticEvery = c.StatisticEvery
 
