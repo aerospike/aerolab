@@ -1,0 +1,64 @@
+                       Ultimate Packer for eXecutables
+                          Copyright (C) 1996 - 2020
+UPX 3.96        Markus Oberhumer, Laszlo Molnar & John Reiser   Jan 23rd 2020
+
+        File size         Ratio      Format      Name
+   --------------------   ------   -----------   -----------
+  14581760 ->   4667832   32.01%   linux/amd64   aerolab-linux
+
+Packed 1 file.
+                       Ultimate Packer for eXecutables
+                          Copyright (C) 1996 - 2020
+UPX 3.96        Markus Oberhumer, Laszlo Molnar & John Reiser   Jan 23rd 2020
+
+        File size         Ratio      Format      Name
+   --------------------   ------   -----------   -----------
+  15631120 ->   4870160   31.16%   macho/amd64   aerolab-macos
+
+Packed 1 file.
+Sat 24 Sep 2022 12:57:46 PDT setup ........................ OK
+Sat 24 Sep 2022 12:57:50 PDT check_version ................ OK
+Sat 24 Sep 2022 12:57:50 PDT check_installer_listversions . OK
+Sat 24 Sep 2022 12:57:50 PDT check_installer_download ..... OK
+Sat 24 Sep 2022 12:57:51 PDT check_cluster_create ......... OK
+Sat 24 Sep 2022 12:58:52 PDT check_cluster_list ........... OK
+Sat 24 Sep 2022 12:58:52 PDT check_cluster_stop ........... OK
+Sat 24 Sep 2022 12:58:52 PDT check_cluster_start .......... OK
+Sat 24 Sep 2022 12:58:54 PDT check_cluster_grow ........... OK
+Sat 24 Sep 2022 12:58:58 PDT check_conf_fixmesh ........... OK
+Sat 24 Sep 2022 12:59:00 PDT check_aerospike_stop ......... OK
+Sat 24 Sep 2022 12:59:00 PDT check_aerospike_start ........ OK
+Sat 24 Sep 2022 12:59:01 PDT check_aerospike_restart ...... OK
+Sat 24 Sep 2022 12:59:03 PDT check_aerospike_upgrade ...... OK
+Sat 24 Sep 2022 12:59:33 PDT check_files_edit ............. OK
+Sat 24 Sep 2022 12:59:33 PDT check_files_sync ............. OK
+Sat 24 Sep 2022 12:59:34 PDT check_files_upload ........... OK
+Sat 24 Sep 2022 12:59:35 PDT check_files_download ......... OK
+Sat 24 Sep 2022 12:59:35 PDT check_logs_show .............. OK
+Sat 24 Sep 2022 12:59:36 PDT check_logs_get ............... OK
+Sat 24 Sep 2022 12:59:37 PDT pause ........................ OK
+Sat 24 Sep 2022 12:59:42 PDT check_attach_shell ........... OK
+Sat 24 Sep 2022 12:59:42 PDT check_attach_aql ............. OK
+Sat 24 Sep 2022 12:59:42 PDT check_attach_asadm ........... OK
+Sat 24 Sep 2022 12:59:44 PDT check_attach_asinfo .......... OK
+Sat 24 Sep 2022 12:59:45 PDT check_roster_apply ........... OK
+Sat 24 Sep 2022 13:00:02 PDT check_roster_show ............ OK
+Sat 24 Sep 2022 13:00:06 PDT check_data_insert ............ OK
+Sat 24 Sep 2022 13:00:08 PDT check_attach_asadm ........... OK
+Sat 24 Sep 2022 13:00:09 PDT check_data_delete ............ OK
+Sat 24 Sep 2022 13:00:11 PDT check_attach_asadm ........... OK
+Sat 24 Sep 2022 13:00:12 PDT check_net_block .............. OK
+Sat 24 Sep 2022 13:00:14 PDT check_net_list ............... OK
+Sat 24 Sep 2022 13:00:16 PDT check_net_unblock ............ OK
+Sat 24 Sep 2022 13:00:17 PDT check_net_lossdelay .......... OK
+Sat 24 Sep 2022 13:00:29 PDT check_cluster_destroy ........ OK
+Sat 24 Sep 2022 13:00:32 PDT check_template_destroy ....... OK
+Sat 24 Sep 2022 13:00:33 PDT check_template_create ........ OK
+Sat 24 Sep 2022 13:02:33 PDT check_xdr_create ............. OK
+Sat 24 Sep 2022 13:02:52 PDT check_xdr_details ............ OK
+Sat 24 Sep 2022 13:02:58 PDT check_xdr_connect ............ OK
+Sat 24 Sep 2022 13:03:06 PDT check_xdr_details ............ OK
+Sat 24 Sep 2022 13:03:11 PDT check_tls_generate ........... OK
+Sat 24 Sep 2022 13:03:23 PDT check_tls_copy ............... OK
+Sat 24 Sep 2022 13:03:37 PDT cleanup ...................... OK
+Sat 24 Sep 2022 13:03:42 PDT end .......................... OK
