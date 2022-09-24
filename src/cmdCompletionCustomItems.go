@@ -27,13 +27,13 @@ func completionCustomCheck() bool {
 }
 
 type TypeClusterName string
-type TypeNodes string              // TODO: depends on cluster name
-type TypeNodesPlusAllOption string // TODO: depends on cluster name
-type TypeNode int                  // TODO: depends on cluster name
+type TypeNodes string              // depends on cluster name, will not autocomplete
+type TypeNodesPlusAllOption string // depends on cluster name, will not autocomplete
+type TypeNode int                  // depends on cluster name, will not autocomplete
 type TypeYesNo string
 type TypeHBMode string
 type TypeDistro string
-type TypeDistroVersion string // TODO: depends on another parameter
+type TypeDistroVersion string
 type TypeAerospikeVersion string
 type TypeClientVersion string
 type TypeExistsAction string
@@ -230,6 +230,19 @@ func (t *TypeXDRVersion) Complete(match string) []flags.Completion {
 
 func (t *TypeDistro) Complete(match string) []flags.Completion {
 	clist := []string{"ubuntu", "amazon", "centos"}
+	out := []flags.Completion{}
+	for _, item := range clist {
+		if match == "" || strings.HasPrefix(item, match) {
+			out = append(out, flags.Completion{
+				Item: item,
+			})
+		}
+	}
+	return out
+}
+
+func (t *TypeDistroVersion) Complete(match string) []flags.Completion {
+	clist := []string{"22.04", "20.04", "18.04", "8", "7", "2"}
 	out := []flags.Completion{}
 	for _, item := range clist {
 		if match == "" || strings.HasPrefix(item, match) {
