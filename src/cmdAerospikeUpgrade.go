@@ -24,7 +24,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	}
 	log.Print("Running aerospike.upgrade")
 
-	err := chDir(c.ChDir)
+	err := chDir(string(c.ChDir))
 	if err != nil {
 		return err
 	}
@@ -37,7 +37,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	}
 
 	// check cluster name
-	if len(c.ClusterName) == 0 || len(c.ClusterName) > 20 {
+	if len(string(c.ClusterName)) == 0 || len(string(c.ClusterName)) > 20 {
 		return errors.New("max size for clusterName is 20 characters")
 	}
 
@@ -70,13 +70,13 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !inslice.HasString(clusterList, c.ClusterName) {
-		err = fmt.Errorf("error, cluster does not exist: %s", c.ClusterName)
+	if !inslice.HasString(clusterList, string(c.ClusterName)) {
+		err = fmt.Errorf("error, cluster does not exist: %s", string(c.ClusterName))
 		return err
 	}
 
 	// make a node list
-	nodes, err := b.NodeListInCluster(c.ClusterName)
+	nodes, err := b.NodeListInCluster(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		return err
 	}
 	defer fnContents.Close()
-	err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/root/upgrade.tgz", fnContents, pfilelen}}, nodeList)
+	err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/root/upgrade.tgz", fnContents, pfilelen}}, nodeList)
 	if err != nil {
 		return err
 	}
@@ -127,22 +127,22 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	// upgrade
 	for _, i := range nodeList {
 		// backup aerospike.conf
-		nret, err := b.RunCommands(c.ClusterName, [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, []int{i})
+		nret, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, []int{i})
 		if err != nil {
 			return err
 		}
 		nfile := nret[0]
-		out, err := b.RunCommands(c.ClusterName, [][]string{[]string{"tar", "-zxvf", "/root/upgrade.tgz"}}, []int{i})
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"tar", "-zxvf", "/root/upgrade.tgz"}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// upgrade
-		out, err = b.RunCommands(c.ClusterName, [][]string{[]string{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd %s && ./asinstall", strings.TrimSuffix(fn, ".tgz"))}}, []int{i})
+		out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd %s && ./asinstall", strings.TrimSuffix(fn, ".tgz"))}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// recover aerospike.conf backup
-		err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/etc/aerospike/aerospike.conf", bytes.NewReader(nfile), len(nfile)}}, []int{i})
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/aerospike/aerospike.conf", bytes.NewReader(nfile), len(nfile)}}, []int{i})
 		if err != nil {
 			return err
 		}

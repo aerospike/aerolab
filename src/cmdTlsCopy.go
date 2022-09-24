@@ -12,12 +12,12 @@ import (
 )
 
 type tlsCopyCmd struct {
-	SourceClusterName      string  `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
-	SourceNode             int     `short:"l" long:"source-node" description:"Source node from which to copy the TLS certificates" default:"1"`
-	DestinationClusterName string  `short:"d" long:"destination" description:"Destination Cluster name." default:"client"`
-	DestinationNodeList    string  `short:"a" long:"destination-nodes" description:"List of destination nodes to copy the TLS certs to, comma separated. Empty=ALL." default:""`
-	TlsName                string  `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
-	Help                   helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	SourceClusterName      TypeClusterName `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
+	SourceNode             int             `short:"l" long:"source-node" description:"Source node from which to copy the TLS certificates" default:"1"`
+	DestinationClusterName TypeClusterName `short:"d" long:"destination" description:"Destination Cluster name." default:"client"`
+	DestinationNodeList    string          `short:"a" long:"destination-nodes" description:"List of destination nodes to copy the TLS certs to, comma separated. Empty=ALL." default:""`
+	TlsName                string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
+	Help                   helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *tlsCopyCmd) Execute(args []string) error {
@@ -31,18 +31,18 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 		return err
 	}
 
-	if !inslice.HasString(clusterList, c.SourceClusterName) {
+	if !inslice.HasString(clusterList, string(c.SourceClusterName)) {
 		return errors.New("source Cluster not found")
 	}
-	if !inslice.HasString(clusterList, c.DestinationClusterName) {
+	if !inslice.HasString(clusterList, string(c.DestinationClusterName)) {
 		return errors.New("destination Cluster not found")
 	}
 
-	sourceClusterNodes, err := b.NodeListInCluster(c.SourceClusterName)
+	sourceClusterNodes, err := b.NodeListInCluster(string(c.SourceClusterName))
 	if err != nil {
 		return err
 	}
-	destClusterNodes, err := b.NodeListInCluster(c.DestinationClusterName)
+	destClusterNodes, err := b.NodeListInCluster(string(c.DestinationClusterName))
 	if err != nil {
 		return err
 	}
@@ -71,7 +71,7 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 	// nodesList has list of nodes to copy TLS cert to
 	// we have: sourceClusterNodes, destClusterNodes, nodesList, and everything in conf struct
 
-	out, err := b.RunCommands(c.SourceClusterName, [][]string{[]string{"ls", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, []int{c.SourceNode})
+	out, err := b.RunCommands(string(c.SourceClusterName), [][]string{[]string{"ls", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, []int{c.SourceNode})
 	if err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 		if file == "" {
 			continue
 		}
-		out, err := b.RunCommands(c.SourceClusterName, [][]string{[]string{"cat", path.Join("/etc/aerospike/ssl/", c.TlsName, file)}}, []int{c.SourceNode})
+		out, err := b.RunCommands(string(c.SourceClusterName), [][]string{[]string{"cat", path.Join("/etc/aerospike/ssl/", c.TlsName, file)}}, []int{c.SourceNode})
 		if err != nil {
 			return err
 		}
@@ -90,12 +90,12 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 		fl = append(fl, fileList{path.Join("/etc/aerospike/ssl/", c.TlsName, file), bytes.NewReader(nout), len(nout)})
 	}
 
-	_, err = b.RunCommands(c.DestinationClusterName, [][]string{[]string{"rm", "-rf", path.Join("/etc/aerospike/ssl/", c.TlsName)}, []string{"mkdir", "-p", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, nodesList)
+	_, err = b.RunCommands(string(c.DestinationClusterName), [][]string{[]string{"rm", "-rf", path.Join("/etc/aerospike/ssl/", c.TlsName)}, []string{"mkdir", "-p", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, nodesList)
 	if err != nil {
 		return err
 	}
 
-	err = b.CopyFilesToCluster(c.DestinationClusterName, fl, nodesList)
+	err = b.CopyFilesToCluster(string(c.DestinationClusterName), fl, nodesList)
 	if err != nil {
 		return err
 	}

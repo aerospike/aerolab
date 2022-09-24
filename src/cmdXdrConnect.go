@@ -11,14 +11,14 @@ import (
 )
 
 type xdrConnectCmd struct {
-	SourceClusterName       string `short:"S" long:"source" description:"Source Cluster name" default:"mydc"`
-	DestinationClusterNames string `short:"D" long:"destinations" description:"Destination Cluster names, comma separated." default:"destdc"`
+	SourceClusterName       TypeClusterName `short:"S" long:"source" description:"Source Cluster name" default:"mydc"`
+	DestinationClusterNames TypeClusterName `short:"D" long:"destinations" description:"Destination Cluster names, comma separated." default:"destdc"`
 	xdrConnectRealCmd
 }
 
 type xdrConnectRealCmd struct {
-	sourceClusterName       string
-	destinationClusterNames string
+	sourceClusterName       TypeClusterName
+	destinationClusterNames TypeClusterName
 	Version                 string `short:"V" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto"`
 	Restart                 string `short:"T" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y"`
 	Namespaces              string `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
@@ -36,7 +36,7 @@ func (c *xdrConnectCmd) Execute(args []string) error {
 func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 	log.Print("Running xdr.connect")
 	namespaces := strings.Split(c.Namespaces, ",")
-	destinations := strings.Split(c.destinationClusterNames, ",")
+	destinations := strings.Split(string(c.destinationClusterNames), ",")
 
 	if c.Restart != "n" && c.Restart != "y" {
 		return errors.New("restart-source option only accepts 'y' or 'n'")
@@ -47,12 +47,12 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		return err
 	}
 
-	if !inslice.HasString(clusterList, c.sourceClusterName) {
+	if !inslice.HasString(clusterList, string(c.sourceClusterName)) {
 		err = fmt.Errorf("cluster does not exist: %s", c.sourceClusterName)
 		return err
 	}
 
-	sourceNodeList, err := b.NodeListInCluster(c.sourceClusterName)
+	sourceNodeList, err := b.NodeListInCluster(string(c.sourceClusterName))
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 
 	// we have c.SourceClusterName, sourceNodeList, destinations, destIpList, namespaces
 
-	_, err = b.RunCommands(c.sourceClusterName, [][]string{[]string{"mkdir", "-p", "/opt/aerospike/xdr"}}, sourceNodeList)
+	_, err = b.RunCommands(string(c.sourceClusterName), [][]string{[]string{"mkdir", "-p", "/opt/aerospike/xdr"}}, sourceNodeList)
 	if err != nil {
 		return fmt.Errorf("failed running mkdir /opt/aerospike/xdr: %s", err)
 	}
@@ -94,7 +94,7 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		case "auto":
 			// perform discovery
 			xdrVersion = "5"
-			out, err := b.RunCommands(c.sourceClusterName, [][]string{[]string{"cat", "/opt/aerolab.aerospike.version"}}, []int{snode})
+			out, err := b.RunCommands(string(c.sourceClusterName), [][]string{[]string{"cat", "/opt/aerolab.aerospike.version"}}, []int{snode})
 			if err != nil {
 				return fmt.Errorf("failed running cat /opt/aerolab.aerospike.version, cannot auto-discover: %s", err)
 			}
@@ -111,7 +111,7 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		}
 
 		//read file
-		out, err := b.RunCommands(c.sourceClusterName, [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, []int{snode})
+		out, err := b.RunCommands(string(c.sourceClusterName), [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, []int{snode})
 		if err != nil {
 			return fmt.Errorf("failed running cat /etc/aerospike/aerospike.conf: %s", err)
 		}
@@ -261,7 +261,7 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		}
 
 		finalConf := strings.Join(confsx, "\n")
-		err = b.CopyFilesToCluster(c.sourceClusterName, []fileList{fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(finalConf), len(finalConf)}}, []int{snode})
+		err = b.CopyFilesToCluster(string(c.sourceClusterName), []fileList{fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(finalConf), len(finalConf)}}, []int{snode})
 		if err != nil {
 			return fmt.Errorf("error trying to modify config file while configuring xdr: %s", err)
 		}

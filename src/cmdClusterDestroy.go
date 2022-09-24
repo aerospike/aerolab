@@ -24,7 +24,7 @@ func (c *clusterDestroyCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Println("Running cluster.destroy")
-	cList, nodes, err := c.getBasicData(c.ClusterName, c.Nodes)
+	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes)
 	if err != nil {
 		return err
 	}

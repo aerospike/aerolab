@@ -5,9 +5,11 @@
 
 #### 4.1.0 - TODO ITEMS
 * add option to deploy AMS (monitoring stack)
+* add shell completion for: NodeNumber,Nodes,DistroName,DistroVerion,AerospikeVersion,y/n selectors,HeartbeatMode
 
 #### v4.0.1 - TODO ITEMS
 * bash completion and zsh completion
+  * support for commands, switch names, ClusterName completion, file path completion
 
 #### v4.0.1
 * add support for centos / rhel-based distros v 7 and 8 in aws

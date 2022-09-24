@@ -7,9 +7,9 @@ import (
 )
 
 type attachShellCmd struct {
-	ClusterName string        `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Node        string        `short:"l" long:"node" description:"Node to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
-	Help        attachCmdHelp `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Node        string          `short:"l" long:"node" description:"Node to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
+	Help        attachCmdHelp   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type attachCmdHelp struct{}
@@ -28,7 +28,7 @@ func (c *attachShellCmd) run(args []string) (err error) {
 	}
 	var nodes []int
 	if c.Node == "all" {
-		nodes, err = b.NodeListInCluster(c.ClusterName)
+		nodes, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {
 			return err
 		}
@@ -46,9 +46,9 @@ func (c *attachShellCmd) run(args []string) (err error) {
 	}
 	for _, node := range nodes {
 		if len(nodes) > 1 {
-			fmt.Printf(" ======== %s:%d ========\n", c.ClusterName, node)
+			fmt.Printf(" ======== %s:%d ========\n", string(c.ClusterName), node)
 		}
-		erra := b.AttachAndRun(c.ClusterName, node, args)
+		erra := b.AttachAndRun(string(c.ClusterName), node, args)
 		if erra != nil {
 			if err == nil {
 				err = erra

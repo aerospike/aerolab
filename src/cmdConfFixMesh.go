@@ -24,22 +24,22 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !inslice.HasString(clusterList, c.ClusterName) {
-		err = fmt.Errorf("cluster does not exist: %s", c.ClusterName)
+	if !inslice.HasString(clusterList, string(c.ClusterName)) {
+		err = fmt.Errorf("cluster does not exist: %s", string(c.ClusterName))
 		return err
 	}
 
 	// get cluster IPs and node list
-	clusterIps, err := b.GetClusterNodeIps(c.ClusterName)
+	clusterIps, err := b.GetClusterNodeIps(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
-	nodeList, err := b.NodeListInCluster(c.ClusterName)
+	nodeList, err := b.NodeListInCluster(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
 
-	nip, err := b.GetNodeIpMap(c.ClusterName, false)
+	nip, err := b.GetNodeIpMap(string(c.ClusterName), false)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 		var r [][]string
 		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
 		var nr [][]byte
-		nr, err = b.RunCommands(c.ClusterName, r, []int{i})
+		nr, err = b.RunCommands(string(c.ClusterName), r, []int{i})
 		if err != nil {
 			return err
 		}
@@ -66,7 +66,7 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 		}
 		files = append(files, fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)})
 		if len(files) > 0 {
-			err := b.CopyFilesToCluster(c.ClusterName, files, []int{i})
+			err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{i})
 			if err != nil {
 				return err
 			}

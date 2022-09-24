@@ -19,7 +19,7 @@ func init() {
 }
 
 func (c *filesUploadCmd) Execute(args []string) error {
-	if earlyProcess(args) {
+	if earlyProcessV2(args, false) {
 		return nil
 	}
 	if c.Files.Source == "help" && c.Files.Destination == "" {
@@ -28,18 +28,25 @@ func (c *filesUploadCmd) Execute(args []string) error {
 	if c.Files.Destination == "" {
 		return printHelp("")
 	}
+	if b == nil {
+		logFatal("Invalid backend")
+	}
+	err := b.Init()
+	if err != nil {
+		logFatal("Could not init backend: %s", err)
+	}
 	log.Print("Running files.upload")
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return err
 	}
-	if !inslice.HasString(clusterList, c.ClusterName) {
-		err = fmt.Errorf("cluster does not exist: %s", c.ClusterName)
+	if !inslice.HasString(clusterList, string(c.ClusterName)) {
+		err = fmt.Errorf("cluster does not exist: %s", string(c.ClusterName))
 		return err
 	}
 
 	var nodes []int
-	nodesList, err := b.NodeListInCluster(c.ClusterName)
+	nodesList, err := b.NodeListInCluster(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
@@ -63,9 +70,9 @@ func (c *filesUploadCmd) Execute(args []string) error {
 	}
 
 	for _, node := range nodes {
-		err = b.Upload(c.ClusterName, node, c.Files.Source, c.Files.Destination, c.Aws.Verbose)
+		err = b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), c.Aws.Verbose)
 		if err != nil {
-			log.Printf("ERROR SRC=%s:%d MSG=%s", c.ClusterName, node, err)
+			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
 		}
 	}
 	log.Print("Done")

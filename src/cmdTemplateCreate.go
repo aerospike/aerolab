@@ -25,7 +25,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 		return nil
 	}
 
-	if err := chDir(c.ChDir); err != nil {
+	if err := chDir(string(c.ChDir)); err != nil {
 		logFatal("ChDir failed: %s", err)
 	}
 
