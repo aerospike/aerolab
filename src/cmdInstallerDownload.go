@@ -17,7 +17,7 @@ func (c *installerDownloadCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Print("Running installer.download")
-	if err := chDir(c.ChDir); err != nil {
+	if err := chDir(string(c.ChDir)); err != nil {
 		logFatal("ChDir failed: %s", err)
 	}
 	var url string

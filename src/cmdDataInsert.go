@@ -36,10 +36,10 @@ type dataInsertCommonCmd struct {
 }
 
 type dataInsertSelectorCmd struct {
-	ClusterName     string `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
-	Node            int    `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
-	SeedNode        string `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
-	LinuxBinaryPath string `short:"t" long:"path" description:"Path to the linux compiled aerolab binary; this should not be required" default:""`
+	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
+	Node            int             `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
+	SeedNode        string          `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
+	LinuxBinaryPath string          `short:"t" long:"path" description:"Path to the linux compiled aerolab binary; this should not be required" default:""`
 }
 
 type dataInsertCmd struct {
@@ -229,23 +229,23 @@ func (c *dataInsertSelectorCmd) unpack(args []string) error {
 			return fmt.Errorf("insert-data: cfgFile read error: %s", err)
 		}
 		defer contents.Close()
-		err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/root/.aerolab.conf", cfgContents, cfilelen}}, []int{c.Node})
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/root/.aerolab.conf", cfgContents, cfilelen}}, []int{c.Node})
 		if err != nil {
 			return fmt.Errorf("insert-data: cfgFile backend.CopyFilesToCluster: %s", err)
 		}
 	}
-	err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/aerolab.run", contents, pfilelen}}, []int{c.Node})
+	err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/aerolab.run", contents, pfilelen}}, []int{c.Node})
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.CopyFilesToCluster: %s", err)
 	}
-	err = b.AttachAndRun(c.ClusterName, c.Node, []string{"chmod", "755", "/aerolab.run"})
+	err = b.AttachAndRun(string(c.ClusterName), c.Node, []string{"chmod", "755", "/aerolab.run"})
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(1): %s", err)
 	}
 	runCommand := []string{"/aerolab.run"}
 	runCommand = append(runCommand, os.Args[1:]...)
 	runCommand = append(runCommand, "-d", "1")
-	err = b.AttachAndRun(c.ClusterName, c.Node, runCommand)
+	err = b.AttachAndRun(string(c.ClusterName), c.Node, runCommand)
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(2): %s", err)
 	}

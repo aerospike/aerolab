@@ -9,14 +9,15 @@ import (
 	"strings"
 
 	"github.com/bestmethod/inslice"
+	"github.com/jessevdk/go-flags"
 )
 
 type filesSyncCmd struct {
-	SourceClusterName string `short:"n" long:"source-name" description:"Source Cluster name" default:"mydc"`
-	SourceNode        int    `short:"l" long:"source-node" description:"Source Node number" default:"1"`
-	DestClusterName   string `short:"d" long:"dest-name" description:"Source Cluster name" default:"mydc"`
-	DestNodes         string `short:"o" long:"dest-nodes" description:"Destination nodes, comma separated; empty = all except source node" default:""`
-	Path              string `short:"p" long:"path" description:"Path to sync"`
+	SourceClusterName TypeClusterName `short:"n" long:"source-name" description:"Source Cluster name" default:"mydc"`
+	SourceNode        int             `short:"l" long:"source-node" description:"Source Node number" default:"1"`
+	DestClusterName   TypeClusterName `short:"d" long:"dest-name" description:"Source Cluster name" default:"mydc"`
+	DestNodes         string          `short:"o" long:"dest-nodes" description:"Destination nodes, comma separated; empty = all except source node" default:""`
+	Path              string          `short:"p" long:"path" description:"Path to sync"`
 }
 
 func (c *filesSyncCmd) Execute(args []string) error {
@@ -31,23 +32,23 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	}
 
 	// check source cluster exists
-	if !inslice.HasString(cList, c.SourceClusterName) {
+	if !inslice.HasString(cList, string(c.SourceClusterName)) {
 		return errors.New("source cluster does not exist")
 	}
 
 	// check destination cluster exists
-	if !inslice.HasString(cList, c.DestClusterName) {
+	if !inslice.HasString(cList, string(c.DestClusterName)) {
 		return errors.New("destination cluster does not exist")
 	}
 
-	sourceNodes, err := b.NodeListInCluster(c.SourceClusterName)
+	sourceNodes, err := b.NodeListInCluster(string(c.SourceClusterName))
 	if err != nil {
 		return err
 	}
 
 	destNodes := sourceNodes
-	if c.SourceClusterName != c.DestClusterName {
-		destNodes, err = b.NodeListInCluster(c.DestClusterName)
+	if string(c.SourceClusterName) != string(c.DestClusterName) {
+		destNodes, err = b.NodeListInCluster(string(c.DestClusterName))
 	}
 	if err != nil {
 		return err
@@ -61,7 +62,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	// build destination node list
 	destNodeList := []int{}
 	if c.DestNodes == "" {
-		if c.SourceClusterName != c.DestClusterName {
+		if string(c.SourceClusterName) != string(c.DestClusterName) {
 			destNodeList = destNodes
 		} else {
 			for _, d := range destNodes {
@@ -77,7 +78,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 			if err != nil {
 				return err
 			}
-			if c.SourceClusterName == c.DestClusterName && d == c.SourceNode {
+			if string(c.SourceClusterName) == string(c.DestClusterName) && d == c.SourceNode {
 				return errors.New("source node is also specified as a destination node, that's not going to work")
 			}
 			destNodeList = append(destNodeList, d)
@@ -98,8 +99,8 @@ func (c *filesSyncCmd) Execute(args []string) error {
 
 	a.opts.Files.Download.ClusterName = c.SourceClusterName
 	a.opts.Files.Download.Nodes = strconv.Itoa(c.SourceNode)
-	a.opts.Files.Download.Files.Source = c.Path
-	a.opts.Files.Download.Files.Destination = dir
+	a.opts.Files.Download.Files.Source = flags.Filename(c.Path)
+	a.opts.Files.Download.Files.Destination = flags.Filename(dir)
 	err = a.opts.Files.Download.Execute(nil)
 	if err != nil {
 		return err
@@ -108,9 +109,9 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	a.opts.Files.Upload.ClusterName = c.DestClusterName
 	a.opts.Files.Upload.Nodes = intSliceToString(destNodeList, ",")
 	_, src := path.Split(strings.TrimSuffix(c.Path, "/"))
-	a.opts.Files.Upload.Files.Source = path.Join(dir, src)
+	a.opts.Files.Upload.Files.Source = flags.Filename(path.Join(dir, src))
 	dst, _ := path.Split(strings.TrimSuffix(c.Path, "/"))
-	a.opts.Files.Upload.Files.Destination = dst
+	a.opts.Files.Upload.Files.Destination = flags.Filename(dst)
 	err = a.opts.Files.Upload.Execute(nil)
 	if err != nil {
 		return err
