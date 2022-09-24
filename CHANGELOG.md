@@ -1,11 +1,11 @@
 #### 4.2.0 - TODO ITEMS
 * add support for limiting cpu, ram, swap, disk and network on both docker and aws
 * bring docker and aws commands on-par with each other
-* add json output support
 * support arm deployments
 
 #### 4.1.0 - TODO ITEMS
 * add option to deploy AMS (monitoring stack)
+* bash completion and zsh completion
 
 #### v4.0.0
 * add support for centos / rhel-based distros v 7 and 8 in aws
@@ -22,6 +22,7 @@
 * make help pages work without verifying if backend is working
 * install a script to run before aerospike starts and after it stops
 * add basic troubleshooting tools to templates
+* add json output support to template and cluster list
 
 #### v3.1.2
 * `make-cluster` and `cluster-grow`: automatically add `cluster-name` to `aerospike.conf` unless specified not to by the `-O` switch

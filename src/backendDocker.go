@@ -523,8 +523,38 @@ func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
 		return d.clusterListFullNoJson()
 	}
 	jsonOut := []clusterListFull{}
-	// TODO json output
-	// TODO ### aerolab DOCUMENT BASH COMPLETION AND ZSH COMPLETION
+	out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}").CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	for scanner.Scan() {
+		t := scanner.Text()
+		t = strings.Trim(t, "'\" \t\r\n")
+		tt := strings.Split(t, "\t")
+		if len(tt) != 3 {
+			continue
+		}
+		nameNo := strings.Split(strings.TrimPrefix(tt[1], "aerolab-"), "_")
+		if len(nameNo) != 2 {
+			continue
+		}
+		out2, err := exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", tt[1]).CombinedOutput()
+		if err != nil {
+			return "", err
+		}
+		ip := strings.Trim(string(out2), "'\" \n\r")
+		jsonOut = append(jsonOut, clusterListFull{
+			ClusterName: nameNo[0],
+			NodeNumber:  nameNo[1],
+			IpAddress:   ip,
+			PublicIp:    "",
+			InstanceId:  tt[0],
+			State:       tt[2],
+		})
+	}
+	out, err = json.MarshalIndent(jsonOut, "", "    ")
+	return string(out), err
 }
 
 func (d *backendDocker) clusterListFullNoJson() (string, error) {
