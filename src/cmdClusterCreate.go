@@ -27,8 +27,8 @@ type clusterCreateCmd struct {
 	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
 	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
 	NoSetHostname         bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
-	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before aerospike starts"`
-	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after aerospike stops"`
+	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
+	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
 	Aws                   clusterCreateCmdAws    `no-flag:"true"`
 	Docker                clusterCreateCmdDocker `no-flag:"true"`
 	Help                  helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
