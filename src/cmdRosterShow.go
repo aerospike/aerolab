@@ -34,11 +34,11 @@ func (c *rosterShowCmd) show(args []string) error {
 		return err
 	}
 
-	if !inslice.HasString(clist, c.ClusterName) {
+	if !inslice.HasString(clist, string(c.ClusterName)) {
 		return errors.New("cluster does not exist")
 	}
 
-	nodes, err := b.NodeListInCluster(c.ClusterName)
+	nodes, err := b.NodeListInCluster(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func (c *rosterShowCmd) show(args []string) error {
 	if c.Nodes == "" {
 		nodesList = nodes
 	} else {
-		for _, nn := range strings.Split(c.Nodes, ",") {
+		for _, nn := range strings.Split(c.Nodes.String(), ",") {
 			n, err := strconv.Atoi(nn)
 			if err != nil {
 				return fmt.Errorf("%s is not a number: %s", nn, err)
@@ -60,11 +60,11 @@ func (c *rosterShowCmd) show(args []string) error {
 	}
 
 	for _, n := range nodesList {
-		out, err := b.RunCommands(c.ClusterName, [][]string{[]string{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
 		if err != nil {
-			fmt.Printf("%s:%d ERROR %s: %s\n", c.ClusterName, n, err, strings.Trim(strings.ReplaceAll(string(out[0]), "\n", "; "), "\t\r\n "))
+			fmt.Printf("%s:%d ERROR %s: %s\n", string(c.ClusterName), n, err, strings.Trim(strings.ReplaceAll(string(out[0]), "\n", "; "), "\t\r\n "))
 		} else {
-			fmt.Printf("%s:%d ROSTER %s\n", c.ClusterName, n, strings.Trim(string(out[0]), "\t\r\n "))
+			fmt.Printf("%s:%d ROSTER %s\n", string(c.ClusterName), n, strings.Trim(string(out[0]), "\t\r\n "))
 		}
 	}
 	return nil

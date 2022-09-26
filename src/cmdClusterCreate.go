@@ -12,34 +12,35 @@ import (
 	"strings"
 
 	"github.com/bestmethod/inslice"
+	"github.com/jessevdk/go-flags"
 )
 
 type clusterCreateCmd struct {
-	ClusterName          string `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	NodeCount            int    `short:"c" long:"count" description:"Number of nodes" default:"1"`
-	CustomConfigFilePath string `short:"o" long:"customconf" description:"Custom config file path to install"`
-	FeaturesFilePath     string `short:"f" long:"featurefile" description:"Features file to install"`
-	HeartbeatMode        string `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"default"`
-	MulticastAddress     string `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
-	MulticastPort        string `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
+	ClusterName          TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	NodeCount            int             `short:"c" long:"count" description:"Number of nodes" default:"1"`
+	CustomConfigFilePath flags.Filename  `short:"o" long:"customconf" description:"Custom config file path to install"`
+	FeaturesFilePath     flags.Filename  `short:"f" long:"featurefile" description:"Features file to install"`
+	HeartbeatMode        TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"default"`
+	MulticastAddress     string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
+	MulticastPort        string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    string                 `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
+	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
 	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
 	NoSetHostname         bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
-	ScriptEarly           string                 `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before aerospike starts"`
-	ScriptLate            string                 `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after aerospike stops"`
+	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before aerospike starts"`
+	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after aerospike stops"`
 	Aws                   clusterCreateCmdAws    `no-flag:"true"`
 	Docker                clusterCreateCmdDocker `no-flag:"true"`
 	Help                  helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type aerospikeVersionSelectorCmd struct {
-	AerospikeVersion string `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition" default:"latest"`
-	DistroName       string `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon" default:"ubuntu"`
-	DistroVersion    string `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2" default:"latest"`
-	Username         string `short:"U" long:"username" description:"Required for downloading older enterprise editions"`
-	Password         string `short:"P" long:"password" description:"Required for downloading older enterprise editions"`
-	ChDir            string `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to"`
+	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition" default:"latest"`
+	DistroName       TypeDistro           `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon" default:"ubuntu"`
+	DistroVersion    TypeDistroVersion    `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2" default:"latest"`
+	Username         string               `short:"U" long:"username" description:"Required for downloading older enterprise editions"`
+	Password         string               `short:"P" long:"password" description:"Required for downloading older enterprise editions"`
+	ChDir            flags.Filename       `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to"`
 }
 
 type clusterCreateCmdAws struct {
@@ -75,27 +76,27 @@ func (c *clusterCreateCmd) preChDir() {
 		return
 	}
 
-	if c.CustomConfigFilePath != "" && !strings.HasPrefix(c.CustomConfigFilePath, "/") {
-		if _, err := os.Stat(c.CustomConfigFilePath); err == nil {
-			c.CustomConfigFilePath = path.Join(cur, c.CustomConfigFilePath)
+	if string(c.CustomConfigFilePath) != "" && !strings.HasPrefix(string(c.CustomConfigFilePath), "/") {
+		if _, err := os.Stat(string(c.CustomConfigFilePath)); err == nil {
+			c.CustomConfigFilePath = flags.Filename(path.Join(cur, string(c.CustomConfigFilePath)))
 		}
 	}
 
-	if c.FeaturesFilePath != "" && !strings.HasPrefix(c.FeaturesFilePath, "/") {
-		if _, err := os.Stat(c.FeaturesFilePath); err == nil {
-			c.FeaturesFilePath = path.Join(cur, c.FeaturesFilePath)
+	if string(c.FeaturesFilePath) != "" && !strings.HasPrefix(string(c.FeaturesFilePath), "/") {
+		if _, err := os.Stat(string(c.FeaturesFilePath)); err == nil {
+			c.FeaturesFilePath = flags.Filename(path.Join(cur, string(c.FeaturesFilePath)))
 		}
 	}
 
-	if c.ScriptEarly != "" && !strings.HasPrefix(c.ScriptEarly, "/") {
-		if _, err := os.Stat(c.ScriptEarly); err == nil {
-			c.ScriptEarly = path.Join(cur, c.ScriptEarly)
+	if string(c.ScriptEarly) != "" && !strings.HasPrefix(string(c.ScriptEarly), "/") {
+		if _, err := os.Stat(string(c.ScriptEarly)); err == nil {
+			c.ScriptEarly = flags.Filename(path.Join(cur, string(c.ScriptEarly)))
 		}
 	}
 
-	if c.ScriptLate != "" && !strings.HasPrefix(c.ScriptLate, "/") {
-		if _, err := os.Stat(c.ScriptLate); err == nil {
-			c.ScriptLate = path.Join(cur, c.ScriptLate)
+	if string(c.ScriptLate) != "" && !strings.HasPrefix(string(c.ScriptLate), "/") {
+		if _, err := os.Stat(string(c.ScriptLate)); err == nil {
+			c.ScriptLate = flags.Filename(path.Join(cur, string(c.ScriptLate)))
 		}
 	}
 }
@@ -118,27 +119,27 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	c.preChDir()
-	if err := chDir(c.ChDir); err != nil {
+	if err := chDir(string(c.ChDir)); err != nil {
 		logFatal("ChDir failed: %s", err)
 	}
 
 	var earlySize os.FileInfo
 	var lateSize os.FileInfo
 	var err error
-	if c.ScriptEarly != "" {
-		earlySize, err = os.Stat(c.ScriptEarly)
+	if string(c.ScriptEarly) != "" {
+		earlySize, err = os.Stat(string(c.ScriptEarly))
 		if err != nil {
 			logFatal("Early Script does not exist: %s", err)
 		}
 	}
-	if c.ScriptLate != "" {
-		lateSize, err = os.Stat(c.ScriptLate)
+	if string(c.ScriptLate) != "" {
+		lateSize, err = os.Stat(string(c.ScriptLate))
 		if err != nil {
 			logFatal("Late Script does not exist: %s", err)
 		}
 	}
 
-	if len(c.ClusterName) == 0 || len(c.ClusterName) > 20 {
+	if len(string(c.ClusterName)) == 0 || len(string(c.ClusterName)) > 20 {
 		logFatal("Cluster name must be up to 20 characters long")
 	}
 
@@ -147,17 +148,17 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		logFatal("Could not get cluster list: %s", err)
 	}
 
-	if !isGrow && inslice.HasString(clusterList, c.ClusterName) {
+	if !isGrow && inslice.HasString(clusterList, string(c.ClusterName)) {
 		logFatal("Cluster by this name already exists, did you mean 'cluster grow'?")
 	}
-	if isGrow && !inslice.HasString(clusterList, c.ClusterName) {
+	if isGrow && !inslice.HasString(clusterList, string(c.ClusterName)) {
 		logFatal("Cluster by this name does not exists, did you mean 'cluster create'?")
 	}
 
 	totalNodes := c.NodeCount
 	var nlic []int
 	if isGrow {
-		nlic, err = b.NodeListInCluster(c.ClusterName)
+		nlic, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {
 			logFatal(err)
 		}
@@ -172,11 +173,11 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		logFatal("Cannot use docker export-ports feature with more than 1 node")
 	}
 
-	if err := checkDistroVersion(c.DistroName, c.DistroVersion); err != nil {
+	if err := checkDistroVersion(c.DistroName.String(), c.DistroVersion.String()); err != nil {
 		logFatal(err)
 	}
 
-	for _, p := range []string{c.CustomConfigFilePath, c.FeaturesFilePath} {
+	for _, p := range []string{string(c.CustomConfigFilePath), string(c.FeaturesFilePath)} {
 		if p == "" {
 			continue
 		}
@@ -193,7 +194,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		logFatal("Heartbeat mode %s not supported", c.HeartbeatMode)
 	}
 
-	if !inslice.HasString([]string{"YES", "NO", "Y", "N"}, strings.ToUpper(c.AutoStartAerospike)) {
+	if !inslice.HasString([]string{"YES", "NO", "Y", "N"}, strings.ToUpper(c.AutoStartAerospike.String())) {
 		logFatal("Invalid value for AutoStartAerospike: %s", c.AutoStartAerospike)
 	}
 
@@ -204,7 +205,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	var edition string
-	if strings.HasSuffix(c.AerospikeVersion, "c") {
+	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
 	} else {
 		edition = "aerospike-server-enterprise"
@@ -212,19 +213,19 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	// if we need to lookup version, do it
 	var url string
-	bv := &backendVersion{c.DistroName, c.DistroVersion, c.AerospikeVersion}
-	if strings.HasPrefix(c.AerospikeVersion, "latest") || strings.HasSuffix(c.AerospikeVersion, "*") || strings.HasPrefix(c.DistroVersion, "latest") {
+	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}
+	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
 			return fmt.Errorf("aerospike Version not found: %s", err)
 		}
-		c.AerospikeVersion = bv.aerospikeVersion
-		c.DistroName = bv.distroName
-		c.DistroVersion = bv.distroVersion
+		c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
+		c.DistroName = TypeDistro(bv.distroName)
+		c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 	}
 
 	log.Printf("Distro = %s:%s ; AerospikeVersion = %s", c.DistroName, c.DistroVersion, c.AerospikeVersion)
-	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion, "c")
+	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
 
 	// build extra
 	var ep []string
@@ -248,7 +249,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// check if template exists
-	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName, c.DistroVersion, c.AerospikeVersion}, 1)
+	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}, 1)
 	if err != nil {
 		return err
 	}
@@ -259,12 +260,12 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			if err != nil {
 				return fmt.Errorf("aerospike Version URL not found: %s", err)
 			}
-			c.AerospikeVersion = bv.aerospikeVersion
-			c.DistroName = bv.distroName
-			c.DistroVersion = bv.distroVersion
+			c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
+			c.DistroName = TypeDistro(bv.distroName)
+			c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 		}
 
-		fn := edition + "-" + verNoSuffix + "-" + c.DistroName + c.DistroVersion + ".tgz"
+		fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
 		// download file if not exists
 		if _, err := os.Stat(fn); os.IsNotExist(err) {
 			log.Println("Downloading installer")
@@ -289,7 +290,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		defer packagefile.Close()
 		nFiles := []fileList{}
 		nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile, pfilelen})
-		nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName+":"+c.DistroVersion]
+		nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName.String()+":"+c.DistroVersion.String()]
 		err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 		if err != nil {
 			return err
@@ -297,7 +298,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// version 4.6+ warning check
-	aver := strings.Split(c.AerospikeVersion, ".")
+	aver := strings.Split(c.AerospikeVersion.String(), ".")
 	aver_major, averr := strconv.Atoi(aver[0])
 	if averr != nil {
 		return errors.New("aerospike Version is not an int.int.*")
@@ -306,46 +307,46 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if averr != nil {
 		return errors.New("aerospike Version is not an int.int.*")
 	}
-	if c.FeaturesFilePath == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
+	if string(c.FeaturesFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
 		log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 		bufio.NewReader(os.Stdin).ReadBytes('\n')
 	}
-	if c.FeaturesFilePath == "" && aver_major == 6 && aver_minor > 0 {
+	if string(c.FeaturesFilePath) == "" && aver_major == 6 && aver_minor > 0 {
 		log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
 	}
 
 	log.Print("Starting deployment")
 
-	err = b.DeployCluster(*bv, c.ClusterName, c.NodeCount, extra)
+	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err
 	}
 
 	files := []fileList{}
 
-	err = b.ClusterStart(c.ClusterName, nil)
+	err = b.ClusterStart(string(c.ClusterName), nil)
 	if err != nil {
 		return err
 	}
 
 	// get cluster IPs and node list
-	clusterIps, err := b.GetClusterNodeIps(c.ClusterName)
+	clusterIps, err := b.GetClusterNodeIps(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
-	nodeList, err := b.NodeListInCluster(c.ClusterName)
+	nodeList, err := b.NodeListInCluster(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
 
 	newconf := ""
 	// fix config if needed, read custom config file path if needed
-	if c.CustomConfigFilePath != "" {
-		conf, err := os.ReadFile(c.CustomConfigFilePath)
+	if string(c.CustomConfigFilePath) != "" {
+		conf, err := os.ReadFile(string(c.CustomConfigFilePath))
 		if err != nil {
 			return err
 		}
-		newconf, err = fixAerospikeConfig(string(conf), c.MulticastAddress, c.HeartbeatMode, clusterIps, nodeList)
+		newconf, err = fixAerospikeConfig(string(conf), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps, nodeList)
 		if err != nil {
 			return err
 		}
@@ -353,14 +354,14 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		var r [][]string
 		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
 		var nr [][]byte
-		nr, err = b.RunCommands(c.ClusterName, r, []int{nodeList[0]})
+		nr, err = b.RunCommands(string(c.ClusterName), r, []int{nodeList[0]})
 		if err != nil {
 			return err
 		}
 		newconf = string(nr[0])
 		if c.HeartbeatMode == "mesh" || c.HeartbeatMode == "mcast" {
 			// nr has contents of aerospike.conf
-			newconf, err = fixAerospikeConfig(string(nr[0]), c.MulticastAddress, c.HeartbeatMode, clusterIps, nodeList)
+			newconf, err = fixAerospikeConfig(string(nr[0]), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps, nodeList)
 			if err != nil {
 				return err
 			}
@@ -370,26 +371,26 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	// add cluster name
 	newconf2 := newconf
 	if !c.NoOverrideClusterName {
-		newconf2, err = fixClusterNameConfig(string(newconf), c.ClusterName)
+		newconf2, err = fixClusterNameConfig(string(newconf), string(c.ClusterName))
 		if err != nil {
 			return err
 		}
 	}
 
-	if c.HeartbeatMode == "mesh" || c.HeartbeatMode == "mcast" || !c.NoOverrideClusterName || c.CustomConfigFilePath != "" {
+	if c.HeartbeatMode == "mesh" || c.HeartbeatMode == "mcast" || !c.NoOverrideClusterName || string(c.CustomConfigFilePath) != "" {
 		newconf2rd := strings.NewReader(newconf2)
 		files = append(files, fileList{"/etc/aerospike/aerospike.conf", newconf2rd, len(newconf2)})
 	}
 
 	// load features file path if needed
-	if c.FeaturesFilePath != "" {
-		stat, err := os.Stat(c.FeaturesFilePath)
+	if string(c.FeaturesFilePath) != "" {
+		stat, err := os.Stat(string(c.FeaturesFilePath))
 		pfilelen := 0
 		if err != nil {
 			return err
 		}
 		pfilelen = int(stat.Size())
-		ffp, err := os.Open(c.FeaturesFilePath)
+		ffp, err := os.Open(string(c.FeaturesFilePath))
 		if err != nil {
 			return err
 		}
@@ -406,30 +407,30 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	// set hostnames for aws
 	if a.opts.Config.Backend.Type == "aws" && !c.NoSetHostname {
-		nip, err := b.GetNodeIpMap(c.ClusterName, false)
+		nip, err := b.GetNodeIpMap(string(c.ClusterName), false)
 		if err != nil {
 			return err
 		}
 		fmt.Println(nip)
 		for _, nnode := range nodeListNew {
 			hComm := [][]string{
-				[]string{"hostname", fmt.Sprintf("%s-%d", c.ClusterName, nnode)},
+				[]string{"hostname", fmt.Sprintf("%s-%d", string(c.ClusterName), nnode)},
 			}
-			nr, err := b.RunCommands(c.ClusterName, hComm, []int{nnode})
+			nr, err := b.RunCommands(string(c.ClusterName), hComm, []int{nnode})
 			if err != nil {
 				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
 			}
-			nr, err = b.RunCommands(c.ClusterName, [][]string{[]string{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
+			nr, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
 			if err != nil {
 				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
 			}
-			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], c.ClusterName, nnode))...)
-			hst := fmt.Sprintf("%s-%d\n", c.ClusterName, nnode)
-			err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
+			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], string(c.ClusterName), nnode))...)
+			hst := fmt.Sprintf("%s-%d\n", string(c.ClusterName), nnode)
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
 			if err != nil {
 				return err
 			}
-			err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
 			if err != nil {
 				return err
 			}
@@ -437,12 +438,12 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// store deployed aerospike version
-	averrd := strings.NewReader(c.AerospikeVersion)
+	averrd := strings.NewReader(c.AerospikeVersion.String())
 	files = append(files, fileList{"/opt/aerolab.aerospike.version", averrd, len(c.AerospikeVersion)})
 
 	// actually save files to nodes in cluster if needed
 	if len(files) > 0 {
-		err := b.CopyFilesToCluster(c.ClusterName, files, nodeListNew)
+		err := b.CopyFilesToCluster(string(c.ClusterName), files, nodeListNew)
 		if err != nil {
 			return err
 		}
@@ -450,7 +451,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	// if docker fix logging location
 	var out [][]byte
-	out, err = b.RunCommands(c.ClusterName, [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, nodeListNew)
+	out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, nodeListNew)
 	if err != nil {
 		return err
 	}
@@ -462,7 +463,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		}
 		for i, node := range nodeListNew {
 			inrd := bytes.NewReader(in[i])
-			err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/etc/aerospike/aerospike.conf", inrd, len(in[i])}}, []int{node})
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/aerospike/aerospike.conf", inrd, len(in[i])}}, []int{node})
 			if err != nil {
 				return err
 			}
@@ -490,7 +491,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 					nDir = nLoc
 				}
 				// create dir
-				nout, err := b.RunCommands(c.ClusterName, [][]string{[]string{"mkdir", "-p", nDir}}, []int{node})
+				nout, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"mkdir", "-p", nDir}}, []int{node})
 				if err != nil {
 					return fmt.Errorf("could not create directory on node: %s\n%s\n%s", nDir, err, string(nout[0]))
 				}
@@ -526,11 +527,11 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 		accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
 		accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
 		accessAddressScript.fileSize = len(accessAddressScriptContents)
-		err = b.CopyFilesToCluster(c.ClusterName, []fileList{systemdScript, accessAddressScript}, nodeListNew)
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{systemdScript, accessAddressScript}, nodeListNew)
 		if err != nil {
 			return fmt.Errorf("could not make access-address script in aws: %s", err)
 		}
-		bouta, err := b.RunCommands(c.ClusterName, [][]string{[]string{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, []string{"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, []string{"systemctl", "daemon-reload"}, []string{"systemctl", "enable", "aerospike-access-address.service"}, []string{"service", "aerospike-access-address", "start"}}, nodeListNew)
+		bouta, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, []string{"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, []string{"systemctl", "daemon-reload"}, []string{"systemctl", "enable", "aerospike-access-address.service"}, []string{"service", "aerospike-access-address", "start"}}, nodeListNew)
 		if err != nil {
 			nstr := ""
 			for _, bout := range bouta {
@@ -541,25 +542,25 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 	}
 
 	// install early/late scripts
-	if c.ScriptEarly != "" {
-		earlyFile, err := os.Open(c.ScriptEarly)
+	if string(c.ScriptEarly) != "" {
+		earlyFile, err := os.Open(string(c.ScriptEarly))
 		if err != nil {
 			log.Printf("ERROR: could not install early script: %s", err)
 		} else {
 			defer earlyFile.Close()
-			err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, nodeListNew)
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, nodeListNew)
 			if err != nil {
 				log.Printf("ERROR: could not install early script: %s", err)
 			}
 		}
 	}
-	if c.ScriptLate != "" {
-		lateFile, err := os.Open(c.ScriptLate)
+	if string(c.ScriptLate) != "" {
+		lateFile, err := os.Open(string(c.ScriptLate))
 		if err != nil {
 			log.Printf("ERROR: could not install late script: %s", err)
 		} else {
 			defer lateFile.Close()
-			err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, nodeListNew)
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, nodeListNew)
 			if err != nil {
 				log.Printf("ERROR: could not install late script: %s", err)
 			}
@@ -570,7 +571,7 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 	if c.AutoStartAerospike == "y" {
 		var comm [][]string
 		comm = append(comm, []string{"service", "aerospike", "start"})
-		_, err = b.RunCommands(c.ClusterName, comm, nodeListNew)
+		_, err = b.RunCommands(string(c.ClusterName), comm, nodeListNew)
 		if err != nil {
 			return err
 		}

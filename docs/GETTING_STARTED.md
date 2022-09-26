@@ -94,6 +94,15 @@ If using a custom features file: `aerolab config defaults -k '*FeaturesFilePath'
 
 Make aerolab adjust `aerospike.conf` to always use `mesh` heartbeat modes, unless specifically overwritten in the command line: `aerolab config defaults -k '*.HeartbeatMode' -v mesh`
 
+#### Shell completion
+
+To install shell completion, do one (or both) of:
+
+```
+aerolab completion zsh
+aerolab completion bash
+```
+
 ## Basic usage
 
 ### Deploy a cluster called 'testme' with 5 nodes

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -517,7 +518,46 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileList) erro
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) ClusterListFull() (string, error) {
+func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
+	if !isJson {
+		return d.clusterListFullNoJson()
+	}
+	jsonOut := []clusterListFull{}
+	out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}").CombinedOutput()
+	if err != nil {
+		return "", err
+	}
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	for scanner.Scan() {
+		t := scanner.Text()
+		t = strings.Trim(t, "'\" \t\r\n")
+		tt := strings.Split(t, "\t")
+		if len(tt) != 3 {
+			continue
+		}
+		nameNo := strings.Split(strings.TrimPrefix(tt[1], "aerolab-"), "_")
+		if len(nameNo) != 2 {
+			continue
+		}
+		out2, err := exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", tt[1]).CombinedOutput()
+		if err != nil {
+			return "", err
+		}
+		ip := strings.Trim(string(out2), "'\" \n\r")
+		jsonOut = append(jsonOut, clusterListFull{
+			ClusterName: nameNo[0],
+			NodeNumber:  nameNo[1],
+			IpAddress:   ip,
+			PublicIp:    "",
+			InstanceId:  tt[0],
+			State:       tt[2],
+		})
+	}
+	out, err = json.MarshalIndent(jsonOut, "", "    ")
+	return string(out), err
+}
+
+func (d *backendDocker) clusterListFullNoJson() (string, error) {
 	var err error
 	var out []byte
 	var response string
@@ -562,23 +602,49 @@ func (d *backendDocker) ClusterListFull() (string, error) {
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) TemplateListFull() (string, error) {
+func (d *backendDocker) TemplateListFull(isJson bool) (string, error) {
+	jsonRes := []templateListFull{}
 	var err error
 	var out []byte
 	out, err = exec.Command("docker", "image", "list").CombinedOutput()
 	if err != nil {
 		return string(out), err
 	}
-	var response string
-	response = "Images (templates):\n===================\n"
 	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+
+	if !isJson {
+		var response string
+		response = "Images (templates):\n===================\n"
+		for scanner.Scan() {
+			t := scanner.Text()
+			t = strings.Trim(t, "'\"")
+			if strings.HasPrefix(t, "REPOSITORY") || strings.HasPrefix(t, "aerolab-") {
+				response = response + t + "\n"
+			}
+		}
+		response = response + "\n\nTo see all docker containers (including base OS images), not just those specific to aerolab:\n$ docker container list -a\n$ docker image list -a\n"
+		return response, nil
+	}
+
 	for scanner.Scan() {
 		t := scanner.Text()
-		t = strings.Trim(t, "'\"")
-		if strings.HasPrefix(t, "REPOSITORY") || strings.HasPrefix(t, "aerolab-") {
-			response = response + t + "\n"
+		t = strings.Trim(t, "'\" \t\r\n")
+		if !strings.HasPrefix(t, "aerolab-") {
+			continue
 		}
+		rep := strings.TrimPrefix(cut(t, 1, " "), "aerolab-")
+		osVer := strings.Split(rep, "_")
+		if len(osVer) != 2 {
+			continue
+		}
+		asdVer := cut(t, 2, " ")
+		jsonRes = append(jsonRes, templateListFull{
+			OsName:           osVer[0],
+			OsVersion:        osVer[1],
+			AerospikeVersion: asdVer,
+			ImageId:          cut(t, 3, " "),
+		})
 	}
-	response = response + "\n\nTo see all docker containers (including base OS images), not just those specific to aerolab:\n$ docker container list -a\n$ docker image list -a\n"
-	return response, nil
+	out, err = json.MarshalIndent(jsonRes, "", "    ")
+	return string(out), err
 }

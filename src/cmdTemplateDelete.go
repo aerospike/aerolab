@@ -8,10 +8,10 @@ import (
 )
 
 type templateDeleteCmd struct {
-	AerospikeVersion string  `short:"v" long:"aerospike-version" description:"Aerospike server version (or 'all')"`
-	DistroName       string  `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon (or 'all')"`
-	DistroVersion    string  `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2 (or 'all')"`
-	Help             helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version (or 'all')"`
+	DistroName       TypeDistro           `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon (or 'all')"`
+	DistroVersion    TypeDistroVersion    `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2 (or 'all')"`
+	Help             helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *templateDeleteCmd) Execute(args []string) error {
@@ -27,7 +27,7 @@ func (c *templateDeleteCmd) Execute(args []string) error {
 	}
 
 	if c.DistroName != "all" && c.DistroVersion != "all" && c.AerospikeVersion != "all" {
-		v := backendVersion{c.DistroName, c.DistroVersion, c.AerospikeVersion}
+		v := backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}
 
 		inSlice, err := inslice.Reflect(versions, v, 1)
 		if err != nil {
@@ -49,9 +49,9 @@ func (c *templateDeleteCmd) Execute(args []string) error {
 
 	var nerr error
 	for _, v := range versions {
-		if c.DistroName == "all" || c.DistroName == v.distroName {
-			if c.DistroVersion == "all" || c.DistroVersion == v.distroVersion {
-				if c.AerospikeVersion == "all" || c.AerospikeVersion == v.aerospikeVersion {
+		if c.DistroName == "all" || c.DistroName.String() == v.distroName {
+			if c.DistroVersion == "all" || c.DistroVersion.String() == v.distroVersion {
+				if c.AerospikeVersion == "all" || c.AerospikeVersion.String() == v.aerospikeVersion {
 					log.Printf("Destroying %s on %s:%s", v.aerospikeVersion, v.distroName, v.distroVersion)
 					err = b.TemplateDestroy(v)
 					if err != nil {

@@ -10,16 +10,17 @@ import (
 	"strings"
 
 	"github.com/bestmethod/inslice"
+	"github.com/jessevdk/go-flags"
 )
 
 type filesRestCmd struct {
-	Source      string
-	Destination string
+	Source      flags.Filename
+	Destination flags.Filename
 }
 
 type filesDownloadCmd struct {
-	ClusterName string              `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes       string              `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
+	ClusterName TypeClusterName     `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes       TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
 	Aws         filesDownloadCmdAws `no-flag:"true"`
 	Files       filesRestCmd        `positional-args:"true"`
 }
@@ -33,34 +34,41 @@ func init() {
 }
 
 func (c *filesDownloadCmd) Execute(args []string) error {
-	if earlyProcess(args) {
+	if earlyProcessV2(args, false) {
 		return nil
 	}
-	if c.Files.Source == "help" && c.Files.Destination == "" {
+	if string(c.Files.Source) == "help" && string(c.Files.Destination) == "" {
 		return printHelp("If more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/")
 	}
-	if c.Files.Destination == "" {
+	if string(c.Files.Destination) == "" {
 		return printHelp("If more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/")
+	}
+	if b == nil {
+		logFatal("Invalid backend")
+	}
+	err := b.Init()
+	if err != nil {
+		logFatal("Could not init backend: %s", err)
 	}
 	log.Print("Running files.download")
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return err
 	}
-	if !inslice.HasString(clusterList, c.ClusterName) {
-		err = fmt.Errorf("cluster does not exist: %s", c.ClusterName)
+	if !inslice.HasString(clusterList, string(c.ClusterName)) {
+		err = fmt.Errorf("cluster does not exist: %s", string(c.ClusterName))
 		return err
 	}
 
 	var nodes []int
-	nodesList, err := b.NodeListInCluster(c.ClusterName)
+	nodesList, err := b.NodeListInCluster(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
 	if c.Nodes == "" {
 		nodes = nodesList
 	} else {
-		for _, nodeString := range strings.Split(c.Nodes, ",") {
+		for _, nodeString := range strings.Split(c.Nodes.String(), ",") {
 			nodeInt, err := strconv.Atoi(nodeString)
 			if err != nil {
 				return err
@@ -76,15 +84,15 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 		return err
 	}
 
-	dst := c.Files.Destination
+	dst := string(c.Files.Destination)
 	for _, node := range nodes {
 		if len(nodes) > 1 {
-			dst = path.Join(c.Files.Destination, strconv.Itoa(node)) + "/"
+			dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
 			os.MkdirAll(dst, 0755)
 		}
-		err = b.Download(c.ClusterName, node, c.Files.Source, dst, c.Aws.Verbose)
+		err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, c.Aws.Verbose)
 		if err != nil {
-			log.Printf("ERROR SRC=%s:%d MSG=%s", c.ClusterName, node, err)
+			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
 		}
 	}
 	log.Print("Done")

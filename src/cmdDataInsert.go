@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/jessevdk/go-flags"
 )
 
 type dataInsertNsSetCmd struct {
@@ -24,22 +26,22 @@ type dataInsertPkCmd struct {
 }
 
 type dataInsertCommonCmd struct {
-	RunDirect        bool   `short:"d" long:"run-direct" description:"If set, will ignore backend, cluster name and node ID and connect to SeedNode directly from running machine"`
-	UseMultiThreaded int    `short:"u" long:"multi-thread" description:"If set, will use multithreading. Set to the number of threads you want processing." default:"0"`
-	Username         string `short:"U" long:"username" description:"If set, will use this user to authenticate to aerospike cluster" default:""`
-	Password         string `short:"P" long:"password" description:"If set, will use this pass to authenticate to aerospike cluster" default:""`
-	Version          string `short:"v" long:"version" description:"which aerospike library version to use: 4|5|6" default:"6"`
-	AuthExternal     bool   `short:"Q" long:"auth-external" description:"if set, will use external auth method"`
-	TlsCaCert        string `short:"y" long:"tls-ca-cert" description:"Tls CA certificate path" default:""`
-	TlsClientCert    string `short:"w" long:"tls-client-cert" description:"Tls client cerrtificate path" default:""`
-	TlsServerName    string `short:"i" long:"tls-server-name" description:"Tls ServerName" default:""`
+	RunDirect        bool              `short:"d" long:"run-direct" description:"If set, will ignore backend, cluster name and node ID and connect to SeedNode directly from running machine"`
+	UseMultiThreaded int               `short:"u" long:"multi-thread" description:"If set, will use multithreading. Set to the number of threads you want processing." default:"0"`
+	Username         string            `short:"U" long:"username" description:"If set, will use this user to authenticate to aerospike cluster" default:""`
+	Password         string            `short:"P" long:"password" description:"If set, will use this pass to authenticate to aerospike cluster" default:""`
+	Version          TypeClientVersion `short:"v" long:"version" description:"which aerospike library version to use: 4|5|6" default:"6"`
+	AuthExternal     bool              `short:"Q" long:"auth-external" description:"if set, will use external auth method"`
+	TlsCaCert        string            `short:"y" long:"tls-ca-cert" description:"Tls CA certificate path" default:""`
+	TlsClientCert    string            `short:"w" long:"tls-client-cert" description:"Tls client cerrtificate path" default:""`
+	TlsServerName    string            `short:"i" long:"tls-server-name" description:"Tls ServerName" default:""`
 }
 
 type dataInsertSelectorCmd struct {
-	ClusterName     string `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
-	Node            int    `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
-	SeedNode        string `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
-	LinuxBinaryPath string `short:"t" long:"path" description:"Path to the linux compiled aerolab binary; this should not be required" default:""`
+	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
+	Node            TypeNode        `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
+	SeedNode        string          `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
+	LinuxBinaryPath flags.Filename  `short:"t" long:"path" description:"Path to the linux compiled aerolab binary; this should not be required" default:""`
 }
 
 type dataInsertCmd struct {
@@ -49,11 +51,11 @@ type dataInsertCmd struct {
 	BinContents    string `short:"c" long:"bin-contents" description:"Bin contents. Either 'static:NAME' or 'unique:PREFIX' or 'random:LENGTH'" default:"unique:bin_"`
 	ReadAfterWrite bool   `short:"f" long:"read-after-write" description:"Should we read (get) after write"`
 	dataInsertCommonCmd
-	TTL                   int    `short:"T" long:"ttl" description:"set ttl for records. Set to -1 to use server default, 0=don't expire" default:"-1"`
-	InsertToNodes         string `short:"N" long:"to-nodes" description:"insert to specific node(s); provide comma-separated node IDs" default:""`
-	InsertToPartitions    int    `short:"C" long:"to-partitions" description:"insert to X number of partitions at most. to-partitions/to-nodes=partitions-per-node" default:"0"`
-	InsertToPartitionList string `short:"L" long:"to-partition-list" description:"comma-separated list of partition numbers to insert data to. -P and -L  are ignored if this is specified" default:""`
-	ExistsAction          string `short:"E" long:"exists-action" description:"action policy: CREATE_ONLY | REPLACE_ONLY | REPLACE | UPDATE_ONLY | UPDATE" default:""`
+	TTL                   int              `short:"T" long:"ttl" description:"set ttl for records. Set to -1 to use server default, 0=don't expire" default:"-1"`
+	InsertToNodes         string           `short:"N" long:"to-nodes" description:"insert to specific node(s); provide comma-separated node IDs" default:""`
+	InsertToPartitions    int              `short:"C" long:"to-partitions" description:"insert to X number of partitions at most. to-partitions/to-nodes=partitions-per-node" default:"0"`
+	InsertToPartitionList string           `short:"L" long:"to-partition-list" description:"comma-separated list of partition numbers to insert data to. -P and -L  are ignored if this is specified" default:""`
+	ExistsAction          TypeExistsAction `short:"E" long:"exists-action" description:"action policy: CREATE_ONLY | REPLACE_ONLY | REPLACE | UPDATE_ONLY | UPDATE" default:""`
 	dataInsertSelectorCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -188,7 +190,7 @@ func (c *dataInsertSelectorCmd) unpack(args []string) error {
 			if n != len(buf[nfound:]) {
 				return fmt.Errorf("could not write binary to temp directory %s fully: size: %d, written: %d", path.Join(os.TempDir(), "aerolab.linux"), len(buf[nfound:]), n)
 			}
-			c.LinuxBinaryPath = path.Join(os.TempDir(), "aerolab.linux")
+			c.LinuxBinaryPath = flags.Filename(path.Join(os.TempDir(), "aerolab.linux"))
 			defer func() { _ = os.Remove(path.Join(os.TempDir(), "aerolab.linux")) }()
 		}
 	}
@@ -197,18 +199,19 @@ func (c *dataInsertSelectorCmd) unpack(args []string) error {
 		if runtime.GOOS != "linux" {
 			return errors.New("the path to the linux binary when running from MAC cannot be empty")
 		} else {
-			c.LinuxBinaryPath, _ = os.Executable()
+			lbp, _ := os.Executable()
+			c.LinuxBinaryPath = flags.Filename(lbp)
 		}
 	}
 	// copy self to the chosen ClusterName_Node
 	// run self on the chosen ClusterName_Node with all parameters plus -d 1
-	stat, err := os.Stat(c.LinuxBinaryPath)
+	stat, err := os.Stat(string(c.LinuxBinaryPath))
 	pfilelen := 0
 	if err != nil {
 		return err
 	}
 	pfilelen = int(stat.Size())
-	contents, err := os.Open(c.LinuxBinaryPath)
+	contents, err := os.Open(string(c.LinuxBinaryPath))
 	if err != nil {
 		return fmt.Errorf("insert-data: LinuxBinaryPath read error: %s", err)
 	}
@@ -229,23 +232,23 @@ func (c *dataInsertSelectorCmd) unpack(args []string) error {
 			return fmt.Errorf("insert-data: cfgFile read error: %s", err)
 		}
 		defer contents.Close()
-		err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/root/.aerolab.conf", cfgContents, cfilelen}}, []int{c.Node})
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/root/.aerolab.conf", cfgContents, cfilelen}}, []int{c.Node.Int()})
 		if err != nil {
 			return fmt.Errorf("insert-data: cfgFile backend.CopyFilesToCluster: %s", err)
 		}
 	}
-	err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/aerolab.run", contents, pfilelen}}, []int{c.Node})
+	err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/aerolab.run", contents, pfilelen}}, []int{c.Node.Int()})
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.CopyFilesToCluster: %s", err)
 	}
-	err = b.AttachAndRun(c.ClusterName, c.Node, []string{"chmod", "755", "/aerolab.run"})
+	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), []string{"chmod", "755", "/aerolab.run"})
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(1): %s", err)
 	}
 	runCommand := []string{"/aerolab.run"}
 	runCommand = append(runCommand, os.Args[1:]...)
 	runCommand = append(runCommand, "-d", "1")
-	err = b.AttachAndRun(c.ClusterName, c.Node, runCommand)
+	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), runCommand)
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(2): %s", err)
 	}
