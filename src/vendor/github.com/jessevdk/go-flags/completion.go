@@ -281,7 +281,11 @@ func (c *completion) complete(args []string) []Completion {
 		ret = c.completeValue(s.positional[0].value, "", lastarg)
 	} else if len(s.command.commands) > 0 {
 		// Complete for command
-		ret = c.completeCommands(s, lastarg)
+		if len(s.command.commands) > 1 || s.command.commands[0].Name != "help" {
+			ret = c.completeCommands(s, lastarg)
+		} else {
+			return c.complete(append(args, "--"))
+		}
 	}
 
 	sort.Sort(completions(ret))
