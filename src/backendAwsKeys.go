@@ -12,7 +12,7 @@ import (
 // get KeyPair
 func (d *backendAws) getKey(clusterName string) (keyName string, keyPath string, err error) {
 	keyName = fmt.Sprintf("aerolab-%s", clusterName)
-	keyPath = path.Join(a.opts.Config.Backend.SshKeyPath, keyName)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	// check keyName exists, if not, error
 	filter := ec2.DescribeKeyPairsInput{}
 	filter.KeyNames = []*string{&keyName}
@@ -34,14 +34,14 @@ func (d *backendAws) getKey(clusterName string) (keyName string, keyPath string,
 // get KeyPair
 func (d *backendAws) makeKey(clusterName string) (keyName string, keyPath string, err error) {
 	keyName = fmt.Sprintf("aerolab-%s", clusterName)
-	keyPath = path.Join(a.opts.Config.Backend.SshKeyPath, keyName)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	_, _, err = d.getKey(clusterName)
 	if err == nil {
 		return
 	}
 	// check keypath exists, if not, make
-	if _, err := os.Stat(a.opts.Config.Backend.SshKeyPath); os.IsNotExist(err) {
-		os.MkdirAll(a.opts.Config.Backend.SshKeyPath, 0755)
+	if _, err := os.Stat(string(a.opts.Config.Backend.SshKeyPath)); os.IsNotExist(err) {
+		os.MkdirAll(string(a.opts.Config.Backend.SshKeyPath), 0755)
 	}
 	// generate keypair
 	filter := ec2.CreateKeyPairInput{}
@@ -54,14 +54,14 @@ func (d *backendAws) makeKey(clusterName string) (keyName string, keyPath string
 	}
 	err = os.WriteFile(keyPath, []byte(*out.KeyMaterial), 0600)
 	keyName = fmt.Sprintf("aerolab-%s", clusterName)
-	keyPath = path.Join(a.opts.Config.Backend.SshKeyPath, keyName)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	return
 }
 
 // get KeyPair
 func (d *backendAws) killKey(clusterName string) (keyName string, keyPath string, err error) {
 	keyName = fmt.Sprintf("aerolab-%s", clusterName)
-	keyPath = path.Join(a.opts.Config.Backend.SshKeyPath, keyName)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	os.Remove(keyPath)
 	filter := ec2.DeleteKeyPairInput{}
 	filter.DryRun = aws.Bool(false)
