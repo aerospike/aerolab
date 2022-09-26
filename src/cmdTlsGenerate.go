@@ -14,13 +14,13 @@ import (
 )
 
 type tlsGenerateCmd struct {
-	ClusterName string  `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes       string  `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	TlsName     string  `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
-	CaName      string  `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
-	NoUpload    bool    `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
-	ChDir       string  `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
-	Help        helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	TlsName     string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
+	CaName      string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
+	NoUpload    bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
+	ChDir       string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *tlsGenerateCmd) Execute(args []string) error {
@@ -50,20 +50,20 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 			return err
 		}
 
-		if !inslice.HasString(clusterList, c.ClusterName) {
+		if !inslice.HasString(clusterList, string(c.ClusterName)) {
 			err = fmt.Errorf("error, cluster does not exist: %s", c.ClusterName)
 			return err
 		}
 
 		var nodeList []int
-		nodeList, err = b.NodeListInCluster(c.ClusterName)
+		nodeList, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {
 			return err
 		}
 		if c.Nodes == "" {
 			nodes = nodeList
 		} else {
-			for _, nodeString := range strings.Split(c.Nodes, ",") {
+			for _, nodeString := range strings.Split(c.Nodes.String(), ",") {
 				nodeInt, err := strconv.Atoi(nodeString)
 				if err != nil {
 					return err
@@ -129,7 +129,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 	}
 
 	if !c.NoUpload {
-		_, err = b.RunCommands(c.ClusterName, [][]string{[]string{"mkdir", "-p", fmt.Sprintf("/etc/aerospike/ssl/%s", c.TlsName)}}, nodes)
+		_, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"mkdir", "-p", fmt.Sprintf("/etc/aerospike/ssl/%s", c.TlsName)}}, nodes)
 		if err != nil {
 			return fmt.Errorf("could not mkdir ssl location: %s", err)
 		}
@@ -143,7 +143,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 			}
 			fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), bytes.NewReader(ct), len(ct)})
 		}
-		err = b.CopyFilesToCluster(c.ClusterName, fl, nodes)
+		err = b.CopyFilesToCluster(string(c.ClusterName), fl, nodes)
 		if err != nil {
 			return err
 		}
@@ -154,7 +154,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 	if !c.NoUpload {
 		//for each node, read config
 		var nodeIps []string
-		nodeIps, err = b.GetClusterNodeIps(c.ClusterName)
+		nodeIps, err = b.GetClusterNodeIps(string(c.ClusterName))
 		if err != nil {
 			return err
 		}
@@ -162,7 +162,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
 		var conf [][]byte
 		for _, node := range nodes {
-			conf, err = b.RunCommands(c.ClusterName, r, []int{node})
+			conf, err = b.RunCommands(string(c.ClusterName), r, []int{node})
 			if err != nil {
 				return err
 			}
@@ -186,7 +186,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 						newconf = newconf + "\n" + t
 					}
 				}
-				err = b.CopyFilesToCluster(c.ClusterName, []fileList{fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)}}, []int{node})
+				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)}}, []int{node})
 				if err != nil {
 					return err
 				}

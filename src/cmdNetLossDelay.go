@@ -11,16 +11,16 @@ import (
 )
 
 type netLossDelayCmd struct {
-	SourceClusterName      string `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
-	SourceNodeList         string `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
-	DestinationClusterName string `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
-	DestinationNodeList    string `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
-	Action                 string `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
-	ShowNames              bool   `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output"`
-	Delay                  string `short:"p" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
-	Loss                   string `short:"L" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
-	RunOnDestination       bool   `short:"D" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)"`
-	Rate                   string `short:"R" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
+	SourceClusterName      TypeClusterName   `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
+	SourceNodeList         TypeNodes         `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
+	DestinationClusterName TypeClusterName   `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
+	DestinationNodeList    TypeNodes         `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
+	Action                 TypeNetLossAction `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
+	ShowNames              bool              `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output"`
+	Delay                  string            `short:"p" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
+	Loss                   string            `short:"L" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
+	RunOnDestination       bool              `short:"D" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)"`
+	Rate                   string            `short:"R" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
 }
 
 func (c *netLossDelayCmd) Execute(args []string) error {
@@ -49,14 +49,14 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		}
 	}
 
-	if !inslice.HasString(clusterList, c.SourceClusterName) {
-		err = fmt.Errorf("error, cluster does not exist: %s", c.SourceClusterName)
+	if !inslice.HasString(clusterList, string(c.SourceClusterName)) {
+		err = fmt.Errorf("error, cluster does not exist: %s", string(c.SourceClusterName))
 		return err
 	}
 
 	if c.Action != "show" && c.Action != "delall" {
-		if !inslice.HasString(clusterList, c.DestinationClusterName) {
-			err = fmt.Errorf("error, cluster does not exist: %s", c.DestinationClusterName)
+		if !inslice.HasString(clusterList, string(c.DestinationClusterName)) {
+			err = fmt.Errorf("error, cluster does not exist: %s", string(c.DestinationClusterName))
 			return err
 		}
 	}
@@ -65,16 +65,16 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	var sourceNodeIpMap map[int]string
 	var sourceNodeIpMapInternal map[int]string
 	if c.SourceNodeList == "" {
-		sourceNodeList, err = b.NodeListInCluster(c.SourceClusterName)
+		sourceNodeList, err = b.NodeListInCluster(string(c.SourceClusterName))
 		if err != nil {
 			return err
 		}
 	} else {
-		snl, err := b.NodeListInCluster(c.SourceClusterName)
+		snl, err := b.NodeListInCluster(string(c.SourceClusterName))
 		if err != nil {
 			return err
 		}
-		sn := strings.Split(c.SourceNodeList, ",")
+		sn := strings.Split(c.SourceNodeList.String(), ",")
 		for _, i := range sn {
 			snInt, err := strconv.Atoi(i)
 			if err != nil {
@@ -89,12 +89,12 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		}
 	}
 
-	sourceNodeIpMap, err = b.GetNodeIpMap(c.SourceClusterName, false)
+	sourceNodeIpMap, err = b.GetNodeIpMap(string(c.SourceClusterName), false)
 	if err != nil {
 		return err
 	}
 
-	sourceNodeIpMapInternal, err = b.GetNodeIpMap(c.SourceClusterName, true)
+	sourceNodeIpMapInternal, err = b.GetNodeIpMap(string(c.SourceClusterName), true)
 	if err != nil {
 		return err
 	}
@@ -103,16 +103,16 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	var destNodeIpMap map[int]string
 	var destNodeIpMapInternal map[int]string
 	if c.DestinationNodeList == "" {
-		destNodeList, err = b.NodeListInCluster(c.DestinationClusterName)
+		destNodeList, err = b.NodeListInCluster(string(c.DestinationClusterName))
 		if err != nil {
 			return err
 		}
 	} else {
-		dnl, err := b.NodeListInCluster(c.DestinationClusterName)
+		dnl, err := b.NodeListInCluster(string(c.DestinationClusterName))
 		if err != nil {
 			return err
 		}
-		dn := strings.Split(c.DestinationNodeList, ",")
+		dn := strings.Split(c.DestinationNodeList.String(), ",")
 		for _, i := range dn {
 			dnInt, err := strconv.Atoi(i)
 			if err != nil {
@@ -127,25 +127,25 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		}
 	}
 
-	destNodeIpMap, err = b.GetNodeIpMap(c.DestinationClusterName, false)
+	destNodeIpMap, err = b.GetNodeIpMap(string(c.DestinationClusterName), false)
 	if err != nil {
 		return err
 	}
 
-	destNodeIpMapInternal, err = b.GetNodeIpMap(c.DestinationClusterName, true)
+	destNodeIpMapInternal, err = b.GetNodeIpMap(string(c.DestinationClusterName), true)
 	if err != nil {
 		return err
 	}
 
-	sysRunOnClusterName := c.SourceClusterName
-	sysLogTheOther := c.DestinationClusterName
+	sysRunOnClusterName := string(c.SourceClusterName)
+	sysLogTheOther := string(c.DestinationClusterName)
 	sysRunOnNodeList := sourceNodeList
 	sysRunOnDestNodeList := destNodeList
 	sysRunOnDestIpMap := destNodeIpMap
 	sysRunOnDestIpMapInternal := destNodeIpMapInternal
 	if c.RunOnDestination {
-		sysRunOnClusterName = c.DestinationClusterName
-		sysLogTheOther = c.SourceClusterName
+		sysRunOnClusterName = string(c.DestinationClusterName)
+		sysLogTheOther = string(c.SourceClusterName)
 		sysRunOnNodeList = destNodeList
 		sysRunOnDestNodeList = sourceNodeList
 		sysRunOnDestIpMap = sourceNodeIpMap

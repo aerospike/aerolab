@@ -28,11 +28,11 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 		return err
 	}
 
-	if !inslice.HasString(clist, c.ClusterName) {
+	if !inslice.HasString(clist, string(c.ClusterName)) {
 		return errors.New("cluster does not exist")
 	}
 
-	nodes, err := b.NodeListInCluster(c.ClusterName)
+	nodes, err := b.NodeListInCluster(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	if c.Nodes == "" {
 		nodesList = nodes
 	} else {
-		for _, nn := range strings.Split(c.Nodes, ",") {
+		for _, nn := range strings.Split(c.Nodes.String(), ",") {
 			n, err := strconv.Atoi(nn)
 			if err != nil {
 				return fmt.Errorf("%s is not a number: %s", nn, err)
@@ -58,7 +58,7 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	if newRoster == "" {
 		foundNodes := []string{}
 		for _, n := range nodesList {
-			out, err := b.RunCommands(c.ClusterName, [][]string{[]string{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
+			out, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
 			if err != nil {
 				continue
 			}
@@ -79,7 +79,7 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type == "aws" {
 		rosterCmd = []string{"asinfo", "-v", "roster-set:namespace=" + c.Namespace + "\\;nodes=" + newRoster}
 	}
-	out, err := b.RunCommands(c.ClusterName, [][]string{rosterCmd}, nodesList)
+	out, err := b.RunCommands(string(c.ClusterName), [][]string{rosterCmd}, nodesList)
 	for _, out1 := range out {
 		if strings.Contains(string(out1), "ERROR") {
 			log.Print(string(out1))
@@ -98,7 +98,7 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 		return nil
 	}
 
-	out, err = b.RunCommands(c.ClusterName, [][]string{[]string{"asinfo", "-v", "recluster:namespace=" + c.Namespace}}, nodesList)
+	out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"asinfo", "-v", "recluster:namespace=" + c.Namespace}}, nodesList)
 	if err != nil {
 		outn := ""
 		for _, i := range out {

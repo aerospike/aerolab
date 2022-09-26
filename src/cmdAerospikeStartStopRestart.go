@@ -21,18 +21,18 @@ func (c *aerospikeStartCmd) run(args []string, command string) error {
 	if err != nil {
 		return err
 	}
-	if !inslice.HasString(clusterList, c.ClusterName) {
-		err = fmt.Errorf("cluster does not exist: %s", c.ClusterName)
+	if !inslice.HasString(clusterList, string(c.ClusterName)) {
+		err = fmt.Errorf("cluster does not exist: %s", string(c.ClusterName))
 		return err
 	}
 	var nodes []int
 	if c.Nodes == "" {
-		nodes, err = b.NodeListInCluster(c.ClusterName)
+		nodes, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {
 			return err
 		}
 	} else {
-		for _, nodeString := range strings.Split(c.Nodes, ",") {
+		for _, nodeString := range strings.Split(c.Nodes.String(), ",") {
 			nodeInt, err := strconv.Atoi(nodeString)
 			if err != nil {
 				return err
@@ -49,23 +49,23 @@ func (c *aerospikeStartCmd) run(args []string, command string) error {
 	if command == "start" {
 		var commands [][]string
 		commands = append(commands, []string{"service", "aerospike", "start"})
-		out, err = b.RunCommands(c.ClusterName, commands, nodes)
+		out, err = b.RunCommands(string(c.ClusterName), commands, nodes)
 	} else if command == "stop" {
 		var commands [][]string
 		commands = append(commands, []string{"service", "aerospike", "stop"})
-		out, err = b.RunCommands(c.ClusterName, commands, nodes)
+		out, err = b.RunCommands(string(c.ClusterName), commands, nodes)
 	} else if command == "restart" {
 		var commands [][]string
 		commands = append(commands, []string{"service", "aerospike", "stop"})
 		commands = append(commands, []string{"sleep", "2"})
 		commands = append(commands, []string{"service", "aerospike", "start"})
-		out, err = b.RunCommands(c.ClusterName, commands, nodes)
+		out, err = b.RunCommands(string(c.ClusterName), commands, nodes)
 	} else if command == "status" {
 		var commands [][]string
 		commands = append(commands, []string{"bash", "-c", "ps -ef |grep asd |grep -v grep || exit 0"})
 		for _, node := range nodes {
-			out, err = b.RunCommands(c.ClusterName, commands, []int{node})
-			fmt.Printf("--- %s:%d ---\n", c.ClusterName, node)
+			out, err = b.RunCommands(string(c.ClusterName), commands, []int{node})
+			fmt.Printf("--- %s:%d ---\n", string(c.ClusterName), node)
 			if err != nil {
 				fmt.Println(err, " :: ", string(out[0]))
 			} else {
