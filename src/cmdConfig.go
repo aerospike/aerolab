@@ -27,19 +27,19 @@ func (c *configCmd) Execute(args []string) error {
 }
 
 type configBackendCmd struct {
-	Type       string  `short:"t" long:"type" description:"Supported backends: aws|docker" default:"" choice:"" choice:"aws" choice:"docker"`
-	SshKeyPath string  `short:"p" long:"key-path" description:"AWS backend: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
-	Region     string  `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
-	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker" default:"" choice:"" choice:"aws" choice:"docker"`
+	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS backend: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
+	Region     string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
+	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	typeSet    string
 }
 
 type configDefaultsCmd struct {
-	Key         string  `short:"k" long:"key" description:"Key to modify or show, character '*' expansion is supported" default:""`
-	OnlyChanged bool    `short:"o" long:"only-changed" description:"Set to only display values different from application default"`
-	Value       string  `short:"v" long:"value" description:"Value to set" default:""`
-	Reset       bool    `short:"r" long:"reset" description:"Reset to default value. Use instead of --value"`
-	Help        helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Key         string         `short:"k" long:"key" description:"Key to modify or show, character '*' expansion is supported" default:""`
+	OnlyChanged bool           `short:"o" long:"only-changed" description:"Set to only display values different from application default"`
+	Value       flags.Filename `short:"v" long:"value" description:"Value to set" default:""`
+	Reset       bool           `short:"r" long:"reset" description:"Reset to default value. Use instead of --value"`
+	Help        helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *configBackendCmd) Execute(args []string) error {
@@ -71,15 +71,15 @@ func (c *configBackendCmd) Execute(args []string) error {
 			}
 		}
 		if c.Type == "aws" {
-			if strings.Contains(c.SshKeyPath, "${HOME}") {
+			if strings.Contains(string(c.SshKeyPath), "${HOME}") {
 				ch, err := os.UserHomeDir()
 				if err != nil {
 					log.Fatal(err)
 				}
-				c.SshKeyPath = strings.ReplaceAll(c.SshKeyPath, "${HOME}", ch)
+				c.SshKeyPath = flags.Filename(strings.ReplaceAll(string(c.SshKeyPath), "${HOME}", ch))
 			}
-			if _, err := os.Stat(c.SshKeyPath); err != nil {
-				err = os.MkdirAll(c.SshKeyPath, 0755)
+			if _, err := os.Stat(string(c.SshKeyPath)); err != nil {
+				err = os.MkdirAll(string(c.SshKeyPath), 0755)
 				if err != nil {
 					return err
 				}
@@ -147,7 +147,7 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 	}
 	c.Key = ""
 
-	value := c.Value
+	value := string(c.Value)
 	c.Value = ""
 
 	reset := c.Reset
