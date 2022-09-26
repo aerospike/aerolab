@@ -12,6 +12,7 @@ import (
 
 var completionBash = `_aerolab() {
     # All arguments except the first one
+	%s
     args=("${COMP_WORDS[@]:1:$COMP_CWORD}")
 
     # Only split on newlines
@@ -41,11 +42,11 @@ func (c *completionBashCmd) Execute(args []string) error {
 		return nil
 	}
 
-	extra := "export AEROLAB_COMPLETION_BACKEND=1\nexport AEROLAB_SHELL=bash"
+	extra := "export AEROLAB_COMPLETION_BACKEND=1"
 	if c.Simple {
-		extra = "export AEROLAB_SHELL=bash"
+		extra = ""
 	}
-	completionBash = fmt.Sprintf(completionBash, extra)
+	completionBash = fmt.Sprintf(completionBash, "", extra)
 
 	if c.NoInstall {
 		fmt.Println(completionBash)

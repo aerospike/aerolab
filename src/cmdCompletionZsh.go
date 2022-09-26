@@ -22,11 +22,11 @@ func (c *completionZshCmd) Execute(args []string) error {
 		return nil
 	}
 
-	extra := "export AEROLAB_COMPLETION_BACKEND=1\nexport AEROLAB_SHELL=zsh"
+	extra := "export AEROLAB_COMPLETION_BACKEND=1"
 	if c.Simple {
-		extra = "export AEROLAB_SHELL=zsh"
+		extra = ""
 	}
-	completionBash = fmt.Sprintf(completionBash, extra)
+	completionBash = fmt.Sprintf(completionBash, "[ ${#COMP_WORDS[@]} -eq ${COMP_CWORD} ] && COMP_WORDS+=(\"\")", extra)
 
 	if c.NoInstall {
 		fmt.Println(completionBash)
