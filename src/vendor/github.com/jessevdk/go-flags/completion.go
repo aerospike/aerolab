@@ -10,17 +10,6 @@ import (
 	"unicode/utf8"
 )
 
-func init() {
-	if os.Getenv("GO_FLAGS_COMPLETION") == "" {
-		return
-	}
-	if os.Getenv("AEROLAB_SHELL") == "zsh" {
-		if !strings.HasPrefix(os.Args[len(os.Args)-1], "-") {
-			os.Args = append(os.Args, "")
-		}
-	}
-}
-
 // Completion is a type containing information of a completion.
 type Completion struct {
 	// The completed item
@@ -296,11 +285,6 @@ func (c *completion) complete(args []string) []Completion {
 	}
 
 	sort.Sort(completions(ret))
-	if os.Getenv("AEROLAB_SHELL") == "zsh" {
-		if len(ret) == 1 && ret[0].Item == args[len(args)-1] {
-			return c.complete(append(args, ""))
-		}
-	}
 	return ret
 }
 
