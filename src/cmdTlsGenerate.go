@@ -193,6 +193,16 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 			}
 		}
 	}
+	fmt.Println("--- aerospike.conf snippet ---")
+	fmt.Printf(`network {
+    tls tls1 {
+		cert-file /etc/aerospike/ssl/%s/cert.pem
+		key-file /etc/aerospike/ssl/%s/key.pem
+		ca-file /etc/aerospike/ssl/%s/%s.pem
+	}
+	...
+`, c.TlsName, c.TlsName, c.TlsName, c.CaName)
+	fmt.Println("--- aerospike.conf end ---")
 	log.Print("Done")
 	return nil
 }
