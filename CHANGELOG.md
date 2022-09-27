@@ -4,6 +4,14 @@
 #### 4.1.0 - TODO ITEMS
 * add option to deploy AMS (monitoring stack)
 
+#### v4.0.2
+* add nodeExpander:
+  * (node list can now be: 1-10,15,-3 - i.e. 1 to 10, node 15, not node 3)
+  * (or: ALL,-5 - i.e. all nodes except node 5)
+* bugfix in ranges in `files sync`
+* fix multiple completion bugs
+* add useful print of config for tls generate command
+
 #### v4.0.1
 * add support for centos / rhel-based distros v 7 and 8 in aws
 * add option to rename hostname of nodes to clusterName-nodeNo
