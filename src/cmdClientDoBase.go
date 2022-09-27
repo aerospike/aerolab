@@ -1,6 +1,10 @@
 package main
 
-import "github.com/jessevdk/go-flags"
+import (
+	"errors"
+
+	"github.com/jessevdk/go-flags"
+)
 
 type clientCreateBaseCmd struct {
 	ClientName    TypeClientName         `short:"n" long:"group-name" description:"Client group name" default:"client"`
@@ -11,4 +15,15 @@ type clientCreateBaseCmd struct {
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
 	osSelectorCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *clientCreateBaseCmd) Execute(args []string) error {
+	return c.createBase(args)
+}
+
+func (c *clientCreateBaseCmd) createBase(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	return errors.New("NOT IMPLEMENTED YET")
 }
