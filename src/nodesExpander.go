@@ -34,7 +34,7 @@ func (t *TypeNodesPlusAllOption) ExpandNodes(clusterName string) error {
 func expandNodes(nodes string, clusterName string) (string, error) {
 	list := []int{}
 	if nodes == "" {
-		nodes = "ALL"
+		return nodes, nil
 	}
 	for _, item := range strings.Split(nodes, ",") {
 		if strings.ToUpper(item) == "ALL" {
