@@ -6,6 +6,10 @@ type clientCreateCmd struct {
 	Help  helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
+type clientAddCmd struct {
+	Tools clientAddToolsCmd `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
+}
+
 type clientGrowCmd struct {
 	clientCreateCmd
 }
