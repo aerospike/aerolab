@@ -4,6 +4,7 @@ type commands struct {
 	Config     configCmd     `command:"config" subcommands-optional:"true" description:"Show or change aerolab configuration"`
 	Cluster    clusterCmd    `command:"cluster" subcommands-optional:"true" description:"Create and manage Aerospike clusters and nodes"`
 	Aerospike  aerospikeCmd  `command:"aerospike" subcommands-optional:"true" description:"Aerospike daemon controls"`
+	Client     clientCmd     `command:"client" subcommands-optional:"true" description:"Create and manage Client machine groups"`
 	Attach     attachCmd     `command:"attach" subcommands-optional:"true" description:"Attach to a node and run a command"`
 	Net        netCmd        `command:"net" subcommands-optional:"true" description:"Firewall and latency simulation"`
 	Conf       confCmd       `command:"conf" subcommands-optional:"true" description:"Manage Aerospike configuration on running nodes"`
