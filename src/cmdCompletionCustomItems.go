@@ -42,7 +42,15 @@ type TypeNetBlockOn string
 type TypeNetStatisticMode string
 type TypeNetLossAction string
 type TypeXDRVersion string
+type TypeClientName string
+type TypeMachines string
 
+func (t *TypeClientName) String() string {
+	return string(*t)
+}
+func (t *TypeMachines) String() string {
+	return string(*t)
+}
 func (t *TypeClusterName) String() string {
 	return string(*t)
 }
@@ -92,10 +100,31 @@ func (t *TypeNode) Int() int {
 	return int(*t)
 }
 
+func (t *TypeClientName) Complete(match string) []flags.Completion {
+	if !completionCustomCheck() {
+		return []flags.Completion{}
+	}
+	b.WorkOnClients()
+	clist, err := b.ClusterList()
+	if err != nil {
+		logFatal("Backend query failed: %s", err)
+	}
+	out := []flags.Completion{}
+	for _, item := range clist {
+		if match == "" || strings.HasPrefix(item, match) {
+			out = append(out, flags.Completion{
+				Item: item,
+			})
+		}
+	}
+	return out
+}
+
 func (t *TypeClusterName) Complete(match string) []flags.Completion {
 	if !completionCustomCheck() {
 		return []flags.Completion{}
 	}
+	b.WorkOnServers()
 	clist, err := b.ClusterList()
 	if err != nil {
 		logFatal("Backend query failed: %s", err)

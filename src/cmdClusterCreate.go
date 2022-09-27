@@ -34,13 +34,25 @@ type clusterCreateCmd struct {
 	Help                  helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-type aerospikeVersionSelectorCmd struct {
+type osSelectorCmd struct {
+	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon" default:"ubuntu"`
+	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2" default:"latest"`
+}
+
+type chDirCmd struct {
+	ChDir flags.Filename `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to"`
+}
+
+type aerospikeVersionCmd struct {
 	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition" default:"latest"`
-	DistroName       TypeDistro           `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon" default:"ubuntu"`
-	DistroVersion    TypeDistroVersion    `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2" default:"latest"`
 	Username         string               `short:"U" long:"username" description:"Required for downloading older enterprise editions"`
 	Password         string               `short:"P" long:"password" description:"Required for downloading older enterprise editions"`
-	ChDir            flags.Filename       `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to"`
+}
+
+type aerospikeVersionSelectorCmd struct {
+	osSelectorCmd
+	aerospikeVersionCmd
+	chDirCmd
 }
 
 type clusterCreateCmdAws struct {

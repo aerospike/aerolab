@@ -9,22 +9,3 @@ type clientCmd struct {
 	Destroy clientDestroyCmd `command:"destroy" subcommands-optional:"true" description:"Destroy client(s)"`
 	Help    helpCmd          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
-
-type clientCreateCmd struct {
-	Basic clientCreateBasicCmd `command:"basic" subcommands-optional:"true" description:"basic machine with a few linux tools"`
-	Tools clientCreateToolsCmd `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
-	Help  helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-
-type clientCreateBasicCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-type clientCreateToolsCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-
-type clientListCmd struct{}
-type clientStartCmd struct{}
-type clientStopCmd struct{}
-type clientGrowCmd struct{}
-type clientDestroyCmd struct{}

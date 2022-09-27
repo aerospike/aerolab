@@ -182,6 +182,9 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 			logFatal("Could not init backend: %s", err)
 		}
 	}
+	if b != nil {
+		b.WorkOnServers()
+	}
 	return false
 }
 
