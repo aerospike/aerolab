@@ -146,3 +146,15 @@ aerolab help
 aerolab {command} help
 aerolab {command} {subcommand} help
 ```
+
+### Node Expander
+
+For commands accepting a list of nodes, the list is a comma-separated list of:
+* `ALL` - all nodes
+* `-X` - negative number - exclude node
+* `X` - positive number - include node
+* `X-Y` - range of nodes to include
+
+For example:
+* `ALL,-5` - all nodes except for node 5
+* `1-10,-5,12` - nodes 1-10, except node 5, and also node 12
