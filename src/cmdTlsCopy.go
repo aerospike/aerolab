@@ -38,6 +38,11 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 		return errors.New("destination Cluster not found")
 	}
 
+	err = c.DestinationNodeList.ExpandNodes(string(c.DestinationClusterName))
+	if err != nil {
+		return err
+	}
+
 	sourceClusterNodes, err := b.NodeListInCluster(string(c.SourceClusterName))
 	if err != nil {
 		return err

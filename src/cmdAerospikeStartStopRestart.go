@@ -32,6 +32,10 @@ func (c *aerospikeStartCmd) run(args []string, command string) error {
 			return err
 		}
 	} else {
+		err = c.Nodes.ExpandNodes(string(c.ClusterName))
+		if err != nil {
+			return err
+		}
 		for _, nodeString := range strings.Split(c.Nodes.String(), ",") {
 			nodeInt, err := strconv.Atoi(nodeString)
 			if err != nil {

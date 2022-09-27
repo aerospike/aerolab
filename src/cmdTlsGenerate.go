@@ -54,7 +54,10 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 			err = fmt.Errorf("error, cluster does not exist: %s", c.ClusterName)
 			return err
 		}
-
+		err = c.Nodes.ExpandNodes(string(c.ClusterName))
+		if err != nil {
+			return err
+		}
 		var nodeList []int
 		nodeList, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {

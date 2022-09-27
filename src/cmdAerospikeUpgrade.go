@@ -85,6 +85,10 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	if c.Nodes == "" {
 		nodeList = nodes
 	} else {
+		err = c.Nodes.ExpandNodes(string(c.ClusterName))
+		if err != nil {
+			return err
+		}
 		nNodes := strings.Split(c.Nodes.String(), ",")
 		for _, nNode := range nNodes {
 			nNodeInt, err := strconv.Atoi(nNode)

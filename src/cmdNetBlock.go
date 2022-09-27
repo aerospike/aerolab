@@ -36,6 +36,15 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 	} else {
 		log.Print("Running net.unblock")
 	}
+	err := c.SourceNodeList.ExpandNodes(string(c.SourceClusterName))
+	if err != nil {
+		return err
+	}
+	err = c.DestinationNodeList.ExpandNodes(string(c.DestinationClusterName))
+	if err != nil {
+		return err
+	}
+
 	var sc string
 	var dc string
 	var sn []string
