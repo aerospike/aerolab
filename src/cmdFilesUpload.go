@@ -46,6 +46,10 @@ func (c *filesUploadCmd) Execute(args []string) error {
 	}
 
 	var nodes []int
+	err = c.Nodes.ExpandNodes(string(c.ClusterName))
+	if err != nil {
+		return err
+	}
 	nodesList, err := b.NodeListInCluster(string(c.ClusterName))
 	if err != nil {
 		return err

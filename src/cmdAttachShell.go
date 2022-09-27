@@ -27,6 +27,10 @@ func (c *attachShellCmd) run(args []string) (err error) {
 		return nil
 	}
 	var nodes []int
+	err = c.Node.ExpandNodes(string(c.ClusterName))
+	if err != nil {
+		return err
+	}
 	if c.Node == "all" {
 		nodes, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {

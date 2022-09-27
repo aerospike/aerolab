@@ -35,6 +35,14 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	err = c.SourceNodeList.ExpandNodes(string(c.SourceClusterName))
+	if err != nil {
+		return err
+	}
+	err = c.DestinationNodeList.ExpandNodes(string(c.DestinationClusterName))
+	if err != nil {
+		return err
+	}
 
 	fullIpMap := make(map[string]string)
 	if c.Action == "show" {

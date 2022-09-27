@@ -29,6 +29,10 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 		return err
 	}
 
+	err = c.Nodes.ExpandNodes(string(c.ClusterName))
+	if err != nil {
+		return err
+	}
 	// get cluster IPs and node list
 	clusterIps, err := b.GetClusterNodeIps(string(c.ClusterName))
 	if err != nil {

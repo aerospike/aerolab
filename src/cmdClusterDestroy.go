@@ -24,6 +24,10 @@ func (c *clusterDestroyCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Println("Running cluster.destroy")
+	err := c.Nodes.ExpandNodes(string(c.ClusterName))
+	if err != nil {
+		return err
+	}
 	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String())
 	if err != nil {
 		return err

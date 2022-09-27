@@ -61,6 +61,10 @@ func (c *filesSyncCmd) Execute(args []string) error {
 
 	// build destination node list
 	destNodeList := []int{}
+	err = c.DestNodes.ExpandNodes(string(c.DestClusterName))
+	if err != nil {
+		return err
+	}
 	if c.DestNodes == "" {
 		if string(c.SourceClusterName) != string(c.DestClusterName) {
 			destNodeList = destNodes
@@ -124,7 +128,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 func intSliceToString(a []int, sep string) string {
 	var c string
 	for _, b := range a {
-		c = strconv.Itoa(b) + sep
+		c = c + strconv.Itoa(b) + sep
 	}
 	c = strings.TrimSuffix(c, sep)
 	return c
