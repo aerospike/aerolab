@@ -18,12 +18,15 @@ type clientCreateBaseCmd struct {
 }
 
 func (c *clientCreateBaseCmd) Execute(args []string) error {
-	return c.createBase(args)
-}
-
-func (c *clientCreateBaseCmd) createBase(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	return errors.New("NOT IMPLEMENTED YET")
+	_, err := c.createBase(args)
+	return err
+}
+
+func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err error) {
+	// TODO remember to work out if the command is GROW or CREATE and act accordingly
+	b.WorkOnClients()
+	return nil, errors.New("NOT IMPLEMENTED YET")
 }
