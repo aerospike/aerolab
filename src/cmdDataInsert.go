@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -99,110 +100,31 @@ func (c *dataInsertCmd) insert(args []string) error {
 }
 
 func (c *dataInsertSelectorCmd) unpack(args []string) error {
-	myBinary, _ := os.Executable()
 	if c.LinuxBinaryPath == "" {
-		fi, err := os.Stat(myBinary)
-		if err != nil {
-			myBinary = findExec()
-			if myBinary != "" {
-				fi, err = os.Stat(myBinary)
-				if err != nil {
-					return fmt.Errorf("insert-data: error running stat self: %s", err)
-				}
-			} else {
-				return fmt.Errorf("insert-data: error running stat self: %s", err)
+		if runtime.GOOS == "linux" {
+			myBinary, err := findExec()
+			if err != nil {
+				return fmt.Errorf("failed to find self: %s", err)
 			}
-		}
-		size := fi.Size()
-		file, err := os.Open(myBinary)
-		if err != nil {
-			return fmt.Errorf("insert-data: error opening self for reading: %s", err)
-		}
-
-		buf := make([]byte, 19)
-		start := size - 19
-		_, err = file.ReadAt(buf, start)
-		_ = file.Close()
-		if err != nil {
-			return fmt.Errorf("insert-data: error reading self: %s", err)
-		}
-		if string(buf) == "<<<<aerolab-osx-aio" {
-			buf = make([]byte, size)
-		}
-		file, err = os.Open(myBinary)
-		if err != nil {
-			return fmt.Errorf("insert-data: error reopening self: %s", err)
-		}
-		nsize, err := file.Read(buf)
-		_ = file.Close()
-		if err != nil || nsize != int(size) {
-			return fmt.Errorf("insert-data: could not read the whole aerolab binary. could not read self: %s", err)
-		}
-		comp := make([]byte, 23)
-		comp[0] = '>'
-		comp[1] = '>'
-		comp[2] = '>'
-		comp[3] = '>'
-		comp[4] = 'a'
-		comp[5] = 'e'
-		comp[6] = 'r'
-		comp[7] = 'o'
-		comp[8] = 'l'
-		comp[9] = 'a'
-		comp[10] = 'b'
-		comp[11] = '-'
-		comp[12] = 'o'
-		comp[13] = 's'
-		comp[14] = 'x'
-		comp[15] = '-'
-		comp[16] = 'a'
-		comp[17] = 'i'
-		comp[18] = 'o'
-		comp[19] = '>'
-		comp[20] = '>'
-		comp[21] = '>'
-		comp[22] = '>'
-		nfound := -1
-		for offs := range buf {
-			found := offs
-			for offc := range comp {
-				if buf[offs+offc] != comp[offc] {
-					found = -1
-					break
-				}
-			}
-			if found != -1 {
-				nfound = found + 23
-				break
-			}
-		}
-		if nfound != -1 {
-			// buf[nfound] is the start of the buffer location where we have the linux file from!
+			c.LinuxBinaryPath = flags.Filename(myBinary)
+		} else {
 			nfile, err := os.OpenFile(path.Join(os.TempDir(), "aerolab.linux"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 			if err != nil {
 				return fmt.Errorf("insert-data: could not open tmp file for writing: %s: %s", path.Join(os.TempDir(), "aerolab.linux"), err)
 			}
-			n, err := nfile.Write(buf[nfound:])
-			_ = nfile.Close()
+			defer nfile.Close()
+			myBinary, err := base64.StdEncoding.DecodeString(nLinuxBinary)
 			if err != nil {
-				return fmt.Errorf("insert-data: could not write to tmp file: %s: %s", path.Join(os.TempDir(), "aerolab.linux"), err)
+				return fmt.Errorf("failed to unpack embedded linux binary: %s", err)
 			}
-			if n != len(buf[nfound:]) {
-				return fmt.Errorf("could not write binary to temp directory %s fully: size: %d, written: %d", path.Join(os.TempDir(), "aerolab.linux"), len(buf[nfound:]), n)
+			_, err = nfile.Write(myBinary)
+			if err != nil {
+				return fmt.Errorf("failed to unpack-write embedded linux binary: %s", err)
 			}
 			c.LinuxBinaryPath = flags.Filename(path.Join(os.TempDir(), "aerolab.linux"))
-			defer func() { _ = os.Remove(path.Join(os.TempDir(), "aerolab.linux")) }()
 		}
 	}
 
-	if c.LinuxBinaryPath == "" {
-		if runtime.GOOS != "linux" {
-			return errors.New("the path to the linux binary when running from MAC cannot be empty")
-		} else {
-			lbp, _ := os.Executable()
-			c.LinuxBinaryPath = flags.Filename(lbp)
-		}
-	}
 	// copy self to the chosen ClusterName_Node
 	// run self on the chosen ClusterName_Node with all parameters plus -d 1
 	stat, err := os.Stat(string(c.LinuxBinaryPath))
@@ -255,17 +177,17 @@ func (c *dataInsertSelectorCmd) unpack(args []string) error {
 	return nil
 }
 
-func findExec() string {
+func findExec() (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
-		return ""
+		return "", err
 	}
 
 	exReal, err := filepath.EvalSymlinks(ex)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return exReal
+	return exReal, nil
 }
 
 func RandStringRunes(n int, src rand.Source) string {
