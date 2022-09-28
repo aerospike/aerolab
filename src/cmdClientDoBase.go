@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
+	"github.com/bestmethod/inslice"
 	"github.com/jessevdk/go-flags"
 )
 
@@ -35,5 +37,19 @@ func (c *clientCreateBaseCmd) Execute(args []string) error {
 
 func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err error) {
 	b.WorkOnClients()
+	clist, err := b.ClusterList()
+	if err != nil {
+		return nil, err
+	}
+
+	if inslice.HasString(clist, c.ClientName.String()) && !c.isGrow() {
+		return nil, errors.New("cluster already exists, did you mean 'grow'?")
+	}
+
+	if !inslice.HasString(clist, c.ClientName.String()) && c.isGrow() {
+		return nil, errors.New("cluster doesn't exist, did you mean 'create'?")
+	}
+
+	// TODO HERE
 	return nil, fmt.Errorf("isGgrow:%t", c.isGrow())
 }
