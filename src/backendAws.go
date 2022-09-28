@@ -21,6 +21,8 @@ import (
 type backendAws struct {
 	sess   *session.Session
 	ec2svc *ec2.EC2
+	server bool
+	client bool
 }
 
 func init() {
@@ -36,6 +38,16 @@ const (
 	awsTagOSVersion        = "Aerolab4OperatingSystemVersion"
 	awsTagAerospikeVersion = "Aerolab4AerospikeVersion"
 )
+
+func (d *backendAws) WorkOnClients() {
+	d.server = false
+	d.client = true
+}
+
+func (d *backendAws) WorkOnServers() {
+	d.server = true
+	d.client = false
+}
 
 func (d *backendAws) Init() error {
 	var err error
@@ -60,6 +72,7 @@ func (d *backendAws) Init() error {
 	}
 
 	d.ec2svc = svc
+	d.WorkOnServers()
 	return nil
 }
 
