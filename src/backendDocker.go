@@ -18,6 +18,8 @@ import (
 )
 
 type backendDocker struct {
+	server bool
+	client bool
 }
 
 func init() {
@@ -102,6 +104,16 @@ func (d *backendDocker) ListTemplates() ([]backendVersion, error) {
 	return templateList, nil
 }
 
+func (d *backendDocker) WorkOnClients() {
+	d.server = false
+	d.client = true
+}
+
+func (d *backendDocker) WorkOnServers() {
+	d.server = true
+	d.client = false
+}
+
 func (d *backendDocker) Init() error {
 	_, err := exec.Command("/bin/bash", "-c", "command -v docker").CombinedOutput()
 	if err != nil {
@@ -113,6 +125,7 @@ func (d *backendDocker) Init() error {
 	if err != nil {
 		return fmt.Errorf("docker command exists, but docker appears to be unreachable or down: %s", string(out))
 	}
+	d.WorkOnServers()
 	return nil
 }
 

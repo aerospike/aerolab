@@ -11,6 +11,16 @@ import (
 
 // expands a node listing in format of:
 // 1-100,-5,150 (1-100, not 5, 150) to a comma-separated listing
+func (t *TypeMachines) ExpandNodes(clusterName string) error {
+	a, err := expandNodes(string(*t), clusterName)
+	if err != nil {
+		return err
+	}
+	b := TypeMachines(a)
+	*t = b
+	return nil
+}
+
 func (t *TypeNodes) ExpandNodes(clusterName string) error {
 	a, err := expandNodes(string(*t), clusterName)
 	if err != nil {

@@ -1,8 +1,13 @@
 #### 4.2.0 - TODO ITEMS
 * support arm deployments
+* add option to deploy AMS (monitoring stack) - `aerolab client create ams ...`
+* add `aerolab client add-features` option to add features to existing clients (e..g deploy base clients and add tools and add ams)
 
-#### 4.1.0 - TODO ITEMS
-* add option to deploy AMS (monitoring stack)
+#### 4.1.0
+* add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector)
+  * TODO: all functions on both backends need to check if they are supposed to work on client or server and switch which tags they use depending on the client/server selection
+  * TODO: client create `base` and `tools` options
+  * TODO: documentation on client commands
 
 #### v4.0.2
 * add nodeExpander:

@@ -45,6 +45,9 @@ type fileList struct {
 }
 
 type backend interface {
+	// select to work on clients or servers
+	WorkOnClients()
+	WorkOnServers()
 	// return slice of strings holding cluster names, or error
 	ClusterList() ([]string, error)
 	// accept cluster name, return slice of int holding node numbers or error
