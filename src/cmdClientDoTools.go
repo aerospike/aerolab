@@ -42,5 +42,6 @@ func (c *clientAddToolsCmd) Execute(args []string) error {
 
 func (c *clientAddToolsCmd) addTools(args []string) error {
 	b.WorkOnClients()
+	// TODO CODE HERE
 	return errors.New("NOT IMPLEMENTED YET")
 }

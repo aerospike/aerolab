@@ -1,7 +1,8 @@
 package main
 
 import (
-	"errors"
+	"fmt"
+	"os"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -17,6 +18,13 @@ type clientCreateBaseCmd struct {
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
+func (c *clientCreateBaseCmd) isGrow() bool {
+	if len(os.Args) >= 3 && os.Args[1] == "client" && os.Args[2] == "grow" {
+		return true
+	}
+	return false
+}
+
 func (c *clientCreateBaseCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
@@ -26,7 +34,6 @@ func (c *clientCreateBaseCmd) Execute(args []string) error {
 }
 
 func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err error) {
-	// TODO remember to work out if the command is GROW or CREATE and act accordingly
 	b.WorkOnClients()
-	return nil, errors.New("NOT IMPLEMENTED YET")
+	return nil, fmt.Errorf("isGgrow:%t", c.isGrow())
 }
