@@ -1,3 +1,4 @@
+echo "Initializing"
 # auth with apple
 [ -f ~/xcode-secrets.sh ] && source ~/xcode-secrets.sh
 

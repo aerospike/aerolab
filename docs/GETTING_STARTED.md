@@ -2,6 +2,8 @@
 
 ## One-time setup
 
+Follow either the `Docker` or `AWS` manual below, depending on the backend you wish to you. Both backends may be used and `aerolab` may be switched between them.
+
 ### Docker
 
 Follow the below if using the docker backend.
@@ -34,27 +36,33 @@ Run `aws configure` to configure basic access to AWS.
 
 ### Download aerolab binary from the releases page
 
-Head to the releases page and download either `aerolab-macos` or `aerolab-linux`.
+Head to the releases page and download either `aerolab-macos.zip` or `aerolab-linux`.
 
 #### MacOS
 
+First double-click the downloaded zip file to unzip it. Then follow the below to install it:
+
 ```
-mkdir -p /usr/local/bin/
-cat aerolab-macos > /usr/local/bin/aerolab
+cd /directory/where/you/unzipped/aerolab/file
+sudo mkdir -p /usr/local/bin/
+sudo mv aerolab /usr/local/bin/aerolab
 ```
 
 #### Linux / WSL2 on windows
 
 ```
-mkdir -p /usr/local/bin/
-mv aerolab-linux /usr/local/bin/aerolab
+cd /directory/where/you/downloaded/aerolab-linux/file
+sudo mkdir -p /usr/local/bin/
+sudo mv aerolab-linux /usr/local/bin/aerolab
 ```
 
 ### Make it executable
 
 ```
-chmod 755 /usr/local/bin/aerolab
+sudo chmod 755 /usr/local/bin/aerolab
 ```
+
+That's it, now the command `aerolab` is available in your shell globally wherever you are.
 
 ### First run
 
