@@ -3,11 +3,14 @@ package main
 type clientCreateCmd struct {
 	Base  clientCreateBaseCmd  `command:"base" subcommands-optional:"true" description:"simple base image"`
 	Tools clientCreateToolsCmd `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
-	Help  helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
+	// NEW_CLIENTS_CREATE
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type clientAddCmd struct {
 	Tools clientAddToolsCmd `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
+	// NEW_CLIENTS_ADD
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type clientGrowCmd struct {
@@ -24,6 +27,8 @@ func init() {
 	addBackendSwitch("client.create.tools", "docker", &a.opts.Client.Create.Tools.Docker)
 	addBackendSwitch("client.grow.tools", "aws", &a.opts.Client.Grow.Tools.Aws)
 	addBackendSwitch("client.grow.tools", "docker", &a.opts.Client.Grow.Tools.Docker)
+
+	// NEW_CLIENTS_BACKEND
 
 	addBackendSwitch("client.destroy", "docker", &a.opts.Client.Destroy.Docker)
 }
