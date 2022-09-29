@@ -26,6 +26,8 @@ func init() {
 	addBackend("docker", &backendDocker{})
 }
 
+var dockerNameHeader = "aerolab-"
+
 func (d *backendDocker) ClusterList() ([]string, error) {
 	out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{json .Names}}").CombinedOutput()
 	if err != nil {
@@ -37,8 +39,8 @@ func (d *backendDocker) ClusterList() ([]string, error) {
 	for scanner.Scan() {
 		t := scanner.Text()
 		t = strings.Trim(t, "'\"")
-		if strings.Contains(t, "aerolab-") {
-			t = t[8:]
+		if strings.Contains(t, dockerNameHeader+"") {
+			t = t[len(dockerNameHeader):]
 			cnametmp := strings.Split(t, "_")
 			cname := strings.Join(cnametmp[:len(cnametmp)-1], "_")
 			//nodename = cnametmp[len(cnametmp)-1]
@@ -60,8 +62,8 @@ func (d *backendDocker) NodeListInCluster(name string) ([]int, error) {
 	for scanner.Scan() {
 		t := scanner.Text()
 		t = strings.Trim(t, "'\"")
-		if strings.Contains(t, "aerolab-") {
-			t = t[8:]
+		if strings.Contains(t, dockerNameHeader+"") {
+			t = t[len(dockerNameHeader):]
 			cnametmp := strings.Split(t, "_")
 			clusterNode0 := strings.Join(cnametmp[:len(cnametmp)-1], "_")
 			clusterNode1 := cnametmp[len(cnametmp)-1]
@@ -87,9 +89,9 @@ func (d *backendDocker) ListTemplates() ([]backendVersion, error) {
 	for scanner.Scan() {
 		t := scanner.Text()
 		repo := strings.Trim(strings.Split(t, ";")[0], "'\"")
-		if strings.Contains(repo, "aerolab-") {
-			if len(repo) > 10 {
-				repo = repo[8:]
+		if strings.Contains(repo, dockerNameHeader+"") {
+			if len(repo) > len(dockerNameHeader)+2 {
+				repo = repo[len(dockerNameHeader):]
 				distVer := strings.Split(repo, "_")
 				if len(distVer) == 2 {
 					tagList := strings.Split(t, ";")
@@ -107,11 +109,13 @@ func (d *backendDocker) ListTemplates() ([]backendVersion, error) {
 func (d *backendDocker) WorkOnClients() {
 	d.server = false
 	d.client = true
+	dockerNameHeader = "aerolab_c-"
 }
 
 func (d *backendDocker) WorkOnServers() {
 	d.server = true
 	d.client = false
+	dockerNameHeader = "aerolab-"
 }
 
 func (d *backendDocker) Init() error {
@@ -174,7 +178,7 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 		return fmt.Errorf("failed stopping container: %s;%s", out, err)
 	}
 	// docker container commit container_name dist_ver:aeroVer
-	templImg := fmt.Sprintf("aerolab-%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	templImg := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
 	out, err = exec.Command("docker", "container", "commit", templName, templImg).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to commit container to image: %s;%s", out, err)
@@ -191,7 +195,7 @@ func (d *backendDocker) TemplateDestroy(v backendVersion) error {
 	if v.distroName == "el" {
 		v.distroName = "centos"
 	}
-	name := fmt.Sprintf("aerolab-%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	name := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
 	out, err := exec.Command("docker", "image", "list", "--format", "{{json .ID}}", fmt.Sprintf("--filter=reference=%s", name)).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to get image list: %s;%s", string(out), err)
@@ -208,16 +212,18 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 	if err := d.versionToReal(&v); err != nil {
 		return err
 	}
-	templ, err := d.ListTemplates()
-	if err != nil {
-		return err
-	}
-	inArray, err := inslice.Reflect(templ, v, 1)
-	if err != nil {
-		return err
-	}
-	if len(inArray) == 0 {
-		return errors.New("template not found")
+	if !d.client {
+		templ, err := d.ListTemplates()
+		if err != nil {
+			return err
+		}
+		inArray, err := inslice.Reflect(templ, v, 1)
+		if err != nil {
+			return err
+		}
+		if len(inArray) == 0 {
+			return errors.New("template not found")
+		}
 	}
 	list, err := d.ClusterList()
 	if err != nil {
@@ -243,6 +249,10 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 	for node := highestNode; node < nodeCount+highestNode; node = node + 1 {
 		var out []byte
 		exposeList := []string{"run"}
+		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+		if d.client {
+			tmplName = fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)
+		}
 		if extra.dockerHostname {
 			exposeList = append(exposeList, "--hostname", name+"-"+strconv.Itoa(node))
 		}
@@ -263,9 +273,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		}
 		if extra.privileged {
 			fmt.Println("WARNING: privileged container")
-			exposeList = append(exposeList, "--device-cgroup-rule=b 7:* rmw", "--privileged=true", "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf("aerolab-%s_%d", name, node), fmt.Sprintf("aerolab-%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion))
+			exposeList = append(exposeList, "--device-cgroup-rule=b 7:* rmw", "--privileged=true", "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf(dockerNameHeader+"%s_%d", name, node), tmplName)
 		} else {
-			exposeList = append(exposeList, "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf("aerolab-%s_%d", name, node), fmt.Sprintf("aerolab-%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion))
+			exposeList = append(exposeList, "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf(dockerNameHeader+"%s_%d", name, node), tmplName)
 		}
 		out, err = exec.Command("docker", exposeList...).CombinedOutput()
 		if err != nil {
@@ -300,7 +310,7 @@ func (d *backendDocker) CopyFilesToCluster(name string, files []fileList, nodes 
 			return fmt.Errorf("error closing tmpfile: %s", err)
 		}
 		for _, node := range nodes {
-			nodeName := fmt.Sprintf("aerolab-%s_%d", name, node)
+			nodeName := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
 			var out []byte
 			out, err = exec.Command("docker", "cp", tmpfileName, fmt.Sprintf("%s:%s", nodeName, file.filePath)).CombinedOutput()
 			if err != nil {
@@ -325,7 +335,7 @@ func (d *backendDocker) RunCommands(clusterName string, commands [][]string, nod
 		}
 	}
 	for _, node := range nodes {
-		name := fmt.Sprintf("aerolab-%s_%d", clusterName, node)
+		name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 		var out []byte
 		var err error
 		for _, command := range commands {
@@ -356,7 +366,7 @@ func (d *backendDocker) GetClusterNodeIps(name string) ([]string, error) {
 	ips := []string{}
 	var out []byte
 	for _, node := range nodes {
-		containerName := fmt.Sprintf("aerolab-%s_%d", name, node)
+		containerName := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
 		out, err = exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", containerName).CombinedOutput()
 		if err != nil {
 			return nil, err
@@ -387,7 +397,7 @@ func (d *backendDocker) GetNodeIpMap(name string, internalIPs bool) (map[int]str
 	ips := make(map[int]string)
 	var out []byte
 	for _, node := range nodes {
-		containerName := fmt.Sprintf("aerolab-%s_%d", name, node)
+		containerName := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
 		out, err = exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", containerName).CombinedOutput()
 		if err != nil {
 			return nil, err
@@ -410,7 +420,7 @@ func (d *backendDocker) ClusterStart(name string, nodes []int) error {
 	}
 	for _, node := range nodes {
 		var out []byte
-		name := fmt.Sprintf("aerolab-%s_%d", name, node)
+		name := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
 		out, err = exec.Command("docker", "start", name).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("%s;%s", string(out), err)
@@ -429,7 +439,7 @@ func (d *backendDocker) ClusterStop(name string, nodes []int) error {
 	}
 	for _, node := range nodes {
 		var out []byte
-		name := fmt.Sprintf("aerolab-%s_%d", name, node)
+		name := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
 		out, err = exec.Command("docker", "stop", name).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("%s;%s", string(out), err)
@@ -448,7 +458,7 @@ func (d *backendDocker) ClusterDestroy(name string, nodes []int) error {
 	}
 	for _, node := range nodes {
 		var out []byte
-		name := fmt.Sprintf("aerolab-%s_%d", name, node)
+		name := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
 		out, err = exec.Command("docker", "rm", name).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("%s;%s", string(out), err)
@@ -458,7 +468,7 @@ func (d *backendDocker) ClusterDestroy(name string, nodes []int) error {
 }
 
 func (d *backendDocker) Upload(clusterName string, node int, source string, destination string, verbose bool) error {
-	name := fmt.Sprintf("aerolab-%s_%d", clusterName, node)
+	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	cmd := []string{"cp", source, name + ":" + destination}
 	out, err := exec.Command("docker", cmd...).CombinedOutput()
 	if err != nil {
@@ -468,7 +478,7 @@ func (d *backendDocker) Upload(clusterName string, node int, source string, dest
 }
 
 func (d *backendDocker) Download(clusterName string, node int, source string, destination string, verbose bool) error {
-	name := fmt.Sprintf("aerolab-%s_%d", clusterName, node)
+	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	cmd := []string{"cp", name + ":" + source, destination}
 	out, err := exec.Command("docker", cmd...).CombinedOutput()
 	if err != nil {
@@ -482,7 +492,7 @@ func (d *backendDocker) AttachAndRun(clusterName string, node int, command []str
 }
 
 func (d *backendDocker) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (err error) {
-	name := fmt.Sprintf("aerolab-%s_%d", clusterName, node)
+	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	var cmd *exec.Cmd
 	head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), "-ti", name}
 	if len(command) == 0 {
@@ -503,7 +513,7 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileList) erro
 	for _, file := range files {
 		var tmpfile *os.File
 		var tmpfileName string
-		tmpfile, err = os.CreateTemp("", "aerolab-tmp")
+		tmpfile, err = os.CreateTemp("", dockerNameHeader+"tmp")
 		if err != nil {
 			return err
 		}
@@ -548,7 +558,7 @@ func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
 		if len(tt) != 3 {
 			continue
 		}
-		nameNo := strings.Split(strings.TrimPrefix(tt[1], "aerolab-"), "_")
+		nameNo := strings.Split(strings.TrimPrefix(tt[1], dockerNameHeader+""), "_")
 		if len(nameNo) != 2 {
 			continue
 		}
@@ -583,7 +593,7 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 	for scanner.Scan() {
 		t := scanner.Text()
 		t = strings.Trim(t, "'\"")
-		if strings.HasPrefix(t, "CONTAINER ID") || strings.Contains(t, " aerolab-") {
+		if strings.HasPrefix(t, "CONTAINER ID") || strings.Contains(t, " "+dockerNameHeader) {
 			response = response + t + "\n"
 		}
 	}
@@ -601,7 +611,7 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 	}
 	response = response + "\n\nNODE_NAME | NODE_IP\n===================\n"
 	for _, cluster := range clusterList {
-		if strings.HasPrefix(cluster, "aerolab-") {
+		if strings.HasPrefix(cluster, dockerNameHeader+"") {
 			out, err = exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", cluster).CombinedOutput()
 			if err != nil {
 				return "", err
@@ -631,7 +641,7 @@ func (d *backendDocker) TemplateListFull(isJson bool) (string, error) {
 		for scanner.Scan() {
 			t := scanner.Text()
 			t = strings.Trim(t, "'\"")
-			if strings.HasPrefix(t, "REPOSITORY") || strings.HasPrefix(t, "aerolab-") {
+			if strings.HasPrefix(t, "REPOSITORY") || strings.HasPrefix(t, dockerNameHeader+"") {
 				response = response + t + "\n"
 			}
 		}
@@ -642,10 +652,10 @@ func (d *backendDocker) TemplateListFull(isJson bool) (string, error) {
 	for scanner.Scan() {
 		t := scanner.Text()
 		t = strings.Trim(t, "'\" \t\r\n")
-		if !strings.HasPrefix(t, "aerolab-") {
+		if !strings.HasPrefix(t, dockerNameHeader+"") {
 			continue
 		}
-		rep := strings.TrimPrefix(cut(t, 1, " "), "aerolab-")
+		rep := strings.TrimPrefix(cut(t, 1, " "), dockerNameHeader+"")
 		osVer := strings.Split(rep, "_")
 		if len(osVer) != 2 {
 			continue
