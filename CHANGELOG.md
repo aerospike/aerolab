@@ -2,6 +2,7 @@
 * support arm deployments
 * add option to deploy AMS (monitoring stack) - `aerolab client create ams ...`
 * add `aerolab client add-features` option to add features to existing clients (e..g deploy base clients and add tools and add ams)
+* `aerolab xdr connect` <- find a way to work cross-region
 
 #### 4.1.0
 * add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector)
