@@ -60,3 +60,36 @@ Executing `aerolab cluster create help` once the backend has been selected will 
 ## Other commands
 
 All commands are supported on both `aws` and `docker` backends and should behave exactly the same.
+
+## Working with multiple regions
+
+Working with multiple regions can be achieved by switching the backend, as so:
+
+```
+aerolab config backend -t aws -r eu-west-1
+...commands...
+aerolab config backend -t aws -r us-east-1
+...commands...
+```
+
+Alternatively, if using multiple regions on many occassions, multiple configuration files may be utilised:
+
+```
+# create a config called us.conf
+AEROLAB_CONFIG_FILE=us.conf
+aerolab config backend -t aws -r us-east-1
+
+# create a config called eu.conf
+AEROLAB_CONFIG_FILE=eu
+aerolab config backend -t aws -r eu-west-1
+
+# since eu is the exported region variable, default commands execute against it
+aerolab cluster create
+aerolab attach shell -- asadm -e info
+
+# execute an ad-hoc command on another region
+AEROLAB_CONFIG_FILE=us aerolab cluster create
+
+# keep running in eu region
+aerolab cluster destroy
+```
