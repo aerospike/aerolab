@@ -80,7 +80,7 @@ AEROLAB_CONFIG_FILE=us.conf
 aerolab config backend -t aws -r us-east-1
 
 # create a config called eu.conf
-AEROLAB_CONFIG_FILE=eu
+AEROLAB_CONFIG_FILE=eu.conf
 aerolab config backend -t aws -r eu-west-1
 
 # since eu is the exported region variable, default commands execute against it
@@ -88,7 +88,7 @@ aerolab cluster create
 aerolab attach shell -- asadm -e info
 
 # execute an ad-hoc command on another region
-AEROLAB_CONFIG_FILE=us aerolab cluster create
+AEROLAB_CONFIG_FILE=us.conf aerolab cluster create
 
 # keep running in eu region
 aerolab cluster destroy
