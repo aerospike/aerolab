@@ -1156,7 +1156,8 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			return errors.New("could not find chosen template")
 		}
 	} else {
-		templateId, err := d.getAmi(a.opts.Config.Backend.Region, v)
+		var err error
+		templateId, err = d.getAmi(a.opts.Config.Backend.Region, v)
 		if err != nil {
 			return err
 		}
