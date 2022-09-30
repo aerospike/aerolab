@@ -1,4 +1,4 @@
-#### 4.2.0 - TODO ITEMS
+#### 4.2.0
 * support arm deployments
 * add `ams` client installation system
 
