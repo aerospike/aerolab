@@ -42,6 +42,7 @@ IPs of aerolab containers can be seen by running `aerolab cluster-list`
 * [Aerolab help commands](docs/USING_HELP.md)
 * [Usage Examples](docs/usage/README.md)
 * [AWS HowTo](docs/aws/README.md)
+* [Clients](docs/usage/CLIENTS.md)
 * [Useful scripts](scripts/README.md)
   * [Create new certificates](scripts/CERTS.md)
   * [Deploy LDAP server](scripts/aerolab-ldap/README.md)

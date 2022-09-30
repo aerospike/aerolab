@@ -21,6 +21,7 @@ type filesRestCmd struct {
 type filesDownloadCmd struct {
 	ClusterName TypeClusterName     `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes       TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
+	IsClient    bool                `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
 	Aws         filesDownloadCmdAws `no-flag:"true"`
 	Files       filesRestCmd        `positional-args:"true"`
 }
@@ -51,6 +52,9 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 		logFatal("Could not init backend: %s", err)
 	}
 	log.Print("Running files.download")
+	if c.IsClient {
+		b.WorkOnClients()
+	}
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return err

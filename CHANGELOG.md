@@ -1,13 +1,14 @@
 #### 4.2.0 - TODO ITEMS
 * support arm deployments
-* add option to deploy AMS (monitoring stack) - `aerolab client create ams ...`
-* add `aerolab client add-features` option to add features to existing clients (e..g deploy base clients and add tools and add ams)
+* add `ams` client installation
 
 #### 4.1.0
-* add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector)
-  * TODO: all functions on both backends need to check if they are supposed to work on client or server and switch which tags they use depending on the client/server selection
-  * TODO: client create `base` and `tools` options
-  * TODO: documentation on client commands
+* fix documentation typos
+* fix zsh completion system
+* add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector, files command support, tls command support)
+  * clients: base, aerospike-tools
+* add client command documentation
+* `aerolab xdr` commands: add support for cross-region aws backend
 
 #### v4.0.2
 * add nodeExpander:

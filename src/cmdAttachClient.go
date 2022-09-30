@@ -7,19 +7,19 @@ import (
 )
 
 type attachClientCmd struct {
-	ClientName TypeClientName `short:"n" long:"name" description:"Client group name" default:"mydc"`
+	ClientName TypeClientName `short:"n" long:"name" description:"Client group name" default:"client"`
 	Machine    TypeMachines   `short:"l" long:"node" description:"Machine to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
 	Help       attachCmdHelp  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *attachClientCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
 	return c.run(args)
 }
 
 func (c *attachClientCmd) run(args []string) (err error) {
-	if earlyProcess(args) {
-		return nil
-	}
 	b.WorkOnClients()
 	var nodes []int
 	err = c.Machine.ExpandNodes(string(c.ClientName))

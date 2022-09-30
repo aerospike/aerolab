@@ -69,7 +69,7 @@ func (c *completionZshCmd) Execute(args []string) error {
 		return err
 	}
 
-	if strings.Contains(string(bash), bashString) && strings.Contains(string(bash), "bashcompinit") {
+	if strings.Contains(string(bash), bashString) && strings.Contains(string(bash), "autoload -Uz compinit bashcompinit && compinit && bashcompinit") {
 		fmt.Println("OK, completion file written\nTo initialize, reload your shell or run: source ~/.zshrc")
 		return nil
 	}
@@ -78,8 +78,8 @@ func (c *completionZshCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if !strings.Contains(string(bash), "bashcompinit") {
-		_, err = fdBash.Write([]byte("\nbashcompinit\n"))
+	if !strings.Contains(string(bash), "autoload -Uz compinit bashcompinit && compinit && bashcompinit") {
+		_, err = fdBash.Write([]byte("\nautoload -Uz compinit bashcompinit && compinit && bashcompinit\n"))
 		if err != nil {
 			return err
 		}
