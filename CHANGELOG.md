@@ -8,7 +8,7 @@
 * add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector, files command support, tls command support)
   * clients: base, aerospike-tools
 * add client command documentation
-* `aerolab xdr` commands: add support for cross-region aws backend
+* `aerolab xdr connect` command: add support for cross-region aws backend
 
 #### v4.0.2
 * add nodeExpander:
