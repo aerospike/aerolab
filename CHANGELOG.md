@@ -3,12 +3,15 @@
 * add `ams` client installation
 
 #### 4.1.0
-* fix documentation typos
-* fix zsh completion system
-* add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector, files command support, tls command support)
-  * clients: base, aerospike-tools
-* add client command documentation
-* `aerolab xdr connect` command: add support for cross-region aws backend
+* Bug Fixes
+  * fix documentation typos
+  * fix zsh completion system
+* New Features
+  * add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector, files command support, tls command support)
+    * clients: base, aerospike-tools
+  * add client command documentation
+* Improvements
+  * `aerolab xdr connect` command: add support for cross-region aws backend
 
 #### v4.0.2
 * add nodeExpander:
