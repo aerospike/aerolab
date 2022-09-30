@@ -10,10 +10,12 @@ import (
 )
 
 type netBlockCmd struct {
-	SourceClusterName      TypeClusterName      `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
+	SourceClusterName      TypeClusterName      `short:"s" long:"source" description:"Source Cluster name/Client group" default:"mydc"`
 	SourceNodeList         TypeNodes            `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
-	DestinationClusterName TypeClusterName      `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
+	IsSourceClient         bool                 `short:"c" long:"source-client" description:"set to indicate the source is a client group"`
+	DestinationClusterName TypeClusterName      `short:"d" long:"destination" description:"Destination Cluster name/Client group" default:"mydc-xdr"`
 	DestinationNodeList    TypeNodes            `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
+	IsDestinationClient    bool                 `short:"C" long:"destination-client" description:"set to indicate the destination is a client group"`
 	Type                   TypeNetType          `short:"t" long:"type" description:"Block type (reject|drop)." default:"reject"`
 	Ports                  string               `short:"p" long:"ports" description:"Comma separated list of ports to block." default:"3000"`
 	BlockOn                TypeNetBlockOn       `short:"b" long:"block-on" description:"Block where (input|output). Input=on destination, output=on source." default:"input"`
@@ -71,15 +73,26 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 	if err != nil {
 		return err
 	}
+	clientList := []string{}
+	if c.IsDestinationClient || c.IsSourceClient {
+		b.WorkOnClients()
+		clientList, err = b.ClusterList()
+		b.WorkOnServers()
+		if err != nil {
+			return err
+		}
+	}
 
-	if !inslice.HasString(clusterList, sc) {
-		err = fmt.Errorf("error, source cluster does not exist: %s", sc)
+	if (c.IsSourceClient && !inslice.HasString(clientList, sc)) || (!c.IsSourceClient && !inslice.HasString(clusterList, sc)) {
+		err = fmt.Errorf("error, source does not exist: %s", sc)
 		return err
 	}
-	if !inslice.HasString(clusterList, dc) {
-		err = fmt.Errorf("error, destination cluster does not exist: %s", dc)
+	if (c.IsDestinationClient && !inslice.HasString(clientList, dc)) || (!c.IsDestinationClient && !inslice.HasString(clusterList, dc)) {
+		err = fmt.Errorf("error, destination does not exist: %s", dc)
 		return err
 	}
+	wherecClient := c.IsSourceClient
+	towherecClient := c.IsDestinationClient
 	wherec := sc
 	wheren := sn
 	towherec := dc
@@ -87,6 +100,8 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 	blockon := "--destination"
 	r := blockString
 	if loc == "input" {
+		wherecClient = c.IsDestinationClient
+		towherecClient = c.IsSourceClient
 		wherec = dc
 		wheren = dn
 		towherec = sc
@@ -95,27 +110,45 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 	}
 
 	if len(wheren) == 1 && wheren[0] == "" {
-		asdf, _ := b.NodeListInCluster(wherec)
+		var asdf []int
+		if wherecClient {
+			b.WorkOnClients()
+		}
+		asdf, _ = b.NodeListInCluster(wherec)
+		b.WorkOnServers()
 		wheren = []string{}
 		for _, asd := range asdf {
 			wheren = append(wheren, strconv.Itoa(asd))
 		}
 	}
 	if len(towheren) == 1 && towheren[0] == "" {
+		if towherecClient {
+			b.WorkOnClients()
+		}
 		asdf, _ := b.NodeListInCluster(towherec)
+		b.WorkOnServers()
 		towheren = []string{}
 		for _, asd := range asdf {
 			towheren = append(towheren, strconv.Itoa(asd))
 		}
 	}
 
-	nodeIps, err := b.GetNodeIpMap(towherec, false)
+	var nodeIps map[int]string
+	var nodeIpsInternal map[int]string
+	if towherecClient {
+		b.WorkOnClients()
+	}
+	nodeIps, err = b.GetNodeIpMap(towherec, false)
 	if err != nil {
 		return err
 	}
-	nodeIpsInternal, err := b.GetNodeIpMap(towherec, true)
+	nodeIpsInternal, err = b.GetNodeIpMap(towherec, true)
 	if err != nil {
 		return err
+	}
+	b.WorkOnServers()
+	if wherecClient {
+		b.WorkOnClients()
 	}
 	for _, nodes := range wheren {
 		node, err := strconv.Atoi(nodes)

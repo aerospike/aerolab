@@ -11,10 +11,12 @@ import (
 )
 
 type netLossDelayCmd struct {
-	SourceClusterName      TypeClusterName   `short:"s" long:"source" description:"Source Cluster name" default:"mydc"`
+	SourceClusterName      TypeClusterName   `short:"s" long:"source" description:"Source Cluster name/Client group" default:"mydc"`
 	SourceNodeList         TypeNodes         `short:"l" long:"source-node-list" description:"List of source nodes. Empty=ALL." default:""`
-	DestinationClusterName TypeClusterName   `short:"d" long:"destination" description:"Destination Cluster name" default:"mydc-xdr"`
+	IsSourceClient         bool              `short:"c" long:"source-client" description:"set to indicate the source is a client group"`
+	DestinationClusterName TypeClusterName   `short:"d" long:"destination" description:"Destination Cluster name/Client group" default:"mydc-xdr"`
 	DestinationNodeList    TypeNodes         `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
+	IsDestinationClient    bool              `short:"C" long:"destination-client" description:"set to indicate the destination is a client group"`
 	Action                 TypeNetLossAction `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
 	ShowNames              bool              `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output"`
 	Delay                  string            `short:"p" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
@@ -31,10 +33,24 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	log.Print("Running net.loss-delay")
 
 	// check cluster exists already
-	clusterList, err := b.ClusterList()
+	clusterList := make(map[string]bool)
+	ccClusters, err := b.ClusterList()
 	if err != nil {
 		return err
 	}
+	for _, c := range ccClusters {
+		clusterList[c] = false
+	}
+	b.WorkOnClients()
+	ccClients, err := b.ClusterList()
+	b.WorkOnServers()
+	if err != nil {
+		return err
+	}
+	for _, c := range ccClients {
+		clusterList[c] = true
+	}
+
 	err = c.SourceNodeList.ExpandNodes(string(c.SourceClusterName))
 	if err != nil {
 		return err
@@ -46,8 +62,12 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 
 	fullIpMap := make(map[string]string)
 	if c.Action == "show" {
-		for _, cluster := range clusterList {
+		for cluster, isClient := range clusterList {
+			if isClient {
+				b.WorkOnClients()
+			}
 			ips, err := b.GetNodeIpMap(cluster, false)
+			b.WorkOnServers()
 			if err != nil {
 				return err
 			}
@@ -57,14 +77,14 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		}
 	}
 
-	if !inslice.HasString(clusterList, string(c.SourceClusterName)) {
-		err = fmt.Errorf("error, cluster does not exist: %s", string(c.SourceClusterName))
+	if (c.IsSourceClient && !inslice.HasString(ccClients, string(c.SourceClusterName))) || (!c.IsSourceClient && !inslice.HasString(ccClusters, string(c.SourceClusterName))) {
+		err = fmt.Errorf("error, does not exist: %s", string(c.SourceClusterName))
 		return err
 	}
 
 	if c.Action != "show" && c.Action != "delall" {
-		if !inslice.HasString(clusterList, string(c.DestinationClusterName)) {
-			err = fmt.Errorf("error, cluster does not exist: %s", string(c.DestinationClusterName))
+		if (c.IsSourceClient && !inslice.HasString(ccClients, string(c.DestinationClusterName))) || (!c.IsSourceClient && !inslice.HasString(ccClusters, string(c.DestinationClusterName))) {
+			err = fmt.Errorf("error, does not exist: %s", string(c.DestinationClusterName))
 			return err
 		}
 	}
@@ -73,12 +93,20 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	var sourceNodeIpMap map[int]string
 	var sourceNodeIpMapInternal map[int]string
 	if c.SourceNodeList == "" {
+		if c.IsSourceClient {
+			b.WorkOnClients()
+		}
 		sourceNodeList, err = b.NodeListInCluster(string(c.SourceClusterName))
+		b.WorkOnServers()
 		if err != nil {
 			return err
 		}
 	} else {
+		if c.IsSourceClient {
+			b.WorkOnClients()
+		}
 		snl, err := b.NodeListInCluster(string(c.SourceClusterName))
+		b.WorkOnServers()
 		if err != nil {
 			return err
 		}
@@ -97,6 +125,9 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		}
 	}
 
+	if c.IsSourceClient {
+		b.WorkOnClients()
+	}
 	sourceNodeIpMap, err = b.GetNodeIpMap(string(c.SourceClusterName), false)
 	if err != nil {
 		return err
@@ -106,17 +137,26 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	b.WorkOnServers()
 
 	destNodeList := []int{}
 	var destNodeIpMap map[int]string
 	var destNodeIpMapInternal map[int]string
 	if c.DestinationNodeList == "" {
+		if c.IsDestinationClient {
+			b.WorkOnClients()
+		}
 		destNodeList, err = b.NodeListInCluster(string(c.DestinationClusterName))
+		b.WorkOnServers()
 		if err != nil {
 			return err
 		}
 	} else {
+		if c.IsDestinationClient {
+			b.WorkOnClients()
+		}
 		dnl, err := b.NodeListInCluster(string(c.DestinationClusterName))
+		b.WorkOnServers()
 		if err != nil {
 			return err
 		}
@@ -135,6 +175,9 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		}
 	}
 
+	if c.IsDestinationClient {
+		b.WorkOnClients()
+	}
 	destNodeIpMap, err = b.GetNodeIpMap(string(c.DestinationClusterName), false)
 	if err != nil {
 		return err
@@ -144,7 +187,9 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	b.WorkOnServers()
 
+	sysRunOnClient := c.IsSourceClient
 	sysRunOnClusterName := string(c.SourceClusterName)
 	sysLogTheOther := string(c.DestinationClusterName)
 	sysRunOnNodeList := sourceNodeList
@@ -152,6 +197,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	sysRunOnDestIpMap := destNodeIpMap
 	sysRunOnDestIpMapInternal := destNodeIpMapInternal
 	if c.RunOnDestination {
+		sysRunOnClient = c.IsDestinationClient
 		sysRunOnClusterName = string(c.DestinationClusterName)
 		sysLogTheOther = string(c.SourceClusterName)
 		sysRunOnNodeList = destNodeList
@@ -164,7 +210,11 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	found := false
 	for _, sourceNode := range sysRunOnNodeList {
 		command := []string{"ip", "route", "ls"}
+		if sysRunOnClient {
+			b.WorkOnClients()
+		}
 		out, err := b.RunCommands(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
+		b.WorkOnServers()
 		if err != nil {
 			continue
 		}
@@ -216,14 +266,22 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 			for _, destNode := range sysRunOnDestNodeList {
 				destNodeIp := sysRunOnDestIpMap[destNode]
 				command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s --network %s", rest, destNodeIp)}
+				if sysRunOnClient {
+					b.WorkOnClients()
+				}
 				out, err := b.RunCommands(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
+				b.WorkOnServers()
 				if err != nil {
 					log.Printf("ERROR: %s %s %s", container, err, string(out[0]))
 				}
 				if sysRunOnDestIpMapInternal != nil {
 					destNodeIpInternal := sysRunOnDestIpMapInternal[destNode]
 					command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s --network %s", rest, destNodeIpInternal)}
+					if sysRunOnClient {
+						b.WorkOnClients()
+					}
 					out, err = b.RunCommands(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
+					b.WorkOnServers()
 					if err != nil {
 						log.Printf("ERROR: %s %s %s", container, err, string(out[0]))
 					}
@@ -231,7 +289,11 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 			}
 		} else {
 			command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s", rest)}
+			if sysRunOnClient {
+				b.WorkOnClients()
+			}
 			out, err := b.RunCommands(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
+			b.WorkOnServers()
 			if err != nil {
 				log.Printf("ERROR: %s %s %s", container, err, string(out[0]))
 			} else if c.Action == "show" {
