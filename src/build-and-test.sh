@@ -181,7 +181,7 @@ function clientchecks() {
     handle cleanup
 }
 
-#clusterchecks
+clusterchecks
 clientchecks
 rm -f ${AEROLAB_CONFIG_FILE}
 rm -f strong.conf
