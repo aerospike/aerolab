@@ -93,6 +93,9 @@ func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err err
 	if err := checkDistroVersion(c.DistroName.String(), c.DistroVersion.String()); err != nil {
 		logFatal(err)
 	}
+	if string(c.DistroVersion) == "latest" {
+		c.DistroVersion = TypeDistroVersion(getLatestVersionForDistro(c.DistroName.String()))
+	}
 
 	// build extra
 	var ep []string
@@ -120,6 +123,7 @@ func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err err
 		distroVersion:    string(c.DistroVersion),
 		aerospikeVersion: "client",
 	}
+	log.Printf("Distro: %s Version: %s", string(c.DistroName), string(c.DistroVersion))
 
 	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {
@@ -144,8 +148,10 @@ func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err err
 	}
 
 	repl := "cd aerospike-server-* && ./asinstall || exit 1"
+	repl2 := "cd /root && tar -zxf installer.tgz || exit 1"
 	installer := aerospikeInstallScript["aws:"+string(c.DistroName)+":"+string(c.DistroVersion)]
 	installer = strings.ReplaceAll(installer, repl, "")
+	installer = strings.ReplaceAll(installer, repl2, "")
 	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{fileList{"/opt/install-base.sh", strings.NewReader(installer), len(installer)}}, nodeListNew)
 	if err != nil {
 		return nil, fmt.Errorf("could not copy install script to nodes: %s", err)

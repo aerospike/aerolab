@@ -31,7 +31,8 @@ apt-get -y install python3-distutils || exit 1
 apt-get -y install libcurl4 || exit 1
 apt-get -y install ldap-utils || exit 1
 apt-get -y install python3-setuptools || exit 1
-apt-get -y install iptables wget dnsutils tcpdump python net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
+apt-get -y install python
+apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
 apt-get -y install dnsutils iputils-ping telnet netcat sysstat vim
 wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz || exit 1
 tar -zxvf tc.tar.gz || exit 1
@@ -161,7 +162,8 @@ apt-get -y install python3-distutils || exit 1
 apt-get -y install libcurl4 || exit 1
 apt-get -y install ldap-utils || exit 1
 apt-get -y install python3-setuptools || exit 1
-apt-get -y install iptables wget dnsutils tcpdump python net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
+apt-get -y install python
+apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
 apt-get -y install dnsutils iputils-ping telnet netcat sysstat vim
 wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz || exit 1
 tar -zxvf tc.tar.gz || exit 1

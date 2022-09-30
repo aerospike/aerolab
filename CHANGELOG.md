@@ -10,7 +10,6 @@
 * add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector)
   * TODO: client create `tools` option
   * TODO: add support for net commands to work cross-client-server
-  * TODO: documentation on client commands
 
 #### v4.0.2
 * add nodeExpander:

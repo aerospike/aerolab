@@ -42,6 +42,6 @@ func (c *clientAddToolsCmd) Execute(args []string) error {
 
 func (c *clientAddToolsCmd) addTools(args []string) error {
 	b.WorkOnClients()
-	// TODO CODE HERE TO RUN TOOLS INSTALL CODE
+	// TODO CODE HERE TO RUN TOOLS INSTALL CODE; need to download aerospike installer and install just the tools package
 	return errors.New("NOT IMPLEMENTED YET")
 }

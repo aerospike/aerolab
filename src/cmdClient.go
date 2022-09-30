@@ -1,5 +1,7 @@
 package main
 
+import "os"
+
 type clientCmd struct {
 	Create  clientCreateCmd  `command:"create" subcommands-optional:"true" description:"Create new client machines"`
 	Add     clientAddCmd     `command:"add" subcommands-optional:"true" description:"Add features to existing client machines"`
@@ -9,4 +11,10 @@ type clientCmd struct {
 	Grow    clientGrowCmd    `command:"grow" subcommands-optional:"true" description:"Grow a client machine group"`
 	Destroy clientDestroyCmd `command:"destroy" subcommands-optional:"true" description:"Destroy client(s)"`
 	Help    helpCmd          `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *clientCmd) Execute(args []string) error {
+	c.Help.Execute(args)
+	os.Exit(1)
+	return nil
 }

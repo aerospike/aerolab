@@ -1,5 +1,7 @@
 package main
 
+import "os"
+
 type clientCreateCmd struct {
 	Base  clientCreateBaseCmd  `command:"base" subcommands-optional:"true" description:"simple base image"`
 	Tools clientCreateToolsCmd `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
@@ -15,6 +17,18 @@ type clientAddCmd struct {
 
 type clientGrowCmd struct {
 	clientCreateCmd
+}
+
+func (c *clientCreateCmd) Execute(args []string) error {
+	c.Help.Execute(args)
+	os.Exit(1)
+	return nil
+}
+
+func (c *clientAddCmd) Execute(args []string) error {
+	c.Help.Execute(args)
+	os.Exit(1)
+	return nil
 }
 
 func init() {
