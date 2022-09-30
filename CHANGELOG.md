@@ -7,7 +7,8 @@
 * fix zsh completion system
 * add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector, files command support, tls command support)
   * clients: base, aerospike-tools
-* TODO: `aerolab xdr connect` <- find a way to work cross-region
+* add client command documentation
+* `aerolab xdr` commands: add support for cross-region aws backend
 
 #### v4.0.2
 * add nodeExpander:
