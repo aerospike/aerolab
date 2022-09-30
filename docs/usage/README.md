@@ -11,6 +11,7 @@
 * [Upload or Download a file to/from container](updown.md)
 * [Setup TLS](tls.md)
 * [Download aerospike logs](get-logs.md)
+* [Clients](CLIENTS.md)
 
 ## Advanced
 

@@ -440,7 +440,7 @@ func (d *backendDocker) ClusterStop(name string, nodes []int) error {
 	for _, node := range nodes {
 		var out []byte
 		name := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
-		out, err = exec.Command("docker", "stop", name).CombinedOutput()
+		out, err = exec.Command("docker", "stop", "-t", "1", name).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("%s;%s", string(out), err)
 		}
