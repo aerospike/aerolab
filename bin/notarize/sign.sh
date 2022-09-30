@@ -27,8 +27,15 @@ rm -f ${BIN}
 rm -f ${FILE}
 rm -f notarize_result
 rm -f notarization_progress
+echo "cleanup done"
+ls
+echo "========="
 
 cp ../aerolab-macos ${BIN}
+./aerolab version
+
+echo "Press ENTER to sign"
+read
 
 # codesign and test
 echo "Codesigning and verifying"

@@ -10,18 +10,62 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
+type TypeAwsRegion string
+
+func (t *TypeAwsRegion) Set(defaultRegion string) (changed bool) {
+	if a.opts.Config.Backend.Type != "aws" {
+		// not aws, ignore this call
+		return false
+	}
+	if *t == "" {
+		// reset to default region
+		if a.opts.Config.Backend.Region == defaultRegion {
+			// already at default
+			return false
+		}
+		// reset and init
+		a.opts.Config.Backend.Region = defaultRegion
+		if err := b.Init(); err != nil {
+			log.Fatal(err)
+		}
+		return true
+	}
+	if string(*t) == a.opts.Config.Backend.Region {
+		// region is already set accordingly
+		return false
+	}
+	// set new region
+	a.opts.Config.Backend.Region = string(*t)
+	if err := b.Init(); err != nil {
+		log.Fatal(err)
+	}
+	return true
+}
+
 type xdrConnectCmd struct {
 	SourceClusterName       TypeClusterName `short:"S" long:"source" description:"Source Cluster name" default:"mydc"`
 	DestinationClusterNames TypeClusterName `short:"D" long:"destinations" description:"Destination Cluster names, comma separated." default:"destdc"`
+	Aws                     xdrConnectAws   `no-flag:"true"`
 	xdrConnectRealCmd
 }
 
 type xdrConnectRealCmd struct {
 	sourceClusterName       TypeClusterName
 	destinationClusterNames TypeClusterName
+	aws                     xdrConnectAws
+	prevAwsRegion           string
 	Version                 TypeXDRVersion `short:"V" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto"`
 	Restart                 TypeYesNo      `short:"T" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y"`
 	Namespaces              string         `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
+}
+
+type xdrConnectAws struct {
+	SourceRegion      TypeAwsRegion `short:"s" long:"source-region" description:"if set, will override the default configured backend region"`
+	DestinationRegion TypeAwsRegion `short:"d" long:"destination-region" description:"if set, will override the default configured backend region"`
+}
+
+func init() {
+	addBackendSwitch("xdr.connect", "aws", &a.opts.XDR.Connect.Aws)
 }
 
 func (c *xdrConnectCmd) Execute(args []string) error {
@@ -30,11 +74,13 @@ func (c *xdrConnectCmd) Execute(args []string) error {
 	}
 	c.sourceClusterName = c.SourceClusterName
 	c.destinationClusterNames = c.DestinationClusterNames
+	c.aws = c.Aws
 	return c.runXdrConnect(args)
 }
 
 func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 	log.Print("Running xdr.connect")
+	c.prevAwsRegion = a.opts.Config.Backend.Region
 	namespaces := strings.Split(c.Namespaces, ",")
 	destinations := strings.Split(string(c.destinationClusterNames), ",")
 
@@ -42,24 +88,34 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		return errors.New("restart-source option only accepts 'y' or 'n'")
 	}
 
-	clusterList, err := b.ClusterList()
+	c.aws.SourceRegion.Set(c.prevAwsRegion)
+	sourceClusterList, err := b.ClusterList()
 	if err != nil {
 		return err
 	}
+	destClusterList := sourceClusterList
+	if c.aws.DestinationRegion.Set(c.prevAwsRegion) {
+		destClusterList, err = b.ClusterList()
+		if err != nil {
+			return err
+		}
+	}
 
-	if !inslice.HasString(clusterList, string(c.sourceClusterName)) {
+	if !inslice.HasString(sourceClusterList, string(c.sourceClusterName)) {
 		err = fmt.Errorf("cluster does not exist: %s", c.sourceClusterName)
 		return err
 	}
 
+	c.aws.SourceRegion.Set(c.prevAwsRegion)
 	sourceNodeList, err := b.NodeListInCluster(string(c.sourceClusterName))
 	if err != nil {
 		return err
 	}
 
 	destIpList := make(map[string][]string)
+	c.aws.DestinationRegion.Set(c.prevAwsRegion)
 	for _, destination := range destinations {
-		if !inslice.HasString(clusterList, destination) {
+		if !inslice.HasString(destClusterList, destination) {
 			err = fmt.Errorf("cluster does not exist: %s", destination)
 			return err
 		}
@@ -78,7 +134,7 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 	}
 
 	// we have c.SourceClusterName, sourceNodeList, destinations, destIpList, namespaces
-
+	c.aws.SourceRegion.Set(c.prevAwsRegion)
 	_, err = b.RunCommands(string(c.sourceClusterName), [][]string{[]string{"mkdir", "-p", "/opt/aerospike/xdr"}}, sourceNodeList)
 	if err != nil {
 		return fmt.Errorf("failed running mkdir /opt/aerospike/xdr: %s", err)
