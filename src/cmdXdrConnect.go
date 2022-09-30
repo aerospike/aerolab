@@ -60,8 +60,8 @@ type xdrConnectRealCmd struct {
 }
 
 type xdrConnectAws struct {
-	SourceRegion      TypeAwsRegion `short:"S" long:"source-region" description:"if set, will override the default configured backend region"`
-	DestinationRegion TypeAwsRegion `short:"D" long:"destination-region" description:"if set, will override the default configured backend region"`
+	SourceRegion      TypeAwsRegion `short:"s" long:"source-region" description:"if set, will override the default configured backend region"`
+	DestinationRegion TypeAwsRegion `short:"d" long:"destination-region" description:"if set, will override the default configured backend region"`
 }
 
 func init() {
