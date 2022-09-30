@@ -35,15 +35,15 @@ func (c *clientCreateBaseCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	_, err := c.createBase(args)
+	_, err := c.createBase(args, "base")
 	return err
 }
 
-func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err error) {
+func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []int, err error) {
 	if !c.isGrow() {
-		fmt.Println("Running client.create")
+		fmt.Println("Running client.create." + nt)
 	} else {
-		fmt.Println("Running client.grow")
+		fmt.Println("Running client.grow." + nt)
 	}
 
 	var startScriptSize os.FileInfo
