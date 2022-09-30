@@ -30,23 +30,57 @@ func init() {
 }
 
 const (
-	awsTagUsedBy           = "UsedBy"
-	awsTagUsedByValue      = "aerolab4"
-	awsTagClusterName      = "Aerolab4ClusterName"
-	awsTagNodeNumber       = "Aerolab4NodeNumber"
-	awsTagOperatingSystem  = "Aerolab4OperatingSystem"
-	awsTagOSVersion        = "Aerolab4OperatingSystemVersion"
-	awsTagAerospikeVersion = "Aerolab4AerospikeVersion"
+	// server
+	awsServerTagUsedBy           = "UsedBy"
+	awsServerTagUsedByValue      = "aerolab4"
+	awsServerTagClusterName      = "Aerolab4ClusterName"
+	awsServerTagNodeNumber       = "Aerolab4NodeNumber"
+	awsServerTagOperatingSystem  = "Aerolab4OperatingSystem"
+	awsServerTagOSVersion        = "Aerolab4OperatingSystemVersion"
+	awsServerTagAerospikeVersion = "Aerolab4AerospikeVersion"
+
+	// client
+	awsClientTagUsedBy           = "UsedBy"
+	awsClientTagUsedByValue      = "aerolab4client"
+	awsClientTagClusterName      = "Aerolab4clientClusterName"
+	awsClientTagNodeNumber       = "Aerolab4clientNodeNumber"
+	awsClientTagOperatingSystem  = "Aerolab4clientOperatingSystem"
+	awsClientTagOSVersion        = "Aerolab4clientOperatingSystemVersion"
+	awsClientTagAerospikeVersion = "Aerolab4clientAerospikeVersion"
+)
+
+var (
+	awsTagUsedBy           = awsServerTagUsedBy
+	awsTagUsedByValue      = awsServerTagUsedByValue
+	awsTagClusterName      = awsServerTagClusterName
+	awsTagNodeNumber       = awsServerTagNodeNumber
+	awsTagOperatingSystem  = awsServerTagOperatingSystem
+	awsTagOSVersion        = awsServerTagOSVersion
+	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 )
 
 func (d *backendAws) WorkOnClients() {
 	d.server = false
 	d.client = true
+	awsTagUsedBy = awsClientTagUsedBy
+	awsTagUsedByValue = awsClientTagUsedByValue
+	awsTagClusterName = awsClientTagClusterName
+	awsTagNodeNumber = awsClientTagNodeNumber
+	awsTagOperatingSystem = awsClientTagOperatingSystem
+	awsTagOSVersion = awsClientTagOSVersion
+	awsTagAerospikeVersion = awsClientTagAerospikeVersion
 }
 
 func (d *backendAws) WorkOnServers() {
 	d.server = true
 	d.client = false
+	awsTagUsedBy = awsServerTagUsedBy
+	awsTagUsedByValue = awsServerTagUsedByValue
+	awsTagClusterName = awsServerTagClusterName
+	awsTagNodeNumber = awsServerTagNodeNumber
+	awsTagOperatingSystem = awsServerTagOperatingSystem
+	awsTagOSVersion = awsServerTagOSVersion
+	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
 func (d *backendAws) Init() error {
@@ -1082,43 +1116,65 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		disksInt = append(disksInt, int64(dint))
 	}
 
-	filterA := ec2.DescribeImagesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("tag:" + awsTagUsedBy),
-				Values: []*string{aws.String(awsTagUsedByValue)},
-			},
-		},
-	}
-	images, err := d.ec2svc.DescribeImages(&filterA)
-	if err != nil {
-		return fmt.Errorf("could not run DescribeImages\n%s", err)
-	}
 	templateId := ""
 	var myImage *ec2.Image
-	for _, image := range images.Images {
-		var imOs string
-		var imOsVer string
-		var imAerVer string
-		for _, tag := range image.Tags {
-			if *tag.Key == awsTagOperatingSystem {
-				imOs = *tag.Value
+	if !d.client {
+		filterA := ec2.DescribeImagesInput{
+			Filters: []*ec2.Filter{
+				{
+					Name:   aws.String("tag:" + awsTagUsedBy),
+					Values: []*string{aws.String(awsTagUsedByValue)},
+				},
+			},
+		}
+		images, err := d.ec2svc.DescribeImages(&filterA)
+		if err != nil {
+			return fmt.Errorf("could not run DescribeImages\n%s", err)
+		}
+		for _, image := range images.Images {
+			var imOs string
+			var imOsVer string
+			var imAerVer string
+			for _, tag := range image.Tags {
+				if *tag.Key == awsTagOperatingSystem {
+					imOs = *tag.Value
+				}
+				if *tag.Key == awsTagOSVersion {
+					imOsVer = *tag.Value
+				}
+				if *tag.Key == awsTagAerospikeVersion {
+					imAerVer = *tag.Value
+				}
 			}
-			if *tag.Key == awsTagOSVersion {
-				imOsVer = *tag.Value
-			}
-			if *tag.Key == awsTagAerospikeVersion {
-				imAerVer = *tag.Value
+			if v.distroName == imOs && v.distroVersion == imOsVer && v.aerospikeVersion == imAerVer {
+				templateId = *image.ImageId
+				myImage = image
+				break
 			}
 		}
-		if v.distroName == imOs && v.distroVersion == imOsVer && v.aerospikeVersion == imAerVer {
+		if templateId == "" {
+			return errors.New("could not find chosen template")
+		}
+	} else {
+		templateId, err := d.getAmi(a.opts.Config.Backend.Region, v)
+		if err != nil {
+			return err
+		}
+		filterA := ec2.DescribeImagesInput{
+			ImageIds: []*string{aws.String(templateId)},
+		}
+		images, err := d.ec2svc.DescribeImages(&filterA)
+		if err != nil {
+			return fmt.Errorf("could not run DescribeImages\n%s", err)
+		}
+		templateId = ""
+		for _, image := range images.Images {
 			templateId = *image.ImageId
 			myImage = image
-			break
 		}
-	}
-	if templateId == "" {
-		return errors.New("could not find chosen template")
+		if templateId == "" {
+			return errors.New("could not find chosen template")
+		}
 	}
 	nodes, err := d.NodeListInCluster(name)
 	if err != nil {

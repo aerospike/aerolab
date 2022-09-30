@@ -14,8 +14,9 @@ import (
 )
 
 type tlsGenerateCmd struct {
-	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name/Client group" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	IsClient    bool            `short:"C" long:"client" description:"set to indicate the certficates should end up on client groups"`
 	TlsName     string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
 	CaName      string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
 	NoUpload    bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
@@ -42,6 +43,9 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 	// get backend
 	log.Print("Generating TLS certificates and reconfiguring hosts")
 
+	if c.IsClient {
+		b.WorkOnClients()
+	}
 	var nodes []int
 	if !c.NoUpload {
 		// check cluster exists already

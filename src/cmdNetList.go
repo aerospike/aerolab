@@ -20,13 +20,30 @@ func (c *netListCmd) Execute(args []string) error {
 
 	//go through all DCs and all nodes and list iptables, display in a nice (this -> that) format
 	check_out := ""
-	clusters, err := b.ClusterList()
+	clusters := make(map[string]bool) // map[name]isClient
+	clustersList, err := b.ClusterList()
 	if err != nil {
 		return err
 	}
+	for _, c := range clustersList {
+		clusters[c] = false
+	}
+	b.WorkOnClients()
+	clustersList, err = b.ClusterList()
+	if err != nil {
+		return err
+	}
+	b.WorkOnServers()
+	for _, c := range clustersList {
+		clusters[c] = true
+	}
 	nodes := make(map[string]map[int][]string)
-	for _, cluster := range clusters {
+	for cluster, isClient := range clusters {
+		if isClient {
+			b.WorkOnClients()
+		}
 		tmpnodes, err := b.GetNodeIpMap(cluster, true)
+		b.WorkOnServers()
 		if err != nil {
 			return err
 		}
@@ -40,7 +57,11 @@ func (c *netListCmd) Execute(args []string) error {
 				nodes[cluster][i] = append(nodes[cluster][i], j)
 			}
 		}
+		if isClient {
+			b.WorkOnClients()
+		}
 		tmpnodes, err = b.GetNodeIpMap(cluster, false)
+		b.WorkOnServers()
 		if err != nil {
 			return err
 		}
@@ -56,9 +77,13 @@ func (c *netListCmd) Execute(args []string) error {
 		}
 	}
 	// nodes[cluster string][node int] = ip
-	for _, cluster := range clusters {
+	for cluster, isClient := range clusters {
 		for node := range nodes[cluster] {
+			if isClient {
+				b.WorkOnClients()
+			}
 			outs, err := b.RunCommands(cluster, [][]string{[]string{"/sbin/iptables", "-L", "INPUT", "-vn"}}, []int{node})
+			b.WorkOnServers()
 			out := outs[0]
 			if err != nil {
 				log.Printf("WARNING: Could not check: %s, got:\n---\n%s\n---\n", cluster, string(out))
@@ -81,7 +106,11 @@ func (c *netListCmd) Execute(args []string) error {
 					}
 				}
 			}
+			if isClient {
+				b.WorkOnClients()
+			}
 			outs, err = b.RunCommands(cluster, [][]string{[]string{"/sbin/iptables", "-L", "OUTPUT", "-vn"}}, []int{node})
+			b.WorkOnServers()
 			out = outs[0]
 			if err != nil {
 				log.Printf("WARNING: Could not check: %s, got:\n---\n%s\n---\n", cluster, string(out))

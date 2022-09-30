@@ -41,6 +41,7 @@ func (c *clientStartCmd) Execute(args []string) error {
 		return err
 	}
 	var nerr error
+	scriptErr := false
 	for _, ClusterName := range cList {
 		err = b.ClusterStart(ClusterName, nodes[ClusterName])
 		if err != nil {
@@ -50,11 +51,25 @@ func (c *clientStartCmd) Execute(args []string) error {
 				nerr = errors.New(nerr.Error() + "\n" + err.Error())
 			}
 		}
+		if err == nil {
+			out, err := b.RunCommands(ClusterName, [][]string{[]string{"/bin/bash", "/usr/local/bin/start.sh"}}, nodes[ClusterName])
+			if err != nil {
+				scriptErr = true
+				prt := ""
+				for i, o := range out {
+					prt = prt + "\n ---- " + strconv.Itoa(i) + " ----\n" + string(o)
+				}
+				log.Printf("Some startup sripts returned an error (%s). Outputs:%s", err, prt)
+			}
+		}
 	}
 	if nerr != nil {
 		return nerr
 	}
 	log.Println("Done")
+	if scriptErr {
+		return errors.New("SOME SCRIPTS RETURNED ERRORS")
+	}
 	return nil
 }
 
