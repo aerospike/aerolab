@@ -8,7 +8,7 @@
 * fix documentation typos
 * fix zsh completion system
 * add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector)
-  * TODO: client create `tools` option
+* TODO TEST: client tools, net on clients, files commands on clients
 
 #### v4.0.2
 * add nodeExpander:

@@ -13,13 +13,13 @@ type attachClientCmd struct {
 }
 
 func (c *attachClientCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
 	return c.run(args)
 }
 
 func (c *attachClientCmd) run(args []string) (err error) {
-	if earlyProcess(args) {
-		return nil
-	}
 	b.WorkOnClients()
 	var nodes []int
 	err = c.Machine.ExpandNodes(string(c.ClientName))

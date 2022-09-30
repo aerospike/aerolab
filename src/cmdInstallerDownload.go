@@ -16,6 +16,11 @@ func (c *installerDownloadCmd) Execute(args []string) error {
 	if earlyProcessV2(args, false) {
 		return nil
 	}
+	_, err := c.runDownload(args)
+	return err
+}
+
+func (c *installerDownloadCmd) runDownload(args []string) (string, error) {
 	log.Print("Running installer.download")
 	if err := chDir(string(c.ChDir)); err != nil {
 		logFatal("ChDir failed: %s", err)
@@ -26,7 +31,7 @@ func (c *installerDownloadCmd) Execute(args []string) error {
 	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
-			return fmt.Errorf("aerospike Version not found: %s", err)
+			return "", fmt.Errorf("aerospike Version not found: %s", err)
 		}
 		c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
 		c.DistroName = TypeDistro(bv.distroName)
@@ -39,7 +44,7 @@ func (c *installerDownloadCmd) Execute(args []string) error {
 	if url == "" {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
-			return fmt.Errorf("aerospike Version URL not found: %s", err)
+			return "", fmt.Errorf("aerospike Version URL not found: %s", err)
 		}
 		c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
 		c.DistroName = TypeDistro(bv.distroName)
@@ -58,9 +63,9 @@ func (c *installerDownloadCmd) Execute(args []string) error {
 		log.Println("Downloading installer")
 		err = downloadFile(url, fn, c.Username, c.Password)
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 	log.Print("Done")
-	return nil
+	return fn, nil
 }

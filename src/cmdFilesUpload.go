@@ -35,7 +35,14 @@ func (c *filesUploadCmd) Execute(args []string) error {
 	if err != nil {
 		logFatal("Could not init backend: %s", err)
 	}
+	return c.runUpload(args)
+}
+
+func (c *filesUploadCmd) runUpload(args []string) error {
 	log.Print("Running files.upload")
+	if c.IsClient {
+		b.WorkOnClients()
+	}
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return err
