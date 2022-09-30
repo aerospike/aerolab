@@ -319,6 +319,19 @@ function check_xdr_details() {
     return 0
 }
 
+function check_xdr_crossregion() {
+    ${aerolab} config backend -t aws -r us-west-1 || return 1
+    ${aerolab} cluster create -n testfar -c 2 -I t3a.medium -E 20 -S sg-01f8d354e1a5e1e1d -U subnet-0494e0b34fa079479 || return 1
+    ${aerolab} config backend -t aws -r us-east-1 || return 1
+    ${aerolab} xdr connect -S testd2 -D testfar -M test,bar -s us-east-1 -d us-west-1 || return 1
+    ${aerolab} config backend -t aws -r us-west-1 || return 1
+    ${aerolab} attach shell -n testfar -- asadm -e info || return 1
+    ${aerolab} cluster destroy -n testfar || return 1
+    ${aerolab} template destroy -v all -d all -i all || return 1
+    ${aerolab} config backend -t aws -r us-east-1 || return 1
+    ${aerolab} attach shell -n testd2 -- asadm -e info || return 1
+}
+
 function check_tls_generate() {
     ${aerolab} tls generate -n tests -t bob11 -c bobca1 || return 1
     ${aerolab} tls generate -n tests -t bob12 -c bobca1 || return 1
@@ -380,6 +393,7 @@ handle check_xdr_connect
 handle check_xdr_details
 handle check_tls_generate
 handle check_tls_copy
+[ "${backend}" = "aws" ] && handle check_xdr_crossregion
 handle cleanup
 rm -f ${AEROLAB_CONFIG_FILE}
 rm -f strong.conf
