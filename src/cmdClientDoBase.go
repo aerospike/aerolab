@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/bestmethod/inslice"
@@ -115,11 +116,12 @@ func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err err
 	}
 
 	bv := &backendVersion{
-		distroName:    string(c.DistroName),
-		distroVersion: string(c.DistroVersion),
+		distroName:       string(c.DistroName),
+		distroVersion:    string(c.DistroVersion),
+		aerospikeVersion: "client",
 	}
 
-	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra) // TODO if workOnClient is enabled, do not look for templates, just start the machines with given OS and/or AMI
+	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {
 		return nil, err
 	}
@@ -141,8 +143,21 @@ func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err err
 		}
 	}
 
-	// TODO: nodeListNew - install client software on those nodes
-	// TODO: remember to install startup script that will run on machine start
+	repl := "cd aerospike-server-* && ./asinstall || exit 1"
+	installer := aerospikeInstallScript["aws:"+string(c.DistroName)+":"+string(c.DistroVersion)]
+	installer = strings.ReplaceAll(installer, repl, "")
+	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{fileList{"/opt/install-base.sh", strings.NewReader(installer), len(installer)}}, nodeListNew)
+	if err != nil {
+		return nil, fmt.Errorf("could not copy install script to nodes: %s", err)
+	}
+	out, err := b.RunCommands(string(c.ClientName), [][]string{[]string{"/bin/bash", "/opt/install-base.sh"}}, nodeListNew)
+	if err != nil {
+		nout := ""
+		for i, o := range out {
+			nout = nout + "\n---- " + strconv.Itoa(i) + " ----\n" + string(o)
+		}
+		return nil, fmt.Errorf("some installers failed: %s%s", err, out)
+	}
 
 	// set hostnames for aws
 	if a.opts.Config.Backend.Type == "aws" && !c.NoSetHostname {
@@ -188,6 +203,10 @@ func (c *clientCreateBaseCmd) createBase(args []string) (machines []int, err err
 				log.Printf("ERROR: could not install early script: %s", err)
 			}
 		}
+	} else {
+		emptyStart := "#!/bin/bash\ndate"
+		StartScriptFile := strings.NewReader(emptyStart)
+		b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{"/usr/local/bin/start.sh", StartScriptFile, len(emptyStart)}}, nodeListNew)
 	}
 
 	log.Println("Done")
