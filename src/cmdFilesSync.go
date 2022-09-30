@@ -86,7 +86,11 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	// build destination node list
 	destNodeList := []int{}
 	if c.DestNodes != "" {
+		if c.IsClientD {
+			b.WorkOnClients()
+		}
 		err = c.DestNodes.ExpandNodes(string(c.DestClusterName))
+		b.WorkOnServers()
 		if err != nil {
 			return err
 		}

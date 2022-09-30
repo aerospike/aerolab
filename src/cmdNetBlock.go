@@ -38,11 +38,19 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 	} else {
 		log.Print("Running net.unblock")
 	}
+	if c.IsSourceClient {
+		b.WorkOnClients()
+	}
 	err := c.SourceNodeList.ExpandNodes(string(c.SourceClusterName))
+	b.WorkOnServers()
 	if err != nil {
 		return err
 	}
+	if c.IsDestinationClient {
+		b.WorkOnClients()
+	}
 	err = c.DestinationNodeList.ExpandNodes(string(c.DestinationClusterName))
+	b.WorkOnServers()
 	if err != nil {
 		return err
 	}

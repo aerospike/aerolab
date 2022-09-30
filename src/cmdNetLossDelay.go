@@ -51,11 +51,19 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		clusterList[c] = true
 	}
 
+	if c.IsSourceClient {
+		b.WorkOnClients()
+	}
 	err = c.SourceNodeList.ExpandNodes(string(c.SourceClusterName))
+	b.WorkOnServers()
 	if err != nil {
 		return err
 	}
+	if c.IsDestinationClient {
+		b.WorkOnClients()
+	}
 	err = c.DestinationNodeList.ExpandNodes(string(c.DestinationClusterName))
+	b.WorkOnServers()
 	if err != nil {
 		return err
 	}

@@ -1,14 +1,13 @@
 #### 4.2.0 - TODO ITEMS
 * support arm deployments
-* add option to deploy AMS (monitoring stack) - `aerolab client create ams ...`
-* add `aerolab client add-features` option to add features to existing clients (e..g deploy base clients and add tools and add ams)
-* `aerolab xdr connect` <- find a way to work cross-region
+* add `ams` client installation
 
 #### 4.1.0
 * fix documentation typos
 * fix zsh completion system
-* add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector)
-* TODO TEST: client tools, net on clients, files commands on clients
+* add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector, files command support, tls command support)
+  * clients: base, aerospike-tools
+* TODO: `aerolab xdr connect` <- find a way to work cross-region
 
 #### v4.0.2
 * add nodeExpander:
