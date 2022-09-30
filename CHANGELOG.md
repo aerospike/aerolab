@@ -1,6 +1,6 @@
 #### 4.2.0 - TODO ITEMS
 * support arm deployments
-* add `ams` client installation
+* add `ams` client installation system
 
 #### 4.1.0
 * Bug Fixes
