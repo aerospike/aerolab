@@ -1,7 +1,6 @@
 #### 4.2.0
 * New Features:
   * support arm deployments
-    * TODO: aerospike upgrade, cluster create
     * TODO: insert/delete data (and build scripts)
     * TODO: add placeholder support for aerospike arm downloads to test (placeholder arm tgz output for all versions - dummy tgz)
   * TODO: add `ams` client installation system
