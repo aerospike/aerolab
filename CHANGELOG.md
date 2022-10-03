@@ -1,8 +1,8 @@
 #### 4.2.0
 * New Features:
   * support arm deployments
-    * TODO: test amd aerolab
-    * TODO: test arm aerolab
+    * TODO: test arm aerolab on docker and aws
+    * TODO: switch simulator off in `version.go`
     * TODO: insert/delete data (and build scripts)
   * TODO: add `ams` client installation system
 * Improvements:
