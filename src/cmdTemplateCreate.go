@@ -87,7 +87,11 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
-	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
+	archString := ".x86_64"
+	if bv.isArm {
+		archString = ".arm64"
+	}
+	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + archString + ".tgz"
 	// download file if not exists
 	if _, err := os.Stat(fn); os.IsNotExist(err) {
 		log.Println("Downloading installer")
