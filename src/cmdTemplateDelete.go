@@ -20,7 +20,7 @@ type templateDeleteCmdAws struct {
 }
 
 func init() {
-	addBackendSwitch("template.delete", "aws", &a.opts.Template.Delete.Aws)
+	addBackendSwitch("template.destroy", "aws", &a.opts.Template.Delete.Aws)
 }
 
 func (c *templateDeleteCmd) Execute(args []string) error {
