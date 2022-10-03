@@ -231,6 +231,9 @@ func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, 
 
 	if bv.distroVersion != "latest" {
 		for _, installer := range installers {
+			if simulateArmInstaller && bv.isArm {
+				installer.isArm = bv.isArm
+			}
 			if installer.isArm != bv.isArm {
 				continue
 			}
@@ -250,6 +253,9 @@ func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, 
 	nver := -1
 	found := &dlVersion{}
 	for _, installer := range installers {
+		if simulateArmInstaller && bv.isArm {
+			installer.isArm = bv.isArm
+		}
 		if installer.isArm != bv.isArm {
 			continue
 		}

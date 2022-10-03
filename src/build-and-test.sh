@@ -8,7 +8,7 @@ export AEROLAB_CONFIG_FILE=test.conf
 cluster="testcluster"
 logDir="./log"
 featureFile="/Users/rglonek/aerolab/templates/features.conf"
-backend="aws"
+backend="docker"
 extra=""
 [ "${backend}" = "aws" ] && extra="${extra} -I t3a.medium -E 20 -S sg-03430d698bffb44a3 -U subnet-06cc8a834647c4cc3" #-L
 

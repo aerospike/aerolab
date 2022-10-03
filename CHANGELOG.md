@@ -1,8 +1,9 @@
 #### 4.2.0
 * New Features:
   * support arm deployments
+    * TODO: test amd aerolab
+    * TODO: test arm aerolab
     * TODO: insert/delete data (and build scripts)
-    * TODO: add placeholder support for aerospike arm downloads to test (placeholder arm tgz output for all versions - dummy tgz)
   * TODO: add `ams` client installation system
 * Improvements:
   * make mesh mode default
