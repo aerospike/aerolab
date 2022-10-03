@@ -161,7 +161,10 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// upgrade
-		out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd %s && ./asinstall", strings.TrimSuffix(fn, ".tgz"))}}, []int{i})
+		fnDir := strings.TrimSuffix(fn, ".tgz")
+		fnDir = strings.TrimSuffix(fnDir, ".x86_64")
+		fnDir = strings.TrimSuffix(fnDir, ".arm64")
+		out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd %s* && ./asinstall", fnDir)}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
