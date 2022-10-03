@@ -15,6 +15,7 @@ type dlVersion struct {
 	distroName    string
 	distroVersion string
 	url           string
+	isArm         bool
 }
 
 func fixClusterNameConfig(conf string, cluster_name string) (newconf string, err error) {
@@ -230,6 +231,9 @@ func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, 
 
 	if bv.distroVersion != "latest" {
 		for _, installer := range installers {
+			if installer.isArm != bv.isArm {
+				continue
+			}
 			if installer.distroName != bv.distroName {
 				continue
 			}
@@ -246,6 +250,9 @@ func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, 
 	nver := -1
 	found := &dlVersion{}
 	for _, installer := range installers {
+		if installer.isArm != bv.isArm {
+			continue
+		}
 		if installer.distroName != bv.distroName {
 			continue
 		}
@@ -303,7 +310,13 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 		dlv := &dlVersion{
 			url: baseUrl + line,
 		}
+		dlv.isArm = false
+		if strings.HasSuffix(line, ".arm64.tgz") {
+			dlv.isArm = true
+		}
 		line = strings.TrimSuffix(line[strings.LastIndex(line, "-")+1:], ".tgz")
+		line = strings.TrimSuffix(line, ".x86_64")
+		line = strings.TrimSuffix(line, ".arm64")
 		if strings.HasPrefix(line, "ubuntu") {
 			dlv.distroName = "ubuntu"
 			dlv.distroVersion = strings.TrimPrefix(line, "ubuntu")

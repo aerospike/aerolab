@@ -118,10 +118,18 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		publicIP:        c.Aws.PublicIP,
 	}
 
+	isArm := c.Aws.IsArm
+	if b.Arch() == TypeArchAmd {
+		isArm = false
+	}
+	if b.Arch() == TypeArchArm {
+		isArm = true
+	}
 	bv := &backendVersion{
 		distroName:       string(c.DistroName),
 		distroVersion:    string(c.DistroVersion),
 		aerospikeVersion: "client",
+		isArm:            isArm,
 	}
 	log.Printf("Distro: %s Version: %s", string(c.DistroName), string(c.DistroVersion))
 
