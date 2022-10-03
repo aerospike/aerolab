@@ -1,6 +1,14 @@
 #### 4.2.0
-* support arm deployments
-* add `ams` client installation system
+* New Features:
+  * support arm deployments
+    * TODO: client create and grow, client base, client tools, aerospike upgrade, cluster create and grow (download, template creation, etc), installer download, template create, template delete, template list
+    * TODO: scripts.go - split and cleanup, this is a mess ; implement arm and amd flavours if needed
+    * TODO: insert/delete data (and build scripts)
+  * add `ams` client installation system
+* Improvements:
+  * make mesh mode default
+* Bug fixes:
+  * do not require features file on CE
 
 #### 4.1.0
 * Bug Fixes

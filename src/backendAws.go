@@ -18,6 +18,10 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
+func (d *backendAws) Arch() TypeArch {
+	return TypeArchUndef
+}
+
 type backendAws struct {
 	sess   *session.Session
 	ec2svc *ec2.EC2
@@ -199,7 +203,11 @@ func (d *backendAws) ListTemplates() ([]backendVersion, error) {
 				imAerVer = *tag.Value
 			}
 		}
-		v = append(v, backendVersion{imOs, imOsVer, imAerVer})
+		isArm := false
+		if image.Architecture != nil && strings.Contains(*image.Architecture, "arm") {
+			isArm = true
+		}
+		v = append(v, backendVersion{imOs, imOsVer, imAerVer, isArm})
 	}
 	return v, nil
 }
@@ -897,6 +905,12 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 		return errors.New("image not found")
 	}
 	myImage := images.Images[0]
+	if myImage.Architecture != nil && v.isArm && !strings.Contains(*myImage.Architecture, "arm") {
+		return fmt.Errorf("requested arm system with non-arm AMI")
+	}
+	if myImage.Architecture != nil && !v.isArm && strings.Contains(*myImage.Architecture, "arm") {
+		return fmt.Errorf("requested non-arm system with arm AMI")
+	}
 
 	bdms := []*ec2.BlockDeviceMapping{}
 	if myImage.RootDeviceType != nil && myImage.RootDeviceName != nil && *myImage.RootDeviceType == ec2.RootDeviceTypeEbs {
@@ -1176,6 +1190,12 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		if templateId == "" {
 			return errors.New("could not find chosen template")
 		}
+	}
+	if myImage.Architecture != nil && v.isArm && !strings.Contains(*myImage.Architecture, "arm") {
+		return fmt.Errorf("requested arm system with non-arm AMI")
+	}
+	if myImage.Architecture != nil && !v.isArm && strings.Contains(*myImage.Architecture, "arm") {
+		return fmt.Errorf("requested non-arm system with arm AMI")
 	}
 	nodes, err := d.NodeListInCluster(name)
 	if err != nil {
