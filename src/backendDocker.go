@@ -143,7 +143,7 @@ func (d *backendDocker) Init() error {
 			continue
 		}
 		arch := strings.Split(line, ": ")[1]
-		if strings.Contains(arch, "arm") {
+		if strings.Contains(arch, "arm") || strings.Contains(arch, "aarch") {
 			d.isArm = true
 		}
 		break
