@@ -20,7 +20,7 @@ type clusterCreateCmd struct {
 	NodeCount            int             `short:"c" long:"count" description:"Number of nodes" default:"1"`
 	CustomConfigFilePath flags.Filename  `short:"o" long:"customconf" description:"Custom config file path to install"`
 	FeaturesFilePath     flags.Filename  `short:"f" long:"featurefile" description:"Features file to install"`
-	HeartbeatMode        TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"default"`
+	HeartbeatMode        TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh"`
 	MulticastAddress     string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
 	MulticastPort        string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
@@ -217,8 +217,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	var edition string
+	isCommunity := false
 	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
+		isCommunity = true
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
@@ -319,12 +321,15 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if averr != nil {
 		return errors.New("aerospike Version is not an int.int.*")
 	}
-	if string(c.FeaturesFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
-		log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-		bufio.NewReader(os.Stdin).ReadBytes('\n')
-	}
-	if string(c.FeaturesFilePath) == "" && aver_major == 6 && aver_minor > 0 {
-		log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
+
+	if !isCommunity {
+		if string(c.FeaturesFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
+			log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
+		if string(c.FeaturesFilePath) == "" && aver_major == 6 && aver_minor > 0 {
+			log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
+		}
 	}
 
 	log.Print("Starting deployment")
