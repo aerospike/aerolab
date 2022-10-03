@@ -62,6 +62,7 @@ type clusterCreateCmdAws struct {
 	SecurityGroupID string `short:"S" long:"secgroup-id" description:"existing security group ID to put instances in"`
 	SubnetID        string `short:"U" long:"subnet-id" description:"existing subnet ID to put instances in"`
 	PublicIP        bool   `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	IsArm           bool   `long:"arm" description:"indicate installing on an arm instance"`
 }
 
 type clusterCreateCmdDocker struct {

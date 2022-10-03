@@ -242,6 +242,12 @@ func (d *backendAws) TemplateDestroy(v backendVersion) error {
 				imAerVer = *tag.Value
 			}
 		}
+		if image.Architecture != nil && strings.Contains(*image.Architecture, "arm") && !v.isArm {
+			continue
+		}
+		if image.Architecture != nil && !strings.Contains(*image.Architecture, "arm") && v.isArm {
+			continue
+		}
 		if v.distroName == imOs && v.distroVersion == imOsVer && v.aerospikeVersion == imAerVer {
 			templateId = *image.ImageId
 			for _, bdm := range image.BlockDeviceMappings {
@@ -683,6 +689,7 @@ type clusterListFull struct {
 	PublicIp    string
 	InstanceId  string
 	State       string
+	Arch        string
 }
 
 func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
@@ -725,6 +732,9 @@ func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 			if instance.State != nil && instance.State.Name != nil {
 				clist1.State = *instance.State.Name
 			}
+			if instance.Architecture != nil {
+				clist1.Arch = *instance.Architecture
+			}
 			clist = append(clist, clist1)
 		}
 	}
@@ -734,6 +744,7 @@ func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 	publicIp := 15
 	instanceId := 20
 	state := 20
+	arch := 10
 	for _, item := range clist {
 		if len(item.ClusterName) > clusterName {
 			clusterName = len(item.ClusterName)
@@ -753,6 +764,9 @@ func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 		if len(item.State) > state {
 			state = len(item.State)
 		}
+		if len(item.Arch) > arch {
+			arch = len(item.Arch)
+		}
 	}
 	sort.Slice(clist, func(i, j int) bool {
 		if clist[i].ClusterName < clist[j].ClusterName {
@@ -767,10 +781,10 @@ func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 	})
 	if !isJson {
 		sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s\n"
-		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State")
-		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------")
+		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State", "Arch")
+		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------", "----------")
 		for _, item := range clist {
-			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State)
+			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State, item.Arch)
 		}
 		return result, nil
 	}
@@ -783,10 +797,11 @@ type templateListFull struct {
 	OsVersion        string
 	AerospikeVersion string
 	ImageId          string
+	Arch             string
 }
 
 func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
-	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\n-----------------------------------------\n"
+	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n-----------------------------------------\n"
 	resList := []templateListFull{}
 	filterA := ec2.DescribeImagesInput{
 		Filters: []*ec2.Filter{
@@ -819,12 +834,13 @@ func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 		if image.ImageId != nil {
 			mid = *image.ImageId
 		}
-		result = fmt.Sprintf("%s%s\t\t%s\t\t%s\n", result, imOs, imOsVer, imAerVer)
+		result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, imOs, imOsVer, imAerVer, *image.Architecture)
 		resList = append(resList, templateListFull{
 			OsName:           imOs,
 			OsVersion:        imOsVer,
 			AerospikeVersion: imAerVer,
 			ImageId:          mid,
+			Arch:             *image.Architecture,
 		})
 	}
 	if !isJson {
