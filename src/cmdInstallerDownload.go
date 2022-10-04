@@ -9,7 +9,8 @@ import (
 
 type installerDownloadCmd struct {
 	aerospikeVersionSelectorCmd
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	IsArm bool    `long:"arm" description:"indicate installing on an arm instance"`
+	Help  helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *installerDownloadCmd) Execute(args []string) error {
@@ -27,7 +28,7 @@ func (c *installerDownloadCmd) runDownload(args []string) (string, error) {
 	}
 	var url string
 	var err error
-	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}
+	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), c.IsArm}
 	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
@@ -57,7 +58,11 @@ func (c *installerDownloadCmd) runDownload(args []string) (string, error) {
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
-	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
+	archString := ".x86_64"
+	if bv.isArm {
+		archString = ".arm64"
+	}
+	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + archString + ".tgz"
 	// download file if not exists
 	if _, err := os.Stat(fn); os.IsNotExist(err) {
 		log.Println("Downloading installer")

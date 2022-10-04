@@ -43,7 +43,14 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	}
 
 	var url string
-	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}
+	isArm := c.Aws.IsArm
+	if b.Arch() == TypeArchAmd {
+		isArm = false
+	}
+	if b.Arch() == TypeArchArm {
+		isArm = true
+	}
+	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), isArm}
 	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
@@ -57,7 +64,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	log.Printf("Distro = %s:%s ; AerospikeVersion = %s", c.DistroName, c.DistroVersion, c.AerospikeVersion)
 	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
 	// check if template exists
-	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}, 1)
+	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), isArm}, 1)
 	if err != nil {
 		return err
 	}
@@ -80,7 +87,11 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
-	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
+	archString := ".x86_64"
+	if bv.isArm {
+		archString = ".arm64"
+	}
+	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + archString + ".tgz"
 	// download file if not exists
 	if _, err := os.Stat(fn); os.IsNotExist(err) {
 		log.Println("Downloading installer")

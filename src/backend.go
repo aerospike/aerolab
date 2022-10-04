@@ -36,6 +36,7 @@ type backendVersion struct {
 	distroName       string
 	distroVersion    string
 	aerospikeVersion string
+	isArm            bool
 }
 
 type fileList struct {
@@ -44,7 +45,17 @@ type fileList struct {
 	fileSize     int
 }
 
+type TypeArch int
+
+var TypeArchUndef = TypeArch(0)
+var TypeArchArm = TypeArch(1)
+var TypeArchAmd = TypeArch(2)
+
 type backend interface {
+	// check if given node is ARM or not
+	IsNodeArm(clusterName string, nodeNumber int) (bool, error)
+	// output which architecture MUST be used, or otherwise, Undef if both Arch are supported
+	Arch() TypeArch
 	// select to work on clients or servers
 	WorkOnClients()
 	WorkOnServers()

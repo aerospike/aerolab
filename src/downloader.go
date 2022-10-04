@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,6 +57,9 @@ func downloadFile(url string, filename string, user string, pass string) (err er
 		return err
 	}
 	defer out.Close()
+	if simulateArmInstaller {
+		return downloadArmSimulator(out)
+	}
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -81,4 +85,14 @@ func downloadFile(url string, filename string, user string, pass string) (err er
 		return err
 	}
 	return
+}
+
+func downloadArmSimulator(f *os.File) error {
+	b64 := "H4sIAIk6O2MAA+1W227bRhD1M79iCj34iRddKBWtEyCA2yJAgQa9vGdFDsWFyF12L7KTIv/es6RM05HixgGKtqjnhdTuzJnZOWeWEmy07eSeY8vmwCZm5dh0RlqO18k8yZJF7LdeOb/IkmyVXnyBZVm2yXPqn+vhmS1Ww/NoNF8t5+v1Mp9vcsoWi2yVX1D+Jcmeat46YVCK2TVa8f6TfnCrqkdwjucYn/8RE0/kX1ip0IqmeUKOv+B/uczXH/G/3GxWF5T9baee2P+c/9lXqbcm3UqVsjrQVtg6avelNBR3lOrOpaNCJuvsisl6IRxdXX330/f0kkY0YcsI4OG1B72pZcPkjOeo1BGRbZg7muOH4gixR5RLvF4GnAcp7t+SQqsqmtGruwUqhRPIwBR25M4b4aRWVCFdEsHz11paAnvqvaAWbMOvZWwb65IoiF4WTH+gosE8lsho7caVndG+e7jUyTLgU3oQJjVeTSu1ZYJtJB7smCF2tWFRWvqaZlR0nm4pJ6lolWxo9HVGKCuKUH/8u2fPg7veWt2w40f9j/hxhxnuY2l1Gnp/AKOdjqsybsUtzXMoNvoQRY3e7aTaoRuj44x+1Lu+mUPztkxCkQiwHrCdcHUyOg89KfmQKt80k6beGShyfOsA8Q4VVXp0+DDN+AurklALtWyt2KELToPBUvt7BoAUTvYZOWiSBGkUuxtt9pPAUw3cmShLgxIC1Mlep42jZWjcydaMflMQWYurlFwNremm0TehseEcPCy+FUUB7PiY4y1aaUQLqkzwgscZ2NdvxpJ01aNc62KPiFpDzIPSbyQ6H7ZESNq/DTd7gC20MVy45vQ4M+r8tpG2HmKPWTC0RU2i6xpZ9GMVelGSho8hpUtQA2GFiKKBOvokZ6AxU4BidYfbtyIUGyCSMwEPe0NXr9+8ur7++eU5udQsjNsyLo+Jah8jbhZkVROyo6wS5BjCzSeNVoEwaK0GVqlRmyPru57n1jcOHbDuBK3FCXrATwpkcU4goSPhUwp5xge6dLL7JnD44qo/57ch9kWIvQysBTfTji3W1RnAgZL+ZD0vp0ll+LAfRBPG/WTTyZYxXjTPzvW4Elsji48G5HOGYz5FC8MHhdtOYNgcWzcBNDxKLK5wo4GUxbjZcqvNu9jK97jUfhiXS64EeImda+i+bItY3Bn4H4OrjI+xyB0+MdE//bV9tmd7tmf799if4AUtxgAQAAA="
+	contents, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(contents)
+	return err
 }

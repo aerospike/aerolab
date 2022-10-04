@@ -15,6 +15,7 @@ type dlVersion struct {
 	distroName    string
 	distroVersion string
 	url           string
+	isArm         bool
 }
 
 func fixClusterNameConfig(conf string, cluster_name string) (newconf string, err error) {
@@ -212,6 +213,12 @@ func VersionFromString(v string) (vv []int, tail string) {
 }
 
 func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, err error) {
+	if bv.isArm {
+		nvv, _ := VersionFromString(bv.aerospikeVersion)
+		if nvv[0] < 6 || (nvv[0] == 6 && nvv[1] < 2) {
+			return "", errors.New("only aerospike versions 6.2+ support ARM architecture")
+		}
+	}
 	var version string
 	url, version, err = aeroFindUrl(bv.aerospikeVersion, user, pass)
 	if err != nil {
@@ -230,6 +237,12 @@ func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, 
 
 	if bv.distroVersion != "latest" {
 		for _, installer := range installers {
+			if simulateArmInstaller && bv.isArm {
+				installer.isArm = bv.isArm
+			}
+			if installer.isArm != bv.isArm {
+				continue
+			}
 			if installer.distroName != bv.distroName {
 				continue
 			}
@@ -246,6 +259,12 @@ func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, 
 	nver := -1
 	found := &dlVersion{}
 	for _, installer := range installers {
+		if simulateArmInstaller && bv.isArm {
+			installer.isArm = bv.isArm
+		}
+		if installer.isArm != bv.isArm {
+			continue
+		}
 		if installer.distroName != bv.distroName {
 			continue
 		}
@@ -303,19 +322,57 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 		dlv := &dlVersion{
 			url: baseUrl + line,
 		}
+		dlv.isArm = false
+		if strings.HasSuffix(line, ".arm64.tgz") || strings.HasSuffix(line, ".aarch64.tgz") {
+			dlv.isArm = true
+		}
+		bothArch := false
+		if !strings.HasSuffix(line, ".x86_64.tgz") && !strings.HasSuffix(line, ".arm64.tgz") && !strings.HasSuffix(line, ".aarch64.tgz") {
+			bothArch = true
+		}
 		line = strings.TrimSuffix(line[strings.LastIndex(line, "-")+1:], ".tgz")
+		line = strings.TrimSuffix(line, ".x86_64")
+		line = strings.TrimSuffix(line, ".arm64")
+		line = strings.TrimSuffix(line, ".aarch64")
 		if strings.HasPrefix(line, "ubuntu") {
 			dlv.distroName = "ubuntu"
 			dlv.distroVersion = strings.TrimPrefix(line, "ubuntu")
 			ret = append(ret, dlv)
+			if bothArch {
+				dlvX := &dlVersion{
+					url:           dlv.url,
+					distroName:    dlv.distroName,
+					distroVersion: dlv.distroVersion,
+					isArm:         !dlv.isArm,
+				}
+				ret = append(ret, dlvX)
+			}
 		} else if strings.HasPrefix(line, "debian") {
 			dlv.distroName = "debian"
 			dlv.distroVersion = strings.TrimPrefix(line, "debian")
 			ret = append(ret, dlv)
+			if bothArch {
+				dlvX := &dlVersion{
+					url:           dlv.url,
+					distroName:    dlv.distroName,
+					distroVersion: dlv.distroVersion,
+					isArm:         !dlv.isArm,
+				}
+				ret = append(ret, dlvX)
+			}
 		} else if strings.HasPrefix(line, "el") {
 			dlv.distroName = "centos"
 			dlv.distroVersion = strings.TrimPrefix(line, "el")
 			ret = append(ret, dlv)
+			if bothArch {
+				dlvX := &dlVersion{
+					url:           dlv.url,
+					distroName:    dlv.distroName,
+					distroVersion: dlv.distroVersion,
+					isArm:         !dlv.isArm,
+				}
+				ret = append(ret, dlvX)
+			}
 			if dlv.distroName == "centos" && dlv.distroVersion == "7" {
 				dlv2 := &dlVersion{
 					url:           dlv.url,
@@ -323,6 +380,15 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 					distroVersion: "2",
 				}
 				ret = append(ret, dlv2)
+				if bothArch {
+					dlv2X := &dlVersion{
+						url:           dlv.url,
+						distroName:    dlv.distroName,
+						distroVersion: dlv.distroVersion,
+						isArm:         !dlv.isArm,
+					}
+					ret = append(ret, dlv2X)
+				}
 			}
 		}
 	}

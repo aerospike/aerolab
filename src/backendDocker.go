@@ -20,6 +20,7 @@ import (
 type backendDocker struct {
 	server bool
 	client bool
+	isArm  bool
 }
 
 func init() {
@@ -27,6 +28,17 @@ func init() {
 }
 
 var dockerNameHeader = "aerolab-"
+
+func (d *backendDocker) IsNodeArm(clusterName string, nodeNumber int) (bool, error) {
+	return d.isArm, nil
+}
+
+func (d *backendDocker) Arch() TypeArch {
+	if d.isArm {
+		return TypeArchArm
+	}
+	return TypeArchAmd
+}
 
 func (d *backendDocker) ClusterList() ([]string, error) {
 	out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{json .Names}}").CombinedOutput()
@@ -97,7 +109,7 @@ func (d *backendDocker) ListTemplates() ([]backendVersion, error) {
 					tagList := strings.Split(t, ";")
 					if len(tagList) > 1 {
 						tag := strings.Trim(tagList[1], "'\"")
-						templateList = append(templateList, backendVersion{distVer[0], distVer[1], tag})
+						templateList = append(templateList, backendVersion{distVer[0], distVer[1], tag, d.isArm})
 					}
 				}
 			}
@@ -128,6 +140,17 @@ func (d *backendDocker) Init() error {
 	out, err := exec.CommandContext(ctx, "docker", "info").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker command exists, but docker appears to be unreachable or down: %s", string(out))
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.Trim(line, "\r\n\t ")
+		if !strings.HasPrefix(line, "Architecture: ") {
+			continue
+		}
+		arch := strings.Split(line, ": ")[1]
+		if strings.Contains(arch, "arm") || strings.Contains(arch, "aarch") {
+			d.isArm = true
+		}
+		break
 	}
 	d.WorkOnServers()
 	return nil
