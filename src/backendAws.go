@@ -18,6 +18,10 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
+func (d *backendAws) Arch() TypeArch {
+	return TypeArchUndef
+}
+
 type backendAws struct {
 	sess   *session.Session
 	ec2svc *ec2.EC2
@@ -138,6 +142,45 @@ func (d *backendAws) ClusterList() ([]string, error) {
 	return clusterList, nil
 }
 
+func (d *backendAws) IsNodeArm(clusterName string, nodeNumber int) (bool, error) {
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagClusterName),
+				Values: []*string{aws.String(clusterName)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return false, fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code != int64(48) {
+				for _, tag := range instance.Tags {
+					if *tag.Key == awsTagNodeNumber {
+						nodeNo, err := strconv.Atoi(*tag.Value)
+						if err != nil {
+							return false, errors.New("problem with node numbers in the given cluster. Investigate manually")
+						}
+						if nodeNo == nodeNumber {
+							if instance.Architecture == nil {
+								return false, nil
+							}
+							if strings.Contains(*instance.Architecture, "arm") {
+								return true, nil
+							}
+							return false, nil
+						}
+					}
+				}
+			}
+		}
+	}
+	return false, errors.New("node not found in cluster")
+}
+
 func (d *backendAws) NodeListInCluster(name string) ([]int, error) {
 	filter := ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
@@ -199,7 +242,11 @@ func (d *backendAws) ListTemplates() ([]backendVersion, error) {
 				imAerVer = *tag.Value
 			}
 		}
-		v = append(v, backendVersion{imOs, imOsVer, imAerVer})
+		isArm := false
+		if image.Architecture != nil && strings.Contains(*image.Architecture, "arm") {
+			isArm = true
+		}
+		v = append(v, backendVersion{imOs, imOsVer, imAerVer, isArm})
 	}
 	return v, nil
 }
@@ -233,6 +280,12 @@ func (d *backendAws) TemplateDestroy(v backendVersion) error {
 			if *tag.Key == awsTagAerospikeVersion {
 				imAerVer = *tag.Value
 			}
+		}
+		if image.Architecture != nil && strings.Contains(*image.Architecture, "arm") && !v.isArm {
+			continue
+		}
+		if image.Architecture != nil && !strings.Contains(*image.Architecture, "arm") && v.isArm {
+			continue
 		}
 		if v.distroName == imOs && v.distroVersion == imOsVer && v.aerospikeVersion == imAerVer {
 			templateId = *image.ImageId
@@ -675,6 +728,7 @@ type clusterListFull struct {
 	PublicIp    string
 	InstanceId  string
 	State       string
+	Arch        string
 }
 
 func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
@@ -717,6 +771,9 @@ func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 			if instance.State != nil && instance.State.Name != nil {
 				clist1.State = *instance.State.Name
 			}
+			if instance.Architecture != nil {
+				clist1.Arch = *instance.Architecture
+			}
 			clist = append(clist, clist1)
 		}
 	}
@@ -726,6 +783,7 @@ func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 	publicIp := 15
 	instanceId := 20
 	state := 20
+	arch := 10
 	for _, item := range clist {
 		if len(item.ClusterName) > clusterName {
 			clusterName = len(item.ClusterName)
@@ -745,6 +803,9 @@ func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 		if len(item.State) > state {
 			state = len(item.State)
 		}
+		if len(item.Arch) > arch {
+			arch = len(item.Arch)
+		}
 	}
 	sort.Slice(clist, func(i, j int) bool {
 		if clist[i].ClusterName < clist[j].ClusterName {
@@ -758,11 +819,11 @@ func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 		return ino < jno
 	})
 	if !isJson {
-		sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s\n"
-		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State")
-		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------")
+		sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s %-" + strconv.Itoa(arch) + "s\n"
+		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State", "Arch")
+		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------", "----------")
 		for _, item := range clist {
-			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State)
+			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State, item.Arch)
 		}
 		return result, nil
 	}
@@ -775,10 +836,11 @@ type templateListFull struct {
 	OsVersion        string
 	AerospikeVersion string
 	ImageId          string
+	Arch             string
 }
 
 func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
-	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\n-----------------------------------------\n"
+	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n-----------------------------------------\n"
 	resList := []templateListFull{}
 	filterA := ec2.DescribeImagesInput{
 		Filters: []*ec2.Filter{
@@ -811,12 +873,13 @@ func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 		if image.ImageId != nil {
 			mid = *image.ImageId
 		}
-		result = fmt.Sprintf("%s%s\t\t%s\t\t%s\n", result, imOs, imOsVer, imAerVer)
+		result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, imOs, imOsVer, imAerVer, *image.Architecture)
 		resList = append(resList, templateListFull{
 			OsName:           imOs,
 			OsVersion:        imOsVer,
 			AerospikeVersion: imAerVer,
 			ImageId:          mid,
+			Arch:             *image.Architecture,
 		})
 	}
 	if !isJson {
@@ -897,6 +960,12 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 		return errors.New("image not found")
 	}
 	myImage := images.Images[0]
+	if myImage.Architecture != nil && v.isArm && !strings.Contains(*myImage.Architecture, "arm") {
+		return fmt.Errorf("requested arm system with non-arm AMI")
+	}
+	if myImage.Architecture != nil && !v.isArm && strings.Contains(*myImage.Architecture, "arm") {
+		return fmt.Errorf("requested non-arm system with arm AMI")
+	}
 
 	bdms := []*ec2.BlockDeviceMapping{}
 	if myImage.RootDeviceType != nil && myImage.RootDeviceName != nil && *myImage.RootDeviceType == ec2.RootDeviceTypeEbs {
@@ -1176,6 +1245,12 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		if templateId == "" {
 			return errors.New("could not find chosen template")
 		}
+	}
+	if myImage.Architecture != nil && v.isArm && !strings.Contains(*myImage.Architecture, "arm") {
+		return fmt.Errorf("requested arm system with non-arm AMI")
+	}
+	if myImage.Architecture != nil && !v.isArm && strings.Contains(*myImage.Architecture, "arm") {
+		return fmt.Errorf("requested non-arm system with arm AMI")
 	}
 	nodes, err := d.NodeListInCluster(name)
 	if err != nil {

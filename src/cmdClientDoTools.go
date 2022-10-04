@@ -21,14 +21,23 @@ type clientAddToolsCmd struct {
 	aerospikeVersionCmd
 	osSelectorCmd
 	chDirCmd
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Aws  clientAddToolsAwsCmd `no-flag:"true"`
+	Help helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type clientAddToolsAwsCmd struct {
+	IsArm bool `long:"arm" description:"indicate installing on an arm instance"`
+}
+
+func init() {
+	addBackendSwitch("client.add.tools", "aws", &a.opts.Client.Add.Tools.Aws)
 }
 
 func (c *clientCreateToolsCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}
+	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), c.Aws.IsArm}
 	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		_, err := aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
@@ -52,6 +61,7 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 	a.opts.Client.Add.Tools.DistroName = c.DistroName
 	a.opts.Client.Add.Tools.DistroVersion = c.DistroVersion
 	a.opts.Client.Add.Tools.ChDir = c.ChDir
+	a.opts.Client.Add.Tools.Aws.IsArm = c.Aws.IsArm
 	return a.opts.Client.Add.Tools.addTools(args)
 }
 
@@ -70,6 +80,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Installer.Download.DistroVersion = c.DistroVersion
 	a.opts.Installer.Download.Password = c.Password
 	a.opts.Installer.Download.Username = c.Username
+	a.opts.Installer.Download.IsArm = c.Aws.IsArm
 	fn, err := a.opts.Installer.Download.runDownload(args)
 	if err != nil {
 		return err

@@ -20,7 +20,7 @@ type clusterCreateCmd struct {
 	NodeCount            int             `short:"c" long:"count" description:"Number of nodes" default:"1"`
 	CustomConfigFilePath flags.Filename  `short:"o" long:"customconf" description:"Custom config file path to install"`
 	FeaturesFilePath     flags.Filename  `short:"f" long:"featurefile" description:"Features file to install"`
-	HeartbeatMode        TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"default"`
+	HeartbeatMode        TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh"`
 	MulticastAddress     string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
 	MulticastPort        string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
@@ -62,6 +62,7 @@ type clusterCreateCmdAws struct {
 	SecurityGroupID string `short:"S" long:"secgroup-id" description:"existing security group ID to put instances in"`
 	SubnetID        string `short:"U" long:"subnet-id" description:"existing subnet ID to put instances in"`
 	PublicIP        bool   `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	IsArm           bool   `long:"arm" description:"indicate installing on an arm instance"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -217,15 +218,24 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	var edition string
+	isCommunity := false
 	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
+		isCommunity = true
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
 
 	// if we need to lookup version, do it
 	var url string
-	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}
+	isArm := c.Aws.IsArm
+	if b.Arch() == TypeArchAmd {
+		isArm = false
+	}
+	if b.Arch() == TypeArchArm {
+		isArm = true
+	}
+	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), isArm}
 	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
@@ -261,7 +271,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// check if template exists
-	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String()}, 1)
+	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), isArm}, 1)
 	if err != nil {
 		return err
 	}
@@ -277,7 +287,11 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 		}
 
-		fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
+		archString := ".x86_64"
+		if bv.isArm {
+			archString = ".arm64"
+		}
+		fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + archString + ".tgz"
 		// download file if not exists
 		if _, err := os.Stat(fn); os.IsNotExist(err) {
 			log.Println("Downloading installer")
@@ -319,12 +333,15 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if averr != nil {
 		return errors.New("aerospike Version is not an int.int.*")
 	}
-	if string(c.FeaturesFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
-		log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-		bufio.NewReader(os.Stdin).ReadBytes('\n')
-	}
-	if string(c.FeaturesFilePath) == "" && aver_major == 6 && aver_minor > 0 {
-		log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
+
+	if !isCommunity {
+		if string(c.FeaturesFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
+			log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
+		if string(c.FeaturesFilePath) == "" && aver_major == 6 && aver_minor > 0 {
+			log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
+		}
 	}
 
 	log.Print("Starting deployment")

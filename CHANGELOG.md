@@ -1,6 +1,15 @@
-#### 4.2.0 - TODO ITEMS
-* support arm deployments
-* add `ams` client installation system
+#### 4.3.0 - TODO
+* New Features:
+  * add `ams` client installation system
+
+#### 4.2.0
+* New Features:
+  * support arm deployments
+* Improvements:
+  * insert/delete data support running from client machine
+  * make mesh mode default
+* Bug fixes:
+  * do not require features file on CE
 
 #### 4.1.0
 * Bug Fixes

@@ -15,7 +15,16 @@ import (
 type aerospikeUpgradeCmd struct {
 	aerospikeStartCmd
 	aerospikeVersionSelectorCmd
-	RestartAerospike TypeYesNo `short:"s" long:"restart" description:"Restart aerospike after upgrade (y/n)" default:"y"`
+	Aws              aerospikeUpgradeCmdAws `no-flag:"true"`
+	RestartAerospike TypeYesNo              `short:"s" long:"restart" description:"Restart aerospike after upgrade (y/n)" default:"y"`
+}
+
+type aerospikeUpgradeCmdAws struct {
+	IsArm bool `long:"arm" description:"indicate installing on an arm instance"`
+}
+
+func init() {
+	addBackendSwitch("aerospike.upgrade", "aws", &a.opts.Aerospike.Upgrade.Aws)
 }
 
 func (c *aerospikeUpgradeCmd) Execute(args []string) error {
@@ -23,7 +32,13 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Print("Running aerospike.upgrade")
-
+	isArm := c.Aws.IsArm
+	if b.Arch() == TypeArchAmd {
+		isArm = false
+	}
+	if b.Arch() == TypeArchArm {
+		isArm = true
+	}
 	err := chDir(string(c.ChDir))
 	if err != nil {
 		return err
@@ -50,6 +65,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		distroName:       c.DistroName.String(),
 		distroVersion:    c.DistroVersion.String(),
 		aerospikeVersion: c.AerospikeVersion.String(),
+		isArm:            isArm,
 	}
 	url, err := aerospikeGetUrl(bv, c.Username, c.Password)
 	if err != nil {
@@ -59,7 +75,11 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 	c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
 	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
-	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + ".tgz"
+	archString := ".x86_64"
+	if bv.isArm {
+		archString = ".arm64"
+	}
+	fn := edition + "-" + verNoSuffix + "-" + c.DistroName.String() + c.DistroVersion.String() + archString + ".tgz"
 	if _, err := os.Stat(fn); os.IsNotExist(err) {
 		log.Println("Downloading installer")
 		downloadFile(url, fn, c.Username, c.Password)
@@ -141,7 +161,10 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// upgrade
-		out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd %s && ./asinstall", strings.TrimSuffix(fn, ".tgz"))}}, []int{i})
+		fnDir := strings.TrimSuffix(fn, ".tgz")
+		fnDir = strings.TrimSuffix(fnDir, ".x86_64")
+		fnDir = strings.TrimSuffix(fnDir, ".arm64")
+		out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd %s* && ./asinstall", fnDir)}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}

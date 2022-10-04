@@ -36,29 +36,24 @@ Run `aws configure` to configure basic access to AWS.
 
 ### Download aerolab binary from the releases page
 
-Head to the releases page and download either `aerolab-macos.zip` or `aerolab-linux`.
+Head to the releases page and download one of the binaries, depending on where you are intending to run aerolab.
 
-#### MacOS
+Note that aerolab will still be able to deploy Aerospike on both arm and x64 architectures, regardless of which aerolab binary you are using.
 
-First double-click the downloaded zip file to unzip it. Then follow the below to install it:
+Operating System | CPU | File
+--- | --- | ---
+MacOS | M1 or M2 | `aerolab-macos-arm64.zip`
+MacOS | Intel CPU | `aerolab-macos-amd64.zip`
+Linux | arm | `aerolab-linux-arm64.zip`
+Linux | Intel/Amd | `aerolab-linux-amd64.zip`
+
+#### Install
+
+First unzip the zip file. This will produce a single binary called `aerolab`. Follow the below steps to install:
 
 ```
-cd /directory/where/you/unzipped/aerolab/file
 sudo mkdir -p /usr/local/bin/
-sudo mv aerolab /usr/local/bin/aerolab
-```
-
-#### Linux / WSL2 on windows
-
-```
-cd /directory/where/you/downloaded/aerolab-linux/file
-sudo mkdir -p /usr/local/bin/
-sudo mv aerolab-linux /usr/local/bin/aerolab
-```
-
-### Make it executable
-
-```
+sudo mv /path/to/aerolab /usr/local/bin/
 sudo chmod 755 /usr/local/bin/aerolab
 ```
 

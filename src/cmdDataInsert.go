@@ -41,6 +41,7 @@ type dataInsertCommonCmd struct {
 type dataInsertSelectorCmd struct {
 	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name of cluster to run aerolab on" default:"mydc"`
 	Node            TypeNode        `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
+	IsClient        bool            `short:"I" long:"client" description:"set to indicate to run on a client machine instead of server node"`
 	SeedNode        string          `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
 	LinuxBinaryPath flags.Filename  `short:"t" long:"path" description:"Path to the linux compiled aerolab binary; this should not be required" default:""`
 }
@@ -100,14 +101,26 @@ func (c *dataInsertCmd) insert(args []string) error {
 }
 
 func (c *dataInsertSelectorCmd) unpack(args []string) error {
+	if c.IsClient {
+		b.WorkOnClients()
+	}
+	isArm, err := b.IsNodeArm(string(c.ClusterName), int(c.Node))
+	if err != nil {
+		return err
+	}
 	if c.LinuxBinaryPath == "" {
-		if runtime.GOOS == "linux" {
+		if runtime.GOOS == "linux" && ((runtime.GOARCH == "amd64" && !isArm) || (runtime.GOARCH == "arm64" && isArm)) {
+			// the arch of this binary is the same as the arch of the destination system, just point at self
 			myBinary, err := findExec()
 			if err != nil {
 				return fmt.Errorf("failed to find self: %s", err)
 			}
 			c.LinuxBinaryPath = flags.Filename(myBinary)
 		} else {
+			nLinuxBinary := nLinuxBinaryX64
+			if isArm {
+				nLinuxBinary = nLinuxBinaryArm64
+			}
 			nfile, err := os.OpenFile(path.Join(os.TempDir(), "aerolab.linux"), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 			if err != nil {
 				return fmt.Errorf("insert-data: could not open tmp file for writing: %s: %s", path.Join(os.TempDir(), "aerolab.linux"), err)
