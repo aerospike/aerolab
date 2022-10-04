@@ -18,8 +18,9 @@ fi
 [ "${APPLE_ID_PASSWORD}" = "" ] && echo "Empty password, exiting" && exit 1
 [ "${APPLE_ID}" = "" ] && echo "Empty username, exiting" && exit 1
 
+function signer() {
 # basics
-FILE="aerolab-macos.zip"
+FILE="${1}.zip"
 BIN="aerolab"
 
 # cleanup
@@ -31,15 +32,17 @@ echo "cleanup done"
 ls
 echo "========="
 
-cp ../aerolab-macos ${BIN}
+cp ../${1} ${BIN}
 ./aerolab version
+echo "ORIG: ${1}"
+echo "BIN: ${BIN}"
+echo "OUT: ${FILE}"
 
 echo "Press ENTER to sign"
 read
 
 # codesign and test
 echo "Codesigning and verifying"
-cp ../aerolab-macos ${BIN}
 codesign --verbose --deep --timestamp --force --options runtime --sign "Developer ID Application: Aerospike, Inc. (22224RFU67)" ${BIN} && \
 codesign --verbose --verify ${BIN} || exit 1
 
@@ -70,6 +73,7 @@ while true; do
     echo ""
     cat notarization_progress
     echo "Notarization succeeded"
+    mv ${FILE} ../final/
     break
   elif grep -q "Status: in progress" notarization_progress; then
     continue
@@ -79,3 +83,7 @@ while true; do
     exit 1
   fi
 done
+}
+
+signer aerolab-macos-amd64
+signer aerolab-macos-arm64
