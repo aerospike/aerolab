@@ -5,8 +5,8 @@
 #### 4.2.0
 * New Features:
   * support arm deployments
-    * TODO: insert/delete data (and build scripts)
 * Improvements:
+  * insert/delete data support running from client machine
   * make mesh mode default
 * Bug fixes:
   * do not require features file on CE

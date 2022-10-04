@@ -142,6 +142,45 @@ func (d *backendAws) ClusterList() ([]string, error) {
 	return clusterList, nil
 }
 
+func (d *backendAws) IsNodeArm(clusterName string, nodeNumber int) (bool, error) {
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagClusterName),
+				Values: []*string{aws.String(clusterName)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return false, fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code != int64(48) {
+				for _, tag := range instance.Tags {
+					if *tag.Key == awsTagNodeNumber {
+						nodeNo, err := strconv.Atoi(*tag.Value)
+						if err != nil {
+							return false, errors.New("problem with node numbers in the given cluster. Investigate manually")
+						}
+						if nodeNo == nodeNumber {
+							if instance.Architecture == nil {
+								return false, nil
+							}
+							if strings.Contains(*instance.Architecture, "arm") {
+								return true, nil
+							}
+							return false, nil
+						}
+					}
+				}
+			}
+		}
+	}
+	return false, errors.New("node not found in cluster")
+}
+
 func (d *backendAws) NodeListInCluster(name string) ([]int, error) {
 	filter := ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{

@@ -29,6 +29,10 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) IsNodeArm(clusterName string, nodeNumber int) (bool, error) {
+	return d.isArm, nil
+}
+
 func (d *backendDocker) Arch() TypeArch {
 	if d.isArm {
 		return TypeArchArm

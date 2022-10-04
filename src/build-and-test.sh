@@ -3,7 +3,7 @@
 source client-tests.sh
 source cluster-tests.sh
 
-aerolab="./aerolab-macos"
+aerolab="./aerolab-macos-amd64"
 export AEROLAB_CONFIG_FILE=test.conf
 cluster="testcluster"
 logDir="./log"
