@@ -52,7 +52,18 @@ func (c *clientStartCmd) Execute(args []string) error {
 			}
 		}
 		if err == nil {
-			out, err := b.RunCommands(ClusterName, [][]string{[]string{"/bin/bash", "/usr/local/bin/start.sh"}}, nodes[ClusterName])
+			// generic startup scripts
+			out, err := b.RunCommands(ClusterName, [][]string{[]string{"/bin/bash", "-c", "[ ! -d /opt/autoload ] && exit 0; ls /opt/autoload |sort -n |while read f; do /bin/bash /opt/autoload/${f}; done"}}, nodes[ClusterName])
+			if err != nil {
+				scriptErr = true
+				prt := ""
+				for i, o := range out {
+					prt = prt + "\n ---- " + strconv.Itoa(i) + " ----\n" + string(o)
+				}
+				log.Printf("Some startup sripts returned an error (%s). Outputs:%s", err, prt)
+			}
+			// custom startup script
+			out, err = b.RunCommands(ClusterName, [][]string{[]string{"/bin/bash", "/usr/local/bin/start.sh"}}, nodes[ClusterName])
 			if err != nil {
 				scriptErr = true
 				prt := ""

@@ -48,7 +48,7 @@ func (c *clientCreate${client}Cmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	machines, err := c.createBase(args)
+	machines, err := c.createBase(args, "${cmd}")
 	if err != nil {
 		return err
 	}

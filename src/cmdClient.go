@@ -10,6 +10,7 @@ type clientCmd struct {
 	Stop    clientStopCmd    `command:"stop" subcommands-optional:"true" description:"Stop a client machine group"`
 	Grow    clientGrowCmd    `command:"grow" subcommands-optional:"true" description:"Grow a client machine group"`
 	Destroy clientDestroyCmd `command:"destroy" subcommands-optional:"true" description:"Destroy client(s)"`
+	Attach  attachClientCmd  `command:"attach" subcommands-optional:"true" description:"symlink to: attach client"`
 	Help    helpCmd          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

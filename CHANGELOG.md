@@ -1,6 +1,11 @@
 #### 4.3.0
 * New Features:
   * add `ams` client installation system
+* Improvements:
+  * make `client attach` command and link it to `attach client`
+* Bug fixes:
+  * support installing StartScript in `client add tools`
+  * fix "newclient.sh" for generating skel source files for new client development
 
 #### 4.2.0
 * New Features:
