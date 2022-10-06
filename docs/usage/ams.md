@@ -37,6 +37,8 @@ aerolab client create ams -n ams -s dc1,dc2
 
 ### Reconfigure (update) AMS client with a new list of IPs for given clusters to monitor
 
+It is possible to reconfigure the same AMS client to add/remove cluster nodes and/or whole clusters without having to recreate the AMS client machine.
+
 ```
 aerolab client configure ams -n ams -s dc1,dc2
 ```
