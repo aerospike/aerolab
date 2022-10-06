@@ -1,6 +1,20 @@
-#### 4.3.0 - TODO
+#### FUTURE
+* Add support for exporter on `arm`
+* Upgrade Insert/Delete data client libraries to those compatible with `arm`
+
+#### 4.3.0
 * New Features:
   * add `ams` client installation system
+  * add option where `client start` and `cluster start` will execute all scripts under `/opt/autoload` to allow for 3rd-party script installations
+  * add `client configure` option to allow for post-create configuration of certain clients, like `ams`
+  * add `cluster add` option, to allow for adding extra features, for example `ams`
+  * add `cluster add exporter` to install exporter in clusters (amd64 only for now)
+* Improvements:
+  * make `client attach` command and link it to `attach client`
+* Bug fixes:
+  * support installing StartScript in `client add tools`
+  * fix "newclient.sh" for generating skel source files for new client development
+  * `cluster start` with multiple clusters would not fix mesh config properly, nor start aerospike
 
 #### 4.2.0
 * New Features:

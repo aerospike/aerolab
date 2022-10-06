@@ -1,0 +1,79 @@
+                       Ultimate Packer for eXecutables
+                          Copyright (C) 1996 - 2020
+UPX 3.96        Markus Oberhumer, Laszlo Molnar & John Reiser   Jan 23rd 2020
+
+        File size         Ratio      Format      Name
+   --------------------   ------   -----------   -----------
+  14729216 ->   4721788   32.06%   linux/amd64   aerolab-linux-amd64-wip
+
+Packed 1 file.
+                       Ultimate Packer for eXecutables
+                          Copyright (C) 1996 - 2020
+UPX 3.96        Markus Oberhumer, Laszlo Molnar & John Reiser   Jan 23rd 2020
+
+        File size         Ratio      Format      Name
+   --------------------   ------   -----------   -----------
+  14221312 ->   4106608   28.88%   linux/arm64   aerolab-linux-arm64-wip
+
+Packed 1 file.
+Wed  5 Oct 2022 19:24:31 PDT setup ........................ OK
+Wed  5 Oct 2022 19:24:34 PDT check_version ................ OK
+Wed  5 Oct 2022 19:24:34 PDT check_installer_listversions . OK
+Wed  5 Oct 2022 19:24:34 PDT check_installer_download ..... OK
+Wed  5 Oct 2022 19:24:36 PDT check_cluster_create ......... OK
+Wed  5 Oct 2022 19:25:26 PDT check_cluster_list ........... OK
+Wed  5 Oct 2022 19:25:26 PDT check_cluster_stop ........... OK
+Wed  5 Oct 2022 19:25:26 PDT check_cluster_start .......... OK
+Wed  5 Oct 2022 19:25:28 PDT check_cluster_grow ........... OK
+Wed  5 Oct 2022 19:25:31 PDT check_conf_fixmesh ........... OK
+Wed  5 Oct 2022 19:25:34 PDT check_aerospike_stop ......... OK
+Wed  5 Oct 2022 19:25:34 PDT check_aerospike_start ........ OK
+Wed  5 Oct 2022 19:25:34 PDT check_aerospike_restart ...... OK
+Wed  5 Oct 2022 19:25:36 PDT check_aerospike_upgrade ...... OK
+Wed  5 Oct 2022 19:25:59 PDT check_files_edit ............. OK
+Wed  5 Oct 2022 19:25:59 PDT check_files_sync ............. OK
+Wed  5 Oct 2022 19:26:00 PDT check_files_upload ........... OK
+Wed  5 Oct 2022 19:26:01 PDT check_files_download ......... OK
+Wed  5 Oct 2022 19:26:01 PDT check_logs_show .............. OK
+Wed  5 Oct 2022 19:26:01 PDT check_logs_get ............... OK
+Wed  5 Oct 2022 19:26:02 PDT pause ........................ OK
+Wed  5 Oct 2022 19:26:07 PDT check_attach_shell ........... OK
+Wed  5 Oct 2022 19:26:07 PDT check_attach_aql ............. OK
+Wed  5 Oct 2022 19:26:08 PDT check_attach_asadm ........... OK
+Wed  5 Oct 2022 19:26:09 PDT check_attach_asinfo .......... OK
+Wed  5 Oct 2022 19:26:10 PDT check_roster_apply ........... OK
+Wed  5 Oct 2022 19:26:25 PDT check_roster_show ............ OK
+Wed  5 Oct 2022 19:26:28 PDT check_data_insert ............ OK
+Wed  5 Oct 2022 19:26:30 PDT check_attach_asadm ........... OK
+Wed  5 Oct 2022 19:26:31 PDT check_data_delete ............ OK
+Wed  5 Oct 2022 19:26:32 PDT check_attach_asadm ........... OK
+Wed  5 Oct 2022 19:26:33 PDT check_net_block .............. OK
+Wed  5 Oct 2022 19:26:34 PDT check_net_list ............... OK
+Wed  5 Oct 2022 19:26:36 PDT check_net_unblock ............ OK
+Wed  5 Oct 2022 19:26:37 PDT check_net_lossdelay .......... OK
+Wed  5 Oct 2022 19:26:48 PDT check_cluster_destroy ........ OK
+Wed  5 Oct 2022 19:26:50 PDT check_template_destroy ....... OK
+Wed  5 Oct 2022 19:26:50 PDT check_template_create ........ OK
+Wed  5 Oct 2022 19:28:30 PDT check_xdr_create ............. OK
+Wed  5 Oct 2022 19:28:45 PDT check_xdr_details ............ OK
+Wed  5 Oct 2022 19:28:50 PDT check_xdr_connect ............ OK
+Wed  5 Oct 2022 19:28:56 PDT check_xdr_details ............ OK
+Wed  5 Oct 2022 19:28:59 PDT check_tls_generate ........... OK
+Wed  5 Oct 2022 19:29:08 PDT check_tls_copy ............... OK
+Wed  5 Oct 2022 19:29:16 PDT cleanup ...................... OK
+Wed  5 Oct 2022 19:29:18 PDT setup ........................ OK
+Wed  5 Oct 2022 19:29:19 PDT check_version ................ OK
+Wed  5 Oct 2022 19:29:19 PDT check_client_create_add ...... OK
+Wed  5 Oct 2022 19:32:23 PDT check_client_list ............ OK
+Wed  5 Oct 2022 19:32:23 PDT check_client_attach .......... OK
+Wed  5 Oct 2022 19:32:24 PDT check_client_stop ............ OK
+Wed  5 Oct 2022 19:32:27 PDT check_client_start ........... OK
+Wed  5 Oct 2022 19:32:30 PDT check_client_files_download .. OK
+Wed  5 Oct 2022 19:32:31 PDT check_client_files_upload .... OK
+Wed  5 Oct 2022 19:32:31 PDT check_client_files_sync ...... OK
+Wed  5 Oct 2022 19:32:32 PDT check_client_files_edit ...... OK
+Wed  5 Oct 2022 19:32:33 PDT check_client_tls_generate .... OK
+Wed  5 Oct 2022 19:32:34 PDT check_client_tls_copy ........ OK
+Wed  5 Oct 2022 19:32:37 PDT check_client_destroy ......... OK
+Wed  5 Oct 2022 19:32:41 PDT cleanup ...................... OK
+Wed  5 Oct 2022 19:32:42 PDT end .......................... OK
