@@ -81,6 +81,10 @@ func (c *clientCreateAMSCmd) checkClustersExist(clusters string) (map[string][]s
 	return a.opts.Client.Add.AMS.checkClustersExist(clusters)
 }
 
+func (c *clientConfigureAMSCmd) checkClustersExist(clusters string) (map[string][]string, error) {
+	return a.opts.Client.Add.AMS.checkClustersExist(clusters)
+}
+
 // return map[clusterName][]nodeIPs
 func (c *clientAddAMSCmd) checkClustersExist(clusters string) (map[string][]string, error) {
 	cnames := []string{}
