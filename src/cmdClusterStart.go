@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 )
 
@@ -41,22 +42,36 @@ func (c *clusterStartCmd) Execute(args []string) error {
 	}
 
 	if !c.NoFixMesh {
-		a.opts.Conf.FixMesh.ClusterName = c.ClusterName
-		a.opts.Conf.FixMesh.Nodes = c.Nodes
-		e := a.opts.Conf.FixMesh.Execute(nil)
-		if e != nil {
-			return e
+		for _, ClusterName := range cList {
+			a.opts.Conf.FixMesh.ClusterName = TypeClusterName(ClusterName)
+			a.opts.Conf.FixMesh.Nodes = TypeNodes(intSliceToString(nodes[ClusterName], ","))
+			e := a.opts.Conf.FixMesh.Execute(nil)
+			if e != nil {
+				return e
+			}
 		}
 	}
 	if !c.NoStart {
-		a.opts.Aerospike.Start.ClusterName = c.ClusterName
-		a.opts.Aerospike.Start.Nodes = c.Nodes
-		e := a.opts.Aerospike.Start.Execute(nil)
-		if e != nil {
-			return e
+		for _, ClusterName := range cList {
+			a.opts.Aerospike.Start.ClusterName = TypeClusterName(ClusterName)
+			a.opts.Aerospike.Start.Nodes = TypeNodes(intSliceToString(nodes[ClusterName], ","))
+			e := a.opts.Aerospike.Start.Execute(nil)
+			if e != nil {
+				return e
+			}
 		}
 	}
 
+	for _, ClusterName := range cList {
+		out, err := b.RunCommands(c.ClusterName.String(), [][]string{[]string{"/bin/bash", "-c", "[ ! -d /opt/autoload ] && exit 0; ls /opt/autoload |sort -n |while read f; do /bin/bash /opt/autoload/${f}; done"}}, nodes[ClusterName])
+		if err != nil {
+			nout := ""
+			for _, n := range out {
+				nout = nout + "\n" + string(n)
+			}
+			return fmt.Errorf("could not run autoload scripts: %s: %s", err, nout)
+		}
+	}
 	log.Println("Done")
 	return nil
 }
