@@ -147,7 +147,9 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	}
 	allnodes := []string{}
 	for _, nodes := range c.nodes {
-		allnodes = append(allnodes, nodes...)
+		for _, node := range nodes {
+			allnodes = append(allnodes, node+":9145")
+		}
 	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
 	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})

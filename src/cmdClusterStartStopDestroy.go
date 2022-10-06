@@ -19,7 +19,7 @@ func (c *clusterStartStopDestroyCmd) getBasicData(clusterName string, Nodes stri
 		return nil, nil, err
 	}
 
-	if clusterName != "all" {
+	if clusterName != "all" && clusterName != "ALL" {
 		cList = strings.Split(clusterName, ",")
 	} else {
 		cList = clusterList
@@ -32,7 +32,7 @@ func (c *clusterStartStopDestroyCmd) getBasicData(clusterName string, Nodes stri
 	}
 	nodes = make(map[string][]int)
 	var nodesC []int
-	if Nodes == "" {
+	if Nodes == "" || Nodes == "all" || Nodes == "ALL" {
 		for _, clusterName = range cList {
 			nodesC, err = b.NodeListInCluster(clusterName)
 			if err != nil {
