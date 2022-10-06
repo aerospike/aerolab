@@ -18,7 +18,6 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Print("Running client.configure.ams")
-	b.WorkOnClients()
 	a.opts.Attach.Client.ClientName = c.ClientName
 	if c.Machines == "" {
 		c.Machines = "ALL"
@@ -28,9 +27,12 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	b.WorkOnClients()
 	allnodes := []string{}
 	for _, nodes := range nodeList {
-		allnodes = append(allnodes, nodes...)
+		for _, node := range nodes {
+			allnodes = append(allnodes, node+":9145")
+		}
 	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
 	err = a.opts.Attach.Client.run([]string{"sed", "-i.bakX", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
