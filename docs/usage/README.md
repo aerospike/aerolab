@@ -13,6 +13,9 @@
 * [Download aerospike logs](get-logs.md)
 * [Clients](CLIENTS.md)
 
+## Monitoring
+* [Deploying AMS and prometheus exporter](ams.md)
+
 ## Advanced
 
 * [Rack-aware](racks.md)
