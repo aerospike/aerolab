@@ -223,7 +223,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		return fmt.Errorf("failed to restart prometheus: %s", err)
 	}
 	// (re)start grafana
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 777 /etc/grafana/provisioning/dashboards/dashboards.yaml; which systemctl; [ $? -eq 0 ] && systemctl daemon-reload && systemctl enable grafana-server; service grafana-server start; sleep 5; service grafana-server stop; sleep 5; service grafana-server start"})
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 777 /etc/grafana/provisioning/dashboards/dashboards.yaml; which systemctl; [ $? -eq 0 ] && systemctl daemon-reload && systemctl enable grafana-server; service grafana-server start; sleep 3; pidof grafana-server; exit $?"})
 	if err != nil {
 		return fmt.Errorf("failed to restart grafana: %s", err)
 	}
@@ -246,6 +246,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			return err
 		}
 	}
+	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs.")
 	log.Print("Done")
 	return nil
 }
