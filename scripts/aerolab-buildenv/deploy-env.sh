@@ -129,7 +129,7 @@ aerolab files upload -n ${CLUSTER_NAME} ${LDAPLOC}/certs/output/server1.pem /etc
 aerolab files upload -n ${CLUSTER_NAME} ${LDAPLOC}/certs/output/server1.key /etc/aerospike/server1.key
 for NODE in $(seq 1 ${NODES})
 do
-  NODEIP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' aero-${CLUSTER_NAME}_${NODE}) || exit
+  NODEIP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' aerolab-${CLUSTER_NAME}_${NODE}) || exit
   echo "Fix Hosts File for :"${NODEIP}
   aerolab attach shell -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "echo ${LDAPIP} ${SHORT_LDAP_NAME} >> /etc/hosts"
   aerolab attach shell -n ${CLUSTER_NAME} -l ${NODE} -- sh -c "cp /etc/hosts /tmp/.; cat /tmp/hosts | sed -e 's/^${NODEIP}/${NODEIP} server1/g' >/etc/hosts"
@@ -140,7 +140,7 @@ done
 aerolab aerospike start -n ${CLUSTER_NAME}
 
 echo "Get CLUSTERIP"
-CLUSTERIP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' aero-${CLUSTER_NAME}_1) || exit
+CLUSTERIP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' aerolab-${CLUSTER_NAME}_1) || exit
 echo
 
 if [ "${BUILD_PYTHON}" = "YES" ]
