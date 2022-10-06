@@ -15,6 +15,18 @@ aerolab cluster create -n dc2 -c 3
 aerolab cluster add exporter -n dc1,dc2
 ```
 
+#### Custom config
+
+If a custom `ape.toml` is required (for example when using authentication or TLS on aerospike server), this can also be specified, like so:
+
+```
+aerolab cluster add exporter -n dc1,dc2 -o /path/to/ape.toml
+```
+
+#### Upgrading
+
+The `cluster add exporter` command can be executed on the same clusters multiple times and will result in an upgraded expoter to the latest version and a new `ape.toml`
+
 ## AMS client
 
 ### Install AMS client
