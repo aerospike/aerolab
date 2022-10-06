@@ -44,7 +44,7 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to restart prometheus: %s", err)
 	}
-	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs.")
+	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs. Username:Password is admin:admin")
 	log.Print("Done")
 	return nil
 }
