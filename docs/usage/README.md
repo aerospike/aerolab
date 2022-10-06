@@ -12,6 +12,10 @@
 * [Setup TLS](tls.md)
 * [Download aerospike logs](get-logs.md)
 * [Clients](CLIENTS.md)
+* [Custom start scripts](custom-start.md)
+
+## Monitoring
+* [Deploying AMS and prometheus exporter](ams.md)
 
 ## Advanced
 

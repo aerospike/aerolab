@@ -9,6 +9,7 @@ type clusterCmd struct {
 	Stop    clusterStopCmd    `command:"stop" subcommands-optional:"true" description:"Stop cluster"`
 	Grow    clusterGrowCmd    `command:"grow" subcommands-optional:"true" description:"Add nodes to cluster"`
 	Destroy clusterDestroyCmd `command:"destroy" subcommands-optional:"true" description:"Destroy cluster"`
+	Add     clusterAddCmd     `command:"add" subcommands-optional:"true" description:"Add features to clusters, ex: ams"`
 	Help    helpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

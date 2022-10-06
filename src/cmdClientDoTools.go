@@ -103,6 +103,18 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	if err != nil {
 		return err
 	}
+	// install early/late scripts
+	if string(c.StartScript) != "" {
+		a.opts.Files.Upload.ClusterName = TypeClusterName(c.ClientName)
+		a.opts.Files.Upload.Nodes = TypeNodes(c.Machines)
+		a.opts.Files.Upload.Files.Source = flags.Filename(c.StartScript)
+		a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/local/bin/start.sh")
+		a.opts.Files.Upload.IsClient = true
+		err = a.opts.Files.Upload.runUpload(args)
+		if err != nil {
+			return err
+		}
+	}
 	log.Print("Done")
 	return nil
 }
