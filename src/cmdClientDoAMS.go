@@ -23,7 +23,7 @@ type clientAddAMSCmd struct {
 	osSelectorCmd
 	nodes           map[string][]string // destination map[cluster][]nodeIPs
 	Aws             clientAddAMSCmdAws  `no-flag:"true"`
-	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"mydc" description:"comma-separated list of clusters to configure as source for this AMS"`
+	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
 	Help            helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
