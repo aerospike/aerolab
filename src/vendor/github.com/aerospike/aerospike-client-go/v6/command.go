@@ -133,6 +133,8 @@ type command interface {
 	execute(ifc command, isRead bool) Error
 	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) Error
 
+	canPutConnBack() bool
+
 	// Executes the command
 	Execute() Error
 }
@@ -2450,7 +2452,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// too many retries
 		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 0) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
-			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(isRead, commandSentCounter)
+			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(isRead, commandSentCounter).setNode(cmd.node)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -2474,14 +2476,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 					if alreadyRetried {
 						// Batch was retried in separate subcommands. Complete this command.
 						if err != nil {
-							return chainErrors(err, errChain).iter(cmd.commandSentCounter)
+							return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 						}
 						return nil
 					}
 
 					// chain the errors and retry
 					if err != nil {
-						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter)
+						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 						continue
 					}
 				}
@@ -2636,7 +2638,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			// cancelling/closing the batch/multi commands will return an error, which will
 			// close the connection to throw away its data and signal the server about the
 			// situation. We will not put back the connection in the buffer.
-			if cmd.conn.IsConnected() && KeepConnection(err) {
+			if ifc.canPutConnBack() && cmd.conn.IsConnected() && KeepConnection(err) {
 				// Put connection back in pool.
 				cmd.node.PutConnection(cmd.conn)
 			} else {
@@ -2666,6 +2668,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	// execution timeout
 	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 	return errChain
+}
+
+func (cmd *baseCommand) canPutConnBack() bool {
+	return true
 }
 
 func (cmd *baseCommand) parseRecordResults(ifc command, receiveSize int) (bool, Error) {

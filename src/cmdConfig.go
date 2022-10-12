@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/bestmethod/inslice"
-	"github.com/jessevdk/go-flags"
+	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
 type configCmd struct {

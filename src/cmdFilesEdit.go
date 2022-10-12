@@ -3,7 +3,7 @@ package main
 import (
 	"strconv"
 
-	"github.com/jessevdk/go-flags"
+	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
 type filesEditCmd struct {

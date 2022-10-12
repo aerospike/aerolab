@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jessevdk/go-flags"
+	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
 func completionCustomCheck() bool {

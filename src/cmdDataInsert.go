@@ -12,7 +12,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/jessevdk/go-flags"
+	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
 type dataInsertNsSetCmd struct {
