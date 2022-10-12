@@ -1,6 +1,8 @@
 #### FUTURE
 * Add support for exporter on `arm`
-* Upgrade Insert/Delete data client libraries to those compatible with `arm`
+
+#### 4.3.1
+* update aerospike client libraries to latest versions
 
 #### 4.3.0
 * New Features:
