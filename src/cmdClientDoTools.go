@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/jessevdk/go-flags"
+	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
 type clientCreateToolsCmd struct {

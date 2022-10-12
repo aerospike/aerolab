@@ -1,10 +1,28 @@
 # Change History
 
-## August 29 2022: v6.3
+## September 16 2022: v6.4.0
+
+  This is a Major fix release. We recommend you update to this version ASAP.
+
+  * **Fixes**
+
+    - [CLIENT-1827]  IdleTimeout new default 0 may be missing tend thread reaping.
+    - [CLIENT-1822] Scan/Query/Other streaming commands, including some Batch could put a faulty connection back to the pool after a cluster event where in certain conditions its buffer contents would end up in another scan and mix the results.
+    - Update go.mod, redact buggy versions and update required Go version to v1.16
+
+  * **Improvements**
+
+    - Update the examples for the new retriable scan/queries
+    - Avoid indirection for `[]byte` conversion during reflection. Resolves #382.
+    - Change v5 to v6 in some documentation.
+
+## August 29 2022: v6.3.0
+
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
 
   * **New Features**
 
-    - [CLIENT-1802] Support creating an secondary index on elements within a CDT using context. SUpported by server v6.1+.
+    - [CLIENT-1802] Support creating an secondary index on elements within a CDT using context. Supported by server v6.1+.
     - [CLIENT-1773] Change client configuration defaults:
       - Set `ClientPolicy.ConnectionQueueSize` from 256 to 100.
       - Set `ClientPolicy.IdleTimeout` from 55 to 0 secs.
@@ -22,6 +40,8 @@
 
 ## July 27 2022: v6.2.1
 
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
+
   This is mostly a re-release of v6.2.0, with one added minor change. It seems that we bungled the github tag somehow for that release. Upgrade from v6.2.0 to this version for the changes in that version to be applied to your code.
 
   * **Fixes**
@@ -29,6 +49,8 @@
     - Add a nil check for error in batch retry to be on the safe side.
 
 ## June 30 2022: v6.2.0
+
+  [**IMPORTANT NOTE**] A bug might occur when a client performing a scan hits a “Partition Unavailable” during an unstable cluster (in both high availability (AP) and strong consistency (CP) modes). Previous versions of the client aborted the scan and put the connection back into the pool, which might cause unprocessed results to be sent to a different transaction (of the same client), possibly resulting in incorrect application behavior. This has been fixed by Go Client v5.10.0 and v6.4.0.
 
   NOTE: It seems that the tag reference for this release was incorrect on Github, or we somehow confused the `Go mod`. Do not use this version. Use v6.2.1 instead.
 

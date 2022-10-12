@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/jessevdk/go-flags"
+	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
 type clusterAddExporterCmd struct {
