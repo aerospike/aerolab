@@ -27,6 +27,30 @@ func (d *backendAws) getAmi(region string, v backendVersion) (ami string, err er
 
 func (d *backendAws) getAmiAmd(region string, v backendVersion) (ami string, err error) {
 	switch region {
+	case "eu-central-1":
+		switch v.distroName {
+		case "ubuntu":
+			switch v.distroVersion {
+			case "22.04":
+				return "ami-0b584e86060d6e0f6", nil
+			case "20.04":
+				return "ami-093b7895c0f11f648", nil
+			case "18.04":
+				return "ami-0d3a4a1a50fc3e2b4", nil
+			}
+		case "centos":
+			switch v.distroVersion {
+			case "8":
+				return "ami-0a2dc38dc30ba417e", nil
+			case "7":
+				return "ami-08b6d44b4f6f7b279", nil
+			}
+		case "amazon":
+			switch v.distroVersion {
+			case "2":
+				return "ami-08658d5197becde34", nil
+			}
+		}
 	case "eu-west-1":
 		switch v.distroName {
 		case "ubuntu":
@@ -129,6 +153,30 @@ func (d *backendAws) getAmiAmd(region string, v backendVersion) (ami string, err
 
 func (d *backendAws) getAmiArm(region string, v backendVersion) (ami string, err error) {
 	switch region {
+	case "eu-central-1":
+		switch v.distroName {
+		case "ubuntu":
+			switch v.distroVersion {
+			case "22.04":
+				return "ami-00a6c4e9199920ae2", nil
+			case "20.04":
+				return "ami-0ea4bef4b2f572a6a", nil
+			case "18.04":
+				return "ami-0763d702f397ed271", nil
+			}
+		case "centos":
+			switch v.distroVersion {
+			case "8":
+				return "ami-06ccb76c8c2697a57", nil
+			case "7":
+				return "ami-0a305a7534a53874c", nil
+			}
+		case "amazon":
+			switch v.distroVersion {
+			case "2":
+				return "ami-0aac4d36ec040d2c1", nil
+			}
+		}
 	case "eu-west-1":
 		switch v.distroName {
 		case "ubuntu":
@@ -226,5 +274,5 @@ func (d *backendAws) getAmiArm(region string, v backendVersion) (ami string, err
 			}
 		}
 	}
-	return "", errors.New("distro/version has no known AMI in any of eu-west-1, us-west-1, us-east-1, ap-south-1; specify region and AMI manually if needed")
+	return "", errors.New("distro/version has no known AMI in any of eu-west-1, eu-cental-1, us-west-1, us-east-1, ap-south-1; specify region and AMI manually if needed")
 }
