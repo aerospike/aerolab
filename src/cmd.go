@@ -18,5 +18,6 @@ type commands struct {
 	Roster     rosterCmd     `command:"roster" subcommands-optional:"true" description:"Show or apply strong-consistency rosters"`
 	Version    versionCmd    `command:"version" subcommands-optional:"true" description:"Print AeroLab version"`
 	Completion completionCmd `command:"completion" subcommands-optional:"true" description:"Install shell completion scripts"`
+	Rest       restCmd       `command:"rest-api" subcommands-optional:"true" description:"Launch HTTP rest API"`
 	commandsDefaults
 }
