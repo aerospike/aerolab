@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"reflect"
@@ -14,9 +15,40 @@ import (
 )
 
 // TODO: handle 'help' calls using custom help
-// TODO: add Tail []string <- to every command
+
+var apiQueue = make(chan apiQueueItem, 1024)
+
+type apiQueueItem struct {
+	w      http.ResponseWriter
+	r      *http.Request
+	finish chan int
+}
 
 func (c *restCmd) handleApi(w http.ResponseWriter, r *http.Request) {
+	f := make(chan int, 1)
+	apiQueue <- apiQueueItem{
+		w:      w,
+		r:      r,
+		finish: f,
+	}
+	<-f
+}
+
+func (c *restCmd) handleApiDo() {
+	for {
+		c.handleApiDoLoop()
+	}
+}
+
+func (c *restCmd) handleApiDoLoop() {
+	queueItem := <-apiQueue
+	w := queueItem.w
+	r := queueItem.r
+	defer close(queueItem.finish)
+	if strings.Trim(r.URL.Path, "/") == "quit" {
+		w.Write([]byte("OK"))
+		os.Exit(0)
+	}
 	// command = []string{"xdr","connect"}
 	// handle and parse payload to command struct
 	// execute command struct .Execute
@@ -27,29 +59,33 @@ func (c *restCmd) handleApi(w http.ResponseWriter, r *http.Request) {
 	}
 	os.Stdout = pw
 	os.Stderr = pw
+	log.SetOutput(pw)
 	buf := new(bytes.Buffer)
 	defer func() {
 		os.Stdout = c.stdout
 		os.Stderr = c.stderr
+		log.SetOutput(c.logout)
 	}()
 	defer pr.Close()
 	defer pw.Close()
 	go c.copy(buf, pr)
 
+	var na = &aerolab{
+		opts: new(commands),
+	}
+	na.parser = flags.NewParser(na.opts, flags.HelpFlag|flags.PassDoubleDash)
+	na.iniParser = flags.NewIniParser(na.parser)
+	na.parseFile()
+	na.parser.ParseArgs([]string{})
+
 	command := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 	keys := []string{}
-	keyField := reflect.ValueOf(a.opts).Elem()
+	keyField := reflect.ValueOf(na.opts).Elem()
 	v, err := c.findCommand(keyField, strings.Join(keys, "."), "", []string{}, command)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	// TODO: reset all BOOL values in v.Interface() to false
-	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
-	a.iniParser = flags.NewIniParser(a.parser)
-	a.parseFile()
-	a.parser.ParseArgs([]string{})
 
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -57,6 +93,13 @@ func (c *restCmd) handleApi(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if command[0] == "attach" {
+		if len(c.getTail(v)) == 0 {
+			http.Error(w, "Tail is not optional for attach commands via the rest api", http.StatusBadRequest)
+			return
+		}
 	}
 
 	c.apiRunCommand(v, w, buf)
@@ -72,19 +115,30 @@ func (c *restCmd) copy(buf *bytes.Buffer, pr *os.File) {
 	}
 }
 
+func (c *restCmd) getTail(v *reflect.Value) []string {
+	tail := v.FieldByName("Tail")
+	if !tail.IsValid() {
+		return []string{}
+	}
+	return tail.Interface().([]string)
+}
+
 func (c *restCmd) apiRunCommand(v *reflect.Value, w http.ResponseWriter, buf *bytes.Buffer) {
 	// run the execute command and stream results back to response.data, if error from command, also set response.err
-	tailv := []string{"ls"} // TODO
+	tailv := c.getTail(v)
 	tail := []reflect.Value{reflect.ValueOf(tailv)}
 	outv := v.Addr().MethodByName("Execute").Call(tail)
 	out := outv[0].Interface()
-	switch err := out.(type) {
+	switch out.(type) {
 	case error:
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
 	}
 	time.Sleep(20 * time.Millisecond)
 	io.Copy(w, buf)
+	switch err := out.(type) {
+	case error:
+		w.Write([]byte(err.Error()))
+	}
 }
 
 func (c *restCmd) findCommand(keyField reflect.Value, start string, tags reflect.StructTag, tagStack []string, command []string) (v *reflect.Value, err error) {

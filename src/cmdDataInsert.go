@@ -86,11 +86,11 @@ func (c *dataInsertCmd) insert(args []string) error {
 		}
 	}
 	if b == nil {
-		logFatal("Invalid backend")
+		return logFatal("Invalid backend")
 	}
 	err := b.Init()
 	if err != nil {
-		logFatal("Could not init backend: %s", err)
+		return logFatal("Could not init backend: %s", err)
 	}
 	log.Print("Unpacking start")
 	if err := c.unpack(args); err != nil {

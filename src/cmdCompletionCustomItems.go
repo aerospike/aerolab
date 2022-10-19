@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"strings"
 
@@ -14,14 +15,14 @@ func completionCustomCheck() bool {
 	var err error
 	b, err = getBackend()
 	if err != nil {
-		logFatal("Could not get backend: %s", err)
+		log.Fatalf("Could not get backend: %s", err)
 	}
 	if b == nil {
-		logFatal("Invalid backend")
+		log.Fatalf("Invalid backend")
 	}
 	err = b.Init()
 	if err != nil {
-		logFatal("Could not init backend: %s", err)
+		log.Fatalf("Could not init backend: %s", err)
 	}
 	return true
 }
@@ -107,7 +108,7 @@ func (t *TypeClientName) Complete(match string) []flags.Completion {
 	b.WorkOnClients()
 	clist, err := b.ClusterList()
 	if err != nil {
-		logFatal("Backend query failed: %s", err)
+		log.Fatalf("Backend query failed: %s", err)
 	}
 	out := []flags.Completion{}
 	for _, item := range clist {
@@ -127,7 +128,7 @@ func (t *TypeClusterName) Complete(match string) []flags.Completion {
 	b.WorkOnServers()
 	clist, err := b.ClusterList()
 	if err != nil {
-		logFatal("Backend query failed: %s", err)
+		log.Fatalf("Backend query failed: %s", err)
 	}
 	out := []flags.Completion{}
 	for _, item := range clist {

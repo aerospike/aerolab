@@ -9,7 +9,8 @@ import (
 type attachClientCmd struct {
 	ClientName TypeClientName `short:"n" long:"name" description:"Client group name" default:"client"`
 	Machine    TypeMachines   `short:"l" long:"node" description:"Machine to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
-	Help       attachCmdHelp  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Tail       []string
+	Help       attachCmdHelp `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *attachClientCmd) Execute(args []string) error {

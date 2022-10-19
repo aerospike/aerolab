@@ -1,8 +1,8 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"log"
 	"os"
 )
 
@@ -59,9 +59,18 @@ func checkDistroVersion(distro string, version string) error {
 	return fmt.Errorf("distro version not supported")
 }
 
+/*
 func logFatal(format interface{}, values ...interface{}) {
 	if len(values) == 0 {
 		log.Fatal("ERROR " + fmt.Sprint(format))
 	}
 	log.Fatalf("ERROR "+fmt.Sprint(format), values...)
+}
+*/
+
+func logFatal(format interface{}, values ...interface{}) error {
+	if len(values) == 0 {
+		return errors.New("ERROR " + fmt.Sprint(format))
+	}
+	return fmt.Errorf("ERROR "+fmt.Sprint(format), values...)
 }

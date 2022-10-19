@@ -127,13 +127,13 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	if a.opts.Config.Backend.Type == "aws" {
 		if c.Aws.InstanceType == "" || c.Aws.SecurityGroupID == "" || c.Aws.SubnetID == "" {
-			logFatal("AWS backend requires InstanceType, SecurityGroupID and SubnetID to be specified")
+			return logFatal("AWS backend requires InstanceType, SecurityGroupID and SubnetID to be specified")
 		}
 	}
 
 	c.preChDir()
 	if err := chDir(string(c.ChDir)); err != nil {
-		logFatal("ChDir failed: %s", err)
+		return logFatal("ChDir failed: %s", err)
 	}
 
 	var earlySize os.FileInfo
@@ -142,30 +142,30 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if string(c.ScriptEarly) != "" {
 		earlySize, err = os.Stat(string(c.ScriptEarly))
 		if err != nil {
-			logFatal("Early Script does not exist: %s", err)
+			return logFatal("Early Script does not exist: %s", err)
 		}
 	}
 	if string(c.ScriptLate) != "" {
 		lateSize, err = os.Stat(string(c.ScriptLate))
 		if err != nil {
-			logFatal("Late Script does not exist: %s", err)
+			return logFatal("Late Script does not exist: %s", err)
 		}
 	}
 
 	if len(string(c.ClusterName)) == 0 || len(string(c.ClusterName)) > 20 {
-		logFatal("Cluster name must be up to 20 characters long")
+		return logFatal("Cluster name must be up to 20 characters long")
 	}
 
 	clusterList, err := b.ClusterList()
 	if err != nil {
-		logFatal("Could not get cluster list: %s", err)
+		return logFatal("Could not get cluster list: %s", err)
 	}
 
 	if !isGrow && inslice.HasString(clusterList, string(c.ClusterName)) {
-		logFatal("Cluster by this name already exists, did you mean 'cluster grow'?")
+		return logFatal("Cluster by this name already exists, did you mean 'cluster grow'?")
 	}
 	if isGrow && !inslice.HasString(clusterList, string(c.ClusterName)) {
-		logFatal("Cluster by this name does not exists, did you mean 'cluster create'?")
+		return logFatal("Cluster by this name does not exists, did you mean 'cluster create'?")
 	}
 
 	totalNodes := c.NodeCount
@@ -173,21 +173,21 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if isGrow {
 		nlic, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {
-			logFatal(err)
+			return logFatal(err)
 		}
 		totalNodes += len(nlic)
 	}
 
 	if totalNodes > 255 || totalNodes < 1 {
-		logFatal("Max node count is 255")
+		return logFatal("Max node count is 255")
 	}
 
 	if totalNodes > 1 && c.Docker.ExposePortsToHost != "" {
-		logFatal("Cannot use docker export-ports feature with more than 1 node")
+		return logFatal("Cannot use docker export-ports feature with more than 1 node")
 	}
 
 	if err := checkDistroVersion(c.DistroName.String(), c.DistroVersion.String()); err != nil {
-		logFatal(err)
+		return logFatal(err)
 	}
 
 	for _, p := range []string{string(c.CustomConfigFilePath), string(c.FeaturesFilePath)} {
@@ -195,26 +195,26 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			continue
 		}
 		if _, err := os.Stat(p); os.IsNotExist(err) {
-			logFatal("File %s does not exist", p)
+			return logFatal("File %s does not exist", p)
 		}
 	}
 
 	if c.HeartbeatMode == "mcast" || c.HeartbeatMode == "multicast" {
 		if c.MulticastAddress == "" || c.MulticastPort == "" {
-			logFatal("When using multicase mode, multicast address and port must be specified")
+			return logFatal("When using multicase mode, multicast address and port must be specified")
 		}
 	} else if c.HeartbeatMode != "mesh" && c.HeartbeatMode != "default" {
-		logFatal("Heartbeat mode %s not supported", c.HeartbeatMode)
+		return logFatal("Heartbeat mode %s not supported", c.HeartbeatMode)
 	}
 
 	if !inslice.HasString([]string{"YES", "NO", "Y", "N"}, strings.ToUpper(c.AutoStartAerospike.String())) {
-		logFatal("Invalid value for AutoStartAerospike: %s", c.AutoStartAerospike)
+		return logFatal("Invalid value for AutoStartAerospike: %s", c.AutoStartAerospike)
 	}
 
 	log.Println("Checking if template exists")
 	templates, err := b.ListTemplates()
 	if err != nil {
-		logFatal("Could not list templates: %s", err)
+		return logFatal("Could not list templates: %s", err)
 	}
 
 	var edition string

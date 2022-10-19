@@ -7,6 +7,9 @@ import (
 )
 
 func (c *restCmd) makeApi(keyField reflect.Value, start string, tags reflect.StructTag) {
+	http.HandleFunc("/quit/", c.handleApi)
+	http.HandleFunc("/quit", c.handleApi)
+	c.apiCommands = append(c.apiCommands, "quit")
 	ret := make(chan string, 1)
 	go c.getCommands(keyField, start, ret, tags)
 	for {
