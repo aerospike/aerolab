@@ -87,7 +87,7 @@ func (c *configBackendCmd) Execute(args []string) error {
 		}
 		err := writeConfigFile()
 		if err != nil {
-			log.Fatalf("Could not save file: %s", err)
+			log.Printf("ERROR: Could not save file: %s", err)
 		}
 		fmt.Print("OK: ")
 	}
@@ -304,7 +304,8 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 			}
 			c.getValuesNext(keyField.Field(i), fieldName, ret, fieldTag)
 		}
+	case reflect.Slice:
 	default:
-		fmt.Print("Invalid function type\n")
+		fmt.Printf("Invalid function type: %v: %v\n", keyField.Type().Kind(), start)
 	}
 }

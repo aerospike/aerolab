@@ -45,11 +45,11 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 		return printHelp("If more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/")
 	}
 	if b == nil {
-		logFatal("Invalid backend")
+		return logFatal("Invalid backend")
 	}
 	err := b.Init()
 	if err != nil {
-		logFatal("Could not init backend: %s", err)
+		return logFatal("Could not init backend: %s", err)
 	}
 	log.Print("Running files.download")
 	if c.IsClient {

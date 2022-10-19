@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -26,6 +27,7 @@ type restCmd struct {
 	apiCommands []string
 	stdout      *os.File
 	stderr      *os.File
+	logout      io.Writer
 }
 
 func (c *restCmd) Execute(args []string) error {
@@ -38,5 +40,7 @@ func (c *restCmd) Execute(args []string) error {
 	log.Printf("Listening on %s...", c.Listen)
 	c.stdout = os.Stdout
 	c.stderr = os.Stderr
+	c.logout = log.Writer()
+	go c.handleApiDo()
 	return http.ListenAndServe(c.Listen, nil)
 }

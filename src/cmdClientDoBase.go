@@ -50,12 +50,12 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	if string(c.StartScript) != "" {
 		startScriptSize, err = os.Stat(string(c.StartScript))
 		if err != nil {
-			logFatal("Early Script does not exist: %s", err)
+			return nil, logFatal("Early Script does not exist: %s", err)
 		}
 	}
 
 	if len(string(c.ClientName)) == 0 || len(string(c.ClientName)) > 20 {
-		logFatal("Client name must be up to 20 characters long")
+		return nil, logFatal("Client name must be up to 20 characters long")
 	}
 
 	b.WorkOnClients()
@@ -77,21 +77,21 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	if c.isGrow() {
 		nlic, err = b.NodeListInCluster(string(c.ClientName))
 		if err != nil {
-			logFatal(err)
+			return nil, logFatal(err)
 		}
 		totalNodes += len(nlic)
 	}
 
 	if totalNodes > 255 || totalNodes < 1 {
-		logFatal("Max node count is 255")
+		return nil, logFatal("Max node count is 255")
 	}
 
 	if totalNodes > 1 && c.Docker.ExposePortsToHost != "" {
-		logFatal("Cannot use docker export-ports feature with more than 1 node")
+		return nil, logFatal("Cannot use docker export-ports feature with more than 1 node")
 	}
 
 	if err := checkDistroVersion(c.DistroName.String(), c.DistroVersion.String()); err != nil {
-		logFatal(err)
+		return nil, logFatal(err)
 	}
 	if string(c.DistroVersion) == "latest" {
 		c.DistroVersion = TypeDistroVersion(getLatestVersionForDistro(c.DistroName.String()))

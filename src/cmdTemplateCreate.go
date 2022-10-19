@@ -26,20 +26,20 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	}
 
 	if err := chDir(string(c.ChDir)); err != nil {
-		logFatal("ChDir failed: %s", err)
+		return logFatal("ChDir failed: %s", err)
 	}
 
 	log.Print("Running template.create")
 
 	if a.opts.Config.Backend.Type == "aws" {
 		if c.Aws.SecurityGroupID == "" || c.Aws.SubnetID == "" {
-			logFatal("AWS backend requires SecurityGroupID and SubnetID to be specified")
+			return logFatal("AWS backend requires SecurityGroupID and SubnetID to be specified")
 		}
 	}
 
 	templates, err := b.ListTemplates()
 	if err != nil {
-		logFatal("Could not list templates: %s", err)
+		return logFatal("Could not list templates: %s", err)
 	}
 
 	var url string
