@@ -1,6 +1,136 @@
 package main
 
-import "errors"
+import (
+	"errors"
+	"log"
+	"strings"
+	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
+)
+
+func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err error) {
+	owner := ""
+	switch v.distroName {
+	case "ubuntu":
+		owner = "099720109477"
+	case "centos":
+		owner = "125523088429"
+	case "amazon":
+		owner = "137112412989"
+	default:
+		return "", errors.New("distro name lookup unsupporter")
+	}
+	arch := "x86_64"
+	if v.isArm {
+		arch = "arm64"
+	}
+	out, err := d.ec2svc.DescribeImages(&ec2.DescribeImagesInput{
+		IncludeDeprecated: aws.Bool(false),
+		Owners:            aws.StringSlice([]string{owner}),
+		Filters: []*ec2.Filter{
+			&ec2.Filter{
+				Name:   aws.String("architecture"),
+				Values: aws.StringSlice([]string{arch}),
+			},
+			&ec2.Filter{
+				Name:   aws.String("state"),
+				Values: aws.StringSlice([]string{"available"}),
+			},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+
+	imageId := ""
+	var creationDate time.Time
+	for _, ami := range out.Images {
+		if ami.VirtualizationType == nil || *ami.VirtualizationType != "hvm" || ami.Name == nil || ami.ImageId == nil || ami.CreationDate == nil {
+			continue
+		}
+		name := *ami.Name
+		switch v.distroName {
+		case "ubuntu":
+			if !strings.HasPrefix(name, "ubuntu/images/hvm-ssd/") {
+				continue
+			}
+			vals := strings.Split(name, "/")
+			if len(vals) < 4 {
+				continue
+			}
+			val := vals[3]
+			vals = strings.Split(val, "-")
+			if len(vals) < 5 {
+				continue
+			}
+			ver := vals[2]
+			if v.distroVersion == ver {
+				cdstring := *ami.CreationDate
+				if len(cdstring) < 19 {
+					continue
+				}
+				cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
+				if err == nil {
+					if cd.After(creationDate) {
+						creationDate = cd
+						imageId = *ami.ImageId
+					}
+				}
+			}
+		case "centos":
+			if !strings.HasPrefix(name, "CentOS ") {
+				continue
+			}
+			vals := strings.Split(name, " ")
+			if len(vals) < 3 {
+				continue
+			}
+			val := vals[1]
+			vals = strings.Split(val, ".")
+			if len(vals) < 3 {
+				continue
+			}
+			ver := vals[0]
+			if v.distroVersion == ver {
+				cdstring := *ami.CreationDate
+				if len(cdstring) < 19 {
+					continue
+				}
+				cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
+				if err == nil {
+					if cd.After(creationDate) {
+						creationDate = cd
+						imageId = *ami.ImageId
+					}
+				}
+			}
+		case "amazon":
+			if !(strings.HasPrefix(name, "amzn2-ami-kernel-") || strings.HasPrefix(name, "amzn2-ami-hvm-")) || !strings.Contains(name, "-hvm-") || !strings.HasSuffix(name, "-gp2") {
+				continue
+			}
+			if !strings.HasSuffix(name, "-x86_64-gp2") && !strings.HasSuffix(name, "-arm64-gp2") {
+				continue
+			}
+			cdstring := *ami.CreationDate
+			if len(cdstring) < 19 {
+				continue
+			}
+			cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
+			if err == nil {
+				if cd.After(creationDate) {
+					creationDate = cd
+					imageId = *ami.ImageId
+				}
+			}
+		}
+	}
+	if imageId != "" {
+		return imageId, nil
+	}
+	return "", errors.New("not found")
+}
 
 func (d *backendAws) getUser(v backendVersion) string {
 	switch v.distroName {
@@ -19,6 +149,11 @@ func (d *backendAws) getUser(v backendVersion) string {
 }
 
 func (d *backendAws) getAmi(region string, v backendVersion) (ami string, err error) {
+	ret, err := d.lookupAmi(region, v)
+	if err == nil {
+		return ret, nil
+	}
+	log.Printf("AMI lookup failed, using prebuilt lists (%s)", err)
 	if v.isArm {
 		return d.getAmiArm(region, v)
 	}
