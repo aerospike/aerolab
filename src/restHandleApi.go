@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -14,7 +15,19 @@ import (
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
-// TODO: handle 'help' calls using custom help
+/*
+curl -X POST http://127.0.0.1:3030/attach/shell -d '{"Tail":["ls"]}'
+curl -vX POST http://127.0.0.1:3030/cluster/create -d '{}'
+curl -vX POST http://127.0.0.1:3030/cluster/destroy -d '{"Docker":{"Force":true}}'
+/attach/shell/help
+/help (same as / or nothing)
+/cluster/help
+/cluster/create/help
+--
+print commands
+print json struct representing data
+for each json struct item, print the item and the description
+*/
 
 var apiQueue = make(chan apiQueueItem, 1024)
 
@@ -45,10 +58,26 @@ func (c *restCmd) handleApiDoLoop() {
 	w := queueItem.w
 	r := queueItem.r
 	defer close(queueItem.finish)
-	if strings.Trim(r.URL.Path, "/") == "quit" {
-		w.Write([]byte("OK"))
+	urlpath := strings.Trim(r.URL.Path, "/")
+	if urlpath == "quit" {
 		os.Exit(0)
 	}
+	if strings.HasSuffix(urlpath, "/help") || urlpath == "help" {
+		c.handleHelp(w, r)
+		return
+	}
+
+	subcommands := false
+	for _, command := range c.apiCommands {
+		if !strings.HasSuffix(command.path, "/help") && strings.HasPrefix(command.path, urlpath) && len(command.path) > len(urlpath) {
+			fmt.Fprintf(w, command.path+"\n")
+			subcommands = true
+		}
+	}
+	if subcommands {
+		return
+	}
+
 	// command = []string{"xdr","connect"}
 	// handle and parse payload to command struct
 	// execute command struct .Execute
