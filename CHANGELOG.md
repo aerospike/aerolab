@@ -1,6 +1,10 @@
 #### FUTURE
 * Add support for exporter on `arm`
 
+#### 4.3.2
+* add support for pre-selected eu-central-1
+* add ability for aws backend to automatically lookup AMIs for any region using DescribeImages
+
 #### 4.3.1
 * update aerospike client libraries to latest versions
 
