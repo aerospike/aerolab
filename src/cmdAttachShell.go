@@ -9,8 +9,8 @@ import (
 type attachShellCmd struct {
 	ClusterName TypeClusterName        `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Node        TypeNodesPlusAllOption `short:"l" long:"node" description:"Node to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
-	Tail        []string
-	Help        attachCmdHelp `command:"help" subcommands-optional:"true" description:"Print help"`
+	Tail        []string               `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]"`
+	Help        attachCmdHelp          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type attachCmdHelp struct{}

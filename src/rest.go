@@ -24,14 +24,19 @@ import (
 type restCmd struct {
 	Listen      string        `short:"l" long:"listen" description:"IP:PORT to listen on" default:"127.0.0.1:3030"`
 	Help        attachCmdHelp `command:"help" subcommands-optional:"true" description:"Print help"`
-	apiCommands []string
+	apiCommands []apiCommand
 	stdout      *os.File
 	stderr      *os.File
 	logout      io.Writer
 }
 
+type apiCommand struct {
+	path        string
+	description string
+}
+
 func (c *restCmd) Execute(args []string) error {
-	if earlyProcess(args) {
+	if earlyProcessV2(args, false) {
 		return nil
 	}
 	keys := []string{}
