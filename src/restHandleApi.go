@@ -99,17 +99,16 @@ func (c *restCmd) handleApiDoLoop() {
 	defer pw.Close()
 	go c.copy(buf, pr)
 
-	var na = &aerolab{
-		opts: new(commands),
-	}
-	na.parser = flags.NewParser(na.opts, flags.HelpFlag|flags.PassDoubleDash)
-	na.iniParser = flags.NewIniParser(na.parser)
-	na.parseFile()
-	na.parser.ParseArgs([]string{})
-
 	command := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	c.resetBools()
+	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+	a.iniParser = flags.NewIniParser(a.parser)
+	a.parser.ParseArgs([]string{})
+	a.parseFile()
+	a.parser.ParseArgs([]string{})
+
 	keys := []string{}
-	keyField := reflect.ValueOf(na.opts).Elem()
+	keyField := reflect.ValueOf(a.opts).Elem()
 	v, err := c.findCommand(keyField, strings.Join(keys, "."), "", []string{}, command)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -139,6 +138,11 @@ func (c *restCmd) handleApiDoLoop() {
 		}
 	}
 
+	if len(command) == 2 && command[0] == "config" && command[1] == "backend" && strings.Contains(string(body), "\"Type\"") {
+		a.opts.Config.Backend.typeSet = "yes"
+	} else {
+		a.opts.Config.Backend.typeSet = ""
+	}
 	c.apiRunCommand(v, w, buf)
 }
 
