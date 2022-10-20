@@ -47,8 +47,8 @@ MacOS | M1 or M2 | `aerolab-macos-arm64.zip` | single executable binary in a zip
 MacOS | Intel CPU | `aerolab-macos-amd64.zip` | single executable binary in a zip file
 Linux (generic) | arm | `aerolab-linux-arm64.zip` | single executable binary in a zip file
 Linux (generic) | Intel/AMD | `aerolab-linux-amd64.zip` | single executable binary in a zip file
-Linux (centos) | arm | `aerolab-....arm64.rpm` | RPM for installing on centos/rhel-based distros
-Linux (centos) | Intel/AMD | `aerolab-....x86_64.rpm` | RPM for installing on centos/rhel-based distros
+Linux (centos) | arm | `aerolab-linux-arm64.rpm` | RPM for installing on centos/rhel-based distros
+Linux (centos) | Intel/AMD | `aerolab-linux-x86_64.rpm` | RPM for installing on centos/rhel-based distros
 Linux (ubuntu) | arm | `aerolab-linux-arm64.deb` | DEB for installing on ubuntu/debian-based distros
 Linux (ubuntu) | Intel/AMD | `aerolab-linux-amd64.deb` | DEB for installing on ubuntu/debian-based distros
 
