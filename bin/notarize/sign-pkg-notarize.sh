@@ -20,24 +20,50 @@ fi
 
 # cleanup
 rm -f packages/aerolab/aerolab-*
+rm -rf packages/build
 rm -f notarize_result
 rm -f notarization_progress
 cp ../aerolab-macos-amd64 packages/aerolab/
-cp ../aerolab-macos-arm64 packages/aerolab/
+cp ../aerolab-macos-amd64 packages/aerolab/
 
-echo "Use Packages software to package AeroLab into AeroLab.pkg"
-echo "Then press ENTER to sign pkg file"
+function signer() {
+    echo "cleanup done"
+    ls
+    echo "========="
+
+    BIN=packages/aerolab/${1}
+    cp ../${1} packages/aerolab/
+    echo "FILE: ${1}"
+    echo "DEST: ${BIN}"
+
+    echo "Press ENTER to sign"
+    read
+
+    # codesign and test
+    echo "Codesigning and verifying"
+    codesign --verbose --deep --timestamp --force --options runtime --sign "Developer ID Application: Aerospike, Inc. (22224RFU67)" ${BIN} && \
+    codesign --verbose --verify ${BIN} || exit 1
+}
+
+signer aerolab-macos-amd64
+signer aerolab-macos-arm64
+
+rm -rf ~/Desktop/packages
+cp -a packages ~/Desktop/.
+pushd ~/Desktop/packages
+/usr/local/bin/packagesbuild --project AeroLab.pkgproj
+cd build
+
+echo "Press ENTER to sign pkg file"
 read 
-cd packages/build
-productsign --timestamp --sign "Developer ID Installer: Aerospike, Inc. (22224RFU67)" AeroLab.pkg aerolab-macos.pkg || exit 1
-cd ../..
+productsign --timestamp --sign "Developer ID Installer: Aerospike, Inc. (22224RFU67)" AeroLab.pkg aerolab-macos.pkg
 
 echo "Press ENTER to notarize"
 read 
 
 # notarize
 echo "Notarizing"
-xcrun -v altool --notarize-app --primary-bundle-id "aerolab" --username "$APPLE_ID" --password "$APPLE_ID_PASSWORD" --file packages/build/AeroLab.pkg --output-format xml | tee notarize_result
+xcrun -v altool --notarize-app --primary-bundle-id "aerolab" --username "$APPLE_ID" --password "$APPLE_ID_PASSWORD" --file aerolab-macos.pkg --output-format xml | tee notarize_result
 [ $? -ne 0 ] && exit 1
 
 # get notarize request UUID
@@ -54,7 +80,6 @@ while true; do
     echo ""
     cat notarization_progress
     echo "Notarization succeeded"
-    mv ${FILE} ../final/
     break
   elif grep -q "Status: in progress" notarization_progress; then
     continue
@@ -65,5 +90,6 @@ while true; do
   fi
 done
 
-cp packages/build/AeroLab.pkg ../final/aerolab-macos.pkg
+popd
+cp ~/Desktop/packages/build/aerolab-macos.pkg ../final/aerolab-macos.pkg
 echo "Done"
