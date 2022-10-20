@@ -1,4 +1,5 @@
 echo "Initializing"
+ver=$(cat ../../VERSION.md)
 # auth with apple
 [ -f ~/xcode-secrets.sh ] && source ~/xcode-secrets.sh
 
@@ -51,6 +52,7 @@ signer aerolab-macos-arm64
 rm -rf ~/Desktop/packages
 cp -a packages ~/Desktop/.
 pushd ~/Desktop/packages
+sed -i.bak "s/AEROLABVERSIONHERE/${ver}/g" AeroLab.pkgproj
 /usr/local/bin/packagesbuild --project AeroLab.pkgproj
 cd build
 
