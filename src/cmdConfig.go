@@ -53,45 +53,53 @@ func (c *configBackendCmd) Execute(args []string) error {
 		return nil
 	}
 	if c.typeSet != "" {
-		for command, switchList := range backendSwitches {
-			keys := strings.Split(strings.ToLower(string(command)), ".")
-			var nCmd *flags.Command
-			for i, key := range keys {
-				if i == 0 {
-					nCmd = a.parser.Find(key)
-				} else {
-					nCmd = nCmd.Find(key)
-				}
-			}
-			for backend, switches := range switchList {
-				_, err := nCmd.AddGroup(string(backend), string(backend), switches)
-				if err != nil {
-					log.Fatal(err)
-				}
-			}
-		}
-		if c.Type == "aws" {
-			if strings.Contains(string(c.SshKeyPath), "${HOME}") {
-				ch, err := os.UserHomeDir()
-				if err != nil {
-					log.Fatal(err)
-				}
-				c.SshKeyPath = flags.Filename(strings.ReplaceAll(string(c.SshKeyPath), "${HOME}", ch))
-			}
-			if _, err := os.Stat(string(c.SshKeyPath)); err != nil {
-				err = os.MkdirAll(string(c.SshKeyPath), 0755)
-				if err != nil {
-					return err
-				}
-			}
-		}
-		err := writeConfigFile()
+		err := c.ExecTypeSet(args)
 		if err != nil {
-			log.Printf("ERROR: Could not save file: %s", err)
+			return err
 		}
-		fmt.Print("OK: ")
 	}
 	fmt.Printf("config.backend.type=%s\n", c.Type)
+	return nil
+}
+
+func (c *configBackendCmd) ExecTypeSet(args []string) error {
+	for command, switchList := range backendSwitches {
+		keys := strings.Split(strings.ToLower(string(command)), ".")
+		var nCmd *flags.Command
+		for i, key := range keys {
+			if i == 0 {
+				nCmd = a.parser.Find(key)
+			} else {
+				nCmd = nCmd.Find(key)
+			}
+		}
+		for backend, switches := range switchList {
+			_, err := nCmd.AddGroup(string(backend), string(backend), switches)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+	if c.Type == "aws" {
+		if strings.Contains(string(c.SshKeyPath), "${HOME}") {
+			ch, err := os.UserHomeDir()
+			if err != nil {
+				log.Fatal(err)
+			}
+			c.SshKeyPath = flags.Filename(strings.ReplaceAll(string(c.SshKeyPath), "${HOME}", ch))
+		}
+		if _, err := os.Stat(string(c.SshKeyPath)); err != nil {
+			err = os.MkdirAll(string(c.SshKeyPath), 0755)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	err := writeConfigFile()
+	if err != nil {
+		log.Printf("ERROR: Could not save file: %s", err)
+	}
+	fmt.Print("OK: ")
 	return nil
 }
 
