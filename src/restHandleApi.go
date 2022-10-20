@@ -116,7 +116,15 @@ func (c *restCmd) handleApiDoLoop() {
 		return
 	}
 
-	dec := json.NewDecoder(r.Body)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if string(body) == "" {
+		body = []byte("{}")
+	}
+	dec := json.NewDecoder(bytes.NewReader(body))
 	dec.DisallowUnknownFields()
 	err = dec.Decode(v.Addr().Interface())
 	if err != nil {
