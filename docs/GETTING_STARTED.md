@@ -34,30 +34,29 @@ Follow [this manual](https://docs.aws.amazon.com/cli/latest/userguide/getting-st
 
 Run `aws configure` to configure basic access to AWS.
 
-### Download aerolab binary from the releases page
+### Download aerolab from the releases page
 
-Head to the releases page and download one of the binaries, depending on where you are intending to run aerolab.
+Head to the releases page and download one of the installers, depending on where you are intending to run aerolab.
 
 Note that aerolab will still be able to deploy Aerospike on both arm and x64 architectures, regardless of which aerolab binary you are using.
 
-Operating System | CPU | File
---- | --- | ---
-MacOS | M1 or M2 | `aerolab-macos-arm64.zip`
-MacOS | Intel CPU | `aerolab-macos-amd64.zip`
-Linux | arm | `aerolab-linux-arm64.zip`
-Linux | Intel/Amd | `aerolab-linux-amd64.zip`
+Operating System | CPU | File | Comments
+--- | --- | --- | ---
+MacOS | ALL | `aerolab-macos.pkg` | multi-arch AeroLab installer for MacOS
+MacOS | M1 or M2 | `aerolab-macos-arm64.zip` | single executable binary in a zip file
+MacOS | Intel CPU | `aerolab-macos-amd64.zip` | single executable binary in a zip file
+Linux (generic) | arm | `aerolab-linux-arm64.zip` | single executable binary in a zip file
+Linux (generic) | Intel/AMD | `aerolab-linux-amd64.zip` | single executable binary in a zip file
+Linux (centos) | arm | `aerolab-....arm64.rpm` | RPM for installing on centos/rhel-based distros
+Linux (centos) | Intel/AMD | `aerolab-....x86_64.rpm` | RPM for installing on centos/rhel-based distros
+Linux (ubuntu) | arm | `aerolab-linux-arm64.deb` | DEB for installing on ubuntu/debian-based distros
+Linux (ubuntu) | Intel/AMD | `aerolab-linux-amd64.deb` | DEB for installing on ubuntu/debian-based distros
 
 #### Install
 
-First unzip the zip file. This will produce a single binary called `aerolab`. Follow the below steps to install:
+It is adviseable to use the provided installer files. Upon download, run the installation and `aerolab` command will become available.
 
-```
-sudo mkdir -p /usr/local/bin/
-sudo mv /path/to/aerolab /usr/local/bin/
-sudo chmod 755 /usr/local/bin/aerolab
-```
-
-That's it, now the command `aerolab` is available in your shell globally wherever you are.
+Alternatively, manual installation can be performed by downloading the relevant `zip` file, unpacking it, and then moving the unpacked `aerolab` binary to `/usr/local/bin/`. Remember to `chmod +x` the binary too.
 
 ### First run
 
