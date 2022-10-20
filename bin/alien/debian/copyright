@@ -1,0 +1,13 @@
+Format: http://dep.debian.net/deps/dep5/
+Source: native package
+
+Files: *
+Copyright:
+ 1996, 1997 Christoph Lameter
+ 1997 Randolph Chung
+ 2001 Mark A. Hershberger
+ 1997-2011 Joey Hess
+License: GPL-2+
+ On Debian systems, the complete text of the GPL can be found in
+ /usr/share/common-licenses/GPL.
+

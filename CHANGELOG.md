@@ -7,6 +7,7 @@
 * add `rest-api` command to allow for using aerolab as a rest-api webserver (basic, not full rest-api) instead of cli interface
 * error handling improvements
 * minor flow bugfixes
+* package `aerolab` as `pkg` for MacOS, `deb` for debian/ubuntu, `rpm` for rhel/centos and generic `zip` for linux
 
 #### 4.3.1
 * update aerospike client libraries to latest versions
