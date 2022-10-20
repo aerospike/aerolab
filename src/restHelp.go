@@ -67,9 +67,13 @@ func (c *restCmd) handleHelp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprint(w, "=== JSON payload with default values ===\n")
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	enc.Encode(v.Interface())
+	out, err := json.MarshalIndent(v.Interface(), "", "  ")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	out = []byte(strings.ReplaceAll(string(out), ",\n  \"Help\": {}", ""))
+	w.Write(out)
 	fmt.Fprint(w, "\n=== Payload Parameter descriptions ===\n")
 
 	vals := []helpValue{}
