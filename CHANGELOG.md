@@ -4,7 +4,7 @@
 #### 4.3.2
 * add support for pre-selected eu-central-1
 * add ability for aws backend to automatically lookup AMIs for any region using DescribeImages
-* add `rest-api` command to allow for using aerolab as a rest-api webserver (basic, not full rest-api)
+* add `rest-api` command to allow for using aerolab as a rest-api webserver (basic, not full rest-api) instead of cli interface
 * error handling improvements
 * minor flow bugfixes
 
