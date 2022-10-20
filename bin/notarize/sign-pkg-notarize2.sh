@@ -23,14 +23,34 @@ rm -f packages/aerolab/aerolab-*
 rm -f notarize_result
 rm -f notarization_progress
 cp ../aerolab-macos-amd64 packages/aerolab/
-cp ../aerolab-macos-arm64 packages/aerolab/
+cp ../aerolab-macos-amd64 packages/aerolab/
 
-echo "Use Packages software to package AeroLab into AeroLab.pkg"
+function signer() {
+    echo "cleanup done"
+    ls
+    echo "========="
+
+    BIN=packages/aerolab/${1}
+    cp ../${1} packages/aerolab/
+    echo "FILE: ${1}"
+    echo "DEST: ${BIN}"
+
+    echo "Press ENTER to sign"
+    read
+
+    # codesign and test
+    echo "Codesigning and verifying"
+    codesign --verbose --deep --timestamp --force --options runtime --sign "Developer ID Application: Aerospike, Inc. (22224RFU67)" ${BIN} && \
+    codesign --verbose --verify ${BIN} || exit 1
+}
+
+signer aerolab-macos-amd64
+signer aerolab-macos-arm64
+
+echo "Usage Packages software to package AeroLab into AeroLab.pkg"
 echo "Then press ENTER to sign pkg file"
 read 
-cd packages/build
-productsign --timestamp --sign "Developer ID Installer: Aerospike, Inc. (22224RFU67)" AeroLab.pkg aerolab-macos.pkg || exit 1
-cd ../..
+productsign --timestamp --sign "Developer ID Installer: Aerospike, Inc. (22224RFU67)" packages/build/AeroLab.pkg ../final/aerolab-macos.pkg || exit 1
 
 echo "Press ENTER to notarize"
 read 
