@@ -11,13 +11,13 @@ This can be used on it's own, as part of [aerolab-buildenv](../aerolab-buildenv/
 #### Using https
 
 ```bash
-git clone https://github.com/citrusleaf/aerolab.git
+git clone https://github.com/aerospike/aerolab.git
 ```
 
 #### Using git keys
 
 ```bash
-git clone git@github.com:citrusleaf/aerolab.git
+git clone git@github.com:aerospike/aerolab.git
 ```
 
 ### Enter this directory

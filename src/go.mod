@@ -1,4 +1,4 @@
-module github.com/citrusleaf/aerolab
+module github.com/aerospike/aerolab
 
 go 1.19
 

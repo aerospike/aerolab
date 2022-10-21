@@ -9,10 +9,10 @@ Notes:
 
 ```
 Via Web
-% git clone https://github.com/citrusleaf/aerolab.git
+% git clone https://github.com/aerospike/aerolab.git
 
 Via SSH
-% git clone git@github.com:citrusleaf/aerolab.git
+% git clone git@github.com:aerospike/aerolab.git
 ```
 
 ## Enter this directory
