@@ -12,7 +12,7 @@ The container allows for the host MacOS/Windows to access all containers directl
 2. Run the following commands from the terminal / bash shell:
 
 ```bash
-git clone https://github.com/citrusleaf/aerolab
+git clone https://github.com/aerospike/aerolab
 cd aerolab/tunnel-container-openvpn/build-run
 chmod 755 *sh && ./RUNME.sh
 ```

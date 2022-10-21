@@ -24,7 +24,7 @@ Usage: ./runme.sh start|stop|destroy|run|get
 ### First clone this repo
 
 ```bash
-git clone https://github.com/citrusleaf/aerolab.git
+git clone https://github.com/aerospike/aerolab.git
 ```
 
 ### Enter this directory
