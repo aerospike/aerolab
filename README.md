@@ -4,7 +4,7 @@ Lab tool for spinning up Aerospike development and testing clusters on Docker or
 
 ## Releases: binaries
 
-Go to the [releases page](https://github.com/citrusleaf/aerolab/releases) and download the required single binary.
+Go to the [releases page](https://github.com/aerospike/aerolab/releases) and download the required single binary.
 
 Operating System | Binary | Notes
 --- | --- | ---
