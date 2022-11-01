@@ -1,6 +1,9 @@
 #### FUTURE
 * Add support for exporter on `arm`
 
+#### 4.3.4
+* improve shell parsing for `aws` backend for `attach shell -- ...`
+
 #### 4.3.3
 * bump version of all dependencies to latest
   * resolves a number of known issues in golang/x/crypto, golang/x/term and golang/x/sys
