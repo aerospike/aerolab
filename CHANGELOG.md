@@ -3,6 +3,7 @@
 
 #### 4.3.4
 * improve shell parsing for `aws` backend for `attach shell -- ...`
+* install best-practices script on `aws` backend when deploying clusters
 
 #### 4.3.3
 * bump version of all dependencies to latest
