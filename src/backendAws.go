@@ -668,7 +668,7 @@ func (d *backendAws) RunCustomOut(clusterName string, node int, command []string
 		comm = command[0]
 		for _, c := range command[1:] {
 			if strings.Contains(c, " ") {
-				comm = comm + " \"" + c + "\""
+				comm = comm + " \"" + strings.ReplaceAll(c, "\"", "\\\"") + "\""
 			} else {
 				comm = comm + " " + c
 			}
