@@ -7,14 +7,15 @@ Usage:
   aerolab [OPTIONS] client [command]
 
 Available commands:
-  create   Create new client machines
-  add      Add features to existing client machines
-  list     List client machine groups
-  start    Start a client machine group
-  stop     Stop a client machine group
-  grow     Grow a client machine group
-  destroy  Destroy client(s)
-  help     Print help
+  create     Create new client machines
+  configure  (re)configure some clients, such as ams
+  list       List client machine groups
+  start      Start a client machine group
+  stop       Stop a client machine group
+  grow       Grow a client machine group
+  destroy    Destroy client(s)
+  attach     symlink to: attach client
+  help       Print help
 ```
 
 ## Client create command - supported clients
@@ -24,9 +25,11 @@ Usage:
   aerolab [OPTIONS] client create [base | tools | help]
 
 Available commands:
-  base   simple base image
-  tools  aerospike-tools
-  help   Print help
+  base     simple base image
+  tools    aerospike-tools
+  ams      prometheus and grafana for AMS; for exporter see: cluster add exporter
+  jupyter  launch a jupyter IDE client
+  help     Print help
 ```
 
 ## Get help for a given client type
@@ -43,12 +46,6 @@ aerolab client create tools help
 ```
 aerolab client create base -n myclients -c 3
 aerolab client grow tools -n myclients -c 3
-```
-
-### Add tools to the 3 base machines (first 3 machines)
-
-```
-aerolab client add tools -n myclients -l 1-3
 ```
 
 ### List clients
