@@ -3,16 +3,18 @@ package main
 import "os"
 
 type clientCreateCmd struct {
-	Base  clientCreateBaseCmd  `command:"base" subcommands-optional:"true" description:"simple base image"`
-	Tools clientCreateToolsCmd `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
-	AMS   clientCreateAMSCmd   `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
+	Base    clientCreateBaseCmd    `command:"base" subcommands-optional:"true" description:"simple base image"`
+	Tools   clientCreateToolsCmd   `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
+	AMS     clientCreateAMSCmd     `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
+	Jupyter clientCreateJupyterCmd `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
 	// NEW_CLIENTS_CREATE
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type clientAddCmd struct {
-	Tools clientAddToolsCmd `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
-	AMS   clientAddAMSCmd   `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
+	Tools   clientAddToolsCmd   `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
+	AMS     clientAddAMSCmd     `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
+	Jupyter clientAddJupyterCmd `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
 	// NEW_CLIENTS_ADD
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -48,6 +50,11 @@ func init() {
 	addBackendSwitch("client.create.ams", "docker", &a.opts.Client.Create.AMS.Docker)
 	addBackendSwitch("client.grow.ams", "aws", &a.opts.Client.Grow.AMS.Aws)
 	addBackendSwitch("client.grow.ams", "docker", &a.opts.Client.Grow.AMS.Docker)
+
+	addBackendSwitch("client.create.jupyter", "aws", &a.opts.Client.Create.Jupyter.Aws)
+	addBackendSwitch("client.create.jupyter", "docker", &a.opts.Client.Create.Jupyter.Docker)
+	addBackendSwitch("client.grow.jupyter", "aws", &a.opts.Client.Grow.Jupyter.Aws)
+	addBackendSwitch("client.grow.jupyter", "docker", &a.opts.Client.Grow.Jupyter.Docker)
 
 	// NEW_CLIENTS_BACKEND
 
