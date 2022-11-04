@@ -1,5 +1,6 @@
 #### FUTURE
 * Add support for exporter on `arm`
+* Test all `arm` features on clients
 
 #### 4.3.4
 * improve shell parsing for `aws` backend for `attach shell -- ...`
