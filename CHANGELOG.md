@@ -5,8 +5,9 @@
 #### 4.3.4
 * improve shell parsing for `aws` backend for `attach shell -- ...`
 * install best-practices script on `aws` backend when deploying clusters
+  * thp, min_free_kbytes, swappiness
 * bugfix: `data insert` functions used `rand.NewSource()` without thread safety
-* bugfix: `cluster start` would not work on partial start (some nodes only) due to failure in `fixMesh` code
+* bugfix: `cluster start` would not work on partial start (some nodes only) due to failure in `fixMesh` code N/A ip handling
 * experimental `jupyter` client added with `go,python,java,node,dotnet` kernels and aerospike client libraries
 * experimental `trino` client added
 * hide `client add` option, as most clients have a specific OS:Ver requirement, making this option more annoying than useful
