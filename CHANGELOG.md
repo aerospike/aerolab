@@ -8,9 +8,9 @@
   * thp, min_free_kbytes, swappiness
 * bugfix: `data insert` functions used `rand.NewSource()` without thread safety
 * bugfix: `cluster start` would not work on partial start (some nodes only) due to failure in `fixMesh` code N/A ip handling
-* experimental `jupyter` client added with `go,python,java,node,dotnet` kernels and aerospike client libraries
-* experimental `trino` client added
 * hide `client add` option, as most clients have a specific OS:Ver requirement, making this option more annoying than useful
+* rc1: experimental `jupyter` client added with `go,python,java,node,dotnet` kernels and aerospike client libraries
+* rc2: experimental `trino` client added
 
 #### 4.3.3
 * bump version of all dependencies to latest
