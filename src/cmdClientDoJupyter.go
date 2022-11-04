@@ -154,6 +154,9 @@ func (c *clientAddJupyterCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("20.04") {
+		return fmt.Errorf("jupyter is only supported on ubuntu:20.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	}
 	b.WorkOnServers()
 	var err error
 	if c.ConnectCluster == "" {
@@ -784,7 +787,7 @@ optdotnet=false
 optstart=false
 optstop=false
 
-while getopts ":ijpngds" o; do
+while getopts ":ijpngdso" o; do
     case "${o}" in
         i) optinstall=true ;;
         j) optjava=true ;;

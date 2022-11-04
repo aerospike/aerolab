@@ -6,7 +6,7 @@ import (
 
 type clientCmd struct {
 	Create    clientCreateCmd    `command:"create" subcommands-optional:"true" description:"Create new client machines"`
-	Add       clientAddCmd       `command:"add" subcommands-optional:"true" description:"Add features to existing client machines"`
+	Add       clientAddCmd       `command:"add" hidden:"true" subcommands-optional:"true" description:"Add features to existing client machines"`
 	Configure clientConfigureCmd `command:"configure" subcommands-optional:"true" description:"(re)configure some clients, such as ams"`
 	List      clientListCmd      `command:"list" subcommands-optional:"true" description:"List client machine groups"`
 	Start     clientStartCmd     `command:"start" subcommands-optional:"true" description:"Start a client machine group"`
