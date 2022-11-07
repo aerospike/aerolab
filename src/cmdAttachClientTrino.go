@@ -6,22 +6,22 @@ import (
 	"strings"
 )
 
-type attachClientCmd struct {
-	Trino      attachCmdTrino `command:"trino" subcommands-optional:"true" description:"Attach to trino shell"`
+type attachCmdTrino struct {
 	ClientName TypeClientName `short:"n" long:"name" description:"Client group name" default:"client"`
 	Machine    TypeMachines   `short:"l" long:"node" description:"Machine to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
+	Namespace  string         `short:"m" long:"namespace" description:"Namespace to use" default:"test"`
 	Tail       []string       `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]"`
 	Help       attachCmdHelp  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *attachClientCmd) Execute(args []string) error {
+func (c *attachCmdTrino) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
 	return c.run(args)
 }
 
-func (c *attachClientCmd) run(args []string) (err error) {
+func (c *attachCmdTrino) run(args []string) (err error) {
 	b.WorkOnClients()
 	var nodes []int
 	err = c.Machine.ExpandNodes(string(c.ClientName))
@@ -49,7 +49,11 @@ func (c *attachClientCmd) run(args []string) (err error) {
 		if len(nodes) > 1 {
 			fmt.Printf(" ======== %s:%d ========\n", string(c.ClientName), node)
 		}
-		erra := b.AttachAndRun(string(c.ClientName), node, args)
+		nargs := []string{"su", "-", "trino", "-c", fmt.Sprintf("bash ./trino --server 127.0.0.1:8080 --catalog aerospike --schema %s", c.Namespace)}
+		if len(args) > 0 {
+			nargs = append(nargs, args...)
+		}
+		erra := b.AttachAndRun(string(c.ClientName), node, nargs)
 		if erra != nil {
 			if err == nil {
 				err = erra
