@@ -5,6 +5,7 @@ import "os"
 type clientConfigureCmd struct {
 	AMS     clientConfigureAMSCmd     `command:"ams" subcommands-optional:"true" description:"change which clusters prometheus points at"`
 	Jupyter clientConfigureJupyterCmd `command:"jupyter" subcommands-optional:"true" description:"add language kernels to jupyter"`
+	Trino   clientConfigureTrinoCmd   `command:"trino" subcommands-optional:"true" description:"change aerospike seed IPs for trino"`
 	Help    helpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
