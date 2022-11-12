@@ -91,7 +91,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	}
 
 	if c.Action != "show" && c.Action != "delall" {
-		if (c.IsSourceClient && !inslice.HasString(ccClients, string(c.DestinationClusterName))) || (!c.IsSourceClient && !inslice.HasString(ccClusters, string(c.DestinationClusterName))) {
+		if (c.IsDestinationClient && !inslice.HasString(ccClients, string(c.DestinationClusterName))) || (!c.IsDestinationClient && !inslice.HasString(ccClusters, string(c.DestinationClusterName))) {
 			err = fmt.Errorf("error, does not exist: %s", string(c.DestinationClusterName))
 			return err
 		}
