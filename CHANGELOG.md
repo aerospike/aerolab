@@ -12,6 +12,7 @@
 * experimental `jupyter` client added with `go,python,java,node,dotnet` kernels and aerospike client libraries
 * experimental `trino` client added
 * fix "net loss-delay in source being client bug
+* adjust installer downloader to new 6.2 aerospike naming convention
 
 #### 4.3.3
 * bump version of all dependencies to latest

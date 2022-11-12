@@ -334,6 +334,7 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 		line = strings.TrimSuffix(line, ".x86_64")
 		line = strings.TrimSuffix(line, ".arm64")
 		line = strings.TrimSuffix(line, ".aarch64")
+		line = strings.TrimLeft(line, "1234567890")
 		if strings.HasPrefix(line, "ubuntu") {
 			dlv.distroName = "ubuntu"
 			dlv.distroVersion = strings.TrimPrefix(line, "ubuntu")
