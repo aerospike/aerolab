@@ -11,7 +11,7 @@
 * hide `client add` option, as most clients have a specific OS:Ver requirement, making this option more annoying than useful
 * experimental `jupyter` client added with `go,python,java,node,dotnet` kernels and aerospike client libraries
 * experimental `trino` client added
-* fix "net loss-delay in source being client bug
+* fix `net loss-delay` in source being client bug
 * adjust installer downloader to new 6.2 aerospike naming convention
 
 #### 4.3.3
