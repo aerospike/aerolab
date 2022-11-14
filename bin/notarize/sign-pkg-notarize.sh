@@ -37,8 +37,9 @@ function signer() {
     echo "FILE: ${1}"
     echo "DEST: ${BIN}"
 
-    echo "Press ENTER to sign"
-    read
+    ##echo "Press ENTER to sign"
+    ##read
+    sleep 60
 
     # codesign and test
     echo "Codesigning and verifying"
@@ -56,12 +57,14 @@ sed -i.bak "s/AEROLABVERSIONHERE/${ver}/g" AeroLab.pkgproj
 /usr/local/bin/packagesbuild --project AeroLab.pkgproj
 cd build
 
-echo "Press ENTER to sign pkg file"
-read 
-productsign --timestamp --sign "Developer ID Installer: Aerospike, Inc. (22224RFU67)" AeroLab.pkg aerolab-macos.pkg
+##echo "Press ENTER to sign pkg file"
+##read 
+sleep 60
+productsign --timestamp --sign "Developer ID Installer: Aerospike, Inc. (22224RFU67)" AeroLab.pkg aerolab-macos.pkg || exit 1
 
-echo "Press ENTER to notarize"
-read 
+##echo "Press ENTER to notarize"
+##read 
+sleep 60
 
 # notarize
 echo "Notarizing"

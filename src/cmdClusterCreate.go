@@ -63,6 +63,7 @@ type clusterCreateCmdAws struct {
 	SubnetID        string `short:"U" long:"subnet-id" description:"existing subnet ID to put instances in"`
 	PublicIP        bool   `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
 	IsArm           bool   `long:"arm" description:"indicate installing on an arm instance"`
+	NoBestPractices bool   `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -498,6 +499,20 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			}
 		}
 	}
+
+	// if aws, adopt best-practices
+	if a.opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices {
+		thpString := c.thpString()
+		err := b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{
+			filePath:     "/etc/systemd/system/aerospike.service.d/aerolab-thp.conf",
+			fileSize:     len(thpString),
+			fileContents: strings.NewReader(thpString),
+		}}, nodeListNew)
+		if err != nil {
+			log.Printf("WARNING! THP Disable script could not be installed: %s", err)
+		}
+	}
+
 	// also create locations if not exist
 	for i, node := range nodeListNew {
 		log := string(out[i])
@@ -609,4 +624,17 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 	// done
 	log.Println("Done")
 	return nil
+}
+
+func (c *clusterCreateCmd) thpString() string {
+	return `[Service]
+	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/enabled || echo"
+	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/defrag || echo"
+	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/enabled || echo"
+	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/defrag || echo"
+	ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/transparent_hugepage/khugepaged/defrag || echo"
+	ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/redhat_transparent_hugepage/khugepaged/defrag || echo"
+	ExecStartPre=/bin/bash -c "sysctl -w vm.min_free_kbytes=1310720 || echo"
+	ExecStartPre=/bin/bash -c "sysctl -w vm.swappiness=0 || echo"
+	`
 }

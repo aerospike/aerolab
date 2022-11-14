@@ -55,13 +55,16 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 		if nip[i] == "" {
 			continue
 		}
+		if nip[i] == "N/A" {
+			continue
+		}
 		files := []fileList{}
 		var r [][]string
 		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
 		var nr [][]byte
 		nr, err = b.RunCommands(string(c.ClusterName), r, []int{i})
 		if err != nil {
-			return err
+			return fmt.Errorf("cluster=%s node=%v nodeIP=%v RunCommands error=%s", string(c.ClusterName), i, nip[i], err)
 		}
 		// nr has contents of aerospike.conf
 		newconf, err := fixAerospikeConfig(string(nr[0]), "", "mesh", clusterIps, nodeList)
@@ -72,7 +75,7 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 		if len(files) > 0 {
 			err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{i})
 			if err != nil {
-				return err
+				return fmt.Errorf("cluster=%s node=%v nodeIP=%v CopyFilesToCluster error=%s", string(c.ClusterName), i, nip[i], err)
 			}
 		}
 	}

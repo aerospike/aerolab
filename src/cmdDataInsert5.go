@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v5"
@@ -72,6 +73,7 @@ func (c *dataInsertCmd) insert5(args []string) error {
 
 	client.WarmUp(100)
 	src := rand.NewSource(time.Now().UnixNano())
+	srcLock := new(sync.Mutex)
 
 	total := c.PkEndNumber - c.PkStartNumber + 1
 	inserted := 0
@@ -187,14 +189,14 @@ func (c *dataInsertCmd) insert5(args []string) error {
 			}
 		}
 		if c.UseMultiThreaded == 0 {
-			err = c.insert5do(i, client, wp, partNo, src)
+			err = c.insert5do(i, client, wp, partNo, src, srcLock)
 			if err != nil {
 				return fmt.Errorf("insert-data: insertData_perform: %s", err)
 			}
 		} else {
 			wg <- 1
 			go func(i int, client *aerospike.Client) {
-				err = c.insert5do(i, client, wp, partNo, src)
+				err = c.insert5do(i, client, wp, partNo, src, srcLock)
 				if err != nil {
 					log.Printf("WARN Insert error while multithreading at: insertData_perform: %s", err)
 				}
@@ -217,7 +219,7 @@ func (c *dataInsertCmd) insert5(args []string) error {
 	return nil
 }
 
-func (c *dataInsertCmd) insert5do(i int, client *aerospike.Client, wp *aerospike.WritePolicy, partitionNumber int, src rand.Source) error {
+func (c *dataInsertCmd) insert5do(i int, client *aerospike.Client, wp *aerospike.WritePolicy, partitionNumber int, src rand.Source, srcLock *sync.Mutex) error {
 	setSplit := strings.Split(c.Set, ":")
 	var set string
 	if len(setSplit) == 1 {
@@ -227,7 +229,7 @@ func (c *dataInsertCmd) insert5do(i int, client *aerospike.Client, wp *aerospike
 		if err != nil {
 			return fmt.Errorf("insert-data: Error processing set random: %s", err)
 		}
-		set = RandStringRunes(setSizeNo, src)
+		set = RandStringRunes(setSizeNo, src, srcLock)
 	} else {
 		return fmt.Errorf("insert-data: Set name error: %s", setSplit)
 	}
@@ -245,7 +247,7 @@ func (c *dataInsertCmd) insert5do(i int, client *aerospike.Client, wp *aerospike
 		if err != nil {
 			return fmt.Errorf("insert-data: Bin Size No error: %s", err)
 		}
-		bin = RandStringRunes(binSizeNo, src)
+		bin = RandStringRunes(binSizeNo, src, srcLock)
 	} else if binData[0] == "unique" {
 		bin = fmt.Sprintf("%s%d", binData[1], i)
 	} else {
@@ -265,7 +267,7 @@ func (c *dataInsertCmd) insert5do(i int, client *aerospike.Client, wp *aerospike
 		if err != nil {
 			return fmt.Errorf("insert-data: Bin contents size error: %s", err)
 		}
-		binc = RandStringRunes(bincSizeNo, src)
+		binc = RandStringRunes(bincSizeNo, src, srcLock)
 	} else if bincData[0] == "unique" {
 		binc = fmt.Sprintf("%s%d", bincData[1], i)
 	} else {

@@ -39,7 +39,7 @@ tar -zxvf tc.tar.gz || exit 1
 mv tcconfig-ubuntu-venv-tc /tcconfig || exit 1
 mv /tcconfig/lib/* /tcconfig/lib/python$(python3 --version |egrep -o '[0-9]+\.[0-9]+')
 cd /root && tar -zxf installer.tgz || exit 1
-cd aerospike-server-* && ./asinstall || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
 apt-get -y install libldap-2.4-2 ; apt -y --fix-broken install ; apt-get -y install libldap-2.4-2
 cat <<'EOF' > /etc/apt/apt.conf.d/local
 Dpkg::Options {
@@ -85,7 +85,7 @@ yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
 cd /root && tar -zxvf installer.tgz || exit 1
-cd aerospike-server-* && ./asinstall || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
 `
 
 	aerospikeInstallScript["aws:centos:8"] = `#!/bin/bash
@@ -118,7 +118,7 @@ yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
 cd /root && tar -zxvf installer.tgz || exit 1
-cd aerospike-server-* && ./asinstall || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
 rm -f /etc/systemd/system/sshd-keygen\@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
 systemctl daemon-reload
 `
@@ -152,7 +152,7 @@ yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
 cd /root && tar -zxvf installer.tgz || exit 1
-cd aerospike-server-* && ./asinstall || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
 `
 
 	aerospikeInstallScript["docker:ubuntu:22.04"] = `#!/bin/bash
@@ -170,7 +170,7 @@ tar -zxvf tc.tar.gz || exit 1
 mv /tcconfig-ubuntu-venv-tc /tcconfig || exit 1
 mv /tcconfig/lib/* /tcconfig/lib/python$(python3 --version |egrep -o '[0-9]+\.[0-9]+')
 cd /root && tar -zxf installer.tgz || exit 1
-cd aerospike-server-* && ./asinstall || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
 cat <<'EOF' > /usr/local/bin/early.sh
 #!/bin/bash
 ls / >/dev/null 2>&1
@@ -267,7 +267,7 @@ yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
 cd /root && tar -zxvf installer.tgz || exit 1
-cd aerospike-server-* && ./asinstall || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
 cat <<'EOF' > /usr/local/bin/early.sh
 #!/bin/bash
 ls / >/dev/null 2>&1
