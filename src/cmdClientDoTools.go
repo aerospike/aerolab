@@ -99,7 +99,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		c.Machines = "ALL"
 	}
 	a.opts.Attach.Client.Machine = c.Machines
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "cd /opt && tar -zxvf installer.tgz && cd aerospike-server-* && ./asinstall"})
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "cd /opt && tar -zxvf installer.tgz && cd aerospike-server-* ; ./asinstall"})
 	if err != nil {
 		return err
 	}

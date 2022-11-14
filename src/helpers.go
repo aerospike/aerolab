@@ -327,13 +327,14 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 			dlv.isArm = true
 		}
 		bothArch := false
-		if !strings.HasSuffix(line, ".x86_64.tgz") && !strings.HasSuffix(line, ".arm64.tgz") && !strings.HasSuffix(line, ".aarch64.tgz") {
+		if !strings.HasSuffix(line, ".x86_64.tgz") && !strings.HasSuffix(line, ".arm64.tgz") && !strings.HasSuffix(line, ".aarch64.tgz") && !strings.HasSuffix(line, ".amd64.tgz") {
 			bothArch = true
 		}
 		line = strings.TrimSuffix(line[strings.LastIndex(line, "-")+1:], ".tgz")
 		line = strings.TrimSuffix(line, ".x86_64")
 		line = strings.TrimSuffix(line, ".arm64")
 		line = strings.TrimSuffix(line, ".aarch64")
+		line = strings.TrimSuffix(line, ".amd64")
 		line = strings.TrimLeft(line, "1234567890")
 		if strings.HasPrefix(line, "ubuntu") {
 			dlv.distroName = "ubuntu"
