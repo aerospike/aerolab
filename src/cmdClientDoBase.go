@@ -155,7 +155,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		}
 	}
 
-	repl := "cd aerospike-server-* && ./asinstall || exit 1"
+	repl := "cd aerospike-server-* ; ./asinstall || exit 1"
 	repl2 := "cd /root && tar -zxf installer.tgz || exit 1"
 	installer := aerospikeInstallScript["aws:"+string(c.DistroName)+":"+string(c.DistroVersion)]
 	installer = strings.ReplaceAll(installer, repl, "")

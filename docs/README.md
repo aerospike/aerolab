@@ -5,6 +5,8 @@
 * [Usage Examples](usage/README.md)
 * [AWS HowTo](aws/README.md)
 * [Clients](usage/CLIENTS.md)
+  * [Jupyter](usage/jupyter.md)
+  * [Trino](usage/trino.md)
 * [Rest API](usage/REST.md)
 * [Useful scripts](../scripts/README.md)
   * [Deploy LDAP server](../scripts/aerolab-ldap/README.md)

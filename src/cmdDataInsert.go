@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
@@ -203,7 +204,7 @@ func findExec() (string, error) {
 	return exReal, nil
 }
 
-func RandStringRunes(n int, src rand.Source) string {
+func RandStringRunes(n int, src rand.Source, srcLock *sync.Mutex) string {
 	const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	const (
 		letterIdxBits = 6                    // 6 bits to represent a letter index
@@ -213,6 +214,7 @@ func RandStringRunes(n int, src rand.Source) string {
 	sb := strings.Builder{}
 	sb.Grow(n)
 	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	srcLock.Lock()
 	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
 		if remain == 0 {
 			cache, remain = src.Int63(), letterIdxMax
@@ -224,6 +226,7 @@ func RandStringRunes(n int, src rand.Source) string {
 		cache >>= letterIdxBits
 		remain--
 	}
+	srcLock.Unlock()
 
 	return sb.String()
 }

@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -70,7 +69,6 @@ func (c *dataDeleteCmd) delete4(args []string) error {
 	}
 
 	client.WarmUp(100)
-	rand.Seed(time.Now().UnixNano())
 
 	total := c.PkEndNumber - c.PkStartNumber + 1
 	deleted := 0

@@ -1,5 +1,18 @@
 #### FUTURE
 * Add support for exporter on `arm`
+* Test all `arm` features on clients
+
+#### 4.3.4
+* improve shell parsing for `aws` backend for `attach shell -- ...`
+* install best-practices script on `aws` backend when deploying clusters
+  * thp, min_free_kbytes, swappiness
+* bugfix: `data insert` functions used `rand.NewSource()` without thread safety
+* bugfix: `cluster start` would not work on partial start (some nodes only) due to failure in `fixMesh` code N/A ip handling
+* hide `client add` option, as most clients have a specific OS:Ver requirement, making this option more annoying than useful
+* experimental `jupyter` client added with `go,python,java,node,dotnet` kernels and aerospike client libraries
+* experimental `trino` client added
+* fix `net loss-delay` in source being client bug
+* adjust installer downloader to new 6.2 aerospike naming convention
 
 #### 4.3.3
 * bump version of all dependencies to latest
