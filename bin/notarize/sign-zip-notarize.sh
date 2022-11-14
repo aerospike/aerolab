@@ -40,6 +40,7 @@ echo "OUT: ${FILE}"
 
 ##echo "Press ENTER to sign"
 ##read
+sleep 60
 
 # codesign and test
 echo "Codesigning and verifying"
@@ -48,6 +49,7 @@ codesign --verbose --verify ${BIN} || exit 1
 
 ##echo "Press ENTER to notarize"
 ##read 
+sleep 60
 
 # rename binary and zip it up
 echo "Zipping up aerolab"

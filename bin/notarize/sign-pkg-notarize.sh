@@ -39,6 +39,7 @@ function signer() {
 
     ##echo "Press ENTER to sign"
     ##read
+    sleep 60
 
     # codesign and test
     echo "Codesigning and verifying"
@@ -58,10 +59,12 @@ cd build
 
 ##echo "Press ENTER to sign pkg file"
 ##read 
+sleep 60
 productsign --timestamp --sign "Developer ID Installer: Aerospike, Inc. (22224RFU67)" AeroLab.pkg aerolab-macos.pkg || exit 1
 
 ##echo "Press ENTER to notarize"
 ##read 
+sleep 60
 
 # notarize
 echo "Notarizing"
