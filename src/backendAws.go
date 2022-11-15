@@ -604,10 +604,12 @@ func (d *backendAws) VacuumTemplates() error {
 			}
 		}
 	}
-	d.ec2svc.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
-		DryRun:      aws.Bool(false),
-		InstanceIds: instanceIds,
-	})
+	if len(instanceIds) > 0 {
+		d.ec2svc.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
+			DryRun:      aws.Bool(false),
+			InstanceIds: instanceIds,
+		})
+	}
 	return nil
 }
 
@@ -661,10 +663,12 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 			}
 		}
 	}
-	d.ec2svc.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
-		DryRun:      aws.Bool(false),
-		InstanceIds: instanceIds,
-	})
+	if len(instanceIds) > 0 {
+		d.ec2svc.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
+			DryRun:      aws.Bool(false),
+			InstanceIds: instanceIds,
+		})
+	}
 	cl, err := d.ClusterList()
 	if err != nil {
 		return fmt.Errorf("could not kill key as ClusterList failed: %s", err)
