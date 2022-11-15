@@ -13,7 +13,7 @@ import (
 type clientCreateJupyterCmd struct {
 	clientCreateBaseCmd
 	ConnectCluster TypeClusterName `short:"s" long:"seed" description:"cluster name to prefill as seed node IPs (default seed:127.0.0.1)"`
-	Kernels        string          `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,node,dotnet; default: all kernels"`
+	Kernels        string          `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
 	chDirCmd
 }
 
@@ -24,7 +24,7 @@ type clientAddJupyterCmd struct {
 	osSelectorCmd
 	nodes          map[string][]string // destination map[cluster][]nodeIPs
 	ConnectCluster TypeClusterName     `short:"s" long:"seed" description:"cluster name to prefill as seed node IPs (default seed:127.0.0.1)"`
-	Kernels        string              `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,node,dotnet; default: all kernels"`
+	Kernels        string              `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
 	Help           helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -67,7 +67,8 @@ func (c *clientCreateJupyterCmd) Execute(args []string) error {
 func (c *clientConfigureJupyterCmd) parseKernelsToSwitches(k string) ([]string, error) {
 	kernels := strings.Split(k, ",")
 	if len(kernels) == 0 || kernels[0] == "" || k == "" {
-		return []string{"-j", "-p", "-n", "-g", "-d", "-o", "-s"}, nil
+		// return []string{"-j", "-p", "-n", "-g", "-d", "-o", "-s"}, nil
+		return []string{"-j", "-p", "-g", "-d", "-o", "-s"}, nil
 	}
 	rval := []string{}
 	for _, kernel := range kernels {
@@ -93,7 +94,8 @@ func (c *clientConfigureJupyterCmd) parseKernelsToSwitches(k string) ([]string, 
 func (c *clientAddJupyterCmd) parseKernelsToSwitches(k string) ([]string, error) {
 	kernels := strings.Split(k, ",")
 	if len(kernels) == 0 || kernels[0] == "" || k == "" {
-		return []string{"-i", "-j", "-p", "-n", "-g", "-d", "-s"}, nil
+		// return []string{"-i", "-j", "-p", "-n", "-g", "-d", "-s"}, nil
+		return []string{"-i", "-j", "-p", "-g", "-d", "-s"}, nil
 	}
 	rval := []string{"-i"}
 	for _, kernel := range kernels {
