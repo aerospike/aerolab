@@ -571,6 +571,46 @@ func (d *backendAws) ClusterStop(name string, nodes []int) error {
 	return nil
 }
 
+func (d *backendAws) VacuumTemplates() error {
+	instances, err := d.ec2svc.DescribeInstances(&ec2.DescribeInstancesInput{})
+	if err != nil {
+		return fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	var instanceIds []*string
+
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code != int64(48) {
+				found := false
+				for _, tag := range instance.Tags {
+					if *tag.Key == "Name" && strings.HasPrefix(*tag.Value, "aerolab4-template-") {
+						found = true
+						break
+					}
+				}
+				if found {
+					instanceIds = append(instanceIds, instance.InstanceId)
+					input := &ec2.TerminateInstancesInput{
+						InstanceIds: []*string{
+							aws.String(*instance.InstanceId),
+						},
+						DryRun: aws.Bool(false),
+					}
+					result, err := d.ec2svc.TerminateInstances(input)
+					if err != nil {
+						return fmt.Errorf("error starting instance %s\n%s\n%s", *instance.InstanceId, result, err)
+					}
+				}
+			}
+		}
+	}
+	d.ec2svc.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
+		DryRun:      aws.Bool(false),
+		InstanceIds: instanceIds,
+	})
+	return nil
+}
+
 func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 	var err error
 	if len(nodes) == 0 {
