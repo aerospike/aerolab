@@ -406,9 +406,9 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 	}
 	if version == "latest" || version == "latestc" || strings.HasSuffix(version, "*") {
 		if version[len(version)-1] != 'c' {
-			baseUrl = "https://artifacts.aerospike.com/aerospike-server-enterprise/"
+			baseUrl = enterpriseUrl
 		} else {
-			baseUrl = "https://artifacts.aerospike.com/aerospike-server-community/"
+			baseUrl = communityUrl
 		}
 		client := &http.Client{}
 		req, err := http.NewRequest("GET", baseUrl, nil)
@@ -456,9 +456,9 @@ func aeroFindUrl(version string, user string, pass string) (url string, v string
 	}
 
 	if version[len(version)-1] != 'c' {
-		baseUrl = "https://artifacts.aerospike.com/aerospike-server-enterprise/" + version + "/"
+		baseUrl = enterpriseUrl + version + "/"
 	} else {
-		baseUrl = "https://artifacts.aerospike.com/aerospike-server-community/" + version[:len(version)-1] + "/"
+		baseUrl = communityUrl + version[:len(version)-1] + "/"
 	}
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", baseUrl, nil)
