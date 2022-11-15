@@ -100,6 +100,8 @@ type backend interface {
 	Upload(clusterName string, node int, source string, destination string, verbose bool) error
 	// download files from node
 	Download(clusterName string, node int, source string, destination string, verbose bool) error
+	// delete dangling template creations
+	VacuumTemplates() error
 }
 
 // check return code from exec function

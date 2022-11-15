@@ -12,8 +12,9 @@ import (
 
 type templateCreateCmd struct {
 	aerospikeVersionSelectorCmd
-	Aws  clusterCreateCmdAws `no-flag:"true"`
-	Help helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
+	NoVacuumOnFail bool                `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	Aws            clusterCreateCmdAws `no-flag:"true"`
+	Help           helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func init() {
@@ -127,6 +128,12 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	}
 	err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 	if err != nil {
+		if !c.NoVacuumOnFail {
+			errA := b.VacuumTemplates()
+			if errA != nil {
+				log.Printf("Failed to vacuum failed template: %s", errA)
+			}
+		}
 		return err
 	}
 

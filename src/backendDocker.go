@@ -168,6 +168,35 @@ func (d *backendDocker) versionToReal(v *backendVersion) error {
 	return nil
 }
 
+func (d *backendDocker) VacuumTemplates() error {
+	out, err := exec.Command("docker", "container", "list", "-a").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker command failed: %s", err)
+	}
+	s := bufio.NewScanner(strings.NewReader(string(out)))
+	ids := []string{}
+	for s.Scan() {
+		line := s.Text()
+		if strings.Contains(line, " aerotmpl-") || strings.Contains(line, "\taerotmpl-") {
+			id := strings.Split(strings.Trim(line, "\t\r\n "), " ")[0]
+			id = strings.Split(id, "\t")[0]
+			ids = append(ids, id)
+		}
+	}
+	errs := ""
+	for _, id := range ids {
+		exec.Command("docker", "stop", "-t", "1", id).CombinedOutput()
+		out, err := exec.Command("docker", "rm", "-f", id).CombinedOutput()
+		if err != nil {
+			errs = errs + err.Error() + "\n" + string(out) + "\n"
+		}
+	}
+	if errs == "" {
+		return nil
+	}
+	return errors.New(errs)
+}
+
 func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
 	if err := d.versionToReal(&v); err != nil {
 		return err
