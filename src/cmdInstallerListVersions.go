@@ -33,9 +33,9 @@ func (c *installerListVersionsCmd) Execute(args []string) error {
 		reverseSort = true
 	}
 	if !community {
-		baseUrl = "https://artifacts.aerospike.com/aerospike-server-enterprise/"
+		baseUrl = enterpriseUrl
 	} else {
-		baseUrl = "https://artifacts.aerospike.com/aerospike-server-community/"
+		baseUrl = communityUrl
 	}
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", baseUrl, nil)
