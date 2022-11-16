@@ -162,7 +162,7 @@ function install_start_script() {
 	echo '#!/bin/bash' > /opt/autoload/code.sh || return 2
 	echo 'export DOTNET_ROOT=/root/dotnet' >> /opt/autoload/code.sh || return 3
 	echo 'export PATH=$PATH:/root/dotnet:/root/.dotnet/tools' >> /opt/autoload/code.sh || return 4
-	echo 'nohup code-server --disable-workspace-trust --disable-telemetry --disable-getting-started-override > /var/log/code-server.log 2>&1 &' >> /opt/autoload/code.sh || return 5
+	echo 'su - -c "nohup code-server --disable-workspace-trust --disable-telemetry --disable-getting-started-override > /var/log/code-server.log 2>&1 &"' >> /opt/autoload/code.sh || return 5
 	chmod 755 /opt/autoload/code.sh || return 6
 }
 
@@ -262,10 +262,7 @@ function knet() {
 
 function start() {
 cd /
-bash /opt/autoload/code.sh
-sleep 1
-pgrep node
-[ $? -ne 0 ] && bash /opt/autoload/code.sh
+su - -c "nohup /opt/autoload/code.sh > /var/log/starter.log 2>&1 &"
 echo "Started"
 }
 
