@@ -31,7 +31,6 @@ func (c *clientConfigureVSCodeCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("To access VSCode, visit the client IP on port 8888 from your browser. Do `aerolab client list` to get IPs.")
-	log.Print("Done")
+	log.Print("Done, to access vscode, run `aerolab client list` to get the IP, and then visit http://IP:8080 in your browser")
 	return nil
 }
