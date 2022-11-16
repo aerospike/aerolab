@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -141,7 +142,11 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 	}
 	nargs := append([]string{"/bin/bash", "/install.sh"}, switches...)
 	err = a.opts.Attach.Client.run(nargs)
-	return err
+	if err != nil {
+		return err
+	}
+	log.Print("Done, to access vscode, run `aerolab client list` to get the IP, and then visit http://IP:8080 in your browser")
+	return nil
 }
 
 func (c *clientAddVSCodeCmd) installScript() string {
