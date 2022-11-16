@@ -53,7 +53,7 @@ func (c *clientConfigureVSCodeCmd) parseKernelsToSwitches(k string) ([]string, e
 	kernels := strings.Split(k, ",")
 	if len(kernels) == 0 || kernels[0] == "" || k == "" {
 		// return []string{"-j", "-p", "-n", "-g", "-d", "-o", "-s"}, nil
-		return []string{"-j", "-p", "-g", "-d", "-o", "-s"}, nil
+		return []string{"-j", "-p", "-g", "-d"}, nil
 	}
 	rval := []string{}
 	for _, kernel := range kernels {
@@ -70,7 +70,7 @@ func (c *clientConfigureVSCodeCmd) parseKernelsToSwitches(k string) ([]string, e
 			return nil, errors.New("unsupported kernel selected")
 		}
 	}
-	rval = append(rval, "-o", "-s")
+	//rval = append(rval, "-o", "-s")
 	return rval, nil
 }
 
@@ -78,7 +78,7 @@ func (c *clientAddVSCodeCmd) parseKernelsToSwitches(k string) ([]string, error) 
 	kernels := strings.Split(k, ",")
 	if len(kernels) == 0 || kernels[0] == "" || k == "" {
 		// return []string{"-i", "-j", "-p", "-n", "-g", "-d", "-s"}, nil
-		return []string{"-i", "-j", "-p", "-g", "-d", "-s"}, nil
+		return []string{"-i", "-j", "-p", "-g", "-d"}, nil
 	}
 	rval := []string{"-i"}
 	for _, kernel := range kernels {
@@ -95,7 +95,7 @@ func (c *clientAddVSCodeCmd) parseKernelsToSwitches(k string) ([]string, error) 
 			return nil, errors.New("unsupported kernel selected")
 		}
 	}
-	rval = append(rval, "-s")
+	//rval = append(rval, "-s")
 	return rval, nil
 }
 
@@ -142,6 +142,19 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 	}
 	nargs := append([]string{"/bin/bash", "/install.sh"}, switches...)
 	err = a.opts.Attach.Client.run(nargs)
+	if err != nil {
+		return err
+	}
+
+	a.opts.Client.Stop.ClientName = c.ClientName
+	a.opts.Client.Stop.Machines = c.Machines
+	err = a.opts.Client.Stop.runStop(nil)
+	if err != nil {
+		return err
+	}
+	a.opts.Client.Start.ClientName = c.ClientName
+	a.opts.Client.Start.Machines = c.Machines
+	err = a.opts.Client.Start.runStart(nil)
 	if err != nil {
 		return err
 	}
@@ -262,7 +275,7 @@ function knet() {
 
 function start() {
 cd /
-su - -c "nohup /opt/autoload/code.sh > /var/log/starter.log 2>&1 &"
+/opt/autoload/code.sh
 echo "Started"
 }
 
@@ -314,7 +327,7 @@ $optjava && [ ! -f /opt/steps/kjava ] && kjava && touch /opt/steps/kjava
 $optdotnet && [ ! -f /opt/steps/knet ] && knet && touch /opt/steps/knet
 $optstop && stop
 $optstart && start
-
+exit 0
 # ./install.sh -i -j -p -g -d -s    # install, install kernels, start
 # ./install.sh -i                   # install
 # ./install.sh -j -p -g -d          # install kernels

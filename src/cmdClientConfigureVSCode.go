@@ -31,6 +31,18 @@ func (c *clientConfigureVSCodeCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	a.opts.Client.Stop.ClientName = c.ClientName
+	a.opts.Client.Stop.Machines = c.Machines
+	err = a.opts.Client.Stop.runStop(nil)
+	if err != nil {
+		return err
+	}
+	a.opts.Client.Start.ClientName = c.ClientName
+	a.opts.Client.Start.Machines = c.Machines
+	err = a.opts.Client.Start.runStart(nil)
+	if err != nil {
+		return err
+	}
 	log.Print("Done, to access vscode, run `aerolab client list` to get the IP, and then visit http://IP:8080 in your browser")
 	return nil
 }
