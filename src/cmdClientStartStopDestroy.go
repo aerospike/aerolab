@@ -30,6 +30,10 @@ func (c *clientStartCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	return c.runStart(args)
+}
+
+func (c *clientStartCmd) runStart(args []string) error {
 	log.Println("Running client.start")
 	b.WorkOnClients()
 	err := c.Machines.ExpandNodes(string(c.ClientName))
@@ -123,6 +127,10 @@ func (c *clientStopCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	return c.runStop(args)
+}
+
+func (c *clientStopCmd) runStop(args []string) error {
 	b.WorkOnClients()
 	log.Println("Running client.stop")
 	err := c.Machines.ExpandNodes(string(c.ClientName))

@@ -2,6 +2,13 @@
 * Add support for exporter on `arm`
 * Test all `arm` features on clients
 
+#### 4.3.5
+* added option `template vacuum` to remove any leftover template containers/instances from failed template creation
+* template vacuuming will auto-run if templating fails, unless `--no-vacuum` is specified
+* update download URL to use download.aerospike.com
+* disable node jupyter client due to compatibility issues
+* add vscode client with java,go,python,dotnet sdks
+
 #### 4.3.4
 * improve shell parsing for `aws` backend for `attach shell -- ...`
 * install best-practices script on `aws` backend when deploying clusters
