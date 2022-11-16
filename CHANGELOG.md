@@ -7,6 +7,7 @@
 * template vacuuming will auto-run if templating fails, unless `--no-vacuum` is specified
 * update download URL to use download.aerospike.com
 * disable node jupyter client due to compatibility issues
+* add vscode client with java,go,python,dotnet sdks
 
 #### 4.3.4
 * improve shell parsing for `aws` backend for `attach shell -- ...`

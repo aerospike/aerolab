@@ -7,6 +7,7 @@ type clientCreateCmd struct {
 	Tools   clientCreateToolsCmd   `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
 	AMS     clientCreateAMSCmd     `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
 	Jupyter clientCreateJupyterCmd `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
+	VSCode  clientCreateVSCodeCmd  `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
 	Trino   clientCreateTrinoCmd   `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
 	// NEW_CLIENTS_CREATE
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -15,6 +16,7 @@ type clientCreateCmd struct {
 type clientAddCmd struct {
 	Tools   clientAddToolsCmd   `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
 	AMS     clientAddAMSCmd     `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
+	VSCode  clientAddVSCodeCmd  `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
 	Jupyter clientAddJupyterCmd `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
 	Trino   clientAddTrinoCmd   `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
 	// NEW_CLIENTS_ADD
@@ -57,6 +59,11 @@ func init() {
 	addBackendSwitch("client.create.jupyter", "docker", &a.opts.Client.Create.Jupyter.Docker)
 	addBackendSwitch("client.grow.jupyter", "aws", &a.opts.Client.Grow.Jupyter.Aws)
 	addBackendSwitch("client.grow.jupyter", "docker", &a.opts.Client.Grow.Jupyter.Docker)
+
+	addBackendSwitch("client.create.vscode", "aws", &a.opts.Client.Create.VSCode.Aws)
+	addBackendSwitch("client.create.vscode", "docker", &a.opts.Client.Create.VSCode.Docker)
+	addBackendSwitch("client.grow.vscode", "aws", &a.opts.Client.Grow.VSCode.Aws)
+	addBackendSwitch("client.grow.vscode", "docker", &a.opts.Client.Grow.VSCode.Docker)
 
 	addBackendSwitch("client.create.trino", "aws", &a.opts.Client.Create.Trino.Aws)
 	addBackendSwitch("client.create.trino", "docker", &a.opts.Client.Create.Trino.Docker)
