@@ -1,12 +1,15 @@
 # dependencies
+echo "step 1"
 which dpkg-deb; [ $? -ne 0 ] && brew install dpkg
 which rpmbuild; [ $? -ne 0 ] && brew install rpm
 which upx; [ $? -ne 0 ] && brew install upx
 
 # version
+echo "step 2"
 ver=$(cat ../VERSION.md)
 
 # cleanup
+echo "step 3"
 rm -rf aerolab-rpm-centos
 rm -f aerolab-*
 rm -rf final/aerolab-*
@@ -14,11 +17,14 @@ rm -f notarize/*.zip notarize/*.pkg
 rm -f notarize/aerolab*
 
 # compile
+echo "step 4"
 cd ../src && bash ./build.sh || exit 1
 cd ../bin
 mv ../src/aerolab-* .
+mkdir -p final
 
 # amd64
+echo "step 5"
 mv aerolab-linux-amd64 aerolab
 zip final/aerolab-linux-amd64.zip aerolab
 rm -rf deb
@@ -46,6 +52,7 @@ rpmbuild --target=x86_64-redhat-linux --buildroot $(pwd)/aerolab-rpm-centos -bb 
 mv aerolab-linux-x86_64.rpm final/
 
 # arm64
+echo "step 6"
 mv aerolab-linux-arm64 aerolab
 zip final/aerolab-linux-arm64.zip aerolab
 rm -rf deb
