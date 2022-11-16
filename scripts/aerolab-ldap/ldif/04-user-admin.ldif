@@ -1,4 +1,0 @@
-dn: cn=user-admin,dc=aerospike,dc=com
-objectClass: top
-objectClass: posixGroup
-gidNumber: 682

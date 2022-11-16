@@ -1,9 +1,0 @@
-services:
-  goclient:
-    build: .
-    hostname: goclient
-    image: centos8
-    network_mode: "bridge"
-    volumes:  
-        - ./go:/root/go
-version: '3.8'
