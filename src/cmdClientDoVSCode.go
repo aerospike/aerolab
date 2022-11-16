@@ -151,6 +151,7 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 
 func (c *clientAddVSCodeCmd) installScript() string {
 	return `function install_code() {
+	cd /
 	apt-get update && apt-get -y install curl wget git || return 1
 	wget -O installcode.sh https://code-server.dev/install.sh || return 2
 	bash installcode.sh || return 3
@@ -260,6 +261,7 @@ function knet() {
 }
 
 function start() {
+cd /
 bash /opt/autoload/code.sh
 sleep 1
 pgrep node
