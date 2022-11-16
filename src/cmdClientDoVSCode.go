@@ -260,23 +260,26 @@ function knet() {
 }
 
 function start() {
-/opt/autoload/code.sh
+bash /opt/autoload/code.sh
+sleep 1
+pgrep node
+[ $? -ne 0 ] && bash /opt/autoload/code.sh
 echo "Started"
 }
 
 function stop() {
-  kill $(pgrep code-server)
+  kill $(pgrep node)
   RET=1
   timeout=10
   t=0
   while [ ${RET} -eq 0 ]
   do
-    pgrep code-server >/dev/null 2>&1
+    pgrep node >/dev/null 2>&1
     RET=$?
     if [ ${RET} -eq 0 ]
     then
       t=$(( $t + 1 ))
-      [ ${t} -eq ${timeout} ] && kill -9 $(pgrep code-server)
+      [ ${t} -eq ${timeout} ] && kill -9 $(pgrep node)
       sleep 1
     fi
   done
