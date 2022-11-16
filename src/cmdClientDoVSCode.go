@@ -170,6 +170,7 @@ mkdir -p /opt/code
 cd /opt/code
 git clone -b code-server-examples https://github.com/aerospike/aerolab.git && \
 mv aerolab/* . && \
+mv aerolab/.vscode . && \
 rm -rf aerolab
 mkdir -p /root/.config/code-server
 mkdir -p /root/.local/share/code-server/User
@@ -235,6 +236,13 @@ function kjava() {
 	code-server --install-extension vscjava.vscode-java-dependency || return 5
 	code-server --install-extension vscjava.vscode-java-test || return 6
 	code-server --install-extension redhat.java || return 7
+	cd /tmp && \
+	wget https://dlcdn.apache.org/maven/maven-3/3.8.6/binaries/apache-maven-3.8.6-bin.tar.gz && \
+	tar xvf apache-maven-3.8.6-bin.tar.gz && \
+	mkdir -p /usr/share/maven && \
+	cd /usr/share/maven && \
+	cp -r /tmp/apache-maven-3.8.6/* . && \
+	ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
 }
 
 function knet() {
