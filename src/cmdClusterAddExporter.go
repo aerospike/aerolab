@@ -24,33 +24,60 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		return err
 	}
 
-	//noarm
+	//arms
+	armlist := []int{}
+	amdlist := []int{}
 	for _, cluster := range cList {
 		nlist := nodes[cluster]
-		newnlist := []int{}
 		for _, node := range nlist {
 			isArm, err := b.IsNodeArm(cluster, node)
 			if err != nil {
 				return err
 			}
 			if isArm {
-				log.Printf("Skipping arm machine %s:%v", cluster, node)
+				armlist = append(armlist, node)
 			} else {
-				newnlist = append(newnlist, node)
+				amdlist = append(amdlist, node)
 			}
 		}
-		nodes[cluster] = newnlist
 	}
 
-	// install
+	// find url
+	pUrl, pV, err := aeroFindUrlX(promUrl, "latest", "", "")
+	if err != nil {
+		return fmt.Errorf("could not locate prometheus url: %s", err)
+	}
+	log.Printf("Installing version %s of prometheus exporter", pV)
+	pUrlAmd := pUrl + "aerospike-prometheus-exporter_" + pV + "_x86_64.tar.gz"
+	pUrlArm := pUrl + "aerospike-prometheus-exporter_" + pV + "_aarch64.tar.gz"
+
+	// install amd
 	commands := [][]string{
-		[]string{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter); sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) || exit 0"},
-		[]string{"wget", "https://www.aerospike.com/download/monitoring/aerospike-prometheus-exporter/latest/artifact/tgz", "-O", "/aerospike-prometheus-exporter.tgz"},
+		[]string{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
+		[]string{"wget", pUrlAmd, "-O", "/aerospike-prometheus-exporter.tgz"},
 		[]string{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
 		[]string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"},
 	}
 	for _, cluster := range cList {
-		out, err := b.RunCommands(cluster, commands, nodes[cluster])
+		out, err := b.RunCommands(cluster, commands, amdlist)
+		if err != nil {
+			nout := ""
+			for _, n := range out {
+				nout = nout + "\n" + string(n)
+			}
+			return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+		}
+	}
+
+	// install arm
+	commands = [][]string{
+		[]string{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
+		[]string{"wget", pUrlArm, "-O", "/aerospike-prometheus-exporter.tgz"},
+		[]string{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
+		[]string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"},
+	}
+	for _, cluster := range cList {
+		out, err := b.RunCommands(cluster, commands, armlist)
 		if err != nil {
 			nout := ""
 			for _, n := range out {

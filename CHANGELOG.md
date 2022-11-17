@@ -2,6 +2,10 @@
 * Add support for exporter on `arm`
 * Test all `arm` features on clients
 
+#### 4.3.6
+* small improvement in exporter installation procedure
+* change exporter download URL to use artifacts download URLs
+
 #### 4.3.5
 * added option `template vacuum` to remove any leftover template containers/instances from failed template creation
 * template vacuuming will auto-run if templating fails, unless `--no-vacuum` is specified
