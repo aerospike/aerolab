@@ -10,6 +10,8 @@ var communityUrls = []string{
 	"https://download.aerospike.com/artifacts/aerospike-server-community/",
 }
 
+var promUrl = "https://download.aerospike.com/artifacts/aerospike-prometheus-exporter/"
+
 var enterpriseUrl = enterpriseUrls[1]
 
 var communityUrl = communityUrls[1]
