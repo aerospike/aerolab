@@ -398,7 +398,10 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 }
 
 func aeroFindUrl(version string, user string, pass string) (url string, v string, err error) {
+	return aeroFindUrlX(enterpriseUrl, version, user, pass)
+}
 
+func aeroFindUrlX(enterpriseUrl string, version string, user string, pass string) (url string, v string, err error) {
 	var baseUrl string
 	partversion := ""
 	if strings.HasSuffix(version, "*") {
