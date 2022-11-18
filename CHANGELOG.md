@@ -2,6 +2,10 @@
 * Add support for exporter on `arm`
 * Test all `arm` features on clients
 
+#### 4.3.7
+* ams exporter fix aws installation
+* add client attach option to detach from stdin (do not terminate node command on exit)
+
 #### 4.3.6
 * small improvement in exporter installation procedure
 * change exporter download URL to use artifacts download URLs
