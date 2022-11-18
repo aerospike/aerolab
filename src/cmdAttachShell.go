@@ -2,13 +2,17 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type attachShellCmd struct {
 	ClusterName TypeClusterName        `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Node        TypeNodesPlusAllOption `short:"l" long:"node" description:"Node to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
+	Detach      bool                   `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C, disables parallel"`
+	Parallel    bool                   `long:"parallel" description:"enable parallel execution across all machines"`
 	Tail        []string               `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]"`
 	Help        attachCmdHelp          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -49,18 +53,47 @@ func (c *attachShellCmd) run(args []string) (err error) {
 	if len(nodes) > 1 && len(args) == 0 {
 		return fmt.Errorf("%s", "When using more than 1 node in node-attach, you must specify the command to run. For example: 'node-attach -l 1,2,3 -- /command/to/run'")
 	}
-	for _, node := range nodes {
-		if len(nodes) > 1 {
-			fmt.Printf(" ======== %s:%d ========\n", string(c.ClusterName), node)
+
+	if c.Detach {
+		out, err := b.RunCommands(c.ClusterName.String(), [][]string{args}, nodes)
+		if err != nil {
+			log.Print(err)
 		}
-		erra := b.AttachAndRun(string(c.ClusterName), node, args)
-		if erra != nil {
-			if err == nil {
-				err = erra
-			} else {
-				err = fmt.Errorf("%s\n%s", err.Error(), erra.Error())
-			}
+		for _, o := range out {
+			fmt.Println(string(o))
 		}
 	}
-	return err
+
+	if !c.Parallel {
+		for _, node := range nodes {
+			if len(nodes) > 1 {
+				fmt.Printf(" ======== %s:%d ========\n", string(c.ClusterName), node)
+			}
+			erra := b.AttachAndRun(string(c.ClusterName), node, args)
+			if erra != nil {
+				if err == nil {
+					err = erra
+				} else {
+					err = fmt.Errorf("%s\n%s", err.Error(), erra.Error())
+				}
+			}
+		}
+		return err
+	}
+
+	wg := new(sync.WaitGroup)
+	for _, node := range nodes {
+		wg.Add(1)
+		go c.runbg(wg, node, args)
+	}
+	wg.Wait()
+	return nil
+}
+
+func (c *attachShellCmd) runbg(wg *sync.WaitGroup, node int, args []string) {
+	defer wg.Done()
+	err := b.AttachAndRun(string(c.ClusterName), node, args)
+	if err != nil {
+		log.Printf(" ---- Node %d ERROR: %s", node, err)
+	}
 }
