@@ -121,9 +121,9 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		}
 	} else {
 		commands = [][]string{
-			[]string{"/bin/bash", "systemctl", "daemon-reload"},
-			[]string{"/bin/bash", "systemctl", "stop", "aerospike-prometheus-exporter"},
-			[]string{"/bin/bash", "systemctl", "start", "aerospike-prometheus-exporter"},
+			[]string{"/bin/bash", "-c", "systemctl daemon-reload"},
+			[]string{"/bin/bash", "-c", "systemctl stop aerospike-prometheus-exporter"},
+			[]string{"/bin/bash", "-c", "systemctl start aerospike-prometheus-exporter"},
 		}
 		for _, cluster := range cList {
 			out, err := b.RunCommands(cluster, commands, nodes[cluster])
