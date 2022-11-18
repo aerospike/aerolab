@@ -119,6 +119,22 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 			}
 		}
+	} else {
+		commands = [][]string{
+			[]string{"/bin/bash", "systemctl daemon-reload"},
+			[]string{"/bin/bash", "systemctl stop aerospike-prometheus-exporter"},
+			[]string{"/bin/bash", "systemctl start aerospike-prometheus-exporter"},
+		}
+		for _, cluster := range cList {
+			out, err := b.RunCommands(cluster, commands, nodes[cluster])
+			if err != nil {
+				nout := ""
+				for _, n := range out {
+					nout = nout + "\n" + string(n)
+				}
+				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+			}
+		}
 	}
 	log.Print("Done")
 	return nil
