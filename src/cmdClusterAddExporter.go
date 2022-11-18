@@ -74,7 +74,9 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		[]string{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
 		[]string{"wget", pUrlArm, "-O", "/aerospike-prometheus-exporter.tgz"},
 		[]string{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
-		[]string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"},
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		commands = append(commands, []string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"})
 	}
 	for _, cluster := range cList {
 		out, err := b.RunCommands(cluster, commands, armlist)
@@ -103,17 +105,36 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 	}
 
 	// start
-	commands = [][]string{
-		[]string{"/bin/bash", "/opt/autoload/01-exporter"},
-	}
-	for _, cluster := range cList {
-		out, err := b.RunCommands(cluster, commands, nodes[cluster])
-		if err != nil {
-			nout := ""
-			for _, n := range out {
-				nout = nout + "\n" + string(n)
+	if a.opts.Config.Backend.Type == "docker" {
+		commands = [][]string{
+			[]string{"/bin/bash", "/opt/autoload/01-exporter"},
+		}
+		for _, cluster := range cList {
+			out, err := b.RunCommands(cluster, commands, nodes[cluster])
+			if err != nil {
+				nout := ""
+				for _, n := range out {
+					nout = nout + "\n" + string(n)
+				}
+				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 			}
-			return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+		}
+	} else {
+		commands = [][]string{
+			[]string{"/bin/bash", "-c", "systemctl daemon-reload"},
+			[]string{"/bin/bash", "-c", "kill -9 `pidof aerospike-prometheus-exporter` 2>/dev/null || echo starting"},
+			[]string{"/bin/bash", "-c", "systemctl stop aerospike-prometheus-exporter"},
+			[]string{"/bin/bash", "-c", "systemctl start aerospike-prometheus-exporter"},
+		}
+		for _, cluster := range cList {
+			out, err := b.RunCommands(cluster, commands, nodes[cluster])
+			if err != nil {
+				nout := ""
+				for _, n := range out {
+					nout = nout + "\n" + string(n)
+				}
+				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+			}
 		}
 	}
 	log.Print("Done")
