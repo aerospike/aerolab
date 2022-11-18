@@ -122,6 +122,7 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 	} else {
 		commands = [][]string{
 			[]string{"/bin/bash", "-c", "systemctl daemon-reload"},
+			[]string{"/bin/bash", "-c", "kill -9 `pidof aerospike-prometheus-exporter` 2>/dev/null || echo starting"},
 			[]string{"/bin/bash", "-c", "systemctl stop aerospike-prometheus-exporter"},
 			[]string{"/bin/bash", "-c", "systemctl start aerospike-prometheus-exporter"},
 		}
