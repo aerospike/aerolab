@@ -984,7 +984,11 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	}
 	input.DryRun = aws.Bool(false)
 	input.ImageId = aws.String(templateId)
-	input.InstanceType = aws.String("t3.small")
+	if !v.isArm {
+		input.InstanceType = aws.String("t3.small")
+	} else {
+		input.InstanceType = aws.String("t4g.small")
+	}
 	keyname := keyName
 	input.KeyName = &keyname
 	// number of EBS volumes of the right size
