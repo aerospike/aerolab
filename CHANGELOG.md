@@ -4,6 +4,7 @@
 
 #### 4.3.9
 * aws backend arm template creation bugfix
+* add `-i` option to print parseable assigned IPs of cluster/client nodes in `cluster list` command
 * update the following dependency libraries:
   * `github.com/aerospike/aerospike-client-go/v6 v6.6.0`
   * `github.com/aws/aws-sdk-go v1.44.143`
