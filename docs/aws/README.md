@@ -30,6 +30,29 @@ aws_secret_access_key = SECRETKEY
 region = DEFAULT_REGION_TO_USE
 ```
 
+### Configure AWS account
+
+#### Security Groups
+
+AeroLab clusters require a security group. The following rules will allow for full connectivity:
+1. Create a security group (sg-xxxx) with the rule to allow all outbound (default) and inbound: port 22(tcp) from ANY IP
+2. Edit the security group (sg-xxxx) and add a rule to allow all inbound on all ports coming from itself (source: sg-xxxx)
+
+If planning to deploy AMS or other clients:
+1. Create a security group (sg-yyyy) with a rule to allow all outbound (default) and allow inbound from ANY IP to the following TCP ports: 22, 3000, 8888, 8080
+2. Edit the security group (sg-yyyy) adding 2 rules:
+   a) allow all ports from self source (sg-yyyy)
+   b) allow all ports from server source (sg-xxxx)
+3. Edit the security group (sg-xxxx), and add a rule allowing all ports from the client source security group (sg-yyyy)
+
+Use (sg-xxxx) for clusters and (sg-yyyy) for client machines.
+
+#### Subnets
+
+If creating a new subnet and/or VPC, configure the VPC and Subnet such that:
+* the instances will have automatically assigned public DNS
+* the instances will have automatically assigned public IP addresses
+
 ### Configure the backend in aerolab
 
 The most basic configuration is: `aerolab config backend -t aws`
