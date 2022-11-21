@@ -323,18 +323,27 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 			url: baseUrl + line,
 		}
 		dlv.isArm = false
-		if strings.HasSuffix(line, ".arm64.tgz") || strings.HasSuffix(line, ".aarch64.tgz") {
+		if strings.HasSuffix(line, ".arm64.tgz") || strings.HasSuffix(line, ".aarch64.tgz") || strings.HasSuffix(line, "_arm64.tgz") || strings.HasSuffix(line, "_aarch64.tgz") {
 			dlv.isArm = true
 		}
 		bothArch := false
-		if !strings.HasSuffix(line, ".x86_64.tgz") && !strings.HasSuffix(line, ".arm64.tgz") && !strings.HasSuffix(line, ".aarch64.tgz") && !strings.HasSuffix(line, ".amd64.tgz") {
+		if !strings.HasSuffix(line, ".x86_64.tgz") && !strings.HasSuffix(line, ".arm64.tgz") && !strings.HasSuffix(line, ".aarch64.tgz") && !strings.HasSuffix(line, ".amd64.tgz") && !strings.HasSuffix(line, "_x86_64.tgz") && !strings.HasSuffix(line, "_arm64.tgz") && !strings.HasSuffix(line, "_aarch64.tgz") && !strings.HasSuffix(line, "_amd64.tgz") {
 			bothArch = true
 		}
 		line = strings.TrimSuffix(line[strings.LastIndex(line, "-")+1:], ".tgz")
+		underscore := strings.Index(line, "_") + 1
+		if len(line) < underscore+1 {
+			continue
+		}
+		line = line[underscore:]
 		line = strings.TrimSuffix(line, ".x86_64")
 		line = strings.TrimSuffix(line, ".arm64")
 		line = strings.TrimSuffix(line, ".aarch64")
 		line = strings.TrimSuffix(line, ".amd64")
+		line = strings.TrimSuffix(line, "_x86_64")
+		line = strings.TrimSuffix(line, "_arm64")
+		line = strings.TrimSuffix(line, "_aarch64")
+		line = strings.TrimSuffix(line, "_amd64")
 		line = strings.TrimLeft(line, "1234567890")
 		if strings.HasPrefix(line, "ubuntu") {
 			dlv.distroName = "ubuntu"
