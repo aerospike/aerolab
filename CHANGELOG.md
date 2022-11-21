@@ -4,6 +4,12 @@
 
 #### 4.3.9
 * aws backend arm template creation bugfix
+* update the following dependency libraries:
+  * `github.com/aerospike/aerospike-client-go/v6 v6.6.0`
+  * `github.com/aws/aws-sdk-go v1.44.143`
+  * `golang.org/x/crypto v0.3.0`
+  * `golang.org/x/term v0.2.0`
+  * `golang.org/x/sys v0.2.0`
 
 #### 4.3.8
 * fix naming conventions

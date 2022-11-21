@@ -624,7 +624,7 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			cmd.dataOffset += len(key.namespace) + int(_FIELD_HEADER_SIZE)
 			cmd.dataOffset += len(key.setName) + int(_FIELD_HEADER_SIZE)
 
-			if sz, err := record.size(); err != nil {
+			if sz, err := record.size(&policy.BasePolicy); err != nil {
 				return nil, err
 			} else {
 				cmd.dataOffset += sz
@@ -1680,7 +1680,14 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 
 	// Operations (used in query execute) and bin names (used in scan/query) are mutually exclusive.
 	if len(operations) > 0 {
+		if !background {
+			return newError(types.PARAMETER_ERROR, "Operations not allowed in foreground query")
+		}
+
 		for _, op := range operations {
+			if !op.opType.isWrite {
+				return newError(types.PARAMETER_ERROR, "Read operations not allowed in background query")
+			}
 			if err := cmd.estimateOperationSizeForOperation(op, false); err != nil {
 				return err
 			}
