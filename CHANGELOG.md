@@ -2,6 +2,19 @@
 * Add support for exporter on `arm`
 * Test all `arm` features on clients
 
+#### 4.3.9
+* aws backend arm template creation bugfix
+* aws backend add arm/amd arch tracking to template names in `DeployTemplate` and `DeployCluster`
+* bugfix: aerospikeGetUrl would incorrectly assume version is provided in a not-required early arm version check
+* `client tools` arm support added
+* add `-i` option to print parseable assigned IPs of cluster/client nodes in `cluster list` command
+* update the following dependency libraries:
+  * `github.com/aerospike/aerospike-client-go/v6 v6.6.0`
+  * `github.com/aws/aws-sdk-go v1.44.143`
+  * `golang.org/x/crypto v0.3.0`
+  * `golang.org/x/term v0.2.0`
+  * `golang.org/x/sys v0.2.0`
+
 #### 4.3.8
 * fix naming conventions
 
