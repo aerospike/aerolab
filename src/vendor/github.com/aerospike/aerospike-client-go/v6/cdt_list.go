@@ -558,6 +558,9 @@ func ListRemoveByValueListOp(binName string, values []interface{}, returnType Li
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 // Server returns removed data specified by returnType
 func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBegin, valueEnd interface{}, ctx ...*CDTContext) *Operation {
+	if valueEnd == nil {
+		return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(valueBegin)}, encoder: listGenericOpEncoder}
+	}
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(valueBegin), NewValue(valueEnd)}, encoder: listGenericOpEncoder}
 }
 
@@ -619,10 +622,17 @@ func ListSetOp(binName string, index int, value interface{}, ctx ...*CDTContext)
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET, IntegerValue(index), NewValue(value)}, encoder: listGenericOpEncoder}
 }
 
+// ListSetWithPolicyOp creates a list set operation using a ListPolicy.
+// Server sets item value at specified index in list bin.
+// Server does not return a result by default.
+func ListSetWithPolicyOp(policy *ListPolicy, binName string, index int, value interface{}, ctx ...*CDTContext) *Operation {
+	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET, IntegerValue(index), NewValue(value), IntegerValue(policy.flags)}, encoder: listGenericOpEncoder}
+}
+
 // ListTrimOp creates a list trim operation.
 // Server removes items in list bin that do not fall into range specified by index
 // and count range. If the range is out of bounds, then all items will be removed.
-// Server returns number of elemts that were removed.
+// Server returns number of elements that were removed.
 func ListTrimOp(binName string, index int, count int, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_TRIM, IntegerValue(index), IntegerValue(count)}, encoder: listGenericOpEncoder}
 }
@@ -715,7 +725,7 @@ func ListRemoveByIndexOp(binName string, index int, returnType ListReturnType, c
 // ListRemoveByIndexRangeOp creates a list remove operation.
 // Server removes list items starting at specified index to the end of list and returns removed
 // data specified by returnType.
-func ListRemoveByIndexRangeOp(binName string, index, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+func ListRemoveByIndexRangeOp(binName string, index int, returnType ListReturnType, ctx ...*CDTContext) *Operation {
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_INDEX_RANGE, IntegerValue(returnType), IntegerValue(index)}, encoder: listGenericOpEncoder}
 }
 
@@ -762,6 +772,9 @@ func ListGetByValueListOp(binName string, values []interface{}, returnType ListR
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 // Server returns selected data specified by returnType.
 func ListGetByValueRangeOp(binName string, beginValue, endValue interface{}, returnType ListReturnType, ctx ...*CDTContext) *Operation {
+	if endValue == nil {
+		return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(beginValue)}, encoder: listGenericOpEncoder}
+	}
 	return &Operation{opType: _CDT_READ, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_GET_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(beginValue), NewValue(endValue)}, encoder: listGenericOpEncoder}
 }
 

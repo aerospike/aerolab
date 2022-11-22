@@ -37,7 +37,15 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), c.Aws.IsArm}
+	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "docker" {
+		if b.Arch() == TypeArchArm {
+			isArm = true
+		} else {
+			isArm = false
+		}
+	}
+	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), isArm}
 	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		_, err := aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
@@ -74,13 +82,21 @@ func (c *clientAddToolsCmd) Execute(args []string) error {
 
 func (c *clientAddToolsCmd) addTools(args []string) error {
 	b.WorkOnClients()
+	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "docker" {
+		if b.Arch() == TypeArchArm {
+			isArm = true
+		} else {
+			isArm = false
+		}
+	}
 	a.opts.Installer.Download.AerospikeVersion = c.AerospikeVersion
 	a.opts.Installer.Download.ChDir = c.ChDir
 	a.opts.Installer.Download.DistroName = c.DistroName
 	a.opts.Installer.Download.DistroVersion = c.DistroVersion
 	a.opts.Installer.Download.Password = c.Password
 	a.opts.Installer.Download.Username = c.Username
-	a.opts.Installer.Download.IsArm = c.Aws.IsArm
+	a.opts.Installer.Download.IsArm = isArm
 	fn, err := a.opts.Installer.Download.runDownload(args)
 	if err != nil {
 		return err
