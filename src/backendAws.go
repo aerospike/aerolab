@@ -1192,7 +1192,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	cii := ec2.CreateImageInput{}
 	cii.InstanceId = instance.InstanceId
 	cii.DryRun = aws.Bool(false)
-	cii.Name = aws.String(fmt.Sprintf("aerolab4-template-%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion))
+	cii.Name = aws.String(fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm))
 	cii.NoReboot = aws.Bool(true)
 	cio, err := d.ec2svc.CreateImage(&cii)
 	if err != nil {

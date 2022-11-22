@@ -1,3 +1,6 @@
+#### 4.3.10
+* fix aws backend template image naming
+
 #### 4.3.9
 * aws backend arm template creation bugfix
 * aws backend add arm/amd arch tracking to template names in `DeployTemplate` and `DeployCluster`
