@@ -4,6 +4,7 @@
 
 #### 4.3.9
 * aws backend arm template creation bugfix
+* aws backend add arm/amd arch tracking to template names in `DeployTemplate` and `DeployCluster`
 * bugfix: aerospikeGetUrl would incorrectly assume version is provided in a not-required early arm version check
 * `client tools` arm support added
 * add `-i` option to print parseable assigned IPs of cluster/client nodes in `cluster list` command
