@@ -213,12 +213,6 @@ func VersionFromString(v string) (vv []int, tail string) {
 }
 
 func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, err error) {
-	if bv.isArm {
-		nvv, _ := VersionFromString(bv.aerospikeVersion)
-		if nvv[0] < 6 || (nvv[0] == 6 && nvv[1] < 2) {
-			return "", errors.New("only aerospike versions 6.2+ support ARM architecture")
-		}
-	}
 	var version string
 	url, version, err = aeroFindUrl(bv.aerospikeVersion, user, pass)
 	if err != nil {
@@ -252,7 +246,7 @@ func aerospikeGetUrl(bv *backendVersion, user string, pass string) (url string, 
 			url = installer.url
 			return
 		}
-		err = errors.New("installer for given OS:VERSION not found")
+		err = errors.New("installer for given OS:VERSION:Architecture not found")
 		return
 	}
 
