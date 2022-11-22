@@ -960,10 +960,17 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	tgUsedBy := ec2.Tag{}
 	tgUsedBy.Key = aws.String(awsTagUsedBy)
 	tgUsedBy.Value = aws.String(awsTagUsedByValue)
+	isArm := "amd"
+	if v.isArm {
+		isArm = "arm"
+	}
+	tgArch := ec2.Tag{}
+	tgArch.Key = aws.String("Arch")
+	tgArch.Value = aws.String(isArm)
 	tgName := ec2.Tag{}
 	tgName.Key = aws.String("Name")
-	tgName.Value = aws.String(fmt.Sprintf("aerolab4-template-%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion))
-	tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgNodeNumber1, &tgUsedBy, &tgName}
+	tgName.Value = aws.String(fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm))
+	tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgNodeNumber1, &tgUsedBy, &tgName, &tgArch}
 	ts := ec2.TagSpecification{}
 	ts.Tags = tgs
 	ntype := "instance"
@@ -1200,7 +1207,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	cti := ec2.CreateTagsInput{
 		DryRun:    aws.Bool(false),
 		Resources: []*string{imageId},
-		Tags:      []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgNodeNumber1, &tgUsedBy, &tgName},
+		Tags:      []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgNodeNumber1, &tgUsedBy, &tgName, &tgArch},
 	}
 	d.ec2svc.CreateTags(&cti)
 
@@ -1252,6 +1259,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			var imOs string
 			var imOsVer string
 			var imAerVer string
+			var imArch string
 			for _, tag := range image.Tags {
 				if *tag.Key == awsTagOperatingSystem {
 					imOs = *tag.Value
@@ -1262,11 +1270,16 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 				if *tag.Key == awsTagAerospikeVersion {
 					imAerVer = *tag.Value
 				}
+				if *tag.Key == "Arch" {
+					imArch = *tag.Value
+				}
 			}
 			if v.distroName == imOs && v.distroVersion == imOsVer && v.aerospikeVersion == imAerVer {
-				templateId = *image.ImageId
-				myImage = image
-				break
+				if (v.isArm && imArch == "arm") || (!v.isArm && (imArch == "amd" || imArch == "")) {
+					templateId = *image.ImageId
+					myImage = image
+					break
+				}
 			}
 		}
 		if templateId == "" {
