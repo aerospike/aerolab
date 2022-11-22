@@ -1,7 +1,3 @@
-#### FUTURE
-* Add support for exporter on `arm`
-* Test all `arm` features on clients
-
 #### 4.3.9
 * aws backend arm template creation bugfix
 * aws backend add arm/amd arch tracking to template names in `DeployTemplate` and `DeployCluster`
