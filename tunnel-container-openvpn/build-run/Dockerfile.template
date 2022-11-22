@@ -1,4 +1,4 @@
-FROM bestmethod/openvpn-base:1
+FROM TREPO:1
 WORKDIR "/root/openvpn-ca"
 RUN /bin/bash -c "source vars && ./build-ca < /root/ca-answers"
 RUN /bin/bash -c "source vars && ./build-key-server server < /root/ca-answers"
