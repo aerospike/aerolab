@@ -43,6 +43,12 @@ func (c *templateCreateCmd) Execute(args []string) error {
 		return logFatal("Could not list templates: %s", err)
 	}
 
+	// arm fill
+	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+	if err != nil {
+		return fmt.Errorf("IsSystemArm check: %s", err)
+	}
+
 	var url string
 	isArm := c.Aws.IsArm
 	if b.Arch() == TypeArchAmd {

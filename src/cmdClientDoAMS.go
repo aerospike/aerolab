@@ -28,7 +28,7 @@ type clientAddAMSCmd struct {
 }
 
 type clientAddAMSCmdAws struct {
-	IsArm bool `long:"arm" description:"indicate installing on an arm instance"`
+	IsArm bool `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
 }
 
 func init() {

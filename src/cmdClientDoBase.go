@@ -118,6 +118,12 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		publicIP:        c.Aws.PublicIP,
 	}
 
+	// arm fill
+	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+	if err != nil {
+		return nil, fmt.Errorf("IsSystemArm check: %s", err)
+	}
+
 	isArm := c.Aws.IsArm
 	if b.Arch() == TypeArchAmd {
 		isArm = false

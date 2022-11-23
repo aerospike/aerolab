@@ -1,3 +1,7 @@
+#### 4.4.0
+* improve handling of keypairs in aws, especially templating ones
+* aws: add auto-discovery of instance type to whether it is arm (obsolete `--arm` switch)
+
 #### 4.3.10
 * fix aws backend template image naming
 

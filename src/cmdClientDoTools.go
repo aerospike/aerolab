@@ -26,7 +26,7 @@ type clientAddToolsCmd struct {
 }
 
 type clientAddToolsAwsCmd struct {
-	IsArm bool `long:"arm" description:"indicate installing on an arm instance"`
+	IsArm bool `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
 }
 
 func init() {
@@ -37,6 +37,14 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	var err error
+
+	// arm fill
+	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+	if err != nil {
+		return fmt.Errorf("IsSystemArm check: %s", err)
+	}
+
 	isArm := c.Aws.IsArm
 	if a.opts.Config.Backend.Type == "docker" {
 		if b.Arch() == TypeArchArm {

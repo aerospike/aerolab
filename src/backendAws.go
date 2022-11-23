@@ -114,6 +114,33 @@ func (d *backendAws) Init() error {
 	return nil
 }
 
+func (d *backendAws) IsSystemArm(systemType string) (bool, error) {
+	out, err := d.ec2svc.DescribeInstanceTypes(&ec2.DescribeInstanceTypesInput{
+		InstanceTypes: aws.StringSlice([]string{systemType}),
+	})
+	if err != nil {
+		return false, fmt.Errorf("DescribeInstanceTypes: %s", err)
+	}
+	if len(out.InstanceTypes) == 0 {
+		return false, errors.New("instance type not found")
+	}
+	for _, i := range out.InstanceTypes {
+		if i.InstanceType != nil && *i.InstanceType == systemType {
+			if i.ProcessorInfo == nil {
+				return false, nil
+			}
+			for _, narch := range i.ProcessorInfo.SupportedArchitectures {
+				if narch != nil && *narch == ec2.ArchitectureTypeArm64 {
+					return true, nil
+				} else {
+					return false, nil
+				}
+			}
+		}
+	}
+	return false, errors.New("instance type could not be matched")
+}
+
 func (d *backendAws) ClusterList() ([]string, error) {
 	filter := ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
@@ -506,7 +533,7 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 				if time.Since(start) > time.Second*600 {
 					return errors.New("didn't get SSH for 10 minutes, giving up")
 				}
-				fmt.Println("Not up yet, waiting: ", err)
+				fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", nip[node], keyPath, err)
 				time.Sleep(time.Second)
 			}
 		}
@@ -934,13 +961,16 @@ func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 }
 
 func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
-	keyName, keyPath, err := d.getKey("template")
+	genKeyName := "template" + strconv.Itoa(int(time.Now().Unix()))
+	keyName, keyPath, err := d.getKey(genKeyName)
 	if err != nil {
-		keyName, keyPath, err = d.makeKey("template")
+		d.killKey(genKeyName)
+		keyName, keyPath, err = d.makeKey(genKeyName)
 		if err != nil {
 			return fmt.Errorf("could not obtain or make 'template' key:%s", err)
 		}
 	}
+	defer d.killKey(genKeyName)
 	// start VM
 	templateId, err := d.getAmi(a.opts.Config.Backend.Region, v)
 	if err != nil {
@@ -1101,7 +1131,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 				if err == nil {
 					instanceReady = instanceReady + 1
 				} else {
-					fmt.Println("Not up yet, waiting: ", err)
+					fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", *nout.Reservations[0].Instances[0].PublicIpAddress, keyPath, err)
 					time.Sleep(time.Second)
 				}
 			}
@@ -1363,6 +1393,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		var keyname string
 		keyname, keyPath, err = d.getKey(name)
 		if err != nil {
+			d.killKey(name)
 			keyname, keyPath, err = d.makeKey(name)
 			if err != nil {
 				return fmt.Errorf("could not run getKey\n%s", err)
@@ -1495,7 +1526,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 					}
 					instanceReady = instanceReady + 1
 				} else {
-					fmt.Println("Not up yet, waiting: ", err)
+					fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", *nout.Reservations[0].Instances[0].PublicIpAddress, keyPath, err)
 					time.Sleep(time.Second)
 				}
 			}

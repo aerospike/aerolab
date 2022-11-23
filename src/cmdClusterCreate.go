@@ -63,7 +63,7 @@ type clusterCreateCmdAws struct {
 	SecurityGroupID string `short:"S" long:"secgroup-id" description:"existing security group ID to put instances in"`
 	SubnetID        string `short:"U" long:"subnet-id" description:"existing subnet ID to put instances in"`
 	PublicIP        bool   `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
-	IsArm           bool   `long:"arm" description:"indicate installing on an arm instance"`
+	IsArm           bool   `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices bool   `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
 }
 
@@ -226,6 +226,12 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		isCommunity = true
 	} else {
 		edition = "aerospike-server-enterprise"
+	}
+
+	// arm fill
+	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+	if err != nil {
+		return fmt.Errorf("IsSystemArm check: %s", err)
 	}
 
 	// if we need to lookup version, do it
