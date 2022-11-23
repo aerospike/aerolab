@@ -20,7 +20,7 @@ type attachShellCmd struct {
 type attachCmdHelp struct{}
 
 func (c *attachCmdHelp) Execute(args []string) error {
-	return printHelp("The 'attach' commands support inline execution. Ex:\n $ aerolab attach shell -- ls\n $ aerolab attach asadm -- -e info\n\n")
+	return printHelp("The 'attach' commands support inline execution. All command-specific parameters should be after the '--'. Ex:\n $ aerolab attach shell -- ls\n $ aerolab attach asadm -- -e info\n\n")
 }
 
 func (c *attachShellCmd) Execute(args []string) error {

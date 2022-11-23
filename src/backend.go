@@ -52,6 +52,8 @@ var TypeArchArm = TypeArch(1)
 var TypeArchAmd = TypeArch(2)
 
 type backend interface {
+	// returns whether the given system is arm (using instanceType)
+	IsSystemArm(systemType string) (bool, error)
 	// check if given node is ARM or not
 	IsNodeArm(clusterName string, nodeNumber int) (bool, error)
 	// output which architecture MUST be used, or otherwise, Undef if both Arch are supported

@@ -116,3 +116,9 @@ AEROLAB_CONFIG_FILE=us.conf aerolab cluster create
 # keep running in eu region
 aerolab cluster destroy
 ```
+
+## Note on shared AWS accounts and KeyPairs
+
+AeroLab aims to create and destroy SSH key pairs as needed. having said that, if a particular cluster is created by user X, user Y can only access the cluster if user X shares their key pair for that cluster.
+
+By default keys are stored in `${HOME}/aerolab-keys`
