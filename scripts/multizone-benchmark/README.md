@@ -1,6 +1,6 @@
 # Multizone benchmark demo
 
-This script set requires aerolab version 4.3.7 or higher.
+This script set requires aerolab version 4.3.7 or higher if using x86_64 instances only; or 4.4.0 or higher if intending to use arm instances.
 
 ## Process in a nutshell
   * setup your AWS account
