@@ -245,11 +245,11 @@ function kpython() {
 function kjava() {
 	apt-get update || return 1
 	DEBIAN_FRONTEND=noninteractive apt-get -qq -y install openjdk-17-jdk || return 2
+	code-server --install-extension redhat.java || return 7
 	code-server --install-extension vscjava.vscode-java-debug || return 3
 	code-server --install-extension vscjava.vscode-maven || return 4
 	code-server --install-extension vscjava.vscode-java-dependency || return 5
 	code-server --install-extension vscjava.vscode-java-test || return 6
-	code-server --install-extension redhat.java || return 7
 	cd /tmp && \
 	wget https://dlcdn.apache.org/maven/maven-3/3.8.6/binaries/apache-maven-3.8.6-bin.tar.gz && \
 	tar xvf apache-maven-3.8.6-bin.tar.gz && \
@@ -323,8 +323,8 @@ mkdir -p /opt/steps
 $optinstall && [ ! -f /opt/steps/install ] && install_code && install_start_script && conf_code && touch /opt/steps/install
 $optgo && [ ! -f /opt/steps/kgo ] && kgo && touch /opt/steps/kgo
 $optpython && [ ! -f /opt/steps/kpython ] && kpython && touch /opt/steps/kpython
-$optjava && [ ! -f /opt/steps/kjava ] && kjava && touch /opt/steps/kjava
 $optdotnet && [ ! -f /opt/steps/knet ] && knet && touch /opt/steps/knet
+$optjava && [ ! -f /opt/steps/kjava ] && kjava && touch /opt/steps/kjava
 $optstop && stop
 $optstart && start
 exit 0
