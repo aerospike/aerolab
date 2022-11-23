@@ -1,3 +1,6 @@
+#### 4.4.1
+* vscode client change installation order - java hangs otherwise on slow connections
+
 #### 4.4.0
 * improve handling of keypairs in aws, especially templating ones
 * aws: add auto-discovery of instance type to whether it is arm (obsolete `--arm` switch)
