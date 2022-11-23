@@ -75,7 +75,7 @@ aerolab cluster list
 aerolab template destroy -v 4.9.0.32 -d all -i all
 ```
 
-## Destrpy all aerolab template images
+## Destroy all aerolab template images
 
 ```bash
 aerolab template destroy -v all -d all -i all
