@@ -1,3 +1,6 @@
+#### 4.4.2
+* handle aws library bug regarding unset regions
+
 #### 4.4.1
 * vscode client change installation order - java hangs otherwise on slow connections
 
