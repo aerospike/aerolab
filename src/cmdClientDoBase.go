@@ -58,6 +58,10 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		return nil, logFatal("Client name must be up to 20 characters long")
 	}
 
+	if !isLegalName(c.ClientName.String()) {
+		return nil, logFatal("Client name is not legal, only use a-zA-Z0-9_-")
+	}
+
 	b.WorkOnClients()
 	clist, err := b.ClusterList()
 	if err != nil {
@@ -187,8 +191,10 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		}
 		fmt.Println(nip)
 		for _, nnode := range nodeListNew {
+			newHostname := fmt.Sprintf("%s-%d", string(c.ClientName), nnode)
+			newHostname = strings.ReplaceAll(newHostname, "_", "-")
 			hComm := [][]string{
-				[]string{"hostname", fmt.Sprintf("%s-%d", string(c.ClientName), nnode)},
+				[]string{"hostname", newHostname},
 			}
 			nr, err := b.RunCommands(string(c.ClientName), hComm, []int{nnode})
 			if err != nil {
