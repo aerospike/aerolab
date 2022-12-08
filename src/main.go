@@ -171,15 +171,15 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	var err error
 	b, err = getBackend()
 	if err != nil {
-		logFatal("Could not get backend: %s", err)
+		log.Fatalf("Could not get backend: %s", err)
 	}
 	if initBackend {
 		if b == nil {
-			logFatal("Invalid backend")
+			log.Fatalf("Invalid backend")
 		}
 		err = b.Init()
 		if err != nil {
-			logFatal("Could not init backend: %s", err)
+			log.Fatalf("Could not init backend: %s", err)
 		}
 	}
 	if b != nil {
