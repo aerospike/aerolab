@@ -1,3 +1,6 @@
+#### 4.4.3
+* add cluster name checking and hostname validation on setting hostnames
+
 #### 4.4.2
 * handle aws library bug regarding unset regions
 
