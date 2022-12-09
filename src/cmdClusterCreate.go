@@ -332,7 +332,8 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 		if err != nil {
 			if !c.NoVacuumOnFail {
-				errA := b.VacuumTemplates()
+				log.Print("Removing temporary template machine")
+				errA := b.VacuumTemplate(*bv)
 				if errA != nil {
 					log.Printf("Failed to vacuum failed template: %s", errA)
 				}

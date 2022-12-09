@@ -104,6 +104,7 @@ type backend interface {
 	Download(clusterName string, node int, source string, destination string, verbose bool) error
 	// delete dangling template creations
 	VacuumTemplates() error
+	VacuumTemplate(v backendVersion) error
 }
 
 // check return code from exec function
