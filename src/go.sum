@@ -4,8 +4,8 @@ github.com/aerospike/aerospike-client-go/v5 v5.10.0 h1:+Vwl4x3Fqx8HHlLAydfDNUbjB
 github.com/aerospike/aerospike-client-go/v5 v5.10.0/go.mod h1:e/zYeIoBg9We63fLKa+h+198+fT1GdoLfKa+Pu4QSpg=
 github.com/aerospike/aerospike-client-go/v6 v6.6.0 h1:i/FUUkS+Qxfkw0cEvM3p7LV5MDL1L+gRuzJOeIC+sqE=
 github.com/aerospike/aerospike-client-go/v6 v6.6.0/go.mod h1:Do5/flmgSo2X32YLGAYd6o5e/U2gOSpgEhrIGyOS3UI=
-github.com/aws/aws-sdk-go v1.44.143 h1:5xN01uj7zV0VozeE/cxsHsNjSIooqmzVRX0omLxoO0w=
-github.com/aws/aws-sdk-go v1.44.143/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
+github.com/aws/aws-sdk-go v1.44.158 h1:Q71ei9ijL3KuyQcLJA9TtuYy2gMLsLdVH5Q2ackBq3s=
+github.com/aws/aws-sdk-go v1.44.158/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf h1:/jMpLhzWQWdZeorH74kr1lmzWorNXlyD1CVgnI/x81I=
 github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf/go.mod h1:4sPAXglGsGECmmnqzVv9xjZ6beMuAsM+Xp8HqN4r3JY=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=

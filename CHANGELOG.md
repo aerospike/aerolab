@@ -1,6 +1,7 @@
 #### 4.4.3
 * add cluster name checking and hostname validation on setting hostnames
 * improve failed template vacuum (only delete the failed template container, not all template containers)
+* fix aws missing-region discovery
 
 #### 4.4.2
 * handle aws library bug regarding unset regions
