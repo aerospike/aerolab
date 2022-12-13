@@ -9,5 +9,5 @@ $ ./aerolab cluster create -c 3 -o templates/strong-consistency.conf -f features
 ## Apply roster
 
 ```bash
-$ ./aerolab roster apply
+$ ./aerolab roster apply -m bar
 ```

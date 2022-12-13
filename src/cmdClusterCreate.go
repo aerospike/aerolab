@@ -158,6 +158,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		return logFatal("Cluster name must be up to 20 characters long")
 	}
 
+	if !isLegalName(c.ClusterName.String()) {
+		return logFatal("Cluster name is not legal, only use a-zA-Z0-9_-")
+	}
+
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return logFatal("Could not get cluster list: %s", err)
@@ -328,7 +332,8 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 		if err != nil {
 			if !c.NoVacuumOnFail {
-				errA := b.VacuumTemplates()
+				log.Print("Removing temporary template machine")
+				errA := b.VacuumTemplate(*bv)
 				if errA != nil {
 					log.Printf("Failed to vacuum failed template: %s", errA)
 				}
@@ -456,8 +461,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		}
 		fmt.Println(nip)
 		for _, nnode := range nodeListNew {
+			newHostname := fmt.Sprintf("%s-%d", string(c.ClusterName), nnode)
+			newHostname = strings.ReplaceAll(newHostname, "_", "-")
 			hComm := [][]string{
-				[]string{"hostname", fmt.Sprintf("%s-%d", string(c.ClusterName), nnode)},
+				[]string{"hostname", newHostname},
 			}
 			nr, err := b.RunCommands(string(c.ClusterName), hComm, []int{nnode})
 			if err != nil {
@@ -650,4 +657,16 @@ func (c *clusterCreateCmd) thpString() string {
 	ExecStartPre=/bin/bash -c "sysctl -w vm.min_free_kbytes=1310720 || echo"
 	ExecStartPre=/bin/bash -c "sysctl -w vm.swappiness=0 || echo"
 	`
+}
+
+func isLegalName(name string) bool {
+	for _, char := range name {
+		if !((char >= 'a' && char <= 'z') ||
+			(char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '_' || char == '-') {
+			return false
+		}
+	}
+	return true
 }
