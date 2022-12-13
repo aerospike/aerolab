@@ -539,7 +539,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		scanner := bufio.NewScanner(strings.NewReader(log))
 		for scanner.Scan() {
 			t := scanner.Text()
-			if strings.Contains(t, "/var") || strings.Contains(t, "/opt") || strings.Contains(t, "/etc") || strings.Contains(t, "/tmp") {
+			if (strings.Contains(t, "/var") || strings.Contains(t, "/opt") || strings.Contains(t, "/etc") || strings.Contains(t, "/tmp")) && !strings.HasPrefix(strings.TrimLeft(t, " "), "#") {
 				tStart := strings.Index(t, " /") + 1
 				var nLoc string
 				if strings.Contains(t[tStart:], " ") {
