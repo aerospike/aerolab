@@ -108,13 +108,9 @@ func (d *backendAws) Init() error {
 	_, err = svc.DescribeRegions(nil)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "MissingRegion") {
-			return errors.New("invalid aws config; region could not be resolved; add `region=YOUR-REGION-HERE` to your ~/.aws/config or specify region using `aerolab config backend -t aws -r YOUR-REGION-HERE`")
+			return fmt.Errorf("invalid aws config; region could not be resolved; add `region=YOUR-REGION-HERE` to your ~/.aws/config or specify region using `aerolab config backend -t aws -r YOUR-REGION-HERE`: %s", err)
 		}
 		return fmt.Errorf("could not establish a session to aws, make sure your ~/.aws/credentials file is correct\n%s", err)
-	}
-
-	if svc.ResolvedRegion == "" {
-		return errors.New("invalid aws config; region could not be resolved; add `region=YOUR-REGION-HERE` to your ~/.aws/config or specify region using `aerolab config backend -t aws -r YOUR-REGION-HERE`")
 	}
 
 	d.ec2svc = svc
@@ -603,6 +599,53 @@ func (d *backendAws) ClusterStop(name string, nodes []int) error {
 		DryRun:      aws.Bool(false),
 		InstanceIds: instList,
 	})
+	return nil
+}
+
+func (d *backendAws) VacuumTemplate(v backendVersion) error {
+	isArm := "amd"
+	if v.isArm {
+		isArm = "arm"
+	}
+
+	instances, err := d.ec2svc.DescribeInstances(&ec2.DescribeInstancesInput{})
+	if err != nil {
+		return fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	var instanceIds []*string
+
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code != int64(48) {
+				found := false
+				for _, tag := range instance.Tags {
+					if *tag.Key == "Name" && *tag.Value == fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm) {
+						found = true
+						break
+					}
+				}
+				if found {
+					instanceIds = append(instanceIds, instance.InstanceId)
+					input := &ec2.TerminateInstancesInput{
+						InstanceIds: []*string{
+							aws.String(*instance.InstanceId),
+						},
+						DryRun: aws.Bool(false),
+					}
+					result, err := d.ec2svc.TerminateInstances(input)
+					if err != nil {
+						return fmt.Errorf("error starting instance %s\n%s\n%s", *instance.InstanceId, result, err)
+					}
+				}
+			}
+		}
+	}
+	if len(instanceIds) > 0 {
+		d.ec2svc.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
+			DryRun:      aws.Bool(false),
+			InstanceIds: instanceIds,
+		})
+	}
 	return nil
 }
 

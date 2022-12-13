@@ -201,6 +201,22 @@ func (d *backendDocker) VacuumTemplates() error {
 	return errors.New(errs)
 }
 
+func (d *backendDocker) VacuumTemplate(v backendVersion) error {
+	if err := d.versionToReal(&v); err != nil {
+		return err
+	}
+	templName := fmt.Sprintf("aerotmpl-%s-%s-%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	out, err := exec.Command("docker", "stop", "-t", "1", templName).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("could not stop temporary template container: %s;%s", out, err)
+	}
+	out, err = exec.Command("docker", "rm", "-f", templName).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("could not destroy temporary template container: %s;%s", out, err)
+	}
+	return nil
+}
+
 func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
 	if err := d.versionToReal(&v); err != nil {
 		return err
