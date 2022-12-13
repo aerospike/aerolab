@@ -108,13 +108,9 @@ func (d *backendAws) Init() error {
 	_, err = svc.DescribeRegions(nil)
 	if err != nil {
 		if strings.HasPrefix(err.Error(), "MissingRegion") {
-			return errors.New("invalid aws config; region could not be resolved; add `region=YOUR-REGION-HERE` to your ~/.aws/config or specify region using `aerolab config backend -t aws -r YOUR-REGION-HERE`")
+			return fmt.Errorf("invalid aws config; region could not be resolved; add `region=YOUR-REGION-HERE` to your ~/.aws/config or specify region using `aerolab config backend -t aws -r YOUR-REGION-HERE`: %s", err)
 		}
 		return fmt.Errorf("could not establish a session to aws, make sure your ~/.aws/credentials file is correct\n%s", err)
-	}
-
-	if svc.ResolvedRegion == "" {
-		return errors.New("invalid aws config; region could not be resolved; add `region=YOUR-REGION-HERE` to your ~/.aws/config or specify region using `aerolab config backend -t aws -r YOUR-REGION-HERE`")
 	}
 
 	d.ec2svc = svc
