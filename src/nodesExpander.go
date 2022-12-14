@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,6 +43,13 @@ func (t *TypeNodesPlusAllOption) ExpandNodes(clusterName string) error {
 }
 
 func expandNodes(nodes string, clusterName string) (string, error) {
+	clusters, err := b.ClusterList()
+	if err != nil {
+		return "", err
+	}
+	if !inslice.HasString(clusters, clusterName) {
+		return "", fmt.Errorf("cluster `%s' does not exist", clusterName)
+	}
 	list := []int{}
 	if nodes == "" {
 		return nodes, nil
