@@ -1064,8 +1064,8 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	// end tag setup
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
-	secgroupIds := extra.securityGroupID
-	input.SecurityGroupIds = []*string{&secgroupIds}
+	secgroupIds := strings.Split(extra.securityGroupID, ",")
+	input.SecurityGroupIds = aws.StringSlice(secgroupIds)
 	subnetId := extra.subnetID
 	if subnetId != "" {
 		input.SubnetId = &subnetId
@@ -1433,8 +1433,8 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		// end tag setup
 		input := ec2.RunInstancesInput{}
 		input.DryRun = aws.Bool(false)
-		secgroupIds := extra.securityGroupID
-		input.SecurityGroupIds = []*string{&secgroupIds}
+		secgroupIds := strings.Split(extra.securityGroupID, ",")
+		input.SecurityGroupIds = aws.StringSlice(secgroupIds)
 		subnetId := extra.subnetID
 		if subnetId != "" {
 			input.SubnetId = &subnetId
