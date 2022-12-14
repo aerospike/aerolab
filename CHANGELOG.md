@@ -3,6 +3,7 @@
 * improve failed template vacuum (only delete the failed template container, not all template containers)
 * fix aws missing-region discovery
 * when parsing aerospike.conf, ignore commented out lines while parsing directory paths
+* allow specifying multiple security group IDs in AWS
 
 #### 4.4.2
 * handle aws library bug regarding unset regions
