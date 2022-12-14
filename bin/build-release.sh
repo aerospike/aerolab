@@ -1,3 +1,4 @@
+sudo ls
 # dependencies
 echo "step 1"
 which dpkg-deb; [ $? -ne 0 ] && brew install dpkg
