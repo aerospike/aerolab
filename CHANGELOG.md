@@ -1,3 +1,7 @@
+#### 4.4.4
+* fix issue with the `autoload` directory execution in aws
+* add cluster existance check in `expandNodes` to handle `-l all` on non-existent cluster name
+
 #### 4.4.3
 * add cluster name checking and hostname validation on setting hostnames
 * improve failed template vacuum (only delete the failed template container, not all template containers)

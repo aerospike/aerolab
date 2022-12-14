@@ -57,7 +57,12 @@ func (c *clientStartCmd) runStart(args []string) error {
 		}
 		if err == nil {
 			// generic startup scripts
-			out, err := b.RunCommands(ClusterName, [][]string{[]string{"/bin/bash", "-c", "[ ! -d /opt/autoload ] && exit 0; ls /opt/autoload |sort -n |while read f; do /bin/bash /opt/autoload/${f}; done"}}, nodes[ClusterName])
+			autoloader := "[ ! -d /opt/autoload ] && exit 0; RET=0; for f in $(ls /opt/autoload |sort -n); do /bin/bash /opt/autoload/${f}; CRET=$?; if [ ${CRET} -ne 0 ]; then RET=${CRET}; fi; done; exit ${RET}"
+			err = b.CopyFilesToCluster(ClusterName, []fileList{fileList{"/usr/local/bin/autoloader.sh", strings.NewReader(autoloader), len(autoloader)}}, nodes[ClusterName])
+			if err != nil {
+				log.Printf("Could not upload /usr/local/bin/autoloader.sh, will not start scripts from /opt/autoload: %s", err)
+			}
+			out, err := b.RunCommands(ClusterName, [][]string{[]string{"/bin/bash", "/usr/local/bin/autoloader.sh"}}, nodes[ClusterName])
 			if err != nil {
 				scriptErr = true
 				prt := ""
@@ -74,7 +79,7 @@ func (c *clientStartCmd) runStart(args []string) error {
 				for i, o := range out {
 					prt = prt + "\n ---- " + strconv.Itoa(i) + " ----\n" + string(o)
 				}
-				log.Printf("Some startup sripts returned an error (%s). Outputs:%s", err, prt)
+				log.Printf("Some custom startup sripts returned an error (%s). Outputs:%s", err, prt)
 			}
 		}
 	}
