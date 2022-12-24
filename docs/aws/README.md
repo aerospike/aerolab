@@ -1,8 +1,10 @@
-# How to setup and use AWS with Aerolab
+# Setting up Aerospike clusters on AWS with AeroLab
+
+AeroLab can help you create Aerospike clusters with its `aws` backend.
 
 ## Prerequisites
 
-### Create Credentials file
+### Create a credentials file
 
 There are two ways to create a credentials file:
 
@@ -17,7 +19,7 @@ Create `~/.aws` directory, inside the directory create 2 files:
 
 `~/.aws/credentials`
 
-```
+```toml
 [default]
 aws_access_key_id = KEYID
 aws_secret_access_key = SECRETKEY
@@ -25,12 +27,12 @@ aws_secret_access_key = SECRETKEY
 
 `~/.aws/config`
 
-```
+```toml
 [default]
 region = DEFAULT_REGION_TO_USE
 ```
 
-### Configure AWS account
+### Configure an AWS account
 
 #### Security Groups
 
@@ -53,17 +55,20 @@ If creating a new subnet and/or VPC, configure the VPC and Subnet such that:
 * the instances will have automatically assigned public DNS
 * the instances will have automatically assigned public IP addresses
 
-### Configure the backend in aerolab
+### Configure the AWS backend with AeroLab
 
-The most basic configuration is: `aerolab config backend -t aws`
-
-To specify a custom location where SSH keys will be stored and override the default aws region config, extra parameters may be supplied:
-
+The most basic configuration is:
+```bash
+aerolab config backend -t aws
 ```
+
+To specify a custom location where SSH keys will be stored and override the default AWS region config, extra parameters may be supplied:
+
+```bash
 aerolab config backend -t aws -p /path/where/keys/will/be/stored -r AWS_REGION
 ```
 
-## Deploy cluster in aws
+## Deploy an Aerospike cluster in AWS
 
 Extra parameters are required when working with the `aws` backend as opposed to the `docker` backend.
 
@@ -88,16 +93,16 @@ All commands are supported on both `aws` and `docker` backends and should behave
 
 Working with multiple regions can be achieved by switching the backend, as so:
 
-```
+```bash
 aerolab config backend -t aws -r eu-west-1
-...commands...
+# ...commands...
 aerolab config backend -t aws -r us-east-1
-...commands...
+# ...commands...
 ```
 
-Alternatively, if using multiple regions on many occassions, multiple configuration files may be utilised:
+Alternatively, if using multiple regions on many occasions, multiple configuration files may be utilised:
 
-```
+```bash
 # create a config called us.conf
 AEROLAB_CONFIG_FILE=us.conf
 aerolab config backend -t aws -r us-east-1
@@ -119,6 +124,6 @@ aerolab cluster destroy
 
 ## Note on shared AWS accounts and KeyPairs
 
-AeroLab aims to create and destroy SSH key pairs as needed. having said that, if a particular cluster is created by user X, user Y can only access the cluster if user X shares their key pair for that cluster.
+AeroLab aims to create and destroy SSH key pairs as needed. Having said that, if a particular cluster is created by user X, user Y can only access the cluster if user X shares their key pair for that cluster.
 
 By default keys are stored in `${HOME}/aerolab-keys`

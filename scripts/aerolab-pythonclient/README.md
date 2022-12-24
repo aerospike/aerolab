@@ -4,57 +4,55 @@ This script allows for quick and easy deployment of a `python` client library wi
 
 This can be used on it's own, as part of [aerolab-buildenv](../aerolab-buildenv/README.md) script or combined with the `aerolab` command.
 
-## Deploying
+## First clone this repo
 
-### First clone this repo
-
-#### Using https
+### Using https
 
 ```bash
 git clone https://github.com/aerospike/aerolab.git
 ```
 
-#### Using git keys
+### Using git keys
 
 ```bash
 git clone git@github.com:aerospike/aerolab.git
 ```
 
-### Enter this directory
+## Enter this directory
 
 ```bash
 cd aerolab/scripts/aerolab-pythonclient
 ```
 
-### Get usage help
+## Get usage help
 
 ```bash
 % ./runme.sh
 ```
 
-### Create new GoClient container
+### Create a new Python client container
 
 ```bash
-% ./runme.sh run
+./runme.sh run
 ```
 
-### Attach to container shell
+### Attach to client container's shell
 
 ```bash
-% ./runme.sh attach
-$ ls
+./runme.sh attach
+ls
 ```
 
-### Destroy
+## Destroy the client container
 
 ```bash
-% ./runme.sh destroy
+./runme.sh destroy
 ```
 
 ## Usage
 
 ```bash
-% ./runme.sh 
+./runme.sh 
 
 Usage: ./runme.sh start|stop|destroy|run|get
 
@@ -66,7 +64,7 @@ Usage: ./runme.sh start|stop|destroy|run|get
   destroy - stop and destroy the Client Node
 ```
 
-## Code Samples
+## Code samples
 
 Once you have attached to the container, you will see the client example code in /root/clients.
 

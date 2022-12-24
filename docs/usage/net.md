@@ -1,26 +1,28 @@
-# Network control commands
+# Network Control Commands
+AeroLab's `net` commands allow you to simulate problems in inter-node and
+inter-cluster networking.
 
 ## Block a port
 
-Block `dc1` node 1 from talking on port `3000` to `dc2` node 2, simulate package loss thrrough drop isntead of reject.
+Block node 1 in cluster `dc1` from talking on port `3000` to node 2 of cluster `dc2`; simulate packet loss through `drop` instead of `reject`.
 
 ```bash
 aerolab net block -s dc1 -l 1 -d dc2 -i 2 -t drop -p 3000
 ```
 
-## List blocks
+## List network blocks
 
 ```bash
 aerolab net list
 ```
 
-## Unblock the previous block
+## Unblock the previous network block
 
 ```bash
 aerolab net unblock -s dc1 -l 1 -d dc2 -i 2 -t drop -p 3000
 ```
 
-## Redo the block, random loss
+## Redo the network block, then trigger random packet loss
 
 Same block as before, this time randomly dropping 3% of all packets
 
@@ -28,13 +30,13 @@ Same block as before, this time randomly dropping 3% of all packets
 aerolab net block -s dc1 -l 1 -d dc2 -i 2 -t drop -p 3000 -M random -P 0.03
 ```
 
-## Remove the block
+## Remove the network block
 
 ```bash
 aerolab net unblock -s dc1 -l 1 -d dc2 -i 2 -t drop -p 3000 -M random -P 0.03
 ```
 
-## Implement network loss or packet latencies
+## Implement packet loss or packet latency
 
 Switch | Meaning
 --- | ---
@@ -57,7 +59,7 @@ aerolab net loss-delay -s dc1 -l 1 -d dc2 -i 2 -a set -p 100ms -L 10% -R 1024Kbp
 aerolab net loss-delay -s dc1 -l 1 -d dc2 -l 2 -a show
 ```
 
-## Delete all rules between dc1 and dc2
+## Delete all network loss rules between dc1 and dc2
 
 ```bash
 aerolab net loss-delay -s dc1 -l 1,2,3 -d dc2 -i 1,2,3 -a del

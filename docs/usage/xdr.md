@@ -1,6 +1,8 @@
-# Setup XDR
+# Setup Cross-Datacenter Replication Between Clusters
+AeroLab makes it easy to deploy distinct clusters that are connected through
+cross-datacenter replication ([XDR](https://docs.aerospike.com/server/operations/configure/cross-datacenter)).
 
-## Create 2 clusters with XDR between them
+## Create two Aerospike clusters with XDR between them
 
 Switch | Meaning
 --- | ---
@@ -21,7 +23,7 @@ aerolab xdr create-clusters -n dc1 -c 3 -N dc2 -C 3 -M test,bar -v 5.7.0.12
 aerolab cluster destroy -n dc1,dc2 -f
 ```
 
-## Create clusters manually and join xdr
+## Create Aerospike clusters manually and join them with XDR
 
 ```bash
 aerolab cluster create -n dc1 -c 3 -v 4.9.0.32
