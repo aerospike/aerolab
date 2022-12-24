@@ -2,9 +2,9 @@
 
 ## Description
 
-This container will auto-build and then auto-run every time you start docker
+This container will auto-build and then auto-run every time you start Docker
 
-The container allows for the host MacOS/Windows to access all containers directly using the 172.17.0.0/24 IP addresses. This makes it possible to run for example a client application on your MacOS and connect to the cluster that is running in the containers (deployed in docker using aerolab).
+The container allows for the host macOS/Windows to access all containers directly using the `172.17.0.0/24` IP addresses. This makes it possible to run for example a client application on your macOS and connect to the cluster that is running in the containers (deployed in Docker using aerolab).
 
 ## Initial Container Deployment
 
@@ -19,7 +19,7 @@ chmod 755 *sh && ./RUNME.sh
 
 ## Initial host system setup
 
-### MacOS
+### macOS
 
 1. Download Tunnelblick from [here](https://tunnelblick.net/), install and start it
 2. From the task-bar shortcut, click on "VPN Details"
@@ -38,7 +38,7 @@ chmod 755 *sh && ./RUNME.sh
 
 ## Usage following installation
 
-Once docker is started on Windows/MacOS, click on the `OpenVPN Connect` or `Tunnelblick` icon in the taskbar, and click `Connect`
+Once Docker is started on Windows/macOS, click on the `OpenVPN Connect` or `Tunnelblick` icon in the taskbar, and click `Connect`
 
 NOTE: on first run you *may* get 2 warnings, one about DNS not changing and one about IPs not changing. This is normal as we are not tunneling anything apart from/to Docker traffic. Click on `Do not warn ...` on both warning windows and click `OK`.
 

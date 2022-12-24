@@ -1,30 +1,30 @@
-# VSCode client machine
+# Launch a VS Code Client Machine
 
-AeroLab supports installing a full VSCode in browser, with multiple language support and basic example code.
+AeroLab supports installing a VS Code IDE in a browser, complete with Java, Go, Python and C# language clients and code examples.
 
 ## Install
 
 ### If your host can talk directly to your containers:
 
-```
+```bash
 aerolab client create vscode -n vscode
 ```
 
-### If using Docker Desktop instead:
+### If you are using Docker Desktop instead:
 
-```
+```bash
 aerolab client create vscode -n vscode -e 8080:8080
 ```
 
-## Access
+## Accessing the IDE through your browser
 
-Example code for the supported languages is preloaded and provided.
+Language clients and example code is preloaded on the VS Code client machine.
 
 ### If your host can talk directly to your containers:
 
 First get the IP of the client machine using `aerolab client list`.
 
-Then visit the following URL in the browser: `http://IP:8080`
+Then visit the following URL in the browser: `http://<IP>:8080`
 
 ### If using Docker Desktop instead:
 
@@ -32,21 +32,21 @@ Visit `http://127.0.0.1:8080`
 
 ## Stopping and starting
 
-AeroLab vscode client can be stopped and started as needed, using:
+AeroLab VS Code client can be stopped and started as needed, using:
 
-```
+```bash
 aerolab client stop -n vscode
 aerolab client start -n vscode
 ```
 
-## Install, choosing only some languages
+## Install, choosing only some language clients
 
-```
+```bash
 aerolab client create vscode -n somename -k go,python
 ```
 
-## See help to list supported languages
+## See help to list supported language clients
 
-```
+```bash
 aerolab client create vscode help
 ```
