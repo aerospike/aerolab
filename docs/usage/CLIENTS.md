@@ -22,13 +22,15 @@ Available commands:
 
 ```
 Usage:
-  aerolab [OPTIONS] client create [base | tools | help]
+  aerolab [OPTIONS] client create [command]
 
 Available commands:
   base     simple base image
   tools    aerospike-tools
   ams      prometheus and grafana for AMS; for exporter see: cluster add exporter
   jupyter  launch a jupyter IDE client
+  vscode   launch a VSCode IDE client
+  trino    launch a trino server (use 'client attach trino' to get trino shell)
   help     Print help
 ```
 
