@@ -7,6 +7,7 @@
 * [Deploy Clients with AeroLab](usage/CLIENTS.md)
   * [Deploy a VS Code Client Machine](usage/vscode.md)
   * [Deploy a Trino server](usage/trino.md)
+  * [Deploy a Jupyter Notebook Machine](docs/usage/jupyter.md)
 * [Rest API](usage/REST.md)
 * [Useful scripts](../scripts/README.md)
   * [Deploy an LDAP server](../scripts/aerolab-ldap/README.md)
