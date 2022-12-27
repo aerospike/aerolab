@@ -1,30 +1,33 @@
-# Aerospike commands
+# Aerospike Database Commands
+AeroLab's `aerospike` commands deal with starting and stopping the Aerospike
+server daemon ([asd](https://docs.aerospike.com/server/operations/manage/aerospike))
+on the Aerospike Database cluster nodes.
 
-## Start aerospike
+## Start an Aerospike cluster
 
 ```bash
 aerolab aerospike start -n mycluster
 ```
 
-## Stop aerospike
+## Stop an Aerospike cluster
 
 ```bash
 aerolab aerospike stop -n mycluster
 ```
 
-## Restart aerospike
+## Restart an Aerospike cluster
 
 ```bash
 aerolab aerospike restart -n mycluster
 ```
 
-## In-place upgrade aerospike on a single node 2
+## Upgrade node 2 of the Aerospike cluster in-place
 
 ```bash
-aerolab aerospike upgrade -n mycluster -l 2 -v 5.7.0.6 
+aerolab aerospike upgrade -n mycluster -l 2 -v 5.7.0.6
 ```
 
-## Restart aerospike on a single node 2
+## Restart node 2 of the Aerospike cluster
 
 ```bash
 aerolab aerospike restart -n mycluster -l 2

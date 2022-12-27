@@ -7,23 +7,23 @@ Notes:
 
 ## First clone this repo
 
-```
-Via Web
-% git clone https://github.com/aerospike/aerolab.git
+```bash
+# Via Web
+git clone https://github.com/aerospike/aerolab.git
 
-Via SSH
-% git clone git@github.com:aerospike/aerolab.git
+# Via SSH
+git clone git@github.com:aerospike/aerolab.git
 ```
 
-## Enter this directory
-```
-% cd aerolab/scripts
+## Enter the directory
+```bash
+cd aerolab/scripts
 ```
 
 ## Usage
 
-```
-% ./make-certificates.sh 
+```bash
+./make-certificates.sh 
 ```
 
 Certificates will be placed in ~/rootca

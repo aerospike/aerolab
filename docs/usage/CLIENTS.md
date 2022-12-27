@@ -1,4 +1,4 @@
-# Deploying clients with aerolab
+# Deploy Clients with AeroLab
 
 ## Client command
 
@@ -34,28 +34,28 @@ Available commands:
 
 ## Get help for a given client type
 
-```
+```bash
 aerolab client create base help
 aerolab client create tools help
 ```
 
 ## Example
 
-### Create 3 base client machines and grow client group by 3 tools client machines
+### Create three base client machines and grow the client group by three tools client machines
 
-```
+```bash
 aerolab client create base -n myclients -c 3
 aerolab client grow tools -n myclients -c 3
 ```
 
 ### List clients
 
-```
+```bash
 aerolab client list
 ```
 
 ### Destroy clients
 
-```
+```bash
 aerolab client destroy -n myclients -f
 ```

@@ -1,11 +1,15 @@
-# How to enable encryption at rest
+# Enable Encryption at Rest
 
-## Create a cluster using the templates, say 3 nodes, providing feature file too
+Each namespace in an Aerospike Database Enterprise Edition cluster can be
+[configured with Encryption at Rest](https://docs.aerospike.com/server/operations/configure/security/encryption-at-rest).
+
+## Create a cluster with the Encryption at Rest config
+In this example you will create a three node Aerospike cluster using the Encryption at Rest [template](../../templates/encryption-at-rest.conf), and provide a feature file too.
 ```bash
-$ aerolab cluster create -c 3 -o templates/encryption-at-rest.conf -f feature.conf -s n
+$ aerolab cluster create -c 3 -o templates/encryption-at-rest.conf -f /path/to/feature.conf -s n
 ```
 
-## Generate encryption key on your machine
+## Generate an encryption key on your machine
 ```bash
 # mac:
 $ head -c 256 /dev/urandom >key.dat
@@ -13,12 +17,12 @@ $ head -c 256 /dev/urandom >key.dat
 $ head --bytes 256 /dev/urandom >key.dat
 ```
 
-## Copy key to the nodes in the cluster:
+## Copy your encryption key to the cluster nodes
 ```bash
 $ aerolab files upload key.dat /etc/aerospike/key.dat
 ```
 
-## Start aerospike
+## Start the Aerospike Database
 ```bash
-$ ./aerolab aerospike start
+$ aerolab aerospike start
 ```

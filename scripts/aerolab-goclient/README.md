@@ -4,57 +4,55 @@ This script allows for quick and easy deployment of a `go` client library with s
 
 This can be used on it's own, as part of [aerolab-buildenv](../aerolab-buildenv/README.md) script or combined with the `aerolab` command.
 
-## Deploying
+## First clone this repo
 
-### First clone this repo
-
-#### Using https
+### Using https
 
 ```bash
 git clone https://github.com/aerospike/aerolab.git
 ```
 
-#### Using git keys
+### Using git keys
 
 ```bash
 git clone git@github.com:aerospike/aerolab.git
 ```
 
-### Enter this directory
+## Enter this directory
 
 ```bash
 cd aerolab/scripts/aerolab-goclient
 ```
 
-### Get usage help
+## Get usage help
 
 ```
-% ./runme.sh
+./runme.sh
 ```
 
-### Create new GoClient container
+## Create a new Go client container
 
-```
-% ./runme.sh run
-```
-
-### Attach to container shell
-
-```
-% ./runme.sh attach
-$ ls
+```bash
+./runme.sh run
 ```
 
-### Destroy
+### Attach to the client container's shell
 
 ```
-% ./runme.sh destroy
+./runme.sh attach
+ls
+```
+
+## Destroy the client container
+
+```bash
+./runme.sh destroy
 ```
 
 ## Usage
 
 ```
-% ./runme.sh 
+./runme.sh 
 
 Usage: ./runme.sh start|stop|destroy|run|get
 
@@ -66,7 +64,7 @@ Usage: ./runme.sh start|stop|destroy|run|get
   destroy - stop and destroy the Client Node
 ```
 
-## Sample code
+## Code samples
 
 Once you attach to the container, you will find the samples in the following location:
 
@@ -79,4 +77,4 @@ Name | Description
 --- | ---
 aerospike-basic | Aerospike basic connect, plus some get/put command examples
 aerospike-auth | Aerospike connect with basic authentication, plus some get/put command examples
-aerospike-tls | Aerospike connect with TLS and external ldap authentication, plus some get/put command examples
+aerospike-tls | Aerospike connect with TLS and external LDAP authentication, plus some get/put command examples
