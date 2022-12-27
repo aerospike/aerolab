@@ -2,27 +2,26 @@
 
 ## One-time setup
 
-Follow either the `Docker` or `AWS` manual below, depending on the backend you wish to you. Both backends may be used and `aerolab` may be switched between them.
+Follow either the **Docker** or **AWS** manual below, depending on the backend you wish to you. Both backends may be used and AeroLab may be switched between them.
 
 ### Docker
 
-Follow the below if using the docker backend.
+Follow the below if using the Docker backend.
 
-#### Install docker
+#### Install Docker
 
-Use one of the below methods to install docker:
+Use one of the below methods to install Docker:
 
-* install `docker desktop` on your machine
-* install docker using `minikube` on your machine
-* use the [docker-amd64-mac-m1](https://github.com/aerospike-community/docker-amd64-mac-m1) (works on Intel Mac as well)
+* Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on your machine
+* Install Docker using [`minikube`](https://minikube.sigs.k8s.io/docs/start/) on your machine
 
-#### Start docker
+#### Start Docker
 
-Start docker and ensure it's running by executing `docker version`
+Start Docker and ensure it's running by executing `docker version`
 
 #### Configure disk, RAM and CPU resources
 
-If using docker-desktop, in the docker tray-icon, go to "Preferences". Configure the required disk, RAM and CPU resources. At least 2 cores and 2 GB of RAM is recommended for a single-node cluster.
+If using Docker Desktop, in the Docker tray-icon, go to "Preferences". Configure the required disk, RAM and CPU resources. At least 2 cores and 2 GB of RAM is recommended for a single-node cluster.
 
 ### AWS
 
@@ -34,17 +33,17 @@ Follow [this manual](https://docs.aws.amazon.com/cli/latest/userguide/getting-st
 
 Run `aws configure` to configure basic access to AWS.
 
-### Download aerolab from the releases page
+### Download AeroLab from the releases page
 
-Head to the releases page and download one of the installers, depending on where you are intending to run aerolab.
+Head to the releases page and download one of the installers, depending on where you are intending to run AeroLab.
 
-Note that aerolab will still be able to deploy Aerospike on both arm and x64 architectures, regardless of which aerolab binary you are using.
+Note that AeroLab will still be able to deploy Aerospike on both ARM64 and x86_64 architectures, regardless of which AeroLab binary you are using.
 
 Operating System | CPU | File | Comments
 --- | --- | --- | ---
-MacOS | ALL | `aerolab-macos.pkg` | multi-arch AeroLab installer for MacOS
-MacOS | M1 or M2 | `aerolab-macos-arm64.zip` | single executable binary in a zip file
-MacOS | Intel CPU | `aerolab-macos-amd64.zip` | single executable binary in a zip file
+macOS | ALL | `aerolab-macos.pkg` | multi-arch AeroLab installer for macOS
+macOS | M1 or M2 | `aerolab-macos-arm64.zip` | single executable binary in a zip file
+macOS | Intel CPU | `aerolab-macos-amd64.zip` | single executable binary in a zip file
 Linux (generic) | arm | `aerolab-linux-arm64.zip` | single executable binary in a zip file
 Linux (generic) | Intel/AMD | `aerolab-linux-amd64.zip` | single executable binary in a zip file
 Linux (centos) | arm | `aerolab-linux-arm64.rpm` | RPM for installing on centos/rhel-based distros
@@ -94,7 +93,7 @@ It's a good idea to configure the basics so as not to have to use the command li
 
 If using a custom features file: `aerolab config defaults -k '*FeaturesFilePath' -v /path/to/features.conf`
 
-Make aerolab adjust `aerospike.conf` to always use `mesh` heartbeat modes, unless specifically overwritten in the command line: `aerolab config defaults -k '*.HeartbeatMode' -v mesh`
+Make AeroLab adjust `aerospike.conf` to always use `mesh` heartbeat modes, unless specifically overwritten in the command line: `aerolab config defaults -k '*.HeartbeatMode' -v mesh`
 
 #### Shell completion
 
@@ -134,7 +133,20 @@ $ aerolab attach asadm --name=testme --node=2 -- -e info
 ```
 $ aerolab attach asinfo --name=testme --node=all -- -v service
 $ aerolab attach shell --name=testme --node=all -- asinfo -v service
+$ aerolab attach shell --name=testme --node=<node-expander-syntax> -- asinfo -v service
 ```
+
+#### Node Expander
+
+For commands accepting a list of nodes, the list is a comma-separated list of:
+* `ALL` - all nodes
+* `-X` - negative number - exclude node
+* `X` - positive number - include node
+* `X-Y` - range of nodes to include
+
+For example:
+* `ALL,-5` - all nodes except for node 5
+* `1-10,-5,12` - nodes 1-10, except node 5, and also node 12
 
 ### Destroy the cluster, force stopping
 ```
@@ -149,14 +161,3 @@ aerolab {command} help
 aerolab {command} {subcommand} help
 ```
 
-### Node Expander
-
-For commands accepting a list of nodes, the list is a comma-separated list of:
-* `ALL` - all nodes
-* `-X` - negative number - exclude node
-* `X` - positive number - include node
-* `X-Y` - range of nodes to include
-
-For example:
-* `ALL,-5` - all nodes except for node 5
-* `1-10,-5,12` - nodes 1-10, except node 5, and also node 12

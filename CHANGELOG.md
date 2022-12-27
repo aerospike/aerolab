@@ -1,6 +1,6 @@
 #### 4.4.4
-* fix issue with the `autoload` directory execution in aws
-* add cluster existance check in `expandNodes` to handle `-l all` on non-existent cluster name
+* fix issue with the `autoload` directory execution in AWS
+* add cluster existence check in `expandNodes` to handle `-l all` on non-existent cluster name
 
 #### 4.4.3
 * add cluster name checking and hostname validation on setting hostnames
@@ -11,13 +11,13 @@
 * change macos pkg install location to `/usr/bin/` instead of `/usr/local/bin/` due to missing `$PATH` on some installations
 
 #### 4.4.2
-* handle aws library bug regarding unset regions
+* handle AWS library bug regarding unset regions
 
 #### 4.4.1
 * vscode client change installation order - java hangs otherwise on slow connections
 
 #### 4.4.0
-* improve handling of keypairs in aws, especially templating ones
+* improve handling of keypairs in AWS, especially templating ones
 * aws: add auto-discovery of instance type to whether it is arm (obsolete `--arm` switch)
 
 #### 4.3.10
@@ -40,7 +40,7 @@
 * fix naming conventions
 
 #### 4.3.7
-* ams exporter fix aws installation
+* ams exporter fix AWS installation
 * add client attach option to detach from stdin (do not terminate node command on exit)
 * make base install script retry once
 
@@ -62,10 +62,10 @@
 * bugfix: `data insert` functions used `rand.NewSource()` without thread safety
 * bugfix: `cluster start` would not work on partial start (some nodes only) due to failure in `fixMesh` code N/A ip handling
 * hide `client add` option, as most clients have a specific OS:Ver requirement, making this option more annoying than useful
-* experimental `jupyter` client added with `go,python,java,node,dotnet` kernels and aerospike client libraries
+* experimental `jupyter` client added with `go,python,java,node,dotnet` kernels and Aerospike client libraries
 * experimental `trino` client added
 * fix `net loss-delay` in source being client bug
-* adjust installer downloader to new 6.2 aerospike naming convention
+* adjust installer downloader to new 6.2 Aerospike naming convention
 
 #### 4.3.3
 * bump version of all dependencies to latest
@@ -73,14 +73,14 @@
 
 #### 4.3.2
 * add support for pre-selected eu-central-1
-* add ability for aws backend to automatically lookup AMIs for any region using DescribeImages
-* add `rest-api` command to allow for using aerolab as a rest-api webserver (basic, not full rest-api) instead of cli interface
+* add ability for AWS backend to automatically lookup AMIs for any region using DescribeImages
+* add `rest-api` command to allow for using AeroLab as a rest-api webserver (basic, not full rest-api) instead of cli interface
 * error handling improvements
 * minor flow bugfixes
 * package `aerolab` as `pkg` for MacOS, `deb` for debian/ubuntu, `rpm` for rhel/centos and generic `zip` for linux
 
 #### 4.3.1
-* update aerospike client libraries to latest versions
+* update Aerospike client libraries to latest versions
 
 #### 4.3.0
 * New Features:
@@ -94,7 +94,7 @@
 * Bug fixes:
   * support installing StartScript in `client add tools`
   * fix "newclient.sh" for generating skel source files for new client development
-  * `cluster start` with multiple clusters would not fix mesh config properly, nor start aerospike
+  * `cluster start` with multiple clusters would not fix mesh config properly, nor start Aerospike
 
 #### 4.2.0
 * New Features:
@@ -110,11 +110,11 @@
   * fix documentation typos
   * fix zsh completion system
 * New Features
-  * add options to deploy client machines (aerolab client, aerolab attach client, backend support for server/client selector, files command support, tls command support)
+  * add options to deploy client machines (AeroLab client, AeroLab attach client, backend support for server/client selector, files command support, TLS command support)
     * clients: base, aerospike-tools
   * add client command documentation
 * Improvements
-  * `aerolab xdr connect` command: add support for cross-region aws backend
+  * `aerolab xdr connect` command: add support for cross-region AWS backend
 
 #### v4.0.2
 * add nodeExpander:
@@ -122,31 +122,31 @@
   * (or: ALL,-5 - i.e. all nodes except node 5)
 * bugfix in ranges in `files sync`
 * fix multiple completion bugs
-* add useful print of config for tls generate command
+* add useful print of config for TLS generate command
 
 #### v4.0.1
-* add support for centos / rhel-based distros v 7 and 8 in aws
+* add support for CentOS / RHEL-based distros v 7 and 8 in aws
 * add option to rename hostname of nodes to clusterName-nodeNo
 * cleanup command line interface (changes cli usage)
-* make-cluster distro version help page: remove centos 6 and add centos 8 and ubuntu 22.04 to supported values
+* make-cluster distro version help page: remove CentOS 6 and add CentOS 8 and Ubuntu 22.04 to supported values
 * use submodules for common functions and methods
-* remove support for centos 6 / rhel 6
+* remove support for CentOS 6 / RHEL 6
 * add 'edit' command line option for quick-editing a single file
 * add 'sync' option for quick-syncing of files/directories from one node to other nodes
 * make 'download' and 'upload' work on whole directories, recursively, not just files
 * update readme and help pages
 * update scripts/
 * make help pages work without verifying if backend is working
-* install a script to run before aerospike starts and after it stops
+* install a script to run before Aerospike starts and after it stops
 * add basic troubleshooting tools to templates
 * add json output support to template and cluster list
-* bash completion and zsh completion
+* bash completion and `zsh` completion
 
 #### v3.1.2
 * `make-cluster` and `cluster-grow`: automatically add `cluster-name` to `aerospike.conf` unless specified not to by the `-O` switch
 * remove dependency on obsolete `ioutil` package
 * bump to latest `golang` version for compile
-* cgo minimum macos version is locked during build
+* cgo minimum macOS version is locked during build
 * small improvements in build and test scripts
 
 #### v3.1.1
@@ -161,10 +161,10 @@
 * add check in `cluster-grow` and `make-cluster` to confirm that distro version is selected if distro isn't ubuntu
 * add early check in `cluster-grow` and `make-cluster` - if requested version does not exist, error early, with a meaningful message
 * add the `make-cluster -v 5.7.*` version lookup option information to help pages
-* store deployed aerospike version in `/opt/aerolab.aerospike.version`
+* store deployed Aerospike version in `/opt/aerolab.aerospike.version`
 * deprecate `-5` switch for version selection in `xdr-connect`
 * add `xdr-version` selector in `xdr-connect`, add `auto` option for auto-discovery
-* add `restart-source` option in `xdr-connect` with default of 'yes' to allow for auto-restarting of source on xdr static configuration
+* add `restart-source` option in `xdr-connect` with default of 'yes' to allow for auto-restarting of source on XDR static configuration
 * bring version discovery features from `make-cluster` into `upgrade-aerospike`
 
 #### v3.0.4
@@ -174,18 +174,18 @@
 * added command `list-versions` to quickly lookup Aerospike versions, with switches for easy sorting and filtering, see `list-versions help` for more details
 
 #### v3.0.3
-* bugfix: aws backend using ubuntu 20.04 image correctly now
-* aws backend make "waiting for node to come up" messages more explicit
+* bugfix: AWS backend using ubuntu 20.04 image correctly now
+* AWS backend make "waiting for node to come up" messages more explicit
 
 #### v3.0.2
-* add option in insert-data and delete-data to choose aerospike library version (4|5)
+* add option in insert-data and delete-data to choose Aerospike library version (4|5)
 
 #### v3.0.1
 * deploy-container move to ubuntu 20.04
-* add basic tools to aerospike server containers
+* add basic tools to Aerospike server containers
 * set basic ubuntu version to 20.04
-* update version discovery algorythm to allow for new naming conventions
-* add aws backend ubuntu 20.04 discovery options
+* update version discovery algorithm to allow for new naming conventions
+* add AWS backend ubuntu 20.04 discovery options
 * comment out paxos-single-replica-limit in conf files (obsolete as of v6 of Aerospike)
 * fix apt unattended install requirement
 * fix dpkg force confold for unattended upgrades
@@ -207,22 +207,22 @@
 #### 2.67
 * add auth mode external to insert/delete data
 * add client warmup(100) to insert/delete data
-* recompile with aerospike library v5
+* recompile with Aerospike library v5
 
 #### 2.66
-* fix check in aws backend for public IP
+* fix check in AWS backend for public IP
 
 #### 2.65
-* fix tls - new requirements - cannot use Common Name any more
+* fix TLS - new requirements - cannot use Common Name any more
 
 #### 2.64
-* new aerospike website broke artifacts download links. This works around the problem.
+* new Aerospike website broke artifacts download links. This works around the problem.
 
 #### 2.63
 * satisfy libcurl4 dependency for asd 5.1+
 
 #### 2.62
-* improvement: will now check if instance in aws has public IP assigned before attempting to use the variable
+* improvement: will now check if instance in AWS has public IP assigned before attempting to use the variable
 
 #### 2.61
 * insert-data now allows specifying to insert data only to X number of partitions and/or nodes, or to specify exact partition numbers to insert data to
@@ -233,10 +233,10 @@
 #### 2.59
 * error handling improvement: add handling of wrong docker image names
 * updated templates to all have default-ttl 0
-* udpated dependencies to latest version
+* updated dependencies to latest version
 
 #### 2.58
-* fix support for running aerolab via symlinks or from a PATH env var
+* fix support for running AeroLab via symlinks or from a PATH env var
 
 #### 2.57
 * insert-data now supports specifying write policy (insert only, update, update_only, replace, replace_only)
@@ -271,21 +271,21 @@
 * new feature: deploy-container
 
 #### 2.49
-* added 'latest' recognition fix for aerospike version 5
+* added 'latest' recognition fix for Aerospike version 5
 * insert-data multithread switch fix
 * add OS discovery for aerospike 5+
-* fix links in aerolab downloads
+* fix links in AeroLab downloads
 * NEW: xdr-connect supports xdr in asd v5+, using the '-1' switch
 
 #### 2.48
 * fixed -u switch in insert-data
 
 #### 2.47
-* fixed setting correct writepolicy on aerospike insertData
+* fixed setting correct writepolicy on Aerospike insertData
 
 #### 2.46
 * minor bugfixes
-* shruink binary size to 12MB from 56MB
+* shrunk binary size to 12MB from 56MB
 
 #### 2.45
 * AWS BACKEND FIX - small bug when dealing with IP address of nodes
@@ -295,7 +295,7 @@
 * updated dependency versions and aerospike library to latest
 
 #### 2.43
-* added message on conf-fix-mesh to inform user that aerospike must be restarted
+* added message on conf-fix-mesh to inform user that Aerospike must be restarted
 * handle invalid command line parameters without crashing
 * correctly identify latest version of aerospike/amc when asked to install latest
 
@@ -318,7 +318,7 @@
 * fix issue with directory creation make-cluster
 
 #### 2.36
-* fix critical bug with centos deployments
+* fix critical bug with CentOS deployments
 
 #### 2.35
 * fix critical bug in ubuntu deployment
@@ -332,10 +332,10 @@
 #### 2.32
 * large number of small typo fixes for messaging and error reporting
 * OPS-3222 - fix naming in help pages
-* OPS-3237 - provide warning if aerospike 4.6+ is used and feature file not provided
+* OPS-3237 - provide warning if Aerospike 4.6+ is used and feature file not provided
 
 #### 2.31
-* fixed never-ending template builds for centos7 - disabled firewall control (net-loss and rate control) on centos builds
+* fixed never-ending template builds for CentOS 7 - disabled firewall control (net-loss and rate control) on centos builds
 
 #### 2.30
 * added AMC support for versions <4 (versions 4+ already work) to deploy-amc
@@ -399,7 +399,7 @@ Features:
 * insert-data command help updated to make it more clear
 
 #### 2.18
-* aerospike python client fails on ubuntu 18.04 with 'undefined symbol: OPENSSL_sk_num' error. Downgraded all client libraries to use 16.04
+* Aerospike Python client fails on ubuntu 18.04 with 'undefined symbol: OPENSSL_sk_num' error. Downgraded all client libraries to use 16.04
 
 #### 2.17
 * insert-data fixed reporting bug which would report error even if no error was present if the insert was too fast
@@ -412,10 +412,10 @@ Features:
 * fixed \r location on download progress report
 
 #### 2.15
-* aws backend: make-client, net-block, net-unblock, net-list
+* AWS backend: make-client, net-block, net-unblock, net-list
 
 #### 2.14
-* aws backend support - experimental, feature yet not implemented: make-client, net-block, net-unblock, net-list
+* AWS backend support - experimental, feature yet not implemented: make-client, net-block, net-unblock, net-list
 * data-insert set socketTimeout to 0, timeout to 5 seconds and maxRetries to 2 to improve speed and stability
 * created help for how to use AWS plugin
 * fix issue with cluster-grow (bug in cluster node list count)
@@ -472,10 +472,10 @@ Features:
 * NOTE: upload/download small files only, this is highly inefficient as it reads a whole file to RAM before saving it
 
 #### 2.3
-* In docker, auto-fix log location of aerospike log in aerospike.conf (no journalctl)
+* In docker, auto-fix log location of Aerospike log in aerospike.conf (no journalctl)
 * If target (remote or local) is Darwin, use docker default, otherwise use LXC default
-* Fixed Centos creation never finishes for template on centos7
-* Fixed custom startup script for aerospike in centos7 on docker (damn you, docker!)
+* Fixed Centos creation never finishes for template on CentOS 7
+* Fixed custom startup script for Aerospike in CentOS 7 on docker (damn you, docker!)
 
 #### 2.2
 * fix: dependency check for lxc on bionic, as package names changed :)

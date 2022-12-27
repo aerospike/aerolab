@@ -1,6 +1,6 @@
-# Using built-in help in aerolab
+# Using built-in help in AeroLab
 
-The help features of aerolab are written in a way that using and exploring aerolab should be simple and easy
+The help features of AeroLab make using and exploring AeroLab simple and easy.
 
 ## Command list
 

@@ -1,6 +1,8 @@
-# Make 2-node cluster with TLS
+# TLS Setup
+AeroLab can assist you in [configuring TLS](https://docs.aerospike.com/server/operations/configure/network/tls)
+between client and server, as well as between server nodes.
 
-## Make the cluster with tls configuration skeleton in place
+## Create a two node cluster with a TLS configuration skeleton in place
 
 Note: you can download the template configuration file from this repository, in the templates directory.
 
@@ -14,13 +16,13 @@ aerolab cluster create -o templates/tls.conf -c 2 -n mytest
 aerolab tls generate -n mytest
 ```
 
-## Restart aerospike
+## Restart Aerospike
 
 ```bash
 aerolab aerospike restart -n mytest
 ```
 
-## Connect using aql
+## Connect using AQL
 
 ```bash
 aerolab attach shell -n mytest
@@ -42,7 +44,7 @@ aql --tls-enable --tls-cafile=/etc/aerospike/ssl/tls1/cacert.pem --tls-keyfile=/
 /etc/aerospike/{TLS_NAME}/key.pem
 ```
 
-As such, you can create and use multiple TLS names in your aerospike config. For example:
+As such, you can create and use multiple TLS names in your Aerospike config. For example:
 
 ```
 network {
@@ -58,7 +60,7 @@ network {
     }
 ```
 
-If you use that in your template conf file, snipped to make-cluster with the -o parameter, simply generate separate certificates for those 2 TLS names as follows:
+If you use that in your template configuration file, snipped to make-cluster with the -o parameter, simply generate separate certificates for those 2 TLS names as follows:
 ```bash
 aerolab tls generate -t tls1
 aerolab tls generate -t bob.domain.why.not
@@ -68,4 +70,4 @@ aerolab tls generate -t bob.domain.why.not
 
 TLS generation allows for multiple CA certificates. If a CA cert already exists with the given name, it will be reused. If it doesn't, a new CA with that name will be generated.
 
-Aerolab also has `tls copy` as a handy way to copy tls certificates from one node to another (or one cluster to another).
+AeroLab also has `tls copy` as a handy way to copy TLS certificates from one node to another (or one cluster to another).

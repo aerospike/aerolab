@@ -1,10 +1,10 @@
-# Aerolab All-Flash
+# Deploy an Aerospike All Flash Namespace
 
-## Configuring all flash with aerolab - basic usage
+## Configuring All Flash with AeroLab
 
-### Prepare a template
+### Prepare a template for the All Flash namespace
 
-Configuration template needs to look similar to this (mostly pay attention to the index-type configuration part) - this is just a snippet, the template must have full aerospike.conf - see `templates/` in this repo for examples:
+The following example is a snippet of the configuration template you need. Pay attention to the `index-type` sub-section. Your template must be a complete aerospike.conf - see the `templates/` directory in this repo for full examples.
 
 ```
 namespace bar {
@@ -27,12 +27,12 @@ namespace bar {
 }
 ```
 
-### Deploy aerolab with the tamplate
+### Deploy AeroLab with the All Flash template
 
-Deploying aerolab with the template for all flash requires a privileged container (deploying 3 nodes in this example, using mesh):
+Deploying AeroLab with your All Flash template requires a privileged container. In this example you will be deploying a cluster with three nodes, using mesh:
 
-```
+```bash
 aerolab cluster create -n someName -c 3 --privileged
 ```
 
-That's it, the cluster will be created and use `index-type flash` on `/mnt`. Note that no mountpoints or filesystems are created. We are simply using a pre-existing `/mnt` directory on the root filesystem. this is fine and works as well for testing purposes.
+That's it, the cluster will be created, with the primary index of the namespace stored on `/mnt`. Note that in this example no mount points or file systems are created. We are simply using a pre-existing `/mnt` directory on the root filesystem, which works well for testing purposes.
