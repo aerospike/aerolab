@@ -296,8 +296,15 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 	}
 
 	if response.StatusCode != 200 {
-		err = fmt.Errorf("error code: %d, URL: %s", response.StatusCode, baseUrl)
-		return nil, err
+		req.SetBasicAuth(user, pass)
+		response, err = client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		if response.StatusCode != 200 {
+			err = fmt.Errorf("error code: %d, URL: %s", response.StatusCode, baseUrl)
+			return nil, err
+		}
 	}
 
 	s := bufio.NewScanner(response.Body)
