@@ -1,3 +1,6 @@
+#### 4.4.5
+* fix bug with old Aerospike version download, requiring username/password
+
 #### 4.4.4
 * fix issue with the `autoload` directory execution in AWS
 * add cluster existence check in `expandNodes` to handle `-l all` on non-existent cluster name
