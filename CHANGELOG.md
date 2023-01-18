@@ -1,5 +1,6 @@
 #### 4.4.5
 * fix bug with old Aerospike version download, requiring username/password
+* add notes at the end of AMS and exporter installation, referencing one-another to avoid confusion
 
 #### 4.4.4
 * fix issue with the `autoload` directory execution in AWS
