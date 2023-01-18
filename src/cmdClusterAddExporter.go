@@ -141,5 +141,6 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		}
 	}
 	log.Print("Done")
+	log.Print("NOTE: Remember to install the AMS stack client to monitor the cluster, using `aerolab client create ams` command")
 	return nil
 }
