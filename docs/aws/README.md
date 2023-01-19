@@ -32,7 +32,9 @@ aws_secret_access_key = SECRETKEY
 region = DEFAULT_REGION_TO_USE
 ```
 
-### Configure an AWS account
+### OPTIONAL: Configure an AWS account
+
+Create / get the right subnets and security groups, if not intending to use the defaults. You can skip this step, in which case AeroLab will create the required security groups with minimal permissions required.
 
 #### Security Groups
 
@@ -74,7 +76,21 @@ Extra parameters are required when working with the `aws` backend as opposed to 
 
 Executing `aerolab cluster create help` once the backend has been selected will display the relevant options.
 
-### Example:
+### Examples:
+
+#### First subnet in default VPC/AZ:
+
+```bash
+./aerolab cluster create -n testcluster -c 3 -m mesh -I t3a.medium -E 20
+```
+
+#### First subnet in default VPC for a given AZ:
+
+```bash
+./aerolab cluster create -n testcluster -c 3 -m mesh -I t3a.medium -E 20 -U us-east-1a
+```
+
+#### Specify custom security group and subnet
 
 ```bash
 ./aerolab cluster create -n testcluster -c 3 -m mesh -I t3a.medium -E 20 -S sg-03430d698bffb44a3 -U subnet-06cc8a834647c4cc3
