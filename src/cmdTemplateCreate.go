@@ -32,12 +32,6 @@ func (c *templateCreateCmd) Execute(args []string) error {
 
 	log.Print("Running template.create")
 
-	if a.opts.Config.Backend.Type == "aws" {
-		if c.Aws.SecurityGroupID == "" || c.Aws.SubnetID == "" {
-			return logFatal("AWS backend requires SecurityGroupID and SubnetID to be specified")
-		}
-	}
-
 	templates, err := b.ListTemplates()
 	if err != nil {
 		return logFatal("Could not list templates: %s", err)
