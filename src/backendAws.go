@@ -1064,6 +1064,10 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	// end tag setup
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
+	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID)
+	if err != nil {
+		return err
+	}
 	secgroupIds := strings.Split(extra.securityGroupID, ",")
 	input.SecurityGroupIds = aws.StringSlice(secgroupIds)
 	subnetId := extra.subnetID
@@ -1433,6 +1437,10 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		// end tag setup
 		input := ec2.RunInstancesInput{}
 		input.DryRun = aws.Bool(false)
+		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID)
+		if err != nil {
+			return err
+		}
 		secgroupIds := strings.Split(extra.securityGroupID, ",")
 		input.SecurityGroupIds = aws.StringSlice(secgroupIds)
 		subnetId := extra.subnetID
@@ -1626,4 +1634,259 @@ func (d *backendAws) Download(clusterName string, node int, source string, desti
 		return err
 	}
 	return scpExecDownload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
+}
+
+func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string) (secGroup string, subnet string, err error) {
+	var vpc string
+	if secGroupID == "" || !strings.HasPrefix(subnetID, "subnet-") {
+		if !strings.HasPrefix(subnetID, "subnet-") {
+			out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
+				Filters: []*ec2.Filter{
+					&ec2.Filter{
+						Name:   aws.String("is-default"),
+						Values: aws.StringSlice([]string{"true"}),
+					},
+				},
+			})
+			if err != nil {
+				return "", "", fmt.Errorf("could not resolve default VPC: %s", err)
+			}
+			if len(out.Vpcs) == 0 {
+				return "", "", fmt.Errorf("could not find default VPC, does not exist in AWS account; use the appropriate command switch to specify the security group and subnet ID to use")
+			}
+			vpc = aws.StringValue(out.Vpcs[0].VpcId)
+			if len(out.Vpcs) > 1 {
+				log.Printf("WARN: more than 1 default VPC found, choosing first one in list: %s", vpc)
+			}
+		} else {
+			out, err := d.ec2svc.DescribeSubnets(&ec2.DescribeSubnetsInput{
+				SubnetIds: aws.StringSlice([]string{"subnetID"}),
+			})
+			if err != nil {
+				return "", "", fmt.Errorf("could not resolve given subnet: %s", err)
+			}
+			if len(out.Subnets) == 0 {
+				return "", "", fmt.Errorf("could not find given subnet")
+			}
+			vpc = aws.StringValue(out.Subnets[0].VpcId)
+		}
+	}
+
+	if strings.HasPrefix(subnetID, "subnet-") {
+		subnet = subnetID
+	} else {
+		filters := []*ec2.Filter{
+			&ec2.Filter{
+				Name:   aws.String("default-for-az"),
+				Values: aws.StringSlice([]string{"true"}),
+			},
+			&ec2.Filter{
+				Name:   aws.String("vpc-id"),
+				Values: aws.StringSlice([]string{vpc}),
+			},
+		}
+		if subnetID != "" {
+			filters = append(filters, &ec2.Filter{
+				Name:   aws.String("availability-zone"),
+				Values: aws.StringSlice([]string{subnetID}),
+			})
+		}
+		out, err := d.ec2svc.DescribeSubnets(&ec2.DescribeSubnetsInput{
+			Filters: filters,
+		})
+		if err != nil {
+			return "", "", fmt.Errorf("could not resolve default subnet: %s", err)
+		}
+		if len(out.Subnets) == 0 {
+			return "", "", fmt.Errorf("could not find default subnet, does not exist in AWS account; use the appropriate command switch to specify the subnet ID to use")
+		}
+		subnet = aws.StringValue(out.Subnets[0].SubnetId)
+		if len(out.Subnets) > 1 {
+			log.Printf("WARN: more than 1 default subnet found for vpc %s, choosing first one in list: %s", vpc, subnet)
+		}
+	}
+	log.Printf("Using subnet ID %s", subnet)
+
+	if secGroupID != "" {
+		secGroup = secGroupID
+		log.Printf("Using security group ID %s", secGroup)
+	} else {
+		groupName := "AeroLabServer"
+		if d.client {
+			groupName = "AeroLabClient"
+		}
+		out, err := d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+			GroupNames: aws.StringSlice([]string{groupName}),
+		})
+		if err != nil {
+			return "", "", fmt.Errorf("could not resolve security groups: %s", err)
+		}
+		if len(out.SecurityGroups) == 0 {
+			log.Print("Managed Security groups not found in VPC for given subnet, creating AeroLabServer and AeroLabClient")
+			secGroup, err = d.createSecGroups(vpc)
+			if err != nil {
+				return "", "", fmt.Errorf("could create security groups: %s", err)
+			}
+		} else {
+			secGroup = aws.StringValue(out.SecurityGroups[0].GroupId)
+			log.Printf("Using security group ID %s name %s", secGroup, groupName)
+		}
+	}
+
+	return
+}
+
+func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
+	var secGroupIds []string
+	groupNames := []string{"AeroLabServer", "AeroLabClient"}
+
+	// create groups
+	for i, groupName := range groupNames {
+		out, err := d.ec2svc.CreateSecurityGroup(&ec2.CreateSecurityGroupInput{
+			Description: aws.String(groupName),
+			GroupName:   aws.String(groupName),
+			VpcId:       aws.String(vpc),
+		})
+		if err != nil {
+			return "", fmt.Errorf("could not create default server security group for AeroLab in vpc %s: %s", vpc, err)
+		}
+		if i == 0 && d.server {
+			secGroup = aws.StringValue(out.GroupId)
+		} else if i == 1 && d.client {
+			secGroup = aws.StringValue(out.GroupId)
+		}
+		secGroupIds = append(secGroupIds, aws.StringValue(out.GroupId))
+		err = d.ec2svc.WaitUntilSecurityGroupExists(&ec2.DescribeSecurityGroupsInput{
+			GroupNames: aws.StringSlice([]string{groupName}),
+		})
+		if err != nil {
+			d.deleteSecGroups(vpc)
+			return "", fmt.Errorf("an error occurred while waiting for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+		}
+	}
+
+	// add egress rules
+	for _, groupId := range secGroupIds {
+		_, err := d.ec2svc.AuthorizeSecurityGroupEgress(&ec2.AuthorizeSecurityGroupEgressInput{
+			GroupId: aws.String(groupId),
+			IpPermissions: []*ec2.IpPermission{
+				&ec2.IpPermission{
+					IpProtocol: aws.String("-1"),
+					FromPort:   aws.Int64(-1),
+					ToPort:     aws.Int64(-1),
+					IpRanges: []*ec2.IpRange{
+						&ec2.IpRange{
+							CidrIp:      aws.String("0.0.0.0/0"),
+							Description: aws.String("all"),
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			d.deleteSecGroups(vpc)
+			return "", fmt.Errorf("an error occurred while adding egress for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+		}
+	}
+
+	// add ingress rule for inter-comms
+	for _, groupId := range secGroupIds {
+		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
+			GroupId: aws.String(groupId),
+			IpPermissions: []*ec2.IpPermission{
+				&ec2.IpPermission{
+					IpProtocol: aws.String("-1"),
+					FromPort:   aws.Int64(-1),
+					ToPort:     aws.Int64(-1),
+					UserIdGroupPairs: []*ec2.UserIdGroupPair{
+						&ec2.UserIdGroupPair{
+							Description: aws.String("serverGroup"),
+							GroupId:     aws.String(secGroupIds[0]),
+							VpcId:       aws.String(vpc),
+						},
+						&ec2.UserIdGroupPair{
+							Description: aws.String("clientGroup"),
+							GroupId:     aws.String(secGroupIds[1]),
+							VpcId:       aws.String(vpc),
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			d.deleteSecGroups(vpc)
+			return "", fmt.Errorf("an error occurred while adding ingress intercomms for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+		}
+	}
+
+	// add ingress rule for port 22
+	for _, groupId := range secGroupIds {
+		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
+			GroupId: aws.String(groupId),
+			IpPermissions: []*ec2.IpPermission{
+				&ec2.IpPermission{
+					IpProtocol: aws.String("tcp"),
+					FromPort:   aws.Int64(22),
+					ToPort:     aws.Int64(22),
+					IpRanges: []*ec2.IpRange{
+						&ec2.IpRange{
+							CidrIp:      aws.String("0.0.0.0/0"),
+							Description: aws.String("ssh from anywhere"),
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			d.deleteSecGroups(vpc)
+			return "", fmt.Errorf("an error occurred while adding ingress port 22 for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+		}
+	}
+
+	// ingress rule for client for special ports (grafana, jupyter, vscode)
+	groupId := secGroupIds[1]
+	for _, port := range []int64{3000, 8080, 8888} {
+		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
+			GroupId: aws.String(groupId),
+			IpPermissions: []*ec2.IpPermission{
+				&ec2.IpPermission{
+					IpProtocol: aws.String("tcp"),
+					FromPort:   aws.Int64(port),
+					ToPort:     aws.Int64(port),
+					IpRanges: []*ec2.IpRange{
+						&ec2.IpRange{
+							CidrIp:      aws.String("0.0.0.0/0"),
+							Description: aws.String("allow " + strconv.Itoa(int(port)) + " from anywhere"),
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			d.deleteSecGroups(vpc)
+			return "", fmt.Errorf("an error occurred while adding ingress port 22 for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+		}
+	}
+	return secGroup, nil
+}
+
+func (d *backendAws) deleteSecGroups(vpc string) error {
+	var nerr error
+	_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+		GroupName: aws.String("AeroLabServer"),
+	})
+	if err != nil {
+		nerr = fmt.Errorf("failed to delete AeroLabServer group: %s", err)
+	}
+	_, err = d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+		GroupName: aws.String("AeroLabClient"),
+	})
+	if err != nil {
+		if nerr == nil {
+			nerr = fmt.Errorf("failed to delete AeroLabClient group: %s", err)
+		} else {
+			nerr = fmt.Errorf("%s ;; failed to delete AeroLabClient group: %s", nerr, err)
+		}
+	}
+	return nerr
 }

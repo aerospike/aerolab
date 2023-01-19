@@ -60,8 +60,8 @@ type clusterCreateCmdAws struct {
 	AMI             string `short:"A" long:"ami" description:"custom AMI to use (default ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
 	InstanceType    string `short:"I" long:"instance-type" description:"instance type to use" default:""`
 	Ebs             string `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
-	SecurityGroupID string `short:"S" long:"secgroup-id" description:"existing security group IDs to put instances in, comma-separated"`
-	SubnetID        string `short:"U" long:"subnet-id" description:"existing subnet ID to put instances in"`
+	SecurityGroupID string `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
+	SubnetID        string `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
 	PublicIP        bool   `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
 	IsArm           bool   `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices bool   `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
@@ -128,8 +128,8 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	if a.opts.Config.Backend.Type == "aws" {
-		if c.Aws.InstanceType == "" || c.Aws.SecurityGroupID == "" || c.Aws.SubnetID == "" {
-			return logFatal("AWS backend requires InstanceType, SecurityGroupID and SubnetID to be specified")
+		if c.Aws.InstanceType == "" {
+			return logFatal("AWS backend requires InstanceType to be specified")
 		}
 	}
 
