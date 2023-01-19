@@ -1660,7 +1660,7 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 			}
 		} else {
 			out, err := d.ec2svc.DescribeSubnets(&ec2.DescribeSubnetsInput{
-				SubnetIds: aws.StringSlice([]string{"subnetID"}),
+				SubnetIds: aws.StringSlice([]string{subnetID}),
 			})
 			if err != nil {
 				return "", "", fmt.Errorf("could not resolve given subnet: %s", err)
@@ -1718,10 +1718,10 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 		out, err := d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 			GroupNames: aws.StringSlice([]string{groupName}),
 		})
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "InvalidGroup.NotFound") {
 			return "", "", fmt.Errorf("could not resolve security groups: %s", err)
 		}
-		if len(out.SecurityGroups) == 0 {
+		if (err != nil && strings.Contains(err.Error(), "InvalidGroup.NotFound")) || len(out.SecurityGroups) == 0 {
 			log.Print("Managed Security groups not found in VPC for given subnet, creating AeroLabServer and AeroLabClient")
 			secGroup, err = d.createSecGroups(vpc)
 			if err != nil {
@@ -1762,30 +1762,6 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 		if err != nil {
 			d.deleteSecGroups(vpc)
 			return "", fmt.Errorf("an error occurred while waiting for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
-		}
-	}
-
-	// add egress rules
-	for _, groupId := range secGroupIds {
-		_, err := d.ec2svc.AuthorizeSecurityGroupEgress(&ec2.AuthorizeSecurityGroupEgressInput{
-			GroupId: aws.String(groupId),
-			IpPermissions: []*ec2.IpPermission{
-				&ec2.IpPermission{
-					IpProtocol: aws.String("-1"),
-					FromPort:   aws.Int64(-1),
-					ToPort:     aws.Int64(-1),
-					IpRanges: []*ec2.IpRange{
-						&ec2.IpRange{
-							CidrIp:      aws.String("0.0.0.0/0"),
-							Description: aws.String("all"),
-						},
-					},
-				},
-			},
-		})
-		if err != nil {
-			d.deleteSecGroups(vpc)
-			return "", fmt.Errorf("an error occurred while adding egress for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
 		}
 	}
 
