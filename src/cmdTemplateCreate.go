@@ -125,6 +125,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 		securityGroupID: c.Aws.SecurityGroupID,
 		subnetID:        c.Aws.SubnetID,
 		publicIP:        c.Aws.PublicIP,
+		tags:            c.Aws.Tags,
 	}
 	err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 	if err != nil {
