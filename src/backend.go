@@ -105,6 +105,8 @@ type backend interface {
 	// delete dangling template creations
 	VacuumTemplates() error
 	VacuumTemplate(v backendVersion) error
+	// may implement
+	DeleteSecurityGroups(vpc string) error
 }
 
 // check return code from exec function
