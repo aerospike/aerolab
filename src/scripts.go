@@ -341,4 +341,14 @@ chmod 755 /etc/init.d/aerospike
 	aerospikeInstallScript["docker:centos:8"] = strings.Replace(strings.Replace(aerospikeInstallScript["docker:centos:7"], "#!/bin/bash", "#!/bin/bash\ndnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y || exit 1", 1), "libcurl-openssl-devel", "libcurl-devel", 1)
 	aerospikeInstallScript["docker:amazon:2"] = aerospikeInstallScript["docker:centos:7"]
 
+	aerospikeInstallScript["docker:debian:11"] = aerospikeInstallScript["docker:ubuntu:22.04"]
+	aerospikeInstallScript["docker:debian:10"] = aerospikeInstallScript["docker:debian:11"]
+	aerospikeInstallScript["docker:debian:9"] = aerospikeInstallScript["docker:debian:11"]
+	aerospikeInstallScript["docker:debian:8"] = aerospikeInstallScript["docker:debian:11"]
+
+	aerospikeInstallScript["aws:debian:11"] = aerospikeInstallScript["aws:ubuntu:22.04"]
+	aerospikeInstallScript["aws:debian:10"] = aerospikeInstallScript["aws:debian:11"]
+	aerospikeInstallScript["aws:debian:9"] = aerospikeInstallScript["aws:debian:11"]
+	aerospikeInstallScript["aws:debian:8"] = aerospikeInstallScript["aws:debian:11"]
+
 }

@@ -36,8 +36,8 @@ type clusterCreateCmd struct {
 }
 
 type osSelectorCmd struct {
-	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: ubuntu|centos|amazon" default:"ubuntu"`
-	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2" default:"latest"`
+	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu"`
+	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2 debian:11|10|9|8" default:"latest"`
 }
 
 type chDirCmd struct {
@@ -57,7 +57,7 @@ type aerospikeVersionSelectorCmd struct {
 }
 
 type clusterCreateCmdAws struct {
-	AMI             string   `short:"A" long:"ami" description:"custom AMI to use (default ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
+	AMI             string   `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
 	InstanceType    string   `short:"I" long:"instance-type" description:"instance type to use" default:""`
 	Ebs             string   `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
 	SecurityGroupID string   `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`

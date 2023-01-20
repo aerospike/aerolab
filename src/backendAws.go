@@ -1095,9 +1095,9 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	input.DryRun = aws.Bool(false)
 	input.ImageId = aws.String(templateId)
 	if !v.isArm {
-		input.InstanceType = aws.String("t3.small")
+		input.InstanceType = aws.String("t3.medium")
 	} else {
-		input.InstanceType = aws.String("t4g.small")
+		input.InstanceType = aws.String("t4g.medium")
 	}
 	keyname := keyName
 	input.KeyName = &keyname

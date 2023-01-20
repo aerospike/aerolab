@@ -19,6 +19,8 @@ func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err
 		owner = "125523088429"
 	case "amazon":
 		owner = "137112412989"
+	case "debian":
+		owner = "136693071363"
 	default:
 		return "", errors.New("distro name lookup unsupporter")
 	}
@@ -52,6 +54,34 @@ func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err
 		}
 		name := *ami.Name
 		switch v.distroName {
+		case "debian":
+			if !strings.HasPrefix(name, "debian-") {
+				continue
+			}
+			if strings.Contains(name, "-backports-") {
+				continue
+			}
+			vals := strings.Split(name, "-")
+			if len(vals) < 3 {
+				continue
+			}
+			if v.distroVersion != vals[1] {
+				continue
+			}
+			if vals[2] != "amd64" && vals[2] != "arm64" {
+				continue
+			}
+			cdstring := *ami.CreationDate
+			if len(cdstring) < 19 {
+				continue
+			}
+			cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
+			if err == nil {
+				if cd.After(creationDate) {
+					creationDate = cd
+					imageId = *ami.ImageId
+				}
+			}
 		case "ubuntu":
 			if !strings.HasPrefix(name, "ubuntu/images/hvm-ssd/") {
 				continue
@@ -134,6 +164,8 @@ func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err
 
 func (d *backendAws) getUser(v backendVersion) string {
 	switch v.distroName {
+	case "debian":
+		return "admin"
 	case "ubuntu":
 		return "ubuntu"
 	case "centos":
