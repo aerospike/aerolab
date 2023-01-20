@@ -17,6 +17,7 @@ import (
 type configCmd struct {
 	Backend  configBackendCmd  `command:"backend" subcommands-optional:"true" description:"Show or change backend"`
 	Defaults configDefaultsCmd `command:"defaults" subcommands-optional:"true" description:"Show or change defaults in the configuration file"`
+	Aws      configAwsCmd      `command:"aws" subcommands-optional:"true" description:"AWS-only related management commands"`
 	Help     helpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -24,6 +25,22 @@ func (c *configCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
 	os.Exit(1)
 	return nil
+}
+
+type configAwsCmd struct {
+	DestroySecGroups destroySecGroupsCmd `command:"delete-security-groups" subcommands-optional:"true" description:"delete aerolab-managed security groups"`
+	Help             helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *configAwsCmd) Execute(args []string) error {
+	a.parser.WriteHelp(os.Stderr)
+	os.Exit(1)
+	return nil
+}
+
+type destroySecGroupsCmd struct {
+	VPC  string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type configBackendCmd struct {
@@ -40,6 +57,22 @@ type configDefaultsCmd struct {
 	Value       flags.Filename `short:"v" long:"value" description:"Value to set" default:""`
 	Reset       bool           `short:"r" long:"reset" description:"Reset to default value. Use instead of --value"`
 	Help        helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *destroySecGroupsCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "aws" {
+		return logFatal("required backend type to be AWS")
+	}
+	log.Print("Removing security groups")
+	err := b.DeleteSecurityGroups(c.VPC)
+	if err != nil {
+		return err
+	}
+	log.Print("Done")
+	return nil
 }
 
 func (c *configBackendCmd) Execute(args []string) error {

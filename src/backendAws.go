@@ -1847,6 +1847,53 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 }
 
 func (d *backendAws) deleteSecGroups(vpc string) error {
+	// prerequisite - remove dependencies between groups if such exist
+	group1, err1 := d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+		GroupNames: aws.StringSlice([]string{"AeroLabServer"}),
+	})
+	group2, err2 := d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+		GroupNames: aws.StringSlice([]string{"AeroLabClient"}),
+	})
+	if err1 == nil && err2 == nil && len(group1.SecurityGroups) > 0 && len(group2.SecurityGroups) > 0 {
+		_, err := d.ec2svc.RevokeSecurityGroupIngress(&ec2.RevokeSecurityGroupIngressInput{
+			GroupId: group1.SecurityGroups[0].GroupId,
+			IpPermissions: []*ec2.IpPermission{
+				&ec2.IpPermission{
+					IpProtocol: aws.String("-1"),
+					FromPort:   aws.Int64(-1),
+					ToPort:     aws.Int64(-1),
+					UserIdGroupPairs: []*ec2.UserIdGroupPair{
+						&ec2.UserIdGroupPair{
+							GroupId: group2.SecurityGroups[0].GroupId,
+							VpcId:   aws.String(vpc),
+						},
+					},
+				},
+			},
+		}) // remove server deps from client group
+		if err != nil {
+			log.Printf("WARN: could not remove server dependency from client group: %s", err)
+		}
+		_, err = d.ec2svc.RevokeSecurityGroupIngress(&ec2.RevokeSecurityGroupIngressInput{
+			GroupId: group2.SecurityGroups[0].GroupId,
+			IpPermissions: []*ec2.IpPermission{
+				&ec2.IpPermission{
+					IpProtocol: aws.String("-1"),
+					FromPort:   aws.Int64(-1),
+					ToPort:     aws.Int64(-1),
+					UserIdGroupPairs: []*ec2.UserIdGroupPair{
+						&ec2.UserIdGroupPair{
+							GroupId: group1.SecurityGroups[0].GroupId,
+							VpcId:   aws.String(vpc),
+						},
+					},
+				},
+			},
+		}) // remove client deps from server group
+		if err != nil {
+			log.Printf("WARN: could not remove client dependency from server group: %s", err)
+		}
+	}
 	var nerr error
 	_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
 		GroupName: aws.String("AeroLabServer"),
@@ -1865,4 +1912,28 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 		}
 	}
 	return nerr
+}
+
+func (d *backendAws) DeleteSecurityGroups(vpc string) error {
+	if vpc == "" {
+		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
+			Filters: []*ec2.Filter{
+				&ec2.Filter{
+					Name:   aws.String("is-default"),
+					Values: aws.StringSlice([]string{"true"}),
+				},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("could not resolve default VPC: %s", err)
+		}
+		if len(out.Vpcs) == 0 {
+			return fmt.Errorf("could not find default VPC, does not exist in AWS account; use the appropriate command switch to specify the VPC to use")
+		}
+		vpc = aws.StringValue(out.Vpcs[0].VpcId)
+		if len(out.Vpcs) > 1 {
+			log.Printf("WARN: more than 1 default VPC found, choosing first one in list: %s", vpc)
+		}
+	}
+	return d.deleteSecGroups(vpc)
 }
