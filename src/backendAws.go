@@ -1082,7 +1082,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	// end tag setup
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
-	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID)
+	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true)
 	if err != nil {
 		return err
 	}
@@ -1475,7 +1475,11 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		// end tag setup
 		input := ec2.RunInstancesInput{}
 		input.DryRun = aws.Bool(false)
-		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID)
+		printID := false
+		if i == start {
+			printID = true
+		}
+		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID)
 		if err != nil {
 			return err
 		}
@@ -1674,7 +1678,7 @@ func (d *backendAws) Download(clusterName string, node int, source string, desti
 	return scpExecDownload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
 }
 
-func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string) (secGroup string, subnet string, err error) {
+func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string, printID bool) (secGroup string, subnet string, err error) {
 	var vpc string
 	if secGroupID == "" || !strings.HasPrefix(subnetID, "subnet-") {
 		if !strings.HasPrefix(subnetID, "subnet-") {
@@ -1743,11 +1747,15 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 			log.Printf("WARN: more than 1 default subnet found for vpc %s, choosing first one in list: %s", vpc, subnet)
 		}
 	}
-	log.Printf("Using subnet ID %s", subnet)
+	if printID {
+		log.Printf("Using subnet ID %s", subnet)
+	}
 
 	if secGroupID != "" {
 		secGroup = secGroupID
-		log.Printf("Using security group ID %s", secGroup)
+		if printID {
+			log.Printf("Using security group ID %s", secGroup)
+		}
 	} else {
 		groupName := "AeroLabServer"
 		if d.client {
