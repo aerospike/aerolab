@@ -57,14 +57,15 @@ type aerospikeVersionSelectorCmd struct {
 }
 
 type clusterCreateCmdAws struct {
-	AMI             string `short:"A" long:"ami" description:"custom AMI to use (default ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
-	InstanceType    string `short:"I" long:"instance-type" description:"instance type to use" default:""`
-	Ebs             string `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
-	SecurityGroupID string `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
-	SubnetID        string `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
-	PublicIP        bool   `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
-	IsArm           bool   `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices bool   `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
+	AMI             string   `short:"A" long:"ami" description:"custom AMI to use (default ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
+	InstanceType    string   `short:"I" long:"instance-type" description:"instance type to use" default:""`
+	Ebs             string   `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
+	SecurityGroupID string   `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
+	SubnetID        string   `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
+	PublicIP        bool     `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	IsArm           bool     `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices bool     `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags            []string `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -280,6 +281,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		securityGroupID: c.Aws.SecurityGroupID,
 		subnetID:        c.Aws.SubnetID,
 		publicIP:        c.Aws.PublicIP,
+		tags:            c.Aws.Tags,
 	}
 
 	// check if template exists

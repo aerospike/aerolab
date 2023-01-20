@@ -120,6 +120,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		securityGroupID: c.Aws.SecurityGroupID,
 		subnetID:        c.Aws.SubnetID,
 		publicIP:        c.Aws.PublicIP,
+		tags:            c.Aws.Tags,
 	}
 
 	// arm fill

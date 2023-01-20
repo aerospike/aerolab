@@ -1012,6 +1012,23 @@ func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 }
 
 func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+	var extraTags []*ec2.Tag
+	badNames := []string{awsTagOperatingSystem, awsTagOSVersion, awsTagAerospikeVersion, awsTagUsedBy, awsTagClusterName, awsTagNodeNumber, "Arch", "Name"}
+	for _, extraTag := range extra.tags {
+		kv := strings.Split(extraTag, "=")
+		if len(kv) < 2 {
+			return errors.New("tags must follow key=value format")
+		}
+		key := kv[0]
+		if inslice.HasString(badNames, key) {
+			return fmt.Errorf("key %s is used internally by aerolab, cannot be used", key)
+		}
+		val := strings.Join(kv[1:], "=")
+		extraTags = append(extraTags, &ec2.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(val),
+		})
+	}
 	genKeyName := "template" + strconv.Itoa(int(time.Now().Unix()))
 	keyName, keyPath, err := d.getKey(genKeyName)
 	if err != nil {
@@ -1052,6 +1069,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	tgName.Key = aws.String("Name")
 	tgName.Value = aws.String(fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm))
 	tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgNodeNumber1, &tgUsedBy, &tgName, &tgArch}
+	tgs = append(tgs, extraTags...)
 	ts := ec2.TagSpecification{}
 	ts.Tags = tgs
 	ntype := "instance"
@@ -1289,10 +1307,12 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 		ImageIds: []*string{imageId},
 	})
 	// add tags to the image
+	imageTags := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgNodeNumber1, &tgUsedBy, &tgName, &tgArch}
+	imageTags = append(imageTags, extraTags...)
 	cti := ec2.CreateTagsInput{
 		DryRun:    aws.Bool(false),
 		Resources: []*string{imageId},
-		Tags:      []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgNodeNumber1, &tgUsedBy, &tgName, &tgArch},
+		Tags:      imageTags,
 	}
 	d.ec2svc.CreateTags(&cti)
 
@@ -1311,6 +1331,23 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 }
 
 func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
+	var extraTags []*ec2.Tag
+	badNames := []string{awsTagOperatingSystem, awsTagOSVersion, awsTagAerospikeVersion, awsTagUsedBy, awsTagClusterName, awsTagNodeNumber, "Arch", "Name"}
+	for _, extraTag := range extra.tags {
+		kv := strings.Split(extraTag, "=")
+		if len(kv) < 2 {
+			return errors.New("tags must follow key=value format")
+		}
+		key := kv[0]
+		if inslice.HasString(badNames, key) {
+			return fmt.Errorf("key %s is used internally by aerolab, cannot be used", key)
+		}
+		val := strings.Join(kv[1:], "=")
+		extraTags = append(extraTags, &ec2.Tag{
+			Key:   aws.String(key),
+			Value: aws.String(val),
+		})
+	}
 	hostType := extra.instanceType
 	if len(strings.Trim(extra.ebs, "\t\r\n ")) == 0 {
 		return errors.New("root disk size must be specified")
@@ -1425,6 +1462,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		tgName.Key = aws.String("Name")
 		tgName.Value = aws.String(fmt.Sprintf("aerolab4-%s_%d", name, i))
 		tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgUsedBy, &tgName}
+		tgs = append(tgs, extraTags...)
 		ts := ec2.TagSpecification{}
 		ts.Tags = tgs
 		ntype := "instance"
