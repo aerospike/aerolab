@@ -3,6 +3,7 @@
 * add notes at the end of AMS and exporter installation, referencing one-another to avoid confusion
 * allow for aerolab to auto-create security groups in aws, as well as discover subnet IDs based on AZ for the default VPC
 * allow tagging instances and images with custom tags when using the aws backend
+* add debian to the list of supported OS types
 
 #### 4.4.4
 * fix issue with the `autoload` directory execution in AWS

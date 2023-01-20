@@ -166,7 +166,7 @@ func (d *backendDocker) Init() error {
 
 func (d *backendDocker) versionToReal(v *backendVersion) error {
 	switch v.distroName {
-	case "ubuntu", "centos":
+	case "ubuntu", "centos", "debian":
 	case "amazon":
 		v.distroName = "centos"
 		v.distroVersion = "7"
