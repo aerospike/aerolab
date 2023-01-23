@@ -1,5 +1,5 @@
 package main
 
-var version = "v4.5.0"
+var version = "v4.6.0"
 
 var simulateArmInstaller = false

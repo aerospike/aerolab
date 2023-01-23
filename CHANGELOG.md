@@ -1,3 +1,7 @@
+#### 4.6.0
+* add client-side grafana dashboards to AMS monitoring stack client
+* add basic `aerospike.conf` config file generator UI
+
 #### 4.5.0
 * fix bug with old Aerospike version download, requiring username/password
 * add notes at the end of AMS and exporter installation, referencing one-another to avoid confusion
