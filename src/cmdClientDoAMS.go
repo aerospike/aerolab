@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/bestmethod/inslice"
@@ -173,6 +175,10 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to configure grafana (wget datasource): %s", err)
 	}
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "echo -e '  - name: Loki\n    type: loki\n    access: proxy\n    url: http://localhost:3100\n    jsonData:\n      maxLines: 1000\n' >> /etc/grafana/provisioning/datasources/all.yaml"})
+	if err != nil {
+		return fmt.Errorf("failed to add loki to grafana: %s", err)
+	}
 	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak", "s/prometheus:9090/127.0.0.1:9090/g", "/etc/grafana/provisioning/datasources/all.yaml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure grafana (sed datasource): %s", err)
@@ -187,6 +193,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/node.json"},
 		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/users.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/users.json"},
 		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/xdr.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/xdr.json"},
+		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/multizone-benchmark/asbench.json"},
 	}
 	for _, dashboard := range dashboards {
 		err = a.opts.Attach.Client.run(dashboard)
@@ -234,6 +241,57 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		return fmt.Errorf("failed to install startup script: %s", err)
 	}
 
+	// loki - install
+	b.WorkOnClients()
+	var nodes []int
+	err = c.Machines.ExpandNodes(string(c.ClientName))
+	if err != nil {
+		return err
+	}
+	nodesList, err := b.NodeListInCluster(string(c.ClientName))
+	if err != nil {
+		return err
+	}
+	if c.Machines == "" {
+		nodes = nodesList
+	} else {
+		for _, nodeString := range strings.Split(c.Machines.String(), ",") {
+			nodeInt, err := strconv.Atoi(nodeString)
+			if err != nil {
+				return err
+			}
+			if !inslice.HasInt(nodesList, nodeInt) {
+				return fmt.Errorf("node %d does not exist in cluster", nodeInt)
+			}
+			nodes = append(nodes, nodeInt)
+		}
+	}
+	if len(nodes) == 0 {
+		err = errors.New("found 0 nodes in cluster")
+		return err
+	}
+	lokiScript, lokiSize := installLokiScript()
+	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{filePath: "/opt/install-loki.sh", fileContents: strings.NewReader(lokiScript), fileSize: lokiSize}}, nodes)
+	if err != nil {
+		return fmt.Errorf("failed to install loki download script: %s", err)
+	}
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/install-loki.sh"})
+	if err != nil {
+		return fmt.Errorf("failed to install loki: %s", err)
+	}
+
+	// install loki startup script
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "mkdir -p /opt/autoload; echo 'nohup /usr/bin/loki -config.file=/etc/loki/loki.yaml -log-config-reverse-order > /var/log/loki.log 2>&1 &' > /opt/autoload/03-loki; chmod 755 /opt/autoload/*"})
+	if err != nil {
+		return fmt.Errorf("failed to install loki startup script: %s", err)
+	}
+
+	// start loki
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/autoload/03-loki"})
+	if err != nil {
+		return fmt.Errorf("failed to restart prometheus: %s", err)
+	}
+
 	// install early/late scripts
 	if string(c.StartScript) != "" {
 		a.opts.Files.Upload.ClusterName = TypeClusterName(c.ClientName)
@@ -266,4 +324,48 @@ providers:
   options:
     path: /var/lib/grafana/dashboards
 `
+}
+
+func installLokiScript() (script string, size int) {
+	script = `apt-get update && apt-get -y install wget curl unzip || exit 1
+cd /root
+wget https://github.com/grafana/loki/releases/download/v2.5.0/loki-linux-amd64.zip || exit 1
+unzip loki-linux-amd64.zip || exit 1
+mv loki-linux-amd64 /usr/bin/loki || exit 1
+wget https://github.com/grafana/loki/releases/download/v2.5.0/logcli-linux-amd64.zip || exit 1
+unzip logcli-linux-amd64.zip || exit 1
+mv logcli-linux-amd64 /usr/bin/logcli || exit 1
+chmod 755 /usr/bin/logcli /usr/bin/loki || exit 1
+mkdir -p /etc/loki /data-logs/loki
+cat <<'EOF' > /etc/loki/loki.yaml
+auth_enabled: false
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+common:
+  path_prefix: /data-logs/loki
+  storage:
+    filesystem:
+      chunks_directory: /data-logs/loki/chunks
+      rules_directory: /data-logs/loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+analytics:
+  reporting_enabled: false
+EOF
+`
+	size = len(script)
+	return
 }
