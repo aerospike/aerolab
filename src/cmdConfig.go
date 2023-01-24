@@ -45,8 +45,8 @@ type destroySecGroupsCmd struct {
 }
 
 type lockSecGroupsCmd struct {
-	VPC  string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
 	IP   string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
+	Ssh  bool    `short:"s" long:"ssh" description:"set to also lock port 22 SSH to the given IP/mask for server and client groups"`
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -90,7 +90,7 @@ func (c *lockSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Locking security groups")
-	err := b.LockSecurityGroups(c.VPC, c.IP)
+	err := b.LockSecurityGroups(c.IP, c.Ssh)
 	if err != nil {
 		return err
 	}
