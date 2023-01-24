@@ -685,7 +685,7 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 		t = strings.Trim(t, "'\"")
 		clusterList = append(clusterList, t)
 	}
-	response = response + "\n\nNODE_NAME | NODE_IP\n===================\n"
+	response = response + "\n\nTYPE | NAME                 | NODE_NO | NODE_IP\n===============================================\n"
 	for _, cluster := range clusterList {
 		if strings.HasPrefix(cluster, dockerNameHeader+"") {
 			out, err = exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", cluster).CombinedOutput()
@@ -693,7 +693,21 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 				return "", err
 			}
 			ip := strings.Trim(string(out), "'\" \n\r")
-			response = response + cluster + " | " + ip + "\n"
+			ctype := "unknown"
+			if strings.HasPrefix(cluster, "aerolab-") {
+				ctype = "server"
+				cluster = strings.TrimPrefix(cluster, "aerolab-")
+			} else if strings.HasPrefix(cluster, "aerolab_c-") {
+				ctype = "client"
+				cluster = strings.TrimPrefix(cluster, "aerolab_c-")
+			}
+			cc := strings.Split(cluster, "_")
+			cluster = strings.Join(cc[0:len(cc)-1], "_")
+			node := cc[len(cc)-1]
+			for len(cluster) < 20 {
+				cluster = cluster + " "
+			}
+			response = response + ctype + " | " + cluster + " | " + node + " | " + ip + "\n"
 		}
 	}
 	response = response + "\n\nTo see all docker containers (including base OS images), not just those specific to aerolab:\n$ docker container list -a\n$ docker image list -a\n"
