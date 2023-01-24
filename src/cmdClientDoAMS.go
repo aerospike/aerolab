@@ -296,9 +296,10 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	}
 
 	// start loki
+	a.opts.Attach.Client.Detach = true
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/autoload/03-loki"})
 	if err != nil {
-		return fmt.Errorf("failed to restart prometheus: %s", err)
+		return fmt.Errorf("failed to restart loki: %s", err)
 	}
 
 	// install early/late scripts

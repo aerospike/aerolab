@@ -27,11 +27,11 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 		c.Machines = "ALL"
 	}
 	a.opts.Attach.Client.Machine = c.Machines
+	b.WorkOnClients()
 	nodeList, err := c.checkClustersExist(c.ConnectAMS.String())
 	if err != nil {
 		return err
 	}
-	b.WorkOnClients()
 	allnodes := []string{}
 	for _, nodes := range nodeList {
 		for _, node := range nodes {
@@ -85,10 +85,10 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to install loki download script: %s", err)
 		}
-		err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/install-promtail.sh"})
-		if err != nil {
-			return fmt.Errorf("failed to install loki: %s", err)
-		}
+	}
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/install-promtail.sh"})
+	if err != nil {
+		return fmt.Errorf("failed to install loki: %s", err)
 	}
 	// install promtail config file
 	promScript := promTailConf()
@@ -109,6 +109,7 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 
 	// (re)start promtail
 	a.opts.Attach.Client.run([]string{"pkill", "-9", "promtail"})
+	a.opts.Attach.Client.Detach = true
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/autoload/10-promtail"})
 	if err != nil {
 		return fmt.Errorf("failed to restart promtail: %s", err)
