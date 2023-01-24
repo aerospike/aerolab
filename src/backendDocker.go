@@ -685,7 +685,7 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 		t = strings.Trim(t, "'\"")
 		clusterList = append(clusterList, t)
 	}
-	response = response + "\n\nTYPE | NAME                 | NODE_NO | NODE_IP\n===============================================\n"
+	response = response + "\n\nTYPE   | NAME                 | NODE_NO | NODE_IP\n=========================================================\n"
 	for _, cluster := range clusterList {
 		if strings.HasPrefix(cluster, dockerNameHeader+"") {
 			out, err = exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", cluster).CombinedOutput()
@@ -706,6 +706,9 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 			node := cc[len(cc)-1]
 			for len(cluster) < 20 {
 				cluster = cluster + " "
+			}
+			for len(node) < 7 {
+				node = node + " "
 			}
 			response = response + ctype + " | " + cluster + " | " + node + " | " + ip + "\n"
 		}
