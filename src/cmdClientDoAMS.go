@@ -193,7 +193,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/node.json"},
 		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/users.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/users.json"},
 		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/xdr.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/xdr.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/multizone-benchmark/asbench.json"},
+		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/asbench.json"},
 	}
 	for _, dashboard := range dashboards {
 		err = a.opts.Attach.Client.run(dashboard)

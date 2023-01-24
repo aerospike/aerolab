@@ -9,9 +9,9 @@ sed 's/_RACKID_/3/g' ${TNF} |sed "s/_NAMESPACE_/${NAMESPACE}/g" > rack3.conf
 
 # create cluster
 echo "Creating cluster"
-aerolab cluster create -n ${NAME} -c 2 -v ${VER} -o rack1.conf --instance-type ${AWS_INSTANCE} --ebs=40 --secgroup-id=${us_west_2} --subnet-id=${us_west_2a} || exit 1
-aerolab cluster grow -n ${NAME} -c 2 -v ${VER} -o rack2.conf --instance-type ${AWS_INSTANCE} --ebs=40 --secgroup-id=${us_west_2} --subnet-id=${us_west_2b} || exit 1
-aerolab cluster grow -n ${NAME} -c 2 -v ${VER} -o rack3.conf --instance-type ${AWS_INSTANCE} --ebs=40 --secgroup-id=${us_west_2} --subnet-id=${us_west_2d} || exit 1
+aerolab cluster create -n ${NAME} -c 2 -v ${VER} -o rack1.conf --instance-type ${AWS_INSTANCE} --ebs=40 --subnet-id=${AWS_AZ_1} || exit 1
+aerolab cluster grow -n ${NAME} -c 2 -v ${VER} -o rack2.conf --instance-type ${AWS_INSTANCE} --ebs=40 --subnet-id=${AWS_AZ_2} || exit 1
+aerolab cluster grow -n ${NAME} -c 2 -v ${VER} -o rack3.conf --instance-type ${AWS_INSTANCE} --ebs=40 --subnet-id=${AWS_AZ_3} || exit 1
 
 if [ "${PROVISION}" != "" ]
 then
@@ -73,6 +73,6 @@ aerolab cluster add exporter -n ${NAME} -o ape.toml || exit 1
 
 # deploy ams
 echo "AMS"
-aerolab client create ams -n ${AMS_NAME} -s ${NAME} --instance-type ${AWS_CLIENT_INSTANCE} --ebs=40 --secgroup-id=${us_west_2_open} --subnet-id=${us_west_2a} || exit 1
+aerolab client create ams -n ${AMS_NAME} -s ${NAME} --instance-type ${AWS_CLIENT_INSTANCE} --ebs=40 --subnet-id=${AWS_AZ_1} || exit 1
 echo
 aerolab client list |grep ${AMS_NAME}
