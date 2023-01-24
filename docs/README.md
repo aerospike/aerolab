@@ -12,4 +12,5 @@
 * [Useful scripts](../scripts/README.md)
   * [Deploy an LDAP server](../scripts/aerolab-ldap/README.md)
   * [Build an Aerospike cluster with LDAP and TLS](../scripts/aerolab-buildenv/README.md)
-* [Deploying a full stack - servers, asbench client and AMS monitoring](usage/fullstack.md)
+* [Deploying a full stack - servers, asbench client and AMS monitoring - Docker](usage/fullstack.md)
+* [Deploying a full stack - servers, asbench client and AMS monitoring - AWS](usage/fullstack_aws.md)

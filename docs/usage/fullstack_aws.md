@@ -1,16 +1,30 @@
-# Full server-client stack with AMS monitoring example for Docker
+# Full server-client stack with AMS monitoring example for AWS
 
 ## Define variables
 
+```
 cluster_name="robert"
 client_name="glonek"
 ams_name="ams"
 namespace="test"
+backend="aws"
+aws_region="ca-central-1"
+aws_az="ca-central-1a"
+aws_instance_type_server="t3a.medium"
+aws_instance_type_ams="t3a.large"
+aws_instance_type_client="t3a.medium"
+```
+
+## Configure backend
+
+```
+aerolab config backend -t ${backend} -r ${aws_region}
+```
 
 ## Deploy a 5-node cluster
 
 ```
-aerolab cluster create -c 5 -n ${cluster_name}
+aerolab cluster create -c 5 -n ${cluster_name} -I ${aws_instance_type_server} -U ${aws_az}
 ```
 
 ## Add exporter to the cluster to monitor in AMS
@@ -24,7 +38,7 @@ aerolab cluster add exporter -n ${cluster_name}
 ### Using AWS or Docker where the containers are directly accessible from the host
 
 ```
-aerolab client create ams -n ${ams_name} -s ${cluster_name}
+aerolab client create ams -n ${ams_name} -s ${cluster_name} -I ${aws_instance_type_ams} -U ${aws_az}
 ```
 
 ### Using Docker Desktop without tunneling configured
@@ -36,7 +50,7 @@ aerolab client create ams -n ${ams_name} -s ${cluster_name} -e 3000:3000
 ## Deploy 5 tools machines for asbenchmark
 
 ```
-aerolab client create tools -n ${client_name} -c 5
+aerolab client create tools -n ${client_name} -c 5 -I ${aws_instance_type_client} -U ${aws_az}
 ```
 
 ## Add promtail to clients to push asbenchmark logs to AMS stack
