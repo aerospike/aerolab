@@ -4,12 +4,15 @@ PROVISION=""
 
 # basics
 NAME="demo-cluster"         # cluster name
-AMS_NAME="demo-ams"         # ams client name
+AMS_NAME="demo-ams"         # ams client name; contains asbench graphs too
 CLIENT_NAME="demo-clients"  # name of client machine group
-PRETTY_NAME="demo-cgraphs"  # name of the asbench grafana machine
 #AWS_REGION="us-west-2"     # uncomment to switch to using AWS instead of docker
+AWS_AZ_1="ca-central-1a"
+AWS_AZ_2="ca-central-1b"
+AWS_AZ_3="ca-central-1c"
 AWS_INSTANCE="t3a.medium"   # example with NVMe disks: c5ad.4xlarge; can use ARM instances here
-AWS_CLIENT_INSTANCE="t3a.medium" # for this script, x86_64 only here
+AWS_AMS_INSTANCE="t3a.medium"    # instance for AMS to use
+AWS_CLIENT_INSTANCE="t3a.medium" # instance to use for client asbench machines
 VER="6.1.0.4"
 FEATURES="/Users/rglonek/aerolab/templates/features.conf"
 NAMESPACE="bar"
@@ -21,16 +24,6 @@ CLIENTS=2
 # IF THIS IS SET, template_nvme.conf WILL BE SHIPPED INSTEAD, ADJUST THAT TO YOUR NEEDS TOO
 # below example works with c5ad.4xlarge
 #PROVISION="/dev/nvme1n1 /dev/nvme2n1" # list disks to provision, space separated
-
-# security groups - adjust to your IDs
-us_west_2=sg-0aad8946ddc28141c
-us_west_2_open=sg-02d0e461917ff8d5e
-
-# subnets - adjust to your IDs
-us_west_2a=subnet-0a92aefc2053beed0
-us_west_2b=subnet-0eab0b37ce92a3bab
-us_west_2c=subnet-08f71713aa089cb44
-us_west_2d=subnet-0e153f691c1313a49
 
 ### below parts should not be touched ###
 
