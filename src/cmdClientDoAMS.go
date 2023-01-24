@@ -317,6 +317,9 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs. Username:Password is admin:admin")
 	log.Print("Done")
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")
+	if a.opts.Config.Backend.Type == "aws" {
+		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
+	}
 	return nil
 }
 
