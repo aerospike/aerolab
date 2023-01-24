@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	flags "github.com/rglonek/jeddevdk-goflags"
@@ -127,6 +128,33 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	// add asbench wrapper script
+	runasbench := "nohup asbench \"$@\" >>/var/log/asbench.log 2>&1 &"
+	f, err := os.CreateTemp("", "runasbench-")
+	if err != nil {
+		return fmt.Errorf("could not create a temp file for asbench wrapper: %s", err)
+	}
+	fName := f.Name()
+	_, err = f.WriteString(runasbench)
+	f.Close()
+	if err != nil {
+		return fmt.Errorf("could not write a temp file for asbench wrapper: %s", err)
+	}
+	a.opts.Files.Upload.ClusterName = TypeClusterName(c.ClientName)
+	a.opts.Files.Upload.Nodes = TypeNodes(c.Machines)
+	a.opts.Files.Upload.Files.Source = flags.Filename(fName)
+	a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/bin/run_asbench")
+	a.opts.Files.Upload.IsClient = true
+	err = a.opts.Files.Upload.runUpload(args)
+	if err != nil {
+		return err
+	}
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 755 /usr/bin/run_asbench"})
+	if err != nil {
+		return err
+	}
+
 	// install early/late scripts
 	if string(c.StartScript) != "" {
 		a.opts.Files.Upload.ClusterName = TypeClusterName(c.ClientName)
