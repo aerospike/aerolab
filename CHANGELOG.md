@@ -1,5 +1,6 @@
 #### 4.6.0
 * add client-side grafana dashboards to AMS monitoring stack client
+* add `fullstack` documentation on how to deploy the full stack
 * make cluster list better looking in docker backend
 * add basic `aerospike.conf` config file generator UI
 
