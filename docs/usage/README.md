@@ -23,7 +23,8 @@
 
 ## Recipies
 
-* [Deploying a full stack - servers, asbench client and AMS monitoring](fullstack.md)
+* [Deploying a full stack - servers, asbench client and AMS monitoring - Docker](fullstack.md)
+* [Deploying a full stack - servers, asbench client and AMS monitoring - AWS](fullstack_aws.md)
 
 ## Advanced
 
