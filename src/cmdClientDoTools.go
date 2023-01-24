@@ -136,6 +136,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		return fmt.Errorf("could not create a temp file for asbench wrapper: %s", err)
 	}
 	fName := f.Name()
+	defer os.Remove(fName)
 	_, err = f.WriteString(runasbench)
 	f.Close()
 	if err != nil {
