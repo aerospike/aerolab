@@ -35,7 +35,7 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 	allnodes := []string{}
 	for _, nodes := range nodeList {
 		for _, node := range nodes {
-			allnodes = append(allnodes, node+"3100")
+			allnodes = append(allnodes, node+":3100")
 		}
 	}
 	if len(allnodes) == 0 {
