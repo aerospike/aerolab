@@ -18,7 +18,12 @@
 * [Create an Aerospike cluster with Strong Consistency](strong.md)
 
 ## Monitoring
+
 * [Deploy Aerospike Monitoring Stack and Prometheus exporter](ams.md)
+
+## Recipies
+
+* [Deploying a full stack - servers, asbench client and AMS monitoring](fullstack.md)
 
 ## Advanced
 
