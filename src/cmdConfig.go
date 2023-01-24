@@ -29,6 +29,7 @@ func (c *configCmd) Execute(args []string) error {
 
 type configAwsCmd struct {
 	DestroySecGroups destroySecGroupsCmd `command:"delete-security-groups" subcommands-optional:"true" description:"delete aerolab-managed security groups"`
+	LockSecGroups    lockSecGroupsCmd    `command:"lock-security-groups" subcommands-optional:"true" description:"log the client security groups so that AMS/vscode are only accessible from a set IP"`
 	Help             helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -40,6 +41,12 @@ func (c *configAwsCmd) Execute(args []string) error {
 
 type destroySecGroupsCmd struct {
 	VPC  string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type lockSecGroupsCmd struct {
+	VPC  string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
+	IP   string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -68,6 +75,22 @@ func (c *destroySecGroupsCmd) Execute(args []string) error {
 	}
 	log.Print("Removing security groups")
 	err := b.DeleteSecurityGroups(c.VPC)
+	if err != nil {
+		return err
+	}
+	log.Print("Done")
+	return nil
+}
+
+func (c *lockSecGroupsCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "aws" {
+		return logFatal("required backend type to be AWS")
+	}
+	log.Print("Locking security groups")
+	err := b.LockSecurityGroups(c.VPC, c.IP)
 	if err != nil {
 		return err
 	}

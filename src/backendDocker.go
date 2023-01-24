@@ -48,6 +48,10 @@ func (d *backendDocker) DeleteSecurityGroups(vpc string) error {
 	return nil
 }
 
+func (d *backendDocker) LockSecurityGroups(vpc string, ip string) error {
+	return nil
+}
+
 func (d *backendDocker) ClusterList() ([]string, error) {
 	out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{json .Names}}").CombinedOutput()
 	if err != nil {

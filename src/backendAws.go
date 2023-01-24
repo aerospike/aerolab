@@ -1773,6 +1773,7 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 			if err != nil {
 				return "", "", fmt.Errorf("could create security groups: %s", err)
 			}
+			log.Print("WARN: Created unrestricted security group for aerolab clients; to lock these down, use: aerolab config aws lock-security-groups")
 		} else {
 			secGroup = aws.StringValue(out.SecurityGroups[0].GroupId)
 			log.Printf("Using security group ID %s name %s", secGroup, groupName)
@@ -1982,4 +1983,8 @@ func (d *backendAws) DeleteSecurityGroups(vpc string) error {
 		}
 	}
 	return d.deleteSecGroups(vpc)
+}
+
+func (d *backendAws) LockSecurityGroups(vpc string, ip string) error {
+	return nil
 }

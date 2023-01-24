@@ -108,6 +108,8 @@ type backend interface {
 	VacuumTemplate(v backendVersion) error
 	// may implement
 	DeleteSecurityGroups(vpc string) error
+	// may implement
+	LockSecurityGroups(vpc string, ip string) error
 }
 
 // check return code from exec function

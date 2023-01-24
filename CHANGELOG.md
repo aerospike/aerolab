@@ -3,6 +3,7 @@
 * add `fullstack` documentation on how to deploy the full stack
 * make cluster list better looking in docker backend
 * add basic `aerospike.conf` config file generator UI
+* add `aerolab config aws lock-security-groups` for locking down sec groups to just the caller IP
 
 #### 4.5.0
 * fix bug with old Aerospike version download, requiring username/password
