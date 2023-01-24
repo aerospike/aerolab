@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -206,6 +207,9 @@ func (c *clientAddJupyterCmd) addJupyter(args []string) error {
 	}
 	nargs := append([]string{"/bin/bash", "/install.sh"}, switches...)
 	err = a.opts.Attach.Client.run(nargs)
+	if a.opts.Config.Backend.Type == "aws" {
+		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
+	}
 	return err
 }
 

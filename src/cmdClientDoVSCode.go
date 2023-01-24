@@ -159,6 +159,9 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 		return err
 	}
 	log.Print("Done, to access vscode, run `aerolab client list` to get the IP, and then visit http://IP:8080 in your browser")
+	if a.opts.Config.Backend.Type == "aws" {
+		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
+	}
 	return nil
 }
 
