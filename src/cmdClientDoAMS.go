@@ -270,7 +270,16 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		err = errors.New("found 0 nodes in cluster")
 		return err
 	}
-	lokiScript, lokiSize := installLokiScript()
+	// arm fill
+	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "docker" {
+		if b.Arch() == TypeArchArm {
+			isArm = true
+		} else {
+			isArm = false
+		}
+	}
+	lokiScript, lokiSize := installLokiScript(isArm)
 	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{filePath: "/opt/install-loki.sh", fileContents: strings.NewReader(lokiScript), fileSize: lokiSize}}, nodes)
 	if err != nil {
 		return fmt.Errorf("failed to install loki download script: %s", err)
@@ -326,15 +335,19 @@ providers:
 `
 }
 
-func installLokiScript() (script string, size int) {
+func installLokiScript(isArm bool) (script string, size int) {
+	arch := "amd64"
+	if isArm {
+		arch = "arm64"
+	}
 	script = `apt-get update && apt-get -y install wget curl unzip || exit 1
 cd /root
-wget https://github.com/grafana/loki/releases/download/v2.5.0/loki-linux-amd64.zip || exit 1
-unzip loki-linux-amd64.zip || exit 1
-mv loki-linux-amd64 /usr/bin/loki || exit 1
-wget https://github.com/grafana/loki/releases/download/v2.5.0/logcli-linux-amd64.zip || exit 1
-unzip logcli-linux-amd64.zip || exit 1
-mv logcli-linux-amd64 /usr/bin/logcli || exit 1
+wget https://github.com/grafana/loki/releases/download/v2.5.0/loki-linux-` + arch + `.zip || exit 1
+unzip loki-linux-` + arch + `.zip || exit 1
+mv loki-linux-` + arch + ` /usr/bin/loki || exit 1
+wget https://github.com/grafana/loki/releases/download/v2.5.0/logcli-linux-` + arch + `.zip || exit 1
+unzip logcli-linux-` + arch + `.zip || exit 1
+mv logcli-linux-` + arch + ` /usr/bin/logcli || exit 1
 chmod 755 /usr/bin/logcli /usr/bin/loki || exit 1
 mkdir -p /etc/loki /data-logs/loki
 cat <<'EOF' > /etc/loki/loki.yaml
