@@ -2,10 +2,12 @@
 
 ## Define variables
 
+```
 cluster_name="robert"
 client_name="glonek"
 ams_name="ams"
 namespace="test"
+```
 
 ## Deploy a 5-node cluster
 
