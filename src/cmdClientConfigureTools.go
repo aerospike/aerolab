@@ -90,6 +90,17 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 			return fmt.Errorf("failed to install loki: %s", err)
 		}
 	}
+	// install promtail config file
+	promScript := promTailConf()
+	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{filePath: "/opt/configure-promtail.sh", fileContents: strings.NewReader(promScript), fileSize: len(promScript)}}, tnodes)
+	if err != nil {
+		return fmt.Errorf("failed to install conf script: %s", err)
+	}
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/configure-promtail.sh"})
+	if err != nil {
+		return fmt.Errorf("failed to install conf: %s", err)
+	}
+
 	// install promtail startup script
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "mkdir -p /opt/autoload; echo 'nohup /usr/bin/promtail -config.file=/etc/promtail/promtail.yaml -log-config-reverse-order > /var/log/promtail.log 2>&1 &' > /opt/autoload/10-promtail; chmod 755 /opt/autoload/*"})
 	if err != nil {
@@ -104,6 +115,28 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 	}
 	log.Print("Done")
 	return nil
+}
+
+func promTailConf() string {
+	return `cat <<EOF > /etc/promtail/promtail.yaml
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+positions:
+  filename: /var/promtail/positions.yaml
+clients:
+  - url: http://$(cat /opt/asbench-grafana.ip)/loki/api/v1/push
+scrape_configs:
+  - job_name: asbench
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: asbench
+          __path__: /var/log/asbench.log
+          host: $(hostname)
+EOF
+`
 }
 
 func promTailScript(isArm bool) string {
