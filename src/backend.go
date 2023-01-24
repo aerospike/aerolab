@@ -109,7 +109,7 @@ type backend interface {
 	// may implement
 	DeleteSecurityGroups(vpc string) error
 	// may implement
-	LockSecurityGroups(vpc string, ip string) error
+	LockSecurityGroups(ip string, lockSSH bool) error
 }
 
 // check return code from exec function

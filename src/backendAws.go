@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"sort"
 	"strconv"
@@ -1985,6 +1986,99 @@ func (d *backendAws) DeleteSecurityGroups(vpc string) error {
 	return d.deleteSecGroups(vpc)
 }
 
-func (d *backendAws) LockSecurityGroups(vpc string, ip string) error {
+func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool) error {
+	portList := []int64{3000, 8080, 8888}
+	if lockSSH {
+		portList = append(portList, 22)
+	}
+	err := d.lockSecurityGroups(ip, portList, "AeroLabClient")
+	if err != nil {
+		return err
+	}
+	if lockSSH {
+		return d.lockSecurityGroups(ip, []int64{22}, "AeroLabServer")
+	}
 	return nil
+}
+
+func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupName string) error {
+	groups, err := d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+		GroupNames: aws.StringSlice([]string{secGroupName}),
+	})
+	if err != nil {
+		return fmt.Errorf("could not get AeroLabClient security group in selected region: %s", err)
+	}
+	if len(groups.SecurityGroups) == 0 {
+		return errors.New("could not find security group")
+	}
+	group := groups.SecurityGroups[0]
+
+	for _, port := range portList {
+		for _, rule := range group.IpPermissions {
+			if aws.Int64Value(rule.FromPort) != port {
+				continue
+			}
+			_, err = d.ec2svc.RevokeSecurityGroupIngress(&ec2.RevokeSecurityGroupIngressInput{
+				GroupId: group.GroupId,
+				IpPermissions: []*ec2.IpPermission{
+					rule,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("an error occurred while removing ingress ports for security group: %s", err)
+			}
+		}
+	}
+
+	if ip == "discover-caller-ip" {
+		ip = getip2()
+	}
+	if !strings.Contains(ip, "/") {
+		ip = ip + "/32"
+	}
+	for _, port := range portList {
+		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
+			GroupId: group.GroupId,
+			IpPermissions: []*ec2.IpPermission{
+				&ec2.IpPermission{
+					IpProtocol: aws.String("tcp"),
+					FromPort:   aws.Int64(port),
+					ToPort:     aws.Int64(port),
+					IpRanges: []*ec2.IpRange{
+						&ec2.IpRange{
+							CidrIp:      aws.String(ip),
+							Description: aws.String("allow " + strconv.Itoa(int(port)) + " from anywhere"),
+						},
+					},
+				},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("an error occurred while adding ingress ports for security group in vpc %s", err)
+		}
+	}
+
+	return nil
+}
+
+type IP struct {
+	Query string
+}
+
+func getip2() string {
+	req, err := http.Get("http://ip-api.com/json/")
+	if err != nil {
+		return err.Error()
+	}
+	defer req.Body.Close()
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return err.Error()
+	}
+
+	var ip IP
+	json.Unmarshal(body, &ip)
+
+	return ip.Query
 }
