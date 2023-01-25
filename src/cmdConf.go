@@ -3,8 +3,9 @@ package main
 import "os"
 
 type confCmd struct {
-	FixMesh confFixMeshCmd `command:"fix-mesh" subcommands-optional:"true" description:"Fix mesh configuration in the cluster"`
-	Help    helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	Generator confGeneratorCmd `command:"generate" subcommands-optional:"true" description:"Generate or modify Aerospike configuration files"`
+	FixMesh   confFixMeshCmd   `command:"fix-mesh" subcommands-optional:"true" description:"Fix mesh configuration in the cluster"`
+	Help      helpCmd          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *confCmd) Execute(args []string) error {
