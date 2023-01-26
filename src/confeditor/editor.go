@@ -841,9 +841,18 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						}
 					}
 				}
-				// TODO: if this changes we will need to reparse children (encryption and deviceAndMemory!!!)
 			case itemStorageEngineDeviceAndMemory:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("data-in-memory", "true")
+				} else {
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").Delete("data-in-memory")
+				}
 			case itemStorageEngineEncryption:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("encryption-key-file", "/opt/aerospike/key.dat")
+				} else {
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").Delete("encryption-key-file")
+				}
 			case itemLoggingDestinationFile:
 			case itemLoggingDestinationCOnsole:
 			case itemLoggingLevelInfo:
@@ -878,6 +887,11 @@ func switchItem(items []menuItem, pos int, curPos int) ([]menuItem, int, []menuI
 				} else {
 					items[i].Selected = true
 					changes = append(changes, items[i])
+					for f := range items[i].Children {
+						if items[i].Children[f].Type == typeMenuItemCheckbox || items[i].Children[f].Type == typeMenuItemRadio {
+							changes = append(changes, items[i].Children[f])
+						}
+					}
 					if item.Type == typeMenuItemRadio {
 						j := i - 1
 						for j >= 0 && items[j].Type == typeMenuItemRadio {
