@@ -189,12 +189,12 @@ func fillMenuItems() {
 					Item:  itemTlsEnabled,
 					Children: []menuItem{
 						menuItem{
-							Type:  typeMenuItemRadio,
+							Type:  typeMenuItemCheckbox,
 							Label: "service port",
 							Item:  itemTlsService,
 						},
 						menuItem{
-							Type:  typeMenuItemRadio,
+							Type:  typeMenuItemCheckbox,
 							Label: "fabric port",
 							Item:  itemTlsFabric,
 						},
@@ -883,7 +883,7 @@ func switchItem(items []menuItem, pos int, curPos int) ([]menuItem, int, []menuI
 						for j >= 0 && items[j].Type == typeMenuItemRadio {
 							if items[j].Selected {
 								items[j].Selected = false
-								changes = append(changes, items[i])
+								changes = append(changes, items[j])
 							}
 							j--
 						}
@@ -891,7 +891,7 @@ func switchItem(items []menuItem, pos int, curPos int) ([]menuItem, int, []menuI
 						for j < len(items) && items[j].Type == typeMenuItemRadio {
 							if items[j].Selected {
 								items[j].Selected = false
-								changes = append(changes, items[i])
+								changes = append(changes, items[j])
 							}
 							j++
 						}
