@@ -24,6 +24,7 @@ const (
 	typeMenuItemText     = 1
 	typeMenuItemRadio    = 2
 	typeMenuItemCheckbox = 3
+	typeMenuItemEmpty    = 4
 )
 
 const (
@@ -51,7 +52,11 @@ const (
 var menuItems = []menuItem{}
 
 func drawMenuItems(v *gocui.View, items []menuItem, linePadding int, depth int) {
-	for i, item := range items {
+	for _, item := range items {
+		if item.Type == typeMenuItemEmpty {
+			fmt.Fprint(v, "\n")
+			continue
+		}
 		line := item.Label
 		if item.Type == typeMenuItemCheckbox && item.Selected {
 			line = "[x] " + line
@@ -70,9 +75,6 @@ func drawMenuItems(v *gocui.View, items []menuItem, linePadding int, depth int) 
 		line = d + line
 		for len(line) < linePadding {
 			line = line + " "
-		}
-		if depth == 0 && i != 0 {
-			line = "\n" + line
 		}
 		fmt.Fprintln(v, line)
 		drawMenuItems(v, item.Children, linePadding, depth+1)
@@ -96,6 +98,9 @@ func fillMenuItems() {
 					Item:  itemStrongConsistency,
 				},
 			},
+		},
+		menuItem{
+			Type: typeMenuItemEmpty,
 		},
 		menuItem{
 			Type:  typeMenuItemText,
@@ -124,6 +129,9 @@ func fillMenuItems() {
 					},
 				},
 			},
+		},
+		menuItem{
+			Type: typeMenuItemEmpty,
 		},
 		menuItem{
 			Type:  typeMenuItemText,
@@ -169,6 +177,9 @@ func fillMenuItems() {
 			},
 		},
 		menuItem{
+			Type: typeMenuItemEmpty,
+		},
+		menuItem{
 			Type:  typeMenuItemText,
 			Label: "network - tls",
 			Children: []menuItem{
@@ -192,6 +203,9 @@ func fillMenuItems() {
 			},
 		},
 		menuItem{
+			Type: typeMenuItemEmpty,
+		},
+		menuItem{
 			Type:  typeMenuItemText,
 			Label: "security",
 			Children: []menuItem{
@@ -211,6 +225,9 @@ func fillMenuItems() {
 					Item:  itemSecurityOnLdap,
 				},
 			},
+		},
+		menuItem{
+			Type: typeMenuItemEmpty,
 		},
 		menuItem{
 			Type:  typeMenuItemText,
@@ -472,37 +489,37 @@ func (e *Editor) saveFile() error {
 
 func loadDefaultAerospikeConfig() string {
 	return `service {
-	proto-fd-max 15000
+    proto-fd-max 15000
 }
 logging {
-	console {
-		context any info
-	}
+    console {
+        context any info
+    }
 }
 network {
-	service {
-		address any
-		port 3000
-	}
-	heartbeat {
-		mode multicast
-		multicast-group 239.1.99.222
-		port 9918
-		interval 150
-		timeout 10
-	}
-	fabric {
-		port 3001
-	}
-	info {
-		port 3003
-	}
+    service {
+        address any
+        port 3000
+    }
+    heartbeat {
+        interval 150
+        mode multicast
+        multicast-group 239.1.99.222
+        port 9918
+        timeout 10
+    }
+    fabric {
+        port 3001
+    }
+    info {
+        port 3003
+    }
 }
 namespace test {
-	replication-factor 2
-	memory-size 4G
-	default-ttl 0
-	storage-engine memory
+    default-ttl 0
+    memory-size 4G
+    replication-factor 2
+    storage-engine memory
 }
 `
 }
@@ -769,16 +786,92 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 			v.MoveCursor(0, -1, true)
 		}
 	case key == gocui.KeySpace, key == gocui.KeyEnter:
-		lines := v.BufferLines()
-		if strings.HasPrefix(strings.TrimLeft(lines[e.uiLoc], " "), "[ ] ") {
-			lines[e.uiLoc] = strings.ReplaceAll(lines[e.uiLoc], "[ ] ", "[x] ")
-		} else if strings.HasPrefix(strings.TrimLeft(lines[e.uiLoc], " "), "[x] ") {
-			lines[e.uiLoc] = strings.ReplaceAll(lines[e.uiLoc], "[x] ", "[ ] ")
+		var changes []menuItem
+		menuItems, _, changes = switchItem(menuItems, e.uiLoc, 0)
+		maxX, _ := e.g.Size()
+		lenX := maxX/2 - 3
+		e.uiView.Clear()
+		drawMenuItems(e.uiView, menuItems, lenX, 0)
+		aeroConfig, _ := aeroconf.Parse(strings.NewReader(e.confView.Buffer()))
+		for _, change := range changes {
+			switch change.Item {
+			case itemRackAwareness:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").SetValue("rack-id", "1")
+				} else {
+					aeroConfig.Stanza("namespace test").Delete("rack-id")
+				}
+			case itemStrongConsistency:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").SetValue("strong-consistency", "true")
+				} else {
+					aeroConfig.Stanza("namespace test").Delete("strong-consistency")
+				}
+			case itemStorageEngineMemory:
+			case itemStorageDisk:
+			case itemStorageEngineDeviceAndMemory:
+			case itemStorageEngineEncryption:
+			case itemLoggingDestinationFile:
+			case itemLoggingDestinationCOnsole:
+			case itemLoggingLevelInfo:
+			case itemLoggingLevelDebug:
+			case itemLoggingLevelDetail:
+			case itemTlsEnabled:
+			case itemTlsService:
+			case itemTlsFabric:
+			case itemSecurityOff:
+			case itemSecurityOnBasic:
+			case itemSecurityOnLdap:
+			case itemSecurityLoggingReporting:
+			case itemSecurityLoggingDetail:
+			}
 		}
-		//e.confView.Clear()
-		//fmt.Fprint(e.confView, "ERROR, not implemented")
-		// TODO update 'conf' view when UI changes are made
-		v.Clear()
-		fmt.Fprint(v, strings.Join(lines, "\n"))
+		e.confView.Clear()
+		aeroConfig.Write(e.confView, "", "    ", true)
 	}
+}
+
+// returns: new menuItems, IGNORE, list of menuItem that changed
+func switchItem(items []menuItem, pos int, curPos int) ([]menuItem, int, []menuItem) {
+	var newPosItems int
+	changes := []menuItem{}
+	for i, item := range items {
+		cPos := curPos + i
+		if item.Type != typeMenuItemText && item.Type != typeMenuItemEmpty {
+			if cPos == pos {
+				if items[i].Selected && item.Type != typeMenuItemRadio {
+					items[i].Selected = false
+					changes = append(changes, items[i])
+				} else {
+					items[i].Selected = true
+					changes = append(changes, items[i])
+					if item.Type == typeMenuItemRadio {
+						j := i - 1
+						for j >= 0 && items[j].Type == typeMenuItemRadio {
+							if items[j].Selected {
+								items[j].Selected = false
+								changes = append(changes, items[i])
+							}
+							j--
+						}
+						j = i + 1
+						for j < len(items) && items[j].Type == typeMenuItemRadio {
+							if items[j].Selected {
+								items[j].Selected = false
+								changes = append(changes, items[i])
+							}
+							j++
+						}
+					}
+				}
+			}
+		}
+		var posItems int
+		var cc []menuItem
+		items[i].Children, posItems, cc = switchItem(items[i].Children, pos, cPos+1)
+		changes = append(changes, cc...)
+		newPosItems = newPosItems + posItems
+		curPos = curPos + posItems
+	}
+	return items, len(items) + newPosItems, changes
 }
