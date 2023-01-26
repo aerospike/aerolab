@@ -617,7 +617,7 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 						retErr = err
 					}
 					for _, val := range vals {
-						if val != nil && strings.HasSuffix(*val, "info") {
+						if val != nil && strings.HasSuffix(*val, "any info") {
 							items[i].Selected = true
 						}
 					}
@@ -632,7 +632,7 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 						retErr = err
 					}
 					for _, val := range vals {
-						if val != nil && strings.HasSuffix(*val, "debug") {
+						if val != nil && strings.HasSuffix(*val, "any debug") {
 							items[i].Selected = true
 						}
 					}
@@ -647,7 +647,7 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 						retErr = err
 					}
 					for _, val := range vals {
-						if val != nil && strings.HasSuffix(*val, "detail") {
+						if val != nil && strings.HasSuffix(*val, "any detail") {
 							items[i].Selected = true
 						}
 					}
@@ -663,12 +663,86 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 				}
 			}
 		case itemTlsService:
+			vals1, err := aeroConfig.Stanza("network").Stanza("service").GetValues("tls-port")
+			if err != nil {
+				retErr = err
+			}
+			vals2, err := aeroConfig.Stanza("network").Stanza("service").GetValues("tls-address")
+			if err != nil {
+				retErr = err
+			}
+			vals3, err := aeroConfig.Stanza("network").Stanza("service").GetValues("tls-name")
+			if err != nil {
+				retErr = err
+			}
+			if len(vals1) > 0 && len(vals2) > 0 && len(vals3) > 0 {
+				items[i].Selected = true
+			}
+			if (len(vals1) > 0 && (len(vals2) == 0 || len(vals3) == 0)) || (len(vals2) > 0 && (len(vals1) == 0 || len(vals3) == 0)) || (len(vals3) > 0 && (len(vals2) == 0 || len(vals1) == 0)) {
+				retErr = errors.New("for network.service tls setup, specify tls-port, tls-address and tls-name")
+			}
 		case itemTlsFabric:
+			vals1, err := aeroConfig.Stanza("network").Stanza("fabric").GetValues("tls-port")
+			if err != nil {
+				retErr = err
+			}
+			vals2, err := aeroConfig.Stanza("network").Stanza("fabric").GetValues("tls-name")
+			if err != nil {
+				retErr = err
+			}
+			if len(vals1) > 0 && len(vals2) > 0 {
+				items[i].Selected = true
+			}
+			if (len(vals1) > 0 && len(vals2) == 0) || (len(vals2) > 0 && len(vals1) == 0) {
+				retErr = errors.New("for network.fabric tls setup, specify tls-port and tls-name")
+			}
 		case itemSecurityOff:
+			if aeroConfig.Type("security") == aeroconf.ValueNil {
+				items[i].Selected = true
+			}
 		case itemSecurityOnBasic:
+			if aeroConfig.Type("security") == aeroconf.ValueStanza {
+				if aeroConfig.Stanza("security").Type("ldap") == aeroconf.ValueNil {
+					items[i].Selected = true
+				}
+			} else if aeroConfig.Type("security") != aeroconf.ValueNil {
+				retErr = errors.New("security definition must be a {} stanza")
+			}
 		case itemSecurityOnLdap:
+			if aeroConfig.Type("security") == aeroconf.ValueStanza {
+				if aeroConfig.Stanza("security").Type("ldap") == aeroconf.ValueStanza {
+					items[i].Selected = true
+				} else if aeroConfig.Stanza("security").Type("ldap") != aeroconf.ValueNil {
+					retErr = errors.New("security.ldap definition must be a {} stanza")
+				}
+			} else if aeroConfig.Type("security") != aeroconf.ValueNil {
+				retErr = errors.New("security definition must be a {} stanza")
+			}
 		case itemSecurityLoggingReporting:
+			if aeroConfig.Stanza("security").Type("log") == aeroconf.ValueStanza {
+				if aeroConfig.Stanza("security").Stanza("log").Type("report-authentication") != aeroconf.ValueNil || aeroConfig.Stanza("security").Stanza("log").Type("report-user-admin") != aeroconf.ValueNil || aeroConfig.Stanza("security").Stanza("log").Type("report-sys-admin") != aeroconf.ValueNil || aeroConfig.Stanza("security").Stanza("log").Type("report-violation") != aeroconf.ValueNil {
+					items[i].Selected = true
+				} else {
+					retErr = errors.New("remove security.log stanza, or set at least one of (as true/false): report-authentication, report-user-admin, report-sys-admin, report-violation")
+				}
+			} else if aeroConfig.Stanza("security").Type("log") != aeroconf.ValueNil {
+				retErr = errors.New("security.log definition must be a {} stanza")
+			}
 		case itemSecurityLoggingDetail:
+			keys := aeroConfig.Stanza("logging").ListKeys()
+			for _, key := range keys {
+				if strings.HasPrefix(key, "console") || strings.HasPrefix(key, "file") {
+					vals, err := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+					if err != nil {
+						retErr = err
+					}
+					for _, val := range vals {
+						if val != nil && strings.HasSuffix(*val, "detail") && (strings.HasPrefix(*val, "security") || strings.HasPrefix(*val, "audit") || strings.HasPrefix(*val, "smd")) {
+							items[i].Selected = true
+						}
+					}
+				}
+			}
 		}
 		if len(item.Children) > 0 {
 			var err error
