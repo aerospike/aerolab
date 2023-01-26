@@ -45,8 +45,7 @@ const (
 	itemSecurityOff                  = 15
 	itemSecurityOnBasic              = 16
 	itemSecurityOnLdap               = 17
-	itemSecurityLoggingReporting     = 18
-	itemSecurityLoggingDetail        = 19
+	itemSecurityLoggingDetail        = 18
 )
 
 var menuItems = []menuItem{}
@@ -184,7 +183,7 @@ func fillMenuItems() {
 			Label: "network - tls",
 			Children: []menuItem{
 				menuItem{
-					Type:  typeMenuItemRadio,
+					Type:  typeMenuItemCheckbox,
 					Label: "enabled",
 					Item:  itemTlsEnabled,
 					Children: []menuItem{
@@ -233,11 +232,6 @@ func fillMenuItems() {
 			Type:  typeMenuItemText,
 			Label: "security logging",
 			Children: []menuItem{
-				menuItem{
-					Type:  typeMenuItemCheckbox,
-					Label: "reporting",
-					Item:  itemSecurityLoggingReporting,
-				},
 				menuItem{
 					Type:  typeMenuItemCheckbox,
 					Label: "detail level",
@@ -362,6 +356,7 @@ func (e *Editor) viewUi(g *gocui.Gui) error {
 			e.isUiInit = true
 			err = e.parseConfToUi(g)
 			if err != nil {
+				e.View = "conf"
 				return err
 			}
 		}
@@ -735,16 +730,6 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 			} else if aeroConfig.Type("security") != aeroconf.ValueNil {
 				retErr = errors.New("security definition must be a {} stanza")
 			}
-		case itemSecurityLoggingReporting:
-			if aeroConfig.Stanza("security").Type("log") == aeroconf.ValueStanza {
-				if aeroConfig.Stanza("security").Stanza("log").Type("report-authentication") != aeroconf.ValueNil || aeroConfig.Stanza("security").Stanza("log").Type("report-user-admin") != aeroconf.ValueNil || aeroConfig.Stanza("security").Stanza("log").Type("report-sys-admin") != aeroconf.ValueNil || aeroConfig.Stanza("security").Stanza("log").Type("report-violation") != aeroconf.ValueNil {
-					items[i].Selected = true
-				} else {
-					retErr = errors.New("remove security.log stanza, or set at least one of (as true/false): report-authentication, report-user-admin, report-sys-admin, report-violation")
-				}
-			} else if aeroConfig.Stanza("security").Type("log") != aeroconf.ValueNil {
-				retErr = errors.New("security.log definition must be a {} stanza")
-			}
 		case itemSecurityLoggingDetail:
 			keys := aeroConfig.Stanza("logging").ListKeys()
 			for _, key := range keys {
@@ -854,18 +839,228 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").Delete("encryption-key-file")
 				}
 			case itemLoggingDestinationFile:
+				if change.Selected {
+					keys := aeroConfig.Stanza("logging").ListKeys()
+					data := make(map[string][]*string)
+					for _, key := range keys {
+						dd := aeroConfig.Stanza("logging").Stanza(key).ListKeys()
+						for _, d := range dd {
+							dat, _ := aeroConfig.Stanza("logging").Stanza(key).GetValues(d)
+							if _, ok := data[d]; !ok {
+								data[d] = dat
+							} else {
+								data[d] = append(data[d], dat...)
+							}
+						}
+					}
+					aeroConfig.Stanza("logging").Delete("console")
+					aeroConfig.Stanza("logging").NewStanza("file /var/log/aerospike.log")
+					for k, v := range data {
+						aeroConfig.Stanza("logging").Stanza("file /var/log/aerospike.log").SetValues(k, v)
+					}
+				}
 			case itemLoggingDestinationCOnsole:
+				if change.Selected {
+					keys := aeroConfig.Stanza("logging").ListKeys()
+					data := make(map[string][]*string)
+					for _, key := range keys {
+						dd := aeroConfig.Stanza("logging").Stanza(key).ListKeys()
+						for _, d := range dd {
+							dat, _ := aeroConfig.Stanza("logging").Stanza(key).GetValues(d)
+							if _, ok := data[d]; !ok {
+								data[d] = dat
+							} else {
+								data[d] = append(data[d], dat...)
+							}
+						}
+						if strings.HasPrefix(key, "file ") {
+							aeroConfig.Stanza("logging").Delete(key)
+						}
+					}
+					aeroConfig.Stanza("logging").NewStanza("console")
+					for k, v := range data {
+						aeroConfig.Stanza("logging").Stanza("console").SetValues(k, v)
+					}
+				}
 			case itemLoggingLevelInfo:
+				l := "any info"
+				if change.Selected {
+					keys := aeroConfig.Stanza("logging").ListKeys()
+					for _, key := range keys {
+						found := false
+						dat, _ := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+						for i, value := range dat {
+							if strings.HasPrefix(*value, "any ") {
+								dat[i] = &l
+								found = true
+							}
+						}
+						if !found {
+							dat = append(dat, &l)
+						}
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat)
+					}
+				}
 			case itemLoggingLevelDebug:
+				l := "any debug"
+				if change.Selected {
+					keys := aeroConfig.Stanza("logging").ListKeys()
+					for _, key := range keys {
+						found := false
+						dat, _ := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+						for i, value := range dat {
+							if strings.HasPrefix(*value, "any ") {
+								dat[i] = &l
+								found = true
+							}
+						}
+						if !found {
+							dat = append(dat, &l)
+						}
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat)
+					}
+				}
 			case itemLoggingLevelDetail:
+				l := "any detail"
+				if change.Selected {
+					keys := aeroConfig.Stanza("logging").ListKeys()
+					for _, key := range keys {
+						found := false
+						dat, _ := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+						for i, value := range dat {
+							if strings.HasPrefix(*value, "any ") {
+								dat[i] = &l
+								found = true
+							}
+						}
+						if !found {
+							dat = append(dat, &l)
+						}
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat)
+					}
+				}
 			case itemTlsEnabled:
+				if !change.Selected {
+					keys := aeroConfig.Stanza("network").ListKeys()
+					for _, key := range keys {
+						if strings.HasPrefix(key, "tls ") {
+							aeroConfig.Stanza("network").Delete(key)
+						}
+					}
+				} else {
+					aeroConfig.Stanza("network").NewStanza("tls tls1")
+					aeroConfig.Stanza("network").Stanza("tls tls1").SetValue("cert-file", "/etc/aerospike/ssl/tls1/cert.pem")
+					aeroConfig.Stanza("network").Stanza("tls tls1").SetValue("key-file", "/etc/aerospike/ssl/tls1/key.pem")
+					aeroConfig.Stanza("network").Stanza("tls tls1").SetValue("ca-file", "/etc/aerospike/ssl/tls1/cacert.pem")
+				}
 			case itemTlsService:
+				if change.Selected {
+					aeroConfig.Stanza("network").Stanza("service").Delete("address")
+					aeroConfig.Stanza("network").Stanza("service").Delete("port")
+					aeroConfig.Stanza("network").Stanza("service").SetValue("tls-address", "any")
+					aeroConfig.Stanza("network").Stanza("service").SetValue("tls-port", "4333")
+					aeroConfig.Stanza("network").Stanza("service").SetValue("tls-name", "tls1")
+					aeroConfig.Stanza("network").Stanza("service").SetValue("tls-authenticate-client", "false")
+				} else {
+					aeroConfig.Stanza("network").Stanza("service").SetValue("address", "any")
+					aeroConfig.Stanza("network").Stanza("service").SetValue("port", "3000")
+					aeroConfig.Stanza("network").Stanza("service").Delete("tls-address")
+					aeroConfig.Stanza("network").Stanza("service").Delete("tls-port")
+					aeroConfig.Stanza("network").Stanza("service").Delete("tls-name")
+					aeroConfig.Stanza("network").Stanza("service").Delete("tls-authenticate-client")
+				}
 			case itemTlsFabric:
+				if change.Selected {
+					aeroConfig.Stanza("network").Stanza("fabric").Delete("port")
+					aeroConfig.Stanza("network").Stanza("fabric").SetValue("tls-port", "3011")
+					aeroConfig.Stanza("network").Stanza("fabric").SetValue("tls-name", "tls1")
+				} else {
+					aeroConfig.Stanza("network").Stanza("fabric").SetValue("port", "3001")
+					aeroConfig.Stanza("network").Stanza("fabric").Delete("tls-port")
+					aeroConfig.Stanza("network").Stanza("fabric").Delete("tls-name")
+				}
 			case itemSecurityOff:
+				if change.Selected {
+					aeroConfig.Delete("security")
+				}
 			case itemSecurityOnBasic:
+				if change.Selected {
+					aeroConfig.Delete("security")
+					aeroConfig.NewStanza("security")
+					aeroConfig.Stanza("security").NewStanza("log")
+					aeroConfig.Stanza("security").Stanza("log").SetValue("report-authentication", "true")
+					aeroConfig.Stanza("security").Stanza("log").SetValue("report-user-admin", "true")
+					aeroConfig.Stanza("security").Stanza("log").SetValue("report-sys-admin", "true")
+					aeroConfig.Stanza("security").Stanza("log").SetValue("report-violation", "true")
+				}
 			case itemSecurityOnLdap:
-			case itemSecurityLoggingReporting:
+				if change.Selected {
+					aeroConfig.Delete("security")
+					aeroConfig.NewStanza("security")
+					aeroConfig.Stanza("security").NewStanza("ldap")
+					aeroConfig.Stanza("security").Stanza("ldap").SetValue("query-base-dn", "dc=aerospike,dc=com")
+					aeroConfig.Stanza("security").Stanza("ldap").SetValue("server", "ldap://LDAPIP:389 # set to ldaps://LDAPIP:636 for tls")
+					aeroConfig.Stanza("security").Stanza("ldap").SetValue("tls-ca-file", "/etc/aerospike/ssl/tls1/cacert.pem")
+					aeroConfig.Stanza("security").Stanza("ldap").SetValue("disable-tls", "true")
+					aeroConfig.Stanza("security").Stanza("ldap").SetValue("user-dn-pattern", "uid=${un},ou=People,dc=aerospike,dc=com")
+					aeroConfig.Stanza("security").Stanza("ldap").SetValue("role-query-search-ou", "false")
+					aeroConfig.Stanza("security").Stanza("ldap").SetValue("role-query-pattern", "(&(objectClass=posixGroup)(memberUid=${un}))")
+					aeroConfig.Stanza("security").Stanza("ldap").SetValue("polling-period", "90")
+					aeroConfig.Stanza("security").NewStanza("log")
+					aeroConfig.Stanza("security").Stanza("log").SetValue("report-authentication", "true")
+					aeroConfig.Stanza("security").Stanza("log").SetValue("report-user-admin", "true")
+					aeroConfig.Stanza("security").Stanza("log").SetValue("report-sys-admin", "true")
+					aeroConfig.Stanza("security").Stanza("log").SetValue("report-violation", "true")
+				}
 			case itemSecurityLoggingDetail:
+				l1 := "security detail"
+				l2 := "smd detail"
+				l3 := "audit detail"
+				if change.Selected {
+					keys := aeroConfig.Stanza("logging").ListKeys()
+					for _, key := range keys {
+						found1 := false
+						found2 := false
+						found3 := false
+						dat, _ := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+						for i, value := range dat {
+							if strings.HasPrefix(*value, "security ") {
+								dat[i] = &l1
+								found1 = true
+							}
+							if strings.HasPrefix(*value, "smd ") {
+								dat[i] = &l2
+								found2 = true
+							}
+							if strings.HasPrefix(*value, "audit ") {
+								dat[i] = &l3
+								found3 = true
+							}
+						}
+						if !found1 {
+							dat = append(dat, &l1)
+						}
+						if !found2 {
+							dat = append(dat, &l2)
+						}
+						if !found3 {
+							dat = append(dat, &l3)
+						}
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", dat)
+					}
+				} else {
+					keys := aeroConfig.Stanza("logging").ListKeys()
+					for _, key := range keys {
+						newdat := []*string{}
+						dat, _ := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+						for _, d := range dat {
+							if *d != l1 && *d != l2 && *d != l3 {
+								newdat = append(newdat, d)
+							}
+						}
+						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", newdat)
+					}
+				}
 			}
 		}
 		e.confView.Clear()

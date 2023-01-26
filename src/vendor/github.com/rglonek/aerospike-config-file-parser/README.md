@@ -1,5 +1,7 @@
 # Aerospike Configuration File Parser
 
+This is a golang library. For the command line tool, see either the `CLI` branch or the `Releases` page for downloadable binaries.
+
 ## Types
 
 ```go
