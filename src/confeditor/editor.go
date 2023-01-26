@@ -11,6 +11,225 @@ import (
 	"github.com/jroimartin/gocui"
 )
 
+type menuItem struct {
+	Type     int
+	Item     int
+	Label    string
+	Selected bool
+	Children []menuItem
+}
+
+const (
+	typeMenuItemText     = 1
+	typeMenuItemRadio    = 2
+	typeMenuItemCheckbox = 3
+)
+
+const (
+	itemRackAwareness                = 1
+	itemStrongConsistency            = 2
+	itemStorageEngineMemory          = 3
+	itemStorageDisk                  = 4
+	itemStorageEngineDeviceAndMemory = 5
+	itemStorageEngineEncryption      = 6
+	itemLoggingDestinationFile       = 7
+	itemLoggingDestinationCOnsole    = 8
+	itemLoggingLevelInfo             = 9
+	itemLoggingLevelDebug            = 10
+	itemLoggingLevelDetail           = 11
+	itemTlsEnabled                   = 12
+	itemTlsService                   = 13
+	itemTlsFabric                    = 14
+	itemSecurityOff                  = 15
+	itemSecurityOnBasic              = 16
+	itemSecurityOnLdap               = 17
+	itemSecurityLoggingReporting     = 18
+	itemSecurityLoggingDetail        = 19
+)
+
+var menuItems = []menuItem{}
+
+func drawMenuItems(v *gocui.View, items []menuItem, linePadding int, depth int) {
+	for i, item := range items {
+		line := item.Label
+		if item.Type == typeMenuItemCheckbox && item.Selected {
+			line = "[x] " + line
+		} else if item.Type == typeMenuItemCheckbox && !item.Selected {
+			line = "[ ] " + line
+		} else if item.Type == typeMenuItemRadio && item.Selected {
+			line = "(*) " + line
+		} else if item.Type == typeMenuItemRadio && !item.Selected {
+			line = "( ) " + line
+		}
+		p := depth * 2
+		d := ""
+		for len(d) < p {
+			d = d + " "
+		}
+		line = d + line
+		for len(line) < linePadding {
+			line = line + " "
+		}
+		if depth == 0 && i != 0 {
+			line = "\n" + line
+		}
+		fmt.Fprintln(v, line)
+		drawMenuItems(v, item.Children, linePadding, depth+1)
+	}
+}
+
+func fillMenuItems() {
+	menuItems = []menuItem{
+		menuItem{
+			Type:  typeMenuItemText,
+			Label: "namespace",
+			Children: []menuItem{
+				menuItem{
+					Type:  typeMenuItemCheckbox,
+					Label: "rack awareness",
+					Item:  itemRackAwareness,
+				},
+				menuItem{
+					Type:  typeMenuItemCheckbox,
+					Label: "strong consistency mode",
+					Item:  itemStrongConsistency,
+				},
+			},
+		},
+		menuItem{
+			Type:  typeMenuItemText,
+			Label: "namespace storage engine",
+			Children: []menuItem{
+				menuItem{
+					Type:  typeMenuItemRadio,
+					Label: "memory",
+					Item:  itemStorageEngineMemory,
+				},
+				menuItem{
+					Type:  typeMenuItemRadio,
+					Label: "device (file)",
+					Item:  itemStorageDisk,
+					Children: []menuItem{
+						menuItem{
+							Type:  typeMenuItemCheckbox,
+							Label: "data also in memory",
+							Item:  itemStorageEngineDeviceAndMemory,
+						},
+						menuItem{
+							Type:  typeMenuItemCheckbox,
+							Label: "encryption at rest",
+							Item:  itemStorageEngineEncryption,
+						},
+					},
+				},
+			},
+		},
+		menuItem{
+			Type:  typeMenuItemText,
+			Label: "logging",
+			Children: []menuItem{
+				menuItem{
+					Type:  typeMenuItemText,
+					Label: "destination",
+					Children: []menuItem{
+						menuItem{
+							Type:  typeMenuItemRadio,
+							Label: "file",
+							Item:  itemLoggingDestinationFile,
+						},
+						menuItem{
+							Type:  typeMenuItemRadio,
+							Label: "console",
+							Item:  itemLoggingDestinationCOnsole,
+						},
+					},
+				},
+				menuItem{
+					Type:  typeMenuItemText,
+					Label: "level",
+					Children: []menuItem{
+						menuItem{
+							Type:  typeMenuItemRadio,
+							Label: "info",
+							Item:  itemLoggingLevelInfo,
+						},
+						menuItem{
+							Type:  typeMenuItemRadio,
+							Label: "debug",
+							Item:  itemLoggingLevelDebug,
+						},
+						menuItem{
+							Type:  typeMenuItemRadio,
+							Label: "detail",
+							Item:  itemLoggingLevelDetail,
+						},
+					},
+				},
+			},
+		},
+		menuItem{
+			Type:  typeMenuItemText,
+			Label: "network - tls",
+			Children: []menuItem{
+				menuItem{
+					Type:  typeMenuItemRadio,
+					Label: "enabled",
+					Item:  itemTlsEnabled,
+					Children: []menuItem{
+						menuItem{
+							Type:  typeMenuItemRadio,
+							Label: "service port",
+							Item:  itemTlsService,
+						},
+						menuItem{
+							Type:  typeMenuItemRadio,
+							Label: "fabric port",
+							Item:  itemTlsFabric,
+						},
+					},
+				},
+			},
+		},
+		menuItem{
+			Type:  typeMenuItemText,
+			Label: "security",
+			Children: []menuItem{
+				menuItem{
+					Type:  typeMenuItemRadio,
+					Label: "disabled",
+					Item:  itemSecurityOff,
+				},
+				menuItem{
+					Type:  typeMenuItemRadio,
+					Label: "enabled - builtin",
+					Item:  itemSecurityOnBasic,
+				},
+				menuItem{
+					Type:  typeMenuItemRadio,
+					Label: "enabled - ldap",
+					Item:  itemSecurityOnLdap,
+				},
+			},
+		},
+		menuItem{
+			Type:  typeMenuItemText,
+			Label: "security logging",
+			Children: []menuItem{
+				menuItem{
+					Type:  typeMenuItemCheckbox,
+					Label: "reporting",
+					Item:  itemSecurityLoggingReporting,
+				},
+				menuItem{
+					Type:  typeMenuItemCheckbox,
+					Label: "detail level",
+					Item:  itemSecurityLoggingDetail,
+				},
+			},
+		},
+	}
+}
+
 type Editor struct {
 	Path       string
 	loaded     bool
@@ -278,16 +497,6 @@ namespace test {
 	default-ttl 0
 	storage-engine memory
 }
-namespace bar {
-	replication-factor 2
-	memory-size 4G
-	default-ttl 0
-	storage-engine device {
-		file /opt/aerospike/data/bar.dat
-		filesize 1G
-		data-in-memory false
-	}
-}
 `
 }
 
@@ -303,19 +512,14 @@ func (e *Editor) parseConfToUi(g *gocui.Gui) error {
 
 	}
 	uiView.Clear()
+	fillMenuItems()
+	// TODO: parse conf view contents and select relevant items in the menuItems struct (confView.Buffer)
+	_ = confView
 	maxX, _ := g.Size()
 	lenX := maxX/2 - 3
-	// TODO parse conf view contents to UI build
-	for _, line := range confView.BufferLines() {
-		line = "[ ] " + line
-		for len(line) < lenX {
-			line = line + " "
-		}
-		fmt.Fprint(uiView, line+"\n")
-	}
-	// TODO END
+	drawMenuItems(uiView, menuItems, lenX, 0)
 	e.uiLoc = 0
-	uiView.SetCursor(0, 0)
+	uiView.SetCursor(0, e.uiLoc)
 	return nil
 }
 
@@ -323,7 +527,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 
 	switch {
 	case key == gocui.KeyArrowDown:
-		if e.uiLoc+3 < len(v.BufferLines()) {
+		if e.uiLoc+2 < len(v.BufferLines()) {
 			e.uiLoc++
 			v.MoveCursor(0, 1, true)
 		}
@@ -334,9 +538,9 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 		}
 	case key == gocui.KeySpace, key == gocui.KeyEnter:
 		lines := v.BufferLines()
-		if strings.HasPrefix(lines[e.uiLoc], "[ ] ") {
+		if strings.HasPrefix(strings.TrimLeft(lines[e.uiLoc], " "), "[ ] ") {
 			lines[e.uiLoc] = strings.ReplaceAll(lines[e.uiLoc], "[ ] ", "[x] ")
-		} else {
+		} else if strings.HasPrefix(strings.TrimLeft(lines[e.uiLoc], " "), "[x] ") {
 			lines[e.uiLoc] = strings.ReplaceAll(lines[e.uiLoc], "[x] ", "[ ] ")
 		}
 		e.confView.Clear()
