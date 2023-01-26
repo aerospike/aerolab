@@ -808,7 +808,40 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 					aeroConfig.Stanza("namespace test").Delete("strong-consistency")
 				}
 			case itemStorageEngineMemory:
+				if !change.Selected {
+					if aeroConfig.Stanza("namespace test").Type("storage-engine") == aeroconf.ValueString {
+						val, _ := aeroConfig.Stanza("namespace test").GetValues("storage-engine")
+						if len(val) > 0 && val[0] != nil && *val[0] == "memory" {
+							aeroConfig.Stanza("namespace test").Delete("storage-engine")
+						}
+					}
+				} else {
+					for _, key := range aeroConfig.Stanza("namespace test").ListKeys() {
+						if strings.HasPrefix(key, "storage-engine") {
+							aeroConfig.Stanza("namespace test").Delete(key)
+						}
+					}
+					aeroConfig.Stanza("namespace test").SetValue("storage-engine", "memory")
+				}
 			case itemStorageDisk:
+				if change.Selected {
+					if aeroConfig.Stanza("namespace test").Type("storage-engine") == aeroconf.ValueString {
+						val, _ := aeroConfig.Stanza("namespace test").GetValues("storage-engine")
+						if len(val) > 0 && val[0] != nil && *val[0] == "memory" {
+							aeroConfig.Stanza("namespace test").Delete("storage-engine")
+						}
+					}
+					aeroConfig.Stanza("namespace test").NewStanza("storage-engine device")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("file", "/opt/aerospike/data/bar.dat")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("filesize", "1G")
+				} else {
+					for _, key := range aeroConfig.Stanza("namespace test").ListKeys() {
+						if strings.HasPrefix(key, "storage-engine device") {
+							aeroConfig.Stanza("namespace test").Delete(key)
+						}
+					}
+				}
+				// TODO: if this changes we will need to reparse children (encryption and deviceAndMemory!!!)
 			case itemStorageEngineDeviceAndMemory:
 			case itemStorageEngineEncryption:
 			case itemLoggingDestinationFile:
