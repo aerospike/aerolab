@@ -31,3 +31,7 @@
 * [Deploy an Aerospike All Flash Namespace](all-flash.md)
 * [Enable Encryption at Rest](encryption.md)
 * [Use a loop device to simulate raw block storage](loop-dev.md)
+
+## Configuration Generator
+
+AeroLab can generate basic `aerospike.conf` files by running: `aerolab conf generate`

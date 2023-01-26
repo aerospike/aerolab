@@ -136,6 +136,10 @@ $ aerolab attach shell --name=testme --node=all -- asinfo -v service
 $ aerolab attach shell --name=testme --node=<node-expander-syntax> -- asinfo -v service
 ```
 
+### Configuration Generator
+
+AeroLab can generate basic `aerospike.conf` files by running: `aerolab conf generate`
+
 #### Node Expander
 
 For commands accepting a list of nodes, the list is a comma-separated list of:

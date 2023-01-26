@@ -14,3 +14,7 @@
   * [Build an Aerospike cluster with LDAP and TLS](../scripts/aerolab-buildenv/README.md)
 * [Deploying a full stack - servers, asbench client and AMS monitoring - Docker](usage/fullstack.md)
 * [Deploying a full stack - servers, asbench client and AMS monitoring - AWS](usage/fullstack_aws.md)
+
+## Configuration Generator
+
+AeroLab can generate basic `aerospike.conf` files by running: `aerolab conf generate`
