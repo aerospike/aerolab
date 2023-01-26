@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jroimartin/gocui"
+	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 )
 
 type menuItem struct {
@@ -241,6 +242,7 @@ type Editor struct {
 	isUiInit   bool
 	uiLoc      int
 	confView   *gocui.View
+	uiView     *gocui.View
 }
 
 const (
@@ -346,6 +348,7 @@ func (e *Editor) viewUi(g *gocui.Gui) error {
 				return err
 			}
 		}
+		e.uiView = v
 		v.Editable = true
 		v.Wrap = true
 		v.Highlight = true
@@ -435,10 +438,14 @@ func (e *Editor) switchView(g *gocui.Gui, v *gocui.View) error {
 	if e.View == "ui" {
 		e.g.Cursor = true
 		e.View = "conf"
+		e.uiView.Highlight = false
 	} else if e.View == "conf" {
-		e.g.Cursor = false
-		e.parseConfToUi(g)
-		e.View = "ui"
+		err := e.parseConfToUi(g)
+		if err == nil {
+			e.View = "ui"
+			e.g.Cursor = false
+			e.uiView.Highlight = true
+		}
 	}
 	return nil
 }
@@ -511,16 +518,167 @@ func (e *Editor) parseConfToUi(g *gocui.Gui) error {
 		}
 
 	}
+	aeroConfig, err := aeroconf.Parse(strings.NewReader(confView.Buffer()))
+	if err != nil {
+		return nil
+	}
 	uiView.Clear()
 	fillMenuItems()
-	// TODO: parse conf view contents and select relevant items in the menuItems struct (confView.Buffer)
-	_ = confView
+	menuItems, err = selectMenuItems(menuItems, aeroConfig)
+	if err != nil {
+		fmt.Fprintf(uiView, "ERROR parsing configuration: %s\n", err)
+	}
 	maxX, _ := g.Size()
 	lenX := maxX/2 - 3
 	drawMenuItems(uiView, menuItems, lenX, 0)
 	e.uiLoc = 0
 	uiView.SetCursor(0, e.uiLoc)
-	return nil
+	return err
+}
+
+func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, error) {
+	var retErr error
+	for i, item := range items {
+		switch item.Item {
+		case itemRackAwareness:
+			val, err := aeroConfig.Stanza("namespace test").GetValues("rack-id")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil {
+				items[i].Selected = true
+			}
+		case itemStrongConsistency:
+			val, err := aeroConfig.Stanza("namespace test").GetValues("strong-consistency")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && strings.ToLower(*val[0]) == "true" {
+				items[i].Selected = true
+			}
+		case itemStorageEngineMemory:
+			if aeroConfig.Stanza("namespace test").Type("storage-engine") == aeroconf.ValueString {
+				val, err := aeroConfig.Stanza("namespace test").GetValues("storage-engine")
+				if err != nil {
+					retErr = err
+				}
+				if err == nil && len(val) > 0 && val[0] != nil && strings.ToLower(*val[0]) == "memory" {
+					items[i].Selected = true
+				}
+			}
+		case itemStorageDisk:
+			if aeroConfig.Stanza("namespace test").Type("storage-engine device") == aeroconf.ValueStanza {
+				items[i].Selected = true
+			} else {
+				val, err := aeroConfig.Stanza("namespace test").GetValues("storage-engine")
+				if err != nil {
+					retErr = err
+				}
+				if err == nil && len(val) > 0 && val[0] != nil && strings.ToLower(*val[0]) == "device" {
+					retErr = errors.New("storage-engine device must be a {} stanza")
+				}
+			}
+		case itemStorageEngineDeviceAndMemory:
+			val, err := aeroConfig.Stanza("namespace test").Stanza("storage-engine device").GetValues("data-in-memory")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && strings.ToLower(*val[0]) == "true" {
+				items[i].Selected = true
+			}
+		case itemStorageEngineEncryption:
+			val, err := aeroConfig.Stanza("namespace test").Stanza("storage-engine device").GetValues("encryption-key-file")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil {
+				items[i].Selected = true
+			}
+		case itemLoggingDestinationFile:
+			keys := aeroConfig.Stanza("logging").ListKeys()
+			for _, key := range keys {
+				if strings.HasPrefix(key, "file") {
+					items[i].Selected = true
+				}
+			}
+		case itemLoggingDestinationCOnsole:
+			keys := aeroConfig.Stanza("logging").ListKeys()
+			for _, key := range keys {
+				if strings.HasPrefix(key, "console") {
+					items[i].Selected = true
+				}
+			}
+		case itemLoggingLevelInfo:
+			keys := aeroConfig.Stanza("logging").ListKeys()
+			for _, key := range keys {
+				if strings.HasPrefix(key, "console") || strings.HasPrefix(key, "file") {
+					vals, err := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+					if err != nil {
+						retErr = err
+					}
+					for _, val := range vals {
+						if val != nil && strings.HasSuffix(*val, "info") {
+							items[i].Selected = true
+						}
+					}
+				}
+			}
+		case itemLoggingLevelDebug:
+			keys := aeroConfig.Stanza("logging").ListKeys()
+			for _, key := range keys {
+				if strings.HasPrefix(key, "console") || strings.HasPrefix(key, "file") {
+					vals, err := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+					if err != nil {
+						retErr = err
+					}
+					for _, val := range vals {
+						if val != nil && strings.HasSuffix(*val, "debug") {
+							items[i].Selected = true
+						}
+					}
+				}
+			}
+		case itemLoggingLevelDetail:
+			keys := aeroConfig.Stanza("logging").ListKeys()
+			for _, key := range keys {
+				if strings.HasPrefix(key, "console") || strings.HasPrefix(key, "file") {
+					vals, err := aeroConfig.Stanza("logging").Stanza(key).GetValues("context")
+					if err != nil {
+						retErr = err
+					}
+					for _, val := range vals {
+						if val != nil && strings.HasSuffix(*val, "detail") {
+							items[i].Selected = true
+						}
+					}
+				}
+			}
+		case itemTlsEnabled:
+			keys := aeroConfig.Stanza("network").ListKeys()
+			for _, key := range keys {
+				if strings.HasPrefix(key, "tls") && aeroConfig.Stanza("network").Type(key) == aeroconf.ValueStanza {
+					items[i].Selected = true
+				} else if strings.HasPrefix(key, "tls") && aeroConfig.Stanza("network").Type(key) != aeroconf.ValueNil {
+					retErr = errors.New("tls definition must be a stanza {}")
+				}
+			}
+		case itemTlsService:
+		case itemTlsFabric:
+		case itemSecurityOff:
+		case itemSecurityOnBasic:
+		case itemSecurityOnLdap:
+		case itemSecurityLoggingReporting:
+		case itemSecurityLoggingDetail:
+		}
+		if len(item.Children) > 0 {
+			var err error
+			items[i].Children, err = selectMenuItems(item.Children, aeroConfig)
+			if err != nil {
+				retErr = err
+			}
+		}
+	}
+	return items, retErr
 }
 
 func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
@@ -543,8 +701,8 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 		} else if strings.HasPrefix(strings.TrimLeft(lines[e.uiLoc], " "), "[x] ") {
 			lines[e.uiLoc] = strings.ReplaceAll(lines[e.uiLoc], "[x] ", "[ ] ")
 		}
-		e.confView.Clear()
-		fmt.Fprint(e.confView, "ERROR, not implemented")
+		//e.confView.Clear()
+		//fmt.Fprint(e.confView, "ERROR, not implemented")
 		// TODO update 'conf' view when UI changes are made
 		v.Clear()
 		fmt.Fprint(v, strings.Join(lines, "\n"))
