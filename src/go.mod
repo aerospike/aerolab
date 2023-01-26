@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go v1.44.158
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/jroimartin/gocui v0.5.0
+	github.com/rglonek/aerospike-config-file-parser v1.0.2
 	github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
 	golang.org/x/crypto v0.3.0
 	golang.org/x/term v0.2.0
