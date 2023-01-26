@@ -60,8 +60,8 @@ github.com/onsi/gomega v1.15.0/go.mod h1:cIuvLEne0aoVhAgh/O6ac0Op8WWw9H6eYCriF+t
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
-github.com/rglonek/aerospike-config-file-parser v1.0.2 h1:LVGiiQ7NY/VfSE2tzF2HW1OC/Wp3XkdAFlS6V9EHmo0=
-github.com/rglonek/aerospike-config-file-parser v1.0.2/go.mod h1:MDD2s/4HAhTn8OcXUNcrppGBHpaW81INfNYeFHkS/eg=
+github.com/rglonek/aerospike-config-file-parser v1.0.3 h1:KMkyHToAhFfNph/BUx3a8Fh7PH9vF4EHb0W4rquzuNY=
+github.com/rglonek/aerospike-config-file-parser v1.0.3/go.mod h1:MDD2s/4HAhTn8OcXUNcrppGBHpaW81INfNYeFHkS/eg=
 github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f h1:Tlx/JF6X5xcjyJTCk05Znopuq7YI6lx+Az7rUMcBLQ4=
 github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f/go.mod h1:yWO03+fWZps+sVPozmNXFoq1v+V3xIGOd8m2WU9Vm70=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

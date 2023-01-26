@@ -96,7 +96,7 @@ github.com/mattn/go-runewidth
 # github.com/nsf/termbox-go v1.1.1
 ## explicit; go 1.15
 github.com/nsf/termbox-go
-# github.com/rglonek/aerospike-config-file-parser v1.0.2
+# github.com/rglonek/aerospike-config-file-parser v1.0.3
 ## explicit; go 1.19
 github.com/rglonek/aerospike-config-file-parser
 # github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
