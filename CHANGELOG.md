@@ -2,7 +2,7 @@
 * add client-side grafana dashboards to AMS monitoring stack client
 * add `fullstack` documentation on how to deploy the full stack
 * make cluster list better looking in docker backend
-* add basic `aerospike.conf` config file generator UI
+* add basic `aerospike.conf` config file generator UI in `aerolab conf generate` feature
 * add `aerolab config aws lock-security-groups` for locking down sec groups to just the caller IP (for vscode, jupyter, AMS and optionally port 22)
 
 #### 4.5.0
