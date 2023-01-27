@@ -76,6 +76,10 @@ Extra parameters are required when working with the `aws` backend as opposed to 
 
 Executing `aerolab cluster create help` once the backend has been selected will display the relevant options.
 
+## Notes on AWS and custom VPCs
+
+If not using the default VPC, certain conditions must be met when configuring a custom one. [See this manual on correct configuration of a custom VPC](VPC.md)
+
 ### Examples:
 
 #### First subnet in default VPC/AZ:
