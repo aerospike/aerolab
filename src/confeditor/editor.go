@@ -46,6 +46,8 @@ const (
 	itemSecurityOnBasic              = 16
 	itemSecurityOnLdap               = 17
 	itemSecurityLoggingDetail        = 18
+	itemStorageEngineCompression     = 19
+	itemStorageEngineAllFlash        = 20
 )
 
 var menuItems = []menuItem{}
@@ -96,6 +98,11 @@ func fillMenuItems() {
 					Label: "strong consistency mode",
 					Item:  itemStrongConsistency,
 				},
+				menuItem{
+					Type:  typeMenuItemCheckbox,
+					Label: "all-flash index on disk",
+					Item:  itemStorageEngineAllFlash,
+				},
 			},
 		},
 		menuItem{
@@ -124,6 +131,11 @@ func fillMenuItems() {
 							Type:  typeMenuItemCheckbox,
 							Label: "encryption at rest",
 							Item:  itemStorageEngineEncryption,
+						},
+						menuItem{
+							Type:  typeMenuItemCheckbox,
+							Label: "compression",
+							Item:  itemStorageEngineCompression,
 						},
 					},
 				},
@@ -606,6 +618,18 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 			if err == nil && len(val) > 0 && val[0] != nil {
 				items[i].Selected = true
 			}
+		case itemStorageEngineCompression:
+			val, err := aeroConfig.Stanza("namespace test").Stanza("storage-engine device").GetValues("compression")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && *val[0] != "none" {
+				items[i].Selected = true
+			}
+		case itemStorageEngineAllFlash:
+			if aeroConfig.Stanza("namespace test").Type("index-type flash") == aeroconf.ValueStanza {
+				items[i].Selected = true
+			}
 		case itemLoggingDestinationFile:
 			keys := aeroConfig.Stanza("logging").ListKeys()
 			for _, key := range keys {
@@ -837,6 +861,26 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("encryption-key-file", "/opt/aerospike/key.dat")
 				} else {
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").Delete("encryption-key-file")
+				}
+			case itemStorageEngineCompression:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("compression", "zstd # alt options: none, snappy, lz4")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("compression-level", "1")
+				} else {
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").Delete("compression")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").Delete("compression-level")
+				}
+			case itemStorageEngineAllFlash:
+				if change.Selected {
+					if aeroConfig.Stanza("namespace test").Type("partition-tree-sprigs") == aeroconf.ValueNil {
+						aeroConfig.Stanza("namespace test").SetValue("partition-tree-sprigs", "256")
+					}
+					aeroConfig.Stanza("namespace test").NewStanza("index-type flash")
+					aeroConfig.Stanza("namespace test").Stanza("index-type flash").SetValue("mount", "/mnt")
+					aeroConfig.Stanza("namespace test").Stanza("index-type flash").SetValue("mounts-size-limit", "5G")
+				} else {
+					aeroConfig.Stanza("namespace test").Delete("index-type flash")
+					aeroConfig.Stanza("namespace test").Delete("partition-tree-sprigs")
 				}
 			case itemLoggingDestinationFile:
 				if change.Selected {
