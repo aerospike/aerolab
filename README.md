@@ -48,6 +48,10 @@ IPs of AeroLab containers can be seen by running `aerolab cluster-list`
 * [Deploying a full stack - servers, asbench client and AMS monitoring - Docker](docs/usage/fullstack.md)
 * [Deploying a full stack - servers, asbench client and AMS monitoring - AWS](docs/usage/fullstack_aws.md)
 
+## Notes on AWS and custom VPCs
+
+If not using the default VPC, certain conditions must be met when configuring a custom one. [See this manual on correct configuration of a custom VPC](docs/aws/VPC.md)
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version changes
