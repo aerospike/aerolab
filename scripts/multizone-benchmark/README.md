@@ -1,6 +1,6 @@
 # Multizone benchmark demo
 
-This script set requires aerolab version 4.5.0 or higher.
+This script set requires aerolab version 4.6.0 or higher.
 
 ## Usage
 1. git clone this repository
