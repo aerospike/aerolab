@@ -45,7 +45,7 @@ type chDirCmd struct {
 }
 
 type aerospikeVersionCmd struct {
-	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition" default:"latest"`
+	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition, or 'f' for federal edition" default:"latest"`
 	Username         string               `short:"U" long:"username" description:"Required for downloading older enterprise editions"`
 	Password         string               `short:"P" long:"password" description:"Required for downloading older enterprise editions"`
 }
@@ -229,6 +229,8 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
 		isCommunity = true
+	} else if strings.HasSuffix(c.AerospikeVersion.String(), "f") {
+		edition = "aerospike-server-federal"
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
@@ -261,6 +263,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	log.Printf("Distro = %s:%s ; AerospikeVersion = %s", c.DistroName, c.DistroVersion, c.AerospikeVersion)
 	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
+	verNoSuffix = strings.TrimSuffix(verNoSuffix, "f")
 
 	// build extra
 	var ep []string

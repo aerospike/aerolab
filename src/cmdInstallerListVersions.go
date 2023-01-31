@@ -13,6 +13,7 @@ import (
 type installerListVersionsCmd struct {
 	Prefix    string  `short:"v" long:"version" description:"Version Prefix to search for" default:""`
 	Community bool    `short:"c" long:"community" description:"Set this switch to list community editions"`
+	Federal   bool    `short:"f" long:"federal" description:"Set this switch to list federal editions; cancels --community"`
 	Reverse   bool    `short:"r" long:"reverse" description:"Reverse-sort the results"`
 	Url       bool    `short:"l" long:"show-url" description:"Show direct access url instead of version number"`
 	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -32,8 +33,10 @@ func (c *installerListVersionsCmd) Execute(args []string) error {
 	if c.Reverse {
 		reverseSort = true
 	}
-	if !community {
+	if !community && !c.Federal {
 		baseUrl = enterpriseUrl
+	} else if c.Federal {
+		baseUrl = federalUrl
 	} else {
 		baseUrl = communityUrl
 	}

@@ -418,8 +418,10 @@ func aeroFindUrlX(enterpriseUrl string, version string, user string, pass string
 		partversion = strings.TrimSuffix(version, "*")
 	}
 	if version == "latest" || version == "latestc" || strings.HasSuffix(version, "*") {
-		if version[len(version)-1] != 'c' {
+		if version[len(version)-1] != 'c' && version[len(version)-1] != 'f' {
 			baseUrl = enterpriseUrl
+		} else if version[len(version)-1] == 'f' {
+			baseUrl = federalUrl
 		} else {
 			baseUrl = communityUrl
 		}
@@ -461,15 +463,19 @@ func aeroFindUrlX(enterpriseUrl string, version string, user string, pass string
 		if ver == "" {
 			return "", "", errors.New("required version not found")
 		}
-		if version[len(version)-1] != 'c' {
+		if version[len(version)-1] != 'c' && version[len(version)-1] != 'f' {
 			version = ver
+		} else if version[len(version)-1] == 'f' {
+			version = ver + "f"
 		} else {
 			version = ver + "c"
 		}
 	}
 
-	if version[len(version)-1] != 'c' {
+	if version[len(version)-1] != 'c' && version[len(version)-1] != 'f' {
 		baseUrl = enterpriseUrl + version + "/"
+	} else if version[len(version)-1] == 'f' {
+		baseUrl = federalUrl + version[:len(version)-1] + "/"
 	} else {
 		baseUrl = communityUrl + version[:len(version)-1] + "/"
 	}

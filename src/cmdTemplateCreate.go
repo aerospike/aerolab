@@ -64,6 +64,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 
 	log.Printf("Distro = %s:%s ; AerospikeVersion = %s", c.DistroName, c.DistroVersion, c.AerospikeVersion)
 	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
+	verNoSuffix = strings.TrimSuffix(verNoSuffix, "f")
 	// check if template exists
 	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), isArm}, 1)
 	if err != nil {
@@ -85,6 +86,8 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	var edition string
 	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
+	} else if strings.HasSuffix(c.AerospikeVersion.String(), "f") {
+		edition = "aerospike-server-federal"
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
