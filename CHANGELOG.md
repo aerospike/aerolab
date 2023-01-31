@@ -1,3 +1,6 @@
+#### 4.7.0
+* add `SIGINT` handler to aerospike installer downloader, and template creators, to abort smoothly
+
 #### 4.6.0
 * add client-side grafana dashboards to AMS monitoring stack client
 * add `fullstack` documentation on how to deploy the full stack

@@ -1012,7 +1012,14 @@ func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 	return string(out), err
 }
 
+var deployAwsTemplateShutdownMaking = make(chan int, 1)
+
 func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+	addShutdownHandler("deployAwsTemplate", func(os.Signal) {
+		deployAwsTemplateShutdownMaking <- 1
+		d.VacuumTemplate(v)
+	})
+	defer delShutdownHandler("deployAwsTemplate")
 	var extraTags []*ec2.Tag
 	badNames := []string{awsTagOperatingSystem, awsTagOSVersion, awsTagAerospikeVersion, awsTagUsedBy, awsTagClusterName, awsTagNodeNumber, "Arch", "Name"}
 	for _, extraTag := range extra.tags {
@@ -1145,6 +1152,11 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	input.MaxCount = &one
 	input.MinCount = &one
 	input.TagSpecifications = tsa
+	if len(deployAwsTemplateShutdownMaking) > 0 {
+		for {
+			time.Sleep(time.Second)
+		}
+	}
 	reservationsX, err := d.ec2svc.RunInstances(&input)
 	if err != nil {
 		return fmt.Errorf("could not run RunInstances\n%s", err)
@@ -1200,6 +1212,11 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 					time.Sleep(time.Second)
 					continue
 				}
+				if len(deployAwsTemplateShutdownMaking) > 0 {
+					for {
+						time.Sleep(time.Second)
+					}
+				}
 
 				_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "ls")
 				if err == nil {
@@ -1217,6 +1234,11 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	}
 
 	instance := nout.Reservations[0].Instances[0]
+	if len(deployAwsTemplateShutdownMaking) > 0 {
+		for {
+			time.Sleep(time.Second)
+		}
+	}
 
 	fmt.Println("Connection succeeded, continuing deployment...")
 
@@ -1256,12 +1278,22 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 			return fmt.Errorf("chmod auth_keys failed: %s\n%s", string(out), err)
 		}
 	}
+	if len(deployAwsTemplateShutdownMaking) > 0 {
+		for {
+			time.Sleep(time.Second)
+		}
+	}
 
 	// copy files as required to VM
 	files = append(files, fileList{"/root/installer.sh", strings.NewReader(script), len(script)})
 	err = scp("root", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, files)
 	if err != nil {
 		return fmt.Errorf("scp failed: %s", err)
+	}
+	if len(deployAwsTemplateShutdownMaking) > 0 {
+		for {
+			time.Sleep(time.Second)
+		}
 	}
 
 	// run script as required
@@ -1275,6 +1307,11 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	out, err := remoteRun("root", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "/bin/bash -c /root/installer.sh")
 	if err != nil {
 		return fmt.Errorf("/root/installer.sh failed: %s\n%s", string(out), err)
+	}
+	if len(deployAwsTemplateShutdownMaking) > 0 {
+		for {
+			time.Sleep(time.Second)
+		}
 	}
 
 	// shutdown VM
@@ -1291,6 +1328,11 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	d.ec2svc.WaitUntilInstanceStopped(&ec2.DescribeInstancesInput{
 		InstanceIds: []*string{instance.InstanceId},
 	})
+	if len(deployAwsTemplateShutdownMaking) > 0 {
+		for {
+			time.Sleep(time.Second)
+		}
+	}
 
 	// create ami from VM
 	cii := ec2.CreateImageInput{}
