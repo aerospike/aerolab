@@ -1729,18 +1729,56 @@ func (d *backendAws) Download(clusterName string, node int, source string, desti
 	return scpExecDownload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
 }
 
+func (d *backendAws) resolveVPC() (*ec2.DescribeVpcsOutput, error) {
+	return d.resolveVPCdo(true)
+}
+
+func (d *backendAws) resolveVPCdo(create bool) (*ec2.DescribeVpcsOutput, error) {
+	out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
+		Filters: []*ec2.Filter{
+			&ec2.Filter{
+				Name:   aws.String("is-default"),
+				Values: aws.StringSlice([]string{"true"}),
+			},
+		},
+	})
+	if err != nil && create {
+		_, errx := d.ec2svc.CreateDefaultVpc(&ec2.CreateDefaultVpcInput{})
+		if errx != nil {
+			return out, fmt.Errorf("%s :: %s", err, errx)
+		}
+		errx = d.ec2svc.WaitUntilVpcExists(&ec2.DescribeVpcsInput{
+			Filters: []*ec2.Filter{
+				&ec2.Filter{
+					Name:   aws.String("is-default"),
+					Values: aws.StringSlice([]string{"true"}),
+				},
+			},
+		})
+		if errx != nil {
+			return out, fmt.Errorf("%s :: %s", err, errx)
+		}
+		errx = d.ec2svc.WaitUntilVpcAvailable(&ec2.DescribeVpcsInput{
+			Filters: []*ec2.Filter{
+				&ec2.Filter{
+					Name:   aws.String("is-default"),
+					Values: aws.StringSlice([]string{"true"}),
+				},
+			},
+		})
+		if errx != nil {
+			return out, fmt.Errorf("%s :: %s", err, errx)
+		}
+		return d.resolveVPCdo(false)
+	}
+	return out, err
+}
+
 func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string, printID bool) (secGroup string, subnet string, err error) {
 	var vpc string
 	if secGroupID == "" || !strings.HasPrefix(subnetID, "subnet-") {
 		if !strings.HasPrefix(subnetID, "subnet-") {
-			out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
-				Filters: []*ec2.Filter{
-					&ec2.Filter{
-						Name:   aws.String("is-default"),
-						Values: aws.StringSlice([]string{"true"}),
-					},
-				},
-			})
+			out, err := d.resolveVPC()
 			if err != nil {
 				return "", "", fmt.Errorf("could not resolve default VPC: %s", err)
 			}
