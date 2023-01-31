@@ -17,7 +17,12 @@ type PassThru struct {
 	startTime time.Time
 }
 
+var abortDownload = make(chan int, 1)
+
 func (pt *PassThru) Read(p []byte) (int, error) {
+	if len(abortDownload) > 0 {
+		return 0, io.EOF
+	}
 	n, err := pt.Reader.Read(p)
 	pt.total += int64(n)
 	var percent int64
@@ -52,6 +57,11 @@ func convSize(size int64) string {
 }
 
 func downloadFile(url string, filename string, user string, pass string) (err error) {
+	addShutdownHandler("downloader", func(os.Signal) {
+		os.Remove(filename)
+		abortDownload <- 1
+	})
+	defer delShutdownHandler("downloader")
 	out, err := os.Create(filename)
 	if err != nil {
 		return err

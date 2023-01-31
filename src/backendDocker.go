@@ -225,13 +225,24 @@ func (d *backendDocker) VacuumTemplate(v backendVersion) error {
 	return nil
 }
 
+var deployTemplateShutdownMaking = make(chan int, 1)
+
 func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
 	if err := d.versionToReal(&v); err != nil {
 		return err
 	}
 	templName := fmt.Sprintf("aerotmpl-%s-%s-%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	addShutdownHandler("deployTemplate", func(os.Signal) {
+		for len(deployTemplateShutdownMaking) > 0 {
+			time.Sleep(time.Second)
+		}
+		exec.Command("docker", "rm", "-f", templName).CombinedOutput()
+	})
+	defer delShutdownHandler("deployTemplate")
 	// deploy container with os
+	deployTemplateShutdownMaking <- 1
 	out, err := exec.Command("docker", "run", "-td", "--name", templName, fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)).CombinedOutput()
+	<-deployTemplateShutdownMaking
 	if err != nil {
 		return fmt.Errorf("could not start vanilla container: %s;%s", out, err)
 	}
