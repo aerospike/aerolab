@@ -41,6 +41,7 @@ func (c *installerDownloadCmd) runDownload(args []string) (string, error) {
 
 	log.Printf("Distro = %s:%s ; AerospikeVersion = %s", c.DistroName, c.DistroVersion, c.AerospikeVersion)
 	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
+	verNoSuffix = strings.TrimSuffix(verNoSuffix, "f")
 	// check if template exists
 	if url == "" {
 		url, err = aerospikeGetUrl(bv, c.Username, c.Password)
@@ -55,6 +56,8 @@ func (c *installerDownloadCmd) runDownload(args []string) (string, error) {
 	var edition string
 	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
+	} else if strings.HasSuffix(c.AerospikeVersion.String(), "f") {
+		edition = "aerospike-server-federal"
 	} else {
 		edition = "aerospike-server-enterprise"
 	}

@@ -1,5 +1,6 @@
 #### 4.7.0
 * add `SIGINT` handler to aerospike installer downloader, and template creators, to abort smoothly
+* allow installation of FIPS edition of Aerospike
 
 #### 4.6.0
 * add client-side grafana dashboards to AMS monitoring stack client

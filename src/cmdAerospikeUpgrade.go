@@ -47,6 +47,8 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	var edition string
 	if strings.HasSuffix(c.AerospikeVersion.String(), "c") {
 		edition = "aerospike-server-community"
+	} else if strings.HasSuffix(c.AerospikeVersion.String(), "f") {
+		edition = "aerospike-server-federal"
 	} else {
 		edition = "aerospike-server-enterprise"
 	}
@@ -75,6 +77,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	c.DistroVersion = TypeDistroVersion(bv.distroVersion)
 	c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
 	verNoSuffix := strings.TrimSuffix(c.AerospikeVersion.String(), "c")
+	verNoSuffix = strings.TrimSuffix(verNoSuffix, "f")
 	archString := ".x86_64"
 	if bv.isArm {
 		archString = ".arm64"
