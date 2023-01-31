@@ -1680,6 +1680,14 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			return errors.New("waited for 600 seconds for SSH to come up, but it hasn't. Giving up")
 		}
 	}
+	if strings.HasSuffix(v.aerospikeVersion, "f") {
+		log.Print("NOTE: Remember to harden the instance with FIPS as well.")
+		if v.distroName == "amazon" && v.distroVersion == "2" {
+			log.Print("AWS FIPS Enablement Manual: https://aws.amazon.com/blogs/publicsector/enabling-fips-mode-amazon-linux-2/")
+		}
+		log.Print("Each command can be run on all nodes at the same time, like so:")
+		log.Print("  $ aerolab attach shell -n ClusterName -l all -- yum update -y")
+	}
 	return nil
 }
 
