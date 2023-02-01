@@ -52,6 +52,14 @@ func (d *backendDocker) CreateSecurityGroups(vpc string) error {
 	return nil
 }
 
+func (d *backendDocker) ListSecurityGroups() error {
+	return nil
+}
+
+func (d *backendDocker) ListSubnets() error {
+	return nil
+}
+
 func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool, vpc string) error {
 	return nil
 }

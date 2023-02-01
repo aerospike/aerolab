@@ -4,6 +4,7 @@
 * auto-create default VPC if it's missing
 * handle per-VPC aerolab-managed security groups (breaking feature - old security groups from `4.5.0` will no longer be used)
 * new feature: `aerolab cluster partition` to allow for automated partitioner with automatic adjustment of `aerospike.conf` as required
+* new `aerolab config aws` commands: `create-security-groups`, `list-security-groups`, `list-subnets`
 
 #### 4.6.0
 * add client-side grafana dashboards to AMS monitoring stack client

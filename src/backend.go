@@ -112,6 +112,10 @@ type backend interface {
 	CreateSecurityGroups(vpc string) error
 	// may implement
 	LockSecurityGroups(ip string, lockSSH bool, vpc string) error
+	// may implement
+	ListSecurityGroups() error
+	// may implement
+	ListSubnets() error
 }
 
 // check return code from exec function
