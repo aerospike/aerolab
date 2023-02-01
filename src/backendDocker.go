@@ -48,7 +48,11 @@ func (d *backendDocker) DeleteSecurityGroups(vpc string) error {
 	return nil
 }
 
-func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool) error {
+func (d *backendDocker) CreateSecurityGroups(vpc string) error {
+	return nil
+}
+
+func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool, vpc string) error {
 	return nil
 }
 

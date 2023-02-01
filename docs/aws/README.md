@@ -36,6 +36,8 @@ region = DEFAULT_REGION_TO_USE
 
 Create / get the right subnets and security groups, if not intending to use the defaults. You can skip this step, in which case AeroLab will create the required security groups with minimal permissions required.
 
+Note that if using the default VPC, which does not exist, AeroLab will create it, together with default subnets.
+
 #### Security Groups
 
 AeroLab clusters require a security group. The following rules will allow for full connectivity:
@@ -100,9 +102,36 @@ If not using the default VPC, certain conditions must be met when configuring a 
 ./aerolab cluster create -n testcluster -c 3 -m mesh -I t3a.medium -E 20 -S sg-03430d698bffb44a3 -U subnet-06cc8a834647c4cc3
 ```
 
-## Destroy cluster
+#### Lock security-groups so that machines are only accessible from the aerolab IP
+
+```bash
+# default VPC
+./aerolab config aws lock-security-groups
+# custom VPC
+./aerolab config aws lock-security-groups -v vpc-...
+```
+
+#### Lock security-groups so that machines are only accessible from a given IP range
+
+```bash
+# default VPC
+./aerolab config aws lock-security-groups --ip 1.2.3.4/32
+# custom VPC
+./aerolab config aws lock-security-groups --ip 1.2.3.4/32 -v vpc-...
+```
+
+### Destroy cluster
 ```bash
 ./aerolab cluster-destroy -f -n testcluster
+```
+
+#### Destroy aerolab-managed security groups
+
+```bash
+# default VPC
+./aerolab config aws destroy-security-groups
+# custom VPC
+./aerolab config aws destroy-security-groups -v vpc-...
 ```
 
 ## Other commands
