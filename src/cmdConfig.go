@@ -29,7 +29,8 @@ func (c *configCmd) Execute(args []string) error {
 
 type configAwsCmd struct {
 	DestroySecGroups destroySecGroupsCmd `command:"delete-security-groups" subcommands-optional:"true" description:"delete aerolab-managed security groups"`
-	LockSecGroups    lockSecGroupsCmd    `command:"lock-security-groups" subcommands-optional:"true" description:"log the client security groups so that AMS/vscode are only accessible from a set IP"`
+	LockSecGroups    lockSecGroupsCmd    `command:"lock-security-groups" subcommands-optional:"true" description:"lock the client security groups so that AMS/vscode are only accessible from a set IP"`
+	CreateSecGroups  createSecGroupsCmd  `command:"create-security-groups" subcommands-optional:"true" description:"create AeroLab-managed security groups in a given VPC"`
 	Help             helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -44,9 +45,15 @@ type destroySecGroupsCmd struct {
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
+type createSecGroupsCmd struct {
+	VPC  string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
 type lockSecGroupsCmd struct {
 	IP   string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
 	Ssh  bool    `short:"s" long:"ssh" description:"set to also lock port 22 SSH to the given IP/mask for server and client groups"`
+	VPC  string  `short:"v" long:"vpc" description:"VPC to handle sec groups for; default: default-VPC" default:""`
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -64,6 +71,22 @@ type configDefaultsCmd struct {
 	Value       flags.Filename `short:"v" long:"value" description:"Value to set" default:""`
 	Reset       bool           `short:"r" long:"reset" description:"Reset to default value. Use instead of --value"`
 	Help        helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *createSecGroupsCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "aws" {
+		return logFatal("required backend type to be AWS")
+	}
+	log.Print("Creating security groups")
+	err := b.CreateSecurityGroups(c.VPC)
+	if err != nil {
+		return err
+	}
+	log.Print("Done")
+	return nil
 }
 
 func (c *destroySecGroupsCmd) Execute(args []string) error {
@@ -90,7 +113,7 @@ func (c *lockSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Locking security groups")
-	err := b.LockSecurityGroups(c.IP, c.Ssh)
+	err := b.LockSecurityGroups(c.IP, c.Ssh, c.VPC)
 	if err != nil {
 		return err
 	}
