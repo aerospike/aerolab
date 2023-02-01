@@ -1,7 +1,8 @@
-#### 4.7.0
+#### 5.0.0
 * add `SIGINT` handler to aerospike installer downloader, and template creators, to abort smoothly
 * allow installation of FIPS edition of Aerospike
 * auto-create default VPC if it's missing
+* handle per-VPC aerolab-managed security groups (breaking feature - old security groups from `4.5.0` will no longer be used)
 
 #### 4.6.0
 * add client-side grafana dashboards to AMS monitoring stack client
