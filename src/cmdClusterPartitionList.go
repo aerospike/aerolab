@@ -157,6 +157,7 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 			}
 			disk.diskNo = diskNo
 			disk.partNo = 0
+			disk.nodeNo = node
 			if _, ok := dout[node]; !ok {
 				dout[node] = make(map[int]map[int]blockDevices)
 			}
@@ -177,6 +178,7 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 					partNo++
 					if c.FilterPartitions == "ALL" || inslice.HasInt(filterPartitions, partNo) {
 						part.diskNo = diskNo
+						part.nodeNo = node
 						part.partNo = partNo
 						dout[node][diskNo][partNo] = part
 						out = append(out, fmt.Sprintf("%4d %4s %4d %4d %-12s %8s %6s %8s %s", node, diskType, diskNo, partNo, part.Name, part.Size, part.FsType, part.FsSize, part.MountPoint))
