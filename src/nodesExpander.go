@@ -47,8 +47,11 @@ func expandNodes(nodes string, clusterName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !inslice.HasString(clusters, clusterName) {
-		return "", fmt.Errorf("cluster `%s' does not exist", clusterName)
+	clusterNames := strings.Split(clusterName, ",")
+	for _, n := range clusterNames {
+		if !inslice.HasString(clusters, n) {
+			return "", fmt.Errorf("cluster `%s' does not exist", n)
+		}
 	}
 	list := []int{}
 	if nodes == "" {
@@ -56,13 +59,15 @@ func expandNodes(nodes string, clusterName string) (string, error) {
 	}
 	for _, item := range strings.Split(nodes, ",") {
 		if strings.ToUpper(item) == "ALL" {
-			n, err := b.NodeListInCluster(clusterName)
-			if err != nil {
-				return "", err
-			}
-			for _, i := range n {
-				if !inslice.HasInt(list, i) {
-					list = append(list, i)
+			for _, cName := range clusterNames {
+				n, err := b.NodeListInCluster(cName)
+				if err != nil {
+					return "", err
+				}
+				for _, i := range n {
+					if !inslice.HasInt(list, i) {
+						list = append(list, i)
+					}
 				}
 			}
 		} else if strings.HasPrefix(item, "-") {
