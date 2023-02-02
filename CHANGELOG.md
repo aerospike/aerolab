@@ -6,6 +6,18 @@
 * new feature: `aerolab cluster partition` to allow for automated partitioner with automatic adjustment of `aerospike.conf` as required
 * new `aerolab config aws` commands: `create-security-groups`, `list-security-groups`, `list-subnets`
 * node expander bug fix - handle multiple clusters separated by commas in commands
+* updating dependencies
+  * golang `1.20`
+  * golang build tools
+  * github.com/aerospike/aerospike-client-go/v5 v5.10.0 => v5.11.0
+  * github.com/aerospike/aerospike-client-go/v6 v6.6.0 => v6.9.1
+  * github.com/aws/aws-sdk-go v1.44.158 => v1.44.192
+  * github.com/mattn/go-runewidth v0.0.9 => v0.0.14
+  * github.com/rivo/uniseg v0.4.3
+  * github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 => v1.1.0
+  * golang.org/x/crypto v0.3.0 => v0.5.0
+  * golang.org/x/sys v0.2.0 => v0.4.0
+  * golang.org/x/term v0.2.0 => v0.4.0
 
 #### 4.6.0
 * add client-side grafana dashboards to AMS monitoring stack client
