@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -57,59 +55,6 @@ type blockDevices struct {
 	diskNo     int
 	partNo     int
 	nodeNo     int
-}
-
-type clusterPartitionCreateCmd struct {
-	ClusterName  TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes        TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	FilterDisks  TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
-	FilterType   string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme|ebs" default:"ALL"`
-	Partitions   string          `short:"p" long:"partitions" description:"partitions to create, size is in %% of total disk space; ex: 25,25,25,25; default: just remove all partitions"`
-	NoBlkdiscard bool            `short:"b" long:"no-blkdiscard" description:"set to prevent aerolab from running blkdiscard on the disks and partitions"`
-	Help         helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-
-func (c *clusterPartitionCreateCmd) Execute(args []string) error {
-	if earlyProcess(args) {
-		return nil
-	}
-
-	log.Print("Running cluster.partition.create")
-	partitions := []int{}
-	if len(c.Partitions) > 0 {
-		parts := strings.Split(c.Partitions, ",")
-		total := 0
-		for _, i := range parts {
-			j, err := strconv.Atoi(i)
-			if err != nil {
-				return fmt.Errorf("could not translate partitions, must be number,number,number,... :%s", err)
-			}
-			if j < 1 {
-				return fmt.Errorf("cannot create partition of %% size lesser than 1")
-			}
-			total += j
-			if total > 100 {
-				return fmt.Errorf("cannot create partitions totalling more than 100%% of the drive")
-			}
-			partitions = append(partitions, j)
-		}
-	}
-	a.opts.Cluster.Partition.List.ClusterName = c.ClusterName
-	a.opts.Cluster.Partition.List.Nodes = c.Nodes
-	a.opts.Cluster.Partition.List.FilterDisks = c.FilterDisks
-	a.opts.Cluster.Partition.List.FilterType = c.FilterType
-	a.opts.Cluster.Partition.List.FilterPartitions = "0"
-	d, err := a.opts.Cluster.Partition.List.run(false)
-	if err != nil {
-		return err
-	}
-	if len(d) == 0 {
-		return errors.New("no matching disks found")
-	}
-	// TODO create c.Partitions partitions on the selected disks, don't forget to blkdiscard disks and partitions (blkdiscard, and then blkdiscard -z 8MiB each)
-	// TODO remember to check for mountpoints, and unmount (modify /etc/fstab also if required) any partitions before removing them
-	log.Print("Done")
-	return nil
 }
 
 type clusterPartitionMkfsCmd struct {
