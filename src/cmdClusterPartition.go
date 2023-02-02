@@ -18,3 +18,27 @@ func (c *clusterPartitionCmd) Execute(args []string) error {
 	log.Print("Done")
 	return nil
 }
+
+/*
+# partition disks
+aerolab cluster partition create -n name -l all --filters="" --partitions="20%,20%,20%,20%,20%"
+
+# mkfs particular partitions, and mount
+aerolab cluster partition mkfs   -n name -l all --filters="" --mount-root="/mnt/" --type=xfs --options="noatime"
+
+# clear namespace storage type definitions from the conf file
+aerolab cluster partition conf   -n name -l all --clear=storage
+aerolab cluster partition conf   -n name -l all --clear=allflash
+
+# add storage type device and setup the devices matching filters
+aerolab cluster partition conf   -n name -l all --filters="" --namespace=test --device
+
+# add shadow devices matching filters
+aerolab cluster partition conf   -n name -l all --filters="" --namespace=test --shadow
+
+# add allflash definition matching filters
+aerolab cluster partition conf   -n name -l all --filters="" --namespace=test --allflash
+
+--- filters ---
+TODO
+*/
