@@ -1,63 +1,84 @@
 package main
 
-import "log"
+import (
+	"log"
+	"os"
+)
 
 type clusterPartitionCmd struct {
-	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	// TODO: switches for: filters, partitions, etc
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Create clusterPartitionCreateCmd `command:"create" subcommands-optional:"true" description:"Blkdiscard disks and/or create partitions on disks"`
+	Mkfs   clusterPartitionMkfsCmd   `command:"mkfs" subcommands-optional:"true" description:"Make filesystems on partitions and mount - for allflash"`
+	Conf   clusterPartitionConfCmd   `command:"conf" subcommands-optional:"true" description:"Adjust Aerospike configuration files on nodes to use created partitions"`
+	Help   helpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clusterPartitionCmd) Execute(args []string) error {
+	a.parser.WriteHelp(os.Stderr)
+	os.Exit(1)
+	return nil
+}
+
+type TypeFilterRange string
+
+type clusterPartitionCreateCmd struct {
+	ClusterName  TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes        TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	FilterDisks  TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
+	FilterType   string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme|ebs" default:"ALL"`
+	Partitions   string          `short:"p" long:"partitions" description:"partitions to create, size is in %% of total disk space; ex: 25,25,25,25; default: just remove all partitions"`
+	NoBlkdiscard bool            `short:"b" long:"no-blkdiscard" description:"set to prevent aerolab from running blkdiscard on the disks and partitions"`
+	Help         helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
 
-	log.Print("Running cluster.partition")
+	log.Print("Running cluster.partition.create")
 	log.Print("Done")
 	return nil
 }
 
-/*
-# partition disks
-aerolab cluster partition create -n name -l all --filter-disks=1-3 --filter-partitions=1-3 --filter-type=nvme --partitions="20%,20%,20%,20%,20%"
+type clusterPartitionMkfsCmd struct {
+	ClusterName      TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes            TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	FilterDisks      TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
+	FilterPartitions TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number, ex: 1,2,4-8" default:"ALL"`
+	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme|ebs" default:"ALL"`
+	FsType           string          `short:"f" long:"fs-type" description:"type of filesystem, ex: xfs" default:"xfs"`
+	MountRoot        string          `short:"r" long:"mount-root" description:"path to where all the mounts will be created" default:"/mnt/"`
+	MountOpts        string          `short:"o" long:"mount-options" description:"additional mount options to pass, ex: noatime,noexec" default:""`
+	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
 
-# mkfs particular partitions, and mount
-aerolab cluster partition mkfs   -n name -l all --filter-disks=1-3 --filter-partitions=1-3 --filter-type=nvme --mount-root="/mnt/" --type=xfs --options="noatime"
+func (c *clusterPartitionMkfsCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
 
-# clear namespace storage type definitions from the conf file
-aerolab cluster partition conf   -n name -l all --clear=storage
-aerolab cluster partition conf   -n name -l all --clear=allflash
+	log.Print("Running cluster.partition.mkfs")
+	log.Print("Done")
+	return nil
+}
 
-# add storage type device and setup the devices matching filters
-aerolab cluster partition conf   -n name -l all --filter-disks=1-3 --filter-partitions=1-3 --filter-type=nvme --namespace=test --device
+type clusterPartitionConfCmd struct {
+	ClusterName      TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes            TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	FilterDisks      TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
+	FilterPartitions TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number, ex: 1,2,4-8" default:"ALL"`
+	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme|ebs" default:"ALL"`
+	Namespace        string          `short:"m" long:"namespace" description:"namespace to modify the settings for; default: first found namespace" default:""`
+	ConfDest         string          `short:"o" long:"configure" description:"what to configure the selections as; options: device|shadow|allflash" default:""`
+	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
 
-# add shadow devices matching filters
-aerolab cluster partition conf   -n name -l all --filter-disks=1-3 --filter-partitions=1-3 --filter-type=nvme --namespace=test --shadow
+func (c *clusterPartitionConfCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
 
-# add allflash definition matching filters
-aerolab cluster partition conf   -n name -l all --filter-disks=1-3 --filter-partitions=1-3 --filter-type=nvme --namespace=test --allflash
-
---- filters ---
---filter-disks=1-3      // first 3 nvme, or first 3 sdX, that are not used for root '/', leave empty for ALL disks
---filter-partitions=1-3 // first 3 partitions on each selected disk, or don't set to select the disk itself
---filter-type=nvme      // or ebs
-
---- example with 2 nvme, 2 ebs, and trying to use allflash (5 partitions, one for allflash on nvme only) ---
-# all nvme 5 partitions
-aerolab cluster partition create -n name -l all --filter-type=nvme --partitions="20%,20%,20%,20%,20%"
-# all ebs 4 partitions
-aerolab cluster partition create -n name -l all --filter-type=ebs --partitions="25%,25%,25%,25%"
-# all nvme mkfs and mount first partition for allflash
-aerolab cluster partition mkfs   -n name -l all --filter-partitions=1 --filter-type=nvme --mount-root="/mnt/" --type=xfs --options="noatime"
-# clear configs in aerospike.conf for storage engine devices
-aerolab cluster partition conf   -n name -l all --namespace=test --clear=storage
-aerolab cluster partition conf   -n name -l all --namespace=test --clear=allflash
-# add partitions 2-5 of all nvme as devices to aerospike.conf
-aerolab cluster partition conf   -n name -l all --filter-partitions=2-5 --filter-type=nvme --namespace=test --device
-# add partitions 1-4 of all ebs as shadow to aerospike.conf
-aerolab cluster partition conf   -n name -l all --filter-partitions=1-4 --filter-type=ebs --namespace=test --shadow
-# add partition 1 of all nvme as allflash
-aerolab cluster partition conf   -n name -l all --filter-partitions=1 --filter-type=nvme --namespace=test --allflash
-*/
+	log.Print("Running cluster.partition.conf")
+	log.Print("Done")
+	return nil
+}
