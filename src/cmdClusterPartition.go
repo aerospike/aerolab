@@ -1,14 +1,19 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 )
 
 type clusterPartitionCmd struct {
 	Create clusterPartitionCreateCmd `command:"create" subcommands-optional:"true" description:"Blkdiscard disks and/or create partitions on disks"`
 	Mkfs   clusterPartitionMkfsCmd   `command:"mkfs" subcommands-optional:"true" description:"Make filesystems on partitions and mount - for allflash"`
 	Conf   clusterPartitionConfCmd   `command:"conf" subcommands-optional:"true" description:"Adjust Aerospike configuration files on nodes to use created partitions"`
+	List   clusterPartitionListCmd   `command:"list" subcommands-optional:"true" description:"List disks and partitions"`
 	Help   helpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -19,6 +24,40 @@ func (c *clusterPartitionCmd) Execute(args []string) error {
 }
 
 type TypeFilterRange string
+
+func (n *TypeNodes) Translate(clusterName string) ([]int, error) {
+	if n.String() == "" {
+		return b.NodeListInCluster(clusterName)
+	}
+	nodes := []int{}
+	for _, ns := range strings.Split(n.String(), ",") {
+		nn, err := strconv.Atoi(ns)
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, nn)
+	}
+	return nodes, nil
+}
+
+type blockDeviceInformation struct {
+	BlockDevices []blockDevices `json:"blockdevices"`
+}
+
+type blockDevices struct {
+	Name       string         `json:"name"`
+	Path       string         `json:"path"`
+	FsType     string         `json:"fstype"`
+	FsSize     string         `json:"fssize"`
+	MountPoint string         `json:"mountpoint"`
+	Model      string         `json:"model"` // "Amazon EC2 NVMe Instance Storage" or "Amazon Elastic Block Store"
+	Size       string         `json:"size"`
+	Type       string         `json:"type"` // loop or disk or part
+	Children   []blockDevices `json:"children"`
+	diskNo     int
+	partNo     int
+	nodeNo     int
+}
 
 type clusterPartitionCreateCmd struct {
 	ClusterName  TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
@@ -36,6 +75,39 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 	}
 
 	log.Print("Running cluster.partition.create")
+	partitions := []int{}
+	if len(c.Partitions) > 0 {
+		parts := strings.Split(c.Partitions, ",")
+		total := 0
+		for _, i := range parts {
+			j, err := strconv.Atoi(i)
+			if err != nil {
+				return fmt.Errorf("could not translate partitions, must be number,number,number,... :%s", err)
+			}
+			if j < 1 {
+				return fmt.Errorf("cannot create partition of %% size lesser than 1")
+			}
+			total += j
+			if total > 100 {
+				return fmt.Errorf("cannot create partitions totalling more than 100%% of the drive")
+			}
+			partitions = append(partitions, j)
+		}
+	}
+	a.opts.Cluster.Partition.List.ClusterName = c.ClusterName
+	a.opts.Cluster.Partition.List.Nodes = c.Nodes
+	a.opts.Cluster.Partition.List.FilterDisks = c.FilterDisks
+	a.opts.Cluster.Partition.List.FilterType = c.FilterType
+	a.opts.Cluster.Partition.List.FilterPartitions = "0"
+	d, err := a.opts.Cluster.Partition.List.run(false)
+	if err != nil {
+		return err
+	}
+	if len(d) == 0 {
+		return errors.New("no matching disks found")
+	}
+	// TODO create c.Partitions partitions on the selected disks, don't forget to blkdiscard disks and partitions (blkdiscard, and then blkdiscard -z 8MiB each)
+	// TODO remember to check for mountpoints, and unmount (modify /etc/fstab also if required) any partitions before removing them
 	log.Print("Done")
 	return nil
 }
