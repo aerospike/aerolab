@@ -4,8 +4,6 @@ import (
 	"log"
 )
 
-// TODO whole thing here
-
 type clusterPartitionConfCmd struct {
 	ClusterName      TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes            TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`

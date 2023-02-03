@@ -4,6 +4,7 @@
 * [Aerolab help commands](USING_HELP.md)
 * [Usage Examples](usage/README.md)
 * [Setting up Aerospike clusters on AWS with AeroLab](aws/README.md)
+  * [Using the partitioner](aws/partitioner/README.md)
 * [Deploy Clients with AeroLab](usage/CLIENTS.md)
   * [Deploy a VS Code Client Machine](usage/vscode.md)
   * [Deploy a Trino server](usage/trino.md)

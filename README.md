@@ -35,6 +35,7 @@ IPs of AeroLab containers can be seen by running `aerolab cluster-list`
 * [AeroLab Help Commands](docs/USING_HELP.md)
 * [Usage Examples](docs/usage/README.md)
 * [Setting up Aerospike clusters on AWS with AeroLab](docs/aws/README.md)
+  * [Using the partitioner](docs/aws/partitioner/README.md)
 * [Deploy Clients with AeroLab](docs/usage/CLIENTS.md)
   * [Deploy a VS Code Client Machine](docs/usage/vscode.md) - Launch a [VS Code](https://code.visualstudio.com/) IDE in a browser, complete with Java, Go, Python and C# language clients, and code against your Aerospike cluster
   * [Deploy a Trino server](docs/usage/trino.md) - Launch a [Trino](https://trino.io/) server and shell, and query your Aerospike cluster with SQL
