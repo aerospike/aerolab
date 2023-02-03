@@ -113,7 +113,7 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 					script.Add("parted -a optimal -s " + part[0].Path + fmt.Sprintf(" mkpart primary %s%% %s%%", p.start, p.end))
 				}
 				if !c.NoBlkdiscard {
-					script.Add("lsblk " + part[0].Path + " -o NAME -l -n |tail -n+2 |while read p; do blkdiscard -z --length 8388608 /dev/$p; done")
+					script.Add("sleep 1; lsblk " + part[0].Path + " -o NAME -l -n |tail -n+2 |while read p; do wipefs -a /dev/$p; blkdiscard -z --length 8388608 /dev/$p; done")
 				}
 			}
 			script.Add("grep \"\\S\" /etc/fstab > /etc/fstab.clean; mv /etc/fstab.clean /etc/fstab")
