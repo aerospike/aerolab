@@ -90,13 +90,15 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 			diskCount++
 			for _, p := range part {
 				if p.MountPoint != "" {
-					script.Add("umount " + p.Path)
-					script.Add("umount -f " + p.Path)
-					script.Add("sed -i.bak 's~" + p.Path + ".*~~g /etc/fstab")
+					script.Add("umount -f " + p.Path + " || echo 'not mounted'")
+					script.Add("set +e")
+					script.Add("RET=0; while [ $RET -eq 0 ]; do mount |egrep '^" + p.Path + "( |\\t)'; RET=$?; sleep 1; done")
+					script.Add("set -e")
 				}
+				script.Add("sed -i.bak -e 's~" + p.Path + ".*~~g' /etc/fstab || echo 'not mounted'")
 			}
 			if len(part) > 1 {
-				script.Add("parted -s " + part[0].Path + " 'mktable gpt'")
+				script.Add("sleep 1; parted -s " + part[0].Path + " 'mktable gpt'")
 			}
 			if !c.NoBlkdiscard {
 				script.Add(fmt.Sprintf("blkdiscard %s || echo 'blkdiscard not supported'", part[0].Path))
@@ -111,9 +113,10 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 					script.Add("parted -a optimal -s " + part[0].Path + fmt.Sprintf(" mkpart primary %s%% %s%%", p.start, p.end))
 				}
 				if !c.NoBlkdiscard {
-					script.Add("lsblk " + part[0].Path + " -o NAME -l -n |tail -n+2 |while read p; do blkdiscard -z --length 8388608 $p; done")
+					script.Add("lsblk " + part[0].Path + " -o NAME -l -n |tail -n+2 |while read p; do blkdiscard -z --length 8388608 /dev/$p; done")
 				}
 			}
+			script.Add("grep \"\\S\" /etc/fstab > /etc/fstab.clean; mv /etc/fstab.clean /etc/fstab")
 		}
 		if c.FilterDisks != "ALL" && diskCount < filterDiskCount {
 			return fmt.Errorf("could not find all the required disks on node %d", nodeNo)
