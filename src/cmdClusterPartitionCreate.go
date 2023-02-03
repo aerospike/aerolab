@@ -29,6 +29,10 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 		return nil
 	}
 
+	if a.opts.Config.Backend.Type == "docker" {
+		return fmt.Errorf("partition creation and mkfs are not supported on docker backend")
+	}
+
 	log.Print("Running cluster.partition.create")
 	partitions := []int{}
 	if len(c.Partitions) > 0 {
