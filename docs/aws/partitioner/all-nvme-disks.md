@@ -1,5 +1,11 @@
 # Partitioner - use all nvme disks for a namespace
 
+## create a cluster
+
+```
+aerolab cluster create -n clusterName -c 2 -I r5ad.4xlarge
+```
+
 ## blkdiscard and prepare
 
 ```
