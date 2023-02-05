@@ -4,6 +4,12 @@ A more complicated example scenario, where:
 * 2 nvme devices exist, to be partitioned into 4 partitions each
 * 8 EBS devices exist, to be used as shadows for the 8 total nvme partitions
 
+## create a cluster
+
+```
+aerolab cluster create -n clusterName -c 2 -I r5ad.4xlarge -E 20,30,30,30,30,30,30,30,30
+```
+
 ## blkdiscard and partition nvme - 25% disk space on each partition
 
 ```

@@ -1,5 +1,11 @@
 # Partitioner - use all disks for a namespace
 
+## create a cluster
+
+```
+aerolab cluster create -n clusterName -c 2 -I r5ad.large -E 20,30,30
+```
+
 ## blkdiscard and prepare
 
 ```

@@ -1,5 +1,11 @@
 # Partition each NVME into 4 partitions and use 2 for each of the two namespaces
 
+## create a cluster
+
+```
+aerolab cluster create -n clusterName -c 2 -I r5ad.4xlarge
+```
+
 ## blkdiscard and partition - 25% disk space on each partition
 
 ```
