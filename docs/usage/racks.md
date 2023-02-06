@@ -2,16 +2,28 @@
 AeroLab makes it easy for you to deploy a [rack-aware](https://docs.aerospike.com/server/operations/configure/network/rack-aware)
 Aerospike Database cluster.
 
-## Create a three node Aerospike cluster with rack-id 1
+## Create a size node Aerospike cluster, do not start aerospike
 
 ```bash
-aerolab cluster create -c 3 -o templates/rack1.conf
+aerolab cluster create -c 6 -s n
 ```
 
-## Grow the cluster by another three nodes, using rack-id 2
+## Assign rack-id 1 to first three nodes, all namespaces
 
 ```bash
-aerolab cluster grow -c 3 -o templates/rack2.conf
+aerolab conf rackid -l 1-3 -i 1
+```
+
+## Assign rack-id 2 to the next three nodes, all namespaces
+
+```bash
+aerolab conf rackid -l 4-6 -i 2
+```
+
+## Start aerospike
+
+```bash
+aerolab aerospike start
 ```
 
 ## Confirm the cluster is working

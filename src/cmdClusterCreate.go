@@ -75,6 +75,7 @@ type clusterCreateCmdDocker struct {
 	RamLimit          string `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
 	SwapLimit         string `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
 	Privileged        bool   `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
+	NetworkName       string `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
 }
 
 func init() {
@@ -275,6 +276,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		ramLimit:        c.Docker.RamLimit,
 		swapLimit:       c.Docker.SwapLimit,
 		privileged:      c.Docker.Privileged,
+		network:         c.Docker.NetworkName,
 		exposePorts:     ep,
 		switches:        c.Docker.ExtraFlags,
 		dockerHostname:  !c.NoSetHostname,

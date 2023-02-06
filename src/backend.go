@@ -24,6 +24,7 @@ type backendExtra struct {
 	exposePorts     []string // docker only
 	switches        string   // docker only
 	dockerHostname  bool     // docker only
+	network         string   // docker only
 	ami             string   // aws only
 	instanceType    string   // aws only
 	ebs             string   // aws only
@@ -116,6 +117,11 @@ type backend interface {
 	ListSecurityGroups() error
 	// may implement
 	ListSubnets() error
+	// may implement (docker related mostly)
+	CreateNetwork(name string, driver string, subnet string, mtu string) error
+	DeleteNetwork(name string) error
+	PruneNetworks() error
+	ListNetworks(csv bool, writer io.Writer) error
 }
 
 // check return code from exec function
