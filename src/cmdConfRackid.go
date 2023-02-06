@@ -15,6 +15,8 @@ type confRackIdCmd struct {
 	aerospikeStartCmd
 	RackId     string `short:"i" long:"id" description:"Rack ID to use" default:"0"`
 	Namespaces string `short:"m" long:"namespaces" description:"comma-separated list of namespaces to modify; empty=all" default:""`
+	NoRoster   bool   `short:"r" long:"no-roster" description:"if SC namespaces are found: aerolab will automatically restart aerospike and reset the roster for SC namespaces to reflect the rack-id; set this to not set the roster"`
+	NoRestart  bool   `short:"e" long:"no-restart" description:"if no SC namespaces are found: aerolab will automatically restart aerospike when rackid is set; set this to prevent said action"`
 }
 
 func (c *confRackIdCmd) Execute(args []string) error {
@@ -68,6 +70,7 @@ func (c *confRackIdCmd) Execute(args []string) error {
 	foundns := 0
 
 	// fix config if needed, read custom config file path if needed
+	scFound := []string{}
 	for _, i := range nodes {
 		files := []fileList{}
 		var r [][]string
@@ -91,6 +94,13 @@ func (c *confRackIdCmd) Execute(args []string) error {
 				}
 				if len(namespaces) == 0 || inslice.HasString(namespaces, strings.Trim(ns[1], "\r\t\n ")) {
 					cc.Stanza(key).SetValue("rack-id", c.RackId)
+					if cc.Stanza(key).Type("strong-consistency") == aeroconf.ValueString {
+						if sc, err := cc.Stanza(key).GetValues("strong-consistency"); err == nil && len(sc) > 0 && strings.ToLower(*sc[0]) == "true" {
+							if !inslice.HasString(scFound, ns[1]) {
+								scFound = append(scFound, ns[1])
+							}
+						}
+					}
 					foundns++
 				}
 			}
@@ -111,6 +121,41 @@ func (c *confRackIdCmd) Execute(args []string) error {
 		}
 	}
 
-	log.Print("Done, do not forget to restart the aerospike service")
+	if len(scFound) > 0 {
+		if c.NoRoster {
+			log.Print("NOTE: strong-consistency namespace found, please set the roster to reflect the rack-id by re-running `aerolab roster apply` on the cluster")
+			log.Print("Do not forget to restart the aerospike service first to reload the configuration files")
+		} else {
+			log.Print("Strong-consistency namespaces found, restarting aerospike and setting up the roster")
+			a.opts.Aerospike.Restart.ClusterName = c.ClusterName
+			a.opts.Aerospike.Restart.Nodes = ""
+			err = a.opts.Aerospike.Restart.run(args, "restart")
+			if err != nil {
+				log.Printf("ERROR running 'aerospike restart': %s", err)
+			}
+			for _, namespace := range scFound {
+				a.opts.Roster.Apply.ClusterName = c.ClusterName
+				a.opts.Roster.Apply.Namespace = namespace
+				a.opts.Roster.Apply.Nodes = ""
+				err = a.opts.Roster.Apply.runApply(args)
+				if err != nil {
+					log.Printf("ERROR running 'roster apply': %s", err)
+				}
+			}
+			log.Print("Done")
+		}
+	} else {
+		if !c.NoRestart {
+			a.opts.Aerospike.Restart.ClusterName = c.ClusterName
+			a.opts.Aerospike.Restart.Nodes = c.Nodes
+			err = a.opts.Aerospike.Restart.run(args, "restart")
+			if err != nil {
+				log.Printf("ERROR running 'aerospike restart': %s", err)
+			}
+			log.Print("Done")
+		} else {
+			log.Print("Done, remember to restart aerospike for the changes to take effect")
+		}
+	}
 	return nil
 }

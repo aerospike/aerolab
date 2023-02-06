@@ -15,6 +15,7 @@
 * [Custom Startup Scripts](custom-start.md)
 * [Limit Cluster Resource Use](limits.md)
 * [Deploying a Rack-aware Cluster](racks.md)
+* [Deploying a Rack-aware Cluster in strong consistency mode](rack-sc.md)
 * [Create an Aerospike cluster with Strong Consistency](strong.md)
 
 ## Monitoring
