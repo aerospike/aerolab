@@ -87,6 +87,19 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
+func (d *backendAws) CreateNetwork(name string, driver string, subnet string, mtu string) error {
+	return nil
+}
+func (d *backendAws) DeleteNetwork(name string) error {
+	return nil
+}
+func (d *backendAws) PruneNetworks() error {
+	return nil
+}
+func (d *backendAws) ListNetworks(csv bool, writer io.Writer) error {
+	return nil
+}
+
 func (d *backendAws) Init() error {
 	var err error
 

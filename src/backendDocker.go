@@ -312,6 +312,75 @@ func (d *backendDocker) TemplateDestroy(v backendVersion) error {
 }
 
 func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
+	if extra.network != "" {
+		b := new(bytes.Buffer)
+		err := d.ListNetworks(true, b)
+		if err != nil {
+			return err
+		}
+		found := false
+		for i, line := range strings.Split(b.String(), "\n") {
+			if i == 0 {
+				continue
+			}
+			netName := strings.Split(line, ",")[0]
+			if netName == extra.network {
+				found = true
+				break
+			}
+		}
+		if !found {
+			fmt.Printf("Network %s not found! Create (y/n)? ", extra.network)
+			reader := bufio.NewReader(os.Stdin)
+			answer := ""
+			for strings.ToLower(answer) != "y" && strings.ToLower(answer) != "n" && strings.ToLower(answer) != "yes" && strings.ToLower(answer) != "no" {
+				answer, _ = reader.ReadString('\n')
+				answer = strings.Trim(answer, "\t\r\n ")
+				if strings.ToLower(answer) != "y" && strings.ToLower(answer) != "n" && strings.ToLower(answer) != "yes" && strings.ToLower(answer) != "no" {
+					fmt.Println("Invalid input: answer either 'y' or 'n'")
+					fmt.Printf("Network %s not found! Create (y/n)? ", extra.network)
+				}
+			}
+			if strings.HasPrefix(answer, "n") {
+				return fmt.Errorf("Network not found, choose another network or create one first with: aerolab config docker help")
+			}
+			ok := false
+			for !ok {
+				fmt.Printf("Subnet (empty=default): ")
+				subnet, _ := reader.ReadString('\n')
+				subnet = strings.Trim(subnet, "\t\r\n ")
+				fmt.Printf("Driver (empty=default): ")
+				driver, _ := reader.ReadString('\n')
+				driver = strings.Trim(driver, "\t\r\n ")
+				fmt.Printf("MTU (empty=default): ")
+				mtu, _ := reader.ReadString('\n')
+				mtu = strings.Trim(mtu, "\t\r\n ")
+				fmt.Printf("OK (y/n/q)? ")
+				answer := ""
+				for strings.ToLower(answer) != "y" && strings.ToLower(answer) != "n" && strings.ToLower(answer) != "yes" && strings.ToLower(answer) != "no" && strings.ToLower(answer) != "q" && strings.ToLower(answer) != "quit" {
+					answer, _ = reader.ReadString('\n')
+					answer = strings.Trim(answer, "\t\r\n ")
+					if strings.ToLower(answer) != "y" && strings.ToLower(answer) != "n" && strings.ToLower(answer) != "yes" && strings.ToLower(answer) != "no" && strings.ToLower(answer) != "q" && strings.ToLower(answer) != "quit" {
+						fmt.Println("Invalid input: answer either 'y' or 'n'")
+						fmt.Printf("OK (y/n/q)? ")
+					}
+				}
+				if strings.HasPrefix(answer, "q") {
+					return fmt.Errorf("Network not found, choose another network or create one first with: aerolab config docker help")
+				}
+				if strings.HasPrefix(answer, "y") {
+					if driver == "" {
+						driver = "bridge"
+					}
+					err = d.CreateNetwork(extra.network, driver, subnet, mtu)
+					if err != nil {
+						return err
+					}
+					ok = true
+				}
+			}
+		}
+	}
 	if err := d.versionToReal(&v); err != nil {
 		return err
 	}
@@ -373,6 +442,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		}
 		if extra.swapLimit != "" {
 			exposeList = append(exposeList, "--memory-swap", extra.swapLimit)
+		}
+		if extra.network != "" {
+			exposeList = append(exposeList, "--network", extra.network)
 		}
 		if extra.privileged {
 			fmt.Println("WARNING: privileged container")

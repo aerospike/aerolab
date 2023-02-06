@@ -111,6 +111,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		ramLimit:        c.Docker.RamLimit,
 		swapLimit:       c.Docker.SwapLimit,
 		privileged:      c.Docker.Privileged,
+		network:         c.Docker.NetworkName,
 		exposePorts:     ep,
 		switches:        c.Docker.ExtraFlags,
 		dockerHostname:  !c.NoSetHostname,

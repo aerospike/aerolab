@@ -1,3 +1,9 @@
+#### 5.1.0
+* add option `aerolab config docker` to handle multiple docker networks
+* add option to specify network name when creating docker clusters/clients
+* add interactive option - when a network doesn't exist, ask if one should be created
+* add `aerolab conf rackid` option to add/change rack-id configuration on cluster nodes
+
 #### 5.0.0
 * add `SIGINT` handler to aerospike installer downloader, and template creators, to abort smoothly
 * allow installation of FIPS edition of Aerospike

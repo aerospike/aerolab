@@ -41,12 +41,6 @@ aerolab cluster add exporter -n ${cluster_name}
 aerolab client create ams -n ${ams_name} -s ${cluster_name} -I ${aws_instance_type_ams} -U ${aws_az}
 ```
 
-### Using Docker Desktop without tunneling configured
-
-```
-aerolab client create ams -n ${ams_name} -s ${cluster_name} -e 3000:3000
-```
-
 ## Deploy 5 tools machines for asbenchmark
 
 ```
