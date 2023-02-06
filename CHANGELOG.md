@@ -1,3 +1,6 @@
+#### 5.1.1
+* handle rack-id settings with roster in sc mode
+
 #### 5.1.0
 * add option `aerolab config docker` to handle multiple docker networks
 * add option to specify network name when creating docker clusters/clients

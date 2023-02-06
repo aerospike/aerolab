@@ -22,7 +22,15 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	}
 
 	log.Print("Running roster.apply")
+	err := c.runApply(args)
+	if err != nil {
+		return err
+	}
+	log.Print("Done")
+	return nil
+}
 
+func (c *rosterApplyCmd) runApply(args []string) error {
 	clist, err := b.ClusterList()
 	if err != nil {
 		return err
@@ -110,6 +118,5 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	log.Print("Done")
 	return nil
 }
