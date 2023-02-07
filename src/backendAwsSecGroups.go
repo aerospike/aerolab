@@ -7,12 +7,15 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/bestmethod/inslice"
 )
 
 func (d *backendAws) resolveVPC() (*ec2.DescribeVpcsOutput, error) {
@@ -597,11 +600,22 @@ func (d *backendAws) ListSecurityGroups() error {
 		if !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabServer-") && !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabClient-") {
 			continue
 		}
-		output = append(output, fmt.Sprintf("VPCID=%s SecurityGroupName=%s SecurityGroupID=%s", aws.StringValue(sg.VpcId), aws.StringValue(sg.GroupName), aws.StringValue(sg.GroupId)))
+		output = append(output, fmt.Sprintf("%s\t%s\t%s", aws.StringValue(sg.VpcId), aws.StringValue(sg.GroupName), aws.StringValue(sg.GroupId)))
 	}
 	sort.Strings(output)
-	fmt.Println(strings.Join(output, "\n"))
+	w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
+	fmt.Fprintln(w, "VPC_ID\tSecurityGroupName\tSecurityGroupID")
+	fmt.Fprintln(w, "------\t-----------------\t---------------")
+	for _, line := range output {
+		fmt.Fprint(w, line+"\n")
+	}
+	w.Flush()
 	return nil
+}
+
+type vpc struct {
+	cidr string
+	name string
 }
 
 func (d *backendAws) ListSubnets() error {
@@ -609,11 +623,62 @@ func (d *backendAws) ListSubnets() error {
 	if err != nil {
 		return err
 	}
-	var output []string
-	for _, sub := range out.Subnets {
-		output = append(output, fmt.Sprintf("VPCID=%s AvailabilityZone=%s SubnetID=%s", aws.StringValue(sub.VpcId), aws.StringValue(sub.AvailabilityZone), aws.StringValue(sub.SubnetId)))
+	outv, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{})
+	if err != nil {
+		return err
 	}
-	sort.Strings(output)
-	fmt.Println(strings.Join(output, "\n"))
+	vpcList := make(map[string]*vpc)
+	for _, avpc := range outv.Vpcs {
+		nameTag := ""
+		for _, tag := range avpc.Tags {
+			if strings.ToLower(aws.StringValue(tag.Key)) == "name" {
+				nameTag = aws.StringValue(tag.Value)
+				break
+			}
+		}
+		vpcList[aws.StringValue(avpc.VpcId)] = &vpc{
+			name: nameTag,
+			cidr: aws.StringValue(avpc.CidrBlock),
+		}
+	}
+	foundVPCs := []string{}
+	w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
+	fmt.Fprintln(w, "VPC_ID\tVPC_Name\tVPC_Cidr\tAvailZone\tSubnet_ID\tSubnet_CIDR\tAZ-Default\tSubnet_Name\tAutoPublicIP")
+	fmt.Fprintln(w, "------\t--------\t--------\t---------\t---------\t-----------\t----------\t-----------\t------------")
+	lines := []string{}
+	for _, sub := range out.Subnets {
+		nameTag := ""
+		for _, tag := range sub.Tags {
+			if strings.ToLower(aws.StringValue(tag.Key)) == "name" {
+				nameTag = aws.StringValue(tag.Value)
+				break
+			}
+		}
+		avpc, ok := vpcList[aws.StringValue(sub.VpcId)]
+		if !ok {
+			avpc = new(vpc)
+		} else {
+			if !inslice.HasString(foundVPCs, aws.StringValue(sub.VpcId)) {
+				foundVPCs = append(foundVPCs, aws.StringValue(sub.VpcId))
+			}
+		}
+		autoIP := "no (enable to use with aerolab)"
+		if aws.BoolValue(sub.MapPublicIpOnLaunch) {
+			autoIP = "yes (ok)"
+		}
+		lines = append(lines, fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%t\t%s\t%s\n", aws.StringValue(sub.VpcId), avpc.name, avpc.cidr, aws.StringValue(sub.AvailabilityZone), aws.StringValue(sub.SubnetId), aws.StringValue(sub.CidrBlock), aws.BoolValue(sub.DefaultForAz), nameTag, autoIP))
+	}
+	sort.Strings(lines)
+	for _, line := range lines {
+		fmt.Fprint(w, line)
+	}
+
+	for _, foundVPC := range foundVPCs {
+		delete(vpcList, foundVPC)
+	}
+	for id, vpc := range vpcList {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, vpc.name, vpc.cidr, "", "", "", "", "", "")
+	}
+	w.Flush()
 	return nil
 }
