@@ -11,14 +11,16 @@ import (
 
 type clientCreateToolsCmd struct {
 	clientCreateBaseCmd
+	CustomToolsFilePath flags.Filename `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
 	aerospikeVersionCmd
 	chDirCmd
 }
 
 type clientAddToolsCmd struct {
-	ClientName  TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
-	Machines    TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
-	StartScript flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
+	ClientName          TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
+	Machines            TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
+	CustomToolsFilePath flags.Filename `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
+	StartScript         flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	aerospikeVersionCmd
 	osSelectorCmd
 	chDirCmd
@@ -39,7 +41,11 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 		return nil
 	}
 	var err error
-
+	if string(c.CustomToolsFilePath) != "" {
+		if _, err := os.Stat(string(c.CustomToolsFilePath)); os.IsNotExist(err) {
+			return logFatal("File %s does not exist", string(c.CustomToolsFilePath))
+		}
+	}
 	// arm fill
 	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
 	if err != nil {
@@ -79,6 +85,7 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 	a.opts.Client.Add.Tools.DistroVersion = c.DistroVersion
 	a.opts.Client.Add.Tools.ChDir = c.ChDir
 	a.opts.Client.Add.Tools.Aws.IsArm = c.Aws.IsArm
+	a.opts.Client.Add.Tools.CustomToolsFilePath = c.CustomToolsFilePath
 	return a.opts.Client.Add.Tools.addTools(args)
 }
 
@@ -97,6 +104,11 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 			isArm = true
 		} else {
 			isArm = false
+		}
+	}
+	if string(c.CustomToolsFilePath) != "" {
+		if _, err := os.Stat(string(c.CustomToolsFilePath)); os.IsNotExist(err) {
+			return logFatal("File %s does not exist", string(c.CustomToolsFilePath))
 		}
 	}
 	a.opts.Installer.Download.AerospikeVersion = c.AerospikeVersion
@@ -154,6 +166,19 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 755 /usr/bin/run_asbench"})
 	if err != nil {
 		return err
+	}
+
+	// upload custom tools
+	if string(c.CustomToolsFilePath) != "" {
+		a.opts.Files.Upload.ClusterName = TypeClusterName(c.ClientName)
+		a.opts.Files.Upload.Nodes = TypeNodes(c.Machines)
+		a.opts.Files.Upload.Files.Source = c.CustomToolsFilePath
+		a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike/astools.conf")
+		a.opts.Files.Upload.IsClient = true
+		err = a.opts.Files.Upload.runUpload(args)
+		if err != nil {
+			return err
+		}
 	}
 
 	// install early/late scripts
