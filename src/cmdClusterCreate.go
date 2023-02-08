@@ -18,7 +18,8 @@ import (
 type clusterCreateCmd struct {
 	ClusterName          TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	NodeCount            int             `short:"c" long:"count" description:"Number of nodes" default:"1"`
-	CustomConfigFilePath flags.Filename  `short:"o" long:"customconf" description:"Custom config file path to install"`
+	CustomConfigFilePath flags.Filename  `short:"o" long:"customconf" description:"Custom aerospike config file path to install"`
+	CustomToolsFilePath  flags.Filename  `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
 	FeaturesFilePath     flags.Filename  `short:"f" long:"featurefile" description:"Features file to install"`
 	HeartbeatMode        TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh"`
 	MulticastAddress     string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
@@ -96,6 +97,12 @@ func (c *clusterCreateCmd) preChDir() {
 	if string(c.CustomConfigFilePath) != "" && !strings.HasPrefix(string(c.CustomConfigFilePath), "/") {
 		if _, err := os.Stat(string(c.CustomConfigFilePath)); err == nil {
 			c.CustomConfigFilePath = flags.Filename(path.Join(cur, string(c.CustomConfigFilePath)))
+		}
+	}
+
+	if string(c.CustomToolsFilePath) != "" && !strings.HasPrefix(string(c.CustomToolsFilePath), "/") {
+		if _, err := os.Stat(string(c.CustomToolsFilePath)); err == nil {
+			c.CustomToolsFilePath = flags.Filename(path.Join(cur, string(c.CustomToolsFilePath)))
 		}
 	}
 
@@ -198,7 +205,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		return logFatal(err)
 	}
 
-	for _, p := range []string{string(c.CustomConfigFilePath), string(c.FeaturesFilePath)} {
+	for _, p := range []string{string(c.CustomConfigFilePath), string(c.FeaturesFilePath), string(c.CustomToolsFilePath)} {
 		if p == "" {
 			continue
 		}
@@ -435,6 +442,13 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if c.HeartbeatMode == "mesh" || c.HeartbeatMode == "mcast" || !c.NoOverrideClusterName || string(c.CustomConfigFilePath) != "" {
 		newconf2rd := strings.NewReader(newconf2)
 		files = append(files, fileList{"/etc/aerospike/aerospike.conf", newconf2rd, len(newconf2)})
+	}
+	if string(c.CustomToolsFilePath) != "" {
+		toolsconf, err := os.ReadFile(string(c.CustomToolsFilePath))
+		if err != nil {
+			return err
+		}
+		files = append(files, fileList{"/etc/aerospike/astools.conf", bytes.NewReader(toolsconf), len(toolsconf)})
 	}
 
 	// load features file path if needed

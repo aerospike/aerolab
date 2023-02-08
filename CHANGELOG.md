@@ -1,5 +1,6 @@
 #### 5.2.0
 * `list-subnets` and `list-security-group` will show more info in a prettier, tabular way
+* add option to specify custom `astools.conf` file during `cluster create` and `client create tools` commands
 
 #### 5.1.1
 * handle rack-id settings with roster in sc mode
