@@ -3,22 +3,24 @@ package main
 import "os"
 
 type clientCreateCmd struct {
-	Base    clientCreateBaseCmd    `command:"base" subcommands-optional:"true" description:"simple base image"`
-	Tools   clientCreateToolsCmd   `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
-	AMS     clientCreateAMSCmd     `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
-	Jupyter clientCreateJupyterCmd `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
-	VSCode  clientCreateVSCodeCmd  `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
-	Trino   clientCreateTrinoCmd   `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
+	Base          clientCreateBaseCmd          `command:"base" subcommands-optional:"true" description:"simple base image"`
+	Tools         clientCreateToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
+	AMS           clientCreateAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
+	Jupyter       clientCreateJupyterCmd       `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
+	VSCode        clientCreateVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
+	Trino         clientCreateTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
+	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike"`
 	// NEW_CLIENTS_CREATE
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type clientAddCmd struct {
-	Tools   clientAddToolsCmd   `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
-	AMS     clientAddAMSCmd     `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
-	VSCode  clientAddVSCodeCmd  `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
-	Jupyter clientAddJupyterCmd `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
-	Trino   clientAddTrinoCmd   `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
+	Tools         clientAddToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
+	AMS           clientAddAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
+	VSCode        clientAddVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
+	Jupyter       clientAddJupyterCmd       `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
+	Trino         clientAddTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
+	ElasticSearch clientAddElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike"`
 	// NEW_CLIENTS_ADD
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -69,6 +71,11 @@ func init() {
 	addBackendSwitch("client.create.trino", "docker", &a.opts.Client.Create.Trino.Docker)
 	addBackendSwitch("client.grow.trino", "aws", &a.opts.Client.Grow.Trino.Aws)
 	addBackendSwitch("client.grow.trino", "docker", &a.opts.Client.Grow.Trino.Docker)
+
+	addBackendSwitch("client.create.elasticsearch", "aws", &a.opts.Client.Create.ElasticSearch.Aws)
+	addBackendSwitch("client.create.elasticsearch", "docker", &a.opts.Client.Create.ElasticSearch.Docker)
+	addBackendSwitch("client.grow.elasticsearch", "aws", &a.opts.Client.Grow.ElasticSearch.Aws)
+	addBackendSwitch("client.grow.elasticsearch", "docker", &a.opts.Client.Grow.ElasticSearch.Docker)
 
 	// NEW_CLIENTS_BACKEND
 

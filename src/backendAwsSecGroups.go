@@ -264,7 +264,7 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 
 	// ingress rule for client for special ports (grafana, jupyter, vscode)
 	groupId := secGroupIds[1]
-	for _, port := range []int64{3000, 8080, 8888} {
+	for _, port := range []int64{3000, 8080, 8888, 9200} {
 		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId: aws.String(groupId),
 			IpPermissions: []*ec2.IpPermission{
@@ -434,7 +434,7 @@ func (d *backendAws) DeleteSecurityGroups(vpc string) error {
 }
 
 func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string) error {
-	portList := []int64{3000, 8080, 8888}
+	portList := []int64{3000, 8080, 8888, 9200}
 	if lockSSH {
 		portList = append(portList, 22)
 	}

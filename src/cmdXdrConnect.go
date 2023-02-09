@@ -45,6 +45,7 @@ func (t *TypeAwsRegion) Set(defaultRegion string) (changed bool, err error) {
 type xdrConnectCmd struct {
 	SourceClusterName       TypeClusterName `short:"S" long:"source" description:"Source Cluster name" default:"mydc"`
 	DestinationClusterNames TypeClusterName `short:"D" long:"destinations" description:"Destination Cluster names, comma separated." default:"destdc"`
+	IsConnector             bool            `short:"c" long:"connector" description:"set to indicate that the destination is a client connector, not a cluster"`
 	Aws                     xdrConnectAws   `no-flag:"true"`
 	xdrConnectRealCmd
 }
@@ -54,6 +55,7 @@ type xdrConnectRealCmd struct {
 	destinationClusterNames TypeClusterName
 	aws                     xdrConnectAws
 	prevAwsRegion           string
+	isConnector             bool
 	Version                 TypeXDRVersion `short:"V" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto"`
 	Restart                 TypeYesNo      `short:"T" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y"`
 	Namespaces              string         `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
@@ -75,6 +77,7 @@ func (c *xdrConnectCmd) Execute(args []string) error {
 	c.sourceClusterName = c.SourceClusterName
 	c.destinationClusterNames = c.DestinationClusterNames
 	c.aws = c.Aws
+	c.isConnector = c.IsConnector
 	return c.runXdrConnect(args)
 }
 
@@ -101,11 +104,15 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 	if err != nil {
 		return err
 	}
-	if isChanged {
+	if isChanged || c.isConnector {
+		if c.isConnector {
+			b.WorkOnClients()
+		}
 		destClusterList, err = b.ClusterList()
 		if err != nil {
 			return err
 		}
+		b.WorkOnServers()
 	}
 
 	if !inslice.HasString(sourceClusterList, string(c.sourceClusterName)) {
@@ -127,6 +134,9 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.isConnector {
+		b.WorkOnClients()
+	}
 	for _, destination := range destinations {
 		if !inslice.HasString(destClusterList, destination) {
 			err = fmt.Errorf("cluster does not exist: %s", destination)
@@ -145,6 +155,7 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		}
 		destIpList[destination] = destIps
 	}
+	b.WorkOnServers()
 
 	// we have c.SourceClusterName, sourceNodeList, destinations, destIpList, namespaces
 	_, err = c.aws.SourceRegion.Set(c.prevAwsRegion)
@@ -175,6 +186,9 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 			}
 		default:
 			return fmt.Errorf("unrecognised xdr-config version: %s", c.Version)
+		}
+		if c.isConnector && xdrVersion == "4" {
+			return errors.New("for connector setup, only use server versions 5+")
 		}
 		//build empty basic xdr stanza
 		xdr_stanza := "\nxdr {\n    enable-xdr true\n    xdr-digestlog-path /opt/aerospike/xdr/digestlog 1G\n}\n"
@@ -247,10 +261,17 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 				}
 			}
 			if found != "" {
+				useport := "3000"
+				if c.isConnector {
+					useport = "8901"
+				}
 				dc_to_add = dc_to_add + fmt.Sprintf("\n\t%s %s {\n", dcStanzaName, found)
+				if c.isConnector {
+					dc_to_add = dc_to_add + "\t\tconnector true\n"
+				}
 				dst_cluster_ips := destIpList[found]
 				for j := 0; j < len(dst_cluster_ips); j++ {
-					dc_to_add = dc_to_add + fmt.Sprintf("\t\t%s %s 3000\n", nodeAddressPort, dst_cluster_ips[j])
+					dc_to_add = dc_to_add + fmt.Sprintf("\t\t%s %s %s\n", nodeAddressPort, dst_cluster_ips[j], useport)
 					if xdrVersion == "5" {
 						if _, ok := dc2namespace[found]; !ok {
 							dc2namespace[found] = []string{}

@@ -9,6 +9,7 @@
   * [Deploy a VS Code Client Machine](usage/vscode.md)
   * [Deploy a Trino server](usage/trino.md)
   * [Deploy a Jupyter Notebook Machine](usage/jupyter.md)
+  * [Deploy an ElasticSearch connector](usage/elasticsearch.md)
 * [Rest API](usage/REST.md)
 * [Useful scripts](../scripts/README.md)
   * [Deploy an LDAP server](../scripts/aerolab-ldap/README.md)
