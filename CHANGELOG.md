@@ -1,7 +1,8 @@
 #### 5.2.0
-* `list-subnets` and `list-security-group` will show more info in a prettier, tabular way
-* add option to specify custom `astools.conf` file during `cluster create` and `client create tools` commands
-* add `elasticsearch` connector to the `client create` options, and allow `connector` to be specified in `xdr connect` command
+* `list-subnets` and `list-security-groups` will show more info in a cleaner (tabular) format
+* added option to specify custom `astools.conf` file in `cluster create` and `client create tools` commands
+* added `elasticsearch` connector to the `client create` options list
+* added `connector`switch in `xdr connect` command
 
 #### 5.1.1
 * handle rack-id settings with roster in sc mode
