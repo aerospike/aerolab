@@ -1,5 +1,5 @@
 package main
 
-var nLinuxBinaryX64 = ""
+var nLinuxBinaryX64 []byte
 
-var nLinuxBinaryArm64 = ""
+var nLinuxBinaryArm64 []byte
