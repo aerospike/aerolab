@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -127,11 +126,7 @@ func (c *dataInsertSelectorCmd) unpack(args []string) error {
 				return fmt.Errorf("insert-data: could not open tmp file for writing: %s: %s", path.Join(os.TempDir(), "aerolab.linux"), err)
 			}
 			defer nfile.Close()
-			myBinary, err := base64.StdEncoding.DecodeString(nLinuxBinary)
-			if err != nil {
-				return fmt.Errorf("failed to unpack embedded linux binary: %s", err)
-			}
-			_, err = nfile.Write(myBinary)
+			_, err = nfile.Write(nLinuxBinary)
 			if err != nil {
 				return fmt.Errorf("failed to unpack-write embedded linux binary: %s", err)
 			}

@@ -1,9 +1,5 @@
 MPATH=$(pwd)
 
-# b64
-b64switch=""
-if [[ "$OSTYPE" != "darwin"* ]]; then b64switch=(-w 0); fi
-
 # cleanup embeddables
 rm -f embed_darwin.go
 rm -f embed_linux.go
@@ -12,9 +8,9 @@ rm -f embed_linux.go
 cat <<EOF > embed_linux.go
 package main
 
-var nLinuxBinaryX64 = ""
+var nLinuxBinaryX64 = []byte{}
 
-var nLinuxBinaryArm64 = ""
+var nLinuxBinaryArm64 = []byte{}
 EOF
 
 # build linux versions without embedding
@@ -27,9 +23,12 @@ upx aerolab-linux-arm64-wip || exit 1
 cat <<EOF > embed_linux.go
 package main
 
-var nLinuxBinaryX64 = ""
+import _ "embed"
 
-var nLinuxBinaryArm64 = "$(cat aerolab-linux-arm64-wip |base64 ${b64switch[@]} |sed 's/\n//g')"
+var nLinuxBinaryX64 []byte
+
+//go:embed aerolab-linux-arm64-wip
+var nLinuxBinaryArm64 []byte
 EOF
 env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o aerolab-linux-amd64 || exit 1
 
@@ -37,9 +36,12 @@ env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o
 cat <<EOF > embed_linux.go
 package main
 
-var nLinuxBinaryX64 = "$(cat aerolab-linux-amd64-wip |base64 ${b64switch[@]} |sed 's/\n//g')"
+import _ "embed"
 
-var nLinuxBinaryArm64 = ""
+//go:embed aerolab-linux-amd64-wip
+var nLinuxBinaryX64 []byte
+
+var nLinuxBinaryArm64 []byte
 EOF
 env CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o aerolab-linux-arm64 || exit 1
 
@@ -47,18 +49,22 @@ env CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o
 cat <<EOF > embed_linux.go
 package main
 
-var nLinuxBinaryX64 = ""
+var nLinuxBinaryX64 []byte
 
-var nLinuxBinaryArm64 = ""
+var nLinuxBinaryArm64 []byte
 EOF
 
 # build darwin embedding
 cat <<EOF > embed_darwin.go
 package main
 
-var nLinuxBinaryX64 = "$(cat aerolab-linux-amd64-wip |base64 ${b64switch[@]} |sed 's/\n//g')"
+import _ "embed"
 
-var nLinuxBinaryArm64 = "$(cat aerolab-linux-arm64-wip |base64 ${b64switch[@]} |sed 's/\n//g')"
+//go:embed aerolab-linux-amd64-wip
+var nLinuxBinaryX64 []byte
+
+//go:embed aerolab-linux-arm64-wip
+var nLinuxBinaryArm64 []byte
 EOF
 
 # build macos
