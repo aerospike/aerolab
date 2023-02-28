@@ -1,6 +1,6 @@
 #### 5.3.0
-* `CGO` disabled forcefully for portability during build
-* build now supports linux by detecting the right flags for base64 command
+* from now on, `CGO` is disabled forcefully during build for portability
+* build process for embedding arm/amd linux binaries now uses `go:embed` instead of base64-encoded strings
 * rest gateway client added
 
 #### 5.2.0
