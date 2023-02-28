@@ -1,5 +1,3 @@
-MPATH=$(pwd)
-
 # cleanup embeddables
 rm -f embed_darwin.go
 rm -f embed_linux.go
@@ -68,8 +66,6 @@ var nLinuxBinaryArm64 []byte
 EOF
 
 # build macos
-#env GOOS=darwin GOARCH=amd64 CGO_CFLAGS="-mmacosx-version-min=11.3" CGO_LDFLAGS="-mmacosx-version-min=11.3" go build -gcflags=-trimpath=${MPATH} -asmflags=-trimpath=${MPATH} -ldflags="-s -w" -o aerolab-macos-amd64 || exit 1
-#env GOOS=darwin GOARCH=arm64 CGO_CFLAGS="-mmacosx-version-min=11.3" CGO_LDFLAGS="-mmacosx-version-min=11.3" go build -gcflags=-trimpath=${MPATH} -asmflags=-trimpath=${MPATH} -ldflags="-s -w" -o aerolab-macos-arm64 || exit 1
 env CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o aerolab-macos-amd64 || exit 1
 env CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o aerolab-macos-arm64 || exit 1
 
