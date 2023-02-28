@@ -1,3 +1,8 @@
+#### 5.3.0
+* `CGO` disabled forcefully for portability during build
+* build now supports linux by detecting the right flags for base64 command
+* rest gateway client added
+
 #### 5.2.0
 * `list-subnets` and `list-security-groups` will show more info in a cleaner (tabular) format
 * added option to specify custom `astools.conf` file in `cluster create` and `client create tools` commands
