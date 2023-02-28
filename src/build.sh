@@ -1,5 +1,9 @@
 MPATH=$(pwd)
 
+# b64
+b64switch=""
+if [[ "$OSTYPE" != "darwin"* ]]; then b64switch=(-w 0); fi
+
 # cleanup embeddables
 rm -f embed_darwin.go
 rm -f embed_linux.go
@@ -25,7 +29,7 @@ package main
 
 var nLinuxBinaryX64 = ""
 
-var nLinuxBinaryArm64 = "$(cat aerolab-linux-arm64-wip |base64 |sed 's/\n//g')"
+var nLinuxBinaryArm64 = "$(cat aerolab-linux-arm64-wip |base64 ${b64switch[@]} |sed 's/\n//g')"
 EOF
 env GOOS=linux GOARCH=amd64 go build -gcflags=-trimpath=${MPATH} -asmflags=-trimpath=${MPATH} -ldflags="-s -w" -o aerolab-linux-amd64 || exit 1
 
@@ -33,7 +37,7 @@ env GOOS=linux GOARCH=amd64 go build -gcflags=-trimpath=${MPATH} -asmflags=-trim
 cat <<EOF > embed_linux.go
 package main
 
-var nLinuxBinaryX64 = "$(cat aerolab-linux-amd64-wip |base64 |sed 's/\n//g')"
+var nLinuxBinaryX64 = "$(cat aerolab-linux-amd64-wip |base64 ${b64switch[@]} |sed 's/\n//g')"
 
 var nLinuxBinaryArm64 = ""
 EOF
@@ -52,9 +56,9 @@ EOF
 cat <<EOF > embed_darwin.go
 package main
 
-var nLinuxBinaryX64 = "$(cat aerolab-linux-amd64-wip |base64 |sed 's/\n//g')"
+var nLinuxBinaryX64 = "$(cat aerolab-linux-amd64-wip |base64 ${b64switch[@]} |sed 's/\n//g')"
 
-var nLinuxBinaryArm64 = "$(cat aerolab-linux-arm64-wip |base64 |sed 's/\n//g')"
+var nLinuxBinaryArm64 = "$(cat aerolab-linux-arm64-wip |base64 ${b64switch[@]} |sed 's/\n//g')"
 EOF
 
 # build macos
