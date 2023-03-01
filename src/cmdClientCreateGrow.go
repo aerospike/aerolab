@@ -10,6 +10,7 @@ type clientCreateCmd struct {
 	VSCode        clientCreateVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
 	Trino         clientCreateTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
 	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike"`
+	RestGateway   clientCreateRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine"`
 	// NEW_CLIENTS_CREATE
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -21,6 +22,7 @@ type clientAddCmd struct {
 	Jupyter       clientAddJupyterCmd       `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
 	Trino         clientAddTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
 	ElasticSearch clientAddElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike"`
+	RestGateway   clientAddRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine"`
 	// NEW_CLIENTS_ADD
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -76,6 +78,11 @@ func init() {
 	addBackendSwitch("client.create.elasticsearch", "docker", &a.opts.Client.Create.ElasticSearch.Docker)
 	addBackendSwitch("client.grow.elasticsearch", "aws", &a.opts.Client.Grow.ElasticSearch.Aws)
 	addBackendSwitch("client.grow.elasticsearch", "docker", &a.opts.Client.Grow.ElasticSearch.Docker)
+
+	addBackendSwitch("client.create.rest-gateway", "aws", &a.opts.Client.Create.RestGateway.Aws)
+	addBackendSwitch("client.create.rest-gateway", "docker", &a.opts.Client.Create.RestGateway.Docker)
+	addBackendSwitch("client.grow.rest-gateway", "aws", &a.opts.Client.Grow.RestGateway.Aws)
+	addBackendSwitch("client.grow.rest-gateway", "docker", &a.opts.Client.Grow.RestGateway.Docker)
 
 	// NEW_CLIENTS_BACKEND
 
