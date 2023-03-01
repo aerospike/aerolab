@@ -45,3 +45,15 @@ NOTE: on first run you *may* get 2 warnings, one about DNS not changing and one 
 ## Technical bits
 
 All this does is install openvpn server (with all the bells and whistles of configuration), generate ca/server/client certificates and export the certificates to the host machine. The server configuration has a route to force Docker IP range of `172.17.0.0/16` to go through this VPN tunnel. Tunnelblick and OpenVPN Connect are GUIs for openvpn. Essentially you are just connecting to the openvpn server in a container from the openvpn client on your host machine, allowing a `172.17.0.0/16` route to traverse through.
+
+## Notes on docker networks
+
+If you intend to use this tunnel with new networks, here is a high-overview of the process to get that setup:
+* run `docker network ls` and find the network in question
+* run `docker inspect XXX`, replaceing `XXX` with the network ID from previous step
+* run `docker network connect XXX openvpn` to connect network `XXX` to the `openvpn` container
+* run `docker exec -it openvpn bash` to connect to the `openvpn` container
+  * inside the container edit `/etc/openvpn/server.conf`, find a line stating `push "route 172.17.0.0 255.255.255.0"` and create a new line underneath, adding the correct route inferred from the `inspect` command, for example: `push "route 172.18.0.0 255.255.0.0"`
+  * type `exit` to exit the container
+* restart the `openvpn` container with `docker restart openvpn`
+* reconnect using tunnelblick from your Mac
