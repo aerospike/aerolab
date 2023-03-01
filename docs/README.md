@@ -10,6 +10,7 @@
   * [Deploy a Trino server](usage/trino.md)
   * [Deploy a Jupyter Notebook Machine](usage/jupyter.md)
   * [Deploy an ElasticSearch connector](usage/elasticsearch.md)
+  * [Deploy a Rest Gateway](usage/restgw.md)
 * [Rest API](usage/REST.md)
 * [Useful scripts](../scripts/README.md)
   * [Deploy an LDAP server](../scripts/aerolab-ldap/README.md)
