@@ -9,4 +9,4 @@ WORKDIR "/root/openvpn-ca/keys"
 RUN cp ca.crt server.crt server.key ta.key dh2048.pem /etc/openvpn
 COPY server.conf /etc/openvpn/server.conf
 WORKDIR "/etc/openvpn"
-CMD iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE && openvpn --config /etc/openvpn/server.conf
+CMD iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -d 172.16.0.0/12 -j MASQUERADE && openvpn --config /etc/openvpn/server.conf
