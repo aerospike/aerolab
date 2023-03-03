@@ -53,9 +53,9 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 
 	// install amd
 	commands := [][]string{
-		[]string{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
-		[]string{"wget", pUrlAmd, "-O", "/aerospike-prometheus-exporter.tgz"},
-		[]string{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
+		{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
+		{"wget", pUrlAmd, "-O", "/aerospike-prometheus-exporter.tgz"},
+		{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
 	}
 	if a.opts.Config.Backend.Type == "docker" {
 		commands = append(commands, []string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"})
@@ -73,9 +73,9 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 
 	// install arm
 	commands = [][]string{
-		[]string{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
-		[]string{"wget", pUrlArm, "-O", "/aerospike-prometheus-exporter.tgz"},
-		[]string{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
+		{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
+		{"wget", pUrlArm, "-O", "/aerospike-prometheus-exporter.tgz"},
+		{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
 	}
 	if a.opts.Config.Backend.Type == "docker" {
 		commands = append(commands, []string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"})
@@ -109,7 +109,7 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 	// start
 	if a.opts.Config.Backend.Type == "docker" {
 		commands = [][]string{
-			[]string{"/bin/bash", "/opt/autoload/01-exporter"},
+			{"/bin/bash", "/opt/autoload/01-exporter"},
 		}
 		for _, cluster := range cList {
 			out, err := b.RunCommands(cluster, commands, nodes[cluster])
@@ -123,11 +123,11 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		}
 	} else {
 		commands = [][]string{
-			[]string{"/bin/bash", "-c", "systemctl daemon-reload"},
-			[]string{"/bin/bash", "-c", "kill -9 `pidof aerospike-prometheus-exporter` 2>/dev/null || echo starting"},
-			[]string{"/bin/bash", "-c", "systemctl stop aerospike-prometheus-exporter"},
-			[]string{"/bin/bash", "-c", "systemctl enable aerospike-prometheus-exporter"},
-			[]string{"/bin/bash", "-c", "systemctl start aerospike-prometheus-exporter"},
+			{"/bin/bash", "-c", "systemctl daemon-reload"},
+			{"/bin/bash", "-c", "kill -9 `pidof aerospike-prometheus-exporter` 2>/dev/null || echo starting"},
+			{"/bin/bash", "-c", "systemctl stop aerospike-prometheus-exporter"},
+			{"/bin/bash", "-c", "systemctl enable aerospike-prometheus-exporter"},
+			{"/bin/bash", "-c", "systemctl start aerospike-prometheus-exporter"},
 		}
 		for _, cluster := range cList {
 			out, err := b.RunCommands(cluster, commands, nodes[cluster])

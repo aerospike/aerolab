@@ -136,7 +136,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 	}
 
 	if !c.NoUpload {
-		_, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"mkdir", "-p", fmt.Sprintf("/etc/aerospike/ssl/%s", c.TlsName)}}, nodes)
+		_, err = b.RunCommands(string(c.ClusterName), [][]string{{"mkdir", "-p", fmt.Sprintf("/etc/aerospike/ssl/%s", c.TlsName)}}, nodes)
 		if err != nil {
 			return fmt.Errorf("could not mkdir ssl location: %s", err)
 		}
@@ -193,7 +193,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 						newconf = newconf + "\n" + t
 					}
 				}
-				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)}}, []int{node})
+				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)}}, []int{node})
 				if err != nil {
 					return err
 				}

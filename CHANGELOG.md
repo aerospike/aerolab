@@ -1,3 +1,13 @@
+#### 5.4.0
+* remove redundant declarations for item slices
+* update dependencies:
+  * `github.com/aerospike/aerospike-client-go/v6` version `6.9.1` to `6.10.0`
+  * `github.com/aws/aws-sdk-go` version `v1.44.192` to `v1.44.214`
+  * `golang.org/x/crypto` version `v0.5.0` to `v0.6.0`
+  * `golang.org/x/term` version `v0.4.0` to `v0.5.0`
+  * `github.com/rivo/uniseg` version `v0.4.3` to `v0.4.4`
+  * `golang.org/x/sys` version `v0.4.0` to `v0.5.0`
+
 #### 5.3.0
 * from now on, `CGO` is disabled forcefully during build for portability
 * build process for embedding arm/amd linux binaries now uses `go:embed` instead of base64-encoded strings

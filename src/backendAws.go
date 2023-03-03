@@ -1148,7 +1148,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	bdms := []*ec2.BlockDeviceMapping{}
 	if myImage.RootDeviceType != nil && myImage.RootDeviceName != nil && *myImage.RootDeviceType == ec2.RootDeviceTypeEbs {
 		bdms = []*ec2.BlockDeviceMapping{
-			&ec2.BlockDeviceMapping{
+			{
 				DeviceName: myImage.RootDeviceName,
 				Ebs: &ec2.EbsBlockDevice{
 					DeleteOnTermination: aws.Bool(true),
@@ -1561,7 +1561,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		bdms := []*ec2.BlockDeviceMapping{}
 		if myImage.RootDeviceType != nil && myImage.RootDeviceName != nil && *myImage.RootDeviceType == ec2.RootDeviceTypeEbs {
 			bdms = []*ec2.BlockDeviceMapping{
-				&ec2.BlockDeviceMapping{
+				{
 					DeviceName: myImage.RootDeviceName,
 					Ebs: &ec2.EbsBlockDevice{
 						DeleteOnTermination: aws.Bool(true),

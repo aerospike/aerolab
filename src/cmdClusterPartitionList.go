@@ -106,7 +106,7 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 	sort.Ints(nodes)
 	headerPrinted := false
 	for _, node := range nodes {
-		ret, err := b.RunCommands(c.ClusterName.String(), [][]string{[]string{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
+		ret, err := b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
 		if err != nil {
 			return nil, err
 		}

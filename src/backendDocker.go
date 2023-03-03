@@ -342,7 +342,7 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 				}
 			}
 			if strings.HasPrefix(answer, "n") {
-				return fmt.Errorf("Network not found, choose another network or create one first with: aerolab config docker help")
+				return fmt.Errorf("network not found, choose another network or create one first with: aerolab config docker help")
 			}
 			ok := false
 			for !ok {
@@ -366,7 +366,7 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 					}
 				}
 				if strings.HasPrefix(answer, "q") {
-					return fmt.Errorf("Network not found, choose another network or create one first with: aerolab config docker help")
+					return fmt.Errorf("network not found, choose another network or create one first with: aerolab config docker help")
 				}
 				if strings.HasPrefix(answer, "y") {
 					if driver == "" {

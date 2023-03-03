@@ -60,7 +60,7 @@ func (c *rosterShowCmd) show(args []string) error {
 	}
 
 	for _, n := range nodesList {
-		out, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
 		if err != nil {
 			fmt.Printf("%s:%d ERROR %s: %s\n", string(c.ClusterName), n, err, strings.Trim(strings.ReplaceAll(string(out[0]), "\n", "; "), "\t\r\n "))
 		} else {

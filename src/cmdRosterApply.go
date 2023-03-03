@@ -66,7 +66,7 @@ func (c *rosterApplyCmd) runApply(args []string) error {
 	if newRoster == "" {
 		foundNodes := []string{}
 		for _, n := range nodesList {
-			out, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
+			out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
 			if err != nil {
 				continue
 			}
@@ -106,7 +106,7 @@ func (c *rosterApplyCmd) runApply(args []string) error {
 		return nil
 	}
 
-	out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"asinfo", "-v", "recluster:namespace=" + c.Namespace}}, nodesList)
+	out, err = b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "recluster:namespace=" + c.Namespace}}, nodesList)
 	if err != nil {
 		outn := ""
 		for _, i := range out {

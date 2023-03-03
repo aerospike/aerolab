@@ -163,12 +163,12 @@ func (c *dataInsertSelectorCmd) unpack(args []string) error {
 			return fmt.Errorf("insert-data: cfgFile read error: %s", err)
 		}
 		defer contents.Close()
-		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/root/.aerolab.conf", cfgContents, cfilelen}}, []int{c.Node.Int()})
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/root/.aerolab.conf", cfgContents, cfilelen}}, []int{c.Node.Int()})
 		if err != nil {
 			return fmt.Errorf("insert-data: cfgFile backend.CopyFilesToCluster: %s", err)
 		}
 	}
-	err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/aerolab.run", contents, pfilelen}}, []int{c.Node.Int()})
+	err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/aerolab.run", contents, pfilelen}}, []int{c.Node.Int()})
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.CopyFilesToCluster: %s", err)
 	}

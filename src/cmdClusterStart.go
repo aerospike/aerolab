@@ -65,11 +65,11 @@ func (c *clusterStartCmd) Execute(args []string) error {
 
 	for _, ClusterName := range cList {
 		autoloader := "[ ! -d /opt/autoload ] && exit 0; RET=0; for f in $(ls /opt/autoload |sort -n); do /bin/bash /opt/autoload/${f}; CRET=$?; if [ ${CRET} -ne 0 ]; then RET=${CRET}; fi; done; exit ${RET}"
-		err = b.CopyFilesToCluster(ClusterName, []fileList{fileList{"/usr/local/bin/autoloader.sh", strings.NewReader(autoloader), len(autoloader)}}, nodes[ClusterName])
+		err = b.CopyFilesToCluster(ClusterName, []fileList{{"/usr/local/bin/autoloader.sh", strings.NewReader(autoloader), len(autoloader)}}, nodes[ClusterName])
 		if err != nil {
 			log.Printf("Could not upload /usr/local/bin/autoloader.sh, will not start scripts from /opt/autoload: %s", err)
 		}
-		out, err := b.RunCommands(ClusterName, [][]string{[]string{"/bin/bash", "/usr/local/bin/autoloader.sh"}}, nodes[ClusterName])
+		out, err := b.RunCommands(ClusterName, [][]string{{"/bin/bash", "/usr/local/bin/autoloader.sh"}}, nodes[ClusterName])
 		if err != nil {
 			nout := ""
 			for _, n := range out {
