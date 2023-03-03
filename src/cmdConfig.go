@@ -29,7 +29,7 @@ func (c *configCmd) Execute(args []string) error {
 }
 
 type configBackendCmd struct {
-	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker" default:"" choice:"" choice:"aws" choice:"docker"`
+	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker" default:""`
 	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS backend: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
 	Region     string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -96,6 +96,8 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 				return err
 			}
 		}
+	} else if c.Type != "docker" {
+		return errors.New("backend types supported: docker, aws")
 	}
 	err := writeConfigFile()
 	if err != nil {

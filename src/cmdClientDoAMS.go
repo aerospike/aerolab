@@ -184,16 +184,16 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		return fmt.Errorf("failed to configure grafana (sed datasource): %s", err)
 	}
 	dashboards := [][]string{
-		[]string{"mkdir", "-p", "/var/lib/grafana/dashboards"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/alerts.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/alerts.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/cluster.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/cluster.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/exporters.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/exporters.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/latency.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/latency.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/namespace.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/namespace.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/node.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/users.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/users.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/xdr.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/xdr.json"},
-		[]string{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/asbench.json"},
+		{"mkdir", "-p", "/var/lib/grafana/dashboards"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/alerts.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/alerts.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/cluster.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/cluster.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/exporters.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/exporters.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/latency.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/latency.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/namespace.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/namespace.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/node.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/users.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/users.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/xdr.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/xdr.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/asbench.json"},
 	}
 	for _, dashboard := range dashboards {
 		err = a.opts.Attach.Client.run(dashboard)
@@ -280,7 +280,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		}
 	}
 	lokiScript, lokiSize := installLokiScript(isArm)
-	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{filePath: "/opt/install-loki.sh", fileContents: strings.NewReader(lokiScript), fileSize: lokiSize}}, nodes)
+	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/install-loki.sh", fileContents: strings.NewReader(lokiScript), fileSize: lokiSize}}, nodes)
 	if err != nil {
 		return fmt.Errorf("failed to install loki download script: %s", err)
 	}

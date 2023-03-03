@@ -106,7 +106,7 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 	if c.IsSourceClient {
 		b.WorkOnClients()
 	}
-	out, err := b.RunCommands(string(c.SourceClusterName), [][]string{[]string{"ls", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, []int{c.SourceNode.Int()})
+	out, err := b.RunCommands(string(c.SourceClusterName), [][]string{{"ls", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, []int{c.SourceNode.Int()})
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 		if file == "" {
 			continue
 		}
-		out, err := b.RunCommands(string(c.SourceClusterName), [][]string{[]string{"cat", path.Join("/etc/aerospike/ssl/", c.TlsName, file)}}, []int{c.SourceNode.Int()})
+		out, err := b.RunCommands(string(c.SourceClusterName), [][]string{{"cat", path.Join("/etc/aerospike/ssl/", c.TlsName, file)}}, []int{c.SourceNode.Int()})
 		if err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 	if c.IsDestinationClient {
 		b.WorkOnClients()
 	}
-	_, err = b.RunCommands(string(c.DestinationClusterName), [][]string{[]string{"rm", "-rf", path.Join("/etc/aerospike/ssl/", c.TlsName)}, []string{"mkdir", "-p", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, nodesList)
+	_, err = b.RunCommands(string(c.DestinationClusterName), [][]string{{"rm", "-rf", path.Join("/etc/aerospike/ssl/", c.TlsName)}, {"mkdir", "-p", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, nodesList)
 	if err != nil {
 		return err
 	}

@@ -83,7 +83,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 	masterNode := 1
 	if len(c.existingNodes) == 0 {
 		script := c.installScriptAllNodes(c.RamLimit, isDocker) + c.installScriptMasterNode()
-		err := b.CopyFilesToCluster(c.ClientName.String(), []fileList{fileList{filePath: "/root/install.sh", fileContents: strings.NewReader(script), fileSize: len(script)}}, []int{1})
+		err := b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/root/install.sh", fileContents: strings.NewReader(script), fileSize: len(script)}}, []int{1})
 		if err != nil {
 			return err
 		}
@@ -117,18 +117,18 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 		if node == masterNode {
 			continue
 		}
-		out, err := b.RunCommands(c.ClientName.String(), [][]string{[]string{"/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token", "-s", "node"}}, []int{masterNode})
+		out, err := b.RunCommands(c.ClientName.String(), [][]string{{"/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token", "-s", "node"}}, []int{masterNode})
 		if err != nil {
 			return err
 		}
 		token := string(out[0])
-		out, err = b.RunCommands(c.ClientName.String(), [][]string{[]string{"cat", "/etc/aerospike-elasticsearch-outbound/truststore.pkcs12"}}, []int{masterNode})
+		out, err = b.RunCommands(c.ClientName.String(), [][]string{{"cat", "/etc/aerospike-elasticsearch-outbound/truststore.pkcs12"}}, []int{masterNode})
 		if err != nil {
 			return err
 		}
 		cert := base64.StdEncoding.EncodeToString(out[0])
 		script := c.installScriptAllNodes(c.RamLimit, isDocker) + c.installScriptSlaveNodesOnSlaves(token, cert)
-		err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{fileList{filePath: "/root/install.sh", fileContents: strings.NewReader(script), fileSize: len(script)}}, []int{node})
+		err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/root/install.sh", fileContents: strings.NewReader(script), fileSize: len(script)}}, []int{node})
 		if err != nil {
 			return err
 		}

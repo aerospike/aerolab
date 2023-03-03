@@ -485,23 +485,23 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClusterName), nnode)
 			newHostname = strings.ReplaceAll(newHostname, "_", "-")
 			hComm := [][]string{
-				[]string{"hostname", newHostname},
+				{"hostname", newHostname},
 			}
 			nr, err := b.RunCommands(string(c.ClusterName), hComm, []int{nnode})
 			if err != nil {
 				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
 			}
-			nr, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
+			nr, err = b.RunCommands(string(c.ClusterName), [][]string{{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
 			if err != nil {
 				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
 			}
 			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], string(c.ClusterName), nnode))...)
 			hst := fmt.Sprintf("%s-%d\n", string(c.ClusterName), nnode)
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
 			if err != nil {
 				return err
 			}
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
 			if err != nil {
 				return err
 			}
@@ -522,7 +522,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	// if docker fix logging location
 	var out [][]byte
-	out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, nodeListNew)
+	out, err = b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, nodeListNew)
 	if err != nil {
 		return err
 	}
@@ -534,7 +534,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		}
 		for i, node := range nodeListNew {
 			inrd := bytes.NewReader(in[i])
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/aerospike/aerospike.conf", inrd, len(in[i])}}, []int{node})
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", inrd, len(in[i])}}, []int{node})
 			if err != nil {
 				return err
 			}
@@ -544,7 +544,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	// if aws, adopt best-practices
 	if a.opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices {
 		thpString := c.thpString()
-		err := b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{
+		err := b.CopyFilesToCluster(string(c.ClusterName), []fileList{{
 			filePath:     "/etc/systemd/system/aerospike.service.d/aerolab-thp.conf",
 			fileSize:     len(thpString),
 			fileContents: strings.NewReader(thpString),
@@ -576,7 +576,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 					nDir = nLoc
 				}
 				// create dir
-				nout, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"mkdir", "-p", nDir}}, []int{node})
+				nout, err := b.RunCommands(string(c.ClusterName), [][]string{{"mkdir", "-p", nDir}}, []int{node})
 				if err != nil {
 					return fmt.Errorf("could not create directory on node: %s\n%s\n%s", nDir, err, string(nout[0]))
 				}
@@ -616,7 +616,7 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 		if err != nil {
 			return fmt.Errorf("could not make access-address script in aws: %s", err)
 		}
-		bouta, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, []string{"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, []string{"systemctl", "daemon-reload"}, []string{"systemctl", "enable", "aerospike-access-address.service"}, []string{"service", "aerospike-access-address", "start"}}, nodeListNew)
+		bouta, err := b.RunCommands(string(c.ClusterName), [][]string{{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, {"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, {"systemctl", "daemon-reload"}, {"systemctl", "enable", "aerospike-access-address.service"}, {"service", "aerospike-access-address", "start"}}, nodeListNew)
 		if err != nil {
 			nstr := ""
 			for _, bout := range bouta {
@@ -633,7 +633,7 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 			log.Printf("ERROR: could not install early script: %s", err)
 		} else {
 			defer earlyFile.Close()
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, nodeListNew)
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, nodeListNew)
 			if err != nil {
 				log.Printf("ERROR: could not install early script: %s", err)
 			}
@@ -645,7 +645,7 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 			log.Printf("ERROR: could not install late script: %s", err)
 		} else {
 			defer lateFile.Close()
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, nodeListNew)
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, nodeListNew)
 			if err != nil {
 				log.Printf("ERROR: could not install late script: %s", err)
 			}

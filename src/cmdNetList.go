@@ -82,7 +82,7 @@ func (c *netListCmd) Execute(args []string) error {
 			if isClient {
 				b.WorkOnClients()
 			}
-			outs, err := b.RunCommands(cluster, [][]string{[]string{"/sbin/iptables", "-L", "INPUT", "-vn"}}, []int{node})
+			outs, err := b.RunCommands(cluster, [][]string{{"/sbin/iptables", "-L", "INPUT", "-vn"}}, []int{node})
 			b.WorkOnServers()
 			out := outs[0]
 			if err != nil {
@@ -109,7 +109,7 @@ func (c *netListCmd) Execute(args []string) error {
 			if isClient {
 				b.WorkOnClients()
 			}
-			outs, err = b.RunCommands(cluster, [][]string{[]string{"/sbin/iptables", "-L", "OUTPUT", "-vn"}}, []int{node})
+			outs, err = b.RunCommands(cluster, [][]string{{"/sbin/iptables", "-L", "OUTPUT", "-vn"}}, []int{node})
 			b.WorkOnServers()
 			out = outs[0]
 			if err != nil {

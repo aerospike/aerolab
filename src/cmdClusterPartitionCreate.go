@@ -126,13 +126,13 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 			return fmt.Errorf("could not find all the required disks on node %d", nodeNo)
 		}
 		nodes = append(nodes, nodeNo)
-		err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{fileList{"/opt/partition.disks.sh", strings.NewReader(script.String()), script.Len()}}, []int{nodeNo})
+		err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/partition.disks.sh", strings.NewReader(script.String()), script.Len()}}, []int{nodeNo})
 		if err != nil {
 			return err
 		}
 	}
 	sort.Ints(nodes)
-	out, err := b.RunCommands(c.ClusterName.String(), [][]string{[]string{"/bin/bash", "/opt/partition.disks.sh"}}, nodes)
+	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "/opt/partition.disks.sh"}}, nodes)
 	if err != nil {
 		nout := ""
 		for _, o := range out {

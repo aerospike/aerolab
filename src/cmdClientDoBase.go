@@ -172,11 +172,11 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	installer := aerospikeInstallScript["aws:"+string(c.DistroName)+":"+string(c.DistroVersion)]
 	installer = strings.ReplaceAll(installer, repl, "")
 	installer = strings.ReplaceAll(installer, repl2, "")
-	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{fileList{"/opt/install-base.sh", strings.NewReader(installer), len(installer)}}, nodeListNew)
+	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{"/opt/install-base.sh", strings.NewReader(installer), len(installer)}}, nodeListNew)
 	if err != nil {
 		return nil, fmt.Errorf("could not copy install script to nodes: %s", err)
 	}
-	out, err := b.RunCommands(string(c.ClientName), [][]string{[]string{"/bin/bash", "/opt/install-base.sh"}}, nodeListNew)
+	out, err := b.RunCommands(string(c.ClientName), [][]string{{"/bin/bash", "/opt/install-base.sh"}}, nodeListNew)
 	if err != nil {
 		nout := ""
 		for i, o := range out {
@@ -196,23 +196,23 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClientName), nnode)
 			newHostname = strings.ReplaceAll(newHostname, "_", "-")
 			hComm := [][]string{
-				[]string{"hostname", newHostname},
+				{"hostname", newHostname},
 			}
 			nr, err := b.RunCommands(string(c.ClientName), hComm, []int{nnode})
 			if err != nil {
 				return nil, fmt.Errorf("could not set hostname: %s:%s", err, nr)
 			}
-			nr, err = b.RunCommands(string(c.ClientName), [][]string{[]string{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
+			nr, err = b.RunCommands(string(c.ClientName), [][]string{{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
 			if err != nil {
 				return nil, fmt.Errorf("could not set hostname: %s:%s", err, nr)
 			}
 			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], string(c.ClientName), nnode))...)
 			hst := fmt.Sprintf("%s-%d\n", string(c.ClientName), nnode)
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
 			if err != nil {
 				return nil, err
 			}
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
 			if err != nil {
 				return nil, err
 			}
@@ -226,7 +226,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 			log.Printf("ERROR: could not install early script: %s", err)
 		} else {
 			defer StartScriptFile.Close()
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{"/usr/local/bin/start.sh", StartScriptFile, int(startScriptSize.Size())}}, nodeListNew)
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/usr/local/bin/start.sh", StartScriptFile, int(startScriptSize.Size())}}, nodeListNew)
 			if err != nil {
 				log.Printf("ERROR: could not install early script: %s", err)
 			}
@@ -234,7 +234,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	} else {
 		emptyStart := "#!/bin/bash\ndate"
 		StartScriptFile := strings.NewReader(emptyStart)
-		b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{"/usr/local/bin/start.sh", StartScriptFile, len(emptyStart)}}, nodeListNew)
+		b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/usr/local/bin/start.sh", StartScriptFile, len(emptyStart)}}, nodeListNew)
 	}
 
 	log.Println("Done")

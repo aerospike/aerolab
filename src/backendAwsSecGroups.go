@@ -25,7 +25,7 @@ func (d *backendAws) resolveVPC() (*ec2.DescribeVpcsOutput, error) {
 func (d *backendAws) resolveVPCdo(create bool) (*ec2.DescribeVpcsOutput, error) {
 	out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 		Filters: []*ec2.Filter{
-			&ec2.Filter{
+			{
 				Name:   aws.String("is-default"),
 				Values: aws.StringSlice([]string{"true"}),
 			},
@@ -38,7 +38,7 @@ func (d *backendAws) resolveVPCdo(create bool) (*ec2.DescribeVpcsOutput, error) 
 		}
 		errx = d.ec2svc.WaitUntilVpcExists(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("is-default"),
 					Values: aws.StringSlice([]string{"true"}),
 				},
@@ -49,7 +49,7 @@ func (d *backendAws) resolveVPCdo(create bool) (*ec2.DescribeVpcsOutput, error) 
 		}
 		errx = d.ec2svc.WaitUntilVpcAvailable(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("is-default"),
 					Values: aws.StringSlice([]string{"true"}),
 				},
@@ -96,11 +96,11 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 		subnet = subnetID
 	} else {
 		filters := []*ec2.Filter{
-			&ec2.Filter{
+			{
 				Name:   aws.String("default-for-az"),
 				Values: aws.StringSlice([]string{"true"}),
 			},
-			&ec2.Filter{
+			{
 				Name:   aws.String("vpc-id"),
 				Values: aws.StringSlice([]string{vpc}),
 			},
@@ -149,11 +149,11 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 		} else {
 			out, err = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 				Filters: []*ec2.Filter{
-					&ec2.Filter{
+					{
 						Name:   aws.String("vpc-id"),
 						Values: aws.StringSlice([]string{vpc}),
 					},
-					&ec2.Filter{
+					{
 						Name:   aws.String("group-name"),
 						Values: aws.StringSlice([]string{groupName}),
 					},
@@ -213,17 +213,17 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId: aws.String(groupId),
 			IpPermissions: []*ec2.IpPermission{
-				&ec2.IpPermission{
+				{
 					IpProtocol: aws.String("-1"),
 					FromPort:   aws.Int64(-1),
 					ToPort:     aws.Int64(-1),
 					UserIdGroupPairs: []*ec2.UserIdGroupPair{
-						&ec2.UserIdGroupPair{
+						{
 							Description: aws.String("serverGroup"),
 							GroupId:     aws.String(secGroupIds[0]),
 							VpcId:       aws.String(vpc),
 						},
-						&ec2.UserIdGroupPair{
+						{
 							Description: aws.String("clientGroup"),
 							GroupId:     aws.String(secGroupIds[1]),
 							VpcId:       aws.String(vpc),
@@ -243,12 +243,12 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId: aws.String(groupId),
 			IpPermissions: []*ec2.IpPermission{
-				&ec2.IpPermission{
+				{
 					IpProtocol: aws.String("tcp"),
 					FromPort:   aws.Int64(22),
 					ToPort:     aws.Int64(22),
 					IpRanges: []*ec2.IpRange{
-						&ec2.IpRange{
+						{
 							CidrIp:      aws.String("0.0.0.0/0"),
 							Description: aws.String("ssh from anywhere"),
 						},
@@ -268,12 +268,12 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId: aws.String(groupId),
 			IpPermissions: []*ec2.IpPermission{
-				&ec2.IpPermission{
+				{
 					IpProtocol: aws.String("tcp"),
 					FromPort:   aws.Int64(port),
 					ToPort:     aws.Int64(port),
 					IpRanges: []*ec2.IpRange{
-						&ec2.IpRange{
+						{
 							CidrIp:      aws.String("0.0.0.0/0"),
 							Description: aws.String("allow " + strconv.Itoa(int(port)) + " from anywhere"),
 						},
@@ -303,11 +303,11 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 	} else {
 		group1, err1 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 			Filters: []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("vpc-id"),
 					Values: aws.StringSlice([]string{vpc}),
 				},
-				&ec2.Filter{
+				{
 					Name:   aws.String("group-name"),
 					Values: aws.StringSlice([]string{"AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-")}),
 				},
@@ -315,11 +315,11 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 		})
 		group2, err2 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 			Filters: []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("vpc-id"),
 					Values: aws.StringSlice([]string{vpc}),
 				},
-				&ec2.Filter{
+				{
 					Name:   aws.String("group-name"),
 					Values: aws.StringSlice([]string{"AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-")}),
 				},
@@ -330,12 +330,12 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 		_, err := d.ec2svc.RevokeSecurityGroupIngress(&ec2.RevokeSecurityGroupIngressInput{
 			GroupId: group1.SecurityGroups[0].GroupId,
 			IpPermissions: []*ec2.IpPermission{
-				&ec2.IpPermission{
+				{
 					IpProtocol: aws.String("-1"),
 					FromPort:   aws.Int64(-1),
 					ToPort:     aws.Int64(-1),
 					UserIdGroupPairs: []*ec2.UserIdGroupPair{
-						&ec2.UserIdGroupPair{
+						{
 							GroupId: group2.SecurityGroups[0].GroupId,
 							VpcId:   aws.String(vpc),
 						},
@@ -349,12 +349,12 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 		_, err = d.ec2svc.RevokeSecurityGroupIngress(&ec2.RevokeSecurityGroupIngressInput{
 			GroupId: group2.SecurityGroups[0].GroupId,
 			IpPermissions: []*ec2.IpPermission{
-				&ec2.IpPermission{
+				{
 					IpProtocol: aws.String("-1"),
 					FromPort:   aws.Int64(-1),
 					ToPort:     aws.Int64(-1),
 					UserIdGroupPairs: []*ec2.UserIdGroupPair{
-						&ec2.UserIdGroupPair{
+						{
 							GroupId: group1.SecurityGroups[0].GroupId,
 							VpcId:   aws.String(vpc),
 						},
@@ -413,7 +413,7 @@ func (d *backendAws) DeleteSecurityGroups(vpc string) error {
 	if vpc == "" {
 		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("is-default"),
 					Values: aws.StringSlice([]string{"true"}),
 				},
@@ -442,7 +442,7 @@ func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string) err
 	if vpc == "" {
 		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("is-default"),
 					Values: aws.StringSlice([]string{"true"}),
 				},
@@ -475,11 +475,11 @@ func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupNam
 	} else {
 		sgi = &ec2.DescribeSecurityGroupsInput{
 			Filters: []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("vpc-id"),
 					Values: aws.StringSlice([]string{vpc}),
 				},
-				&ec2.Filter{
+				{
 					Name:   aws.String("group-name"),
 					Values: aws.StringSlice([]string{secGroupName}),
 				},
@@ -522,12 +522,12 @@ func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupNam
 		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId: group.GroupId,
 			IpPermissions: []*ec2.IpPermission{
-				&ec2.IpPermission{
+				{
 					IpProtocol: aws.String("tcp"),
 					FromPort:   aws.Int64(port),
 					ToPort:     aws.Int64(port),
 					IpRanges: []*ec2.IpRange{
-						&ec2.IpRange{
+						{
 							CidrIp:      aws.String(ip),
 							Description: aws.String("allow " + strconv.Itoa(int(port)) + " from anywhere"),
 						},
@@ -569,7 +569,7 @@ func (d *backendAws) CreateSecurityGroups(vpc string) error {
 	if vpc == "" {
 		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
-				&ec2.Filter{
+				{
 					Name:   aws.String("is-default"),
 					Values: aws.StringSlice([]string{"true"}),
 				},

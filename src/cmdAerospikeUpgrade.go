@@ -137,7 +137,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		return err
 	}
 	defer fnContents.Close()
-	err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/root/upgrade.tgz", fnContents, pfilelen}}, nodeList)
+	err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/root/upgrade.tgz", fnContents, pfilelen}}, nodeList)
 	if err != nil {
 		return err
 	}
@@ -154,12 +154,12 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	// upgrade
 	for _, i := range nodeList {
 		// backup aerospike.conf
-		nret, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, []int{i})
+		nret, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{i})
 		if err != nil {
 			return err
 		}
 		nfile := nret[0]
-		out, err := b.RunCommands(string(c.ClusterName), [][]string{[]string{"tar", "-zxvf", "/root/upgrade.tgz"}}, []int{i})
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"tar", "-zxvf", "/root/upgrade.tgz"}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
@@ -167,12 +167,12 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		fnDir := strings.TrimSuffix(fn, ".tgz")
 		fnDir = strings.TrimSuffix(fnDir, ".x86_64")
 		fnDir = strings.TrimSuffix(fnDir, ".arm64")
-		out, err = b.RunCommands(string(c.ClusterName), [][]string{[]string{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd %s* && ./asinstall", fnDir)}}, []int{i})
+		out, err = b.RunCommands(string(c.ClusterName), [][]string{{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd %s* && ./asinstall", fnDir)}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// recover aerospike.conf backup
-		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{fileList{"/etc/aerospike/aerospike.conf", bytes.NewReader(nfile), len(nfile)}}, []int{i})
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", bytes.NewReader(nfile), len(nfile)}}, []int{i})
 		if err != nil {
 			return err
 		}

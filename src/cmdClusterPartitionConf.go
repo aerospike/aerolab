@@ -59,7 +59,7 @@ func (c *clusterPartitionConfCmd) Execute(args []string) error {
 		filterPartCount = len(filterPartitions)
 	}
 	for nodeNo, disks := range d {
-		outn, err := b.RunCommands(c.ClusterName.String(), [][]string{[]string{"cat", "/etc/aerospike/aerospike.conf"}}, []int{nodeNo})
+		outn, err := b.RunCommands(c.ClusterName.String(), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{nodeNo})
 		if err != nil {
 			return fmt.Errorf("could not read aerospike.conf on node %d: %s", nodeNo, err)
 		}
@@ -198,7 +198,7 @@ func (c *clusterPartitionConfCmd) Execute(args []string) error {
 			return err
 		}
 		aconf = buf.Bytes()
-		err = b.CopyFilesToCluster(c.ClusterName.String(), []fileList{fileList{"/etc/aerospike/aerospike.conf", bytes.NewReader(aconf), len(aconf)}}, []int{nodeNo})
+		err = b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/etc/aerospike/aerospike.conf", bytes.NewReader(aconf), len(aconf)}}, []int{nodeNo})
 		if err != nil {
 			return err
 		}

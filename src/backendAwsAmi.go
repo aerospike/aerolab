@@ -32,11 +32,11 @@ func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err
 		IncludeDeprecated: aws.Bool(false),
 		Owners:            aws.StringSlice([]string{owner}),
 		Filters: []*ec2.Filter{
-			&ec2.Filter{
+			{
 				Name:   aws.String("architecture"),
 				Values: aws.StringSlice([]string{arch}),
 			},
-			&ec2.Filter{
+			{
 				Name:   aws.String("state"),
 				Values: aws.StringSlice([]string{"available"}),
 			},

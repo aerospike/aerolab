@@ -145,7 +145,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 		b.WorkOnClients()
 	}
 	script := c.installScript()
-	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{"/opt/install-gw.sh", strings.NewReader(script), len(script)}}, c.machines)
+	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/opt/install-gw.sh", strings.NewReader(script), len(script)}}, c.machines)
 	if err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func (version *TypeRestGatewayVersion) GetDownloadURL() (string, error) {
 	}
 
 	if response.StatusCode == 300 {
-		return "", fmt.Errorf("Version %s not found at %s", string(*version), baseUrl)
+		return "", fmt.Errorf("version %s not found at %s", string(*version), baseUrl)
 	}
 
 	if response.StatusCode != 200 {

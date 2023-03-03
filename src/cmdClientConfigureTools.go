@@ -56,7 +56,7 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 		tnodes = append(tnodes, no)
 	}
 	// store IP on tools nodes
-	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{fileList{filePath: "/opt/asbench-grafana.ip", fileContents: strings.NewReader(ip), fileSize: len(ip)}}, tnodes)
+	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/opt/asbench-grafana.ip", fileContents: strings.NewReader(ip), fileSize: len(ip)}}, tnodes)
 	if err != nil {
 		return fmt.Errorf("could not upload file 1: %s", err)
 	}
@@ -71,7 +71,7 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 			}
 		} else {
 			// login to node to work out if it's arm
-			out, err := b.RunCommands(c.ClientName.String(), [][]string{[]string{"uname", "-p"}}, []int{tnode})
+			out, err := b.RunCommands(c.ClientName.String(), [][]string{{"uname", "-p"}}, []int{tnode})
 			if err != nil {
 				return fmt.Errorf("could not extablish node architecture: %s; %s", err, string(out[0]))
 			}
@@ -81,7 +81,7 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 		}
 		// install promtail if not found
 		promScript := promTailScript(isArm)
-		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{filePath: "/opt/install-promtail.sh", fileContents: strings.NewReader(promScript), fileSize: len(promScript)}}, []int{tnode})
+		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/install-promtail.sh", fileContents: strings.NewReader(promScript), fileSize: len(promScript)}}, []int{tnode})
 		if err != nil {
 			return fmt.Errorf("failed to install loki download script: %s", err)
 		}
@@ -92,7 +92,7 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 	}
 	// install promtail config file
 	promScript := promTailConf()
-	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{fileList{filePath: "/opt/configure-promtail.sh", fileContents: strings.NewReader(promScript), fileSize: len(promScript)}}, tnodes)
+	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/configure-promtail.sh", fileContents: strings.NewReader(promScript), fileSize: len(promScript)}}, tnodes)
 	if err != nil {
 		return fmt.Errorf("failed to install conf script: %s", err)
 	}
