@@ -1,5 +1,6 @@
 #### 5.4.0
 * remove redundant declarations for item slices
+* docker fix clsuter listing with json format to ignore non-aerolab containers
 * update dependencies:
   * `github.com/aerospike/aerospike-client-go/v6` version `6.9.1` to `6.10.0`
   * `github.com/aws/aws-sdk-go` version `v1.44.192` to `v1.44.214`
