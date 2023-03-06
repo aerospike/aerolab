@@ -733,6 +733,9 @@ func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
 		if len(tt) != 3 {
 			continue
 		}
+		if !strings.HasPrefix(tt[1], dockerNameHeader) {
+			continue
+		}
 		nameNo := strings.Split(strings.TrimPrefix(tt[1], dockerNameHeader+""), "_")
 		if len(nameNo) != 2 {
 			continue
