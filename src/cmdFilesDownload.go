@@ -39,10 +39,10 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 		return nil
 	}
 	if string(c.Files.Source) == "help" && string(c.Files.Destination) == "" {
-		return printHelp("If more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/")
+		return printHelp("If more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/\n\n")
 	}
 	if string(c.Files.Destination) == "" {
-		return printHelp("If more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/")
+		return printHelp("If more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/\n\n")
 	}
 	if b == nil {
 		return logFatal("Invalid backend")
