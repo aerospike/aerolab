@@ -19,8 +19,8 @@ type clientCreateRestGatewayCmd struct {
 	clientCreateBaseCmd
 	Version     TypeRestGatewayVersion `short:"v" long:"version" description:"rest gw version; default=latest"`
 	ClusterName TypeClusterName        `short:"C" long:"cluster-name" description:"cluster name to connect to" default:"mydc"`
-	Username    string                 `short:"U" long:"username" description:"connect username"`
-	Password    string                 `short:"P" long:"password" description:"connect password"`
+	User        string                 `long:"user" description:"connect username"`
+	Pass        string                 `long:"pass" description:"connect password"`
 	chDirCmd
 }
 
@@ -29,8 +29,8 @@ type clientAddRestGatewayCmd struct {
 	Machines    TypeMachines           `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
 	Version     TypeRestGatewayVersion `short:"v" long:"version" description:"rest gw version; default=latest"`
 	ClusterName TypeClusterName        `short:"C" long:"cluster-name" description:"cluster name to connect to" default:"mydc"`
-	Username    string                 `short:"U" long:"username" description:"connect username"`
-	Password    string                 `short:"P" long:"password" description:"connect password"`
+	User        string                 `long:"user" description:"connect username"`
+	Pass        string                 `long:"pass" description:"connect password"`
 	StartScript flags.Filename         `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	url         string
 	dirName     string
@@ -93,8 +93,8 @@ func (c *clientCreateRestGatewayCmd) Execute(args []string) error {
 	a.opts.Client.Add.RestGateway.Version = c.Version
 	a.opts.Client.Add.RestGateway.url = url
 	a.opts.Client.Add.RestGateway.ClusterName = c.ClusterName
-	a.opts.Client.Add.RestGateway.Username = c.Username
-	a.opts.Client.Add.RestGateway.Password = c.Password
+	a.opts.Client.Add.RestGateway.User = c.User
+	a.opts.Client.Add.RestGateway.Pass = c.Pass
 	a.opts.Client.Add.RestGateway.machines = machines
 	return a.opts.Client.Add.RestGateway.addRestGateway(args)
 }
@@ -186,7 +186,7 @@ nohup java -server -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote
 EOF
 
 chmod 755 /opt/autoload/01-restgw.sh
-`, c.url, c.dirName, c.seedNode, c.Username, c.Password, c.dirName, c.fileName)
+`, c.url, c.dirName, c.seedNode, c.User, c.Pass, c.dirName, c.fileName)
 }
 
 // returns url or error
