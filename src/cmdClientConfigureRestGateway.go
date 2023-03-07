@@ -12,8 +12,8 @@ type clientConfigureRestGatewayCmd struct {
 	ClientName TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
 	Machines   TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
 	Seed       string         `short:"s" long:"seed" description:"seed IP to change to"`
-	Username   string         `short:"u" long:"username" description:"connect policy username"`
-	Password   string         `short:"p" long:"password" description:"connect policy password"`
+	User       string         `long:"user" description:"connect policy username"`
+	Pass       string         `long:"pass" description:"connect policy password"`
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -70,11 +70,11 @@ func (c *clientConfigureRestGatewayCmd) UpdateScript() string {
 	if c.Seed != "" {
 		ret = ret + fmt.Sprintf("sed -i 's/^SEED=.*/SEED=%s/g' /opt/autoload/01-restgw.sh\n", c.Seed)
 	}
-	if c.Username != "" {
-		ret = ret + fmt.Sprintf("sed -i 's/^AUTH_USER=.*/AUTH_USER=%s/g' /opt/autoload/01-restgw.sh\n", c.Username)
+	if c.User != "" {
+		ret = ret + fmt.Sprintf("sed -i 's/^AUTH_USER=.*/AUTH_USER=%s/g' /opt/autoload/01-restgw.sh\n", c.User)
 	}
-	if c.Password != "" {
-		ret = ret + fmt.Sprintf("sed -i 's/^AUTH_PASS=.*/AUTH_PASS=%s/g' /opt/autoload/01-restgw.sh\n", c.Password)
+	if c.Pass != "" {
+		ret = ret + fmt.Sprintf("sed -i 's/^AUTH_PASS=.*/AUTH_PASS=%s/g' /opt/autoload/01-restgw.sh\n", c.Pass)
 	}
 	ret = ret + "chmod 755 /opt/autoload/01-restgw.sh\nset +e; pkill -9 java || exit 0\n"
 	return ret
