@@ -29,8 +29,8 @@ type dataInsertPkCmd struct {
 type dataInsertCommonCmd struct {
 	RunDirect        bool              `short:"d" long:"run-direct" description:"If set, will ignore backend, cluster name and node ID and connect to SeedNode directly from running machine"`
 	UseMultiThreaded int               `short:"u" long:"multi-thread" description:"If set, will use multithreading. Set to the number of threads you want processing." default:"0"`
-	Username         string            `short:"U" long:"username" description:"If set, will use this user to authenticate to aerospike cluster" default:""`
-	Password         string            `short:"P" long:"password" description:"If set, will use this pass to authenticate to aerospike cluster" default:""`
+	User             string            `short:"U" long:"username" description:"If set, will use this user to authenticate to aerospike cluster" default:""`
+	Pass             string            `short:"P" long:"password" description:"If set, will use this pass to authenticate to aerospike cluster" default:""`
 	Version          TypeClientVersion `short:"v" long:"version" description:"which aerospike library version to use: 4|5|6" default:"6"`
 	AuthExternal     bool              `short:"Q" long:"auth-external" description:"if set, will use external auth method"`
 	TlsCaCert        string            `short:"y" long:"tls-ca-cert" description:"Tls CA certificate path" default:""`
