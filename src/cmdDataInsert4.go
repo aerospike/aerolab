@@ -29,13 +29,13 @@ func (c *dataInsertCmd) insert4(args []string) error {
 	}
 
 	var client *aerospike.Client
-	if c.Username == "" && c.TlsCaCert == "" && c.TlsClientCert == "" {
+	if c.User == "" && c.TlsCaCert == "" && c.TlsClientCert == "" {
 		client, err = aerospike.NewClient(ipPort[0], port)
 	} else {
 		policy := aerospike.NewClientPolicy()
-		if c.Username != "" {
-			policy.User = c.Username
-			policy.Password = c.Password
+		if c.User != "" {
+			policy.User = c.User
+			policy.Password = c.Pass
 			if c.AuthExternal {
 				policy.AuthMode = aerospike.AuthModeExternal
 			} else {
