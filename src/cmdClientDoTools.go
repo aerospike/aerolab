@@ -142,7 +142,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	}
 
 	// add asbench wrapper script
-	runasbench := "nohup asbench \"$@\" >>/var/log/asbench.log 2>&1 &"
+	runasbench := runAsbenchScript()
 	f, err := os.CreateTemp("", "runasbench-")
 	if err != nil {
 		return fmt.Errorf("could not create a temp file for asbench wrapper: %s", err)
@@ -195,4 +195,24 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	}
 	log.Print("Done")
 	return nil
+}
+
+func runAsbenchScript() string {
+	return `EXTRAS=""
+echo "$@" |grep -- '--latency' >/dev/null 2>&1
+[ $? -ne 0 ] && EXTRAS="--latency"
+echo "$@" |grep -- '--percentiles' >/dev/null 2>&1
+if [ $? -ne 0 ]
+then
+  EXTRAS="${EXTRAS} --percentiles 50,90,99,99.9,99.99"
+else
+  echo "$@" |grep ' 50,90,99,99.9,99.99' >/dev/null 2>&1
+  if [ $? -ne 0 ]
+  then
+    echo "WARNING: changing the first 5 percentile buckets will cause asbench latency graphs in AMS dashboard to be incorrect"
+  fi
+fi
+NO=$(pidof asbench |wc -l)
+nohup asbench "$@" ${EXTRAS} >>/var/log/asbench_${NO}.log 2>&1 &
+`
 }
