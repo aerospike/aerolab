@@ -142,7 +142,7 @@ scrape_configs:
           stages:
           - regex:
               source: filename
-              expression: "/var/log/asbench_(?P<instance>.*)\\.log"
+              expression: "/var/log/asbench_(?P<instance>.*)\\\\.log"
           - labels:
               instance:
 
@@ -155,8 +155,7 @@ func promTailScript(isArm bool) string {
 	if isArm {
 		arch = "arm64"
 	}
-	script := `[ ! -f /var/log/asbench.log ] && echo "tadaa" > /var/log/asbench.log
-apt-get update
+	script := `apt-get update
 apt-get -y install unzip 
 cd /root
 wget https://github.com/grafana/loki/releases/download/v2.5.0/promtail-linux-` + arch + `.zip
