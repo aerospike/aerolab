@@ -1,6 +1,7 @@
 #### 5.4.0
+* add basic latency graphs into `asbench` custom dashboards in `AMS`
 * remove redundant declarations for item slices
-* docker fix clsuter listing with json format to ignore non-aerolab containers
+* docker fix cluster listing with json format to ignore non-aerolab containers
 * fix username/password switches for rest gateway client
 * fix `ams` client installation of grafana on docker
 * update dependencies:

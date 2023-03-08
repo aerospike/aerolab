@@ -134,8 +134,18 @@ scrape_configs:
           - localhost
         labels:
           job: asbench
-          __path__: /var/log/asbench.log
+          __path__: /var/log/asbench_*.log
           host: $(hostname)
+    pipeline_stages:
+      - match:
+          selector: '{job="asbench"}'
+          stages:
+          - regex:
+              source: filename
+              expression: "/var/log/asbench_(?P<instance>.*)\\.log"
+          - labels:
+              instance:
+
 EOF
 `
 }
