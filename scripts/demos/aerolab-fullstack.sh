@@ -4,11 +4,13 @@ ams_name="ams"
 namespace="test"
 nodes="2"
 clients="2"
-backend="aws"
+backend="docker"
 aws_region="ca-central-1"
 server_instance="t3a.large"
 client_instance="t3a.medium"
 ams_instance="t3a.large"
+asbench_per_instance_insert=5
+asbench_per_instance_load=5
 
 aerolab config backend -t ${backend} -r ${aws_region} || exit 1
 
@@ -26,7 +28,10 @@ then
     set -e
     NODEIP=$(aerolab cluster list -j |grep -A7 ${cluster_name} |grep IpAddress |head -1 |egrep -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
     echo "Seed: ${NODEIP}"
-    aerolab client attach -n ${client_name} -l all --detach -- /bin/bash -c "run_asbench -h ${NODEIP}:3000 -U superman -Pkrypton -n ${namespace} -s n\${NODE}x\$(pidof asbench |wc -l) -b testbin -K 0 -k 1000000 -z 16 -t 0 -o I1 -w I --socket-timeout 200 --timeout 1000 -B allowReplica --max-retries 2"
+    for i in `seq 1 ${asbench_per_instance_insert}`
+    do
+      aerolab client attach -n ${client_name} -l all --detach -- /bin/bash -c "run_asbench -h ${NODEIP}:3000 -U superman -Pkrypton -n ${namespace} -s n\${NODE}x${asbench_per_instance_insert} -b testbin -K 0 -k 1000000 -z 16 -t 0 -o I1 -w I --socket-timeout 200 --timeout 1000 -B allowReplica --max-retries 2"
+    done
 elif [ "$1" = "status" ]
 then
     aerolab attach client -n ${client_name} -l all -- pidof asbench
@@ -35,7 +40,10 @@ then
     set -e
     NODEIP=$(aerolab cluster list -j |grep -A7 ${cluster_name} |grep IpAddress |head -1 |egrep -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
     echo "Seed: ${NODEIP}"
-    aerolab client attach -n ${client_name} -l all --detach -- /bin/bash -c "run_asbench -h ${NODEIP}:3000 -U superman -Pkrypton -n ${namespace} -s n\${NODE}x\$(pidof asbench |wc -l) -b testbin -K 0 -k 1000000 -z 16 -t 86400 -g 1000 -o I1 -w RU,80 --socket-timeout 200 --timeout 1000 -B allowReplica --max-retries 2"
+    for i in `seq 1 ${asbench_per_instance_load}`
+    do
+        aerolab client attach -n ${client_name} -l all --detach -- /bin/bash -c "run_asbench -h ${NODEIP}:3000 -U superman -Pkrypton -n ${namespace} -s n\${NODE}x${asbench_per_instance_load} -b testbin -K 0 -k 1000000 -z 16 -t 86400 -g 1000 -o I1 -w RU,80 --socket-timeout 200 --timeout 1000 -B allowReplica --max-retries 2"
+    done
 elif [ "$1" = "load-after-insert" ]
 then
     RET=0 ; while [ $RET -eq 0 ]; do $0 status; RET=$?; sleep 5; done; $0 load
@@ -53,9 +61,9 @@ else
     echo ""
     echo "Commands:"
     echo "  setup             - deploy cluster, clients and AMS in docker or aws"
-    echo "  insert            - run insert load, run this multiple times to run many asbench per client instance"
+    echo "  insert            - run insert load"
     echo "  status            - find out if asbench is still running"
-    echo "  load              - run a read-update load, run multiple times to run many asbench per client instance"
+    echo "  load              - run a read-update load"
     echo "  load-after-insert - wait for insert load to finish and run the read-update load"
     echo "  stopbench         - stop asbench on all machines"
     echo "  kill              - destroy the stack"
