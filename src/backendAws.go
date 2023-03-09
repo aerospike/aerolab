@@ -1680,6 +1680,20 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", *nout.Reservations[0].Instances[0].PublicIpAddress, string(out), err)
 						}
 					}
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "echo \"AcceptEnv NODE\" |sudo tee -a /etc/ssh/sshd_config", 0)
+					if err != nil {
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "echo \"AcceptEnv NODE\" |sudo tee -a /etc/ssh/sshd_config", 0)
+						if err != nil {
+							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", *nout.Reservations[0].Instances[0].PublicIpAddress, string(out), err)
+						}
+					}
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo service ssh restart || sudo service sshd restart", 0)
+					if err != nil {
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo service ssh restart || sudo service sshd restart", 0)
+						if err != nil {
+							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", *nout.Reservations[0].Instances[0].PublicIpAddress, string(out), err)
+						}
+					}
 					instanceReady = instanceReady + 1
 				} else {
 					fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", *nout.Reservations[0].Instances[0].PublicIpAddress, keyPath, err)
