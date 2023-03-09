@@ -9,8 +9,8 @@ aws_region="ca-central-1"
 server_instance="t3a.large"
 client_instance="t3a.medium"
 ams_instance="t3a.large"
-asbench_per_instance_insert=5
-asbench_per_instance_load=5
+asbench_per_instance_insert=2
+asbench_per_instance_load=2
 
 aerolab config backend -t ${backend} -r ${aws_region} || exit 1
 
