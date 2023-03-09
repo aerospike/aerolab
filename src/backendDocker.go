@@ -514,7 +514,7 @@ func (d *backendDocker) RunCommands(clusterName string, commands [][]string, nod
 		var out []byte
 		var err error
 		for _, command := range commands {
-			head := []string{"exec", name}
+			head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), name}
 			command = append(head, command...)
 			out, err = exec.Command("docker", command...).CombinedOutput()
 			fout = append(fout, out)
