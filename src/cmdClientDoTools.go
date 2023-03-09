@@ -212,7 +212,7 @@ else
     echo "WARNING: changing the first 5 percentile buckets will cause asbench latency graphs in AMS dashboard to be incorrect"
   fi
 fi
-NO=$(pidof asbench |wc -l)
+NO=$(pidof asbench |sed 's/ /\n/g' |wc -l)
 touch /var/log/asbench_${NO}.log
 nohup asbench "$@" ${EXTRAS} >>/var/log/asbench_${NO}.log 2>&1 &
 pkill promtail >/dev/null 2>&1
