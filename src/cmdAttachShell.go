@@ -62,6 +62,7 @@ func (c *attachShellCmd) run(args []string) (err error) {
 		for _, o := range out {
 			fmt.Println(string(o))
 		}
+		return err
 	}
 
 	if !c.Parallel {

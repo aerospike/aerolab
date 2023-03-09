@@ -4,6 +4,7 @@
 * docker fix cluster listing with json format to ignore non-aerolab containers
 * fix username/password switches for rest gateway client
 * fix `ams` client installation of grafana on docker
+* fix bug where `--detach` in client attach would run each command twice
 * update dependencies:
   * `github.com/aerospike/aerospike-client-go/v6` version `6.9.1` to `6.10.0`
   * `github.com/aws/aws-sdk-go` version `v1.44.192` to `v1.44.214`
