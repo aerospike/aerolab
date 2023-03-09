@@ -94,7 +94,10 @@ func remoteAttachAndRun(user string, addr string, privateKey string, cmd string,
 	if err != nil {
 		return err
 	}
-	client.session.Setenv("NODE", strconv.Itoa(node))
+	err = client.session.Setenv("NODE", strconv.Itoa(node))
+	if err != nil {
+		log.Printf("WARN: Setenv(NODE) failed: %s", err)
+	}
 	err = client.RunAttachCmd(cmd, stdin, stdout, stderr)
 	client.Close()
 	return err
@@ -160,7 +163,10 @@ func remoteRun(user string, addr string, privateKey string, cmd string, node int
 	if err != nil {
 		return nil, err
 	}
-	client.session.Setenv("NODE", strconv.Itoa(node))
+	err = client.session.Setenv("NODE", strconv.Itoa(node))
+	if err != nil {
+		log.Printf("WARN: Setenv(NODE) failed: %s", err)
+	}
 	ret, err := client.RunCmd(cmd)
 	client.Close()
 	return ret, err
