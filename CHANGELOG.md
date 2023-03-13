@@ -1,3 +1,6 @@
+#### 5.5.0
+* add default `doc-id` source `digest`
+
 #### 5.4.0
 * add basic latency graphs into `asbench` custom dashboards in `AMS`
 * remove redundant declarations for item slices
