@@ -32,6 +32,7 @@
 * [Deploy an Aerospike All Flash Namespace](all-flash.md)
 * [Enable Encryption at Rest](encryption.md)
 * [Use a loop device to simulate raw block storage](loop-dev.md)
+* [Use a custom installer tarball](custom_installer.md)
 
 ## Configuration Generator
 
