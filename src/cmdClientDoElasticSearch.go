@@ -189,6 +189,7 @@ sed -i -E 's/(.*)port: 9200/\1port: 9200\n\1scheme: https/g' /etc/aerospike-elas
 printf "  auth-config:\n    type: basic\n    username: elastic\n    password-file: /etc/aerospike-elasticsearch-outbound/password.conf\n" >> /etc/aerospike-elasticsearch-outbound/aerospike-elasticsearch-outbound.yml
 printf "elastic" > /etc/aerospike-elasticsearch-outbound/password.conf
 printf "  tls-config:\n    trust-store:\n      store-file: /etc/aerospike-elasticsearch-outbound/truststore.pkcs12\n      store-password-file: /etc/aerospike-elasticsearch-outbound/password.conf\n" >> /etc/aerospike-elasticsearch-outbound/aerospike-elasticsearch-outbound.yml
+printf "doc-id:\n  source: digest\n" >> /etc/aerospike-elasticsearch-outbound/aerospike-elasticsearch-outbound.yml
 `
 	if isDocker {
 		script = script + `mkdir -p /opt/autoload
