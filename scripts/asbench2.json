@@ -255,7 +255,7 @@
               "refId": "A"
             }
           ],
-          "title": "Total Transactions (across clients)",
+          "title": "Total  Read Transactions since workload started (for all clients)",
           "transformations": [
             {
               "id": "calculateField",
@@ -362,7 +362,7 @@
               "refId": "A"
             }
           ],
-          "title": "Read latencies - Min Latency (across clients)",
+          "title": "Min (across clients) Read latency for all transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -469,7 +469,7 @@
               "refId": "A"
             }
           ],
-          "title": "Read latencies - Max Latency",
+          "title": "Max (across clients) Read latency for all transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -576,7 +576,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 50% of transactions",
+          "title": "Max (across clients) Read latency for 50% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -683,7 +683,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 90% of transactions",
+          "title": "Max (across clients) Read latency for 90% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -790,7 +790,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 99% of transactions",
+          "title": "Max (across clients) Read latency for 99% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -897,7 +897,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 99.9% of transactions",
+          "title": "Max (across clients) Read latency for 99.9% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1004,7 +1004,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 99.99% of transactions",
+          "title": "Max (across clients) Read latency for 99.99% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1232,7 +1232,7 @@
               "refId": "A"
             }
           ],
-          "title": "Write latencies - Total Transactions",
+          "title": "Total Write Transactions since workload started (for all clients)",
           "transformations": [
             {
               "id": "calculateField",
@@ -1339,7 +1339,7 @@
               "refId": "A"
             }
           ],
-          "title": "Write latencies - Min Latency",
+          "title": "Min (across clients) Write latency for all transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1446,7 +1446,7 @@
               "refId": "A"
             }
           ],
-          "title": "Write latencies - Max Latency",
+          "title": "Max (across clients) Write latency for all transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1554,7 +1554,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 50% of transactions",
+          "title": "Max (across clients) Write latency for  50% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1661,7 +1661,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 90% of transactions",
+          "title": "Max (across clients) Write latency for 90% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1768,7 +1768,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 99% of transactions",
+          "title": "Max (across clients) Write latency for 99% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1875,7 +1875,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 99.9% of transactions",
+          "title": "Max (across clients) Write latency for 99.9% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1982,7 +1982,7 @@
               "refId": "A"
             }
           ],
-          "title": "Latency for 99.99% of transactions",
+          "title": "Max (across clients) Write latency for 99.99% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -5781,7 +5781,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -5796,7 +5797,7 @@
             "h": 9,
             "w": 12,
             "x": 0,
-            "y": 16
+            "y": 54
           },
           "id": 54,
           "options": {
@@ -5886,7 +5887,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -5901,7 +5903,7 @@
             "h": 9,
             "w": 12,
             "x": 12,
-            "y": 16
+            "y": 54
           },
           "id": 60,
           "options": {
@@ -5991,7 +5993,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -6006,7 +6009,7 @@
             "h": 9,
             "w": 12,
             "x": 0,
-            "y": 25
+            "y": 63
           },
           "id": 62,
           "options": {
@@ -6096,7 +6099,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -6111,7 +6115,7 @@
             "h": 9,
             "w": 12,
             "x": 12,
-            "y": 25
+            "y": 63
           },
           "id": 61,
           "options": {
@@ -6201,7 +6205,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -6216,7 +6221,7 @@
             "h": 9,
             "w": 12,
             "x": 0,
-            "y": 34
+            "y": 72
           },
           "id": 63,
           "options": {
@@ -6833,13 +6838,13 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-3h",
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "",
+  "timezone": "browser",
   "title": "ASBenchmark Client",
   "uid": "asBench01",
-  "version": 2,
+  "version": 5,
   "weekStart": ""
 }
