@@ -1,5 +1,6 @@
-#### 5.5.0
+#### 5.4.1
 * add default `doc-id` source `digest`
+* `cluster create` will now treat paths containing `.` in `aerospike.conf` as contianing a file name for the purpose of precreating directories
 
 #### 5.4.0
 * add basic latency graphs into `asbench` custom dashboards in `AMS`
