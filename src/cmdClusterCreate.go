@@ -570,7 +570,8 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 					nLoc = t[tStart:]
 				}
 				var nDir string
-				if strings.Contains(t, "file /") || strings.Contains(t, "xdr-digestlog-path /") || strings.Contains(t, "file:/") {
+				_, nFile := path.Split(nLoc)
+				if strings.Contains(t, "file /") || strings.Contains(t, "xdr-digestlog-path /") || strings.Contains(t, "file:/") || strings.Contains(nFile, ".") {
 					nDir = path.Dir(nLoc)
 				} else {
 					nDir = nLoc
