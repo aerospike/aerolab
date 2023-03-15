@@ -1,4 +1,4 @@
-. configure.sh
+. ./configure.sh
 echo
 echo "Default user:pass is admin:admin"
 echo
