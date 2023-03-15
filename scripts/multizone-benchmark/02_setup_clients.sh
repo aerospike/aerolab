@@ -1,4 +1,4 @@
-. configure.sh
+. ./configure.sh
 
 # create clients
 echo "Creating clients"
