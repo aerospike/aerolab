@@ -1,4 +1,4 @@
-. configure.sh
+. ./configure.sh
 
 # prepare config files
 TNF=template.conf

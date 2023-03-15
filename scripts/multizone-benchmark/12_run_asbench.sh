@@ -7,7 +7,7 @@ then
     exit 1
 fi
 
-. configure.sh
+. ./configure.sh
 
 # get one node seed IP
 NODEIP=$(aerolab cluster list -j |grep -A7 ${NAME} |grep IpAddress |head -1 |egrep -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
