@@ -41,3 +41,11 @@ $ aerolab cluster list
 $ aerolab client list
 ...
 ```
+
+## AIO setup, run delete
+
+```
+./00_create_lock_security_groups.sh && ./01_setup_server_ams.sh && ./02_setup_clients.sh && ./10_asadm.sh -e info && ./11_grafana_url.sh && ./12_run_asbench.sh i && sleep 5 && ./14_stat_asbench.sh
+./12_run_asbench.sh ru && sleep 5 && ./14_stat_asbench.sh && sleep 120 && ./21_stop_last_rack.sh && sleep 300 && ./22_start_last_rack.sh
+./91_destroy_clients.sh && ./92_destroy_server_ams.sh
+```
