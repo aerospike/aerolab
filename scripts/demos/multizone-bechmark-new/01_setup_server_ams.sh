@@ -26,9 +26,9 @@ do
   END_NODE=$(( ${START_NODE} + ${NODES_PER_AZ} - 1 ))
   RACK_NO=$(( ${RACK_NO} + 1 ))
   nodes=""
-  for i in $(seq ${START_NODE} ${END_NODE})
+  for j in $(seq ${START_NODE} ${END_NODE})
   do
-    [ "${nodes}" = "" ] && nodes=${i} || nodes="${nodes},${i}"
+    [ "${nodes}" = "" ] && nodes=${j} || nodes="${nodes},${j}"
   done
   aerolab cluster ${STAGE} -n ${CLUSTER_NAME} -c ${NODES_PER_AZ} -v ${VER} -o aerospike.conf --instance-type ${CLUSTER_AWS_INSTANCE} --ebs=${AWS_EBS} --subnet-id=${i} --start=n
   aerolab conf rackid -n ${CLUSTER_NAME} -l ${nodes} -i ${RACK_NO} -m ${NAMESPACE} -r -e
