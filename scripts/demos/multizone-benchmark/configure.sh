@@ -2,7 +2,7 @@
 FEATURES_FILE="/Users/rglonek/aerolab/features.conf"
 
 # if backend is 'docker', total nodes is NODES_PER_AZ*count(AWS_AVAILABILITY_ZONES), total clients is CLIENTS_PER_AZ*count(AWS_AVAILABILITY_ZONES)
-BACKEND="aws"
+BACKEND="docker"
 
 # aerospike version
 VER="6.2.0.6"
