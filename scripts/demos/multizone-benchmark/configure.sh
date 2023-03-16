@@ -1,7 +1,7 @@
 # absolute path to a valid features.conf file
 FEATURES_FILE="/Users/rglonek/aerolab/features.conf"
 
-# if backend is 'docker', total nodes is NODES_PER_AZ, total clients is CLIENTS_PER_AZ
+# if backend is 'docker', total nodes is NODES_PER_AZ*count(AWS_AVAILABILITY_ZONES), total clients is CLIENTS_PER_AZ*count(AWS_AVAILABILITY_ZONES)
 BACKEND="aws"
 
 # aerospike version
@@ -12,11 +12,11 @@ CLUSTER_NAME="robert"
 AMS_NAME="glonek"
 CLIENT_NAME="hammertime"
 
-# region and list of AWS AZs to deploy in
+# region and list of AWS AZs to deploy in; also defines number of aerospike racks
 AWS_REGION="us-east-1"
 AWS_AVAILABILITY_ZONES=(us-east-1a us-east-1b us-east-1c)
 
-# number of server nodes and client machines per AZ
+# number of server nodes and client machines per AZ (per rack)
 NODES_PER_AZ=2
 CLIENTS_PER_AZ=2
 
