@@ -2,10 +2,6 @@
 
 This script set requires aerolab version 5.4.0 or higher.
 
-## Work in Progress
-
-This set of scripts has not been tested nor debugged yet.
-
 ## Usage
 1. git clone this repository
 2. modify `configure.sh` to your needs
@@ -26,6 +22,7 @@ template.conf | aerospike config | template aerospike configuration file
 configure.sh | configuration script | script with basic configuration - edit this to tune the deployment
 01_setup_server_ams.sh | script | run this first - sets up aerospike servers and AMS monitoring stack
 02_setup_clients.sh | script | run this second - sets up aerospike clients (tools) with asbench and monitoring
+10_asadm.sh | script | run to attach to asadm on a running server node
 11_grafana_url.sh | script | run this any time after the above were executed - to get grafana URL to access the graphs
 12_run_asbench.sh | script | run this to start asbench data insert or read/update load
 13_kill_asbench.sh | script | run this to kill asbench on all client machines

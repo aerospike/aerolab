@@ -17,9 +17,21 @@ fi
 
 sed "s/_NAMESPACE_/${NAMESPACE}/g" ${TEMPLATE} > aerospike.conf
 STAGE="create"
+START_NODE=0
+END_NODE=0
+RACK_NO=0
 for i in ${AWS_AVAILABILITY_ZONES[@]}
 do
-  aerolab cluster ${STAGE} -n ${CLUSTER_NAME} -c ${NODES_PER_AZ} -v ${VER} -o ${TEMPLATE} --instance-type ${CLUSTER_AWS_INSTANCE} --ebs=${AWS_EBS} --subnet-id=${i} --start=n
+  START_NODE=$(( ${END_NODE} + 1 ))
+  END_NODE=$(( ${START_NODE} + ${NODES_PER_AZ} - 1 ))
+  RACK_NO=$(( ${RACK_NO} + 1 ))
+  nodes=""
+  for i in $(seq ${START_NODE} ${END_NODE})
+  do
+    [ "${nodes}" = "" ] && nodes=${i} || nodes="${nodes},${i}"
+  done
+  aerolab cluster ${STAGE} -n ${CLUSTER_NAME} -c ${NODES_PER_AZ} -v ${VER} -o aerospike.conf --instance-type ${CLUSTER_AWS_INSTANCE} --ebs=${AWS_EBS} --subnet-id=${i} --start=n
+  aerolab conf rackid -n ${CLUSTER_NAME} -l ${nodes} -i ${RACK_NO} -m ${NAMESPACE} -r -e
   STAGE="grow"
 done
 rm -f aerospike.conf
@@ -51,7 +63,7 @@ aerolab attach asadm -n ${CLUSTER_NAME} -- -U admin -P admin -e "enable; manage 
 echo "Copy astools"
 aerolab files upload -n ${CLUSTER_NAME} astools.conf /etc/aerospike/astools.conf
 
-#### apply roster ####
+#### apply roster
 echo "SC-Roster"
 RET=1
 while [ ${RET} -ne 0 ]
