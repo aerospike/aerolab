@@ -14,11 +14,11 @@ CLIENT_NAME="hammertime"
 
 # region and list of AWS AZs to deploy in
 AWS_REGION="ca-central-1"
-AWS_AVAILABILITY_ZONES=(ca-central-1a ca-central-1b ca-central-1d)
+AWS_AVAILABILITY_ZONES=(ca-central-1a ca-central-1b)
 
 # number of server nodes and client machines per AZ
-NODES_PER_AZ=2
-CLIENTS_PER_AZ=2
+NODES_PER_AZ=3
+CLIENTS_PER_AZ=3
 
 # instances - cluster instance requires type with NVMe disks
 CLUSTER_AWS_INSTANCE="r5ad.4xlarge"
