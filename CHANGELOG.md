@@ -1,6 +1,6 @@
 #### 5.4.1
 * add default `doc-id` source `digest`
-* `cluster create` will now treat paths containing `.` in `aerospike.conf` as contianing a file name for the purpose of precreating directories
+* `cluster create` will now treat paths containing `.` in `aerospike.conf` as containing a file name for the purpose of precreating directories
 * Updated asbench dashboards based on user testing, improving labels, and no longer averaging percentiles.
 
 #### 5.4.0
