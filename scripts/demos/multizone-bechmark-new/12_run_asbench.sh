@@ -14,18 +14,23 @@ set -e
 NODEIP=$(aerolab cluster list -j |grep -A7 ${CLUSTER_NAME} |grep IpAddress |head -1 |egrep -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
 echo "Seed: ${NODEIP}"
 
+# parameters
+common_params1="-h ${NODEIP}:3000 -U superman -Pkrypton -n ${NAMESPACE}"
+common_params2="-b ${asbench_bin_name} -K ${asbench_start_key} -k ${asbench_end_key} -z ${asbench_threads} -o ${asbench_object}"
+common_params3="--socket-timeout ${asbench_socket_timeout} --timeout ${asbench_total_timeout} -B ${asbench_read_policy} --max-retries ${asbench_retries}"
+
 # prepare asbench
 if [ "${LOAD}" = "i" ]
 then
     for i in `seq 1 ${asbench_per_instance_insert}`
     do
-      aerolab client attach -n ${CLIENT_NAME} -l all --detach -- /bin/bash -c "run_asbench -h ${NODEIP}:3000 -U superman -Pkrypton -n ${namespace} -s n\${NODE}x${asbench_per_instance_insert} -b testbin -K 0 -k 1000000 -z 16 -t 0 -o I1 -w I --socket-timeout 200 --timeout 1000 -B allowReplica --max-retries 2"
+      aerolab client attach -n ${CLIENT_NAME} -l all --detach -- /bin/bash -c "run_asbench ${common_params1} -s n\${NODE}x${i} ${common_params2[@]} -t 0 -w I ${common_params3[@]}"
     done
 elif [ "${LOAD}" = "ru" ]
 then
     for i in `seq 1 ${asbench_per_instance_load}`
     do
-        aerolab client attach -n ${CLIENT_NAME} -l all --detach -- /bin/bash -c "run_asbench -h ${NODEIP}:3000 -U superman -Pkrypton -n ${namespace} -s n\${NODE}x${asbench_per_instance_load} -b testbin -K 0 -k 1000000 -z 16 -t 86400 -g 1000 -o I1 -w RU,80 --socket-timeout 200 --timeout 1000 -B allowReplica --max-retries 2"
+      aerolab client attach -n ${CLIENT_NAME} -l all --detach -- /bin/bash -c "run_asbench ${common_params1[@]} -s n\${NODE}x${i} ${common_params2[@]} -t ${asbench_ru_runtime} -g ${asbench_ru_throughput} -w RU,${asbench_ru_percent} ${common_params3[@]}"
     done
 else
     echo "invalid usage"

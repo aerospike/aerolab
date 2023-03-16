@@ -9,6 +9,4 @@ for i in $(seq ${START_NODE} ${END_NODE})
 do
   [ "${nodes}" = "" ] && nodes=${i} || nodes="${nodes},${i}"
 done
-echo $nodes
-exit 1
 aerolab aerospike stop -n ${CLUSTER_NAME} -l ${nodes}
