@@ -14,7 +14,7 @@ CLIENT_NAME="hammertime"
 
 # region and list of AWS AZs to deploy in
 AWS_REGION="ca-central-1"
-AWS_AVAILABILITY_ZONES=(ca-central-1a ca-central-1b ca-central-1c)
+AWS_AVAILABILITY_ZONES=(ca-central-1a ca-central-1b ca-central-1d)
 
 # number of server nodes and client machines per AZ
 NODES_PER_AZ=2
