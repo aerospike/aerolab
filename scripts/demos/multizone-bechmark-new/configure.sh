@@ -22,8 +22,8 @@ CLIENTS_PER_AZ=2
 
 # instances - cluster instance requires type with NVMe disks
 CLUSTER_AWS_INSTANCE="r5ad.4xlarge"
-AMS_AWS_INSTANCE="t3a.medium"
-CLIENT_AWS_INSTANCE="t3a.medium"
+AMS_AWS_INSTANCE="t3a.large"
+CLIENT_AWS_INSTANCE="t3a.large"
 
 # namespace name
 NAMESPACE="test"
