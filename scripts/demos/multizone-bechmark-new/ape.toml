@@ -1,0 +1,26 @@
+[Agent]
+cert_file = ""
+key_file = ""
+root_ca = ""
+key_file_passphrase = ""
+labels = {}
+bind = ":9145"
+timeout = 10
+log_file = ""
+log_level = ""
+basic_auth_username = ""
+basic_auth_password = ""
+[Aerospike]
+db_host = "localhost"
+db_port = 3000
+root_ca = ""
+cert_file = ""
+key_file = ""
+key_file_passphrase = ""
+node_tls_name = ""
+user = "superman"
+password = "krypton"
+auth_mode = "internal"
+timeout = 5
+latency_buckets_count = 0
+
