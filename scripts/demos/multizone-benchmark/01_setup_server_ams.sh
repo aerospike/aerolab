@@ -11,7 +11,6 @@ then
   fi
   echo "Creating cluster, ${NODES_PER_AZ} nodes per AZ, AZs=${AWS_AVAILABILITY_ZONES}"
 else
-  AWS_AVAILABILITY_ZONES=(docker)
   echo "Create cluster in docker, total nodes=$(( ${#AWS_AVAILABILITY_ZONES[@]} * ${NODES_PER_AZ} ))"
 fi
 

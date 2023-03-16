@@ -49,3 +49,8 @@ $ aerolab client list
 ./12_run_asbench.sh ru && sleep 5 && ./14_stat_asbench.sh && sleep 120 && ./21_stop_last_rack.sh && sleep 300 && ./22_start_last_rack.sh
 ./91_destroy_clients.sh && ./92_destroy_server_ams.sh
 ```
+
+## Speed at current default settings
+
+* Running the `00` and `01` scripts takes about 15-20 minutes if there is no prior template existing.
+* The `02` script takes around 15 minutes
