@@ -13,12 +13,12 @@ AMS_NAME="glonek"
 CLIENT_NAME="hammertime"
 
 # region and list of AWS AZs to deploy in
-AWS_REGION="ca-central-1"
-AWS_AVAILABILITY_ZONES=(ca-central-1a ca-central-1b)
+AWS_REGION="us-east-1"
+AWS_AVAILABILITY_ZONES=(us-east-1a us-east-1b us-east-1c)
 
 # number of server nodes and client machines per AZ
-NODES_PER_AZ=3
-CLIENTS_PER_AZ=3
+NODES_PER_AZ=2
+CLIENTS_PER_AZ=2
 
 # instances - cluster instance requires type with NVMe disks
 CLUSTER_AWS_INSTANCE="r5ad.4xlarge"
