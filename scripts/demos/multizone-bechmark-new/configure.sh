@@ -2,7 +2,7 @@
 FEATURES_FILE="/Users/rglonek/aerolab/features.conf"
 
 # if backend is 'docker', total nodes is NODES_PER_AZ, total clients is CLIENTS_PER_AZ
-BACKEND="docker"
+BACKEND="aws"
 
 # aerospike version
 VER="6.2.0.6"
@@ -13,8 +13,8 @@ AMS_NAME="glonek"
 CLIENT_NAME="hammertime"
 
 # region and list of AWS AZs to deploy in
-AWS_REGION="eu-east-1"
-AWS_AVAILABILITY_ZONES=(us-east-1a us-east-1b us-east-1c)
+AWS_REGION="ca-central-1"
+AWS_AVAILABILITY_ZONES=(ca-central-1a ca-central-1b ca-central-1c)
 
 # number of server nodes and client machines per AZ
 NODES_PER_AZ=2
