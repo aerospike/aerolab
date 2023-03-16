@@ -20,6 +20,7 @@ ape.toml | exporter config | premade configuration file for aerospike prometheus
 astools.conf | astools config | premade configuration file for aerospike tools package (for asbench)
 template.conf | aerospike config | template aerospike configuration file
 configure.sh | configuration script | script with basic configuration - edit this to tune the deployment
+00_create_lock_security_groups.sh | script | run this to pre-create and lock AeroLab managed security groups to your source IP
 01_setup_server_ams.sh | script | run this first - sets up aerospike servers and AMS monitoring stack
 02_setup_clients.sh | script | run this second - sets up aerospike clients (tools) with asbench and monitoring
 10_asadm.sh | script | run to attach to asadm on a running server node
