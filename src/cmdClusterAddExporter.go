@@ -9,6 +9,7 @@ import (
 
 type clusterAddExporterCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	CustomConf  flags.Filename  `short:"o" long:"custom-conf" description:"To deploy a custom ape.toml configuration file, specify it's path here"`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 	clusterStartStopDestroyCmd
@@ -19,7 +20,11 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Println("Running cluster.add.exporter")
-	cList, nodes, err := c.getBasicData(string(c.ClusterName), "all")
+	err := c.Nodes.ExpandNodes(string(c.ClusterName))
+	if err != nil {
+		return err
+	}
+	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String())
 	if err != nil {
 		return err
 	}
