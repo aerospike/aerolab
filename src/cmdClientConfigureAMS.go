@@ -40,7 +40,7 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 		return fmt.Errorf("failed to configure prometheus (sed): %s", err)
 	}
 	// (re)start prometheus
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "service prometheus stop; sleep 2; service prometheus start"})
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "kill -HUP $(pidof prometheus)"})
 	if err != nil {
 		return fmt.Errorf("failed to restart prometheus: %s", err)
 	}

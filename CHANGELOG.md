@@ -1,3 +1,8 @@
+#### 5.4.2
+* add `nodes` switch to `add exporter` command
+* send a reload command on `configure ams` instead of restarting the service
+* disable service update prompts for `apt` on `ubuntu:22.04` in AWS
+
 #### 5.4.1
 * add default `doc-id` source `digest`
 * `cluster create` will now treat paths containing `.` in `aerospike.conf` as containing a file name for the purpose of precreating directories

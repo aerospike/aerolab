@@ -7,6 +7,7 @@ var aerospikeInstallScript = make(map[string]string) //docker:centos:7 = script;
 func init() {
 
 	aerospikeInstallScript["aws:ubuntu:22.04"] = `#!/bin/bash
+sed -i.bak "/#\$nrconf{restart} = .*/s/.*/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf || echo "No sed"
 cat <<'EOF' > /usr/local/bin/early.sh
 #!/bin/bash
 ls / >/dev/null 2>&1
