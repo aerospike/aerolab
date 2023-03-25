@@ -1,4 +1,5 @@
 echo "Initializing"
+ver=$(cat ../../VERSION.md)
 # auth with apple
 [ -f ~/xcode-secrets.sh ] && source ~/xcode-secrets.sh
 
@@ -21,6 +22,7 @@ fi
 function signer() {
 # basics
 FILE="${1}.zip"
+FILE_NZIP="${1}"
 BIN="aerolab"
 
 # cleanup
@@ -75,7 +77,7 @@ while true; do
     echo ""
     cat notarization_progress
     echo "Notarization succeeded"
-    mv ${FILE} ../final/
+    mv ${FILE} ../final/${FILE_NZIP}-${ver}.zip
     break
   elif grep -q "Status: in progress" notarization_progress; then
     continue
