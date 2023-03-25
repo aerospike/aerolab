@@ -44,13 +44,13 @@ EOF
 mv aerolab deb/usr/bin/
 mv deb aerolab-linux-amd64
 sudo dpkg-deb -b aerolab-linux-amd64
-mv aerolab-linux-amd64.deb final/
+mv aerolab-linux-amd64.deb final/aerolab-linux-amd64-${ver}.deb
 cp -a aerolabrpm aerolab-rpm-centos
 sed -i.bak "s/VERSIONHERE/${ver}/g" aerolab-rpm-centos/aerolab.spec
 cp aerolab-linux-amd64/usr/bin/aerolab aerolab-rpm-centos/usr/bin/aerolab
 rm -rf aerolab-linux-amd64
 rpmbuild --target=x86_64-redhat-linux --buildroot $(pwd)/aerolab-rpm-centos -bb aerolab-rpm-centos/aerolab.spec
-mv aerolab-linux-x86_64.rpm final/
+mv aerolab-linux-x86_64.rpm final/aerolab-linux-x86_64-${ver}.rpm
 
 # arm64
 echo "step 6"
@@ -72,12 +72,12 @@ EOF
 mv aerolab deb/usr/bin/
 mv deb aerolab-linux-arm64
 sudo dpkg-deb -b aerolab-linux-arm64
-mv aerolab-linux-arm64.deb final/
+mv aerolab-linux-arm64.deb final/aerolab-linux-arm64-${ver}.deb
 cp -a aerolabrpm aerolab-rpm-centos
 sed -i.bak "s/VERSIONHERE/${ver}/g" aerolab-rpm-centos/aerolab.spec
 cp aerolab-linux-arm64/usr/bin/aerolab aerolab-rpm-centos/usr/bin/aerolab
 rm -rf aerolab-linux-arm64
 rpmbuild --target=arm64-redhat-linux --buildroot $(pwd)/aerolab-rpm-centos -bb aerolab-rpm-centos/aerolab.spec
-mv aerolab-linux-arm64.rpm final/
+mv aerolab-linux-arm64.rpm final/aerolab-linux-arm64-${ver}.rpm
 
 echo "Ready to sign, package and notarize mac binaries"

@@ -96,5 +96,5 @@ while true; do
 done
 
 popd
-cp ~/Desktop/packages/build/aerolab-macos.pkg ../final/aerolab-macos.pkg
+cp ~/Desktop/packages/build/aerolab-macos.pkg ../final/aerolab-macos-${ver}.pkg
 echo "Done"
