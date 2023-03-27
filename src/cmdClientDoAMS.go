@@ -202,7 +202,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		}
 	}
 	// expand nodes and install dashboards yaml initializer
-	f, err := os.CreateTemp("", "aerolab-ams.yaml")
+	f, err := os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "aerolab-ams.yaml")
 	if err != nil {
 		return err
 	}
