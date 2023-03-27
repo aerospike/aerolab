@@ -68,9 +68,15 @@ func (c *rosterApplyCmd) runApply(args []string) error {
 		for _, n := range nodesList {
 			out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
 			if err != nil {
+				log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, err)
 				continue
 			}
-			observedNodes := strings.Split(strings.Split(strings.Trim(string(out[0]), "\t\r\n "), ":observed_nodes=")[1], ",")
+			observedNodesSplit := strings.Split(strings.Trim(string(out[0]), "\t\r\n "), ":observed_nodes=")
+			if len(observedNodesSplit) < 2 {
+				log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, out[0])
+				continue
+			}
+			observedNodes := strings.Split(observedNodesSplit[1], ",")
 			for _, on := range observedNodes {
 				if !inslice.HasString(foundNodes, on) {
 					foundNodes = append(foundNodes, on)
