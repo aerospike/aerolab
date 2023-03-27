@@ -112,7 +112,7 @@ func (c *clientAddVSCodeCmd) Execute(args []string) error {
 
 func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 	b.WorkOnClients()
-	f, err := os.CreateTemp("", "")
+	f, err := os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "")
 	if err != nil {
 		return err
 	}

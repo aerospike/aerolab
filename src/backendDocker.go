@@ -471,7 +471,7 @@ func (d *backendDocker) CopyFilesToCluster(name string, files []fileList, nodes 
 	for _, file := range files {
 		var tmpfile *os.File
 		var tmpfileName string
-		tmpfile, err = os.CreateTemp("", "aerolab-tmp")
+		tmpfile, err = os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "aerolab-tmp")
 		if err != nil {
 			return err
 		}
@@ -688,7 +688,7 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileList) erro
 	for _, file := range files {
 		var tmpfile *os.File
 		var tmpfileName string
-		tmpfile, err = os.CreateTemp("", dockerNameHeader+"tmp")
+		tmpfile, err = os.CreateTemp(string(a.opts.Config.Backend.TmpDir), dockerNameHeader+"tmp")
 		if err != nil {
 			return err
 		}

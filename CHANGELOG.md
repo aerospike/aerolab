@@ -1,5 +1,6 @@
 #### 5.4.3
 * handle malformed output from `asinfo` on error
+* add backend option to specify non-standard temporary directory
 
 #### 5.4.2
 * add `nodes` switch to `add exporter` command

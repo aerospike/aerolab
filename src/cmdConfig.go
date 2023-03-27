@@ -32,6 +32,7 @@ type configBackendCmd struct {
 	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker" default:""`
 	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS backend: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
 	Region     string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
+	TmpDir     flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:""`
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	typeSet    string
 }

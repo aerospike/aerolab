@@ -177,7 +177,7 @@ func (c *clientAddJupyterCmd) Execute(args []string) error {
 
 func (c *clientAddJupyterCmd) addJupyter(args []string) error {
 	b.WorkOnClients()
-	f, err := os.CreateTemp("", "")
+	f, err := os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "")
 	if err != nil {
 		return err
 	}

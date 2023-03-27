@@ -25,7 +25,7 @@ func (c *clientConfigureRestGatewayCmd) Execute(args []string) error {
 	b.WorkOnClients()
 
 	script := c.UpdateScript()
-	f, err := os.CreateTemp("", "aerolab-rest-gw")
+	f, err := os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "aerolab-rest-gw")
 	if err != nil {
 		return err
 	}
