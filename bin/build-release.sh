@@ -27,7 +27,7 @@ mkdir -p final
 # amd64
 echo "step 5"
 mv aerolab-linux-amd64 aerolab
-zip final/aerolab-linux-amd64.zip aerolab
+zip final/aerolab-linux-amd64-${ver}.zip aerolab
 rm -rf deb
 mkdir -p deb/DEBIAN
 mkdir -p deb/usr/bin
@@ -55,7 +55,7 @@ mv aerolab-linux-x86_64.rpm final/aerolab-linux-x86_64-${ver}.rpm
 # arm64
 echo "step 6"
 mv aerolab-linux-arm64 aerolab
-zip final/aerolab-linux-arm64.zip aerolab
+zip final/aerolab-linux-arm64-${ver}.zip aerolab
 rm -rf deb
 mkdir -p deb/DEBIAN
 mkdir -p deb/usr/bin
