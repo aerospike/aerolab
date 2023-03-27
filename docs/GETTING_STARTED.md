@@ -66,8 +66,8 @@ Alternatively, manual installation can be performed by downloading the relevant 
 
 Create a config file and select a backend first using one of:
 
-$ aerolab config backend -t docker
-$ aerolab config backend -t aws [-r region] [-p /custom/path/to/store/ssh/keys/in/]
+$ aerolab config backend -t docker [-d /path/to/tmpdir/for-aerolab/to/use]
+$ aerolab config backend -t aws [-r region] [-p /custom/path/to/store/ssh/keys/in/] [-d /path/to/tmpdir/for-aerolab/to/use]
 
 Default file path is ${HOME}/.aerolab.conf
 
@@ -93,7 +93,33 @@ It's a good idea to configure the basics so as not to have to use the command li
 
 If using a custom features file: `aerolab config defaults -k '*FeaturesFilePath' -v /path/to/features.conf`
 
-Make AeroLab adjust `aerospike.conf` to always use `mesh` heartbeat modes, unless specifically overwritten in the command line: `aerolab config defaults -k '*.HeartbeatMode' -v mesh`
+#### Windows usage on WSL2 - configuring docker desktop
+
+1. Open `Docker Desktop`, navigate to `Settings` and under `General` select `Use the WSL 2 based engine`
+2. Under `Resources->ESL Integration`, select the virtual machine(s) you want to give access to docker
+3. Stop `WSL` by executing `wsl --shutdown`
+4. Restart your `WSL` linux virtual machine
+5. From within the virtual machine, execute `docker info`. If the docker command is not found, it will need to be installed. Below manual covers installing on `ubuntu` based image:
+
+```
+sudo apt-get update && sudo apt-get install ca-certificates curl gnupg lsb-release
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt install docker-ce-cli
+docker info
+```
+
+#### Windows usage on WSL2 - limitation of WSL2
+
+Windows `WSL2` has an issue with temporary file access from docker. To work around this, specify a temporary directory that is not `/tmp` when using `aerolab` on windows. This can be any existing directory your user can write to. For example:
+
+```
+# docker
+aerolab config backend -t docker -d ${HOME}
+
+# or aws
+aerolab config backend -t aws -d ${HOME}
+```
 
 #### Shell completion
 
