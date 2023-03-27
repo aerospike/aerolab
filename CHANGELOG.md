@@ -1,3 +1,6 @@
+#### 5.4.3
+* handle malformed output from `asinfo` on error
+
 #### 5.4.2
 * add `nodes` switch to `add exporter` command
 * send a reload command on `configure ams` instead of restarting the service
