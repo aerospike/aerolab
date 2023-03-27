@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"path"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -100,6 +102,25 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 	} else if c.Type != "docker" {
 		return errors.New("backend types supported: docker, aws")
 	}
+	if c.TmpDir == "" {
+		out, err := exec.Command("uname", "-r").CombinedOutput()
+		if err != nil {
+			log.Println("WARNING: `uname` not found, if running in WSL2, specify the temporary directory as part of this command using `-d /path/to/tmpdir`")
+		} else {
+			if strings.Contains(string(out), "-WSL2") && strings.Contains(string(out), "microsoft") {
+				ch, err := os.UserHomeDir()
+				if err != nil {
+					log.Fatal(err)
+				}
+				err = os.MkdirAll(path.Join(ch, ".aerolab.tmp"), 0755)
+				if err != nil {
+					log.Fatal(err)
+				}
+				c.TmpDir = flags.Filename(path.Join(ch, ".aerolab.tmp"))
+			}
+		}
+	}
+
 	err := writeConfigFile()
 	if err != nil {
 		log.Printf("ERROR: Could not save file: %s", err)
