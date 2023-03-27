@@ -2,6 +2,7 @@
 * handle malformed output from `asinfo` on error
 * add backend option to specify non-standard temporary directory
 * fix ulimits for linux docker desktop
+* add auto-discovery of `WSL2` for temp dir creation
 
 #### 5.4.2
 * add `nodes` switch to `add exporter` command
