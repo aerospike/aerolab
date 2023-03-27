@@ -109,18 +109,6 @@ sudo apt install docker-ce-cli
 docker info
 ```
 
-#### Windows usage on WSL2 - limitation of WSL2
-
-Windows `WSL2` has an issue with temporary file access from docker. To work around this, specify a temporary directory that is not `/tmp` when using `aerolab` on windows. This can be any existing directory your user can write to. For example:
-
-```
-# docker
-aerolab config backend -t docker -d ${HOME}
-
-# or aws
-aerolab config backend -t aws -d ${HOME}
-```
-
 #### Shell completion
 
 To install shell completion, do one (or both) of:
