@@ -99,7 +99,8 @@ If using a custom features file: `aerolab config defaults -k '*FeaturesFilePath'
 2. Under `Resources->ESL Integration`, select the virtual machine(s) you want to give access to docker
 3. Stop `WSL` by executing `wsl --shutdown`
 4. Restart your `WSL` linux virtual machine
-5. From within the virtual machine, execute `docker info`. If the docker command is not found, it will need to be installed. Below manual covers installing on `ubuntu` based image:
+5. Fix permissions: `sudo chmod 777 /var/run/docker.sock` - this needs to be done every time docker is restarted, or alternatively `aerolab` will have to be run with `sudo` each time
+6. From within the virtual machine, execute `docker info`. If the docker command is not found, it will need to be installed. Below manual covers installing on `ubuntu` based image:
 
 ```
 sudo apt-get update && sudo apt-get install ca-certificates curl gnupg lsb-release
