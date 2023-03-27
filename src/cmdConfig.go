@@ -63,7 +63,11 @@ func (c *configBackendCmd) Execute(args []string) error {
 			return err
 		}
 	}
-	fmt.Printf("config.backend.type=%s\n", c.Type)
+	fmt.Printf("Config.Backend.Type = %s\n", c.Type)
+	if c.Type == "aws" {
+		fmt.Printf("Config.Backend.Region = %s\n", c.Region)
+	}
+	fmt.Printf("Config.Backend.TmpDir = %s\n", c.TmpDir)
 	return nil
 }
 
