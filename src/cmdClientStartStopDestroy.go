@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -43,6 +44,14 @@ func (c *clientStartCmd) runStart(args []string) error {
 	cList, nodes, err := c.getBasicData(string(c.ClientName), c.Machines.String())
 	if err != nil {
 		return err
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		out, err := exec.Command("docker", "run", "--rm", "-i", "--privileged", "ubuntu:22.04", "sysctl", "-w", "vm.max_map_count=262144").CombinedOutput()
+		if err != nil {
+			fmt.Println("Workaround `sysctl -w vm.max_map_count=262144` for docker failed, elasticsearch clients might fail to start...")
+			fmt.Println(err)
+			fmt.Println(string(out))
+		}
 	}
 	var nerr error
 	scriptErr := false
