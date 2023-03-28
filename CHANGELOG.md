@@ -1,5 +1,6 @@
 #### 5.4.4
 * Try to adjust `vm.max_map_count=262144` on each client start for `elasticsearch` needs.
+* Make `promtail` stack optional when launching `run_asbench` on the client machines.
 
 #### 5.4.3
 * handle malformed output from `asinfo` on error
