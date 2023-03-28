@@ -1,3 +1,6 @@
+#### 5.4.4
+* Try to adjust `vm.max_map_count=262144` on each client start for `elasticsearch` needs.
+
 #### 5.4.3
 * handle malformed output from `asinfo` on error
 * add backend option to specify non-standard temporary directory
