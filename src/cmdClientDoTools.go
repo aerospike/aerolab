@@ -216,6 +216,6 @@ NO=$(pidof asbench |sed 's/ /\n/g' |wc -l)
 touch /var/log/asbench_${NO}.log
 nohup asbench "$@" ${EXTRAS} >>/var/log/asbench_${NO}.log 2>&1 &
 pkill promtail >/dev/null 2>&1
-/opt/autoload/10-promtail
+[ -f /opt/autoload/10-promtail ] && /opt/autoload/10-promtail
 `
 }
