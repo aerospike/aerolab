@@ -47,8 +47,8 @@ type chDirCmd struct {
 
 type aerospikeVersionCmd struct {
 	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition, or 'f' for federal edition" default:"latest"`
-	Username         string               `short:"U" long:"username" description:"Required for downloading older enterprise editions"`
-	Password         string               `short:"P" long:"password" description:"Required for downloading older enterprise editions"`
+	Username         string               `long:"username" description:"Required for downloading older enterprise editions"`
+	Password         string               `long:"password" description:"Required for downloading older enterprise editions"`
 }
 
 type aerospikeVersionSelectorCmd struct {
