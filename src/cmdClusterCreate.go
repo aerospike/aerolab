@@ -10,20 +10,22 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
 type clusterCreateCmd struct {
-	ClusterName          TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	NodeCount            int             `short:"c" long:"count" description:"Number of nodes" default:"1"`
-	CustomConfigFilePath flags.Filename  `short:"o" long:"customconf" description:"Custom aerospike config file path to install"`
-	CustomToolsFilePath  flags.Filename  `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
-	FeaturesFilePath     flags.Filename  `short:"f" long:"featurefile" description:"Features file to install"`
-	HeartbeatMode        TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh"`
-	MulticastAddress     string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
-	MulticastPort        string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
+	ClusterName             TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	NodeCount               int             `short:"c" long:"count" description:"Number of nodes" default:"1"`
+	CustomConfigFilePath    flags.Filename  `short:"o" long:"customconf" description:"Custom aerospike config file path to install"`
+	CustomToolsFilePath     flags.Filename  `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
+	FeaturesFilePath        flags.Filename  `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
+	FeaturesFilePrintDetail bool            `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
+	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh"`
+	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
+	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
 	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
 	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
@@ -77,6 +79,12 @@ type clusterCreateCmdDocker struct {
 	SwapLimit         string `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
 	Privileged        bool   `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
 	NetworkName       string `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
+}
+
+type featureFile struct {
+	name       string    // fileName
+	version    string    // feature-key-version              1
+	validUntil time.Time // valid-until-date                 2024-01-15
 }
 
 func init() {
@@ -367,16 +375,139 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		return errors.New("aerospike Version is not an int.int.*")
 	}
 
+	featuresFilePath := c.FeaturesFilePath
 	if !isCommunity {
-		if string(c.FeaturesFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
+		if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
 			log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 			bufio.NewReader(os.Stdin).ReadBytes('\n')
 		}
-		if string(c.FeaturesFilePath) == "" && aver_major == 6 && aver_minor > 0 {
+		if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
 			log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
 		}
+		if featuresFilePath != "" {
+			ff, err := os.Stat(string(featuresFilePath))
+			if err != nil {
+				logFatal("Features file path specified does not exist: %s", err)
+			}
+			fffileList := []string{}
+			ffFiles := []featureFile{}
+			if ff.IsDir() {
+				ffDir, err := os.ReadDir(string(featuresFilePath))
+				if err != nil {
+					logFatal("Features file path director read failed: %s", err)
+				}
+				for _, ffFile := range ffDir {
+					if ffFile.IsDir() {
+						continue
+					}
+					fffileList = append(fffileList, path.Join(string(featuresFilePath), ffFile.Name()))
+				}
+			} else {
+				fffileList = []string{string(featuresFilePath)}
+			}
+			for _, ffFile := range fffileList {
+				ffc, err := os.ReadFile(ffFile)
+				if err != nil {
+					logFatal("Features file read failed for %s: %s", ffFile, err)
+				}
+				// populate ffFiles from ffc contents for unexpired features files, WARN on finding expired ones
+				ffFiles1 := featureFile{
+					name: ffFile,
+				}
+				scanner := bufio.NewScanner(bytes.NewReader(ffc))
+				for scanner.Scan() {
+					line := scanner.Text()
+					if strings.HasPrefix(line, "feature-key-version") {
+						ffVer := strings.TrimLeft(strings.TrimPrefix(line, "feature-key-version"), " \t")
+						ffVer = strings.TrimRight(ffVer, " \t\n")
+						ffFiles1.version = ffVer
+					} else if strings.HasPrefix(line, "valid-until-date") {
+						ffDate := strings.TrimLeft(strings.TrimPrefix(line, "valid-until-date"), " \t")
+						ffDateSplit := strings.Split(strings.TrimRight(ffDate, " \t\n"), "-")
+						ffy := 3000
+						ffm := 1
+						ffd := 1
+						if len(ffDateSplit) == 3 {
+							ffy, err = strconv.Atoi(ffDateSplit[0])
+							if err != nil {
+								ffy = 3000
+							}
+							ffm, err = strconv.Atoi(ffDateSplit[1])
+							if err != nil {
+								ffm = 1
+							}
+							ffd, err = strconv.Atoi(ffDateSplit[2])
+							if err != nil {
+								ffd = 1
+							}
+						}
+						// 2024-01-15
+						ffFiles1.validUntil = time.Date(ffy, time.Month(ffm), ffd, 0, 0, 0, 0, time.UTC)
+					}
+				}
+				if ffFiles1.version != "" {
+					if ffFiles1.validUntil.IsZero() {
+						ffFiles1.validUntil = time.Now().AddDate(0, 0, 1)
+					}
+					ffFiles = append(ffFiles, ffFiles1)
+				}
+			}
+			if (aver_major == 6 && aver_minor >= 3) || aver_major > 6 {
+				foundFile := featureFile{}
+				for _, ffFile := range ffFiles {
+					if ffFile.version != "2" {
+						continue
+					}
+					if ffFile.validUntil.After(foundFile.validUntil) {
+						foundFile = ffFile
+					}
+				}
+				if foundFile.name == "" {
+					logFatal("Features file v2 not found in the FeaturesFilePath directory")
+				}
+				featuresFilePath = flags.Filename(foundFile.name)
+			} else if (aver_major == 5 && aver_minor <= 4) || (aver_major == 4 && aver_minor > 5) {
+				foundFile := featureFile{}
+				for _, ffFile := range ffFiles {
+					if ffFile.version != "1" {
+						continue
+					}
+					if ffFile.validUntil.After(foundFile.validUntil) {
+						foundFile = ffFile
+					}
+				}
+				if foundFile.name == "" {
+					logFatal("Features file v1 not found in the FeaturesFilePath directory")
+				}
+				featuresFilePath = flags.Filename(foundFile.name)
+			} else if (aver_major == 6 && aver_minor < 3) || (aver_major == 5 && aver_minor > 4) {
+				foundFile := featureFile{}
+				for _, ffFile := range ffFiles {
+					if ffFile.version == "2" && (foundFile.version == "1" || foundFile.version == "") {
+						foundFile = ffFile
+						continue
+					}
+					if ffFile.validUntil.After(foundFile.validUntil) {
+						foundFile = ffFile
+					}
+				}
+				if foundFile.name == "" {
+					logFatal("Features files not found in the FeaturesFilePath directory")
+				}
+				featuresFilePath = flags.Filename(foundFile.name)
+			}
+			if c.FeaturesFilePrintDetail {
+				for _, ffFile := range ffFiles {
+					log.Printf("feature-file=%s version=%s valid-until=%s", ffFile.name, ffFile.version, ffFile.validUntil.String())
+				}
+			}
+			if ((aver_major == 4 && aver_minor > 5) || aver_major > 4) && featuresFilePath == "" {
+				logFatal("ERROR: could not find a valid features file in the path specified for this version of aerospike. Ensure the feature file exists and is of the correct file version.")
+			} else {
+				log.Printf("Features file: %s", featuresFilePath)
+			}
+		}
 	}
-
 	log.Print("Starting deployment")
 
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
@@ -452,14 +583,14 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// load features file path if needed
-	if string(c.FeaturesFilePath) != "" {
-		stat, err := os.Stat(string(c.FeaturesFilePath))
+	if string(featuresFilePath) != "" {
+		stat, err := os.Stat(string(featuresFilePath))
 		pfilelen := 0
 		if err != nil {
 			return err
 		}
 		pfilelen = int(stat.Size())
-		ffp, err := os.Open(string(c.FeaturesFilePath))
+		ffp, err := os.Open(string(featuresFilePath))
 		if err != nil {
 			return err
 		}

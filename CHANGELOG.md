@@ -1,5 +1,6 @@
 #### 5.4.5
-* fix duplicate switch problem when creating clusters
+* Fix duplicate switch problem when creating clusters.
+* Add support for specifying a directory for feature file path to allow multiple feature file versions.
 
 #### 5.4.4
 * Try to adjust `vm.max_map_count=262144` on each client start for `elasticsearch` needs.
