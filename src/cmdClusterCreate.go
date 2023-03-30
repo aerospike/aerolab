@@ -503,8 +503,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			}
 			if ((aver_major == 4 && aver_minor > 5) || aver_major > 4) && featuresFilePath == "" {
 				logFatal("ERROR: could not find a valid features file in the path specified for this version of aerospike. Ensure the feature file exists and is of the correct file version.")
-			} else {
+			} else if (aver_major == 4 && aver_minor > 5) || aver_major > 4 {
 				log.Printf("Features file: %s", featuresFilePath)
+			} else {
+				featuresFilePath = ""
 			}
 		}
 	}
