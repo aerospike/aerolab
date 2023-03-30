@@ -93,6 +93,8 @@ It's a good idea to configure the basics so as not to have to use the command li
 
 If using a custom features file: `aerolab config defaults -k '*FeaturesFilePath' -v /path/to/features.conf`
 
+If using multiple feature file versions, a directory containining those may be specified: `aerolab config defaults -k '*FeaturesFilePath' -v /path/to/features/dir/`
+
 #### Windows usage on WSL2 - configuring docker desktop
 
 1. Open `Docker Desktop`, navigate to `Settings` and under `General` select `Use the WSL 2 based engine`
