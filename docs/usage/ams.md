@@ -37,8 +37,18 @@ This will result in the exporter being upgraded to the latest version with a new
 
 ### Install the AMS client
 
+#### AWS, Docker-Laptop, Docker on Linux
+
 ```
 aerolab client create ams -n ams -s dc1,dc2
+```
+
+#### Docker Desktop users
+
+Docker Desktop does not allow direct mapping. If not using the [workaround](https://github.com/aerospike/aerolab/tree/master/tunnel-container-openvpn), port `3000` will need to be exposed manually:
+
+```
+aerolab client create ams -n ams -s dc1,dc2 -e 3000:3000
 ```
 
 ### Update the AMS client's list of node IPs to monitor in a given cluster
@@ -55,6 +65,10 @@ aerolab client configure ams -n ams -s dc1,dc2
 aerolab client list
 ```
 
-You can access the AMS client's monitoring dashboard using its IP address and port 3000 in your browser, that is: `http://<IP>:3000`
+You can access the AMS client's monitoring dashboard using its IP address and port 3000 in your browser.
+
+For AWS, Docker-Laptop and Docker on Linux, that is: `http://<IP>:3000`
+
+For Docker Desktop without the network routing [workaround](https://github.com/aerospike/aerolab/tree/master/tunnel-container-openvpn), use: `http://127.0.0.1:3000`
 
 The default username and password are: `admin/admin`
