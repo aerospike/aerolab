@@ -12,6 +12,9 @@ macOS | `aerolab-macos-*` | Native macOS binary, compiled for x86_64 and M serie
 Linux | `aerolab-linux-*` | Native package for Linux (all x86_64 and ARM64 distros)
 Windows | `aerolab-linux-*` | Install and start using WSL2 on Windows
 
+## Usage instructions
+
+[Official documentation can be found here](https://docs.aerospike.com/tools/aerolab)
 
 ## Supported backends
 
@@ -28,32 +31,6 @@ Containers cannot be accessed directly by their IPs in certain Docker installati
 Follow [this manual](tunnel-container-openvpn/README.md) to set up tunneling for direct container access.
 
 IPs of AeroLab containers can be seen by running `aerolab cluster-list`
-
-## Usage instructions
-
-* [Getting Started](docs/GETTING_STARTED.md)
-* [AeroLab Help Commands](docs/USING_HELP.md)
-* [Usage Examples](docs/usage/README.md)
-* [Setting up Aerospike clusters on AWS with AeroLab](docs/aws/README.md)
-  * [Using the partitioner](docs/aws/partitioner/README.md)
-* [Deploy Clients with AeroLab](docs/usage/CLIENTS.md)
-  * [Deploy a VS Code Client Machine](docs/usage/vscode.md) - Launch a [VS Code](https://code.visualstudio.com/) IDE in a browser, complete with Java, Go, Python and C# language clients, and code against your Aerospike cluster
-  * [Deploy a Trino server](docs/usage/trino.md) - Launch a [Trino](https://trino.io/) server and shell, and query your Aerospike cluster with SQL
-  * [Deploy a Jupyter Notebook Machine](docs/usage/jupyter.md) - Launch a Jupyter Notebook IDE in a browser, complete with Java, Go and Python language clients, and code against your Aerospike cluster
-  * [Deploy an ElasticSearch connector](docs/usage/elasticsearch.md)
-  * [Deploy a Rest Gateway](docs/usage/restgw.md)
-* [Useful Scripts](scripts/README.md)
-  * [Create new certificates](scripts/CERTS.md)
-  * [Deploy an LDAP server](scripts/aerolab-ldap/README.md)
-  * [Build a cluster with LDAP and TLS](scripts/aerolab-buildenv/README.md)
-  * [Quick build client - Python](scripts/aerolab-pythonclient/README.md)
-  * [Quick build client - Golang](scripts/aerolab-goclient/README.md)
-* [Deploying a full stack - servers, asbench client and AMS monitoring - Docker](docs/usage/fullstack.md)
-* [Deploying a full stack - servers, asbench client and AMS monitoring - AWS](docs/usage/fullstack_aws.md)
-
-## Notes on AWS and custom VPCs
-
-If not using the default VPC, certain conditions must be met when configuring a custom one. [See this manual on correct configuration of a custom VPC](docs/aws/VPC.md)
 
 ## Changelog
 
