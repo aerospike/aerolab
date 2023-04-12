@@ -1,3 +1,6 @@
+#### 5.4.6
+* update all libraries (dependencies)
+
 #### 5.4.5
 * Fix duplicate switch problem when creating clusters.
 * Add support for specifying a directory for feature file path to allow multiple feature file versions.

@@ -5,14 +5,14 @@ go 1.19
 require (
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
-	github.com/aerospike/aerospike-client-go/v6 v6.10.0
-	github.com/aws/aws-sdk-go v1.44.214
+	github.com/aerospike/aerospike-client-go/v6 v6.12.0
+	github.com/aws/aws-sdk-go v1.44.241
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/jroimartin/gocui v0.5.0
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
-	golang.org/x/crypto v0.6.0
-	golang.org/x/term v0.5.0
+	golang.org/x/crypto v0.8.0
+	golang.org/x/term v0.7.0
 )
 
 require (
@@ -22,5 +22,5 @@ require (
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/yuin/gopher-lua v1.1.0 // indirect
 	golang.org/x/sync v0.1.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/sys v0.7.0 // indirect
 )

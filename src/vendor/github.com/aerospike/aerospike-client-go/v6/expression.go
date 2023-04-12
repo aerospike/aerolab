@@ -457,6 +457,10 @@ func (fe *Expression) packValue(buf BufferEx) (int, Error) {
 	return fe.val.pack(buf)
 }
 
+func (fe *Expression) size() (int, Error) {
+	return fe.pack(nil)
+}
+
 func (fe *Expression) pack(buf BufferEx) (int, Error) {
 	if len(fe.bytes) > 0 {
 		if buf != nil {
@@ -473,7 +477,7 @@ func (fe *Expression) pack(buf BufferEx) (int, Error) {
 }
 
 func (fe *Expression) Base64() (string, Error) {
-	sz, err := fe.pack(nil)
+	sz, err := fe.size()
 	if err != nil {
 		return "", err
 	}
@@ -629,8 +633,22 @@ func ExpBinExists(name string) *Expression {
 	return ExpNotEq(ExpBinType(name), ExpIntVal(ParticleType.NULL))
 }
 
-// ExpBinType creates a function that returns bin's integer particle type.
+// ExpBinType creates a function that returns bin's integer particle type. Valid values are:
+//
+//	NULL    = 0
+//	INTEGER = 1
+//	FLOAT   = 2
+//	STRING  = 3
+//	BLOB    = 4
+//	DIGEST  = 6
+//	BOOL    = 17
+//	HLL     = 18
+//	MAP     = 19
+//	LIST    = 20
+//	LDT     = 21
+//	GEOJSON = 23
 func ExpBinType(name string) *Expression {
+	// TODO: Improve documentation and provide examples.
 	return newFilterExpression(
 		&expOpBIN_TYPE,
 		StringValue(name),

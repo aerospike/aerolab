@@ -1,5 +1,28 @@
 # Change History
 
+## March 20 2023: v6.12.0
+
+- **Improvements**
+
+  - [CLIENT-2235] Minor documentation cleanup. Formatting, clarification and TODOs for next major version.
+  - [CLIENT-2234] Export `BatchRead.Policy`
+  - Update Ginkgo and Gomega to the latest version to avoid security issues.
+
+- **Fixes**
+
+  - [CLIENT-2230] The first row of batch records represented a server error instead of the over error in call.
+  - [CLIENT-2233] Wrong FilterExpression size calculation in BatchOperate commands
+
+## March 9 2023: v6.11.0
+
+- **Improvements**
+
+  - [CLIENT-2116] Check for completion/cancellation of the Scan/Query before firing off commands to nodes.
+
+- **Fixes**
+
+  - [CLINET-2227] PARAMETER_ERROR using expressions and batch write. Wire protocol was violated when the estimateExpressionSize was called.
+
 ## February 8 2023: v6.10.0
 
 - **New Features**
