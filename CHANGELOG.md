@@ -1,5 +1,6 @@
 #### 5.4.6
 * update all libraries (dependencies)
+* aws `lock-security-groups` and `create-security-groups` now allows for connectivity from outside to the servers too
 
 #### 5.4.5
 * Fix duplicate switch problem when creating clusters.
