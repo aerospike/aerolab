@@ -1,3 +1,8 @@
+#### 6.0.0
+* support for `gcp` backend
+* add node exporter to the prometheus exporter setup
+* if feature file is not provided and cluster size is larger than 1, bail with critical error
+
 #### 5.4.6
 * update all libraries (dependencies)
 * aws `lock-security-groups` and `create-security-groups` now allows for connectivity from outside to the servers too
