@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"os"
+
+	compute "cloud.google.com/go/compute/apiv1"
 )
 
 func (d *backendGcp) Arch() TypeArch {
@@ -12,6 +16,7 @@ func (d *backendGcp) Arch() TypeArch {
 type backendGcp struct {
 	server bool
 	client bool
+	gcp    *compute.InstancesClient
 }
 
 func init() {
@@ -86,12 +91,19 @@ func (d *backendGcp) ListNetworks(csv bool, writer io.Writer) error {
 }
 
 func (d *backendGcp) Init() error {
-}
-
-func (d *backendGcp) IsSystemArm(systemType string) (bool, error) {
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("GCP Compute Connect: %w", err)
+	}
+	d.gcp = instancesClient
+	return nil
 }
 
 func (d *backendGcp) ClusterList() ([]string, error) {
+}
+
+func (d *backendGcp) IsSystemArm(systemType string) (bool, error) {
 }
 
 func (d *backendGcp) IsNodeArm(clusterName string, nodeNumber int) (bool, error) {
