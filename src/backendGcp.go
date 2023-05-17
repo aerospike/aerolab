@@ -214,7 +214,6 @@ func (d *backendGcp) NodeListInCluster(name string) ([]int, error) {
 	return nlist, nil
 }
 
-// TODO: test internal vs external IP; should return only internal IPs
 func (d *backendGcp) GetClusterNodeIps(name string) ([]string, error) {
 	nlist := []string{}
 	ctx := context.Background()
@@ -243,7 +242,9 @@ func (d *backendGcp) GetClusterNodeIps(name string) ([]string, error) {
 			for _, instance := range instances {
 				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					if instance.Labels[gcpTagClusterName] == name {
-						nlist = append(nlist, *instance.NetworkInterfaces[0].NetworkIP)
+						if len(instance.NetworkInterfaces) > 0 && instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" && *instance.Status != "TERMINATED" {
+							nlist = append(nlist, *instance.NetworkInterfaces[0].NetworkIP)
+						}
 					}
 				}
 			}
@@ -285,7 +286,21 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 						if err != nil {
 							return nil, fmt.Errorf("found aerolab instance with incorrect labels: %v", *instance.Id)
 						}
-						nlist[nodeNo] = *instance.NetworkInterfaces[0].NetworkIP
+						ip := "N/A"
+						if len(instance.NetworkInterfaces) > 0 {
+							if internalIPs {
+								if instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" {
+									ip = *instance.NetworkInterfaces[0].NetworkIP
+								}
+							} else {
+								if len(instance.NetworkInterfaces[0].AccessConfigs) > 0 {
+									if instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != nil && *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != "" {
+										ip = *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP
+									}
+								}
+							}
+						}
+						nlist[nodeNo] = ip
 					}
 				}
 			}
