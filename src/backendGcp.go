@@ -128,7 +128,7 @@ func (d *backendGcp) ClusterList() ([]string, error) {
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
 					clist = append(clist, instance.Labels[gcpTagClusterName])
 				}
 			}
@@ -162,7 +162,7 @@ func (d *backendGcp) IsNodeArm(clusterName string, nodeNumber int) (bool, error)
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
 					if instance.Labels[gcpTagClusterName] == clusterName && instance.Labels[gcpTagNodeNumber] == strconv.Itoa(nodeNumber) {
 						return d.IsSystemArm(*instance.MachineType)
 					}
@@ -199,7 +199,7 @@ func (d *backendGcp) NodeListInCluster(name string) ([]int, error) {
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
 					if instance.Labels[gcpTagClusterName] == name {
 						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
 						if err != nil {
@@ -240,9 +240,9 @@ func (d *backendGcp) GetClusterNodeIps(name string) ([]string, error) {
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
 					if instance.Labels[gcpTagClusterName] == name {
-						if len(instance.NetworkInterfaces) > 0 && instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" && *instance.Status != "TERMINATED" {
+						if len(instance.NetworkInterfaces) > 0 && instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" {
 							nlist = append(nlist, *instance.NetworkInterfaces[0].NetworkIP)
 						}
 					}
@@ -279,7 +279,7 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
 					if instance.Labels[gcpTagClusterName] == name {
 						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
 						if err != nil {
