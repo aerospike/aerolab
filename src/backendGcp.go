@@ -253,7 +253,6 @@ func (d *backendGcp) GetClusterNodeIps(name string) ([]string, error) {
 	return nlist, nil
 }
 
-// TODO: test internal vs external IP
 func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string, error) {
 	nlist := make(map[int]string)
 	ctx := context.Background()
