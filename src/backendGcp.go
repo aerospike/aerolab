@@ -3,15 +3,19 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
+	"github.com/bestmethod/inslice"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/proto"
 )
@@ -205,7 +209,7 @@ func (d *backendGcp) NodeListInCluster(name string) ([]int, error) {
 					if instance.Labels[gcpTagClusterName] == name {
 						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
 						if err != nil {
-							return nil, fmt.Errorf("found aerolab instance without valid tag format: %v", *instance.Id)
+							return nil, fmt.Errorf("found aerolab instance without valid tag format: %v", *instance.Name)
 						}
 						nlist = append(nlist, nodeNo)
 					}
@@ -285,7 +289,7 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 					if instance.Labels[gcpTagClusterName] == name {
 						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
 						if err != nil {
-							return nil, fmt.Errorf("found aerolab instance with incorrect labels: %v", *instance.Id)
+							return nil, fmt.Errorf("found aerolab instance with incorrect labels: %v", *instance.Name)
 						}
 						ip := "N/A"
 						if len(instance.NetworkInterfaces) > 0 {
@@ -368,7 +372,7 @@ func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
 						NodeNumber:  instance.Labels[gcpTagNodeNumber],
 						IpAddress:   privIp,
 						PublicIp:    pubIp,
-						InstanceId:  strconv.Itoa(int(*instance.Id)),
+						InstanceId:  *instance.Name,
 						State:       *instance.Status,
 						Arch:        sysArch,
 					})
@@ -579,21 +583,158 @@ func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
 }
 
 func (d *backendGcp) ListTemplates() ([]backendVersion, error) {
+	ctx := context.Background()
+	bv := []backendVersion{}
+	imagesClient, err := compute.NewImagesRESTClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("NewImagesRESTClient: %w", err)
+	}
+	defer imagesClient.Close()
+	req := computepb.ListImagesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+
+	it := imagesClient.List(ctx, &req)
+	for {
+		image, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+			isArm := false
+			if strings.Contains(*image.Architecture, "arm") || strings.Contains(*image.Architecture, "aarch") {
+				isArm = true
+			}
+			bv = append(bv, backendVersion{
+				distroName:       image.Labels[gcpServerTagOperatingSystem],
+				distroVersion:    image.Labels[gcpServerTagOSVersion],
+				aerospikeVersion: image.Labels[gcpServerTagAerospikeVersion],
+				isArm:            isArm,
+			})
+		}
+	}
+	return bv, nil
+}
+
+func (d *backendGcp) deleteImage(name string) error {
+	ctx := context.Background()
+	imagesClient, err := compute.NewImagesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewImagesRESTClient: %w", err)
+	}
+	defer imagesClient.Close()
+
+	req := computepb.DeleteImageRequest{
+		Image:   name,
+		Project: a.opts.Config.Backend.Project,
+	}
+	op, err := imagesClient.Delete(ctx, &req)
+	if err != nil {
+		return err
+	}
+	if err = op.Wait(ctx); err != nil {
+		return fmt.Errorf("unable to wait for the operation: %w", err)
+	}
+	return nil
 }
 
 func (d *backendGcp) TemplateDestroy(v backendVersion) error {
+	ctx := context.Background()
+	imagesClient, err := compute.NewImagesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewImagesRESTClient: %w", err)
+	}
+	defer imagesClient.Close()
+	req := computepb.ListImagesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+
+	it := imagesClient.List(ctx, &req)
+	for {
+		image, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+			isArm := false
+			if strings.Contains(*image.Architecture, "arm") || strings.Contains(*image.Architecture, "aarch") {
+				isArm = true
+			}
+			if image.Labels[gcpServerTagOperatingSystem] == v.distroName && image.Labels[gcpServerTagOSVersion] == v.distroVersion && image.Labels[gcpServerTagAerospikeVersion] == v.aerospikeVersion && isArm == v.isArm {
+				err = d.deleteImage(*image.Name)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (d *backendGcp) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
+	var err error
+	nodeIps, err := d.GetNodeIpMap(name, false)
+	if err != nil {
+		return fmt.Errorf("could not get node ip map for cluster: %s", err)
+	}
+	_, keypath, err := d.getKey(name)
+	if err != nil {
+		return fmt.Errorf("could not get key: %s", err)
+	}
+	for _, node := range nodes {
+		err = scp("root", fmt.Sprintf("%s:22", nodeIps[node]), keypath, files)
+		if err != nil {
+			return fmt.Errorf("scp failed: %s", err)
+		}
+	}
+	return err
 }
 
 func (d *backendGcp) RunCommands(clusterName string, commands [][]string, nodes []int) ([][]byte, error) {
-}
-
-func (d *backendGcp) VacuumTemplate(v backendVersion) error {
-}
-
-func (d *backendGcp) VacuumTemplates() error {
+	var fout [][]byte
+	var err error
+	if nodes == nil {
+		nodes, err = d.NodeListInCluster(clusterName)
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, keypath, err := d.getKey(clusterName)
+	if err != nil {
+		return nil, fmt.Errorf("could not get key:%s", err)
+	}
+	nodeIps, err := d.GetNodeIpMap(clusterName, false)
+	if err != nil {
+		return nil, fmt.Errorf("could not get node ip map:%s", err)
+	}
+	for _, node := range nodes {
+		var out []byte
+		var err error
+		for _, command := range commands {
+			comm := command[0]
+			for _, c := range command[1:] {
+				if strings.Contains(c, " ") {
+					comm = comm + " \"" + c + "\""
+				} else {
+					comm = comm + " " + c
+				}
+			}
+			out, err = remoteRun("root", fmt.Sprintf("%s:22", nodeIps[node]), keypath, comm, node)
+			fout = append(fout, out)
+			if checkExecRetcode(err) != 0 {
+				return fout, fmt.Errorf("error running `%s`: %s", comm, err)
+			}
+		}
+	}
+	return fout, nil
 }
 
 func (d *backendGcp) AttachAndRun(clusterName string, node int, command []string) (err error) {
@@ -601,6 +742,159 @@ func (d *backendGcp) AttachAndRun(clusterName string, node int, command []string
 }
 
 func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (err error) {
+	clusters, err := d.ClusterList()
+	if err != nil {
+		return fmt.Errorf("could not get cluster list: %s", err)
+	}
+	if !inslice.HasString(clusters, clusterName) {
+		return fmt.Errorf("cluster not found")
+	}
+	nodes, err := d.NodeListInCluster(clusterName)
+	if err != nil {
+		return fmt.Errorf("could not get node list: %s", err)
+	}
+	if !inslice.HasInt(nodes, node) {
+		return fmt.Errorf("node not found")
+	}
+	nodeIp, err := d.GetNodeIpMap(clusterName, false)
+	if err != nil {
+		return fmt.Errorf("could not get node ip map: %s", err)
+	}
+	_, keypath, err := d.getKey(clusterName)
+	if err != nil {
+		return fmt.Errorf("could not get key path: %s", err)
+	}
+	var comm string
+	if len(command) > 0 {
+		comm = command[0]
+		for _, c := range command[1:] {
+			if strings.Contains(c, " ") {
+				comm = comm + " \"" + strings.ReplaceAll(c, "\"", "\\\"") + "\""
+			} else {
+				comm = comm + " " + c
+			}
+		}
+	} else {
+		comm = "bash"
+	}
+	err = remoteAttachAndRun("root", fmt.Sprintf("%s:22", nodeIp[node]), keypath, comm, stdin, stdout, stderr, node)
+	return err
+}
+
+func (d *backendGcp) Upload(clusterName string, node int, source string, destination string, verbose bool) error {
+	nodes, err := d.GetNodeIpMap(clusterName, false)
+	if err != nil {
+		return err
+	}
+	if len(nodes) == 0 {
+		return errors.New("found no nodes in cluster")
+	}
+	nodeIp, ok := nodes[node]
+	if !ok {
+		return errors.New("node not found in cluster")
+	}
+	_, key, err := d.getKey(clusterName)
+	if err != nil {
+		return err
+	}
+	return scpExecUpload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
+}
+
+func (d *backendGcp) Download(clusterName string, node int, source string, destination string, verbose bool) error {
+	nodes, err := d.GetNodeIpMap(clusterName, false)
+	if err != nil {
+		return err
+	}
+	if len(nodes) == 0 {
+		return errors.New("found no nodes in cluster")
+	}
+	nodeIp, ok := nodes[node]
+	if !ok {
+		return errors.New("node not found in cluster")
+	}
+	_, key, err := d.getKey(clusterName)
+	if err != nil {
+		return err
+	}
+	return scpExecDownload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
+}
+
+func (d *backendGcp) vacuum(v *backendVersion) error {
+	isArm := "amd"
+	if v.isArm {
+		isArm = "arm"
+	}
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+
+	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	delList := []*computepb.Instance{}
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+					if (v != nil && *instance.Name == fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm)) || (v == nil && strings.HasPrefix(*instance.Name, "aerolab4-template-")) {
+						instance := instance
+						delList = append(delList, instance)
+					}
+				}
+			}
+		}
+	}
+	return d.deleteInstances(delList)
+}
+
+func (d *backendGcp) deleteInstances(list []*computepb.Instance) error {
+	delOps := make(map[context.Context]*compute.Operation)
+	for _, instance := range list {
+		ctx := context.Background()
+		deleteClient, err := compute.NewInstancesRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewInstancesRESTClient: %w", err)
+		}
+		defer deleteClient.Close()
+		req := &computepb.DeleteInstanceRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Zone:     *instance.Zone,
+			Instance: *instance.Name,
+		}
+		op, err := deleteClient.Delete(ctx, req)
+		if err != nil {
+			return fmt.Errorf("unable to delete instance: %w", err)
+		}
+		delOps[ctx] = op
+	}
+	for ctx, op := range delOps {
+		if err := op.Wait(ctx); err != nil {
+			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+	return nil
+}
+
+func (d *backendGcp) VacuumTemplate(v backendVersion) error {
+	return d.vacuum(&v)
+}
+
+func (d *backendGcp) VacuumTemplates() error {
+	return d.vacuum(nil)
 }
 
 type gcpTemplateListFull struct {
@@ -612,20 +906,96 @@ type gcpTemplateListFull struct {
 }
 
 func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
+	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n-----------------------------------------\n"
+	resList := []templateListFull{}
+
+	ctx := context.Background()
+	imagesClient, err := compute.NewImagesRESTClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("NewImagesRESTClient: %w", err)
+	}
+	defer imagesClient.Close()
+	req := computepb.ListImagesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+
+	it := imagesClient.List(ctx, &req)
+	for {
+		image, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+			result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, image.Labels[gcpTagOperatingSystem], image.Labels[gcpTagOSVersion], image.Labels[gcpTagAerospikeVersion], *image.Architecture)
+			resList = append(resList, templateListFull{
+				OsName:           image.Labels[gcpTagOperatingSystem],
+				OsVersion:        image.Labels[gcpTagOSVersion],
+				AerospikeVersion: image.Labels[gcpTagAerospikeVersion],
+				ImageId:          *image.Name,
+				Arch:             *image.Architecture,
+			})
+		}
+	}
+
+	if !isJson {
+		return result, nil
+	}
+	out, err := json.MarshalIndent(resList, "", "    ")
+	return string(out), err
 }
 
-var deployGbpTemplateShutdownMaking = make(chan int, 1)
+// get KeyPair
+func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string, err error) {
+	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
+	// TODO: check keyName exists, if not, error
+	// check keypath exists, if not, error
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		err = fmt.Errorf("key does not exist in given location: %s", keyPath)
+		return keyName, keyPath, err
+	}
+	return
+}
+
+// get KeyPair
+func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string, err error) {
+	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
+	_, _, err = d.getKey(clusterName)
+	if err == nil {
+		return
+	}
+	// check keypath exists, if not, make
+	if _, err := os.Stat(string(a.opts.Config.Backend.SshKeyPath)); os.IsNotExist(err) {
+		os.MkdirAll(string(a.opts.Config.Backend.SshKeyPath), 0755)
+	}
+	// TODO: generate keypair
+	keyVal := []byte{}
+	err = os.WriteFile(keyPath, keyVal, 0600)
+	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
+	return
+}
+
+// get KeyPair
+func (d *backendGcp) killKey(clusterName string) (keyName string, keyPath string, err error) {
+	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
+	os.Remove(keyPath)
+	// TODO: delete keypair
+	return
+}
+
+var deployGcpTemplateShutdownMaking = make(chan int, 1)
 
 func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
 }
 
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
-}
-
-func (d *backendGcp) Upload(clusterName string, node int, source string, destination string, verbose bool) error {
-}
-
-func (d *backendGcp) Download(clusterName string, node int, source string, destination string, verbose bool) error {
 }
 
 func (d *backendGcp) DeleteSecurityGroups(vpc string) error {
