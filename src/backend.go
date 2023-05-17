@@ -31,7 +31,8 @@ type backendExtra struct {
 	securityGroupID string   // aws only
 	subnetID        string   // aws only
 	publicIP        bool     // aws only
-	tags            []string // aws only
+	tags            []string // aws/gcp only
+	zone            string   // gcp only
 }
 
 type backendVersion struct {
