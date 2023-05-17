@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 
 	compute "cloud.google.com/go/compute/apiv1"
+	"cloud.google.com/go/compute/apiv1/computepb"
+	"google.golang.org/api/iterator"
+	"google.golang.org/protobuf/proto"
 )
 
 func (d *backendGcp) Arch() TypeArch {
@@ -16,7 +21,6 @@ func (d *backendGcp) Arch() TypeArch {
 type backendGcp struct {
 	server bool
 	client bool
-	gcp    *compute.InstancesClient
 }
 
 func init() {
@@ -91,25 +95,225 @@ func (d *backendGcp) ListNetworks(csv bool, writer io.Writer) error {
 }
 
 func (d *backendGcp) Init() error {
-	ctx := context.Background()
-	instancesClient, err := compute.NewInstancesRESTClient(ctx)
-	if err != nil {
-		return fmt.Errorf("GCP Compute Connect: %w", err)
-	}
-	d.gcp = instancesClient
 	return nil
 }
 
-func (d *backendGcp) ClusterList() ([]string, error) {
+func (d *backendGcp) IsSystemArm(systemType string) (bool, error) {
+	return strings.HasPrefix(systemType, "t2"), nil
 }
 
-func (d *backendGcp) IsSystemArm(systemType string) (bool, error) {
+func (d *backendGcp) ClusterList() ([]string, error) {
+	clist := []string{}
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+
+	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+					clist = append(clist, instance.Labels[gcpTagClusterName])
+				}
+			}
+		}
+	}
+	return clist, nil
 }
 
 func (d *backendGcp) IsNodeArm(clusterName string, nodeNumber int) (bool, error) {
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return false, fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+
+	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return false, err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+					if instance.Labels[gcpTagClusterName] == clusterName && instance.Labels[gcpTagNodeNumber] == strconv.Itoa(nodeNumber) {
+						return d.IsSystemArm(*instance.MachineType)
+					}
+				}
+			}
+		}
+	}
+	return false, fmt.Errorf("cluster %s node %v not found", clusterName, nodeNumber)
 }
 
 func (d *backendGcp) NodeListInCluster(name string) ([]int, error) {
+	nlist := []int{}
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+
+	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+					if instance.Labels[gcpTagClusterName] == name {
+						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
+						if err != nil {
+							return nil, fmt.Errorf("found aerolab instance without valid tag format: %v", *instance.Id)
+						}
+						nlist = append(nlist, nodeNo)
+					}
+				}
+			}
+		}
+	}
+	return nlist, nil
+}
+
+// TODO: test internal vs external IP; should return only internal IPs
+func (d *backendGcp) GetClusterNodeIps(name string) ([]string, error) {
+	nlist := []string{}
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+
+	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+					if instance.Labels[gcpTagClusterName] == name {
+						nlist = append(nlist, *instance.NetworkInterfaces[0].NetworkIP)
+					}
+				}
+			}
+		}
+	}
+	return nlist, nil
+}
+
+// TODO: test internal vs external IP
+func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string, error) {
+	nlist := make(map[int]string)
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+
+	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+					if instance.Labels[gcpTagClusterName] == name {
+						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
+						if err != nil {
+							return nil, fmt.Errorf("found aerolab instance with incorrect labels: %v", *instance.Id)
+						}
+						nlist[nodeNo] = *instance.NetworkInterfaces[0].NetworkIP
+					}
+				}
+			}
+		}
+	}
+	return nlist, nil
+}
+
+type gcpClusterListFull struct {
+	ClusterName string
+	NodeNumber  string
+	IpAddress   string
+	PublicIp    string
+	InstanceId  string
+	State       string
+	Arch        string
+}
+
+func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
+}
+
+func (d *backendGcp) ClusterStart(name string, nodes []int) error {
+}
+
+func (d *backendGcp) ClusterStop(name string, nodes []int) error {
+}
+
+func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
 }
 
 func (d *backendGcp) ListTemplates() ([]backendVersion, error) {
@@ -124,22 +328,10 @@ func (d *backendGcp) CopyFilesToCluster(name string, files []fileList, nodes []i
 func (d *backendGcp) RunCommands(clusterName string, commands [][]string, nodes []int) ([][]byte, error) {
 }
 
-func (d *backendGcp) GetClusterNodeIps(name string) ([]string, error) {
-}
-
-func (d *backendGcp) ClusterStart(name string, nodes []int) error {
-}
-
-func (d *backendGcp) ClusterStop(name string, nodes []int) error {
-}
-
 func (d *backendGcp) VacuumTemplate(v backendVersion) error {
 }
 
 func (d *backendGcp) VacuumTemplates() error {
-}
-
-func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
 }
 
 func (d *backendGcp) AttachAndRun(clusterName string, node int, command []string) (err error) {
@@ -147,22 +339,6 @@ func (d *backendGcp) AttachAndRun(clusterName string, node int, command []string
 }
 
 func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (err error) {
-}
-
-func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string, error) {
-}
-
-type gcpClusterListFull struct {
-	ClusterName string
-	NodeNumber  string
-	IpAddress   string
-	PublicIp    string
-	InstanceId  string
-	State       string
-	Arch        string
-}
-
-func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
 }
 
 type gcpTemplateListFull struct {
