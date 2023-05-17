@@ -1131,19 +1131,13 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	labels["Arch"] = isArm
 	name := fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm)
 
+	err = d.createSecurityGroupsIfNotExist()
+	if err != nil {
+		return fmt.Errorf("firewall: %s", err)
+	}
+
 	// TODO: below
 	input := ec2.RunInstancesInput{}
-	//this is needed - security group iD
-	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true)
-	if err != nil {
-		return err
-	}
-	secgroupIds := strings.Split(extra.securityGroupID, ",")
-	input.SecurityGroupIds = aws.StringSlice(secgroupIds)
-	subnetId := extra.subnetID
-	if subnetId != "" {
-		input.SubnetId = &subnetId
-	}
 	input.DryRun = aws.Bool(false)
 	input.ImageId = aws.String(templateId)
 	if !v.isArm {
@@ -1433,4 +1427,7 @@ func (d *backendGcp) ListSecurityGroups() error {
 }
 
 func (d *backendGcp) ListSubnets() error {
+}
+
+func (d *backendGcp) createSecurityGroupsIfNotExist() error {
 }
