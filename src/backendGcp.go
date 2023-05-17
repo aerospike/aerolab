@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"sort"
@@ -16,6 +21,7 @@ import (
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/bestmethod/inslice"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/proto"
 )
@@ -952,7 +958,6 @@ func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
 func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string, err error) {
 	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
-	// TODO: check keyName exists, if not, error
 	// check keypath exists, if not, error
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
 		err = fmt.Errorf("key does not exist in given location: %s", keyPath)
@@ -973,11 +978,34 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 	if _, err := os.Stat(string(a.opts.Config.Backend.SshKeyPath)); os.IsNotExist(err) {
 		os.MkdirAll(string(a.opts.Config.Backend.SshKeyPath), 0755)
 	}
-	// TODO: generate keypair
-	keyVal := []byte{}
-	err = os.WriteFile(keyPath, keyVal, 0600)
-	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
-	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
+
+	// generate keypair
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return
+	}
+
+	// generate and write private key as PEM
+	privateKeyFile, err := os.OpenFile(keyPath+".private", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	defer privateKeyFile.Close()
+	if err != nil {
+		return
+	}
+	privateKeyPEM := &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}
+	if err := pem.Encode(privateKeyFile, privateKeyPEM); err != nil {
+		return keyName, keyPath, err
+	}
+
+	// generate and write public key
+	pub, err := ssh.NewPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		return
+	}
+	err = ioutil.WriteFile(keyPath, ssh.MarshalAuthorizedKey(pub), 0600)
+	if err != nil {
+		return
+	}
+
 	return
 }
 
@@ -986,7 +1014,6 @@ func (d *backendGcp) killKey(clusterName string) (keyName string, keyPath string
 	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	os.Remove(keyPath)
-	// TODO: delete keypair
 	return
 }
 
