@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -319,15 +321,261 @@ type gcpClusterListFull struct {
 }
 
 func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
+	clist := []clusterListFull{}
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return "", fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+
+	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+					sysArch := "x86_64"
+					if arm, _ := d.IsSystemArm(*instance.MachineType); arm {
+						sysArch = "aarch64"
+					}
+					pubIp := "N/A"
+					privIp := "N/A"
+					if len(instance.NetworkInterfaces) > 0 {
+						if instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" {
+							privIp = *instance.NetworkInterfaces[0].NetworkIP
+						}
+						if len(instance.NetworkInterfaces[0].AccessConfigs) > 0 {
+							if instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != nil && *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != "" {
+								pubIp = *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP
+							}
+						}
+					}
+					clist = append(clist, clusterListFull{
+						ClusterName: instance.Labels[gcpTagClusterName],
+						NodeNumber:  instance.Labels[gcpTagNodeNumber],
+						IpAddress:   privIp,
+						PublicIp:    pubIp,
+						InstanceId:  strconv.Itoa(int(*instance.Id)),
+						State:       *instance.Status,
+						Arch:        sysArch,
+					})
+				}
+			}
+		}
+	}
+	clusterName := 20
+	nodeNumber := 6
+	ipAddress := 15
+	publicIp := 15
+	instanceId := 20
+	state := 20
+	arch := 10
+	for _, item := range clist {
+		if len(item.ClusterName) > clusterName {
+			clusterName = len(item.ClusterName)
+		}
+		if len(item.NodeNumber) > nodeNumber {
+			nodeNumber = len(item.NodeNumber)
+		}
+		if len(item.IpAddress) > ipAddress {
+			ipAddress = len(item.IpAddress)
+		}
+		if len(item.PublicIp) > publicIp {
+			publicIp = len(item.PublicIp)
+		}
+		if len(item.InstanceId) > instanceId {
+			instanceId = len(item.InstanceId)
+		}
+		if len(item.State) > state {
+			state = len(item.State)
+		}
+		if len(item.Arch) > arch {
+			arch = len(item.Arch)
+		}
+	}
+	sort.Slice(clist, func(i, j int) bool {
+		if clist[i].ClusterName < clist[j].ClusterName {
+			return true
+		}
+		if clist[i].ClusterName > clist[j].ClusterName {
+			return false
+		}
+		ino, _ := strconv.Atoi(clist[i].NodeNumber)
+		jno, _ := strconv.Atoi(clist[j].NodeNumber)
+		return ino < jno
+	})
+	if !isJson {
+		sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s %-" + strconv.Itoa(arch) + "s\n"
+		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State", "Arch")
+		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------", "----------")
+		for _, item := range clist {
+			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State, item.Arch)
+		}
+		return result, nil
+	}
+	out, err := json.MarshalIndent(clist, "", "    ")
+	return string(out), err
+}
+
+type instanceDetail struct {
+	instanceZone string
+	instanceName string
+}
+
+func (d *backendGcp) getInstanceDetails(name string, nodes []int) (zones map[int]instanceDetail, err error) {
+	zones = make(map[int]instanceDetail)
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+
+	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagUsedByValue),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+					if instance.Labels[gcpTagClusterName] == name {
+						for _, node := range nodes {
+							if strconv.Itoa(node) == instance.Labels[gcpTagNodeNumber] {
+								zones[node] = instanceDetail{
+									instanceZone: *instance.Zone,
+									instanceName: *instance.Name,
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return zones, nil
 }
 
 func (d *backendGcp) ClusterStart(name string, nodes []int) error {
+	zones, err := d.getInstanceDetails(name, nodes)
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		if _, ok := zones[node]; !ok {
+			return fmt.Errorf("node %v not found", node)
+		}
+	}
+	for _, node := range nodes {
+		ctx := context.Background()
+		instancesClient, err := compute.NewInstancesRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewInstancesRESTClient: %w", err)
+		}
+		defer instancesClient.Close()
+		req := &computepb.StartInstanceRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Zone:     zones[node].instanceZone,
+			Instance: zones[node].instanceName,
+		}
+		op, err := instancesClient.Start(ctx, req)
+		if err != nil {
+			return fmt.Errorf("unable to start instance: %w", err)
+		}
+		if err = op.Wait(ctx); err != nil {
+			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+	return nil
 }
 
 func (d *backendGcp) ClusterStop(name string, nodes []int) error {
+	zones, err := d.getInstanceDetails(name, nodes)
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		if _, ok := zones[node]; !ok {
+			return fmt.Errorf("node %v not found", node)
+		}
+	}
+	for _, node := range nodes {
+		ctx := context.Background()
+		instancesClient, err := compute.NewInstancesRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewInstancesRESTClient: %w", err)
+		}
+		defer instancesClient.Close()
+		req := &computepb.StopInstanceRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Zone:     zones[node].instanceZone,
+			Instance: zones[node].instanceName,
+		}
+		op, err := instancesClient.Stop(ctx, req)
+		if err != nil {
+			return fmt.Errorf("unable to start instance: %w", err)
+		}
+		if err = op.Wait(ctx); err != nil {
+			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+	return nil
 }
 
 func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
+	zones, err := d.getInstanceDetails(name, nodes)
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		if _, ok := zones[node]; !ok {
+			return fmt.Errorf("node %v not found", node)
+		}
+	}
+	for _, node := range nodes {
+		ctx := context.Background()
+		instancesClient, err := compute.NewInstancesRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewInstancesRESTClient: %w", err)
+		}
+		defer instancesClient.Close()
+		req := &computepb.DeleteInstanceRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Zone:     zones[node].instanceZone,
+			Instance: zones[node].instanceName,
+		}
+		op, err := instancesClient.Delete(ctx, req)
+		if err != nil {
+			return fmt.Errorf("unable to start instance: %w", err)
+		}
+		if err = op.Wait(ctx); err != nil {
+			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+	return nil
 }
 
 func (d *backendGcp) ListTemplates() ([]backendVersion, error) {
