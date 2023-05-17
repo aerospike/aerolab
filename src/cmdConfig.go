@@ -32,8 +32,9 @@ func (c *configCmd) Execute(args []string) error {
 
 type configBackendCmd struct {
 	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker" default:""`
-	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS backend: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
+	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS and GCP backends: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
 	Region     string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
+	Project    string         `short:"o" long:"project" description:"GCP backend: override default gcp configured project" default:""`
 	TmpDir     flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:""`
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	typeSet    string
@@ -67,6 +68,9 @@ func (c *configBackendCmd) Execute(args []string) error {
 	if c.Type == "aws" {
 		fmt.Printf("Config.Backend.Region = %s\n", c.Region)
 	}
+	if c.Type == "gcp" {
+		fmt.Printf("Config.Backend.Project = %s\n", c.Project)
+	}
 	fmt.Printf("Config.Backend.TmpDir = %s\n", c.TmpDir)
 	return nil
 }
@@ -89,7 +93,7 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 			}
 		}
 	}
-	if c.Type == "aws" {
+	if c.Type == "aws" || c.Type == "gcp" {
 		if strings.Contains(string(c.SshKeyPath), "${HOME}") {
 			ch, err := os.UserHomeDir()
 			if err != nil {
@@ -104,7 +108,7 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 			}
 		}
 	} else if c.Type != "docker" {
-		return errors.New("backend types supported: docker, aws")
+		return errors.New("backend types supported: docker, aws, gcp")
 	}
 	if c.TmpDir == "" {
 		out, err := exec.Command("uname", "-r").CombinedOutput()
