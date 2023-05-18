@@ -23,6 +23,7 @@ type filesDownloadCmd struct {
 	Nodes       TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
 	IsClient    bool                `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
 	Aws         filesDownloadCmdAws `no-flag:"true"`
+	Gcp         filesDownloadCmdAws `no-flag:"true"`
 	Files       filesRestCmd        `positional-args:"true"`
 }
 
@@ -32,6 +33,7 @@ type filesDownloadCmdAws struct {
 
 func init() {
 	addBackendSwitch("files.download", "aws", &a.opts.Files.Download.Aws)
+	addBackendSwitch("files.download", "gcp", &a.opts.Files.Download.Gcp)
 }
 
 func (c *filesDownloadCmd) Execute(args []string) error {

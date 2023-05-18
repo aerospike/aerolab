@@ -21,6 +21,7 @@ type configCmd struct {
 	Defaults configDefaultsCmd `command:"defaults" subcommands-optional:"true" description:"Show or change defaults in the configuration file"`
 	Aws      configAwsCmd      `command:"aws" subcommands-optional:"true" description:"AWS-only related management commands"`
 	Docker   configDockerCmd   `command:"docker" subcommands-optional:"true" description:"DOCKER-only related management commands"`
+	Gcp      configGcpCmd      `command:"gcp" subcommands-optional:"true" description:"GCP-only related management commands"`
 	Help     helpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
