@@ -1107,10 +1107,10 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 		labels[key] = val
 	}
 	genKeyName := "template" + strconv.Itoa(int(time.Now().Unix()))
-	keyName, keyPath, err := d.getKey(genKeyName)
+	_, keyPath, err := d.getKey(genKeyName)
 	if err != nil {
 		d.killKey(genKeyName)
-		keyName, keyPath, err = d.makeKey(genKeyName)
+		_, keyPath, err = d.makeKey(genKeyName)
 		if err != nil {
 			return fmt.Errorf("could not obtain or make 'template' key:%s", err)
 		}
