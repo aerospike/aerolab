@@ -1450,6 +1450,10 @@ func (d *backendGcp) makeImageFromDisk(zone string, sourceDiskName string, image
 	return nil
 }
 
+func (d *backendGcp) ListSubnets() error {
+	return errors.New("not implemented")
+}
+
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
 }
 
@@ -1463,9 +1467,6 @@ func (d *backendGcp) CreateSecurityGroups(vpc string) error {
 }
 
 func (d *backendGcp) ListSecurityGroups() error {
-}
-
-func (d *backendGcp) ListSubnets() error {
 }
 
 func (d *backendGcp) createSecurityGroupsIfNotExist() error {
