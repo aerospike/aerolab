@@ -50,6 +50,7 @@ const (
 	gcpServerTagOperatingSystem  = "Aerolab4OperatingSystem"
 	gcpServerTagOSVersion        = "Aerolab4OperatingSystemVersion"
 	gcpServerTagAerospikeVersion = "Aerolab4AerospikeVersion"
+	gcpServerFirewallTag         = "aerolab-server"
 
 	// client
 	gcpClientTagUsedBy           = "UsedBy"
@@ -59,6 +60,7 @@ const (
 	gcpClientTagOperatingSystem  = "Aerolab4clientOperatingSystem"
 	gcpClientTagOSVersion        = "Aerolab4clientOperatingSystemVersion"
 	gcpClientTagAerospikeVersion = "Aerolab4clientAerospikeVersion"
+	gcpClientFirewallTag         = "aerolab-client"
 )
 
 var (
@@ -1114,6 +1116,10 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 		}
 	}
 	defer d.killKey(genKeyName)
+	sshKey, err := os.ReadFile(keyPath)
+	if err != nil {
+		return err
+	}
 	// start VM
 	imageName, err := d.getImage(v)
 	if err != nil {
@@ -1136,75 +1142,93 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 		return fmt.Errorf("firewall: %s", err)
 	}
 
-	// TODO: below
-	input := ec2.RunInstancesInput{}
-	input.DryRun = aws.Bool(false)
-	input.ImageId = aws.String(templateId)
-	if !v.isArm {
-		input.InstanceType = aws.String("t3.medium")
-	} else {
-		input.InstanceType = aws.String("t4g.medium")
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
 	}
-	keyname := keyName
-	input.KeyName = &keyname
-	// number of EBS volumes of the right size
-	filterA := ec2.DescribeImagesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("image-id"),
-				Values: []*string{aws.String(templateId)},
+	defer instancesClient.Close()
+
+	instanceType := aws.String("e2-medium")
+	if v.isArm {
+		instanceType = aws.String("t2a-standard-1")
+	}
+
+	req := &computepb.InsertInstanceRequest{
+		Project: a.opts.Config.Backend.Project,
+		Zone:    extra.zone,
+		InstanceResource: &computepb.Instance{
+			Metadata: &computepb.Metadata{
+				Items: []*computepb.Items{
+					{
+						Key:   proto.String("ssh-keys"),
+						Value: proto.String("rglonek:" + string(sshKey)),
+					},
+					{
+						Key:   proto.String("ssh-keys"),
+						Value: proto.String("user:" + string(sshKey)),
+					},
+					{
+						Key:   proto.String("ssh-keys"),
+						Value: proto.String("root:" + string(sshKey)),
+					},
+				},
+			},
+			Labels:      labels,
+			Name:        proto.String(name),
+			MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", extra.zone, instanceType)),
+			Tags: &computepb.Tags{
+				Items: []string{
+					"aerolab-server",
+				},
+			},
+			Scheduling: &computepb.Scheduling{
+				AutomaticRestart:  proto.Bool(true),
+				OnHostMaintenance: proto.String("MIGRATE"),
+				ProvisioningModel: proto.String("STANDARD"),
+			},
+			Disks: []*computepb.AttachedDisk{
+				{
+					InitializeParams: &computepb.AttachedDiskInitializeParams{
+						DiskSizeGb:  proto.Int64(20),
+						SourceImage: proto.String(imageName),
+					},
+					AutoDelete: proto.Bool(true),
+					Boot:       proto.Bool(true),
+					Type:       proto.String(computepb.AttachedDisk_PERSISTENT.String()),
+				},
+			},
+			NetworkInterfaces: []*computepb.NetworkInterface{
+				{
+					StackType: proto.String("IPV4_ONLY"),
+					AccessConfigs: []*computepb.AccessConfig{
+						{
+							Name:        proto.String("External NAT"),
+							NetworkTier: proto.String("PREMIUM"),
+						},
+					},
+				},
 			},
 		},
 	}
-	images, err := d.ec2svc.DescribeImages(&filterA)
-	if err != nil {
-		return fmt.Errorf("could not run DescribeImages\n%s", err)
-	}
-	if images.Images == nil || len(images.Images) == 0 || images.Images[0] == nil {
-		return errors.New("image not found")
-	}
-	myImage := images.Images[0]
-	if myImage.Architecture != nil && v.isArm && !strings.Contains(*myImage.Architecture, "arm") {
-		return fmt.Errorf("requested arm system with non-arm AMI")
-	}
-	if myImage.Architecture != nil && !v.isArm && strings.Contains(*myImage.Architecture, "arm") {
-		return fmt.Errorf("requested non-arm system with arm AMI")
-	}
 
-	bdms := []*ec2.BlockDeviceMapping{}
-	if myImage.RootDeviceType != nil && myImage.RootDeviceName != nil && *myImage.RootDeviceType == ec2.RootDeviceTypeEbs {
-		bdms = []*ec2.BlockDeviceMapping{
-			{
-				DeviceName: myImage.RootDeviceName,
-				Ebs: &ec2.EbsBlockDevice{
-					DeleteOnTermination: aws.Bool(true),
-					VolumeSize:          aws.Int64(12),
-					VolumeType:          aws.String("gp2"),
-				},
-			},
-		}
-	}
-	input.BlockDeviceMappings = bdms
-	//end ebs part
-	one := int64(1)
-	input.MaxCount = &one
-	input.MinCount = &one
-	input.TagSpecifications = tsa
-	if len(deployAwsTemplateShutdownMaking) > 0 {
+	if len(deployGcpTemplateShutdownMaking) > 0 {
 		for {
 			time.Sleep(time.Second)
 		}
 	}
-	reservationsX, err := d.ec2svc.RunInstances(&input)
+
+	op, err := instancesClient.Insert(ctx, req)
 	if err != nil {
-		return fmt.Errorf("could not run RunInstances\n%s", err)
+		return fmt.Errorf("unable to create instance: %w", err)
 	}
-	reservations = append(reservations, reservationsX)
-	// wait for instances to be made available via SSH
-	instanceCount := 0
-	for _, reservation := range reservations {
-		instanceCount = instanceCount + len(reservation.Instances)
+
+	if err = op.Wait(ctx); err != nil {
+		return fmt.Errorf("unable to wait for the operation: %w", err)
 	}
+
+	// TODO: wait for instances to be made available via SSH
+	instanceCount := 1
 	instanceReady := 0
 	timeStart := time.Now()
 	var nout *ec2.DescribeInstancesOutput
