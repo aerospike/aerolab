@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"sort"
@@ -21,7 +20,6 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/bestmethod/inslice"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/iterator"
@@ -339,7 +337,7 @@ type gcpClusterListFull struct {
 }
 
 func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
-	clist := []clusterListFull{}
+	clist := []gcpClusterListFull{}
 	ctx := context.Background()
 	instancesClient, err := compute.NewInstancesRESTClient(ctx)
 	if err != nil {
@@ -381,7 +379,7 @@ func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
 							}
 						}
 					}
-					clist = append(clist, clusterListFull{
+					clist = append(clist, gcpClusterListFull{
 						ClusterName: instance.Labels[gcpTagClusterName],
 						NodeNumber:  instance.Labels[gcpTagNodeNumber],
 						IpAddress:   privIp,
@@ -954,7 +952,7 @@ type gcpTemplateListFull struct {
 
 func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
 	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n-----------------------------------------\n"
-	resList := []templateListFull{}
+	resList := []gcpTemplateListFull{}
 
 	ctx := context.Background()
 	imagesClient, err := compute.NewImagesRESTClient(ctx)
@@ -978,7 +976,7 @@ func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
 		}
 		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 			result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, image.Labels[gcpTagOperatingSystem], image.Labels[gcpTagOSVersion], image.Labels[gcpTagAerospikeVersion], *image.Architecture)
-			resList = append(resList, templateListFull{
+			resList = append(resList, gcpTemplateListFull{
 				OsName:           image.Labels[gcpTagOperatingSystem],
 				OsVersion:        image.Labels[gcpTagOSVersion],
 				AerospikeVersion: image.Labels[gcpTagAerospikeVersion],
@@ -1028,10 +1026,10 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 
 	// generate and write private key as PEM
 	privateKeyFile, err := os.OpenFile(keyPath+".private", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
-	defer privateKeyFile.Close()
 	if err != nil {
 		return
 	}
+	defer privateKeyFile.Close()
 	privateKeyPEM := &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}
 	if err := pem.Encode(privateKeyFile, privateKeyPEM); err != nil {
 		return keyName, keyPath, err
@@ -1042,7 +1040,7 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 	if err != nil {
 		return
 	}
-	err = ioutil.WriteFile(keyPath, ssh.MarshalAuthorizedKey(pub), 0600)
+	err = os.WriteFile(keyPath, ssh.MarshalAuthorizedKey(pub), 0600)
 	if err != nil {
 		return
 	}
@@ -1129,12 +1127,12 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 		val := strings.Join(kv[1:], "=")
 		for _, char := range val {
 			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
-				return fmt.Errorf("invalid tag value for `%s`, only the following are allowed: [a-zA-Z0-9_-]")
+				return fmt.Errorf("invalid tag value for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
 			}
 		}
 		for _, char := range key {
 			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
-				return fmt.Errorf("invalid tag name for `%s`, only the following are allowed: [a-zA-Z0-9_-]")
+				return fmt.Errorf("invalid tag name for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
 			}
 		}
 		labels[key] = val
@@ -1182,9 +1180,9 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	}
 	defer instancesClient.Close()
 
-	instanceType := aws.String("e2-medium")
+	instanceType := "e2-medium"
 	if v.isArm {
-		instanceType = aws.String("t2a-standard-1")
+		instanceType = "t2a-standard-1"
 	}
 
 	req := &computepb.InsertInstanceRequest{
@@ -1395,7 +1393,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 		Zone:     *inst.Zone,
 		Instance: *inst.Name,
 	}
-	op, err = instancesClient.Delete(ctx, reqd)
+	_, err = instancesClient.Delete(ctx, reqd)
 	if err != nil {
 		return fmt.Errorf("unable to destroy instance: %w", err)
 	}
@@ -1443,6 +1441,9 @@ func (d *backendGcp) makeImageFromDisk(zone string, sourceDiskName string, image
 	}
 
 	op, err := imagesClient.Insert(ctx, &req)
+	if err != nil {
+		return err
+	}
 
 	if err = op.Wait(ctx); err != nil {
 		return fmt.Errorf("unable to wait for the operation: %w", err)
@@ -1747,4 +1748,6 @@ func (d *backendGcp) createSecurityGroupsIfNotExist() error {
 }
 
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
+	// TODO
+	return errors.New("not implemented yet")
 }
