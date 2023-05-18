@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	compute "cloud.google.com/go/compute/apiv1"
@@ -1454,20 +1455,296 @@ func (d *backendGcp) ListSubnets() error {
 	return errors.New("not implemented")
 }
 
-func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
+func (d *backendGcp) CreateSecurityGroups(vpc string) error {
+	return d.createSecurityGroupsIfNotExist()
 }
 
-func (d *backendGcp) DeleteSecurityGroups(vpc string) error {
+func (d *backendGcp) createSecurityGroupInternal() error {
+	ctx := context.Background()
+	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer firewallsClient.Close()
+
+	firewallRule := &computepb.Firewall{
+		Allowed: []*computepb.Allowed{
+			{
+				IPProtocol: proto.String("tcp"),
+				Ports:      []string{"22", "3000", "8080", "8888", "9200"},
+			},
+		},
+		Direction: proto.String(computepb.Firewall_INGRESS.String()),
+		Name:      proto.String("aerolab-managed-external"),
+		TargetTags: []string{
+			"aerolab-server",
+			"aerolab-client",
+		},
+		Description: proto.String("Allowing external access to aerolab-managed instance services"),
+		SourceRanges: []string{
+			"0.0.0.0/0",
+		},
+	}
+
+	req := &computepb.InsertFirewallRequest{
+		Project:          a.opts.Config.Backend.Project,
+		FirewallResource: firewallRule,
+	}
+
+	op, err := firewallsClient.Insert(ctx, req)
+	if err != nil {
+		return fmt.Errorf("unable to create firewall rule: %w", err)
+	}
+
+	if err = op.Wait(ctx); err != nil {
+		return fmt.Errorf("unable to wait for the operation: %w", err)
+	}
+	return nil
+}
+
+func (d *backendGcp) createSecurityGroupExternal() error {
+	ctx := context.Background()
+	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer firewallsClient.Close()
+
+	firewallRule2 := &computepb.Firewall{
+		Allowed: []*computepb.Allowed{
+			{
+				IPProtocol: proto.String("all"),
+			},
+		},
+		Direction: proto.String(computepb.Firewall_INGRESS.String()),
+		Name:      proto.String("aerolab-managed-internal"),
+		TargetTags: []string{
+			"aerolab-server",
+			"aerolab-client",
+		},
+		SourceTags: []string{
+			"aerolab-server",
+			"aerolab-client",
+		},
+		Description: proto.String("Allowing internal access to aerolab-managed instance services"),
+	}
+
+	req2 := &computepb.InsertFirewallRequest{
+		Project:          a.opts.Config.Backend.Project,
+		FirewallResource: firewallRule2,
+	}
+
+	op2, err := firewallsClient.Insert(ctx, req2)
+	if err != nil {
+		return fmt.Errorf("unable to create firewall rule: %w", err)
+	}
+
+	if err = op2.Wait(ctx); err != nil {
+		return fmt.Errorf("unable to wait for the operation: %w", err)
+	}
+	return nil
 }
 
 func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string) error {
+	if ip == "discover-caller-ip" {
+		ip = getip2()
+	}
+	if !strings.Contains(ip, "/") {
+		ip = ip + "/32"
+	}
+	ctx := context.Background()
+	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer firewallsClient.Close()
+
+	firewallRule := &computepb.Firewall{
+		Allowed: []*computepb.Allowed{
+			{
+				IPProtocol: proto.String("tcp"),
+				Ports:      []string{"22", "3000", "8080", "8888", "9200"},
+			},
+		},
+		Direction: proto.String(computepb.Firewall_INGRESS.String()),
+		Name:      proto.String("aerolab-managed-external"),
+		TargetTags: []string{
+			"aerolab-server",
+			"aerolab-client",
+		},
+		Description: proto.String("Allowing external access to aerolab-managed instance services"),
+		SourceRanges: []string{
+			ip,
+		},
+	}
+
+	req := &computepb.UpdateFirewallRequest{
+		Project:          a.opts.Config.Backend.Project,
+		FirewallResource: firewallRule,
+	}
+
+	op, err := firewallsClient.Update(ctx, req)
+	if err != nil {
+		return fmt.Errorf("unable to create firewall rule: %w", err)
+	}
+
+	if err = op.Wait(ctx); err != nil {
+		return fmt.Errorf("unable to wait for the operation: %w", err)
+	}
+	return nil
 }
 
-func (d *backendGcp) CreateSecurityGroups(vpc string) error {
+func (d *backendGcp) DeleteSecurityGroups(vpc string) error {
+	ctx := context.Background()
+	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer firewallsClient.Close()
+
+	req := &computepb.ListFirewallsRequest{
+		Project: a.opts.Config.Backend.Project,
+	}
+	it := firewallsClient.List(ctx, req)
+	existInternal := false
+	existExternal := false
+	for {
+		firewallRule, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if *firewallRule.Name == "aerolab-managed-internal" {
+			existInternal = true
+		}
+		if *firewallRule.Name == "aerolab-managed-external" {
+			existExternal = true
+		}
+	}
+
+	if existExternal {
+		req := &computepb.DeleteFirewallRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Firewall: "aerolab-managed-external",
+		}
+
+		op, err := firewallsClient.Delete(ctx, req)
+		if err != nil {
+			return fmt.Errorf("unable to delete firewall rule: %w", err)
+		}
+
+		if err = op.Wait(ctx); err != nil {
+			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+
+	if existInternal {
+		req := &computepb.DeleteFirewallRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Firewall: "aerolab-managed-internal",
+		}
+
+		op, err := firewallsClient.Delete(ctx, req)
+		if err != nil {
+			return fmt.Errorf("unable to delete firewall rule: %w", err)
+		}
+
+		if err = op.Wait(ctx); err != nil {
+			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+	return nil
 }
 
 func (d *backendGcp) ListSecurityGroups() error {
+	ctx := context.Background()
+	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer firewallsClient.Close()
+
+	req := &computepb.ListFirewallsRequest{
+		Project: a.opts.Config.Backend.Project,
+	}
+
+	it := firewallsClient.List(ctx, req)
+	output := []string{}
+	for {
+		firewallRule, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		allow := []string{}
+		for _, all := range firewallRule.Allowed {
+			allow = append(allow, all.Ports...)
+		}
+		deny := []string{}
+		for _, all := range firewallRule.Denied {
+			deny = append(deny, all.Ports...)
+		}
+		output = append(output, fmt.Sprintf("%s\t%v\t%v\t%v\t%v\t%v", *firewallRule.Name, firewallRule.TargetTags, firewallRule.SourceTags, firewallRule.SourceRanges, allow, deny))
+	}
+	sort.Strings(output)
+	w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
+	fmt.Fprintln(w, "FirewallName\tTargetTags\tSourceTags\tSourceRanges\tAllowPorts\tDenyPorts")
+	fmt.Fprintln(w, "------------\t----------\t----------\t------------\t----------\t---------")
+	for _, line := range output {
+		fmt.Fprint(w, line+"\n")
+	}
+	w.Flush()
+	return nil
 }
 
 func (d *backendGcp) createSecurityGroupsIfNotExist() error {
+	ctx := context.Background()
+	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer firewallsClient.Close()
+
+	req := &computepb.ListFirewallsRequest{
+		Project: a.opts.Config.Backend.Project,
+	}
+
+	it := firewallsClient.List(ctx, req)
+	existInternal := false
+	existExternal := false
+	for {
+		firewallRule, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if *firewallRule.Name == "aerolab-managed-internal" {
+			existInternal = true
+		}
+		if *firewallRule.Name == "aerolab-managed-external" {
+			existExternal = true
+		}
+	}
+	if !existInternal {
+		err = d.createSecurityGroupInternal()
+		if err != nil {
+			return err
+		}
+	}
+	if !existExternal {
+		err = d.createSecurityGroupExternal()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
 }
