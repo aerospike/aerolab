@@ -16,6 +16,7 @@ type filesUploadCmd struct {
 
 func init() {
 	addBackendSwitch("files.upload", "aws", &a.opts.Files.Upload.Aws)
+	addBackendSwitch("files.upload", "gcp", &a.opts.Files.Upload.Gcp)
 }
 
 func (c *filesUploadCmd) Execute(args []string) error {

@@ -90,7 +90,7 @@ func (c *rosterApplyCmd) runApply(args []string) error {
 	}
 
 	rosterCmd := []string{"asinfo", "-v", "roster-set:namespace=" + c.Namespace + ";nodes=" + newRoster}
-	if a.opts.Config.Backend.Type == "aws" {
+	if a.opts.Config.Backend.Type != "docker" {
 		rosterCmd = []string{"asinfo", "-v", "roster-set:namespace=" + c.Namespace + "\\;nodes=" + newRoster}
 	}
 	out, err := b.RunCommands(string(c.ClusterName), [][]string{rosterCmd}, nodesList)
