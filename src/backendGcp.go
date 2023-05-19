@@ -1781,7 +1781,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 
 	var imageName string
-	if !d.client {
+	if d.client {
 		imageName, err = d.getImage(v)
 		if err != nil {
 			return err
