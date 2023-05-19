@@ -866,7 +866,7 @@ func (d *backendGcp) Download(clusterName string, node int, source string, desti
 
 func (d *backendGcp) vacuum(v *backendVersion) error {
 	isArm := "amd"
-	if v.isArm {
+	if v != nil && v.isArm {
 		isArm = "arm"
 	}
 	ctx := context.Background()
