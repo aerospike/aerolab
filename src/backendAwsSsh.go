@@ -242,25 +242,31 @@ func scpFile(user string, addr string, privateKey string, file fileList) error {
 	return nil
 }
 
-func scpExecDownload(user string, ip string, port string, privateKey string, sourcePath string, destPath string, out io.Writer, timeout time.Duration, verbose bool) error {
+func scpExecDownload(user string, ip string, port string, privateKey string, sourcePath string, destPath string, out io.Writer, timeout time.Duration, verbose bool, legacy bool) error {
 	params := []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"}
 	if timeout != 0 {
 		params = append(params, []string{"-o", "ConnectTimeout=" + strconv.Itoa(int(timeout.Seconds()))}...)
 	}
 	if !verbose {
 		params = append(params, "-q")
+	}
+	if legacy {
+		params = append(params, "-O")
 	}
 	params = append(params, []string{"-r", "-i", privateKey, "-P" + port, user + "@" + ip + ":" + sourcePath, destPath}...)
 	return scpExec(params, out)
 }
 
-func scpExecUpload(user string, ip string, port string, privateKey string, sourcePath string, destPath string, out io.Writer, timeout time.Duration, verbose bool) error {
+func scpExecUpload(user string, ip string, port string, privateKey string, sourcePath string, destPath string, out io.Writer, timeout time.Duration, verbose bool, legacy bool) error {
 	params := []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"}
 	if timeout != 0 {
 		params = append(params, []string{"-o", "ConnectTimeout=" + strconv.Itoa(int(timeout.Seconds()))}...)
 	}
 	if !verbose {
 		params = append(params, "-q")
+	}
+	if legacy {
+		params = append(params, "-O")
 	}
 	params = append(params, []string{"-r", "-i", privateKey, "-P" + port, sourcePath, user + "@" + ip + ":" + destPath}...)
 	return scpExec(params, out)

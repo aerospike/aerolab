@@ -82,11 +82,13 @@ func (c *filesUploadCmd) runUpload(args []string) error {
 	}
 
 	verbose := c.Aws.Verbose
+	legacy := c.Aws.Legacy
 	if a.opts.Config.Backend.Type == "gcp" {
 		verbose = c.Gcp.Verbose
+		legacy = c.Gcp.Legacy
 	}
 	for _, node := range nodes {
-		err = b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), verbose)
+		err = b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), verbose, legacy)
 		if err != nil {
 			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
 		}

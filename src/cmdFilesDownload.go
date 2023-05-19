@@ -29,6 +29,7 @@ type filesDownloadCmd struct {
 
 type filesDownloadCmdAws struct {
 	Verbose bool `short:"v" long:"verbose" description:"do not run scp in quiet mode"`
+	Legacy  bool `short:"o" long:"legacy" description:"enable legacy scp mode"`
 }
 
 func init() {
@@ -96,15 +97,17 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 
 	dst := string(c.Files.Destination)
 	verbose := c.Aws.Verbose
+	legacy := c.Aws.Legacy
 	if a.opts.Config.Backend.Type == "gcp" {
 		verbose = c.Gcp.Verbose
+		legacy = c.Gcp.Legacy
 	}
 	for _, node := range nodes {
 		if len(nodes) > 1 {
 			dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
 			os.MkdirAll(dst, 0755)
 		}
-		err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose)
+		err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose, legacy)
 		if err != nil {
 			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
 		}
