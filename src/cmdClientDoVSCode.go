@@ -162,6 +162,9 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 	if a.opts.Config.Backend.Type == "aws" {
 		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
 	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		log.Print("NOTE: if not already done so, consider restricting access by using: aerolab config gcp lock-firewall-rules")
+	}
 	return nil
 }
 

@@ -84,6 +84,23 @@ func init() {
 	addBackendSwitch("client.grow.rest-gateway", "aws", &a.opts.Client.Grow.RestGateway.Aws)
 	addBackendSwitch("client.grow.rest-gateway", "docker", &a.opts.Client.Grow.RestGateway.Docker)
 
+	addBackendSwitch("client.create.base", "gcp", &a.opts.Client.Create.Base.Gcp)
+	addBackendSwitch("client.grow.base", "gcp", &a.opts.Client.Grow.Base.Gcp)
+	addBackendSwitch("client.create.tools", "gcp", &a.opts.Client.Create.Tools.Gcp)
+	addBackendSwitch("client.grow.tools", "gcp", &a.opts.Client.Grow.Tools.Gcp)
+	addBackendSwitch("client.create.ams", "gcp", &a.opts.Client.Create.AMS.Gcp)
+	addBackendSwitch("client.grow.ams", "gcp", &a.opts.Client.Grow.AMS.Gcp)
+	addBackendSwitch("client.create.jupyter", "gcp", &a.opts.Client.Create.Jupyter.Gcp)
+	addBackendSwitch("client.grow.jupyter", "gcp", &a.opts.Client.Grow.Jupyter.Gcp)
+	addBackendSwitch("client.create.vscode", "gcp", &a.opts.Client.Create.VSCode.Gcp)
+	addBackendSwitch("client.grow.vscode", "gcp", &a.opts.Client.Grow.VSCode.Gcp)
+	addBackendSwitch("client.create.trino", "gcp", &a.opts.Client.Create.Trino.Gcp)
+	addBackendSwitch("client.grow.trino", "gcp", &a.opts.Client.Grow.Trino.Gcp)
+	addBackendSwitch("client.create.elasticsearch", "gcp", &a.opts.Client.Create.ElasticSearch.Gcp)
+	addBackendSwitch("client.grow.elasticsearch", "gcp", &a.opts.Client.Grow.ElasticSearch.Gcp)
+	addBackendSwitch("client.create.rest-gateway", "gcp", &a.opts.Client.Create.RestGateway.Gcp)
+	addBackendSwitch("client.grow.rest-gateway", "gcp", &a.opts.Client.Grow.RestGateway.Gcp)
+
 	// NEW_CLIENTS_BACKEND
 
 	addBackendSwitch("client.destroy", "docker", &a.opts.Client.Destroy.Docker)

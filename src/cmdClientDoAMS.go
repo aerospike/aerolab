@@ -25,6 +25,7 @@ type clientAddAMSCmd struct {
 	osSelectorCmd
 	nodes           map[string][]string // destination map[cluster][]nodeIPs
 	Aws             clientAddAMSCmdAws  `no-flag:"true"`
+	Gcp             clientAddAMSCmdAws  `no-flag:"true"`
 	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
 	Help            helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -35,6 +36,7 @@ type clientAddAMSCmdAws struct {
 
 func init() {
 	addBackendSwitch("client.add.ams", "aws", &a.opts.Client.Add.AMS.Aws)
+	addBackendSwitch("client.add.ams", "gcp", &a.opts.Client.Add.AMS.Gcp)
 }
 
 func (c *clientCreateAMSCmd) Execute(args []string) error {
@@ -58,6 +60,7 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 	a.opts.Client.Add.AMS.Machines = TypeMachines(intSliceToString(machines, ","))
 	a.opts.Client.Add.AMS.ConnectClusters = c.ConnectClusters
 	a.opts.Client.Add.AMS.Aws.IsArm = c.Aws.IsArm
+	a.opts.Client.Add.AMS.Gcp.IsArm = c.Gcp.IsArm
 	a.opts.Client.Add.AMS.DistroName = c.DistroName
 	a.opts.Client.Add.AMS.DistroVersion = c.DistroVersion
 	return a.opts.Client.Add.AMS.addAMS(args)
@@ -272,6 +275,9 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	}
 	// arm fill
 	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
 	if a.opts.Config.Backend.Type == "docker" {
 		if b.Arch() == TypeArchArm {
 			isArm = true
@@ -319,6 +325,9 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")
 	if a.opts.Config.Backend.Type == "aws" {
 		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
+	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		log.Print("NOTE: if not already done so, consider restricting access by using: aerolab config gcp lock-firewall-rules")
 	}
 	return nil
 }
