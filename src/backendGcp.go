@@ -951,7 +951,7 @@ type gcpTemplateListFull struct {
 }
 
 func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
-	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n-----------------------------------------\n"
+	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n--------------------------------------------------------------------------\n"
 	resList := []gcpTemplateListFull{}
 
 	ctx := context.Background()
@@ -995,7 +995,7 @@ func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
 
 // get KeyPair
 func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string, err error) {
-	keyName = fmt.Sprintf("aerolab-%s", clusterName)
+	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	// check keypath exists, if not, error
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
@@ -1007,7 +1007,7 @@ func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string,
 
 // get KeyPair
 func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string, err error) {
-	keyName = fmt.Sprintf("aerolab-%s", clusterName)
+	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	_, _, err = d.getKey(clusterName)
 	if err == nil {
@@ -1050,7 +1050,7 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 
 // get KeyPair
 func (d *backendGcp) killKey(clusterName string) (keyName string, keyPath string, err error) {
-	keyName = fmt.Sprintf("aerolab-%s", clusterName)
+	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	os.Remove(keyPath)
 	return
@@ -1579,12 +1579,13 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string) err
 
 	req := &computepb.UpdateFirewallRequest{
 		Project:          a.opts.Config.Backend.Project,
+		Firewall:         "aerolab-managed-external",
 		FirewallResource: firewallRule,
 	}
 
 	op, err := firewallsClient.Update(ctx, req)
 	if err != nil {
-		return fmt.Errorf("unable to create firewall rule: %w", err)
+		return fmt.Errorf("unable to update firewall rule: %w", err)
 	}
 
 	if err = op.Wait(ctx); err != nil {
