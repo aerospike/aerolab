@@ -1752,6 +1752,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	if err != nil {
 		return err
 	}
+	labels[gcpTagClusterName] = name
 
 	disksInt := []gcpDisk{}
 	if len(extra.disks) == 0 {
@@ -1829,6 +1830,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	var keyPath string
 	ops := []gcpMakeOps{}
 	for i := start; i < (nodeCount + start); i++ {
+		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
 		if err != nil {
 			d.killKey(name)
@@ -1846,17 +1848,19 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		disksList := []*computepb.AttachedDisk{}
 		for nI, nDisk := range disksInt {
 			var simage *string
+			boot := false
 			if nI == 0 {
 				simage = proto.String(imageName)
+				boot = true
 			}
 			disksList = append(disksList, &computepb.AttachedDisk{
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
 					DiskSizeGb:  proto.Int64(int64(nDisk.diskSize)),
 					SourceImage: simage,
-					DiskType:    proto.String(fmt.Sprintf("zones/%s/diskType/pd-%s", extra.zone, nDisk.diskType)),
+					DiskType:    proto.String(fmt.Sprintf("zones/%s/diskTypes/pd-%s", extra.zone, nDisk.diskType)),
 				},
 				AutoDelete: proto.Bool(true),
-				Boot:       proto.Bool(true),
+				Boot:       proto.Bool(boot),
 				Type:       proto.String(computepb.AttachedDisk_PERSISTENT.String()),
 			})
 		}
@@ -1883,7 +1887,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 					},
 				},
 				Labels:      labels,
-				Name:        proto.String(fmt.Sprintf("aerolab4-%s_%d", name, i)),
+				Name:        proto.String(fmt.Sprintf("aerolab4-%s-%d", name, i)),
 				MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", extra.zone, instanceType)),
 				Tags: &computepb.Tags{
 					Items: tags,
