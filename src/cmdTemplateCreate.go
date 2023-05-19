@@ -139,7 +139,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 			ami:          c.Gcp.Image,
 			publicIP:     c.Gcp.PublicIP,
 			tags:         c.Gcp.Tags,
-			ebs:          c.Gcp.Disks,
+			disks:        []string{"balanced:20"},
 			zone:         c.Gcp.Zone,
 			labels:       c.Gcp.Labels,
 		}

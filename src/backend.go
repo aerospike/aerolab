@@ -27,11 +27,12 @@ type backendExtra struct {
 	network         string   // docker only
 	securityGroupID string   // aws only
 	subnetID        string   // aws only
+	ebs             string   // aws only
 	instanceType    string   // aws/gcp only
 	ami             string   // aws/gcp only
 	publicIP        bool     // aws/gcp only
 	tags            []string // aws/gcp only
-	ebs             string   // aws/gcp only (disks in gcp)
+	disks           []string // gcp only
 	zone            string   // gcp only
 	labels          []string // gcp only
 }
