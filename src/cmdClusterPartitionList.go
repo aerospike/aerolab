@@ -125,12 +125,12 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 				continue
 			}
 			diskType := ""
-			if disk.Model == "Amazon Elastic Block Store" {
+			if (a.opts.Config.Backend.Type == "aws" && disk.Model == "Amazon Elastic Block Store") || (a.opts.Config.Backend.Type == "gcp" && disk.Model == "PersistentDisk") {
 				diskType = "ebs"
 				if c.FilterType != "" && c.FilterType != "ALL" && c.FilterType != "ebs" {
 					continue
 				}
-			} else if disk.Model == "Amazon EC2 NVMe Instance Storage" {
+			} else if (a.opts.Config.Backend.Type == "aws" && disk.Model == "Amazon EC2 NVMe Instance Storage") || (a.opts.Config.Backend.Type == "gcp" && disk.Model != "") {
 				diskType = "nvme"
 				if c.FilterType != "" && c.FilterType != "ALL" && c.FilterType != "nvme" {
 					continue
