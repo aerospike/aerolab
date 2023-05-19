@@ -146,20 +146,27 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed1): %s", err)
 	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed2): %s", err)
 	}
 	allnodes := []string{}
+	allnodeExp := []string{}
 	for _, nodes := range c.nodes {
 		for _, node := range nodes {
 			allnodes = append(allnodes, node+":9145")
+			allnodeExp = append(allnodeExp, node+":9100")
 		}
 	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
+	nips := "'" + strings.Join(allnodeExp, "','") + "'"
 	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed3): %s", err)
+	}
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASDN_TARGETS/      - targets: [" + nips + "] #TODO_ASDN_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+	if err != nil {
+		return fmt.Errorf("failed to configure prometheus (sed3.1): %s", err)
 	}
 	// configure:grafana
 	err = a.opts.Attach.Client.run([]string{"chmod", "664", "/etc/grafana/grafana.ini"})
