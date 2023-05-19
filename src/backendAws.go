@@ -1717,7 +1717,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 	return nil
 }
 
-func (d *backendAws) Upload(clusterName string, node int, source string, destination string, verbose bool) error {
+func (d *backendAws) Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error {
 	nodes, err := d.GetNodeIpMap(clusterName, false)
 	if err != nil {
 		return err
@@ -1733,10 +1733,10 @@ func (d *backendAws) Upload(clusterName string, node int, source string, destina
 	if err != nil {
 		return err
 	}
-	return scpExecUpload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
+	return scpExecUpload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose, legacy)
 }
 
-func (d *backendAws) Download(clusterName string, node int, source string, destination string, verbose bool) error {
+func (d *backendAws) Download(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error {
 	nodes, err := d.GetNodeIpMap(clusterName, false)
 	if err != nil {
 		return err
@@ -1752,5 +1752,5 @@ func (d *backendAws) Download(clusterName string, node int, source string, desti
 	if err != nil {
 		return err
 	}
-	return scpExecDownload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
+	return scpExecDownload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose, legacy)
 }

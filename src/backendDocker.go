@@ -642,7 +642,7 @@ func (d *backendDocker) ClusterDestroy(name string, nodes []int) error {
 	return nil
 }
 
-func (d *backendDocker) Upload(clusterName string, node int, source string, destination string, verbose bool) error {
+func (d *backendDocker) Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error {
 	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	cmd := []string{"cp", source, name + ":" + destination}
 	out, err := exec.Command("docker", cmd...).CombinedOutput()
@@ -652,7 +652,7 @@ func (d *backendDocker) Upload(clusterName string, node int, source string, dest
 	return nil
 }
 
-func (d *backendDocker) Download(clusterName string, node int, source string, destination string, verbose bool) error {
+func (d *backendDocker) Download(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error {
 	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	cmd := []string{"cp", name + ":" + source, destination}
 	out, err := exec.Command("docker", cmd...).CombinedOutput()

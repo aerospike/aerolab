@@ -103,9 +103,9 @@ type backend interface {
 	// return formatted for printing template list
 	TemplateListFull(json bool) (string, error)
 	// upload files to node
-	Upload(clusterName string, node int, source string, destination string, verbose bool) error
+	Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error
 	// download files from node
-	Download(clusterName string, node int, source string, destination string, verbose bool) error
+	Download(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error
 	// delete dangling template creations
 	VacuumTemplates() error
 	VacuumTemplate(v backendVersion) error

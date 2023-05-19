@@ -826,7 +826,7 @@ func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string
 	return err
 }
 
-func (d *backendGcp) Upload(clusterName string, node int, source string, destination string, verbose bool) error {
+func (d *backendGcp) Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error {
 	nodes, err := d.GetNodeIpMap(clusterName, false)
 	if err != nil {
 		return err
@@ -842,10 +842,10 @@ func (d *backendGcp) Upload(clusterName string, node int, source string, destina
 	if err != nil {
 		return err
 	}
-	return scpExecUpload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
+	return scpExecUpload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose, legacy)
 }
 
-func (d *backendGcp) Download(clusterName string, node int, source string, destination string, verbose bool) error {
+func (d *backendGcp) Download(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error {
 	nodes, err := d.GetNodeIpMap(clusterName, false)
 	if err != nil {
 		return err
@@ -861,7 +861,7 @@ func (d *backendGcp) Download(clusterName string, node int, source string, desti
 	if err != nil {
 		return err
 	}
-	return scpExecDownload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose)
+	return scpExecDownload("root", nodeIp, "22", key, source, destination, os.Stdout, 30*time.Second, verbose, legacy)
 }
 
 func (d *backendGcp) vacuum(v *backendVersion) error {
