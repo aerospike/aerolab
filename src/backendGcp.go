@@ -1813,7 +1813,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 					arch = "arm"
 				}
 				if image.Labels[gcpTagOperatingSystem] == gcpResourceName(v.distroName) && image.Labels[gcpTagOSVersion] == gcpResourceName(v.distroVersion) && image.Labels[gcpTagAerospikeVersion] == gcpResourceName(v.aerospikeVersion) && image.Labels["arch"] == arch {
-					imageName = *image.Name
+					imageName = *image.SelfLink
 				}
 			}
 		}
