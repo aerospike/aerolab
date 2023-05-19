@@ -25,6 +25,7 @@ Windows | `aerolab-linux-*` | Install and start using [WSL2](https://learn.micro
   * on Linux
   * on Windows
 * AWS
+* GCP
 
 ## Routing to the containers using other Docker solutions
 
@@ -44,6 +45,8 @@ You can see the IP addresses of running AeroLab containers with the `aerolab clu
 [Getting started](docs/getting-started.md)
 
 [AeroLab on AWS](docs/aws-setup.md)
+
+[AeroLab on GCP](docs/gcp-setup.md)
 
 [Help commands](docs/usage/help.md)
 
