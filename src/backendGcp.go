@@ -585,6 +585,7 @@ func (d *backendGcp) ClusterStop(name string, nodes []int) error {
 
 func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
 	var err error
+	ops := []gcpMakeOps{}
 	if len(nodes) == 0 {
 		nodes, err = d.NodeListInCluster(name)
 		if err != nil {
@@ -616,7 +617,13 @@ func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
 		if err != nil {
 			return fmt.Errorf("unable to delete instance: %w", err)
 		}
-		if err = op.Wait(ctx); err != nil {
+		ops = append(ops, gcpMakeOps{
+			op:  op,
+			ctx: ctx,
+		})
+	}
+	for _, o := range ops {
+		if err = o.op.Wait(o.ctx); err != nil {
 			return fmt.Errorf("unable to wait for the operation: %w", err)
 		}
 	}
