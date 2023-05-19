@@ -130,7 +130,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 			ami:          c.Gcp.Image,
 			publicIP:     c.Gcp.PublicIP,
 			tags:         c.Gcp.Tags,
-			ebs:          c.Gcp.Disks,
+			disks:        c.Gcp.Disks,
 			zone:         c.Gcp.Zone,
 			labels:       c.Gcp.Labels,
 		}

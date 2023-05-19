@@ -74,14 +74,14 @@ type clusterCreateCmdAws struct {
 
 type clusterCreateCmdGcp struct {
 	Image           string   `long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
-	InstanceType    string   `long:"instance-type" description:"instance type to use" default:""`
-	Disks           string   `long:"disks" description:"volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
-	PublicIP        bool     `long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	InstanceType    string   `long:"instance" description:"instance type to use" default:""`
+	Disks           []string `long:"disk" description:"format type:sizeGB, ex: ssd:20 ex: balanced:40; first in list is for root volume; can be specified multiple times"`
+	PublicIP        bool     `long:"external-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
 	Zone            string   `long:"zone" description:"zone name to deploy to"`
-	IsArm           bool     `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices bool     `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
-	Tags            []string `long:"tags" description:"apply custom tags to instances; this parameter can be specified multiple times"`
-	Labels          []string `long:"labels" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	IsArm           bool     `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices bool     `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags            []string `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
+	Labels          []string `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -329,7 +329,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			ami:          c.Gcp.Image,
 			publicIP:     c.Gcp.PublicIP,
 			tags:         c.Gcp.Tags,
-			ebs:          c.Gcp.Disks,
+			disks:        c.Gcp.Disks,
 			zone:         c.Gcp.Zone,
 			labels:       c.Gcp.Labels,
 		}

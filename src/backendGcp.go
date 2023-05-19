@@ -1120,6 +1120,39 @@ func (d *backendGcp) getImage(v backendVersion) (string, error) {
 	return imName, nil
 }
 
+func (d *backendGcp) makeLabels(extra []string, isArm string, v backendVersion) (map[string]string, error) {
+	labels := make(map[string]string)
+	badNames := []string{gcpTagOperatingSystem, gcpTagOSVersion, gcpTagAerospikeVersion, gcpTagUsedBy, gcpTagClusterName, gcpTagNodeNumber, "Arch", "Name"}
+	for _, extraTag := range extra {
+		kv := strings.Split(extraTag, "=")
+		if len(kv) < 2 {
+			return nil, errors.New("tags must follow key=value format")
+		}
+		key := kv[0]
+		if inslice.HasString(badNames, key) {
+			return nil, fmt.Errorf("key %s is used internally by aerolab, cannot be used", key)
+		}
+		val := strings.Join(kv[1:], "=")
+		for _, char := range val {
+			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
+				return nil, fmt.Errorf("invalid tag value for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
+			}
+		}
+		for _, char := range key {
+			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
+				return nil, fmt.Errorf("invalid tag name for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
+			}
+		}
+		labels[key] = val
+	}
+	labels[gcpTagOperatingSystem] = v.distroName
+	labels[gcpTagOSVersion] = strings.ReplaceAll(v.distroVersion, ".", "-")
+	labels[gcpTagAerospikeVersion] = strings.ReplaceAll(v.aerospikeVersion, ".", "-")
+	labels[gcpTagUsedBy] = gcpTagUsedByValue
+	labels["arch"] = isArm
+	return labels, nil
+}
+
 func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
 	if extra.zone == "" {
 		return errors.New("zone must be specified")
@@ -1129,30 +1162,6 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 		d.VacuumTemplate(v)
 	})
 	defer delShutdownHandler("deployGcpTemplate")
-	labels := make(map[string]string)
-	badNames := []string{gcpTagOperatingSystem, gcpTagOSVersion, gcpTagAerospikeVersion, gcpTagUsedBy, gcpTagClusterName, gcpTagNodeNumber, "Arch", "Name"}
-	for _, extraTag := range extra.labels {
-		kv := strings.Split(extraTag, "=")
-		if len(kv) < 2 {
-			return errors.New("tags must follow key=value format")
-		}
-		key := kv[0]
-		if inslice.HasString(badNames, key) {
-			return fmt.Errorf("key %s is used internally by aerolab, cannot be used", key)
-		}
-		val := strings.Join(kv[1:], "=")
-		for _, char := range val {
-			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
-				return fmt.Errorf("invalid tag value for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
-			}
-		}
-		for _, char := range key {
-			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
-				return fmt.Errorf("invalid tag name for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
-			}
-		}
-		labels[key] = val
-	}
 	genKeyName := "template" + strconv.Itoa(int(time.Now().Unix()))
 	_, keyPath, err := d.getKey(genKeyName)
 	if err != nil {
@@ -1177,11 +1186,10 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	if v.isArm {
 		isArm = "arm"
 	}
-	labels[gcpTagOperatingSystem] = v.distroName
-	labels[gcpTagOSVersion] = strings.ReplaceAll(v.distroVersion, ".", "-")
-	labels[gcpTagAerospikeVersion] = strings.ReplaceAll(v.aerospikeVersion, ".", "-")
-	labels[gcpTagUsedBy] = gcpTagUsedByValue
-	labels["arch"] = isArm
+	labels, err := d.makeLabels(extra.labels, isArm, v)
+	if err != nil {
+		return err
+	}
 	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
 	err = d.createSecurityGroupsIfNotExist()
@@ -1718,7 +1726,224 @@ func (d *backendGcp) createSecurityGroupsIfNotExist() error {
 	return nil
 }
 
+type gcpMakeOps struct {
+	ctx context.Context
+	op  *compute.Operation
+}
+
+type gcpDisk struct {
+	diskType string
+	diskSize int
+}
+
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
-	// TODO
-	return errors.New("not implemented yet")
+	if extra.zone == "" {
+		return errors.New("zone must be specified")
+	}
+	if extra.instanceType == "" {
+		return errors.New("instance type must be specified")
+	}
+
+	isArm := "amd"
+	if v.isArm {
+		isArm = "arm"
+	}
+	labels, err := d.makeLabels(extra.labels, isArm, v)
+	if err != nil {
+		return err
+	}
+
+	disksInt := []gcpDisk{}
+	if len(extra.disks) == 0 {
+		extra.disks = []string{"balanced:20"}
+	}
+	for _, disk := range extra.disks {
+		diska := strings.Split(disk, ":")
+		if len(diska) != 2 {
+			return errors.New("disk specification incorrect, must be type:sizeGB; example: balanced:20")
+		}
+		dint, err := strconv.Atoi(diska[1])
+		if err != nil {
+			return fmt.Errorf("incorrect format for disk mapping: size must be an integer: %s", err)
+		}
+		disksInt = append(disksInt, gcpDisk{
+			diskType: diska[0],
+			diskSize: dint,
+		})
+	}
+
+	var imageName string
+	if !d.client {
+		imageName, err = d.getImage(v)
+		if err != nil {
+			return err
+		}
+	} else {
+		ctx := context.Background()
+		imagesClient, err := compute.NewImagesRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewImagesRESTClient: %w", err)
+		}
+		defer imagesClient.Close()
+		req := computepb.ListImagesRequest{
+			Project: a.opts.Config.Backend.Project,
+			Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagEnclose(gcpTagUsedByValue)),
+		}
+
+		it := imagesClient.List(ctx, &req)
+		for {
+			image, err := it.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+				arch := "amd"
+				if v.isArm {
+					arch = "arm"
+				}
+				if image.Labels[gcpTagOperatingSystem] == gcpResourceName(v.distroName) && image.Labels[gcpTagOSVersion] == gcpResourceName(v.distroVersion) && image.Labels[gcpTagAerospikeVersion] == gcpResourceName(v.aerospikeVersion) && image.Labels["arch"] == arch {
+					imageName = *image.Name
+				}
+			}
+		}
+	}
+
+	nodes, err := d.NodeListInCluster(name)
+	if err != nil {
+		return fmt.Errorf("could not run NodeListInCluster\n%s", err)
+	}
+	start := 1
+	for _, node := range nodes {
+		if node >= start {
+			start = node + 1
+		}
+	}
+
+	err = d.createSecurityGroupsIfNotExist()
+	if err != nil {
+		return fmt.Errorf("firewall: %s", err)
+	}
+	var keyPath string
+	ops := []gcpMakeOps{}
+	for i := start; i < (nodeCount + start); i++ {
+		_, keyPath, err = d.getKey(name)
+		if err != nil {
+			d.killKey(name)
+			_, keyPath, err = d.makeKey(name)
+			if err != nil {
+				return fmt.Errorf("could not run getKey\n%s", err)
+			}
+		}
+		sshKey, err := os.ReadFile(keyPath + ".pub")
+		if err != nil {
+			return err
+		}
+		// disk mapping
+		// zones/zone/diskTypes/diskType
+		disksList := []*computepb.AttachedDisk{}
+		for nI, nDisk := range disksInt {
+			var simage *string
+			if nI == 0 {
+				simage = proto.String(imageName)
+			}
+			disksList = append(disksList, &computepb.AttachedDisk{
+				InitializeParams: &computepb.AttachedDiskInitializeParams{
+					DiskSizeGb:  proto.Int64(int64(nDisk.diskSize)),
+					SourceImage: simage,
+					DiskType:    proto.String(fmt.Sprintf("zones/%s/diskType/pd-%s", extra.zone, nDisk.diskType)),
+				},
+				AutoDelete: proto.Bool(true),
+				Boot:       proto.Bool(true),
+				Type:       proto.String(computepb.AttachedDisk_PERSISTENT.String()),
+			})
+		}
+		// create instance (remember name and labels and tags and extra tags)
+		ctx := context.Background()
+		instancesClient, err := compute.NewInstancesRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewInstancesRESTClient: %w", err)
+		}
+		defer instancesClient.Close()
+
+		instanceType := extra.instanceType
+		tags := append(extra.tags, "aerolab-server")
+		req := &computepb.InsertInstanceRequest{
+			Project: a.opts.Config.Backend.Project,
+			Zone:    extra.zone,
+			InstanceResource: &computepb.Instance{
+				Metadata: &computepb.Metadata{
+					Items: []*computepb.Items{
+						{
+							Key:   proto.String("ssh-keys"),
+							Value: proto.String("root:" + string(sshKey)),
+						},
+					},
+				},
+				Labels:      labels,
+				Name:        proto.String(fmt.Sprintf("aerolab4-%s_%d", name, i)),
+				MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", extra.zone, instanceType)),
+				Tags: &computepb.Tags{
+					Items: tags,
+				},
+				Scheduling: &computepb.Scheduling{
+					AutomaticRestart:  proto.Bool(true),
+					OnHostMaintenance: proto.String("MIGRATE"),
+					ProvisioningModel: proto.String("STANDARD"),
+				},
+				Disks: disksList,
+				NetworkInterfaces: []*computepb.NetworkInterface{
+					{
+						StackType: proto.String("IPV4_ONLY"),
+						AccessConfigs: []*computepb.AccessConfig{
+							{
+								Name:        proto.String("External NAT"),
+								NetworkTier: proto.String("PREMIUM"),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		op, err := instancesClient.Insert(ctx, req)
+		if err != nil {
+			return fmt.Errorf("unable to create instance: %w", err)
+		}
+		ops = append(ops, gcpMakeOps{
+			ctx: ctx,
+			op:  op,
+		})
+	}
+
+	for _, o := range ops {
+		if err = o.op.Wait(o.ctx); err != nil {
+			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+
+	nodeIps, err := d.GetNodeIpMap(name, false)
+	if err != nil {
+		return err
+	}
+	newNodeCount := len(nodes)
+
+	for {
+		working := 0
+		for _, instIp := range nodeIps {
+			_, err = remoteRun("root", fmt.Sprintf("%s:22", instIp), keyPath, "ls", 0)
+			if err == nil {
+				working++
+			} else {
+				fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", instIp, keyPath, err)
+				time.Sleep(time.Second)
+			}
+		}
+		if working >= newNodeCount {
+			break
+		}
+	}
+	return nil
 }
