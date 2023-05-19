@@ -412,7 +412,12 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			bufio.NewReader(os.Stdin).ReadBytes('\n')
 		}
 		if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
-			log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
+			if c.NodeCount == 1 {
+				log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
+			} else {
+				log.Print("WARNING: you are attempting to install more than 1 node and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+				bufio.NewReader(os.Stdin).ReadBytes('\n')
+			}
 		}
 		if featuresFilePath != "" {
 			ff, err := os.Stat(string(featuresFilePath))
