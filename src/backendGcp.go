@@ -1115,7 +1115,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	defer delShutdownHandler("deployGcpTemplate")
 	labels := make(map[string]string)
 	badNames := []string{gcpTagOperatingSystem, gcpTagOSVersion, gcpTagAerospikeVersion, gcpTagUsedBy, gcpTagClusterName, gcpTagNodeNumber, "Arch", "Name"}
-	for _, extraTag := range extra.tags {
+	for _, extraTag := range extra.labels {
 		kv := strings.Split(extraTag, "=")
 		if len(kv) < 2 {
 			return errors.New("tags must follow key=value format")
@@ -1184,7 +1184,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	if v.isArm {
 		instanceType = "t2a-standard-1"
 	}
-
+	tags := append(extra.tags, "aerolab-server")
 	req := &computepb.InsertInstanceRequest{
 		Project: a.opts.Config.Backend.Project,
 		Zone:    extra.zone,
@@ -1201,9 +1201,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 			Name:        proto.String(name),
 			MachineType: proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", extra.zone, instanceType)),
 			Tags: &computepb.Tags{
-				Items: []string{
-					"aerolab-server",
-				},
+				Items: tags,
 			},
 			Scheduling: &computepb.Scheduling{
 				AutomaticRestart:  proto.Bool(true),

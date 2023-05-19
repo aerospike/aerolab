@@ -12,6 +12,7 @@ type templateDeleteCmd struct {
 	DistroName       TypeDistro           `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon (or 'all')"`
 	DistroVersion    TypeDistroVersion    `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2 debian:11|10|9|8 (or 'all')"`
 	Aws              templateDeleteCmdAws `no-flag:"true"`
+	Gcp              templateDeleteCmdAws `no-flag:"true"`
 	Help             helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -21,6 +22,7 @@ type templateDeleteCmdAws struct {
 
 func init() {
 	addBackendSwitch("template.destroy", "aws", &a.opts.Template.Delete.Aws)
+	addBackendSwitch("template.destroy", "gcp", &a.opts.Template.Delete.Gcp)
 }
 
 func (c *templateDeleteCmd) Execute(args []string) error {
@@ -30,6 +32,9 @@ func (c *templateDeleteCmd) Execute(args []string) error {
 
 	log.Print("Running template.destroy")
 	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
 	if b.Arch() == TypeArchAmd {
 		isArm = false
 	}

@@ -17,6 +17,7 @@ type xdrCreateClustersCmd struct {
 
 func init() {
 	addBackendSwitch("xdr.create-clusters", "aws", &a.opts.XDR.CreateClusters.Aws)
+	addBackendSwitch("xdr.create-clusters", "gcp", &a.opts.XDR.CreateClusters.Gcp)
 	addBackendSwitch("xdr.create-clusters", "docker", &a.opts.XDR.CreateClusters.Docker)
 }
 

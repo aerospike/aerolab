@@ -25,14 +25,15 @@ type backendExtra struct {
 	switches        string   // docker only
 	dockerHostname  bool     // docker only
 	network         string   // docker only
-	ami             string   // aws only
-	instanceType    string   // aws only
-	ebs             string   // aws only
 	securityGroupID string   // aws only
 	subnetID        string   // aws only
-	publicIP        bool     // aws only
+	instanceType    string   // aws/gcp only
+	ami             string   // aws/gcp only
+	publicIP        bool     // aws/gcp only
 	tags            []string // aws/gcp only
+	ebs             string   // aws/gcp only (disks in gcp)
 	zone            string   // gcp only
+	labels          []string // gcp only
 }
 
 type backendVersion struct {
