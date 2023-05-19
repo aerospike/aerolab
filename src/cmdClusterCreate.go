@@ -73,11 +73,11 @@ type clusterCreateCmdAws struct {
 }
 
 type clusterCreateCmdGcp struct {
-	Image           string   `short:"A" long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
-	InstanceType    string   `short:"I" long:"instance-type" description:"instance type to use" default:""`
-	Disks           string   `short:"E" long:"disks" description:"volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
-	PublicIP        bool     `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
-	Zone            string   `short:"U" long:"zone" description:"zone name to deploy to"`
+	Image           string   `long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
+	InstanceType    string   `long:"instance-type" description:"instance type to use" default:""`
+	Disks           string   `long:"disks" description:"volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
+	PublicIP        bool     `long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	Zone            string   `long:"zone" description:"zone name to deploy to"`
 	IsArm           bool     `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices bool     `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags            []string `long:"tags" description:"apply custom tags to instances; this parameter can be specified multiple times"`

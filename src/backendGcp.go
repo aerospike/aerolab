@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"sort"
@@ -41,23 +42,23 @@ func init() {
 
 const (
 	// server
-	gcpServerTagUsedBy           = "UsedBy"
+	gcpServerTagUsedBy           = "used_by"
 	gcpServerTagUsedByValue      = "aerolab4"
-	gcpServerTagClusterName      = "Aerolab4ClusterName"
-	gcpServerTagNodeNumber       = "Aerolab4NodeNumber"
-	gcpServerTagOperatingSystem  = "Aerolab4OperatingSystem"
-	gcpServerTagOSVersion        = "Aerolab4OperatingSystemVersion"
-	gcpServerTagAerospikeVersion = "Aerolab4AerospikeVersion"
+	gcpServerTagClusterName      = "aerolab4cluster_name"
+	gcpServerTagNodeNumber       = "aerolab4node_number"
+	gcpServerTagOperatingSystem  = "aerolab4operating_system"
+	gcpServerTagOSVersion        = "aerolab4operating_system_version"
+	gcpServerTagAerospikeVersion = "aerolab4aerospike_version"
 	gcpServerFirewallTag         = "aerolab-server"
 
 	// client
-	gcpClientTagUsedBy           = "UsedBy"
+	gcpClientTagUsedBy           = "used_by"
 	gcpClientTagUsedByValue      = "aerolab4client"
-	gcpClientTagClusterName      = "Aerolab4clientClusterName"
-	gcpClientTagNodeNumber       = "Aerolab4clientNodeNumber"
-	gcpClientTagOperatingSystem  = "Aerolab4clientOperatingSystem"
-	gcpClientTagOSVersion        = "Aerolab4clientOperatingSystemVersion"
-	gcpClientTagAerospikeVersion = "Aerolab4clientAerospikeVersion"
+	gcpClientTagClusterName      = "aerolab4client_name"
+	gcpClientTagNodeNumber       = "aerolab4client_node_number"
+	gcpClientTagOperatingSystem  = "aerolab4client_operating_system"
+	gcpClientTagOSVersion        = "aerolab4client_operating_system_version"
+	gcpClientTagAerospikeVersion = "aerolab4client_aerospike_version"
 	gcpClientFirewallTag         = "aerolab-client"
 )
 
@@ -146,7 +147,7 @@ func (d *backendGcp) ClusterList() ([]string, error) {
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					clist = append(clist, instance.Labels[gcpTagClusterName])
 				}
 			}
@@ -180,7 +181,7 @@ func (d *backendGcp) IsNodeArm(clusterName string, nodeNumber int) (bool, error)
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					if instance.Labels[gcpTagClusterName] == clusterName && instance.Labels[gcpTagNodeNumber] == strconv.Itoa(nodeNumber) {
 						return d.IsSystemArm(*instance.MachineType)
 					}
@@ -217,7 +218,7 @@ func (d *backendGcp) NodeListInCluster(name string) ([]int, error) {
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					if instance.Labels[gcpTagClusterName] == name {
 						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
 						if err != nil {
@@ -258,7 +259,7 @@ func (d *backendGcp) GetClusterNodeIps(name string) ([]string, error) {
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					if instance.Labels[gcpTagClusterName] == name {
 						if len(instance.NetworkInterfaces) > 0 && instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" {
 							nlist = append(nlist, *instance.NetworkInterfaces[0].NetworkIP)
@@ -297,7 +298,7 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					if instance.Labels[gcpTagClusterName] == name {
 						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
 						if err != nil {
@@ -362,7 +363,7 @@ func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					sysArch := "x86_64"
 					if arm, _ := d.IsSystemArm(*instance.MachineType); arm {
 						sysArch = "aarch64"
@@ -483,12 +484,13 @@ func (d *backendGcp) getInstanceDetails(name string, nodes []int) (zones map[int
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					if instance.Labels[gcpTagClusterName] == name {
 						for _, node := range nodes {
 							if strconv.Itoa(node) == instance.Labels[gcpTagNodeNumber] {
+								zone := strings.Split(*instance.Zone, "/")
 								zones[node] = instanceDetail{
-									instanceZone: *instance.Zone,
+									instanceZone: zone[len(zone)-1],
 									instanceName: *instance.Name,
 								}
 							}
@@ -572,7 +574,7 @@ func (d *backendGcp) ClusterStop(name string, nodes []int) error {
 		}
 		op, err := instancesClient.Stop(ctx, req)
 		if err != nil {
-			return fmt.Errorf("unable to start instance: %w", err)
+			return fmt.Errorf("unable to stop instance: %w", err)
 		}
 		if err = op.Wait(ctx); err != nil {
 			return fmt.Errorf("unable to wait for the operation: %w", err)
@@ -612,7 +614,7 @@ func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
 		}
 		op, err := instancesClient.Delete(ctx, req)
 		if err != nil {
-			return fmt.Errorf("unable to start instance: %w", err)
+			return fmt.Errorf("unable to delete instance: %w", err)
 		}
 		if err = op.Wait(ctx); err != nil {
 			return fmt.Errorf("unable to wait for the operation: %w", err)
@@ -650,8 +652,8 @@ func (d *backendGcp) ListTemplates() ([]backendVersion, error) {
 			}
 			bv = append(bv, backendVersion{
 				distroName:       image.Labels[gcpServerTagOperatingSystem],
-				distroVersion:    image.Labels[gcpServerTagOSVersion],
-				aerospikeVersion: image.Labels[gcpServerTagAerospikeVersion],
+				distroVersion:    gcpResourceNameBack(image.Labels[gcpServerTagOSVersion]),
+				aerospikeVersion: gcpResourceNameBack(image.Labels[gcpServerTagAerospikeVersion]),
 				isArm:            isArm,
 			})
 		}
@@ -707,7 +709,7 @@ func (d *backendGcp) TemplateDestroy(v backendVersion) error {
 			if strings.Contains(*image.Architecture, "arm") || strings.Contains(*image.Architecture, "aarch") {
 				isArm = true
 			}
-			if image.Labels[gcpServerTagOperatingSystem] == v.distroName && image.Labels[gcpServerTagOSVersion] == v.distroVersion && image.Labels[gcpServerTagAerospikeVersion] == v.aerospikeVersion && isArm == v.isArm {
+			if (image.Labels[gcpServerTagOperatingSystem] == v.distroName || v.distroName == "all") && (image.Labels[gcpServerTagOSVersion] == gcpResourceName(v.distroVersion) || v.distroVersion == "all") && (image.Labels[gcpServerTagAerospikeVersion] == gcpResourceName(v.aerospikeVersion) || v.aerospikeVersion == "all") && isArm == v.isArm {
 				err = d.deleteImage(*image.Name)
 				if err != nil {
 					return err
@@ -889,13 +891,13 @@ func (d *backendGcp) vacuum(v *backendVersion) error {
 			break
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("listing instances: %s", err)
 		}
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue && *instance.Status != "TERMINATED" {
-					if (v != nil && *instance.Name == fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm)) || (v == nil && strings.HasPrefix(*instance.Name, "aerolab4-template-")) {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+					if (v != nil && *instance.Name == fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)) || (v == nil && strings.HasPrefix(*instance.Name, "aerolab4-template-")) {
 						instance := instance
 						delList = append(delList, instance)
 					}
@@ -904,6 +906,14 @@ func (d *backendGcp) vacuum(v *backendVersion) error {
 		}
 	}
 	return d.deleteInstances(delList)
+}
+
+func gcpResourceName(name string) string {
+	return strings.ReplaceAll(name, ".", "-")
+}
+
+func gcpResourceNameBack(name string) string {
+	return strings.ReplaceAll(name, "-", ".")
 }
 
 func (d *backendGcp) deleteInstances(list []*computepb.Instance) error {
@@ -915,9 +925,11 @@ func (d *backendGcp) deleteInstances(list []*computepb.Instance) error {
 			return fmt.Errorf("NewInstancesRESTClient: %w", err)
 		}
 		defer deleteClient.Close()
+		zone := strings.Split(*instance.Zone, "/")
+		log.Printf("Deleting project=%s zone=%s name=%s", a.opts.Config.Backend.Project, zone[len(zone)-1], *instance.Name)
 		req := &computepb.DeleteInstanceRequest{
 			Project:  a.opts.Config.Backend.Project,
-			Zone:     *instance.Zone,
+			Zone:     zone[len(zone)-1],
 			Instance: *instance.Name,
 		}
 		op, err := deleteClient.Delete(ctx, req)
@@ -975,11 +987,11 @@ func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
 			return "", err
 		}
 		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
-			result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, image.Labels[gcpTagOperatingSystem], image.Labels[gcpTagOSVersion], image.Labels[gcpTagAerospikeVersion], *image.Architecture)
+			result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, image.Labels[gcpTagOperatingSystem], gcpResourceNameBack(image.Labels[gcpTagOSVersion]), gcpResourceNameBack(image.Labels[gcpTagAerospikeVersion]), *image.Architecture)
 			resList = append(resList, gcpTemplateListFull{
 				OsName:           image.Labels[gcpTagOperatingSystem],
-				OsVersion:        image.Labels[gcpTagOSVersion],
-				AerospikeVersion: image.Labels[gcpTagAerospikeVersion],
+				OsVersion:        gcpResourceNameBack(image.Labels[gcpTagOSVersion]),
+				AerospikeVersion: gcpResourceNameBack(image.Labels[gcpTagAerospikeVersion]),
 				ImageId:          *image.Name,
 				Arch:             *image.Architecture,
 			})
@@ -1025,7 +1037,7 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 	}
 
 	// generate and write private key as PEM
-	privateKeyFile, err := os.OpenFile(keyPath+".private", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
+	privateKeyFile, err := os.OpenFile(keyPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0600)
 	if err != nil {
 		return
 	}
@@ -1040,7 +1052,7 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 	if err != nil {
 		return
 	}
-	err = os.WriteFile(keyPath, ssh.MarshalAuthorizedKey(pub), 0600)
+	err = os.WriteFile(keyPath+".pub", ssh.MarshalAuthorizedKey(pub), 0600)
 	if err != nil {
 		return
 	}
@@ -1053,6 +1065,7 @@ func (d *backendGcp) killKey(clusterName string) (keyName string, keyPath string
 	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	os.Remove(keyPath)
+	os.Remove(keyPath + ".pub")
 	return
 }
 
@@ -1101,13 +1114,16 @@ func (d *backendGcp) getImage(v backendVersion) (string, error) {
 			return "", err
 		}
 		if *image.Name > imName {
-			imName = *image.Name
+			imName = *image.SelfLink
 		}
 	}
 	return imName, nil
 }
 
 func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+	if extra.zone == "" {
+		return errors.New("zone must be specified")
+	}
 	addShutdownHandler("deployGcpTemplate", func(os.Signal) {
 		deployGcpTemplateShutdownMaking <- 1
 		d.VacuumTemplate(v)
@@ -1147,7 +1163,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 		}
 	}
 	defer d.killKey(genKeyName)
-	sshKey, err := os.ReadFile(keyPath)
+	sshKey, err := os.ReadFile(keyPath + ".pub")
 	if err != nil {
 		return err
 	}
@@ -1165,8 +1181,8 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	labels[gcpTagOSVersion] = strings.ReplaceAll(v.distroVersion, ".", "-")
 	labels[gcpTagAerospikeVersion] = strings.ReplaceAll(v.aerospikeVersion, ".", "-")
 	labels[gcpTagUsedBy] = gcpTagUsedByValue
-	labels["Arch"] = isArm
-	name := fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm)
+	labels["arch"] = isArm
+	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
 	err = d.createSecurityGroupsIfNotExist()
 	if err != nil {
@@ -1284,50 +1300,6 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 
 	fmt.Println("Connection succeeded, continuing deployment...")
 
-	/*
-		// sort out root/ubuntu issues
-		_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo mkdir -p /root/.ssh", 0)
-		if err != nil {
-			out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo mkdir -p /root/.ssh", 0)
-			if err != nil {
-				return fmt.Errorf("mkdir .ssh failed: %s\n%s", string(out), err)
-			}
-		}
-		_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chown root:root /root/.ssh", 0)
-		if err != nil {
-			out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chown root:root /root/.ssh", 0)
-			if err != nil {
-				return fmt.Errorf("chown .ssh failed: %s\n%s", string(out), err)
-			}
-		}
-		_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chmod 750 /root/.ssh", 0)
-		if err != nil {
-			out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chmod 750 /root/.ssh", 0)
-			if err != nil {
-				return fmt.Errorf("chmod .ssh failed: %s\n%s", string(out), err)
-			}
-		}
-		_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
-		if err != nil {
-			out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
-			if err != nil {
-				return fmt.Errorf("cp .ssh failed: %s\n%s", string(out), err)
-			}
-		}
-		_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
-		if err != nil {
-			out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
-			if err != nil {
-				return fmt.Errorf("chmod auth_keys failed: %s\n%s", string(out), err)
-			}
-		}
-		if len(deployAwsTemplateShutdownMaking) > 0 {
-			for {
-				time.Sleep(time.Second)
-			}
-		}
-	*/
-
 	// copy files as required to VM
 	files = append(files, fileList{"/root/installer.sh", strings.NewReader(script), len(script)})
 	err = scp("root", fmt.Sprintf("%s:22", instIp), keyPath, files)
@@ -1361,12 +1333,12 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	// shutdown VM
 	reqStop := &computepb.StopInstanceRequest{
 		Project:  a.opts.Config.Backend.Project,
-		Zone:     *inst.Zone,
+		Zone:     extra.zone,
 		Instance: *inst.Name,
 	}
 	op, err = instancesClient.Stop(ctx, reqStop)
 	if err != nil {
-		return fmt.Errorf("unable to start instance: %w", err)
+		return fmt.Errorf("unable to stop instance: %w", err)
 	}
 	if err = op.Wait(ctx); err != nil {
 		return fmt.Errorf("unable to wait for the operation: %w", err)
@@ -1379,8 +1351,8 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	}
 
 	// create ami from VM
-	imgName := fmt.Sprintf("aerolab4-template-%s_%s_%s_%s", v.distroName, v.distroVersion, v.aerospikeVersion, isArm)
-	err = d.makeImageFromDisk(*inst.Zone, *inst.Disks[0].DeviceName, imgName, labels)
+	imgName := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
+	err = d.makeImageFromDisk(extra.zone, *inst.Name, imgName, labels)
 	if err != nil {
 		return fmt.Errorf("makeImageFromDisk: %s", err)
 	}
@@ -1388,7 +1360,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	// destroy VM
 	reqd := &computepb.DeleteInstanceRequest{
 		Project:  a.opts.Config.Backend.Project,
-		Zone:     *inst.Zone,
+		Zone:     extra.zone,
 		Instance: *inst.Name,
 	}
 	_, err = instancesClient.Delete(ctx, reqd)
