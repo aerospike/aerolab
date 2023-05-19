@@ -1932,7 +1932,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	if err != nil {
 		return err
 	}
-	newNodeCount := len(nodes)
+	newNodeCount := len(nodeIps)
 
 	for {
 		working := 0
@@ -1949,5 +1949,6 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			break
 		}
 	}
+	log.Print("All connections succeeded, continuing...")
 	return nil
 }
