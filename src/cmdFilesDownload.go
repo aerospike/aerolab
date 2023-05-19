@@ -95,12 +95,16 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 	}
 
 	dst := string(c.Files.Destination)
+	verbose := c.Aws.Verbose
+	if a.opts.Config.Backend.Type == "gcp" {
+		verbose = c.Gcp.Verbose
+	}
 	for _, node := range nodes {
 		if len(nodes) > 1 {
 			dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
 			os.MkdirAll(dst, 0755)
 		}
-		err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, c.Aws.Verbose)
+		err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose)
 		if err != nil {
 			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
 		}

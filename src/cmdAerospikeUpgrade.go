@@ -35,6 +35,9 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	}
 	log.Print("Running aerospike.upgrade")
 	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
 	if b.Arch() == TypeArchAmd {
 		isArm = false
 	}

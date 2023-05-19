@@ -56,6 +56,9 @@ EOF
 
 	aerospikeInstallScript["aws:ubuntu:20.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["aws:ubuntu:18.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
+	aerospikeInstallScript["gcp:ubuntu:22.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
+	aerospikeInstallScript["gcp:ubuntu:20.04"] = aerospikeInstallScript["aws:ubuntu:20.04"]
+	aerospikeInstallScript["gcp:ubuntu:18.04"] = aerospikeInstallScript["aws:ubuntu:18.04"]
 
 	aerospikeInstallScript["aws:centos:7"] = `#!/bin/bash
 set -o xtrace
@@ -125,6 +128,9 @@ systemctl daemon-reload
 `
 	//systemctl enable --now cockpit.socket; echo b0bTheBuilder |passwd --stdin root;  echo b0bTheBuilder |passwd --stdin centos
 
+	aerospikeInstallScript["gcp:centos:7"] = aerospikeInstallScript["aws:centos:7"]
+	aerospikeInstallScript["gcp:centos:8"] = aerospikeInstallScript["aws:centos:8"]
+
 	aerospikeInstallScript["aws:amazon:2"] = `#!/bin/bash
 set -i xtrace
 cat <<'EOF' > /usr/local/bin/early.sh
@@ -155,6 +161,8 @@ yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install 
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 `
+
+	aerospikeInstallScript["gcp:amazon:2"] = aerospikeInstallScript["aws:centos:7"]
 
 	aerospikeInstallScript["docker:ubuntu:22.04"] = `#!/bin/bash
 export DEBIAN_FRONTEND=noninteractive
@@ -353,4 +361,8 @@ chmod 755 /etc/init.d/aerospike
 	aerospikeInstallScript["aws:debian:9"] = aerospikeInstallScript["aws:debian:11"]
 	aerospikeInstallScript["aws:debian:8"] = aerospikeInstallScript["aws:debian:11"]
 
+	aerospikeInstallScript["gcp:debian:11"] = aerospikeInstallScript["aws:ubuntu:22.04"]
+	aerospikeInstallScript["gcp:debian:10"] = aerospikeInstallScript["aws:debian:11"]
+	aerospikeInstallScript["gcp:debian:9"] = aerospikeInstallScript["aws:debian:11"]
+	aerospikeInstallScript["gcp:debian:8"] = aerospikeInstallScript["aws:debian:11"]
 }
