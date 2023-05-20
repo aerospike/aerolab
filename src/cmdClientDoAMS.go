@@ -146,6 +146,10 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed1): %s", err)
 	}
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak1", "-E", "s/- job_name: node/- job_name: nodelocal/g", "/etc/prometheus/prometheus.yml"})
+	if err != nil {
+		return fmt.Errorf("failed to configure prometheus (sed1.5): %s", err)
+	}
 	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed2): %s", err)
