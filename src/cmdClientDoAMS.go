@@ -208,6 +208,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/users.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/users.json"},
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/xdr.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/xdr.json"},
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/asbench2.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node-exporter-full.json", "https://raw.githubusercontent.com/rfmoz/grafana-dashboards/master/prometheus/node-exporter-full.json"},
 	}
 	for _, dashboard := range dashboards {
 		err = a.opts.Attach.Client.run(dashboard)
