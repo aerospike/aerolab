@@ -189,5 +189,17 @@ function all {
     cleanup
 }
 
-#all
-cleanup
+function custom {
+    echo "Create default"
+    $comm cluster create -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a
+    echo "grow centos"
+    $comm cluster grow -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a -d centos -i 8
+    echo "grow debian"
+    $comm cluster grow -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a -d debian -i 11
+    echo "list"
+    $comm cluster list
+}
+
+all
+#cleanup
+#custom
