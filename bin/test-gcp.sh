@@ -121,6 +121,28 @@ function clients {
     set +e
 }
 
+function stopstart {
+    echo "Create default"
+    $comm cluster create -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a
+    echo "grow centos"
+    $comm cluster grow -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a -d centos -i 8
+    echo "grow debian"
+    $comm cluster grow -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a -d debian -i 11
+    echo "list"
+    $comm cluster list
+    echo "cluster stop"
+    $comm cluster stop
+    echo "list"
+    $comm cluster list
+    echo "cluster start"
+    $comm cluster start
+    echo "list"
+    $comm cluster list
+    sleep 5
+    echo "asadm"
+    $comm attach shell -- asadm -e info
+}
+
 function all {
     echo " <><> Cleanup <><>"
     cleanup
@@ -139,6 +161,11 @@ function all {
 
     echo " <><> Test cluster commands <><>"
     create_cluster
+    echo "Press ENTER to continue"
+    read
+
+    echo " <><> Test cluster stop-start <><>"
+    stopstart
     echo "Press ENTER to continue"
     read
 
@@ -189,17 +216,4 @@ function all {
     cleanup
 }
 
-function custom {
-    echo "Create default"
-    $comm cluster create -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a
-    echo "grow centos"
-    $comm cluster grow -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a -d centos -i 8
-    echo "grow debian"
-    $comm cluster grow -v 6.3.0.3 -c 2 --instance e2-medium --disk=balanced:20 --disk=ssd:30 --external-ip --zone=us-central1-a -d debian -i 11
-    echo "list"
-    $comm cluster list
-}
-
 all
-#cleanup
-#custom
