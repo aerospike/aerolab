@@ -57,7 +57,7 @@ func (c *createFirewallCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type != "gcp" {
 		return logFatal("required backend type to be GCP")
 	}
-	log.Print("Creating security groups")
+	log.Print("Creating firewall rules")
 	err := b.CreateSecurityGroups("")
 	if err != nil {
 		return err
@@ -73,7 +73,7 @@ func (c *destroyFirewallCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type != "gcp" {
 		return logFatal("required backend type to be GCP")
 	}
-	log.Print("Removing security groups")
+	log.Print("Removing firewall rules")
 	err := b.DeleteSecurityGroups("")
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (c *lockFirewallCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type != "gcp" {
 		return logFatal("required backend type to be GCP")
 	}
-	log.Print("Locking security groups")
+	log.Print("Locking firewall rules")
 	err := b.LockSecurityGroups(c.IP, true, "")
 	if err != nil {
 		return err
