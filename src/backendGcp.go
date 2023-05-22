@@ -505,6 +505,7 @@ func (d *backendGcp) getInstanceDetails(name string, nodes []int) (zones map[int
 
 func (d *backendGcp) ClusterStart(name string, nodes []int) error {
 	var err error
+	ops := []gcpMakeOps{}
 	if len(nodes) == 0 {
 		nodes, err = d.NodeListInCluster(name)
 		if err != nil {
@@ -536,8 +537,43 @@ func (d *backendGcp) ClusterStart(name string, nodes []int) error {
 		if err != nil {
 			return fmt.Errorf("unable to start instance: %w", err)
 		}
-		if err = op.Wait(ctx); err != nil {
+		ops = append(ops, gcpMakeOps{
+			op:  op,
+			ctx: ctx,
+		})
+	}
+
+	for _, o := range ops {
+		if err = o.op.Wait(o.ctx); err != nil {
 			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+
+	_, keyPath, err := d.getKey(name)
+	if err != nil {
+		return fmt.Errorf("unable to locate keyPath for the cluster: %s", err)
+	}
+
+	nodeIps, err := d.GetNodeIpMap(name, false)
+	if err != nil {
+		return err
+	}
+	nodeCount := len(nodes)
+
+	for {
+		working := 0
+		for _, node := range nodes {
+			instIp := nodeIps[node]
+			_, err = remoteRun("root", fmt.Sprintf("%s:22", instIp), keyPath, "ls", 0)
+			if err == nil {
+				working++
+			} else {
+				fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", instIp, keyPath, err)
+				time.Sleep(time.Second)
+			}
+		}
+		if working >= nodeCount {
+			break
 		}
 	}
 	return nil
@@ -545,6 +581,7 @@ func (d *backendGcp) ClusterStart(name string, nodes []int) error {
 
 func (d *backendGcp) ClusterStop(name string, nodes []int) error {
 	var err error
+	ops := []gcpMakeOps{}
 	if len(nodes) == 0 {
 		nodes, err = d.NodeListInCluster(name)
 		if err != nil {
@@ -576,7 +613,13 @@ func (d *backendGcp) ClusterStop(name string, nodes []int) error {
 		if err != nil {
 			return fmt.Errorf("unable to stop instance: %w", err)
 		}
-		if err = op.Wait(ctx); err != nil {
+		ops = append(ops, gcpMakeOps{
+			op:  op,
+			ctx: ctx,
+		})
+	}
+	for _, o := range ops {
+		if err = o.op.Wait(o.ctx); err != nil {
 			return fmt.Errorf("unable to wait for the operation: %w", err)
 		}
 	}
@@ -1225,6 +1268,10 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 					{
 						Key:   proto.String("ssh-keys"),
 						Value: proto.String("root:" + string(sshKey)),
+					},
+					{
+						Key:   proto.String("startup-script"),
+						Value: proto.String(d.startupScriptEnableRootLogin()),
 					},
 				},
 			},
@@ -1891,6 +1938,10 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 							Key:   proto.String("ssh-keys"),
 							Value: proto.String("root:" + string(sshKey)),
 						},
+						{
+							Key:   proto.String("startup-script"),
+							Value: proto.String(d.startupScriptEnableRootLogin()),
+						},
 					},
 				},
 				Labels:      labels,
@@ -1958,4 +2009,28 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	log.Print("All connections succeeded, continuing...")
 	return nil
+}
+
+func (d *backendGcp) startupScriptEnableRootLogin() string {
+	return `#!/bin/bash
+CHANGED=0
+grep PermitRootLogin /etc/ssh/sshd_config |grep no
+if [ $? -eq 0 ]
+then
+sed -i.bak 's/PermitRootLogin.*no//g' /etc/ssh/sshd_config
+CHANGED=1
+fi
+egrep '^PermitRootLogin' /etc/ssh/sshd_config |grep prohibit-password
+if [ $? -ne 0 ]
+then
+cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak2
+echo "PermitRootLogin prohibit-password" >> /etc/ssh/sshd_config
+CHANGED=1
+fi
+if [ ${CHANGED} -eq 1 ]
+then
+systemctl restart ssh || systemctl restart sshd || systemctl restart openssh-server
+echo "SSH Reconfigured"
+fi
+`
 }
