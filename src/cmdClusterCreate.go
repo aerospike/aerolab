@@ -810,12 +810,29 @@ WantedBy=multi-user.target`
 		systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
 		systemdScript.fileContents = strings.NewReader(systemdScriptContents)
 		systemdScript.fileSize = len(systemdScriptContents)
-		accessAddressScriptContents := `grep 'alternate-access-address' /etc/aerospike/aerospike.conf
+		accessAddressScriptContents := `INTIP=""; EXTIP=""
+attempts=0
+max=120
+while [ "${INTIP}" = "" ]
+do
+	INTIP=$(curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/ip)
+	[ "${INTIP}" = "" ] && sleep 1 || break
+	attempts=$(( $attempts + 1 ))
+	[ $attempts -eq $max ] && exit 1
+done
+while [ "${EXTIP}" = "" ]
+do
+	EXTIP=$(curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
+	[ "${EXTIP}" = "" ] && sleep 1 || break
+	attempts=$(( $attempts + 1 ))
+	[ $attempts -eq $max ] && exit 1
+done
+grep 'alternate-access-address' /etc/aerospike/aerospike.conf
 if [ $? -ne 0 ]
 then
 	sed -i 's/address any/address any\naccess-address\nalternate-access-address\n/g' /etc/aerospike/aerospike.conf
 fi
-sed -e "s/access-address.*/access-address $(curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/ip)/g" -e "s/alternate-access-address.*/alternate-access-address $(curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
+sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-address.*/alternate-access-address ${EXTIP}/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
 `
 		accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
 		accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
