@@ -3,6 +3,7 @@
 * add node exporter to the prometheus exporter setup
 * if feature file is not provided and cluster size is larger than 1, bail with critical error
 * add `legacy` option to files `upload` and `download` functions
+* partitioner `conf` command now requires a namespace before continuing
 
 #### 5.4.6
 * update all libraries (dependencies)
