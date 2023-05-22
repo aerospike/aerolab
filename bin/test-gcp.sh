@@ -6,9 +6,11 @@ $comm config backend -t gcp -o aerolab-test-project-2
 function cleanup {
     $comm cluster destroy
     $comm cluster destroy -n source,dest
+    $comm client destroy -n ams,tools,jupyter,vscode,trino,elasticsearch,rgw
     $comm template destroy -d all -i all -v all
     $comm template vacuum
     $comm cluster list
+    $comm client list
     $comm template list
 }
 
@@ -80,8 +82,8 @@ function updown {
     $comm attach shell -l all -- cat /root/test
     rm -f test.deleteme
     $comm files download /root/test test.deleteme
-    cat test.deleteme
-    rm -f test.deleteme
+    cat test.deleteme/*/test
+    rm -fr test.deleteme
 }
 
 function roster {
@@ -95,6 +97,28 @@ function xdr {
     $comm data insert -n source
     $comm attach shell -n source -- asadm -e info
     $comm attach shell -n dest -- asadm -e info
+}
+
+function part {
+    $comm cluster partition list
+    $comm cluster partition create -t ebs -p 20,20,20,20
+    $comm cluster partition conf -t ebs -o device
+    $comm cluster partition list
+    $comm attach shell -l 1 -- cat /etc/aerospike/aerospike.conf
+}
+
+function clients {
+    set -e
+    $comm client create ams -n ams -s mydc,source,dest --instance=e2-medium --zone=us-central1-a
+    $comm client create tools -n tools --instance=e2-medium --zone=us-central1-a
+    $comm client configure tools -n tools -m ams
+    $comm client create jupyter -n jupyter --instance=e2-medium --zone=us-central1-a
+    $comm client create vscode -n vscode --instance=e2-medium --zone=us-central1-a
+    $comm client create trino -n trino --instance=e2-medium --zone=us-central1-a
+    $comm client create elasticsearch -n elasticsearch --instance=e2-medium --zone=us-central1-a
+    $comm client create rest-gateway -n rgw --instance=e2-medium --zone=us-central1-a
+    $comm client list
+    set +e
 }
 
 function all {
@@ -148,10 +172,22 @@ function all {
     echo "Press ENTER to continue"
     read
 
-    echo "Now manually test partitioner and clients and press ENTER to cleanup when done"
+    echo " <><> Test partitioner <><>"
+    part
     echo "Press ENTER to continue"
     read
-    clenaup
+
+    echo " <><> Test clients <><>"
+    set -e
+    clients
+    set +e
+    echo "Press ENTER to continue"
+    read
+
+    echo "Press ENTER to cleanup"
+    read
+    cleanup
 }
 
-all
+#all
+cleanup
