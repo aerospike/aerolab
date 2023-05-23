@@ -5,6 +5,7 @@
 * add `legacy` option to files `upload` and `download` functions
 * partitioner `conf` command now requires a namespace before continuing
 * the `net block` command's speed greatly improved - changed execution logic
+* allow to disable colors in `conf generate` command for some terminals
 
 #### 5.4.6
 * update all libraries (dependencies)
