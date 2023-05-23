@@ -24,6 +24,7 @@ Windows | `aerolab-linux-*` | Install and start using [WSL2](https://learn.micro
   * on macOS
   * on Linux
   * on Windows
+* Podman (with the following command to enable: `alias docker=podman`)
 * AWS
 * GCP
 
