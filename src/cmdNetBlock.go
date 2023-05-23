@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/bestmethod/inslice"
 )
@@ -38,6 +40,7 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 	} else {
 		log.Print("Running net.unblock")
 	}
+	log.Print("Gathering cluster information")
 	if c.IsSourceClient {
 		b.WorkOnClients()
 	}
@@ -158,12 +161,14 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 	if wherecClient {
 		b.WorkOnClients()
 	}
+	log.Print("Compiling command list")
+	commandList := make(map[int][]string) // map[node][]command
 	for _, nodes := range wheren {
 		node, err := strconv.Atoi(nodes)
 		if err != nil {
 			return err
 		}
-		container := fmt.Sprintf("cluster %s node %d", wherec, node)
+		//container := fmt.Sprintf("cluster %s node %d", wherec, node)
 		for _, port := range ports {
 			for _, bbb := range towheren {
 				bb, err := strconv.Atoi(bbb)
@@ -181,13 +186,22 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 					}
 				}
 				nComm = append(nComm, "-j", strings.ToUpper(t))
-				log.Printf("Running: %v", nComm)
-				out, err := b.RunCommands(wherec, [][]string{nComm}, []int{node})
-				if err != nil {
-					log.Printf("WARNING: ERROR adding iptables rule on %s to block %s with IP %s\n%s\n", container, fmt.Sprintf("aero-%s_%s", towherec, b), ip, string(out[0]))
-					log.Printf("RAN: %s %s %s %s %s %s %s %s %s %s %s\n", "iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip, "-j", strings.ToUpper(t))
-					return err
+				if _, ok := commandList[node]; !ok {
+					commandList[node] = []string{
+						strings.Join(nComm, " "),
+					}
+				} else {
+					commandList[node] = append(commandList[node], strings.Join(nComm, " "))
 				}
+				/*
+					log.Printf("Running: %v", nComm)
+					out, err := b.RunCommands(wherec, [][]string{nComm}, []int{node})
+					if err != nil {
+						log.Printf("WARNING: ERROR adding iptables rule on %s to block %s with IP %s\n%s\n", container, fmt.Sprintf("aero-%s_%s", towherec, b), ip, string(out[0]))
+						log.Printf("RAN: %s %s %s %s %s %s %s %s %s %s %s\n", "iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip, "-j", strings.ToUpper(t))
+						return err
+					}
+				*/
 				if nodeIpsInternal != nil {
 					ip = nodeIpsInternal[bb]
 					nComm := []string{"/sbin/iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip}
@@ -200,16 +214,48 @@ func (c *netBlockCmd) run(args []string, blockString string) error {
 						}
 					}
 					nComm = append(nComm, "-j", strings.ToUpper(t))
-					log.Printf("Running: %v", nComm)
-					out, err = b.RunCommands(wherec, [][]string{nComm}, []int{node})
-					if err != nil {
-						log.Printf("WARNING: ERROR adding iptables rule on %s to block %s with IP %s\n%s\n", container, fmt.Sprintf("aero-%s_%s", towherec, b), ip, string(out[0]))
-						log.Printf("RAN: %s %s %s %s %s %s %s %s %s %s %s\n", "iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip, "-j", strings.ToUpper(t))
-						return err
+					if _, ok := commandList[node]; !ok {
+						commandList[node] = []string{
+							strings.Join(nComm, " "),
+						}
+					} else {
+						commandList[node] = append(commandList[node], strings.Join(nComm, " "))
 					}
+					/*
+						log.Printf("Running: %v", nComm)
+						out, err = b.RunCommands(wherec, [][]string{nComm}, []int{node})
+						if err != nil {
+							log.Printf("WARNING: ERROR adding iptables rule on %s to block %s with IP %s\n%s\n", container, fmt.Sprintf("aero-%s_%s", towherec, b), ip, string(out[0]))
+							log.Printf("RAN: %s %s %s %s %s %s %s %s %s %s %s\n", "iptables", r, strings.ToUpper(loc), "-p", "tcp", "--dport", port, blockon, ip, "-j", strings.ToUpper(t))
+							return err
+						}
+					*/
 				}
 			}
 		}
+	}
+	log.Print("Executing commands on nodes")
+	isErr := false
+	lock := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
+	for node, commands := range commandList {
+		wg.Add(1)
+		go func(node int, commands []string) {
+			defer wg.Done()
+			out, err := b.RunCommands(wherec, [][]string{{"/bin/bash", "-c", strings.Join(commands, ";")}}, []int{node})
+			if err != nil {
+				log.Printf("ERROR running iptables on cluster %s node %v: %s: %s", wherec, node, err, string(out[0]))
+				lock.Lock()
+				isErr = true
+				lock.Unlock()
+			} else {
+				log.Printf("Executed iptables on cluster %s node %v", wherec, node)
+			}
+		}(node, commands)
+	}
+	wg.Wait()
+	if isErr {
+		return errors.New("errors were encountered")
 	}
 	log.Print("Done")
 	return nil
