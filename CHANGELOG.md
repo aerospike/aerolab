@@ -4,6 +4,7 @@
 * if feature file is not provided and cluster size is larger than 1, bail with critical error
 * add `legacy` option to files `upload` and `download` functions
 * partitioner `conf` command now requires a namespace before continuing
+* the `net block` command's speed greatly improved - changed execution logic
 
 #### 5.4.6
 * update all libraries (dependencies)
