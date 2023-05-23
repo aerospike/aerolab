@@ -7,14 +7,14 @@ require (
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
-	github.com/aws/aws-sdk-go v1.44.266
+	github.com/aws/aws-sdk-go v1.44.268
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/jroimartin/gocui v0.5.0
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
 	golang.org/x/crypto v0.9.0
 	golang.org/x/term v0.8.0
-	google.golang.org/api v0.123.0
+	google.golang.org/api v0.124.0
 	google.golang.org/protobuf v1.30.0
 )
 
@@ -24,7 +24,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
-	github.com/googleapis/gax-go/v2 v2.9.0 // indirect
+	github.com/googleapis/gax-go/v2 v2.9.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
