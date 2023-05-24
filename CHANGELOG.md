@@ -10,6 +10,7 @@
 * move to official `quay` repositories for centos version 8 and above
 * move from centos 8 onwards to the stream edition
 * multiple functional and OS-support bugfixes
+* add `client create none` option for creating vanilla instances and containers
 
 #### 5.4.6
 * update all libraries (dependencies)
