@@ -127,6 +127,7 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			a.opts.Files.Upload.Nodes = TypeNodes("all")
 			a.opts.Files.Upload.Files.Source = c.CustomConf
 			a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike-prometheus-exporter/ape.toml")
+			a.opts.Files.Upload.doLegacy = true
 			err = a.opts.Files.Upload.runUpload(args)
 			if err != nil {
 				return err

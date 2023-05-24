@@ -25,6 +25,7 @@ type filesDownloadCmd struct {
 	Aws         filesDownloadCmdAws `no-flag:"true"`
 	Gcp         filesDownloadCmdAws `no-flag:"true"`
 	Files       filesRestCmd        `positional-args:"true"`
+	doLegacy    bool                // set to do legacy if non-legacy fails
 }
 
 type filesDownloadCmdAws struct {
@@ -109,7 +110,15 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 		}
 		err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose, legacy)
 		if err != nil {
-			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
+			if !c.doLegacy {
+				log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
+			} else {
+				log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=switching legacy mode to %t and retrying", string(c.ClusterName), node, err, !legacy)
+				err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose, !legacy)
+				if err != nil {
+					log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=giving up", string(c.ClusterName), node, err)
+				}
+			}
 		}
 	}
 	log.Print("Done")
