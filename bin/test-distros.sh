@@ -6,7 +6,10 @@ then
 fi
 
 comm="aerolab-next"
-$comm config backend -t $1
+project="aerolab-test-project-1"
+region="ca-central-1"
+
+$comm config backend -t $1 -o ${project} -r ${region}
 
 $comm cluster destroy -f
 $comm client destroy -f -n client
