@@ -648,7 +648,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		if err != nil {
 			return err
 		}
-		fmt.Println(nip)
+		log.Printf("Node IP map: %v", nip)
 		for _, nnode := range nodeListNew {
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClusterName), nnode)
 			newHostname = strings.ReplaceAll(newHostname, "_", "-")

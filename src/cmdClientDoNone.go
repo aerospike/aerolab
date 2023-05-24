@@ -185,7 +185,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(nip)
+		log.Printf("Node IP map: %v", nip)
 		for _, nnode := range nodeListNew {
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClientName), nnode)
 			newHostname = strings.ReplaceAll(newHostname, "_", "-")

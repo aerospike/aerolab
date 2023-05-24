@@ -503,7 +503,7 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 		}
 	}
 
-	log.Print("Waiting for Instance to be UP")
+	log.Println("Waiting for Instance to be UP")
 	d.ec2svc.WaitUntilInstanceRunning(&ec2.DescribeInstancesInput{
 		DryRun:      aws.Bool(false),
 		InstanceIds: instList,
@@ -511,7 +511,7 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 
 	start := time.Now()
 	// wait for IPs
-	log.Print("Waiting for Public IPs")
+	log.Println("Waiting for Public IPs")
 	var nip map[int]string
 	for {
 		nip, err = d.GetNodeIpMap(name, false)
@@ -537,7 +537,7 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 
 	start = time.Now()
 	// wait for SSH to be up
-	log.Print("Waiting for SSH to be available")
+	log.Println("Waiting for SSH to be available")
 	_, keyPath, err := d.getKey(name)
 	if err != nil {
 		return err
@@ -555,6 +555,7 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 			}
 		}
 	}
+	log.Println("Instance UP, continuing")
 	return nil
 }
 
