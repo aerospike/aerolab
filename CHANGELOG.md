@@ -6,6 +6,10 @@
 * partitioner `conf` command now requires a namespace before continuing
 * the `net block` command's speed greatly improved - changed execution logic
 * allow to disable colors in `conf generate` command for some terminals
+* add support for centos 9
+* move to official `quay` repositories for centos version 8 and above
+* move from centos 8 onwards to the stream edition
+* multiple functional and OS-support bugfixes
 
 #### 5.4.6
 * update all libraries (dependencies)
