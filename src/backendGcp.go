@@ -1141,8 +1141,8 @@ func (d *backendGcp) getImage(v backendVersion) (string, error) {
 		project = "debian-cloud"
 	case "centos":
 		dv := v.distroVersion
-		if dv == "8" {
-			dv = "stream-8"
+		if dv != "6" && dv != "7" {
+			dv = "stream-" + dv
 		}
 		filter = fmt.Sprintf("(family:%s) AND (architecture:%s)", gcpTagEnclose("centos-"+dv+"*"), gcpTagEnclose(arch))
 		project = "centos-cloud"
