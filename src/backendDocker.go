@@ -253,7 +253,7 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 	defer delShutdownHandler("deployTemplate")
 	// deploy container with os
 	deployTemplateShutdownMaking <- 1
-	out, err := exec.Command("docker", "run", "-td", "--name", templName, fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)).CombinedOutput()
+	out, err := exec.Command("docker", "run", "-td", "--name", templName, d.centosNaming(v)).CombinedOutput()
 	<-deployTemplateShutdownMaking
 	if err != nil {
 		return fmt.Errorf("could not start vanilla container: %s;%s", out, err)
