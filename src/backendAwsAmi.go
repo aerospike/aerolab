@@ -118,11 +118,20 @@ func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err
 				continue
 			}
 			val := vals[1]
-			vals = strings.Split(val, ".")
-			if len(vals) < 3 {
-				continue
+			ver := ""
+			if v.distroVersion != "6" && v.distroVersion != "7" {
+				if vals[1] != "Stream" {
+					continue
+				}
+				val = vals[2]
+				ver = val
+			} else {
+				vals = strings.Split(val, ".")
+				if len(vals) < 3 {
+					continue
+				}
+				ver = vals[0]
 			}
-			ver := vals[0]
 			if v.distroVersion == ver {
 				cdstring := *ami.CreationDate
 				if len(cdstring) < 19 {
@@ -170,7 +179,7 @@ func (d *backendAws) getUser(v backendVersion) string {
 		return "ubuntu"
 	case "centos":
 		switch v.distroVersion {
-		case "8", "7":
+		case "9", "8", "7":
 			return "centos"
 		}
 		return "ec2-user"
