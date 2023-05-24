@@ -423,7 +423,7 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		exposeList := []string{"run"}
 		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
 		if d.client {
-			tmplName = fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)
+			tmplName = d.centosNaming(v)
 		}
 		if extra.dockerHostname {
 			exposeList = append(exposeList, "--hostname", name+"-"+strconv.Itoa(node))
@@ -458,6 +458,20 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		}
 	}
 	return nil
+}
+
+func (d *backendDocker) centosNaming(v backendVersion) (templName string) {
+	if v.distroName != "centos" {
+		return fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)
+	}
+	switch v.distroVersion {
+	case "6":
+		return "quay.io/centos/centos:6"
+	case "7":
+		return "quay.io/centos/centos:7"
+	default:
+		return "quay.io/centos/centos:stream" + v.distroVersion
+	}
 }
 
 func (d *backendDocker) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
