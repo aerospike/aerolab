@@ -182,6 +182,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 
 	repl := "cd aerospike-server-* ; ./asinstall || exit 1"
 	repl2 := "cd /root && tar -zxf installer.tgz || exit 1"
+	repl3 := "cd /root && tar -zxvf installer.tgz || exit 1"
 	scriptBase := "aws:"
 	if a.opts.Config.Backend.Type == "gcp" {
 		scriptBase = "gcp:"
@@ -189,6 +190,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	installer := aerospikeInstallScript[scriptBase+string(c.DistroName)+":"+string(c.DistroVersion)]
 	installer = strings.ReplaceAll(installer, repl, "")
 	installer = strings.ReplaceAll(installer, repl2, "")
+	installer = strings.ReplaceAll(installer, repl3, "")
 	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{"/opt/install-base.sh", strings.NewReader(installer), len(installer)}}, nodeListNew)
 	if err != nil {
 		return nil, fmt.Errorf("could not copy install script to nodes: %s", err)
