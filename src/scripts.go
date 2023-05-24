@@ -87,7 +87,7 @@ yum -y install python
 yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
-yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
+yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 `
@@ -189,7 +189,7 @@ yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
-yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
+yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 `
