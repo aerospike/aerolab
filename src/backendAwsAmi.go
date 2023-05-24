@@ -171,7 +171,7 @@ func (d *backendAws) getUser(v backendVersion) string {
 		return "ubuntu"
 	case "centos":
 		switch v.distroVersion {
-		case "9", "8", "7":
+		case "8", "7":
 			return "centos"
 		}
 		return "ec2-user"
