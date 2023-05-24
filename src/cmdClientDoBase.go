@@ -183,11 +183,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	repl := "cd aerospike-server-* ; ./asinstall || exit 1"
 	repl2 := "cd /root && tar -zxf installer.tgz || exit 1"
 	repl3 := "cd /root && tar -zxvf installer.tgz || exit 1"
-	scriptBase := "aws:"
-	if a.opts.Config.Backend.Type == "gcp" {
-		scriptBase = "gcp:"
-	}
-	installer := aerospikeInstallScript[scriptBase+string(c.DistroName)+":"+string(c.DistroVersion)]
+	installer := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+string(c.DistroName)+":"+string(c.DistroVersion)]
 	installer = strings.ReplaceAll(installer, repl, "")
 	installer = strings.ReplaceAll(installer, repl2, "")
 	installer = strings.ReplaceAll(installer, repl3, "")
