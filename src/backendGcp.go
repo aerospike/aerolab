@@ -1207,6 +1207,10 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	if extra.zone == "" {
 		return errors.New("zone must be specified")
 	}
+	if v.distroName == "amazon" && v.distroVersion == "2" {
+		v.distroName = "centos"
+		v.distroVersion = "7"
+	}
 	addShutdownHandler("deployGcpTemplate", func(os.Signal) {
 		deployGcpTemplateShutdownMaking <- 1
 		d.VacuumTemplate(v)
@@ -1797,7 +1801,10 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	if extra.instanceType == "" {
 		return errors.New("instance type must be specified")
 	}
-
+	if v.distroName == "amazon" && v.distroVersion == "2" {
+		v.distroName = "centos"
+		v.distroVersion = "7"
+	}
 	isArm := "amd"
 	if v.isArm {
 		isArm = "arm"
