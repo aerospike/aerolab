@@ -89,8 +89,14 @@ func (c *filesUploadCmd) runUpload(args []string) error {
 	}
 	for _, node := range nodes {
 		err = b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), verbose, legacy)
-		if err != nil {
+		if !c.doLegacy {
 			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
+		} else {
+			log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=switching legacy mode to %t and retrying", string(c.ClusterName), node, err, !legacy)
+			err = b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), verbose, !legacy)
+			if err != nil {
+				log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=giving up", string(c.ClusterName), node, err)
+			}
 		}
 	}
 	log.Print("Done")

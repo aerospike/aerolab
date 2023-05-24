@@ -125,6 +125,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Installer.Download.Password = c.Password
 	a.opts.Installer.Download.Username = c.Username
 	a.opts.Installer.Download.IsArm = isArm
+	a.opts.Files.Upload.doLegacy = true
 	fn, err := a.opts.Installer.Download.runDownload(args)
 	if err != nil {
 		return err
@@ -134,6 +135,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Files.Upload.Files.Source = flags.Filename(fn)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/opt/installer.tgz")
 	a.opts.Files.Upload.IsClient = true
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(args)
 	if err != nil {
 		return err
@@ -166,6 +168,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Files.Upload.Files.Source = flags.Filename(fName)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/bin/run_asbench")
 	a.opts.Files.Upload.IsClient = true
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(args)
 	if err != nil {
 		return err
@@ -182,6 +185,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		a.opts.Files.Upload.Files.Source = c.CustomToolsFilePath
 		a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike/astools.conf")
 		a.opts.Files.Upload.IsClient = true
+		a.opts.Files.Upload.doLegacy = true
 		err = a.opts.Files.Upload.runUpload(args)
 		if err != nil {
 			return err
@@ -195,6 +199,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		a.opts.Files.Upload.Files.Source = flags.Filename(c.StartScript)
 		a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/local/bin/start.sh")
 		a.opts.Files.Upload.IsClient = true
+		a.opts.Files.Upload.doLegacy = true
 		err = a.opts.Files.Upload.runUpload(args)
 		if err != nil {
 			return err

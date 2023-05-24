@@ -127,6 +127,7 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 	a.opts.Files.Upload.Nodes = TypeNodes(c.Machines)
 	a.opts.Files.Upload.Files.Source = flags.Filename(fn)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/install.sh")
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(nil)
 	if err != nil {
 		return err

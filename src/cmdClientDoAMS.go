@@ -235,6 +235,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	a.opts.Files.Upload.Files.Source = flags.Filename(fName)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/grafana/provisioning/dashboards/dashboards.yaml")
 	a.opts.Files.Upload.IsClient = true
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(args)
 	if err != nil {
 		return err
@@ -327,6 +328,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		a.opts.Files.Upload.Files.Source = flags.Filename(c.StartScript)
 		a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/local/bin/start.sh")
 		a.opts.Files.Upload.IsClient = true
+		a.opts.Files.Upload.doLegacy = true
 		err = a.opts.Files.Upload.runUpload(args)
 		if err != nil {
 			return err
