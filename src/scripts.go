@@ -127,9 +127,10 @@ rm -f /etc/systemd/system/sshd-keygen\@.service.d/disable-sshd-keygen-if-cloud-i
 systemctl daemon-reload
 `
 	//systemctl enable --now cockpit.socket; echo b0bTheBuilder |passwd --stdin root;  echo b0bTheBuilder |passwd --stdin centos
-
+	aerospikeInstallScript["aws:centos:9"] = aerospikeInstallScript["aws:centos:8"]
 	aerospikeInstallScript["gcp:centos:7"] = aerospikeInstallScript["aws:centos:7"]
 	aerospikeInstallScript["gcp:centos:8"] = aerospikeInstallScript["aws:centos:8"]
+	aerospikeInstallScript["gcp:centos:9"] = aerospikeInstallScript["aws:centos:9"]
 
 	aerospikeInstallScript["aws:amazon:2"] = `#!/bin/bash
 set -i xtrace
@@ -349,6 +350,7 @@ chmod 755 /etc/init.d/aerospike
 `
 
 	aerospikeInstallScript["docker:centos:8"] = strings.Replace(strings.Replace(aerospikeInstallScript["docker:centos:7"], "#!/bin/bash", "#!/bin/bash\ndnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y || exit 1", 1), "libcurl-openssl-devel", "libcurl-devel", 1)
+	aerospikeInstallScript["docker:centos:9"] = aerospikeInstallScript["docker:centos:8"]
 	aerospikeInstallScript["docker:amazon:2"] = aerospikeInstallScript["docker:centos:7"]
 
 	aerospikeInstallScript["docker:debian:11"] = aerospikeInstallScript["docker:ubuntu:22.04"]
