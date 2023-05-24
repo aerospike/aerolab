@@ -10,6 +10,15 @@ project="aerolab-test-project-1"
 region="ca-central-1"
 
 $comm config backend -t $1 -o ${project} -r ${region}
+if [ "$1" = "aws" ]
+then
+    $comm config aws create-security-groups
+    $comm config aws lock-security-groups
+elif [ "$1" = "gcp" ]
+then
+    $comm config gcp create-firewall-rules
+    $comm config gcp lock-firewall-rules
+fi
 
 $comm cluster destroy -f
 $comm client destroy -f -n client
