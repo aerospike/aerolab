@@ -3,6 +3,7 @@ package main
 import "os"
 
 type clientCreateCmd struct {
+	None          clientCreateNoneCmd          `command:"none" subcommands-optional:"true" description:"vanilla OS image with no package modifications"`
 	Base          clientCreateBaseCmd          `command:"base" subcommands-optional:"true" description:"simple base image"`
 	Tools         clientCreateToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
 	AMS           clientCreateAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
