@@ -39,7 +39,10 @@ $comm cluster grow -v 6.3.0.3 -d debian -i 11 --instance-type t3a.medium --insta
 $comm cluster grow -v 6.3.0.3 -d centos -i 7 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
 $comm cluster grow -v 6.3.0.3 -d centos -i 8 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
 $comm cluster grow -v 6.3.0.3 -d centos -i 9 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
-$comm cluster grow -v 6.3.0.3 -d amazon -i 2 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
+if [ "$1" != "gcp" ]
+then
+    $comm cluster grow -v 6.3.0.3 -d amazon -i 2 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
+fi
 set +e
 
 $comm cluster destroy -f
@@ -54,7 +57,10 @@ $comm client grow base -d debian -i 11 --instance-type t3a.medium --instance e2-
 $comm client grow base -d centos -i 7 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
 $comm client grow base -d centos -i 8 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
 $comm client grow base -d centos -i 9 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
-$comm client grow base -d amazon -i 2 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
+if [ "$1" != "gcp" ]
+then
+    $comm client grow base -d amazon -i 2 --instance-type t3a.medium --instance e2-medium --zone us-central1-a
+fi
 set +e
 
 $comm client destroy -f -n client
