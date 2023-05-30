@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 type clientCreateAMSCmd struct {
 	clientCreateBaseCmd
 	ConnectClusters TypeClusterName `short:"s" long:"clusters" default:"mydc" description:"comma-separated list of clusters to configure as source for this AMS"`
+	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
 	chDirCmd
 }
 
@@ -42,6 +44,12 @@ func init() {
 func (c *clientCreateAMSCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":3000") {
+		fmt.Println("Docker backend is in use, but AMS access port is not being forwarded. If using Docker Desktop, use '-e 3000:3000' parameter in order to forward port 3000 for grafana. This can only be done for one system. Press ENTER to continue regardless.")
+		if !c.JustDoIt {
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
 	}
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
@@ -337,6 +345,9 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs. Username:Password is admin:admin")
 	log.Print("Done")
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")
+	if a.opts.Config.Backend.Type == "docker" {
+		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:3000 in your browser instead of using the client IP from `client list` command.")
+	}
 	if a.opts.Config.Backend.Type == "aws" {
 		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
 	}

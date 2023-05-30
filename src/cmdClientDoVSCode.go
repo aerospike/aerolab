@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -12,7 +13,8 @@ import (
 
 type clientCreateVSCodeCmd struct {
 	clientCreateBaseCmd
-	Kernels string `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
+	Kernels  string `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
+	JustDoIt bool   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
 	chDirCmd
 }
 
@@ -28,6 +30,12 @@ type clientAddVSCodeCmd struct {
 func (c *clientCreateVSCodeCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":8080") {
+		fmt.Println("Docker backend is in use, but vscode access port is not being forwarded. If using Docker Desktop, use '-e 8080:8080' parameter in order to forward port 8080. Press ENTER to continue regardless.")
+		if !c.JustDoIt {
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
 	}
 	if c.DistroVersion == "latest" {
 		c.DistroVersion = "20.04"
@@ -160,6 +168,9 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 		return err
 	}
 	log.Print("Done, to access vscode, run `aerolab client list` to get the IP, and then visit http://IP:8080 in your browser")
+	if a.opts.Config.Backend.Type == "docker" {
+		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:8080 in your browser instead")
+	}
 	if a.opts.Config.Backend.Type == "aws" {
 		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
 	}
