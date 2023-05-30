@@ -11,6 +11,7 @@
 * move from centos 8 onwards to the stream edition
 * multiple functional and OS-support bugfixes
 * add `client create none` option for creating vanilla instances and containers
+* check and confirm if docker is in use and clients are being deployed without forwarded ports
 
 #### 5.4.6
 * update all libraries (dependencies)
