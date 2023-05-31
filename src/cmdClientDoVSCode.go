@@ -227,8 +227,6 @@ cat <<'EOF' > /root/.local/share/code-server/User/settings.json
     "window.menuBarVisibility": "classic",
     "workbench.colorTheme": "Default Dark+",
     "workbench.startupEditor": "none",
-    "omnisharp.dotnetPath": "/root/dotnet",
-    "omnisharp.sdkPath": "/root/dotnet/sdk/6.0.300",
 }
 EOF
 }
@@ -285,10 +283,13 @@ function knet() {
 	wget -O dotnet.tar.gz ${url} || return 1
 	mkdir -p /root/dotnet && tar zxf dotnet.tar.gz -C /root/dotnet || return 2
 	export DOTNET_ROOT=/root/dotnet
-	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive
+	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive --version 1.0.355307
 	code-server --install-extension ms-dotnettools.vscode-dotnet-runtime
 	code-server --install-extension muhammad-sammy.csharp
-	cd /opt/code/dotnet && /root/dotnet/dotnet restore || echo "notdotnet"
+	cd /opt/code/dotnet && /root/dotnet/dotnet restore
+	ln -s /root/dotnet/dotnet /usr/bin/dotnet
+	ln -s /root/.dotnet/tools/dotnet-interactive /usr/bin/dotnet-interactive
+	echo "dotnet exit"
 }
 
 function start() {
