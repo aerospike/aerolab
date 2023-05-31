@@ -1,4 +1,4 @@
-#### 6.0.0
+#### 6.0.1
 * support for `gcp` backend
 * add node exporter to the prometheus exporter setup
 * if feature file is not provided and cluster size is larger than 1, bail with critical error
