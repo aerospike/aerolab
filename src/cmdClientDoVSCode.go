@@ -228,7 +228,7 @@ cat <<'EOF' > /root/.local/share/code-server/User/settings.json
     "workbench.colorTheme": "Default Dark+",
     "workbench.startupEditor": "none",
     "omnisharp.dotnetPath": "/root/dotnet",
-    "omnisharp.sdkPath": "/root/dotnet/sdk/6.0.300",
+    "omnisharp.sdkPath": "/root/dotnet/sdk/7.0.302",
 }
 EOF
 }
