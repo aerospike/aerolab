@@ -6,8 +6,6 @@
 
 [Deploy a Trino server](trino.md)
 
-[Deploy a Jupyter Notebook VM with AeroLab](jupyter.md)
-
 [Deploy the Elasticsearch connector for Aerospike](elasticsearch.md)
 
 [Deploy a Rest Gateway](restgw.md)
@@ -43,7 +41,6 @@ Available commands:
   base           simple base image
   tools          aerospike-tools
   ams            prometheus and grafana for AMS; for exporter see: cluster add exporter
-  jupyter        launch a jupyter IDE client
   vscode         launch a VSCode IDE client
   trino          launch a Trino server (use 'client attach trino' to get Trino shell)
   elasticsearch  deploy elasticsearch with the es connector for aerospike

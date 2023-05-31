@@ -7,7 +7,6 @@ type clientCreateCmd struct {
 	Base          clientCreateBaseCmd          `command:"base" subcommands-optional:"true" description:"simple base image"`
 	Tools         clientCreateToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
 	AMS           clientCreateAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
-	Jupyter       clientCreateJupyterCmd       `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
 	VSCode        clientCreateVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
 	Trino         clientCreateTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
 	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike"`
@@ -20,7 +19,6 @@ type clientAddCmd struct {
 	Tools         clientAddToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
 	AMS           clientAddAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
 	VSCode        clientAddVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
-	Jupyter       clientAddJupyterCmd       `command:"jupyter" subcommands-optional:"true" description:"launch a jupyter IDE client"`
 	Trino         clientAddTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
 	ElasticSearch clientAddElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike"`
 	RestGateway   clientAddRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine"`
@@ -60,11 +58,6 @@ func init() {
 	addBackendSwitch("client.grow.ams", "aws", &a.opts.Client.Grow.AMS.Aws)
 	addBackendSwitch("client.grow.ams", "docker", &a.opts.Client.Grow.AMS.Docker)
 
-	addBackendSwitch("client.create.jupyter", "aws", &a.opts.Client.Create.Jupyter.Aws)
-	addBackendSwitch("client.create.jupyter", "docker", &a.opts.Client.Create.Jupyter.Docker)
-	addBackendSwitch("client.grow.jupyter", "aws", &a.opts.Client.Grow.Jupyter.Aws)
-	addBackendSwitch("client.grow.jupyter", "docker", &a.opts.Client.Grow.Jupyter.Docker)
-
 	addBackendSwitch("client.create.vscode", "aws", &a.opts.Client.Create.VSCode.Aws)
 	addBackendSwitch("client.create.vscode", "docker", &a.opts.Client.Create.VSCode.Docker)
 	addBackendSwitch("client.grow.vscode", "aws", &a.opts.Client.Grow.VSCode.Aws)
@@ -91,8 +84,6 @@ func init() {
 	addBackendSwitch("client.grow.tools", "gcp", &a.opts.Client.Grow.Tools.Gcp)
 	addBackendSwitch("client.create.ams", "gcp", &a.opts.Client.Create.AMS.Gcp)
 	addBackendSwitch("client.grow.ams", "gcp", &a.opts.Client.Grow.AMS.Gcp)
-	addBackendSwitch("client.create.jupyter", "gcp", &a.opts.Client.Create.Jupyter.Gcp)
-	addBackendSwitch("client.grow.jupyter", "gcp", &a.opts.Client.Grow.Jupyter.Gcp)
 	addBackendSwitch("client.create.vscode", "gcp", &a.opts.Client.Create.VSCode.Gcp)
 	addBackendSwitch("client.grow.vscode", "gcp", &a.opts.Client.Grow.VSCode.Gcp)
 	addBackendSwitch("client.create.trino", "gcp", &a.opts.Client.Create.Trino.Gcp)

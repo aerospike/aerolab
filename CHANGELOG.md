@@ -1,17 +1,18 @@
 #### 6.0.1
-* support for `gcp` backend
-* add node exporter to the prometheus exporter setup
-* if feature file is not provided and cluster size is larger than 1, bail with critical error
-* add `legacy` option to files `upload` and `download` functions
-* partitioner `conf` command now requires a namespace before continuing
-* the `net block` command's speed greatly improved - changed execution logic
-* allow to disable colors in `conf generate` command for some terminals
-* add support for centos 9
-* move to official `quay` repositories for centos version 8 and above
-* move from centos 8 onwards to the stream edition
-* multiple functional and OS-support bugfixes
-* add `client create none` option for creating vanilla instances and containers
-* check and confirm if docker is in use and clients are being deployed without forwarded ports
+* Support for `gcp` backend.
+* Add node exporter to the prometheus exporter setup.
+* If feature file is not provided and cluster size is larger than 1, bail with critical error.
+* Add `legacy` option to files `upload` and `download` functions.
+* Partitioner `conf` command now requires a namespace before continuing.
+* The `net block` command's speed greatly improved - changed execution logic.
+* Allow to disable colors in `conf generate` command for some terminals.
+* Add support for centos 9.
+* Move to official `quay` repositories for centos version 8 and above.
+* Move from centos 8 onwards to the stream edition.
+* Multiple functional and OS-support bugfixes.
+* Add `client create none` option for creating vanilla instances and containers.
+* Check and confirm if docker is in use and clients are being deployed without forwarded ports.
+* Deprecated `jupyter` client.
 
 #### 5.4.6
 * update all libraries (dependencies)

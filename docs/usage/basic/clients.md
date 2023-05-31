@@ -31,7 +31,6 @@ Available commands:
   base           simple base image
   tools          aerospike-tools
   ams            prometheus and grafana for AMS; for exporter see: cluster add exporter
-  jupyter        launch a jupyter IDE client
   vscode         launch a VSCode IDE client
   trino          launch a Trino server (use 'client attach trino' to get Trino shell)
   elasticsearch  deploy elasticsearch with the es connector for aerospike
