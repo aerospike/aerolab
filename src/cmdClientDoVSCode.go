@@ -235,23 +235,23 @@ EOF
 
 function kgo() {
 	apt-get install -y gcc || return 1
-	url="https://go.dev/dl/go1.19.3.linux-amd64.tar.gz"
+	url="https://go.dev/dl/go1.20.4.linux-amd64.tar.gz"
 	uname -p |egrep 'x86_64|amd64'
-	[ $? -ne 0 ] && url="https://go.dev/dl/go1.19.3.linux-arm64.tar.gz"
+	[ $? -ne 0 ] && url="https://go.dev/dl/go1.20.4.linux-arm64.tar.gz"
 	cd /
 	wget -O go.tgz ${url} || return 2
 	tar -C /usr/local -xzf go.tgz || return 3
 	ln -s /usr/local/go/bin/go /usr/local/bin/go || return 4
 	ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt || return 5
 	code-server --install-extension golang.go || return 6
-	go install github.com/cweill/gotests/gotests@v1.6.0
-	go install github.com/fatih/gomodifytags@v1.16.0
-	go install github.com/josharian/impl@v1.1.0
-	go install github.com/haya14busa/goplay/cmd/goplay@v1.0.0
+	go install github.com/cweill/gotests/gotests@latest
+	go install github.com/fatih/gomodifytags@latest
+	go install github.com/josharian/impl@latest
+	go install github.com/haya14busa/goplay/cmd/goplay@latest
 	go install github.com/go-delve/delve/cmd/dlv@latest
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	go install golang.org/x/tools/gopls@latest
-	go install github.com/ramya-rao-a/go-outline@v0.0.0-20210608161538-9736a4bde949
+	go install github.com/ramya-rao-a/go-outline@latest
 }
 
 function kpython() {
@@ -269,18 +269,18 @@ function kjava() {
 	code-server --install-extension vscjava.vscode-java-dependency || return 5
 	code-server --install-extension vscjava.vscode-java-test || return 6
 	cd /tmp && \
-	wget https://dlcdn.apache.org/maven/maven-3/3.8.6/binaries/apache-maven-3.8.6-bin.tar.gz && \
-	tar xvf apache-maven-3.8.6-bin.tar.gz && \
+	wget https://dlcdn.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz && \
+	tar xvf apache-maven-3.8.8-bin.tar.gz && \
 	mkdir -p /usr/share/maven && \
 	cd /usr/share/maven && \
-	cp -r /tmp/apache-maven-3.8.6/* . && \
+	cp -r /tmp/apache-maven-3.8.8/* . && \
 	ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
 }
 
 function knet() {
-	url=https://download.visualstudio.microsoft.com/download/pr/dc930bff-ef3d-4f6f-8799-6eb60390f5b4/1efee2a8ea0180c94aff8f15eb3af981/dotnet-sdk-6.0.300-linux-x64.tar.gz
+	url=https://download.visualstudio.microsoft.com/download/pr/351400ef-f2e6-4ee7-9d1b-4c246231a065/9f7826270fb36ada1bdb9e14bc8b5123/dotnet-sdk-7.0.302-linux-x64.tar.gz
 	uname -p |egrep 'x86_64|amd64'
-	[ $? -ne 0 ] && url=https://download.visualstudio.microsoft.com/download/pr/7c62b503-4ede-4ff2-bc38-50f250a86d89/3b5e9db04cbe0169e852cb050a0dffce/dotnet-sdk-6.0.300-linux-arm64.tar.gz
+	[ $? -ne 0 ] && url=https://download.visualstudio.microsoft.com/download/pr/142603ad-0df5-4aef-bdc2-87b6140c90ed/2cce467e6c954d01024942b8370aaf70/dotnet-sdk-7.0.302-linux-arm64.tar.gz
 	cd /root
 	wget -O dotnet.tar.gz ${url} || return 1
 	mkdir -p /root/dotnet && tar zxf dotnet.tar.gz -C /root/dotnet || return 2
