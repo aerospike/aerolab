@@ -228,7 +228,7 @@ cat <<'EOF' > /root/.local/share/code-server/User/settings.json
     "workbench.colorTheme": "Default Dark+",
     "workbench.startupEditor": "none",
     "omnisharp.dotnetPath": "/root/dotnet",
-    "omnisharp.sdkPath": "/root/dotnet/sdk/7.0.302",
+    "omnisharp.sdkPath": "/root/dotnet/sdk/6.0.300",
 }
 EOF
 }
@@ -278,16 +278,16 @@ function kjava() {
 }
 
 function knet() {
-	url=https://download.visualstudio.microsoft.com/download/pr/351400ef-f2e6-4ee7-9d1b-4c246231a065/9f7826270fb36ada1bdb9e14bc8b5123/dotnet-sdk-7.0.302-linux-x64.tar.gz
+	url=https://download.visualstudio.microsoft.com/download/pr/dc930bff-ef3d-4f6f-8799-6eb60390f5b4/1efee2a8ea0180c94aff8f15eb3af981/dotnet-sdk-6.0.300-linux-x64.tar.gz
 	uname -p |egrep 'x86_64|amd64'
-	[ $? -ne 0 ] && url=https://download.visualstudio.microsoft.com/download/pr/142603ad-0df5-4aef-bdc2-87b6140c90ed/2cce467e6c954d01024942b8370aaf70/dotnet-sdk-7.0.302-linux-arm64.tar.gz
+	[ $? -ne 0 ] && url=https://download.visualstudio.microsoft.com/download/pr/7c62b503-4ede-4ff2-bc38-50f250a86d89/3b5e9db04cbe0169e852cb050a0dffce/dotnet-sdk-6.0.300-linux-arm64.tar.gz
 	cd /root
 	wget -O dotnet.tar.gz ${url} || return 1
 	mkdir -p /root/dotnet && tar zxf dotnet.tar.gz -C /root/dotnet || return 2
 	export DOTNET_ROOT=/root/dotnet
-	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive || return 3
-	code-server --install-extension ms-dotnettools.vscode-dotnet-runtime || return 4
-	code-server --install-extension muhammad-sammy.csharp || return 5
+	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive
+	code-server --install-extension ms-dotnettools.vscode-dotnet-runtime
+	code-server --install-extension muhammad-sammy.csharp
 	cd /opt/code/dotnet && /root/dotnet/dotnet restore || echo "notdotnet"
 }
 
