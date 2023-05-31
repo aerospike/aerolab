@@ -262,7 +262,7 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 		}
 	}
 
-	// ingress rule for client for special ports (grafana, jupyter, vscode), apply on server too, in case we want access from the great beyond
+	// ingress rule for client for special ports (grafana, vscode), apply on server too, in case we want access from the great beyond
 	for _, groupId := range secGroupIds {
 		for _, port := range []int64{3000, 8080, 8888, 9200} {
 			_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
