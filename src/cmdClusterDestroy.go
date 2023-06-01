@@ -3,11 +3,13 @@ package main
 import (
 	"errors"
 	"log"
+	"sync"
 )
 
 type clusterDestroyCmd struct {
 	clusterStopCmd
-	Docker clusterDestroyCmdDocker `no-flag:"true"`
+	Docker   clusterDestroyCmdDocker `no-flag:"true"`
+	Parallel bool                    `short:"p" long:"parallel" description:"if destroying many clusters at once, set this to destroy in parallel"`
 	clusterStartStopDestroyCmd
 }
 
@@ -33,19 +35,37 @@ func (c *clusterDestroyCmd) Execute(args []string) error {
 		return err
 	}
 	var nerr error
-	for _, ClusterName := range cList {
-		if c.Docker.Force && a.opts.Config.Backend.Type == "docker" {
-			b.ClusterStop(ClusterName, nodes[ClusterName])
-		}
-		err = b.ClusterDestroy(ClusterName, nodes[ClusterName])
-		if err != nil {
-			if nerr == nil {
-				nerr = err
-			} else {
-				nerr = errors.New(nerr.Error() + "\n" + err.Error())
-			}
-		}
+	nerrLock := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
+	mu := 15
+	if !c.Parallel {
+		mu = 1
 	}
+	maxUnits := make(chan int, mu)
+	for _, ClusterName := range cList {
+		maxUnits <- 1
+		wg.Add(1)
+		go func(ClusterName string) {
+			defer wg.Done()
+			defer func() {
+				<-maxUnits
+			}()
+			if c.Docker.Force && a.opts.Config.Backend.Type == "docker" {
+				b.ClusterStop(ClusterName, nodes[ClusterName])
+			}
+			err = b.ClusterDestroy(ClusterName, nodes[ClusterName])
+			if err != nil {
+				nerrLock.Lock()
+				if nerr == nil {
+					nerr = err
+				} else {
+					nerr = errors.New(nerr.Error() + "\n" + err.Error())
+				}
+				nerrLock.Unlock()
+			}
+		}(ClusterName)
+	}
+	wg.Wait()
 	if nerr != nil {
 		return nerr
 	}

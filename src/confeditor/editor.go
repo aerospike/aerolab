@@ -256,6 +256,7 @@ func fillMenuItems() {
 
 type Editor struct {
 	Path       string
+	Colors     bool
 	loaded     bool
 	View       string
 	g          *gocui.Gui
@@ -340,7 +341,9 @@ func (e *Editor) viewConfFile(g *gocui.Gui) error {
 		v.Editable = true
 		v.Wrap = true
 		v.Editor = gocui.DefaultEditor
-		v.BgColor = gocui.ColorGreen
+		if e.Colors {
+			v.BgColor = gocui.ColorGreen
+		}
 		v.Title = "<aerospike.conf>"
 		if !e.loaded {
 			if _, err := os.Stat(e.Path); err != nil {
@@ -390,7 +393,9 @@ func (e *Editor) viewHelpBar(g *gocui.Gui) error {
 		if err != gocui.ErrUnknownView {
 			return err
 		}
-		v.BgColor = gocui.ColorYellow
+		if e.Colors {
+			v.BgColor = gocui.ColorYellow
+		}
 		fmt.Fprint(v, "<TAB> switch between views | <CTRL+c> discard and quit | <CTRL+x> save and quit | <CTRL+s> save | UI: <space/enter> select object")
 	}
 	return nil
@@ -424,7 +429,9 @@ func (e *Editor) viewAreYouSure(g *gocui.Gui) error {
 		fmt.Fprintln(v, e.ynQuestion)
 		e.View = "sure"
 		v.Editable = true
-		v.BgColor = gocui.ColorRed
+		if e.Colors {
+			v.BgColor = gocui.ColorRed
+		}
 		v.Editor = gocui.EditorFunc(e.yn)
 		g.Cursor = false
 	}

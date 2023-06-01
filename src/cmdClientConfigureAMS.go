@@ -29,15 +29,22 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 	}
 	b.WorkOnClients()
 	allnodes := []string{}
+	allnodeExp := []string{}
 	for _, nodes := range nodeList {
 		for _, node := range nodes {
 			allnodes = append(allnodes, node+":9145")
+			allnodeExp = append(allnodeExp, node+":9100")
 		}
 	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
+	nips := "'" + strings.Join(allnodeExp, "','") + "'"
 	err = a.opts.Attach.Client.run([]string{"sed", "-i.bakX", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed): %s", err)
+	}
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bakY", "-E", "s/.*TODO_ASDN_TARGETS/      - targets: [" + nips + "] #TODO_ASDN_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+	if err != nil {
+		return fmt.Errorf("failed to configure prometheus (sed.1): %s", err)
 	}
 	// (re)start prometheus
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "kill -HUP $(pidof prometheus)"})

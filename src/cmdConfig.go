@@ -21,6 +21,7 @@ type configCmd struct {
 	Defaults configDefaultsCmd `command:"defaults" subcommands-optional:"true" description:"Show or change defaults in the configuration file"`
 	Aws      configAwsCmd      `command:"aws" subcommands-optional:"true" description:"AWS-only related management commands"`
 	Docker   configDockerCmd   `command:"docker" subcommands-optional:"true" description:"DOCKER-only related management commands"`
+	Gcp      configGcpCmd      `command:"gcp" subcommands-optional:"true" description:"GCP-only related management commands"`
 	Help     helpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -31,9 +32,10 @@ func (c *configCmd) Execute(args []string) error {
 }
 
 type configBackendCmd struct {
-	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker" default:""`
-	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS backend: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
+	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:""`
+	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS and GCP backends: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
 	Region     string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
+	Project    string         `short:"o" long:"project" description:"GCP backend: override default gcp configured project" default:""`
 	TmpDir     flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:""`
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	typeSet    string
@@ -67,6 +69,9 @@ func (c *configBackendCmd) Execute(args []string) error {
 	if c.Type == "aws" {
 		fmt.Printf("Config.Backend.Region = %s\n", c.Region)
 	}
+	if c.Type == "gcp" {
+		fmt.Printf("Config.Backend.Project = %s\n", c.Project)
+	}
 	fmt.Printf("Config.Backend.TmpDir = %s\n", c.TmpDir)
 	return nil
 }
@@ -89,7 +94,7 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 			}
 		}
 	}
-	if c.Type == "aws" {
+	if c.Type == "aws" || c.Type == "gcp" {
 		if strings.Contains(string(c.SshKeyPath), "${HOME}") {
 			ch, err := os.UserHomeDir()
 			if err != nil {
@@ -104,7 +109,7 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 			}
 		}
 	} else if c.Type != "docker" {
-		return errors.New("backend types supported: docker, aws")
+		return errors.New("backend types supported: docker, aws, gcp")
 	}
 	if c.TmpDir == "" {
 		out, err := exec.Command("uname", "-r").CombinedOutput()

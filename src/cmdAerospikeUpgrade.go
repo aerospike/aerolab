@@ -16,6 +16,7 @@ type aerospikeUpgradeCmd struct {
 	aerospikeStartCmd
 	aerospikeVersionSelectorCmd
 	Aws              aerospikeUpgradeCmdAws `no-flag:"true"`
+	Gcp              aerospikeUpgradeCmdAws `no-flag:"true"`
 	RestartAerospike TypeYesNo              `short:"s" long:"restart" description:"Restart aerospike after upgrade (y/n)" default:"y"`
 }
 
@@ -25,6 +26,7 @@ type aerospikeUpgradeCmdAws struct {
 
 func init() {
 	addBackendSwitch("aerospike.upgrade", "aws", &a.opts.Aerospike.Upgrade.Aws)
+	addBackendSwitch("aerospike.upgrade", "gcp", &a.opts.Aerospike.Upgrade.Gcp)
 }
 
 func (c *aerospikeUpgradeCmd) Execute(args []string) error {
@@ -33,6 +35,9 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	}
 	log.Print("Running aerospike.upgrade")
 	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
 	if b.Arch() == TypeArchAmd {
 		isArm = false
 	}

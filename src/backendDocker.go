@@ -253,7 +253,7 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 	defer delShutdownHandler("deployTemplate")
 	// deploy container with os
 	deployTemplateShutdownMaking <- 1
-	out, err := exec.Command("docker", "run", "-td", "--name", templName, fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)).CombinedOutput()
+	out, err := exec.Command("docker", "run", "-td", "--name", templName, d.centosNaming(v)).CombinedOutput()
 	<-deployTemplateShutdownMaking
 	if err != nil {
 		return fmt.Errorf("could not start vanilla container: %s;%s", out, err)
@@ -423,7 +423,7 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		exposeList := []string{"run"}
 		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
 		if d.client {
-			tmplName = fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)
+			tmplName = d.centosNaming(v)
 		}
 		if extra.dockerHostname {
 			exposeList = append(exposeList, "--hostname", name+"-"+strconv.Itoa(node))
@@ -458,6 +458,20 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		}
 	}
 	return nil
+}
+
+func (d *backendDocker) centosNaming(v backendVersion) (templName string) {
+	if v.distroName != "centos" {
+		return fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)
+	}
+	switch v.distroVersion {
+	case "6":
+		return "quay.io/centos/centos:6"
+	case "7":
+		return "quay.io/centos/centos:7"
+	default:
+		return "quay.io/centos/centos:stream" + v.distroVersion
+	}
 }
 
 func (d *backendDocker) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
@@ -642,7 +656,7 @@ func (d *backendDocker) ClusterDestroy(name string, nodes []int) error {
 	return nil
 }
 
-func (d *backendDocker) Upload(clusterName string, node int, source string, destination string, verbose bool) error {
+func (d *backendDocker) Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error {
 	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	cmd := []string{"cp", source, name + ":" + destination}
 	out, err := exec.Command("docker", cmd...).CombinedOutput()
@@ -652,7 +666,7 @@ func (d *backendDocker) Upload(clusterName string, node int, source string, dest
 	return nil
 }
 
-func (d *backendDocker) Download(clusterName string, node int, source string, destination string, verbose bool) error {
+func (d *backendDocker) Download(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error {
 	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	cmd := []string{"cp", name + ":" + source, destination}
 	out, err := exec.Command("docker", cmd...).CombinedOutput()

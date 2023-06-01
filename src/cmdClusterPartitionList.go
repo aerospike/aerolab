@@ -82,6 +82,27 @@ func (f TypeFilterRange) Expand() ([]int, error) {
 	return list, nil
 }
 
+func (c *clusterPartitionListCmd) fixPartOut(bd []blockDevices, blkFormat int) []blockDevices {
+	for i := range bd {
+		bd[i].FsSize = strings.Trim(bd[i].FsSize, "\t\r\n ")
+		bd[i].FsType = strings.Trim(bd[i].FsType, "\t\r\n ")
+		bd[i].Model = strings.Trim(bd[i].Model, "\t\r\n ")
+		bd[i].MountPoint = strings.Trim(bd[i].MountPoint, "\t\r\n ")
+		bd[i].Name = strings.Trim(bd[i].Name, "\t\r\n ")
+		bd[i].Path = strings.Trim(bd[i].Path, "\t\r\n ")
+		bd[i].Size = strings.Trim(bd[i].Size, "\t\r\n ")
+		bd[i].Type = strings.Trim(bd[i].Type, "\t\r\n ")
+		if blkFormat == 2 {
+			bd[i].Path = bd[i].Name
+			bd[i].FsSize = "N/A"
+		}
+		if len(bd[i].Children) > 0 {
+			bd[i].Children = c.fixPartOut(bd[i].Children, blkFormat)
+		}
+	}
+	return bd
+}
+
 func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 	if !inslice.HasString([]string{"nvme", "ebs", "ALL"}, c.FilterType) {
 		return nil, fmt.Errorf("disk type has to be one of: nvme,ebs")
@@ -106,15 +127,23 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 	sort.Ints(nodes)
 	headerPrinted := false
 	for _, node := range nodes {
+		blkFormat := 1
 		ret, err := b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
 		if err != nil {
-			return nil, err
+			blkFormat = 2
+			ret, err = b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-p", "-o", "NAME,FSTYPE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
+			if err != nil {
+				return nil, err
+			}
 		}
 		disks := &blockDeviceInformation{}
 		err = json.Unmarshal(ret[0], disks)
 		if err != nil {
 			return nil, err
 		}
+		// fix centos weirdnesses ...
+		disks.BlockDevices = c.fixPartOut(disks.BlockDevices, blkFormat)
+		// centos fix end
 		out := []string{}
 		sort.Slice(disks.BlockDevices, func(x, y int) bool {
 			return disks.BlockDevices[x].Name < disks.BlockDevices[y].Name
@@ -125,12 +154,12 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 				continue
 			}
 			diskType := ""
-			if disk.Model == "Amazon Elastic Block Store" {
+			if (a.opts.Config.Backend.Type == "aws" && disk.Model == "Amazon Elastic Block Store") || (a.opts.Config.Backend.Type == "gcp" && strings.HasPrefix(disk.Model, "PersistentDisk")) {
 				diskType = "ebs"
 				if c.FilterType != "" && c.FilterType != "ALL" && c.FilterType != "ebs" {
 					continue
 				}
-			} else if disk.Model == "Amazon EC2 NVMe Instance Storage" {
+			} else if (a.opts.Config.Backend.Type == "aws" && disk.Model == "Amazon EC2 NVMe Instance Storage") || (a.opts.Config.Backend.Type == "gcp" && disk.Model != "") {
 				diskType = "nvme"
 				if c.FilterType != "" && c.FilterType != "ALL" && c.FilterType != "nvme" {
 					continue

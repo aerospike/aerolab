@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -12,7 +13,8 @@ import (
 
 type clientCreateVSCodeCmd struct {
 	clientCreateBaseCmd
-	Kernels string `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
+	Kernels  string `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
+	JustDoIt bool   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
 	chDirCmd
 }
 
@@ -28,6 +30,12 @@ type clientAddVSCodeCmd struct {
 func (c *clientCreateVSCodeCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":8080") {
+		fmt.Println("Docker backend is in use, but vscode access port is not being forwarded. If using Docker Desktop, use '-e 8080:8080' parameter in order to forward port 8080. Press ENTER to continue regardless.")
+		if !c.JustDoIt {
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
 	}
 	if c.DistroVersion == "latest" {
 		c.DistroVersion = "20.04"
@@ -127,6 +135,7 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 	a.opts.Files.Upload.Nodes = TypeNodes(c.Machines)
 	a.opts.Files.Upload.Files.Source = flags.Filename(fn)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/install.sh")
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(nil)
 	if err != nil {
 		return err
@@ -159,8 +168,14 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 		return err
 	}
 	log.Print("Done, to access vscode, run `aerolab client list` to get the IP, and then visit http://IP:8080 in your browser")
+	if a.opts.Config.Backend.Type == "docker" {
+		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:8080 in your browser instead")
+	}
 	if a.opts.Config.Backend.Type == "aws" {
 		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
+	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		log.Print("NOTE: if not already done so, consider restricting access by using: aerolab config gcp lock-firewall-rules")
 	}
 	return nil
 }
@@ -212,31 +227,29 @@ cat <<'EOF' > /root/.local/share/code-server/User/settings.json
     "window.menuBarVisibility": "classic",
     "workbench.colorTheme": "Default Dark+",
     "workbench.startupEditor": "none",
-    "omnisharp.dotnetPath": "/root/dotnet",
-    "omnisharp.sdkPath": "/root/dotnet/sdk/6.0.300",
 }
 EOF
 }
 
 function kgo() {
 	apt-get install -y gcc || return 1
-	url="https://go.dev/dl/go1.19.3.linux-amd64.tar.gz"
+	url="https://go.dev/dl/go1.20.4.linux-amd64.tar.gz"
 	uname -p |egrep 'x86_64|amd64'
-	[ $? -ne 0 ] && url="https://go.dev/dl/go1.19.3.linux-arm64.tar.gz"
+	[ $? -ne 0 ] && url="https://go.dev/dl/go1.20.4.linux-arm64.tar.gz"
 	cd /
 	wget -O go.tgz ${url} || return 2
 	tar -C /usr/local -xzf go.tgz || return 3
 	ln -s /usr/local/go/bin/go /usr/local/bin/go || return 4
 	ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt || return 5
 	code-server --install-extension golang.go || return 6
-	go install github.com/cweill/gotests/gotests@v1.6.0
-	go install github.com/fatih/gomodifytags@v1.16.0
-	go install github.com/josharian/impl@v1.1.0
-	go install github.com/haya14busa/goplay/cmd/goplay@v1.0.0
+	go install github.com/cweill/gotests/gotests@latest
+	go install github.com/fatih/gomodifytags@latest
+	go install github.com/josharian/impl@latest
+	go install github.com/haya14busa/goplay/cmd/goplay@latest
 	go install github.com/go-delve/delve/cmd/dlv@latest
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	go install golang.org/x/tools/gopls@latest
-	go install github.com/ramya-rao-a/go-outline@v0.0.0-20210608161538-9736a4bde949
+	go install github.com/ramya-rao-a/go-outline@latest
 }
 
 function kpython() {
@@ -254,11 +267,11 @@ function kjava() {
 	code-server --install-extension vscjava.vscode-java-dependency || return 5
 	code-server --install-extension vscjava.vscode-java-test || return 6
 	cd /tmp && \
-	wget https://dlcdn.apache.org/maven/maven-3/3.8.6/binaries/apache-maven-3.8.6-bin.tar.gz && \
-	tar xvf apache-maven-3.8.6-bin.tar.gz && \
+	wget https://dlcdn.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz && \
+	tar xvf apache-maven-3.8.8-bin.tar.gz && \
 	mkdir -p /usr/share/maven && \
 	cd /usr/share/maven && \
-	cp -r /tmp/apache-maven-3.8.6/* . && \
+	cp -r /tmp/apache-maven-3.8.8/* . && \
 	ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
 }
 
@@ -270,10 +283,13 @@ function knet() {
 	wget -O dotnet.tar.gz ${url} || return 1
 	mkdir -p /root/dotnet && tar zxf dotnet.tar.gz -C /root/dotnet || return 2
 	export DOTNET_ROOT=/root/dotnet
-	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive || return 3
-	code-server --install-extension ms-dotnettools.vscode-dotnet-runtime || return 4
-	code-server --install-extension muhammad-sammy.csharp || return 5
-	cd /opt/code/dotnet && /root/dotnet/dotnet restore || echo "notdotnet"
+	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive --version 1.0.355307
+	code-server --install-extension ms-dotnettools.vscode-dotnet-runtime
+	code-server --install-extension muhammad-sammy.csharp
+	cd /opt/code/dotnet && /root/dotnet/dotnet restore
+	ln -s /root/dotnet/dotnet /usr/bin/dotnet
+	ln -s /root/.dotnet/tools/dotnet-interactive /usr/bin/dotnet-interactive
+	echo "dotnet exit"
 }
 
 function start() {

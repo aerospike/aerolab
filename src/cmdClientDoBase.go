@@ -19,6 +19,7 @@ type clientCreateBaseCmd struct {
 	NoSetHostname bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
 	StartScript   flags.Filename         `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	Aws           clusterCreateCmdAws    `no-flag:"true"`
+	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
 	osSelectorCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -123,12 +124,24 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		publicIP:        c.Aws.PublicIP,
 		tags:            c.Aws.Tags,
 	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		extra = &backendExtra{
+			instanceType: c.Gcp.InstanceType,
+			ami:          c.Gcp.Image,
+			publicIP:     c.Gcp.PublicIP,
+			tags:         c.Gcp.Tags,
+			disks:        c.Gcp.Disks,
+			zone:         c.Gcp.Zone,
+			labels:       c.Gcp.Labels,
+		}
+	}
 
 	// arm fill
 	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
 	if err != nil {
 		return nil, fmt.Errorf("IsSystemArm check: %s", err)
 	}
+	c.Gcp.IsArm = c.Aws.IsArm
 
 	isArm := c.Aws.IsArm
 	if b.Arch() == TypeArchAmd {
@@ -169,9 +182,11 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 
 	repl := "cd aerospike-server-* ; ./asinstall || exit 1"
 	repl2 := "cd /root && tar -zxf installer.tgz || exit 1"
-	installer := aerospikeInstallScript["aws:"+string(c.DistroName)+":"+string(c.DistroVersion)]
+	repl3 := "cd /root && tar -zxvf installer.tgz || exit 1"
+	installer := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+string(c.DistroName)+":"+string(c.DistroVersion)]
 	installer = strings.ReplaceAll(installer, repl, "")
 	installer = strings.ReplaceAll(installer, repl2, "")
+	installer = strings.ReplaceAll(installer, repl3, "")
 	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{"/opt/install-base.sh", strings.NewReader(installer), len(installer)}}, nodeListNew)
 	if err != nil {
 		return nil, fmt.Errorf("could not copy install script to nodes: %s", err)
@@ -185,13 +200,13 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		return nil, fmt.Errorf("some installers failed: %s%s", err, out)
 	}
 
-	// set hostnames for aws
-	if a.opts.Config.Backend.Type == "aws" && !c.NoSetHostname {
+	// set hostnames for cloud
+	if a.opts.Config.Backend.Type != "docker" && !c.NoSetHostname {
 		nip, err := b.GetNodeIpMap(string(c.ClientName), false)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println(nip)
+		log.Printf("Node IP map: %v", nip)
 		for _, nnode := range nodeListNew {
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClientName), nnode)
 			newHostname = strings.ReplaceAll(newHostname, "_", "-")

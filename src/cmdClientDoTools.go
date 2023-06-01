@@ -25,6 +25,7 @@ type clientAddToolsCmd struct {
 	osSelectorCmd
 	chDirCmd
 	Aws  clientAddToolsAwsCmd `no-flag:"true"`
+	Gcp  clientAddToolsAwsCmd `no-flag:"true"`
 	Help helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -34,6 +35,7 @@ type clientAddToolsAwsCmd struct {
 
 func init() {
 	addBackendSwitch("client.add.tools", "aws", &a.opts.Client.Add.Tools.Aws)
+	addBackendSwitch("client.add.tools", "gcp", &a.opts.Client.Add.Tools.Gcp)
 }
 
 func (c *clientCreateToolsCmd) Execute(args []string) error {
@@ -51,6 +53,7 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("IsSystemArm check: %s", err)
 	}
+	c.Gcp.IsArm = c.Aws.IsArm
 
 	isArm := c.Aws.IsArm
 	if a.opts.Config.Backend.Type == "docker" {
@@ -85,6 +88,7 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 	a.opts.Client.Add.Tools.DistroVersion = c.DistroVersion
 	a.opts.Client.Add.Tools.ChDir = c.ChDir
 	a.opts.Client.Add.Tools.Aws.IsArm = c.Aws.IsArm
+	a.opts.Client.Add.Tools.Gcp.IsArm = c.Gcp.IsArm
 	a.opts.Client.Add.Tools.CustomToolsFilePath = c.CustomToolsFilePath
 	return a.opts.Client.Add.Tools.addTools(args)
 }
@@ -99,6 +103,9 @@ func (c *clientAddToolsCmd) Execute(args []string) error {
 func (c *clientAddToolsCmd) addTools(args []string) error {
 	b.WorkOnClients()
 	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
 	if a.opts.Config.Backend.Type == "docker" {
 		if b.Arch() == TypeArchArm {
 			isArm = true
@@ -118,6 +125,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Installer.Download.Password = c.Password
 	a.opts.Installer.Download.Username = c.Username
 	a.opts.Installer.Download.IsArm = isArm
+	a.opts.Files.Upload.doLegacy = true
 	fn, err := a.opts.Installer.Download.runDownload(args)
 	if err != nil {
 		return err
@@ -127,6 +135,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Files.Upload.Files.Source = flags.Filename(fn)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/opt/installer.tgz")
 	a.opts.Files.Upload.IsClient = true
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(args)
 	if err != nil {
 		return err
@@ -159,6 +168,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Files.Upload.Files.Source = flags.Filename(fName)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/bin/run_asbench")
 	a.opts.Files.Upload.IsClient = true
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(args)
 	if err != nil {
 		return err
@@ -175,6 +185,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		a.opts.Files.Upload.Files.Source = c.CustomToolsFilePath
 		a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike/astools.conf")
 		a.opts.Files.Upload.IsClient = true
+		a.opts.Files.Upload.doLegacy = true
 		err = a.opts.Files.Upload.runUpload(args)
 		if err != nil {
 			return err
@@ -188,6 +199,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		a.opts.Files.Upload.Files.Source = flags.Filename(c.StartScript)
 		a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/local/bin/start.sh")
 		a.opts.Files.Upload.IsClient = true
+		a.opts.Files.Upload.doLegacy = true
 		err = a.opts.Files.Upload.runUpload(args)
 		if err != nil {
 			return err

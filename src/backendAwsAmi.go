@@ -117,12 +117,13 @@ func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err
 			if len(vals) < 3 {
 				continue
 			}
-			val := vals[1]
-			vals = strings.Split(val, ".")
-			if len(vals) < 3 {
+			if v.distroVersion == "7" && vals[1] != "Linux" {
+				continue
+			} else if v.distroVersion != "7" && vals[1] != "Stream" {
 				continue
 			}
-			ver := vals[0]
+			val := vals[2]
+			ver := val
 			if v.distroVersion == ver {
 				cdstring := *ami.CreationDate
 				if len(cdstring) < 19 {

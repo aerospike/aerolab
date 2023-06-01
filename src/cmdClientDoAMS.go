@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 type clientCreateAMSCmd struct {
 	clientCreateBaseCmd
 	ConnectClusters TypeClusterName `short:"s" long:"clusters" default:"mydc" description:"comma-separated list of clusters to configure as source for this AMS"`
+	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
 	chDirCmd
 }
 
@@ -25,6 +27,7 @@ type clientAddAMSCmd struct {
 	osSelectorCmd
 	nodes           map[string][]string // destination map[cluster][]nodeIPs
 	Aws             clientAddAMSCmdAws  `no-flag:"true"`
+	Gcp             clientAddAMSCmdAws  `no-flag:"true"`
 	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
 	Help            helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -35,11 +38,18 @@ type clientAddAMSCmdAws struct {
 
 func init() {
 	addBackendSwitch("client.add.ams", "aws", &a.opts.Client.Add.AMS.Aws)
+	addBackendSwitch("client.add.ams", "gcp", &a.opts.Client.Add.AMS.Gcp)
 }
 
 func (c *clientCreateAMSCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":3000") {
+		fmt.Println("Docker backend is in use, but AMS access port is not being forwarded. If using Docker Desktop, use '-e 3000:3000' parameter in order to forward port 3000 for grafana. This can only be done for one system. Press ENTER to continue regardless.")
+		if !c.JustDoIt {
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
 	}
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
@@ -58,6 +68,7 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 	a.opts.Client.Add.AMS.Machines = TypeMachines(intSliceToString(machines, ","))
 	a.opts.Client.Add.AMS.ConnectClusters = c.ConnectClusters
 	a.opts.Client.Add.AMS.Aws.IsArm = c.Aws.IsArm
+	a.opts.Client.Add.AMS.Gcp.IsArm = c.Gcp.IsArm
 	a.opts.Client.Add.AMS.DistroName = c.DistroName
 	a.opts.Client.Add.AMS.DistroVersion = c.DistroVersion
 	return a.opts.Client.Add.AMS.addAMS(args)
@@ -143,20 +154,31 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed1): %s", err)
 	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak1", "-E", "s/- job_name: node/- job_name: nodelocal/g", "/etc/prometheus/prometheus.yml"})
+	if err != nil {
+		return fmt.Errorf("failed to configure prometheus (sed1.5): %s", err)
+	}
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed2): %s", err)
 	}
 	allnodes := []string{}
+	allnodeExp := []string{}
 	for _, nodes := range c.nodes {
 		for _, node := range nodes {
 			allnodes = append(allnodes, node+":9145")
+			allnodeExp = append(allnodeExp, node+":9100")
 		}
 	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
+	nips := "'" + strings.Join(allnodeExp, "','") + "'"
 	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed3): %s", err)
+	}
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASDN_TARGETS/      - targets: [" + nips + "] #TODO_ASDN_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+	if err != nil {
+		return fmt.Errorf("failed to configure prometheus (sed3.1): %s", err)
 	}
 	// configure:grafana
 	err = a.opts.Attach.Client.run([]string{"chmod", "664", "/etc/grafana/grafana.ini"})
@@ -194,6 +216,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/users.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/users.json"},
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/xdr.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/xdr.json"},
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/asbench2.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node-exporter-full.json", "https://raw.githubusercontent.com/rfmoz/grafana-dashboards/master/prometheus/node-exporter-full.json"},
 	}
 	for _, dashboard := range dashboards {
 		err = a.opts.Attach.Client.run(dashboard)
@@ -220,6 +243,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	a.opts.Files.Upload.Files.Source = flags.Filename(fName)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/grafana/provisioning/dashboards/dashboards.yaml")
 	a.opts.Files.Upload.IsClient = true
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(args)
 	if err != nil {
 		return err
@@ -272,6 +296,9 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	}
 	// arm fill
 	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
 	if a.opts.Config.Backend.Type == "docker" {
 		if b.Arch() == TypeArchArm {
 			isArm = true
@@ -309,6 +336,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		a.opts.Files.Upload.Files.Source = flags.Filename(c.StartScript)
 		a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/local/bin/start.sh")
 		a.opts.Files.Upload.IsClient = true
+		a.opts.Files.Upload.doLegacy = true
 		err = a.opts.Files.Upload.runUpload(args)
 		if err != nil {
 			return err
@@ -317,8 +345,14 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs. Username:Password is admin:admin")
 	log.Print("Done")
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")
+	if a.opts.Config.Backend.Type == "docker" {
+		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:3000 in your browser instead of using the client IP from `client list` command.")
+	}
 	if a.opts.Config.Backend.Type == "aws" {
 		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
+	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		log.Print("NOTE: if not already done so, consider restricting access by using: aerolab config gcp lock-firewall-rules")
 	}
 	return nil
 }
