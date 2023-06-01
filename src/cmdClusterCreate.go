@@ -34,6 +34,7 @@ type clusterCreateCmd struct {
 	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
 	NoVacuumOnFail        bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
 	Aws                   clusterCreateCmdAws    `no-flag:"true"`
+	Gcp                   clusterCreateCmdGcp    `no-flag:"true"`
 	Docker                clusterCreateCmdDocker `no-flag:"true"`
 	Help                  helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -71,6 +72,18 @@ type clusterCreateCmdAws struct {
 	Tags            []string `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
 }
 
+type clusterCreateCmdGcp struct {
+	Image           string   `long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
+	InstanceType    string   `long:"instance" description:"instance type to use" default:""`
+	Disks           []string `long:"disk" description:"format type:sizeGB, ex: ssd:20 ex: balanced:40; first in list is for root volume; can be specified multiple times"`
+	PublicIP        bool     `long:"external-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	Zone            string   `long:"zone" description:"zone name to deploy to"`
+	IsArm           bool     `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices bool     `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags            []string `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
+	Labels          []string `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+}
+
 type clusterCreateCmdDocker struct {
 	ExtraFlags        string `short:"F" long:"extra-flags" description:"Additional flags to pass to docker, Ex: -F '-v /local:/remote'"`
 	ExposePortsToHost string `short:"e" long:"expose-ports" description:"Only on docker, if a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
@@ -90,6 +103,7 @@ type featureFile struct {
 func init() {
 	addBackendSwitch("cluster.create", "aws", &a.opts.Cluster.Create.Aws)
 	addBackendSwitch("cluster.create", "docker", &a.opts.Cluster.Create.Docker)
+	addBackendSwitch("cluster.create", "gcp", &a.opts.Cluster.Create.Gcp)
 }
 
 func (c *clusterCreateCmd) Execute(args []string) error {
@@ -147,6 +161,11 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if a.opts.Config.Backend.Type == "aws" {
 		if c.Aws.InstanceType == "" {
 			return logFatal("AWS backend requires InstanceType to be specified")
+		}
+	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		if c.Gcp.InstanceType == "" {
+			return logFatal("GCP backend requires InstanceType to be specified")
 		}
 	}
 
@@ -256,6 +275,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if err != nil {
 		return fmt.Errorf("IsSystemArm check: %s", err)
 	}
+	c.Gcp.IsArm = c.Aws.IsArm
 
 	// if we need to lookup version, do it
 	var url string
@@ -303,7 +323,17 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		publicIP:        c.Aws.PublicIP,
 		tags:            c.Aws.Tags,
 	}
-
+	if a.opts.Config.Backend.Type == "gcp" {
+		extra = &backendExtra{
+			instanceType: c.Gcp.InstanceType,
+			ami:          c.Gcp.Image,
+			publicIP:     c.Gcp.PublicIP,
+			tags:         c.Gcp.Tags,
+			disks:        c.Gcp.Disks,
+			zone:         c.Gcp.Zone,
+			labels:       c.Gcp.Labels,
+		}
+	}
 	// check if template exists
 	inSlice, err := inslice.Reflect(templates, backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), isArm}, 1)
 	if err != nil {
@@ -382,7 +412,12 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			bufio.NewReader(os.Stdin).ReadBytes('\n')
 		}
 		if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
-			log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
+			if c.NodeCount == 1 {
+				log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
+			} else {
+				log.Print("WARNING: you are attempting to install more than 1 node and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+				bufio.NewReader(os.Stdin).ReadBytes('\n')
+			}
 		}
 		if featuresFilePath != "" {
 			ff, err := os.Stat(string(featuresFilePath))
@@ -608,12 +643,12 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// set hostnames for aws
-	if a.opts.Config.Backend.Type == "aws" && !c.NoSetHostname {
+	if a.opts.Config.Backend.Type != "docker" && !c.NoSetHostname {
 		nip, err := b.GetNodeIpMap(string(c.ClusterName), false)
 		if err != nil {
 			return err
 		}
-		fmt.Println(nip)
+		log.Printf("Node IP map: %v", nip)
 		for _, nnode := range nodeListNew {
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClusterName), nnode)
 			newHostname = strings.ReplaceAll(newHostname, "_", "-")
@@ -675,7 +710,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// if aws, adopt best-practices
-	if a.opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices {
+	if (a.opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices) || (a.opts.Config.Backend.Type == "gcp" && !c.Gcp.NoBestPractices) {
 		thpString := c.thpString()
 		err := b.CopyFilesToCluster(string(c.ClusterName), []fileList{{
 			filePath:     "/etc/systemd/system/aerospike.service.d/aerolab-thp.conf",
@@ -717,9 +752,8 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			}
 		}
 	}
-
 	// aws-public-ip
-	if c.Aws.PublicIP {
+	if c.Aws.PublicIP && a.opts.Config.Backend.Type == "aws" {
 		systemdScriptContents := `[Unit]
 Description=Fix Aerospike access-address and alternate-access-address
 RequiredBy=aerospike.service
@@ -742,6 +776,63 @@ then
 	sed -i 's/address any/address any\naccess-address\nalternate-access-address\n/g' /etc/aerospike/aerospike.conf
 fi
 sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/meta-data/local-ipv4)/g" -e "s/alternate-access-address.*/alternate-access-address $(curl http://169.254.169.254/latest/meta-data/public-ipv4)/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
+`
+		accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
+		accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
+		accessAddressScript.fileSize = len(accessAddressScriptContents)
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{systemdScript, accessAddressScript}, nodeListNew)
+		if err != nil {
+			return fmt.Errorf("could not make access-address script in aws: %s", err)
+		}
+		bouta, err := b.RunCommands(string(c.ClusterName), [][]string{{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, {"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, {"systemctl", "daemon-reload"}, {"systemctl", "enable", "aerospike-access-address.service"}, {"service", "aerospike-access-address", "start"}}, nodeListNew)
+		if err != nil {
+			nstr := ""
+			for _, bout := range bouta {
+				nstr = fmt.Sprintf("%s\n%s", nstr, string(bout))
+			}
+			return fmt.Errorf("could not register access-address script in aws: %s\n%s", err, nstr)
+		}
+	} else if c.Gcp.PublicIP && a.opts.Config.Backend.Type == "gcp" {
+		// curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip
+		systemdScriptContents := `[Unit]
+Description=Fix Aerospike access-address and alternate-access-address
+RequiredBy=aerospike.service
+Before=aerospike.service
+		
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /usr/local/bin/aerospike-access-address.sh
+		
+[Install]
+WantedBy=multi-user.target`
+		var systemdScript fileList
+		var accessAddressScript fileList
+		systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
+		systemdScript.fileContents = strings.NewReader(systemdScriptContents)
+		systemdScript.fileSize = len(systemdScriptContents)
+		accessAddressScriptContents := `INTIP=""; EXTIP=""
+attempts=0
+max=120
+while [ "${INTIP}" = "" ]
+do
+	INTIP=$(curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/ip)
+	[ "${INTIP}" = "" ] && sleep 1 || break
+	attempts=$(( $attempts + 1 ))
+	[ $attempts -eq $max ] && exit 1
+done
+while [ "${EXTIP}" = "" ]
+do
+	EXTIP=$(curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip)
+	[ "${EXTIP}" = "" ] && sleep 1 || break
+	attempts=$(( $attempts + 1 ))
+	[ $attempts -eq $max ] && exit 1
+done
+grep 'alternate-access-address' /etc/aerospike/aerospike.conf
+if [ $? -ne 0 ]
+then
+	sed -i 's/address any/address any\naccess-address\nalternate-access-address\n/g' /etc/aerospike/aerospike.conf
+fi
+sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-address.*/alternate-access-address ${EXTIP}/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
 `
 		accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
 		accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)

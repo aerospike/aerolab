@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"encoding/base64"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -14,7 +16,8 @@ import (
 
 type clientCreateElasticSearchCmd struct {
 	clientCreateBaseCmd
-	RamLimit int `short:"r" long:"ram-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
+	RamLimit int  `short:"r" long:"ram-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
+	JustDoIt bool `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
 }
 
 type clientAddElasticSearchCmd struct {
@@ -29,6 +32,12 @@ type clientAddElasticSearchCmd struct {
 func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":9200") {
+		fmt.Println("Docker backend is in use, but elasticsearch access port is not being forwarded. If using Docker Desktop, use '-e 9200:9200' parameter in order to forward port 9200. This can only be done for one elasticsearch node. Press ENTER to continue regardless.")
+		if !c.JustDoIt {
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
 	}
 	if c.ClientCount > 1 && c.RamLimit == 0 && a.opts.Config.Backend.Type == "docker" {
 		return fmt.Errorf("more than one elasticsearch node cannot be started without specifying RAM limits in docker - elasticsearch default will cause OOM-kills")
@@ -160,6 +169,9 @@ Usage examples to query in browser:
 For best results, use FireFox, as it has a built-in JSON explorer features. It also accepts invalid slef-signed certificates that ES provides, while Chrome doesn't allow to continue.
 
 `)
+	if a.opts.Config.Backend.Type == "docker" {
+		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:9200 in your browser instead of using the client IP from `client list` command.")
+	}
 	log.Println("Done")
 	return nil
 }

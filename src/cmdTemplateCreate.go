@@ -14,11 +14,13 @@ type templateCreateCmd struct {
 	aerospikeVersionSelectorCmd
 	NoVacuumOnFail bool                `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
 	Aws            clusterCreateCmdAws `no-flag:"true"`
+	Gcp            clusterCreateCmdGcp `no-flag:"true"`
 	Help           helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func init() {
 	addBackendSwitch("template.create", "aws", &a.opts.Template.Create.Aws)
+	addBackendSwitch("template.create", "gcp", &a.opts.Template.Create.Gcp)
 }
 
 func (c *templateCreateCmd) Execute(args []string) error {
@@ -42,6 +44,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("IsSystemArm check: %s", err)
 	}
+	c.Gcp.IsArm = c.Aws.IsArm
 
 	var url string
 	isArm := c.Aws.IsArm
@@ -129,6 +132,17 @@ func (c *templateCreateCmd) Execute(args []string) error {
 		subnetID:        c.Aws.SubnetID,
 		publicIP:        c.Aws.PublicIP,
 		tags:            c.Aws.Tags,
+	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		extra = &backendExtra{
+			instanceType: c.Gcp.InstanceType,
+			ami:          c.Gcp.Image,
+			publicIP:     c.Gcp.PublicIP,
+			tags:         c.Gcp.Tags,
+			disks:        []string{"balanced:20"},
+			zone:         c.Gcp.Zone,
+			labels:       c.Gcp.Labels,
+		}
 	}
 	err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 	if err != nil {

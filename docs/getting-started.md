@@ -59,6 +59,7 @@ Create a config file and select a backend first using one of:
 
 $ aerolab config backend -t docker [-d /path/to/tmpdir/for-aerolab/to/use]
 $ aerolab config backend -t aws [-r region] [-p /custom/path/to/store/ssh/keys/in/] [-d /path/to/tmpdir/for-aerolab/to/use]
+$ aerolab config backend -t aws -o project-name [-d /path/to/tmpdir/for-aerolab/to/use] [-p /custom/path/to/store/ssh/keys/in/]
 
 Default file path is ${HOME}/.aerolab.conf
 

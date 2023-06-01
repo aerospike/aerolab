@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
@@ -55,12 +56,18 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 	log.Printf("Installing version %s of prometheus exporter", pV)
 	pUrlAmd := pUrl + "aerospike-prometheus-exporter_" + pV + "_x86_64.tar.gz"
 	pUrlArm := pUrl + "aerospike-prometheus-exporter_" + pV + "_aarch64.tar.gz"
+	nodeExpAmd := "https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz"
+	nodeExpArm := "https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-arm64.tar.gz"
 
 	// install amd
 	commands := [][]string{
 		{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
+		{"/bin/bash", "-c", "kill $(pidof node_exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof node_exporter) >/dev/null 2>&1 || exit 0"},
 		{"wget", pUrlAmd, "-O", "/aerospike-prometheus-exporter.tgz"},
 		{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
+		{"wget", nodeExpAmd, "-O", "/node-exporter.tgz"},
+		{"/bin/bash", "-c", "cd / && tar -xvzf node-exporter.tgz && mv node_exporter-*/node_exporter /usr/bin/node_exporter"},
+		{"/bin/bash", "-c", "mkdir -p /opt/autoload"},
 	}
 	if a.opts.Config.Backend.Type == "docker" {
 		commands = append(commands, []string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"})
@@ -74,13 +81,23 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			}
 			return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 		}
+		cts := "pidof node_exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup /usr/bin/node_exporter >/var/log/node_exporter.log 2>&1 & jobs -p %1'"
+		ctsr := strings.NewReader(cts)
+		err = b.CopyFilesToCluster(cluster, []fileList{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, amdlist)
+		if err != nil {
+			log.Print(err)
+		}
 	}
 
 	// install arm
 	commands = [][]string{
 		{"/bin/bash", "-c", "kill $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof aerospike-prometheus-exporter) >/dev/null 2>&1 || exit 0"},
+		{"/bin/bash", "-c", "kill $(pidof node_exporter) >/dev/null 2>&1; sleep 2; kill -9 $(pidof node_exporter) >/dev/null 2>&1 || exit 0"},
 		{"wget", pUrlArm, "-O", "/aerospike-prometheus-exporter.tgz"},
 		{"/bin/bash", "-c", "cd / && tar -xvzf aerospike-prometheus-exporter.tgz"},
+		{"wget", nodeExpArm, "-O", "/node-exporter.tgz"},
+		{"/bin/bash", "-c", "cd / && tar -xvzf node-exporter.tgz && mv node_exporter-*/node_exporter /usr/bin/node_exporter"},
+		{"/bin/bash", "-c", "mkdir -p /opt/autoload"},
 	}
 	if a.opts.Config.Backend.Type == "docker" {
 		commands = append(commands, []string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"})
@@ -94,6 +111,12 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			}
 			return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 		}
+		cts := "pidof node_exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup /usr/bin/node_exporter >/var/log/node_exporter.log 2>&1 & jobs -p %1'"
+		ctsr := strings.NewReader(cts)
+		err = b.CopyFilesToCluster(cluster, []fileList{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, armlist)
+		if err != nil {
+			log.Print(err)
+		}
 	}
 
 	// install custom ape.toml
@@ -104,6 +127,7 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			a.opts.Files.Upload.Nodes = TypeNodes("all")
 			a.opts.Files.Upload.Files.Source = c.CustomConf
 			a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike-prometheus-exporter/ape.toml")
+			a.opts.Files.Upload.doLegacy = true
 			err = a.opts.Files.Upload.runUpload(args)
 			if err != nil {
 				return err
@@ -112,6 +136,19 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 	}
 
 	// start
+	commands = [][]string{
+		{"/bin/bash", "/opt/autoload/01-node-exporter"},
+	}
+	for _, cluster := range cList {
+		out, err := b.RunCommands(cluster, commands, nodes[cluster])
+		if err != nil {
+			nout := ""
+			for _, n := range out {
+				nout = nout + "\n" + string(n)
+			}
+			return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+		}
+	}
 	if a.opts.Config.Backend.Type == "docker" {
 		commands = [][]string{
 			{"/bin/bash", "/opt/autoload/01-exporter"},

@@ -136,6 +136,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	a.opts.Files.Download.Files.Source = flags.Filename(c.Path)
 	a.opts.Files.Download.Files.Destination = flags.Filename(dir)
 	a.opts.Files.Download.IsClient = c.IsClientS
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Download.Execute(nil)
 	if err != nil {
 		return err
@@ -148,6 +149,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	a.opts.Files.Upload.Files.Source = flags.Filename(path.Join(dir, src))
 	dst, _ := path.Split(strings.TrimSuffix(c.Path, "/"))
 	a.opts.Files.Upload.Files.Destination = flags.Filename(dst)
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.Execute(nil)
 	if err != nil {
 		return err

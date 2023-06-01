@@ -40,6 +40,7 @@ func (c *clientConfigureRestGatewayCmd) Execute(args []string) error {
 	a.opts.Files.Upload.ClusterName = TypeClusterName(c.ClientName)
 	a.opts.Files.Upload.Files.Source = flags.Filename(fn)
 	a.opts.Files.Upload.Files.Destination = "/opt/reconfigure-gw.sh"
+	a.opts.Files.Upload.doLegacy = true
 	err = a.opts.Files.Upload.runUpload(nil)
 	if err != nil {
 		return err

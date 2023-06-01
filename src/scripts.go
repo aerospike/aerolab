@@ -56,6 +56,9 @@ EOF
 
 	aerospikeInstallScript["aws:ubuntu:20.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["aws:ubuntu:18.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
+	aerospikeInstallScript["gcp:ubuntu:22.04"] = aerospikeInstallScript["aws:ubuntu:22.04"]
+	aerospikeInstallScript["gcp:ubuntu:20.04"] = aerospikeInstallScript["aws:ubuntu:20.04"]
+	aerospikeInstallScript["gcp:ubuntu:18.04"] = aerospikeInstallScript["aws:ubuntu:18.04"]
 
 	aerospikeInstallScript["aws:centos:7"] = `#!/bin/bash
 set -o xtrace
@@ -84,7 +87,7 @@ yum -y install python
 yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
-yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
+yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 `
@@ -124,6 +127,41 @@ rm -f /etc/systemd/system/sshd-keygen\@.service.d/disable-sshd-keygen-if-cloud-i
 systemctl daemon-reload
 `
 	//systemctl enable --now cockpit.socket; echo b0bTheBuilder |passwd --stdin root;  echo b0bTheBuilder |passwd --stdin centos
+	aerospikeInstallScript["aws:centos:9"] = `#!/bin/bash
+set -o xtrace
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
+mkdir -p /etc/systemd/system/aerospike.service.d
+cat <<'EOF' > /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+[Service]
+ExecStartPre=/bin/bash /usr/local/bin/early.sh
+ExecStopPost=/bin/bash /usr/local/bin/late.sh
+EOF
+chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
+systemctl daemon-reload
+yum -y update || exit 1
+yum -y install iptables wget tcpdump which initscripts binutils iproute iproute-tc libcurl-devel || exit 1
+yum -y install dnsutils || yum -y install bind-utils
+yum -y install python
+yum -y install initscripts || exit 1
+yum -y install telnet sysstat nc bind-utils iputils vim
+cd /root && tar -zxvf installer.tgz || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
+rm -f /etc/systemd/system/sshd-keygen\@.service.d/disable-sshd-keygen-if-cloud-init-active.conf || echo "Not there"
+systemctl daemon-reload
+`
+
+	aerospikeInstallScript["gcp:centos:7"] = aerospikeInstallScript["aws:centos:7"]
+	aerospikeInstallScript["gcp:centos:8"] = aerospikeInstallScript["aws:centos:8"]
+	aerospikeInstallScript["gcp:centos:9"] = aerospikeInstallScript["aws:centos:9"]
 
 	aerospikeInstallScript["aws:amazon:2"] = `#!/bin/bash
 set -i xtrace
@@ -151,10 +189,12 @@ yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
-yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
+yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 `
+
+	aerospikeInstallScript["gcp:amazon:2"] = aerospikeInstallScript["aws:centos:7"]
 
 	aerospikeInstallScript["docker:ubuntu:22.04"] = `#!/bin/bash
 export DEBIAN_FRONTEND=noninteractive
@@ -352,5 +392,89 @@ chmod 755 /etc/init.d/aerospike
 	aerospikeInstallScript["aws:debian:10"] = aerospikeInstallScript["aws:debian:11"]
 	aerospikeInstallScript["aws:debian:9"] = aerospikeInstallScript["aws:debian:11"]
 	aerospikeInstallScript["aws:debian:8"] = aerospikeInstallScript["aws:debian:11"]
+
+	aerospikeInstallScript["gcp:debian:11"] = aerospikeInstallScript["aws:ubuntu:22.04"]
+	aerospikeInstallScript["gcp:debian:10"] = aerospikeInstallScript["aws:debian:11"]
+	aerospikeInstallScript["gcp:debian:9"] = aerospikeInstallScript["aws:debian:11"]
+	aerospikeInstallScript["gcp:debian:8"] = aerospikeInstallScript["aws:debian:11"]
+
+	aerospikeInstallScript["docker:centos:9"] = `#!/bin/bash
+set -o xtrace
+yum -y update || exit 1
+yum -y install iptables wget tcpdump which initscripts binutils iproute iproute-tc libcurl-devel || exit 1
+yum -y install dnsutils || yum -y install bind-utils
+yum -y install python
+yum -y install initscripts || exit 1
+yum -y install telnet sysstat nc bind-utils iputils vim
+cd /root && tar -zxvf installer.tgz || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
+cat <<'EOF' > /etc/init.d/aerospike
+#!/bin/sh
+# Start/stop the aerospike daemon.
+#
+### BEGIN INIT INFO
+# Provides:          aerospike
+# Required-Start:    $remote_fs $syslog $time
+# Required-Stop:     $remote_fs $syslog $time
+# Should-Start:      $network $named slapd autofs ypbind nscd nslcd winbind
+# Should-Stop:       $network $named slapd autofs ypbind nscd nslcd winbind
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Aerospike
+# Description:       Aerospike
+### END INIT INFO
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DESC="aerospike daemon"
+NAME=aerospike
+DAEMON=/usr/bin/asd
+PIDFILE=/var/run/asd.pid
+SCRIPTNAME=/etc/init.d/"$NAME"
+
+test -f $DAEMON || exit 0
+
+case "$1" in
+start)  echo "Starting aerospike"
+		/bin/bash /usr/local/bin/early.sh
+		${DAEMON}
+		[ $? -eq 0 ] && echo "OK" || echo "ERROR"
+		;;
+stop)   echo "Stopping aeropiske"
+		pkill asd
+		sleep 1
+		if [ $? -ne 0 ]; then pkill -9 asd; fi
+		/bin/bash /usr/local/bin/late.sh
+		[ $? -eq 0 ] && echo "OK" || echo "ERROR"
+		;;
+restart) echo "Restarting aerospike"
+		$0 stop
+		$0 start
+		;;
+coldstart)  echo "Starting aerospike cold"
+		$DAEMON --cold-start
+		[ $? -eq 0 ] && echo "OK" || echo "ERROR"
+		;;
+status)
+		pidof asd >/dev/null 2>&1
+		[ $? -eq 0 ] && echo "Running" || echo "Stopped"
+		;;
+*)      echo "Usage: /etc/init.d/aerospike {start|stop|status|restart|coldstart}"
+		exit 2
+		;;
+esac
+exit 0
+EOF
+chmod 755 /etc/init.d/aerospike
+`
 
 }
