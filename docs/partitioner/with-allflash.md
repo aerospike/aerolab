@@ -14,7 +14,11 @@ This example presents a more complicated scenario, in which:
 1. Create a cluster.
 
 ```
+# aws
 aerolab cluster create -n clusterName -c 2 -I r5ad.4xlarge -E 20,30,30,30,30
+
+# gcp
+aerolab cluster create -n clusterName -c 2 --instance c2d-standard-16 --zone us-central1-a --disk=pd-ssd:20 --disk=local-ssd --disk=local-ssd --disk=pd-ssd:30 --disk=pd-ssd:30 --disk=pd-ssd:30 --disk=pd-ssd:30
 ```
 
 2. `blkdiscard` and partition NVME: 20% disk space on each partition.
