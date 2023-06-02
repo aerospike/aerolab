@@ -1818,6 +1818,15 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		extra.disks = []string{"balanced:20"}
 	}
 	for _, disk := range extra.disks {
+		if disk == "local-ssd" {
+			disksInt = append(disksInt, gcpDisk{
+				diskType: disk,
+			})
+			continue
+		}
+		if !strings.HasPrefix(disk, "pd-") {
+			return errors.New("invalid disk definition, disk must be local-ssd, or pd-*:sizeGB (eg pd-balanced:20 or pd-ssd:40)")
+		}
 		diska := strings.Split(disk, ":")
 		if len(diska) != 2 {
 			return errors.New("disk specification incorrect, must be type:sizeGB; example: balanced:20")
@@ -1909,14 +1918,22 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			var simage *string
 			boot := false
 			if nI == 0 {
+				if !strings.HasPrefix(nDisk.diskType, "pd-") {
+					return errors.New("first (root volume) disk must be of type pd-*")
+				}
 				simage = proto.String(imageName)
 				boot = true
 			}
+			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", extra.zone, nDisk.diskType)
+			var diskSize *int64
+			if strings.HasPrefix(nDisk.diskType, "pd-") {
+				diskSize = proto.Int64(int64(nDisk.diskSize))
+			}
 			disksList = append(disksList, &computepb.AttachedDisk{
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
-					DiskSizeGb:  proto.Int64(int64(nDisk.diskSize)),
+					DiskSizeGb:  diskSize,
 					SourceImage: simage,
-					DiskType:    proto.String(fmt.Sprintf("zones/%s/diskTypes/pd-%s", extra.zone, nDisk.diskType)),
+					DiskType:    proto.String(diskType),
 				},
 				AutoDelete: proto.Bool(true),
 				Boot:       proto.Bool(boot),
