@@ -18,7 +18,7 @@ type clusterPartitionConfCmd struct {
 	Nodes            TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	FilterDisks      TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
 	FilterPartitions TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number; 0=use entire disk itself, ex: 1,2,4-8" default:"ALL"`
-	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme|ebs" default:"ALL"`
+	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
 	Namespace        string          `short:"m" long:"namespace" description:"namespace to modify the settings for" default:""`
 	ConfDest         string          `short:"o" long:"configure" description:"what to configure the selections as; options: device|shadow|allflash" default:""`
 	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -30,6 +30,11 @@ func (c *clusterPartitionConfCmd) Execute(args []string) error {
 	}
 	if a.opts.Config.Backend.Type == "docker" {
 		return fmt.Errorf("partition creation and mkfs are not supported on docker backend")
+	}
+	if c.FilterType == "local" {
+		c.FilterType = "nvme"
+	} else if c.FilterType == "persistent" {
+		c.FilterType = "ebs"
 	}
 	if !inslice.HasString([]string{"device", "shadow", "allflash"}, c.ConfDest) {
 		return fmt.Errorf("configure options must be one of: device, shadow, allflash")

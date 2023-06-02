@@ -7,7 +7,11 @@
 1. Create a cluster:
 
 ```
+#aws
 aerolab cluster create -n clusterName -c 2 -I r5ad.4xlarge
+
+# gcp - root volume: 50GB, 2x local SSD
+aerolab cluster create -n clusterName -c 2 --instance c2d-standard-16 --zone us-central1-a --disk=pd-ssd:50 --disk=local-ssd --disk=local-ssd
 ```
 
 2. `blkdiscard` and partition, 25% disk space on each partition:
