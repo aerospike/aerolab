@@ -1926,8 +1926,10 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			}
 			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", extra.zone, nDisk.diskType)
 			var diskSize *int64
+			attachmentType := proto.String(computepb.SavedAttachedDisk_SCRATCH.String())
 			if strings.HasPrefix(nDisk.diskType, "pd-") {
 				diskSize = proto.Int64(int64(nDisk.diskSize))
+				attachmentType = proto.String(computepb.AttachedDisk_PERSISTENT.String())
 			}
 			disksList = append(disksList, &computepb.AttachedDisk{
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
@@ -1937,7 +1939,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 				},
 				AutoDelete: proto.Bool(true),
 				Boot:       proto.Bool(boot),
-				Type:       proto.String(computepb.AttachedDisk_PERSISTENT.String()),
+				Type:       attachmentType,
 			})
 		}
 		// create instance (remember name and labels and tags and extra tags)
