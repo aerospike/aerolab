@@ -13,7 +13,7 @@ type clusterPartitionMkfsCmd struct {
 	Nodes            TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	FilterDisks      TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
 	FilterPartitions TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number, ex: 1,2,4-8" default:"ALL"`
-	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme|ebs" default:"ALL"`
+	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: aws: nvme|ebs gcp: local|persistent" default:"ALL"`
 	FsType           string          `short:"f" long:"fs-type" description:"type of filesystem, ex: xfs" default:"xfs"`
 	MkfsOpts         string          `short:"s" long:"fs-options" description:"filesystem mkfs options" default:""`
 	MountRoot        string          `short:"r" long:"mount-root" description:"path to where all the mounts will be created" default:"/mnt/"`
@@ -29,7 +29,11 @@ func (c *clusterPartitionMkfsCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type == "docker" {
 		return fmt.Errorf("partition creation and mkfs are not supported on docker backend")
 	}
-
+	if c.FilterType == "local" {
+		c.FilterType = "nvme"
+	} else if c.FilterType == "persistent" {
+		c.FilterType = "ebs"
+	}
 	log.Print("Running cluster.partition.mkfs")
 	if c.MountOpts == "" {
 		c.MountOpts = "defaults"
