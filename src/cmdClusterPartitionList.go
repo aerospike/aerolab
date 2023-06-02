@@ -16,7 +16,7 @@ type clusterPartitionListCmd struct {
 	Nodes            TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	FilterDisks      TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
 	FilterPartitions TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number, empty or 0 = don't show partitions, ex: 1,2,4-8" default:"ALL"`
-	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: aws: nvme|ebs gcp: local|persistent" default:"ALL"`
+	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
 	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -199,7 +199,15 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 				dout[node][diskNo] = make(map[int]blockDevices)
 			}
 			dout[node][diskNo][0] = disk
-			out = append(out, fmt.Sprintf("%4d %4s %4d    - %-12s %8s %6s %8s %s", node, diskType, diskNo, disk.Name, disk.Size, disk.FsType, disk.FsSize, disk.MountPoint))
+			diskTypePrint := diskType
+			if a.opts.Config.Backend.Type == "gcp" {
+				if diskType == "ebs" {
+					diskTypePrint = "persistent"
+				} else {
+					diskTypePrint = "local"
+				}
+			}
+			out = append(out, fmt.Sprintf("%4d %-10s %4d    - %-12s %8s %6s %8s %s", node, diskTypePrint, diskNo, disk.Name, disk.Size, disk.FsType, disk.FsSize, disk.MountPoint))
 			if len(disk.Children) != 0 && c.FilterPartitions != "0" && c.FilterPartitions != "" {
 				sort.Slice(disk.Children, func(x, y int) bool {
 					return disk.Children[x].Name < disk.Children[y].Name
@@ -215,14 +223,22 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 						part.nodeNo = node
 						part.partNo = partNo
 						dout[node][diskNo][partNo] = part
-						out = append(out, fmt.Sprintf("%4d %4s %4d %4d %-12s %8s %6s %8s %s", node, diskType, diskNo, partNo, part.Name, part.Size, part.FsType, part.FsSize, part.MountPoint))
+						diskTypePrint := diskType
+						if a.opts.Config.Backend.Type == "gcp" {
+							if diskType == "ebs" {
+								diskTypePrint = "persistent"
+							} else {
+								diskTypePrint = "local"
+							}
+						}
+						out = append(out, fmt.Sprintf("%4d %-10s %4d %4d %-12s %8s %6s %8s %s", node, diskTypePrint, diskNo, partNo, part.Name, part.Size, part.FsType, part.FsSize, part.MountPoint))
 					}
 				}
 			}
 		}
 		if printable && len(out) > 0 {
 			if !headerPrinted {
-				fmt.Println(strings.ToUpper("node type disk part name             size fstype     fssize mountpoint"))
+				fmt.Println(strings.ToUpper("node type       disk part name             size fstype     fssize mountpoint"))
 				fmt.Println("----------------------------------------------------------------------")
 				headerPrinted = true
 			}
