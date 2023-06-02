@@ -1,3 +1,7 @@
+#### 6.0.2
+* Require GCP project when setting backend.
+* Add handling for GCP local SSDs
+
 #### 6.0.1
 * Support for `gcp` backend.
 * Add node exporter to the prometheus exporter setup.

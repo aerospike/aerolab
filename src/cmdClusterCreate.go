@@ -75,7 +75,7 @@ type clusterCreateCmdAws struct {
 type clusterCreateCmdGcp struct {
 	Image           string   `long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
 	InstanceType    string   `long:"instance" description:"instance type to use" default:""`
-	Disks           []string `long:"disk" description:"format type:sizeGB, ex: ssd:20 ex: balanced:40; first in list is for root volume; can be specified multiple times"`
+	Disks           []string `long:"disk" description:"format type:sizeGB or local-ssd, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd; first in list is for root volume and must be pd-* type; can be specified multiple times"`
 	PublicIP        bool     `long:"external-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
 	Zone            string   `long:"zone" description:"zone name to deploy to"`
 	IsArm           bool     `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
