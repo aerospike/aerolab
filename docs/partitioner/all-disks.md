@@ -6,7 +6,11 @@
 1. Create a cluster:
 
 ```
+# aws
 aerolab cluster create -n clusterName -c 2 -I r5ad.large -E 20,30,30
+
+# gcp - root volume: 50GB, 2x local SSD, 2x persistent SSD 380GB
+aerolab cluster create -n clusterName -c 2 --instance c2d-standard-16 --zone us-central1-a --disk=pd-ssd:50 --disk=local-ssd --disk=local-ssd --disk=pd-ssd:380 --disk=pd-ssd:380
 ```
 
 2. `blkdiscard` and prepare the cluster:

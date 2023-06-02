@@ -95,6 +95,9 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 		}
 	}
 	if c.Type == "aws" || c.Type == "gcp" {
+		if c.Type == "gcp" && c.Project == "" {
+			log.Fatal("ERROR: When using GCP backend, project name must be defined. Use: aerolab config backend -t gcp -o project-name-here")
+		}
 		if strings.Contains(string(c.SshKeyPath), "${HOME}") {
 			ch, err := os.UserHomeDir()
 			if err != nil {
