@@ -556,13 +556,13 @@ func (d *backendDocker) GetClusterNodeIps(name string) ([]string, error) {
 	var out []byte
 	for _, node := range nodes {
 		containerName := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
-		out, err = exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", containerName).CombinedOutput()
+		out, err = exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", containerName).CombinedOutput()
 		if err != nil {
 			return nil, err
 		}
 		ip := strings.Trim(string(out), "'\" \n\r")
 		if ip != "" {
-			ips = append(ips, ip)
+			ips = append(ips, strings.Split(ip, " ")[0])
 		}
 	}
 	return ips, nil
@@ -587,13 +587,13 @@ func (d *backendDocker) GetNodeIpMap(name string, internalIPs bool) (map[int]str
 	var out []byte
 	for _, node := range nodes {
 		containerName := fmt.Sprintf(dockerNameHeader+"%s_%d", name, node)
-		out, err = exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", containerName).CombinedOutput()
+		out, err = exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", containerName).CombinedOutput()
 		if err != nil {
 			return nil, err
 		}
 		ip := strings.Trim(string(out), "'\" \n\r")
 		if ip != "" {
-			ips[node] = ip
+			ips[node] = strings.Split(ip, " ")[0]
 		}
 	}
 	return ips, nil
@@ -754,7 +754,7 @@ func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
 		if len(nameNo) != 2 {
 			continue
 		}
-		out2, err := exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", tt[1]).CombinedOutput()
+		out2, err := exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
 		if err != nil {
 			return "", err
 		}
@@ -762,7 +762,7 @@ func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
 		jsonOut = append(jsonOut, clusterListFull{
 			ClusterName: nameNo[0],
 			NodeNumber:  nameNo[1],
-			IpAddress:   ip,
+			IpAddress:   strings.ReplaceAll(ip, " ", ","),
 			PublicIp:    "",
 			InstanceId:  tt[0],
 			State:       tt[2],
@@ -804,11 +804,11 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 	response = response + "\n\nTYPE   | NAME                 | NODE_NO | NODE_IP\n=========================================================\n"
 	for _, cluster := range clusterList {
 		if strings.HasPrefix(cluster, dockerNameHeader+"") {
-			out, err = exec.Command("docker", "container", "inspect", "--format", "{{.NetworkSettings.IPAddress}}", cluster).CombinedOutput()
+			out, err = exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", cluster).CombinedOutput()
 			if err != nil {
 				return "", err
 			}
-			ip := strings.Trim(string(out), "'\" \n\r")
+			ip := strings.ReplaceAll(strings.Trim(string(out), "'\" \n\r"), " ", ",")
 			ctype := "unknown"
 			if strings.HasPrefix(cluster, "aerolab-") {
 				ctype = "server"
