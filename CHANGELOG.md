@@ -1,3 +1,6 @@
+#### 6.0.3
+* Handle bug in IP discovery on `docker` backend with custom networks.
+
 #### 6.0.2
 * Require GCP project when setting backend.
 * Add handling for GCP local SSDs
