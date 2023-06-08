@@ -390,14 +390,15 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 					url:           dlv.url,
 					distroName:    "amazon",
 					distroVersion: "2",
+					isArm:         dlv.isArm,
 				}
 				ret = append(ret, dlv2)
 				if bothArch {
 					dlv2X := &dlVersion{
-						url:           dlv.url,
-						distroName:    dlv.distroName,
-						distroVersion: dlv.distroVersion,
-						isArm:         !dlv.isArm,
+						url:           dlv2.url,
+						distroName:    dlv2.distroName,
+						distroVersion: dlv2.distroVersion,
+						isArm:         !dlv2.isArm,
 					}
 					ret = append(ret, dlv2X)
 				}
