@@ -33,5 +33,5 @@ aerolab cluster destroy -n dc1,dc2 -f
 ```bash
 aerolab cluster create -n dc1 -c 3 -v 4.9.0.32
 aerolab cluster create -n dc2 -c 3 -v 4.9.0.32
-aerolab xdr connect -s dc1 -d dc2 -M test,bar
+aerolab xdr connect -S dc1 -D dc2 -M test,bar
 ```
