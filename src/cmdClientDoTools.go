@@ -63,10 +63,16 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 			isArm = false
 		}
 	}
+
+	if err := checkDistroVersion(c.DistroName.String(), c.DistroVersion.String()); err != nil {
+		return logFatal(err)
+	}
+
 	bv := &backendVersion{c.DistroName.String(), c.DistroVersion.String(), c.AerospikeVersion.String(), isArm}
 	if strings.HasPrefix(c.AerospikeVersion.String(), "latest") || strings.HasSuffix(c.AerospikeVersion.String(), "*") || strings.HasPrefix(c.DistroVersion.String(), "latest") {
 		_, err := aerospikeGetUrl(bv, c.Username, c.Password)
 		if err != nil {
+			log.Printf("Selectors: %v", bv)
 			return fmt.Errorf("aerospike Version not found: %s", err)
 		}
 		c.AerospikeVersion = TypeAerospikeVersion(bv.aerospikeVersion)
