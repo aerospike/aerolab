@@ -43,7 +43,7 @@ You can see the IP addresses of running AeroLab containers with the `aerolab clu
 
 ## Table of contents
 
-[Getting started](docs/getting-started.md)
+[Getting started](docs/GETTING_STARTED.md)
 
 [AeroLab on AWS](docs/aws-setup.md)
 
