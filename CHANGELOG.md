@@ -1,6 +1,7 @@
 #### 6.1.0
 * Add extra version check in `client tools` creator.
 * Fix support for `amazon:2` on `arm` discovery.
+* Add option for `logs get` to download logs in parallel using the `--threads X` option.
 
 #### 6.0.3
 * Handle bug in IP discovery on `docker` backend with custom networks.
