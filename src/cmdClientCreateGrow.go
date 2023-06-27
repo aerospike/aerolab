@@ -95,5 +95,4 @@ func init() {
 
 	// NEW_CLIENTS_BACKEND
 
-	addBackendSwitch("client.destroy", "docker", &a.opts.Client.Destroy.Docker)
 }
