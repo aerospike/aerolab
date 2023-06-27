@@ -19,6 +19,7 @@ type tlsGenerateCmd struct {
 	IsClient    bool            `short:"C" long:"client" description:"set to indicate the certficates should end up on client groups"`
 	TlsName     string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
 	CaName      string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
+	Bits        int             `short:"b" long:"cert-bits" description:"Bits size for the CA and certs" default:"2048"`
 	NoUpload    bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
 	ChDir       string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -103,7 +104,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile("openssl.cnf", []byte(tls_create_openssl_config(c.TlsName, c.CaName)), 0644)
+	err = os.WriteFile("openssl.cnf", []byte(tls_create_openssl_config(c.TlsName, c.CaName, c.Bits)), 0644)
 	if err != nil {
 		return err
 	}
@@ -214,7 +215,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 	return nil
 }
 
-func tls_create_openssl_config(tlsName string, caName string) string {
+func tls_create_openssl_config(tlsName string, caName string, bits int) string {
 	conf := `#
 # OpenSSL configuration file.
 #
@@ -224,7 +225,7 @@ func tls_create_openssl_config(tlsName string, caName string) string {
 dir			= .
 
 [ req ]
-default_bits  	    = 2048		# Size of keys
+default_bits  	    = %d		# Size of keys
 default_keyfile     = key.pem		# name of generated keys
 default_md          = sha256		# message digest algorithm
 string_mask         = nombstr		# permitted characters
@@ -298,5 +299,5 @@ commonName		= supplied
 emailAddress		= optional
 
 `
-	return fmt.Sprintf(conf, tlsName, caName, caName)
+	return fmt.Sprintf(conf, bits, tlsName, caName, caName)
 }

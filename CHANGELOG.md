@@ -3,6 +3,7 @@
 * Fix support for `amazon:2` on `arm` discovery.
 * Add option for `logs get` to download logs in parallel using the `--threads X` option.
 * Symlink `attach shell` command to `cluster attach` command.
+* Add option in `tls generate` to have different bit sizes.
 
 #### 6.0.3
 * Handle bug in IP discovery on `docker` backend with custom networks.
