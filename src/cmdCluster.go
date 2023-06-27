@@ -13,6 +13,7 @@ type clusterCmd struct {
 	Destroy   clusterDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy cluster"`
 	Add       clusterAddCmd       `command:"add" subcommands-optional:"true" description:"Add features to clusters, ex: ams"`
 	Partition clusterPartitionCmd `command:"partition" subcommands-optional:"true" description:"node disk partitioner"`
+	Attach    attachShellCmd      `command:"attach" subcommands-optional:"true" description:"symlink to: attach shell"`
 	Help      helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
