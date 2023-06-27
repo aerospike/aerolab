@@ -5,6 +5,7 @@
 * Symlink `attach shell` command to `cluster attach` command.
 * Add option in `tls generate` to have different bit sizes.
 * If `-f` force option is not specified in the `destroy` commands, ask for confirmation via `stdin`.
+* Basic anonymous telemetry enabled by for internal Aerospike users.
 
 #### 6.0.3
 * Handle bug in IP discovery on `docker` backend with custom networks.

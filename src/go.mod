@@ -9,6 +9,7 @@ require (
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
 	github.com/aws/aws-sdk-go v1.44.268
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
+	github.com/google/uuid v1.3.0
 	github.com/jroimartin/gocui v0.5.0
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
