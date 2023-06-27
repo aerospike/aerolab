@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -25,8 +27,8 @@ type clientStopCmd struct {
 
 type clientDestroyCmd struct {
 	clientStartCmd
-	Parallel bool                    `short:"p" long:"parallel" description:"if destroying many clients at once, set this to destroy in parallel"`
-	Docker   clusterDestroyCmdDocker `no-flag:"true"`
+	Parallel bool `short:"p" long:"parallel" description:"if destroying many clients at once, set this to destroy in parallel"`
+	Force    bool `short:"f" long:"force" description:"force stop before destroy"`
 }
 
 func (c *clientStartCmd) Execute(args []string) error {
@@ -126,6 +128,26 @@ func (c *clientDestroyCmd) Execute(args []string) error {
 		mu = 1
 	}
 	maxUnits := make(chan int, mu)
+	if !c.Force {
+		for {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Printf("Are you sure you want to destroy clients [%s] (y/n)? ", strings.Join(cList, ", "))
+
+			yesno, err := reader.ReadString('\n')
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			yesno = strings.ToLower(strings.TrimSpace(yesno))
+
+			if yesno == "y" || yesno == "yes" {
+				break
+			} else if yesno == "n" || yesno == "no" {
+				fmt.Println("Aborting")
+				return nil
+			}
+		}
+	}
 	for _, ClusterName := range cList {
 		maxUnits <- 1
 		wg.Add(1)
@@ -134,7 +156,7 @@ func (c *clientDestroyCmd) Execute(args []string) error {
 			defer func() {
 				<-maxUnits
 			}()
-			if c.Docker.Force && a.opts.Config.Backend.Type == "docker" {
+			if a.opts.Config.Backend.Type == "docker" {
 				b.ClusterStop(ClusterName, nodes[ClusterName])
 			}
 			err = b.ClusterDestroy(ClusterName, nodes[ClusterName])
