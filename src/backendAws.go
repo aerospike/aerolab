@@ -51,6 +51,7 @@ const (
 	awsClientTagOperatingSystem  = "Aerolab4clientOperatingSystem"
 	awsClientTagOSVersion        = "Aerolab4clientOperatingSystemVersion"
 	awsClientTagAerospikeVersion = "Aerolab4clientAerospikeVersion"
+	awsClientTagClientType       = "Aerolab4clientType"
 )
 
 var (
@@ -85,6 +86,134 @@ func (d *backendAws) WorkOnServers() {
 	awsTagOperatingSystem = awsServerTagOperatingSystem
 	awsTagOSVersion = awsServerTagOSVersion
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
+}
+
+func (d *backendAws) Inventory() (inventoryJson, error) {
+	ij := inventoryJson{}
+
+	tmpl, err := d.ListTemplates()
+	if err != nil {
+		return ij, err
+	}
+	for _, d := range tmpl {
+		arch := "amd64"
+		if d.isArm {
+			arch = "arm64"
+		}
+		ij.Templates = append(ij.Templates, inventoryTemplate{
+			AerospikeVersion: d.aerospikeVersion,
+			Distribution:     d.distroName,
+			OSVersion:        d.distroVersion,
+			Arch:             arch,
+		})
+	}
+
+	ij.FirewallRules, err = d.listSecurityGroups(false)
+	if err != nil {
+		return ij, err
+	}
+
+	for _, i := range []int{1, 2} {
+		if i == 1 {
+			d.WorkOnServers()
+		} else {
+			d.WorkOnClients()
+		}
+		filter := ec2.DescribeInstancesInput{
+			Filters: []*ec2.Filter{
+				{
+					Name:   aws.String("tag:" + awsTagUsedBy),
+					Values: []*string{aws.String(awsTagUsedByValue)},
+				},
+			},
+		}
+		instances, err := d.ec2svc.DescribeInstances(&filter)
+		if err != nil {
+			return ij, fmt.Errorf("could not run DescribeInstances\n%s", err)
+		}
+		for _, reservation := range instances.Reservations {
+			for _, instance := range reservation.Instances {
+				if *instance.State.Code != int64(48) {
+					clusterName := ""
+					nodeNo := ""
+					os := ""
+					osVer := ""
+					asdVer := ""
+					publicIp := ""
+					privateIp := ""
+					instanceId := ""
+					imageId := ""
+					state := ""
+					arch := ""
+					clientType := ""
+					if instance.PublicIpAddress != nil {
+						publicIp = *instance.PublicIpAddress
+					}
+					if instance.PrivateIpAddress != nil {
+						privateIp = *instance.PrivateIpAddress
+					}
+					if instance.InstanceId != nil {
+						instanceId = *instance.InstanceId
+					}
+					if instance.ImageId != nil {
+						imageId = *instance.ImageId
+					}
+					if instance.State != nil && instance.State.Name != nil {
+						state = *instance.State.Name
+					}
+					if instance.Architecture != nil {
+						arch = *instance.Architecture
+					}
+					for _, tag := range instance.Tags {
+						if *tag.Key == awsTagClusterName {
+							clusterName = *tag.Value
+						} else if *tag.Key == awsTagNodeNumber {
+							nodeNo = *tag.Value
+						} else if *tag.Key == awsTagOperatingSystem {
+							os = *tag.Value
+						} else if *tag.Key == awsTagOSVersion {
+							osVer = *tag.Value
+						} else if *tag.Key == awsTagAerospikeVersion {
+							asdVer = *tag.Value
+						} else if *tag.Key == awsClientTagClientType {
+							clientType = *tag.Value
+						}
+					}
+					if i == 1 {
+						ij.Clusters = append(ij.Clusters, inventoryCluster{
+							ClusterName:      clusterName,
+							NodeNo:           nodeNo,
+							PublicIp:         publicIp,
+							PrivateIp:        privateIp,
+							InstanceId:       instanceId,
+							ImageId:          imageId,
+							State:            state,
+							Arch:             arch,
+							Distribution:     os,
+							OSVersion:        osVer,
+							AerospikeVersion: asdVer,
+						})
+					} else {
+						ij.Clients = append(ij.Clients, inventoryClient{
+							ClientName:       clusterName,
+							NodeNo:           nodeNo,
+							PublicIp:         publicIp,
+							PrivateIp:        privateIp,
+							InstanceId:       instanceId,
+							ImageId:          imageId,
+							State:            state,
+							Arch:             arch,
+							Distribution:     os,
+							OSVersion:        osVer,
+							AerospikeVersion: asdVer,
+							ClientType:       clientType,
+						})
+					}
+				}
+			}
+		}
+	}
+	return ij, nil
 }
 
 func (d *backendAws) CreateNetwork(name string, driver string, subnet string, mtu string) error {
@@ -1505,6 +1634,12 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 	var keyPath string
 	for i := start; i < (nodeCount + start); i++ {
 		// tag setup
+		if extra.clientType == "" {
+			extra.clientType = "N/A"
+		}
+		tgClientType := ec2.Tag{}
+		tgClientType.Key = aws.String(awsClientTagClientType)
+		tgClientType.Value = aws.String(extra.clientType)
 		tgClusterName := ec2.Tag{}
 		tgClusterName.Key = aws.String(awsTagClusterName)
 		tgClusterName.Value = aws.String(name)
@@ -1517,7 +1652,18 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		tgName := ec2.Tag{}
 		tgName.Key = aws.String("Name")
 		tgName.Value = aws.String(fmt.Sprintf("aerolab4-%s_%d", name, i))
-		tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgUsedBy, &tgName}
+		tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgUsedBy, &tgName, &tgClientType, {
+			Key:   aws.String(awsTagOperatingSystem),
+			Value: aws.String(v.distroName),
+		},
+			{
+				Key:   aws.String(awsTagOSVersion),
+				Value: aws.String(v.distroVersion),
+			},
+			{
+				Key:   aws.String(awsTagAerospikeVersion),
+				Value: aws.String(v.aerospikeVersion),
+			}}
 		tgs = append(tgs, extraTags...)
 		ts := ec2.TagSpecification{}
 		ts.Tags = tgs

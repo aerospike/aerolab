@@ -6,6 +6,8 @@
 * Add option in `tls generate` to have different bit sizes.
 * If `-f` force option is not specified in the `destroy` commands, ask for confirmation via `stdin`.
 * Basic anonymous telemetry enabled by default for internal Aerospike users.
+* Added `inventory list` command, which prints all of the inventory (clusters, clients, firewalls, templates) in table or json format.
+* Added `nano` command to all distributions.
 
 #### 6.0.3
 * Handle bug in IP discovery on `docker` backend with custom networks.

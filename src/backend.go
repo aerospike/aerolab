@@ -17,6 +17,7 @@ func getBackend() (backend, error) {
 }
 
 type backendExtra struct {
+	clientType      string   // all: ams|elasticsearch|rest-gateway|VSCode|...
 	cpuLimit        string   // docker only
 	ramLimit        string   // docker only
 	swapLimit       string   // docker only
@@ -125,6 +126,80 @@ type backend interface {
 	DeleteNetwork(name string) error
 	PruneNetworks() error
 	ListNetworks(csv bool, writer io.Writer) error
+	Inventory() (inventoryJson, error)
+}
+
+type inventoryJson struct {
+	Clusters      []inventoryCluster
+	Clients       []inventoryClient
+	Templates     []inventoryTemplate
+	FirewallRules []inventoryFirewallRule
+}
+
+type inventoryCluster struct {
+	ClusterName      string
+	NodeNo           string
+	PrivateIp        string
+	PublicIp         string
+	InstanceId       string
+	ImageId          string
+	State            string
+	Arch             string
+	Distribution     string
+	OSVersion        string
+	AerospikeVersion string
+}
+
+type inventoryClient struct {
+	ClientName       string
+	NodeNo           string
+	PrivateIp        string
+	PublicIp         string
+	InstanceId       string
+	ImageId          string
+	State            string
+	Arch             string
+	Distribution     string
+	OSVersion        string
+	AerospikeVersion string
+	ClientType       string
+	AccessUrl        string
+	AccessPort       string
+}
+
+type inventoryTemplate struct {
+	Distribution     string
+	OSVersion        string
+	AerospikeVersion string
+	Arch             string
+}
+
+type inventoryFirewallRule struct {
+	GCP    *inventoryFirewallRuleGCP
+	AWS    *inventoryFirewallRuleAWS
+	Docker *inventoryFirewallRuleDocker
+}
+
+type inventoryFirewallRuleGCP struct {
+	FirewallName string
+	TargetTags   []string
+	SourceTags   []string
+	SourceRanges []string
+	AllowPorts   []string
+	DenyPorts    []string
+}
+
+type inventoryFirewallRuleAWS struct {
+	VPC               string
+	SecurityGroupName string
+	SecurityGroupID   string
+}
+
+type inventoryFirewallRuleDocker struct {
+	NetworkName   string
+	NetworkDriver string
+	Subnets       string
+	MTU           string
 }
 
 // check return code from exec function

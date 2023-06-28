@@ -589,26 +589,43 @@ func (d *backendAws) CreateSecurityGroups(vpc string) error {
 }
 
 func (d *backendAws) ListSecurityGroups() error {
+	_, err := d.listSecurityGroups(true)
+	return err
+}
+
+func (d *backendAws) listSecurityGroups(stdout bool) ([]inventoryFirewallRule, error) {
 	out, err := d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var output []string
+	rules := []inventoryFirewallRule{}
 	for _, sg := range out.SecurityGroups {
-		if !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabServer-") && !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabClient-") {
-			continue
+		rules = append(rules, inventoryFirewallRule{
+			AWS: &inventoryFirewallRuleAWS{
+				VPC:               aws.StringValue(sg.VpcId),
+				SecurityGroupName: aws.StringValue(sg.GroupName),
+				SecurityGroupID:   aws.StringValue(sg.GroupId),
+			},
+		})
+	}
+	if stdout {
+		var output []string
+		for _, sg := range out.SecurityGroups {
+			if !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabServer-") && !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabClient-") {
+				continue
+			}
+			output = append(output, fmt.Sprintf("%s\t%s\t%s", aws.StringValue(sg.VpcId), aws.StringValue(sg.GroupName), aws.StringValue(sg.GroupId)))
 		}
-		output = append(output, fmt.Sprintf("%s\t%s\t%s", aws.StringValue(sg.VpcId), aws.StringValue(sg.GroupName), aws.StringValue(sg.GroupId)))
+		sort.Strings(output)
+		w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
+		fmt.Fprintln(w, "VPC_ID\tSecurityGroupName\tSecurityGroupID")
+		fmt.Fprintln(w, "------\t-----------------\t---------------")
+		for _, line := range output {
+			fmt.Fprint(w, line+"\n")
+		}
+		w.Flush()
 	}
-	sort.Strings(output)
-	w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
-	fmt.Fprintln(w, "VPC_ID\tSecurityGroupName\tSecurityGroupID")
-	fmt.Fprintln(w, "------\t-----------------\t---------------")
-	for _, line := range output {
-		fmt.Fprint(w, line+"\n")
-	}
-	w.Flush()
-	return nil
+	return rules, nil
 }
 
 type vpc struct {
