@@ -342,7 +342,7 @@ func telemetry() error {
 		if !ok {
 			break
 		}
-		if strings.HasSuffix(val.key, ".Password") || strings.HasSuffix(val.key, ".Pass") {
+		if strings.HasSuffix(val.key, ".Password") || strings.HasSuffix(val.key, ".Pass") || strings.HasSuffix(val.key, ".User") || strings.HasSuffix(val.key, ".Username") {
 			continue
 		}
 		item.Defaults = append(item.Defaults, telemetryDefault{
