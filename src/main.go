@@ -209,10 +209,14 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 }
 
 func telemetry() error {
+	// basic checks
 	if len(os.Args) < 2 {
 		return nil
 	}
-
+	// do not ship config defaults command usage
+	if os.Args[1] == "config" && os.Args[2] == "defaults" {
+		return nil
+	}
 	// only enable if a feature file is present and belongs to Aerospike internal users
 	if a.opts.Cluster.Create.FeaturesFilePath == "" {
 		return nil
@@ -321,12 +325,33 @@ func telemetry() error {
 	// sort telemetryFiles
 	sort.Strings(telemetryFiles)
 
-	// add current command to telemetry
+	// create telemetry item
 	item := telemetryItem{
 		UUID:    string(uuidx),
 		Time:    time.Now().UnixMicro(),
 		CmdLine: os.Args[1:],
 	}
+
+	// add changed default values to the item
+	ret := make(chan configValueCmd, 1)
+	a.opts.Config.Defaults.OnlyChanged = true
+	keyField := reflect.ValueOf(a.opts).Elem()
+	go a.opts.Config.Defaults.getValues(keyField, "", ret, "")
+	for {
+		val, ok := <-ret
+		if !ok {
+			break
+		}
+		if strings.HasSuffix(val.key, ".Password") || strings.HasSuffix(val.key, ".Pass") {
+			continue
+		}
+		item.Defaults = append(item.Defaults, telemetryDefault{
+			Key:   val.key,
+			Value: val.value,
+		})
+	}
+
+	// add current command to telemetry
 	telemetryString, err := json.Marshal(item)
 	if err != nil {
 		return err
@@ -367,9 +392,15 @@ func telemetryShip(file string) error {
 }
 
 type telemetryItem struct {
-	CmdLine []string
-	UUID    string
-	Time    int64
+	CmdLine  []string
+	UUID     string
+	Time     int64
+	Defaults []telemetryDefault
+}
+
+type telemetryDefault struct {
+	Key   string
+	Value string
 }
 
 func writeConfigFile() error {
