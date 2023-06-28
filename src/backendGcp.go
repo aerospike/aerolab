@@ -59,6 +59,7 @@ const (
 	gcpClientTagOperatingSystem  = "aerolab4client_operating_system"
 	gcpClientTagOSVersion        = "aerolab4client_operating_system_version"
 	gcpClientTagAerospikeVersion = "aerolab4client_aerospike_version"
+	gcpClientTagClientType       = "aerolab4client_type"
 	gcpClientFirewallTag         = "aerolab-client"
 )
 
@@ -94,6 +95,148 @@ func (d *backendGcp) WorkOnServers() {
 	gcpTagOperatingSystem = gcpServerTagOperatingSystem
 	gcpTagOSVersion = gcpServerTagOSVersion
 	gcpTagAerospikeVersion = gcpServerTagAerospikeVersion
+}
+
+func (d *backendGcp) Inventory() (inventoryJson, error) {
+	ij := inventoryJson{}
+
+	tmpl, err := d.ListTemplates()
+	if err != nil {
+		return ij, err
+	}
+	for _, d := range tmpl {
+		arch := "amd64"
+		if d.isArm {
+			arch = "arm64"
+		}
+		ij.Templates = append(ij.Templates, inventoryTemplate{
+			AerospikeVersion: d.aerospikeVersion,
+			Distribution:     d.distroName,
+			OSVersion:        d.distroVersion,
+			Arch:             arch,
+		})
+	}
+
+	ctx := context.Background()
+	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		return ij, fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer firewallsClient.Close()
+	req := &computepb.ListFirewallsRequest{
+		Project: a.opts.Config.Backend.Project,
+	}
+	it := firewallsClient.List(ctx, req)
+	for {
+		firewallRule, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return ij, err
+		}
+		allow := []string{}
+		for _, all := range firewallRule.Allowed {
+			allow = append(allow, all.Ports...)
+		}
+		deny := []string{}
+		for _, all := range firewallRule.Denied {
+			deny = append(deny, all.Ports...)
+		}
+		ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
+			GCP: &inventoryFirewallRuleGCP{
+				FirewallName: *firewallRule.Name,
+				TargetTags:   firewallRule.TargetTags,
+				SourceTags:   firewallRule.SourceTags,
+				SourceRanges: firewallRule.SourceRanges,
+				AllowPorts:   allow,
+				DenyPorts:    deny,
+			},
+		})
+	}
+
+	for _, i := range []int{1, 2} {
+		if i == 1 {
+			d.WorkOnServers()
+		} else {
+			d.WorkOnClients()
+		}
+		ctx = context.Background()
+		instancesClient, err := compute.NewInstancesRESTClient(ctx)
+		if err != nil {
+			return ij, fmt.Errorf("newInstancesRESTClient: %w", err)
+		}
+		defer instancesClient.Close()
+		// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+		reqi := &computepb.AggregatedListInstancesRequest{
+			Project: a.opts.Config.Backend.Project,
+			Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagEnclose(gcpTagUsedByValue)),
+		}
+		iti := instancesClient.AggregatedList(ctx, reqi)
+		for {
+			pair, err := iti.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return ij, err
+			}
+			instances := pair.Value.Instances
+			if len(instances) > 0 {
+				for _, instance := range instances {
+					if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+						sysArch := "x86_64"
+						if arm, _ := d.IsSystemArm(*instance.MachineType); arm {
+							sysArch = "aarch64"
+						}
+						pubIp := ""
+						privIp := ""
+						if len(instance.NetworkInterfaces) > 0 {
+							if instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" {
+								privIp = *instance.NetworkInterfaces[0].NetworkIP
+							}
+							if len(instance.NetworkInterfaces[0].AccessConfigs) > 0 {
+								if instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != nil && *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != "" {
+									pubIp = *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP
+								}
+							}
+						}
+						if i == 1 {
+							ij.Clusters = append(ij.Clusters, inventoryCluster{
+								ClusterName:      instance.Labels[gcpTagClusterName],
+								NodeNo:           instance.Labels[gcpTagNodeNumber],
+								InstanceId:       *instance.Name,
+								ImageId:          instance.GetSourceMachineImage(),
+								State:            *instance.Status,
+								Arch:             sysArch,
+								Distribution:     instance.Labels[gcpTagOperatingSystem],
+								OSVersion:        instance.Labels[gcpTagOSVersion],
+								AerospikeVersion: instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:        privIp,
+								PublicIp:         pubIp,
+							})
+						} else {
+							ij.Clients = append(ij.Clients, inventoryClient{
+								ClientName:       instance.Labels[gcpTagClusterName],
+								NodeNo:           instance.Labels[gcpTagNodeNumber],
+								InstanceId:       *instance.Name,
+								ImageId:          instance.GetSourceMachineImage(),
+								State:            *instance.Status,
+								Arch:             sysArch,
+								Distribution:     instance.Labels[gcpTagOperatingSystem],
+								OSVersion:        instance.Labels[gcpTagOSVersion],
+								AerospikeVersion: instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:        privIp,
+								PublicIp:         pubIp,
+								ClientType:       instance.Labels[gcpClientTagClientType],
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+	return ij, nil
 }
 
 func (d *backendGcp) CreateNetwork(name string, driver string, subnet string, mtu string) error {
@@ -1812,6 +1955,10 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		return err
 	}
 	labels[gcpTagClusterName] = name
+	if extra.clientType == "" {
+		extra.clientType = "not-available"
+	}
+	labels[gcpClientTagClientType] = extra.clientType
 
 	disksInt := []gcpDisk{}
 	if len(extra.disks) == 0 {

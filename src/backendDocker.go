@@ -29,6 +29,140 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) Inventory() (inventoryJson, error) {
+	ij := inventoryJson{}
+
+	tmpl, err := d.ListTemplates()
+	if err != nil {
+		return ij, err
+	}
+	for _, d := range tmpl {
+		arch := "amd64"
+		if d.isArm {
+			arch = "arm64"
+		}
+		ij.Templates = append(ij.Templates, inventoryTemplate{
+			AerospikeVersion: d.aerospikeVersion,
+			Distribution:     d.distroName,
+			OSVersion:        d.distroVersion,
+			Arch:             arch,
+		})
+	}
+
+	b := new(bytes.Buffer)
+	err = d.ListNetworks(true, b)
+	if err != nil {
+		return ij, err
+	}
+	for i, line := range strings.Split(b.String(), "\n") {
+		if i == 0 {
+			continue
+		}
+		neta := strings.Split(line, ",")
+		if len(neta) != 4 {
+			continue
+		}
+		ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
+			Docker: &inventoryFirewallRuleDocker{
+				NetworkName:   neta[0],
+				NetworkDriver: neta[1],
+				Subnets:       neta[2],
+				MTU:           neta[3],
+			},
+		})
+	}
+
+	for _, i := range []int{1, 2} {
+		if i == 1 {
+			d.WorkOnServers()
+		} else {
+			d.WorkOnClients()
+		}
+		out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Label \"aerolab.client.type\"}}").CombinedOutput()
+		if err != nil {
+			return ij, err
+		}
+		scanner := bufio.NewScanner(strings.NewReader(string(out)))
+		for scanner.Scan() {
+			t := scanner.Text()
+			t = strings.Trim(t, "'\" \t\r\n")
+			tt := strings.Split(t, "\t")
+			if len(tt) != 4 && len(tt) != 5 {
+				continue
+			}
+			if !strings.HasPrefix(tt[1], dockerNameHeader) {
+				continue
+			}
+			nameNo := strings.Split(strings.TrimPrefix(tt[1], dockerNameHeader+""), "_")
+			if len(nameNo) != 2 {
+				continue
+			}
+			out2, err := exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
+			if err != nil {
+				return ij, err
+			}
+			ip := strings.Trim(string(out2), "'\" \n\r")
+			arch := "amd64"
+			if d.isArm {
+				arch = "arm64"
+			}
+			var i1, asdVer string
+			var i2 []string
+			i3 := []string{""}
+			if i == 1 {
+				i1 = strings.TrimPrefix(tt[3], "aerolab-")
+				i2 = strings.Split(i1, "_")
+				if len(i2) > 1 {
+					i3 = strings.Split(i2[1], ":")
+				}
+				if len(i3) > 1 {
+					asdVer = i3[1]
+				}
+			} else {
+				i2 = strings.Split(tt[3], ":")
+				if len(i2) > 1 {
+					i3[0] = i2[1]
+				}
+			}
+			clientType := ""
+			if len(tt) > 4 {
+				clientType = tt[4]
+			}
+			if i == 1 {
+				ij.Clusters = append(ij.Clusters, inventoryCluster{
+					ClusterName:      nameNo[0],
+					NodeNo:           nameNo[1],
+					PublicIp:         "",
+					PrivateIp:        strings.ReplaceAll(ip, " ", ","),
+					InstanceId:       tt[0],
+					ImageId:          tt[3],
+					State:            tt[2],
+					Arch:             arch,
+					Distribution:     i2[0],
+					OSVersion:        i3[0],
+					AerospikeVersion: asdVer,
+				})
+			} else {
+				ij.Clients = append(ij.Clients, inventoryClient{
+					ClientName:       nameNo[0],
+					NodeNo:           nameNo[1],
+					PublicIp:         "",
+					PrivateIp:        strings.ReplaceAll(ip, " ", ","),
+					InstanceId:       tt[0],
+					ImageId:          tt[3],
+					State:            tt[2],
+					Arch:             arch,
+					Distribution:     i2[0],
+					OSVersion:        i3[0],
+					AerospikeVersion: asdVer,
+					ClientType:       clientType,
+				})
+			}
+		}
+	}
+	return ij, nil
+}
+
 func (d *backendDocker) IsSystemArm(systemType string) (bool, error) {
 	return d.isArm, nil
 }
@@ -421,6 +555,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 	for node := highestNode; node < nodeCount+highestNode; node = node + 1 {
 		var out []byte
 		exposeList := []string{"run"}
+		if extra.clientType != "" {
+			exposeList = append(exposeList, "--label", "aerolab.client.type="+extra.clientType)
+		}
 		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
 		if d.client {
 			tmplName = d.centosNaming(v)

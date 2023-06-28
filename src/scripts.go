@@ -33,6 +33,7 @@ apt-get -y install libcurl4 || apt-get update && apt-get -y install libcurl4 || 
 apt-get -y install ldap-utils || apt-get update && apt-get -y install ldap-utils || exit 1
 apt-get -y install python3-setuptools || apt-get update && apt-get -y install python3-setuptools || exit 1
 apt-get -y install python
+apt-get -y install nano
 apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || apt-get update && apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
 apt-get -y install dnsutils iputils-ping telnet netcat sysstat vim
 wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz || exit 1
@@ -84,6 +85,7 @@ yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
+yum -y install nano
 yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
@@ -117,6 +119,7 @@ yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
+yum -y install nano
 yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
@@ -151,6 +154,7 @@ yum -y update || exit 1
 yum -y install iptables wget tcpdump which initscripts binutils iproute iproute-tc libcurl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
+yum -y install nano
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 cd /root && tar -zxvf installer.tgz || exit 1
@@ -187,6 +191,7 @@ yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
+yum -y install nano
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
@@ -204,6 +209,7 @@ apt-get -y install libcurl4 || exit 1
 apt-get -y install ldap-utils || exit 1
 apt-get -y install python3-setuptools || exit 1
 apt-get -y install python
+apt-get -y install nano
 apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
 apt-get -y install dnsutils iputils-ping telnet netcat sysstat vim
 wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz || exit 1
@@ -304,6 +310,7 @@ yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
+yum -y install nano
 yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
@@ -404,6 +411,7 @@ yum -y update || exit 1
 yum -y install iptables wget tcpdump which initscripts binutils iproute iproute-tc libcurl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
+yum -y install nano
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 cd /root && tar -zxvf installer.tgz || exit 1

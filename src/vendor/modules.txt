@@ -150,6 +150,9 @@ github.com/mattn/go-runewidth
 # github.com/nsf/termbox-go v1.1.1
 ## explicit; go 1.15
 github.com/nsf/termbox-go
+# github.com/olekukonko/tablewriter v0.0.5
+## explicit; go 1.12
+github.com/olekukonko/tablewriter
 # github.com/rglonek/aerospike-config-file-parser v1.0.3
 ## explicit; go 1.19
 github.com/rglonek/aerospike-config-file-parser

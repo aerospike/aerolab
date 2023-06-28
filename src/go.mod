@@ -11,6 +11,7 @@ require (
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/google/uuid v1.3.0
 	github.com/jroimartin/gocui v0.5.0
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
 	golang.org/x/crypto v0.9.0
