@@ -29,6 +29,10 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	return nil, nil
+}
+
 func (d *backendDocker) Inventory() (inventoryJson, error) {
 	ij := inventoryJson{}
 

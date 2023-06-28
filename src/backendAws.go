@@ -88,6 +88,59 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
+func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	it := []instanceType{}
+	err := d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
+		for _, iType := range ec2Types.InstanceTypes {
+			sarch := []string{}
+			for _, sar := range iType.ProcessorInfo.SupportedArchitectures {
+				if sar != nil && *sar != "i386" {
+					sarch = append(sarch, *sar)
+				}
+			}
+			if len(sarch) == 0 {
+				continue
+			}
+			sarchString := strings.Join(sarch, ",")
+			if !findArm && !strings.Contains(sarchString, "amd64") && !strings.Contains(sarchString, "x86") && !strings.Contains(sarchString, "x64") {
+				continue
+			}
+			if findArm && !strings.Contains(sarchString, "arm64") && !strings.Contains(sarchString, "aarch64") {
+				continue
+			}
+			if (minCpu > 0 && int(*iType.VCpuInfo.DefaultVCpus) < minCpu) || (maxCpu > 0 && int(*iType.VCpuInfo.DefaultVCpus) > maxCpu) {
+				continue
+			}
+			if (minRam > 0 && float64(int(*iType.MemoryInfo.SizeInMiB))/1024 < minRam) || (maxRam > 0 && float64(int(*iType.MemoryInfo.SizeInMiB))/1024 > maxRam) {
+				continue
+			}
+			eph := 0
+			ephs := float64(0)
+			if iType.InstanceStorageSupported != nil && *iType.InstanceStorageSupported && iType.InstanceStorageInfo != nil {
+				ephs = float64(aws.Int64Value(iType.InstanceStorageInfo.TotalSizeInGB))
+				for _, d := range iType.InstanceStorageInfo.Disks {
+					eph = eph + int(*d.Count)
+				}
+			}
+			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
+				continue
+			}
+			it = append(it, instanceType{
+				InstanceName:             *iType.InstanceType,
+				CPUs:                     int(*iType.VCpuInfo.DefaultVCpus),
+				RamGB:                    float64(int(*iType.MemoryInfo.SizeInMiB)) / 1024,
+				EphemeralDisks:           eph,
+				EphemeralDiskTotalSizeGB: ephs,
+			})
+		}
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return it, nil
+}
+
 func (d *backendAws) Inventory() (inventoryJson, error) {
 	ij := inventoryJson{}
 

@@ -127,6 +127,7 @@ type backend interface {
 	PruneNetworks() error
 	ListNetworks(csv bool, writer io.Writer) error
 	Inventory() (inventoryJson, error)
+	GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error)
 }
 
 type inventoryJson struct {
@@ -200,6 +201,14 @@ type inventoryFirewallRuleDocker struct {
 	NetworkDriver string
 	Subnets       string
 	MTU           string
+}
+
+type instanceType struct {
+	InstanceName             string
+	CPUs                     int
+	RamGB                    float64
+	EphemeralDisks           int
+	EphemeralDiskTotalSizeGB float64
 }
 
 // check return code from exec function
