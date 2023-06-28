@@ -9,6 +9,7 @@
 * Added `inventory list` command, which prints all of the inventory (clusters, clients, firewalls, templates) in table or json format.
 * Added `nano` command to all distributions.
 * Update API packages to latest as of June 28th, 2023.
+* Add new command `inventory instance-types` to allow for quick lookup of instance types in `AWS` and `GCP` clouds.
 
 #### 6.0.3
 * Handle bug in IP discovery on `docker` backend with custom networks.

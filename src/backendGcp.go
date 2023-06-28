@@ -97,6 +97,10 @@ func (d *backendGcp) WorkOnServers() {
 	gcpTagAerospikeVersion = gcpServerTagAerospikeVersion
 }
 
+func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (d *backendGcp) Inventory() (inventoryJson, error) {
 	ij := inventoryJson{}
 
