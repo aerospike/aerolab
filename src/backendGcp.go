@@ -98,7 +98,69 @@ func (d *backendGcp) WorkOnServers() {
 }
 
 func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
-	return nil, errors.New("not implemented")
+	if gcpZone == "" {
+		return nil, errors.New("GCP Zone is required, specify with --zone")
+	}
+	ctx := context.Background()
+	instancesClient, err := compute.NewMachineTypesRESTClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+	req := &computepb.AggregatedListMachineTypesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("zone=" + gcpZone),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	ij := []instanceType{}
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range pair.Value.MachineTypes {
+			if !findArm && strings.HasPrefix(*t.Name, "t2") {
+				continue
+			}
+			if findArm && !strings.HasPrefix(*t.Name, "t2") {
+				continue
+			}
+			if (minCpu > 0 && int(t.GetGuestCpus()) < minCpu) || (maxCpu > 0 && int(t.GetGuestCpus()) > maxCpu) {
+				continue
+			}
+			if (minRam > 0 && float64(t.GetMemoryMb())/1024 < minRam) || (maxRam > 0 && float64(t.GetMemoryMb())/1024 > maxRam) {
+				continue
+			}
+			eph := 0
+			ephs := float64(0)
+			if !*t.IsSharedCpu && !strings.HasPrefix(*t.Name, "e2-") && !strings.HasPrefix(*t.Name, "t2d-") && !strings.HasPrefix(*t.Name, "t2a-") && !strings.HasPrefix(*t.Name, "m2-") && !strings.HasPrefix(*t.Name, "c3-") {
+				if strings.HasPrefix(*t.Name, "c2-") || strings.HasPrefix(*t.Name, "c2d-") || strings.HasPrefix(*t.Name, "a2-") || strings.HasPrefix(*t.Name, "m1-") || strings.HasPrefix(*t.Name, "m3-") || strings.HasPrefix(*t.Name, "g2-") {
+					eph = 8
+					ephs = 3 * 1024
+				} else if strings.HasPrefix(*t.Name, "n1-") || strings.HasPrefix(*t.Name, "n2-") || strings.HasPrefix(*t.Name, "n2d-") {
+					eph = 24
+					ephs = 9 * 1024
+				} else {
+					eph = -1
+					ephs = -1
+				}
+			}
+			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
+				continue
+			}
+			ij = append(ij, instanceType{
+				InstanceName:             *t.Name,
+				CPUs:                     int(t.GetGuestCpus()),
+				RamGB:                    float64(t.GetMemoryMb()) / 1024,
+				EphemeralDisks:           eph,
+				EphemeralDiskTotalSizeGB: ephs,
+			})
+		}
+	}
+	return ij, err
 }
 
 func (d *backendGcp) Inventory() (inventoryJson, error) {

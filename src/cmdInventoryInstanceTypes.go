@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -56,15 +57,26 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	table.SetHeader([]string{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB"})
 	table.SetAutoFormatHeaders(false)
 	for _, v := range t {
+		edisks := strconv.Itoa(v.EphemeralDisks)
+		edisksize := strings.TrimSuffix(strconv.FormatFloat(v.EphemeralDiskTotalSizeGB, 'f', 2, 64), ".00")
+		if v.EphemeralDisks == -1 {
+			edisks = "unknown"
+		}
+		if v.EphemeralDiskTotalSizeGB == -1 {
+			edisksize = "unknown"
+		}
 		vv := []string{
 			v.InstanceName,
 			strconv.Itoa(v.CPUs),
 			strings.TrimSuffix(strconv.FormatFloat(v.RamGB, 'f', 2, 64), ".00"),
-			strconv.Itoa(v.EphemeralDisks),
-			strings.TrimSuffix(strconv.FormatFloat(v.EphemeralDiskTotalSizeGB, 'f', 2, 64), ".00"),
+			edisks,
+			edisksize,
 		}
 		table.Append(vv)
 	}
 	table.Render()
+	if a.opts.Config.Backend.Type == "gcp" {
+		fmt.Println("* local ephemeral disks are not automatically allocated to the machines; these need to be requested in the quantity required; each disk is always 375 GB")
+	}
 	return nil
 }
