@@ -504,9 +504,6 @@ func (a *aerolab) createDefaults() {
 			return
 		}
 	}
-	if _, err := os.Stat(path.Join(ahome, "telemetry")); err != nil {
-		os.Mkdir(path.Join(ahome, "telemetry"), 0755)
-	}
 	if _, err := os.Stat(path.Join(ahome, "conf")); err != nil {
 		if _, err := os.Stat(path.Join(home, ".aerolab.conf")); err == nil {
 			err = os.Rename(path.Join(home, ".aerolab.conf"), path.Join(ahome, "conf"))
