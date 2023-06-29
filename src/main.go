@@ -97,7 +97,7 @@ $ %s config backend -t docker [-d /path/to/tmpdir/for-aerolab/to/use]
 $ %s config backend -t aws [-r region] [-p /custom/path/to/store/ssh/keys/in/] [-d /path/to/tmpdir/for-aerolab/to/use]
 $ %s config backend -t gcp -o project-name [-d /path/to/tmpdir/for-aerolab/to/use]
 
-Default file path is ${HOME}/.aerolab.conf
+Default file path is ${HOME}/.aerolab/conf
 
 To specify a custom configuration file, set the environment variable:
    $ export AEROLAB_CONFIG_FILE=/path/to/file.conf
@@ -105,6 +105,7 @@ To specify a custom configuration file, set the environment variable:
 `
 
 func (a *aerolab) main(name string, args []string) {
+	a.createDefaults()
 	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
 
 	// preload file to load parsers based on backend
@@ -264,10 +265,10 @@ func telemetry() error {
 	if err != nil {
 		return err
 	}
-	telemetryDir := path.Join(home, ".aerolab.telemetry")
+	telemetryDir := path.Join(home, ".aerolab/telemetry")
 
 	// check if telemetry is disabled
-	if _, err := os.Stat(path.Join(home, ".aerolab.disabletelemetry")); err == nil {
+	if _, err := os.Stat(path.Join(home, ".aerolab/telemetry/disable")); err == nil {
 		return err
 	}
 
@@ -484,7 +485,37 @@ func (a *aerolab) configFileName() (cfgFile string, optional bool, err error) {
 		if err != nil {
 			return
 		}
-		cfgFile = path.Join(home, ".aerolab.conf")
+		cfgFile = path.Join(home, ".aerolab/conf")
 	}
 	return
+}
+
+func (a *aerolab) createDefaults() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		log.Printf("WARN could not determine user's home directory: %s", err)
+		return
+	}
+	ahome := path.Join(home, ".aerolab")
+	if _, err := os.Stat(ahome); err != nil {
+		err = os.MkdirAll(ahome, 0755)
+		if err != nil {
+			log.Printf("WARN could not create %s, configuration files may not be available: %s", ahome, err)
+			return
+		}
+	}
+	if _, err := os.Stat(path.Join(ahome, "telemetry")); err != nil {
+		os.Mkdir(path.Join(ahome, "telemetry"), 0755)
+	}
+	if _, err := os.Stat(path.Join(ahome, "cache")); err != nil {
+		os.Mkdir(path.Join(ahome, "cache"), 0755)
+	}
+	if _, err := os.Stat(path.Join(ahome, "conf")); err != nil {
+		if _, err := os.Stat(path.Join(home, ".aerolab.conf")); err == nil {
+			err = os.Rename(path.Join(home, ".aerolab.conf"), path.Join(ahome, "conf"))
+			if err != nil {
+				log.Printf("WARN failed to migrate ~/.aerolab.conf to ~/.aerolab/conf")
+			}
+		}
+	}
 }
