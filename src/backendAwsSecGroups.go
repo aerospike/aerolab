@@ -24,6 +24,7 @@ import (
 // * aws delete also delete internal
 // * aws inventory list - firewall rules listing
 // * aws assign security groups
+// AWS and GCP - test deploying using older aerolab and migrating to 6.1.0 to see how the firewall rules will break (with and without running lock-firewall-rules) - see if we need a "aerolab config gcp migrate-firewall-rules" option(?)
 
 func (d *backendAws) resolveVPC() (*ec2.DescribeVpcsOutput, error) {
 	return d.resolveVPCdo(true)
