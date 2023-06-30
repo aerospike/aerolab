@@ -20,6 +20,10 @@ func (c *inventoryListCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	return c.run(true, true, true, true)
+}
+
+func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool) error {
 	inv, err := b.Inventory()
 	if err != nil {
 		return err
@@ -51,8 +55,35 @@ func (c *inventoryListCmd) Execute(args []string) error {
 		if c.JsonPretty {
 			enc.SetIndent("", "    ")
 		}
-		err = enc.Encode(inv)
-		return err
+		if showClusters && showClients && showTemplates && showFirewalls {
+			err = enc.Encode(inv)
+			return err
+		}
+		if showClusters {
+			err = enc.Encode(inv.Clusters)
+			if err != nil {
+				return err
+			}
+		}
+		if showClients {
+			err = enc.Encode(inv.Clients)
+			if err != nil {
+				return err
+			}
+		}
+		if showTemplates {
+			err = enc.Encode(inv.Templates)
+			if err != nil {
+				return err
+			}
+		}
+		if showFirewalls {
+			err = enc.Encode(inv.FirewallRules)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	sort.Slice(inv.Templates, func(i, j int) bool {
@@ -114,111 +145,143 @@ func (c *inventoryListCmd) Execute(args []string) error {
 		}
 	})
 
-	fmt.Println("\nTEMPLATES:")
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Aerospike Version", "Arch", "Distribution", "OS Version"})
-	table.SetAutoFormatHeaders(false)
-	for _, v := range inv.Templates {
-		vv := []string{
-			v.AerospikeVersion,
-			v.Arch,
-			v.Distribution,
-			v.OSVersion,
-		}
-		table.Append(vv)
-	}
-	table.Render()
-
-	fmt.Println("\nCLUSTERS:")
-	table = tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version"})
-	table.SetAutoFormatHeaders(false)
-	for _, v := range inv.Clusters {
-		vv := []string{
-			v.ClusterName,
-			v.NodeNo,
-			v.InstanceId,
-			v.ImageId,
-			v.Arch,
-			v.PrivateIp,
-			v.PublicIp,
-			v.State,
-			v.Distribution,
-			strings.ReplaceAll(v.OSVersion, "-", "."),
-			strings.ReplaceAll(v.AerospikeVersion, "-", "."),
-		}
-		table.Append(vv)
-	}
-	table.Render()
-
-	fmt.Println("\nCLIENTS:")
-	table = tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Client Type", "Access URL", "Access Port"})
-	table.SetAutoFormatHeaders(false)
-	for _, v := range inv.Clients {
-		vv := []string{
-			v.ClientName,
-			v.NodeNo,
-			v.InstanceId,
-			v.ImageId,
-			v.Arch,
-			v.PrivateIp,
-			v.PublicIp,
-			v.State,
-			v.Distribution,
-			strings.ReplaceAll(v.OSVersion, "-", "."),
-			v.ClientType,
-			v.AccessUrl,
-			v.AccessPort,
-		}
-		table.Append(vv)
-	}
-	table.Render()
-	fmt.Println("* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL")
-
-	table = tablewriter.NewWriter(os.Stdout)
-	table.SetAutoFormatHeaders(false)
-	switch a.opts.Config.Backend.Type {
-	case "gcp":
-		fmt.Println("\nFIREWALL RULES:")
-		table.SetHeader([]string{"Firewall Name", "Target Tags", "Source Tags", "Source Ranges", "Allow Ports", "Deny Ports"})
-		for _, v := range inv.FirewallRules {
+	if showTemplates {
+		fmt.Println("\nTEMPLATES:")
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetHeader([]string{"Aerospike Version", "Arch", "Distribution", "OS Version"})
+		table.SetAutoFormatHeaders(false)
+		for _, v := range inv.Templates {
 			vv := []string{
-				v.GCP.FirewallName,
-				strings.Join(v.GCP.TargetTags, " "),
-				strings.Join(v.GCP.SourceTags, " "),
-				strings.Join(v.GCP.SourceRanges, " "),
-				strings.Join(v.GCP.AllowPorts, " "),
-				strings.Join(v.GCP.DenyPorts, " "),
+				v.AerospikeVersion,
+				v.Arch,
+				v.Distribution,
+				v.OSVersion,
 			}
 			table.Append(vv)
 		}
 		table.Render()
-	case "aws":
-		fmt.Println("\nSECURITY GROUPS:")
-		table.SetHeader([]string{"VPC", "Security Group Name", "Security Group ID"})
-		for _, v := range inv.FirewallRules {
+	}
+
+	if showClusters {
+		fmt.Println("\nCLUSTERS:")
+		table := tablewriter.NewWriter(os.Stdout)
+		if a.opts.Config.Backend.Type == "gcp" {
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls"})
+		} else {
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls"})
+		}
+		table.SetAutoFormatHeaders(false)
+		for _, v := range inv.Clusters {
 			vv := []string{
-				v.AWS.VPC,
-				v.AWS.SecurityGroupName,
-				v.AWS.SecurityGroupID,
+				v.ClusterName,
+				v.NodeNo,
+				v.InstanceId,
 			}
+			if a.opts.Config.Backend.Type == "gcp" {
+				vv = append(vv, v.Zone)
+			} else {
+				vv = append(vv, v.ImageId)
+			}
+			vv = append(vv,
+				v.Arch,
+				v.PrivateIp,
+				v.PublicIp,
+				v.State,
+				v.Distribution,
+				strings.ReplaceAll(v.OSVersion, "-", "."),
+				strings.ReplaceAll(v.AerospikeVersion, "-", "."),
+				strings.Join(v.Firewalls, ","),
+			)
 			table.Append(vv)
 		}
 		table.Render()
-	case "docker":
-		fmt.Println("\nNETWORKS:")
-		table.SetHeader([]string{"Network Name", "Network Driver", "Subnets", "MTU"})
-		for _, v := range inv.FirewallRules {
+	}
+
+	if showClients {
+		fmt.Println("\nCLIENTS:")
+		table := tablewriter.NewWriter(os.Stdout)
+		if a.opts.Config.Backend.Type == "gcp" {
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Client Type", "Access URL", "Access Port"})
+		} else {
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Client Type", "Access URL", "Access Port"})
+		}
+		table.SetAutoFormatHeaders(false)
+		for _, v := range inv.Clients {
 			vv := []string{
-				v.Docker.NetworkName,
-				v.Docker.NetworkDriver,
-				v.Docker.Subnets,
-				v.Docker.MTU,
+				v.ClientName,
+				v.NodeNo,
+				v.InstanceId,
 			}
+			if a.opts.Config.Backend.Type == "gcp" {
+				vv = append(vv, v.Zone)
+			} else {
+				vv = append(vv, v.ImageId)
+			}
+			vv = append(vv,
+				v.Arch,
+				v.PrivateIp,
+				v.PublicIp,
+				v.State,
+				v.Distribution,
+				strings.ReplaceAll(v.OSVersion, "-", "."),
+				strings.Join(v.Firewalls, ","),
+				v.ClientType,
+				v.AccessUrl,
+				v.AccessPort,
+			)
 			table.Append(vv)
 		}
 		table.Render()
+		if a.opts.Config.Backend.Type == "docker" {
+			fmt.Println("* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL")
+		}
+	}
+
+	if showFirewalls {
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetAutoFormatHeaders(false)
+		switch a.opts.Config.Backend.Type {
+		case "gcp":
+			fmt.Println("\nFIREWALL RULES:")
+			table.SetHeader([]string{"Firewall Name", "Target Tags", "Source Tags", "Source Ranges", "Allow Ports", "Deny Ports"})
+			for _, v := range inv.FirewallRules {
+				vv := []string{
+					v.GCP.FirewallName,
+					strings.Join(v.GCP.TargetTags, " "),
+					strings.Join(v.GCP.SourceTags, " "),
+					strings.Join(v.GCP.SourceRanges, " "),
+					strings.Join(v.GCP.AllowPorts, " "),
+					strings.Join(v.GCP.DenyPorts, " "),
+				}
+				table.Append(vv)
+			}
+			table.Render()
+		case "aws":
+			fmt.Println("\nSECURITY GROUPS:")
+			table.SetHeader([]string{"VPC", "Security Group Name", "Security Group ID"})
+			for _, v := range inv.FirewallRules {
+				vv := []string{
+					v.AWS.VPC,
+					v.AWS.SecurityGroupName,
+					v.AWS.SecurityGroupID,
+				}
+				table.Append(vv)
+			}
+			table.Render()
+		case "docker":
+			fmt.Println("\nNETWORKS:")
+			table.SetHeader([]string{"Network Name", "Network Driver", "Subnets", "MTU"})
+			for _, v := range inv.FirewallRules {
+				vv := []string{
+					v.Docker.NetworkName,
+					v.Docker.NetworkDriver,
+					v.Docker.Subnets,
+					v.Docker.MTU,
+				}
+				table.Append(vv)
+			}
+			table.Render()
+		}
 	}
 	return nil
 }

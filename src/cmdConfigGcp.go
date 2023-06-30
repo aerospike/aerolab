@@ -24,16 +24,20 @@ type listFirewallCmd struct {
 }
 
 type destroyFirewallCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NamePrefix string  `short:"n" long:"name" description:"Name to use for the firewall" default:"aerolab-managed-external"`
+	Internal   bool    `short:"i" long:"internal" description:"Also remove the internal firewall rule if it exists"`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type createFirewallCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NamePrefix string  `short:"n" long:"name" description:"Name to use for the firewall" default:"aerolab-managed-external"`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type lockFirewallCmd struct {
-	IP   string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NamePrefix string  `short:"n" long:"name" description:"Name to use for the firewall" default:"aerolab-managed-external"`
+	IP         string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *listFirewallCmd) Execute(args []string) error {
@@ -58,7 +62,7 @@ func (c *createFirewallCmd) Execute(args []string) error {
 		return logFatal("required backend type to be GCP")
 	}
 	log.Print("Creating firewall rules")
-	err := b.CreateSecurityGroups("")
+	err := b.CreateSecurityGroups("", c.NamePrefix)
 	if err != nil {
 		return err
 	}
@@ -74,7 +78,7 @@ func (c *destroyFirewallCmd) Execute(args []string) error {
 		return logFatal("required backend type to be GCP")
 	}
 	log.Print("Removing firewall rules")
-	err := b.DeleteSecurityGroups("")
+	err := b.DeleteSecurityGroups("", c.NamePrefix, c.Internal)
 	if err != nil {
 		return err
 	}
@@ -90,7 +94,7 @@ func (c *lockFirewallCmd) Execute(args []string) error {
 		return logFatal("required backend type to be GCP")
 	}
 	log.Print("Locking firewall rules")
-	err := b.LockSecurityGroups(c.IP, true, "")
+	err := b.LockSecurityGroups(c.IP, true, "", c.NamePrefix)
 	if err != nil {
 		return err
 	}

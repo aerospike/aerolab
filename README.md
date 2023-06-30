@@ -49,6 +49,8 @@ You can see the IP addresses of running AeroLab containers with the `aerolab clu
 
 [AeroLab on GCP](docs/gcp-setup.md)
 
+[GCP Firewall Rules](docs/gcp-firewall.md)
+
 [Help commands](docs/usage/help.md)
 
 [Usage examples](docs/usage/index.md)

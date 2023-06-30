@@ -29,20 +29,23 @@ type listSubnetsCmd struct {
 }
 
 type destroySecGroupsCmd struct {
-	VPC  string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NamePrefix string  `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
+	VPC        string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type createSecGroupsCmd struct {
-	VPC  string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NamePrefix string  `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
+	VPC        string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type lockSecGroupsCmd struct {
-	IP   string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
-	Ssh  bool    `short:"s" long:"ssh" description:"set to also lock port 22 SSH to the given IP/mask for server and client groups"`
-	VPC  string  `short:"v" long:"vpc" description:"VPC to handle sec groups for; default: default-VPC" default:""`
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NamePrefix string  `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
+	IP         string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
+	Ssh        bool    `short:"s" long:"ssh" description:"set to also lock port 22 SSH to the given IP/mask for server and client groups"`
+	VPC        string  `short:"v" long:"vpc" description:"VPC to handle sec groups for; default: default-VPC" default:""`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *listSecGroupsCmd) Execute(args []string) error {
@@ -81,7 +84,7 @@ func (c *createSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Creating security groups")
-	err := b.CreateSecurityGroups(c.VPC)
+	err := b.CreateSecurityGroups(c.VPC, c.NamePrefix)
 	if err != nil {
 		return err
 	}
@@ -97,7 +100,7 @@ func (c *destroySecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Removing security groups")
-	err := b.DeleteSecurityGroups(c.VPC)
+	err := b.DeleteSecurityGroups(c.VPC, c.NamePrefix, true)
 	if err != nil {
 		return err
 	}
@@ -113,7 +116,7 @@ func (c *lockSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Locking security groups")
-	err := b.LockSecurityGroups(c.IP, c.Ssh, c.VPC)
+	err := b.LockSecurityGroups(c.IP, c.Ssh, c.VPC, c.NamePrefix)
 	if err != nil {
 		return err
 	}

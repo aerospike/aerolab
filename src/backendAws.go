@@ -245,6 +245,7 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							Distribution:     os,
 							OSVersion:        osVer,
 							AerospikeVersion: asdVer,
+							Zone:             a.opts.Config.Backend.Region,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -260,6 +261,7 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							OSVersion:        osVer,
 							AerospikeVersion: asdVer,
 							ClientType:       clientType,
+							Zone:             a.opts.Config.Backend.Region,
 						})
 					}
 				}

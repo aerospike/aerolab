@@ -159,7 +159,11 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		isArm:            isArm,
 	}
 	log.Printf("Distro: %s Version: %s", string(c.DistroName), string(c.DistroVersion))
-
+	if a.opts.Config.Backend.Type == "gcp" {
+		extra.firewallNamePrefix = c.Gcp.NamePrefix
+	} else {
+		extra.firewallNamePrefix = c.Aws.NamePrefix
+	}
 	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {
 		return nil, err
