@@ -24,7 +24,6 @@ import (
 // * aws delete also delete internal
 // * aws inventory list - firewall rules listing
 // * aws assign security groups
-// standardize the 'cluster/client/etc list' to use inventory list
 
 func (d *backendAws) resolveVPC() (*ec2.DescribeVpcsOutput, error) {
 	return d.resolveVPCdo(true)

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -879,42 +878,8 @@ func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
 	if !isJson {
 		return d.clusterListFullNoJson()
 	}
-	jsonOut := []clusterListFull{}
-	out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}").CombinedOutput()
-	if err != nil {
-		return "", err
-	}
-	scanner := bufio.NewScanner(strings.NewReader(string(out)))
-	for scanner.Scan() {
-		t := scanner.Text()
-		t = strings.Trim(t, "'\" \t\r\n")
-		tt := strings.Split(t, "\t")
-		if len(tt) != 3 {
-			continue
-		}
-		if !strings.HasPrefix(tt[1], dockerNameHeader) {
-			continue
-		}
-		nameNo := strings.Split(strings.TrimPrefix(tt[1], dockerNameHeader+""), "_")
-		if len(nameNo) != 2 {
-			continue
-		}
-		out2, err := exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
-		if err != nil {
-			return "", err
-		}
-		ip := strings.Trim(string(out2), "'\" \n\r")
-		jsonOut = append(jsonOut, clusterListFull{
-			ClusterName: nameNo[0],
-			NodeNumber:  nameNo[1],
-			IpAddress:   strings.ReplaceAll(ip, " ", ","),
-			PublicIp:    "",
-			InstanceId:  tt[0],
-			State:       tt[2],
-		})
-	}
-	out, err = json.MarshalIndent(jsonOut, "", "    ")
-	return string(out), err
+	a.opts.Inventory.List.Json = isJson
+	return "", a.opts.Inventory.List.run(d.server, d.client, false, false)
 }
 
 func (d *backendDocker) clusterListFullNoJson() (string, error) {
@@ -980,48 +945,6 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 
 // returns an unformatted string with list of clusters, to be printed to user
 func (d *backendDocker) TemplateListFull(isJson bool) (string, error) {
-	jsonRes := []templateListFull{}
-	var err error
-	var out []byte
-	out, err = exec.Command("docker", "image", "list").CombinedOutput()
-	if err != nil {
-		return string(out), err
-	}
-	scanner := bufio.NewScanner(strings.NewReader(string(out)))
-
-	if !isJson {
-		var response string
-		response = "Images (templates):\n===================\n"
-		for scanner.Scan() {
-			t := scanner.Text()
-			t = strings.Trim(t, "'\"")
-			if strings.HasPrefix(t, "REPOSITORY") || strings.HasPrefix(t, dockerNameHeader+"") {
-				response = response + t + "\n"
-			}
-		}
-		response = response + "\n\nTo see all docker containers (including base OS images), not just those specific to aerolab:\n$ docker container list -a\n$ docker image list -a\n"
-		return response, nil
-	}
-
-	for scanner.Scan() {
-		t := scanner.Text()
-		t = strings.Trim(t, "'\" \t\r\n")
-		if !strings.HasPrefix(t, dockerNameHeader+"") {
-			continue
-		}
-		rep := strings.TrimPrefix(cut(t, 1, " "), dockerNameHeader+"")
-		osVer := strings.Split(rep, "_")
-		if len(osVer) != 2 {
-			continue
-		}
-		asdVer := cut(t, 2, " ")
-		jsonRes = append(jsonRes, templateListFull{
-			OsName:           osVer[0],
-			OsVersion:        osVer[1],
-			AerospikeVersion: asdVer,
-			ImageId:          cut(t, 3, " "),
-		})
-	}
-	out, err = json.MarshalIndent(jsonRes, "", "    ")
-	return string(out), err
+	a.opts.Inventory.List.Json = isJson
+	return "", a.opts.Inventory.List.run(false, false, true, false)
 }
