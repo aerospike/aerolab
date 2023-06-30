@@ -11,3 +11,4 @@
 * Consider adding telemetry to all users (anonymous usage only).
 * Consider adding option of `ansible` or other backend (gen scripts instead of performing deployments).
 * Consider tailscale integration.
+* Consider adding VMWare backend.
