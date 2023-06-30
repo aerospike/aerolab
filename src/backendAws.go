@@ -1,13 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1041,172 +1039,14 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-type clusterListFull struct {
-	ClusterName string
-	NodeNumber  string
-	IpAddress   string
-	PublicIp    string
-	InstanceId  string
-	State       string
-	Arch        string
-}
-
 func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
-	filter := ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("tag:" + awsTagUsedBy),
-				Values: []*string{aws.String(awsTagUsedByValue)},
-			},
-		},
-	}
-	instances, err := d.ec2svc.DescribeInstances(&filter)
-	if err != nil {
-		return "", fmt.Errorf("could not run DescribeInstances\n%s", err)
-	}
-	clist := []clusterListFull{}
-	for _, reservation := range instances.Reservations {
-		for _, instance := range reservation.Instances {
-			if *instance.State.Code == int64(48) {
-				continue
-			}
-			clist1 := clusterListFull{}
-			for _, tag := range instance.Tags {
-				if *tag.Key == awsTagClusterName {
-					clist1.ClusterName = *tag.Value
-				}
-				if *tag.Key == awsTagNodeNumber {
-					clist1.NodeNumber = *tag.Value
-				}
-			}
-			if instance.PrivateIpAddress != nil {
-				clist1.IpAddress = *instance.PrivateIpAddress
-			}
-			if instance.PublicIpAddress != nil {
-				clist1.PublicIp = *instance.PublicIpAddress
-			}
-			if instance.InstanceId != nil {
-				clist1.InstanceId = *instance.InstanceId
-			}
-			if instance.State != nil && instance.State.Name != nil {
-				clist1.State = *instance.State.Name
-			}
-			if instance.Architecture != nil {
-				clist1.Arch = *instance.Architecture
-			}
-			clist = append(clist, clist1)
-		}
-	}
-	clusterName := 20
-	nodeNumber := 6
-	ipAddress := 15
-	publicIp := 15
-	instanceId := 20
-	state := 20
-	arch := 10
-	for _, item := range clist {
-		if len(item.ClusterName) > clusterName {
-			clusterName = len(item.ClusterName)
-		}
-		if len(item.NodeNumber) > nodeNumber {
-			nodeNumber = len(item.NodeNumber)
-		}
-		if len(item.IpAddress) > ipAddress {
-			ipAddress = len(item.IpAddress)
-		}
-		if len(item.PublicIp) > publicIp {
-			publicIp = len(item.PublicIp)
-		}
-		if len(item.InstanceId) > instanceId {
-			instanceId = len(item.InstanceId)
-		}
-		if len(item.State) > state {
-			state = len(item.State)
-		}
-		if len(item.Arch) > arch {
-			arch = len(item.Arch)
-		}
-	}
-	sort.Slice(clist, func(i, j int) bool {
-		if clist[i].ClusterName < clist[j].ClusterName {
-			return true
-		}
-		if clist[i].ClusterName > clist[j].ClusterName {
-			return false
-		}
-		ino, _ := strconv.Atoi(clist[i].NodeNumber)
-		jno, _ := strconv.Atoi(clist[j].NodeNumber)
-		return ino < jno
-	})
-	if !isJson {
-		sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s %-" + strconv.Itoa(arch) + "s\n"
-		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State", "Arch")
-		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------", "----------")
-		for _, item := range clist {
-			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State, item.Arch)
-		}
-		return result, nil
-	}
-	out, err := json.MarshalIndent(clist, "", "    ")
-	return string(out), err
-}
-
-type templateListFull struct {
-	OsName           string
-	OsVersion        string
-	AerospikeVersion string
-	ImageId          string
-	Arch             string
+	a.opts.Inventory.List.Json = isJson
+	return "", a.opts.Inventory.List.run(d.server, d.client, false, false)
 }
 
 func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
-	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n-----------------------------------------\n"
-	resList := []templateListFull{}
-	filterA := ec2.DescribeImagesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("tag:" + awsTagUsedBy),
-				Values: []*string{aws.String(awsTagUsedByValue)},
-			},
-		},
-	}
-	images, err := d.ec2svc.DescribeImages(&filterA)
-	if err != nil {
-		return "", fmt.Errorf("could not run DescribeImages\n%s", err)
-	}
-	for _, image := range images.Images {
-		var imOs string
-		var imOsVer string
-		var imAerVer string
-		for _, tag := range image.Tags {
-			if *tag.Key == awsTagOperatingSystem {
-				imOs = *tag.Value
-			}
-			if *tag.Key == awsTagOSVersion {
-				imOsVer = *tag.Value
-			}
-			if *tag.Key == awsTagAerospikeVersion {
-				imAerVer = *tag.Value
-			}
-		}
-		mid := ""
-		if image.ImageId != nil {
-			mid = *image.ImageId
-		}
-		result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, imOs, imOsVer, imAerVer, *image.Architecture)
-		resList = append(resList, templateListFull{
-			OsName:           imOs,
-			OsVersion:        imOsVer,
-			AerospikeVersion: imAerVer,
-			ImageId:          mid,
-			Arch:             *image.Architecture,
-		})
-	}
-	if !isJson {
-		return result, nil
-	}
-	out, err := json.MarshalIndent(resList, "", "    ")
-	return string(out), err
+	a.opts.Inventory.List.Json = isJson
+	return "", a.opts.Inventory.List.run(false, false, true, false)
 }
 
 var deployAwsTemplateShutdownMaking = make(chan int, 1)
