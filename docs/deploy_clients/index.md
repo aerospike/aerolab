@@ -1,17 +1,4 @@
-[Docs home](../../README.md)
-
-## Sub-topics
-
-[Launch a VS Code client VM with AeroLab](vscode.md)
-
-[Deploy a Trino server](trino.md)
-
-[Deploy the Elasticsearch connector for Aerospike](elasticsearch.md)
-
-[Deploy a Rest Gateway](restgw.md)
-
 # Deploying clients with AeroLab
-
 
 ## Client command
 

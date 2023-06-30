@@ -41,25 +41,28 @@ setting up tunneling for direct container access.
 
 You can see the IP addresses of running AeroLab containers with the `aerolab cluster-list` command.
 
-## Table of contents
+## Documentation
 
-[Getting started](docs/GETTING_STARTED.md)
-
-[AeroLab on AWS](docs/aws-setup.md)
-
-[AeroLab on GCP](docs/gcp-setup.md)
-
-[GCP Firewall Rules](docs/gcp-firewall.md)
-
-[Help commands](docs/usage/help.md)
-
-[Usage examples](docs/usage/index.md)
-
-[Deploying clients](docs/deploy_clients/index.md)
-
-[REST API](docs/rest-api.md)
-
-[Utility scripts](docs/utility_scripts/index.md)
+* [Getting started](docs/GETTING_STARTED.md)
+* [Help commands](docs/usage/help.md)
+* [GCP](docs/gcp-setup.md)
+  * [Advanced - GCP Firewall Rules](docs/gcp-firewall.md)
+  * [Partitioner](docs/partitioner/partition-disks.md)
+* [AWS](docs/aws-setup.md)
+  * [Partitioner](docs/partitioner/partition-disks.md)
+* [Usage examples](docs/usage/index.md)
+  * [Basic](docs/usage/basic/index.md)
+  * [Advanced](docs/usage/advanced/index.md)
+  * [Full Stack](docs/usage/full-stack/index.md)
+* [Deploying clients](docs/deploy_clients/index.md)
+  * [Elastic Search](docs/deploy_clients/elasticsearch.md)
+  * [Rest Gateway](docs/deploy_clients/restgw.md)
+  * [Trino](docs/deploy_clients/trino.md)
+  * [VSCode](docs/deploy_clients/vscode.md)
+  * [AMS monitoring stack](docs/usage/monitoring/ams.md)
+  * [Tools and Asbench](docs/usage/full-stack/index.md)
+* [REST API](docs/rest-api.md)
+* [Utility scripts](docs/utility_scripts/index.md)
 
 ## Changelog
 
