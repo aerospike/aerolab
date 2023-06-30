@@ -17,25 +17,26 @@ func getBackend() (backend, error) {
 }
 
 type backendExtra struct {
-	clientType      string   // all: ams|elasticsearch|rest-gateway|VSCode|...
-	cpuLimit        string   // docker only
-	ramLimit        string   // docker only
-	swapLimit       string   // docker only
-	privileged      bool     // docker only
-	exposePorts     []string // docker only
-	switches        string   // docker only
-	dockerHostname  bool     // docker only
-	network         string   // docker only
-	securityGroupID string   // aws only
-	subnetID        string   // aws only
-	ebs             string   // aws only
-	instanceType    string   // aws/gcp only
-	ami             string   // aws/gcp only
-	publicIP        bool     // aws/gcp only
-	tags            []string // aws/gcp only
-	disks           []string // gcp only
-	zone            string   // gcp only
-	labels          []string // gcp only
+	clientType         string   // all: ams|elasticsearch|rest-gateway|VSCode|...
+	cpuLimit           string   // docker only
+	ramLimit           string   // docker only
+	swapLimit          string   // docker only
+	privileged         bool     // docker only
+	exposePorts        []string // docker only
+	switches           string   // docker only
+	dockerHostname     bool     // docker only
+	network            string   // docker only
+	securityGroupID    string   // aws only
+	subnetID           string   // aws only
+	ebs                string   // aws only
+	instanceType       string   // aws/gcp only
+	ami                string   // aws/gcp only
+	publicIP           bool     // aws/gcp only
+	tags               []string // aws/gcp only
+	firewallNamePrefix []string // aws/gcp only
+	disks              []string // gcp only
+	zone               string   // gcp only
+	labels             []string // gcp only
 }
 
 type backendVersion struct {
@@ -112,11 +113,12 @@ type backend interface {
 	VacuumTemplates() error
 	VacuumTemplate(v backendVersion) error
 	// may implement
-	DeleteSecurityGroups(vpc string) error
+	DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error
 	// may implement
-	CreateSecurityGroups(vpc string) error
+	CreateSecurityGroups(vpc string, namePrefix string) error
 	// may implement
-	LockSecurityGroups(ip string, lockSSH bool, vpc string) error
+	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error
+	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool) error
 	// may implement
 	ListSecurityGroups() error
 	// may implement
@@ -149,6 +151,8 @@ type inventoryCluster struct {
 	Distribution     string
 	OSVersion        string
 	AerospikeVersion string
+	Firewalls        []string
+	Zone             string
 }
 
 type inventoryClient struct {
@@ -166,6 +170,8 @@ type inventoryClient struct {
 	ClientType       string
 	AccessUrl        string
 	AccessPort       string
+	Firewalls        []string
+	Zone             string
 }
 
 type inventoryTemplate struct {

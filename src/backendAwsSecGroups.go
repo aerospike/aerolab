@@ -18,6 +18,14 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
+// TODO: this whole file handling namePrefix for security groups
+// TODO: deployTemplate and deployCluster 'extra.firewallNamePrefix' handling when auto-creating the secgroups
+// * aws documentation on firewalls
+// * aws delete also delete internal
+// * aws inventory list - firewall rules listing
+// * aws assign security groups
+// standardize the 'cluster/client/etc list' to use inventory list
+
 func (d *backendAws) resolveVPC() (*ec2.DescribeVpcsOutput, error) {
 	return d.resolveVPCdo(true)
 }
@@ -410,7 +418,11 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 	return nerr
 }
 
-func (d *backendAws) DeleteSecurityGroups(vpc string) error {
+func (d *backendAws) AssignSecurityGroups(clusterName string, names []string, vpc string, remove bool) error {
+	return nil
+}
+
+func (d *backendAws) DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error {
 	if vpc == "" {
 		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
@@ -434,7 +446,7 @@ func (d *backendAws) DeleteSecurityGroups(vpc string) error {
 	return d.deleteSecGroups(vpc)
 }
 
-func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string) error {
+func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error {
 	portList := []int64{3000, 8080, 8888, 9200}
 	if lockSSH {
 		portList = append(portList, 22)
@@ -563,7 +575,7 @@ func getip2() string {
 	return ip.Query
 }
 
-func (d *backendAws) CreateSecurityGroups(vpc string) error {
+func (d *backendAws) CreateSecurityGroups(vpc string, namePrefix string) error {
 	if vpc == "" {
 		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{

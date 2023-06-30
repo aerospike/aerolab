@@ -144,6 +144,11 @@ func (c *templateCreateCmd) Execute(args []string) error {
 			labels:       c.Gcp.Labels,
 		}
 	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		extra.firewallNamePrefix = c.Gcp.NamePrefix
+	} else {
+		extra.firewallNamePrefix = c.Aws.NamePrefix
+	}
 	err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 	if err != nil {
 		if !c.NoVacuumOnFail {
