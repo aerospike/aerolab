@@ -20,4 +20,14 @@ The commands `aerolab cluster add firewall -n CLUSTERNAME` and `aerolab client c
 
 ## GCP
 
-TODO
+Repeat the below for all clusters and clients:
+```
+aerolab cluster add firewall --firewall aerolab-managed-external -n CLUSTERNAME --zone CLUSTERZONE
+aerolab client configure firewall -n CLIENTNAME --zone CLUSTERZONE
+```
+
+Run this once to convert the external rule to the new tagging format:
+```
+aerolab config gcp delete-firewall-rules
+aerolab config gcp create-firewall-rules
+```
