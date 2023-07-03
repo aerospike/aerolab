@@ -43,6 +43,13 @@ func (c *clientAddCmd) Execute(args []string) error {
 }
 
 func init() {
+	addBackendSwitch("client.create.none", "aws", &a.opts.Client.Create.None.Aws)
+	addBackendSwitch("client.create.none", "docker", &a.opts.Client.Create.None.Docker)
+	addBackendSwitch("client.grow.none", "aws", &a.opts.Client.Grow.None.Aws)
+	addBackendSwitch("client.grow.none", "docker", &a.opts.Client.Grow.None.Docker)
+	addBackendSwitch("client.create.none", "gcp", &a.opts.Client.Create.None.Gcp)
+	addBackendSwitch("client.grow.none", "gcp", &a.opts.Client.Grow.None.Gcp)
+
 	addBackendSwitch("client.create.base", "aws", &a.opts.Client.Create.Base.Aws)
 	addBackendSwitch("client.create.base", "docker", &a.opts.Client.Create.Base.Docker)
 	addBackendSwitch("client.grow.base", "aws", &a.opts.Client.Grow.Base.Aws)

@@ -15,6 +15,7 @@
 * When creating firewalls/security groups, by default these will be locked to the caller's IP address.
 * Allow to specify custom name for firewalls and security groups.
 * Make the `GCP` backend disks use the `NVME` interface for disks.
+* The `client create none` now supports backends other than Docker.
 
 #### 6.0.3
 * Handle bug in IP discovery on `docker` backend with custom networks.
