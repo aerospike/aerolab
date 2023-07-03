@@ -50,7 +50,7 @@ Executing `aerolab cluster create help` once the backend has been selected displ
 #### Basic cluster with 20GB root volume and 2x 40GB persistent ssd volumes
 
 ```bash
-aerolab cluster create -n testcluster -c 3 --instance e2-medium --zone us-central1-a --disk balanced:20 --disk pd-ssd:40 --disk pd-ssd:40
+aerolab cluster create -n testcluster -c 3 --instance e2-medium --zone us-central1-a --disk pd-balanced:20 --disk pd-ssd:40 --disk pd-ssd:40
 ```
 
 #### Basic cluster with 40GB root volume, 2x local SSD drives and 2x 380GB persistent ssd volumes

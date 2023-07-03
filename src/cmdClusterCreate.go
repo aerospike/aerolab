@@ -70,6 +70,7 @@ type clusterCreateCmdAws struct {
 	IsArm           bool     `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices bool     `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags            []string `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix      []string `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
 }
 
 type clusterCreateCmdGcp struct {
@@ -82,6 +83,7 @@ type clusterCreateCmdGcp struct {
 	NoBestPractices bool     `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags            []string `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels          []string `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix      []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -381,6 +383,11 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		nFiles := []fileList{}
 		nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile, pfilelen})
 		nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName.String()+":"+c.DistroVersion.String()]
+		if a.opts.Config.Backend.Type == "gcp" {
+			extra.firewallNamePrefix = c.Gcp.NamePrefix
+		} else {
+			extra.firewallNamePrefix = c.Aws.NamePrefix
+		}
 		err = b.DeployTemplate(*bv, nscript, nFiles, extra)
 		if err != nil {
 			if !c.NoVacuumOnFail {
@@ -546,7 +553,11 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		}
 	}
 	log.Print("Starting deployment")
-
+	if a.opts.Config.Backend.Type == "gcp" {
+		extra.firewallNamePrefix = c.Gcp.NamePrefix
+	} else {
+		extra.firewallNamePrefix = c.Aws.NamePrefix
+	}
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err

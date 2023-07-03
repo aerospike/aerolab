@@ -1,13 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +49,7 @@ const (
 	awsClientTagOperatingSystem  = "Aerolab4clientOperatingSystem"
 	awsClientTagOSVersion        = "Aerolab4clientOperatingSystemVersion"
 	awsClientTagAerospikeVersion = "Aerolab4clientAerospikeVersion"
+	awsClientTagClientType       = "Aerolab4clientType"
 )
 
 var (
@@ -85,6 +84,205 @@ func (d *backendAws) WorkOnServers() {
 	awsTagOperatingSystem = awsServerTagOperatingSystem
 	awsTagOSVersion = awsServerTagOSVersion
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
+}
+
+func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	it := []instanceType{}
+	err := d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
+		for _, iType := range ec2Types.InstanceTypes {
+			sarch := []string{}
+			for _, sar := range iType.ProcessorInfo.SupportedArchitectures {
+				if sar != nil && *sar != "i386" {
+					sarch = append(sarch, *sar)
+				}
+			}
+			if len(sarch) == 0 {
+				continue
+			}
+			sarchString := strings.Join(sarch, ",")
+			if !findArm && !strings.Contains(sarchString, "amd64") && !strings.Contains(sarchString, "x86") && !strings.Contains(sarchString, "x64") {
+				continue
+			}
+			if findArm && !strings.Contains(sarchString, "arm64") && !strings.Contains(sarchString, "aarch64") {
+				continue
+			}
+			if (minCpu > 0 && int(*iType.VCpuInfo.DefaultVCpus) < minCpu) || (maxCpu > 0 && int(*iType.VCpuInfo.DefaultVCpus) > maxCpu) {
+				continue
+			}
+			if (minRam > 0 && float64(int(*iType.MemoryInfo.SizeInMiB))/1024 < minRam) || (maxRam > 0 && float64(int(*iType.MemoryInfo.SizeInMiB))/1024 > maxRam) {
+				continue
+			}
+			eph := 0
+			ephs := float64(0)
+			if iType.InstanceStorageSupported != nil && *iType.InstanceStorageSupported && iType.InstanceStorageInfo != nil {
+				ephs = float64(aws.Int64Value(iType.InstanceStorageInfo.TotalSizeInGB))
+				for _, d := range iType.InstanceStorageInfo.Disks {
+					eph = eph + int(*d.Count)
+				}
+			}
+			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
+				continue
+			}
+			it = append(it, instanceType{
+				InstanceName:             *iType.InstanceType,
+				CPUs:                     int(*iType.VCpuInfo.DefaultVCpus),
+				RamGB:                    float64(int(*iType.MemoryInfo.SizeInMiB)) / 1024,
+				EphemeralDisks:           eph,
+				EphemeralDiskTotalSizeGB: ephs,
+			})
+		}
+		return true
+	})
+	if err != nil {
+		return nil, err
+	}
+	return it, nil
+}
+
+func (d *backendAws) Inventory() (inventoryJson, error) {
+	ij := inventoryJson{}
+
+	tmpl, err := d.ListTemplates()
+	if err != nil {
+		return ij, err
+	}
+	for _, d := range tmpl {
+		arch := "amd64"
+		if d.isArm {
+			arch = "arm64"
+		}
+		ij.Templates = append(ij.Templates, inventoryTemplate{
+			AerospikeVersion: d.aerospikeVersion,
+			Distribution:     d.distroName,
+			OSVersion:        d.distroVersion,
+			Arch:             arch,
+		})
+	}
+
+	ij.FirewallRules, err = d.listSecurityGroups(false)
+	if err != nil {
+		return ij, err
+	}
+
+	ijSubnets, err := d.listSubnets(false)
+	if err != nil {
+		return ij, err
+	}
+	for _, ijs := range ijSubnets {
+		ij.Subnets = append(ij.Subnets, inventorySubnet{
+			AWS: ijs,
+		})
+	}
+
+	for _, i := range []int{1, 2} {
+		if i == 1 {
+			d.WorkOnServers()
+		} else {
+			d.WorkOnClients()
+		}
+		filter := ec2.DescribeInstancesInput{
+			Filters: []*ec2.Filter{
+				{
+					Name:   aws.String("tag:" + awsTagUsedBy),
+					Values: []*string{aws.String(awsTagUsedByValue)},
+				},
+			},
+		}
+		instances, err := d.ec2svc.DescribeInstances(&filter)
+		if err != nil {
+			return ij, fmt.Errorf("could not run DescribeInstances\n%s", err)
+		}
+		for _, reservation := range instances.Reservations {
+			for _, instance := range reservation.Instances {
+				if *instance.State.Code != int64(48) {
+					clusterName := ""
+					nodeNo := ""
+					os := ""
+					osVer := ""
+					asdVer := ""
+					publicIp := ""
+					privateIp := ""
+					instanceId := ""
+					imageId := ""
+					state := ""
+					arch := ""
+					clientType := ""
+					if instance.PublicIpAddress != nil {
+						publicIp = *instance.PublicIpAddress
+					}
+					if instance.PrivateIpAddress != nil {
+						privateIp = *instance.PrivateIpAddress
+					}
+					if instance.InstanceId != nil {
+						instanceId = *instance.InstanceId
+					}
+					if instance.ImageId != nil {
+						imageId = *instance.ImageId
+					}
+					if instance.State != nil && instance.State.Name != nil {
+						state = *instance.State.Name
+					}
+					if instance.Architecture != nil {
+						arch = *instance.Architecture
+					}
+					for _, tag := range instance.Tags {
+						if *tag.Key == awsTagClusterName {
+							clusterName = *tag.Value
+						} else if *tag.Key == awsTagNodeNumber {
+							nodeNo = *tag.Value
+						} else if *tag.Key == awsTagOperatingSystem {
+							os = *tag.Value
+						} else if *tag.Key == awsTagOSVersion {
+							osVer = *tag.Value
+						} else if *tag.Key == awsTagAerospikeVersion {
+							asdVer = *tag.Value
+						} else if *tag.Key == awsClientTagClientType {
+							clientType = *tag.Value
+						}
+					}
+					sgs := []string{}
+					for _, sgss := range instance.SecurityGroups {
+						sgs = append(sgs, *sgss.GroupName)
+					}
+					if i == 1 {
+						ij.Clusters = append(ij.Clusters, inventoryCluster{
+							ClusterName:      clusterName,
+							NodeNo:           nodeNo,
+							PublicIp:         publicIp,
+							PrivateIp:        privateIp,
+							InstanceId:       instanceId,
+							ImageId:          imageId,
+							State:            state,
+							Arch:             arch,
+							Distribution:     os,
+							OSVersion:        osVer,
+							AerospikeVersion: asdVer,
+							Zone:             a.opts.Config.Backend.Region,
+							Firewalls:        sgs,
+						})
+					} else {
+						ij.Clients = append(ij.Clients, inventoryClient{
+							ClientName:       clusterName,
+							NodeNo:           nodeNo,
+							PublicIp:         publicIp,
+							PrivateIp:        privateIp,
+							InstanceId:       instanceId,
+							ImageId:          imageId,
+							State:            state,
+							Arch:             arch,
+							Distribution:     os,
+							OSVersion:        osVer,
+							AerospikeVersion: asdVer,
+							ClientType:       clientType,
+							Zone:             a.opts.Config.Backend.Region,
+							Firewalls:        sgs,
+						})
+					}
+				}
+			}
+		}
+	}
+	return ij, nil
 }
 
 func (d *backendAws) CreateNetwork(name string, driver string, subnet string, mtu string) error {
@@ -857,172 +1055,14 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-type clusterListFull struct {
-	ClusterName string
-	NodeNumber  string
-	IpAddress   string
-	PublicIp    string
-	InstanceId  string
-	State       string
-	Arch        string
-}
-
 func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
-	filter := ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("tag:" + awsTagUsedBy),
-				Values: []*string{aws.String(awsTagUsedByValue)},
-			},
-		},
-	}
-	instances, err := d.ec2svc.DescribeInstances(&filter)
-	if err != nil {
-		return "", fmt.Errorf("could not run DescribeInstances\n%s", err)
-	}
-	clist := []clusterListFull{}
-	for _, reservation := range instances.Reservations {
-		for _, instance := range reservation.Instances {
-			if *instance.State.Code == int64(48) {
-				continue
-			}
-			clist1 := clusterListFull{}
-			for _, tag := range instance.Tags {
-				if *tag.Key == awsTagClusterName {
-					clist1.ClusterName = *tag.Value
-				}
-				if *tag.Key == awsTagNodeNumber {
-					clist1.NodeNumber = *tag.Value
-				}
-			}
-			if instance.PrivateIpAddress != nil {
-				clist1.IpAddress = *instance.PrivateIpAddress
-			}
-			if instance.PublicIpAddress != nil {
-				clist1.PublicIp = *instance.PublicIpAddress
-			}
-			if instance.InstanceId != nil {
-				clist1.InstanceId = *instance.InstanceId
-			}
-			if instance.State != nil && instance.State.Name != nil {
-				clist1.State = *instance.State.Name
-			}
-			if instance.Architecture != nil {
-				clist1.Arch = *instance.Architecture
-			}
-			clist = append(clist, clist1)
-		}
-	}
-	clusterName := 20
-	nodeNumber := 6
-	ipAddress := 15
-	publicIp := 15
-	instanceId := 20
-	state := 20
-	arch := 10
-	for _, item := range clist {
-		if len(item.ClusterName) > clusterName {
-			clusterName = len(item.ClusterName)
-		}
-		if len(item.NodeNumber) > nodeNumber {
-			nodeNumber = len(item.NodeNumber)
-		}
-		if len(item.IpAddress) > ipAddress {
-			ipAddress = len(item.IpAddress)
-		}
-		if len(item.PublicIp) > publicIp {
-			publicIp = len(item.PublicIp)
-		}
-		if len(item.InstanceId) > instanceId {
-			instanceId = len(item.InstanceId)
-		}
-		if len(item.State) > state {
-			state = len(item.State)
-		}
-		if len(item.Arch) > arch {
-			arch = len(item.Arch)
-		}
-	}
-	sort.Slice(clist, func(i, j int) bool {
-		if clist[i].ClusterName < clist[j].ClusterName {
-			return true
-		}
-		if clist[i].ClusterName > clist[j].ClusterName {
-			return false
-		}
-		ino, _ := strconv.Atoi(clist[i].NodeNumber)
-		jno, _ := strconv.Atoi(clist[j].NodeNumber)
-		return ino < jno
-	})
-	if !isJson {
-		sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s %-" + strconv.Itoa(arch) + "s\n"
-		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State", "Arch")
-		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------", "----------")
-		for _, item := range clist {
-			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State, item.Arch)
-		}
-		return result, nil
-	}
-	out, err := json.MarshalIndent(clist, "", "    ")
-	return string(out), err
-}
-
-type templateListFull struct {
-	OsName           string
-	OsVersion        string
-	AerospikeVersion string
-	ImageId          string
-	Arch             string
+	a.opts.Inventory.List.Json = isJson
+	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
-	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n-----------------------------------------\n"
-	resList := []templateListFull{}
-	filterA := ec2.DescribeImagesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("tag:" + awsTagUsedBy),
-				Values: []*string{aws.String(awsTagUsedByValue)},
-			},
-		},
-	}
-	images, err := d.ec2svc.DescribeImages(&filterA)
-	if err != nil {
-		return "", fmt.Errorf("could not run DescribeImages\n%s", err)
-	}
-	for _, image := range images.Images {
-		var imOs string
-		var imOsVer string
-		var imAerVer string
-		for _, tag := range image.Tags {
-			if *tag.Key == awsTagOperatingSystem {
-				imOs = *tag.Value
-			}
-			if *tag.Key == awsTagOSVersion {
-				imOsVer = *tag.Value
-			}
-			if *tag.Key == awsTagAerospikeVersion {
-				imAerVer = *tag.Value
-			}
-		}
-		mid := ""
-		if image.ImageId != nil {
-			mid = *image.ImageId
-		}
-		result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, imOs, imOsVer, imAerVer, *image.Architecture)
-		resList = append(resList, templateListFull{
-			OsName:           imOs,
-			OsVersion:        imOsVer,
-			AerospikeVersion: imAerVer,
-			ImageId:          mid,
-			Arch:             *image.Architecture,
-		})
-	}
-	if !isJson {
-		return result, nil
-	}
-	out, err := json.MarshalIndent(resList, "", "    ")
-	return string(out), err
+	a.opts.Inventory.List.Json = isJson
+	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
 var deployAwsTemplateShutdownMaking = make(chan int, 1)
@@ -1103,7 +1143,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	// end tag setup
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
-	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true)
+	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true, extra.firewallNamePrefix)
 	if err != nil {
 		return err
 	}
@@ -1505,6 +1545,12 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 	var keyPath string
 	for i := start; i < (nodeCount + start); i++ {
 		// tag setup
+		if extra.clientType == "" {
+			extra.clientType = "N/A"
+		}
+		tgClientType := ec2.Tag{}
+		tgClientType.Key = aws.String(awsClientTagClientType)
+		tgClientType.Value = aws.String(extra.clientType)
 		tgClusterName := ec2.Tag{}
 		tgClusterName.Key = aws.String(awsTagClusterName)
 		tgClusterName.Value = aws.String(name)
@@ -1517,7 +1563,18 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		tgName := ec2.Tag{}
 		tgName.Key = aws.String("Name")
 		tgName.Value = aws.String(fmt.Sprintf("aerolab4-%s_%d", name, i))
-		tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgUsedBy, &tgName}
+		tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgUsedBy, &tgName, &tgClientType, {
+			Key:   aws.String(awsTagOperatingSystem),
+			Value: aws.String(v.distroName),
+		},
+			{
+				Key:   aws.String(awsTagOSVersion),
+				Value: aws.String(v.distroVersion),
+			},
+			{
+				Key:   aws.String(awsTagAerospikeVersion),
+				Value: aws.String(v.aerospikeVersion),
+			}}
 		tgs = append(tgs, extraTags...)
 		ts := ec2.TagSpecification{}
 		ts.Tags = tgs
@@ -1535,7 +1592,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		if i == start {
 			printID = true
 		}
-		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID)
+		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID, extra.firewallNamePrefix)
 		if err != nil {
 			return err
 		}
