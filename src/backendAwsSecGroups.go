@@ -675,7 +675,9 @@ func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupNam
 			}
 		}
 	}
-
+	if namePrefix == "AeroLabServer" || namePrefix == "AeroLabClient" {
+		return nil
+	}
 	if ip == "discover-caller-ip" {
 		ip = getip2()
 	}
