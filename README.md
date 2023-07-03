@@ -50,6 +50,7 @@ You can see the IP addresses of running AeroLab containers with the `aerolab clu
   * [Advanced - GCP Firewall Rules](docs/gcp-firewall.md)
 * [AWS](docs/aws-setup.md)
   * [Partitioner](docs/partitioner/partition-disks.md)
+  * [Advanced - AWS Firewall Rules](docs/aws-firewall.md)
   * [Advanced - Custom VPC](docs/vpc.md)
 * [Usage examples](docs/usage/index.md)
   * [Basic](docs/usage/basic/index.md)

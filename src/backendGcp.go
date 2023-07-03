@@ -546,7 +546,7 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 
 func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	return "", a.opts.Inventory.List.run(d.server, d.client, false, false)
+	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 type instanceDetail struct {
@@ -1108,7 +1108,7 @@ func (d *backendGcp) VacuumTemplates() error {
 
 func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	return "", a.opts.Inventory.List.run(false, false, true, false)
+	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
 // get KeyPair

@@ -137,6 +137,23 @@ type inventoryJson struct {
 	Clients       []inventoryClient
 	Templates     []inventoryTemplate
 	FirewallRules []inventoryFirewallRule
+	Subnets       []inventorySubnet
+}
+
+type inventorySubnet struct {
+	AWS inventorySubnetAWS
+}
+
+type inventorySubnetAWS struct {
+	VpcId            string
+	VpcName          string
+	VpcCidr          string
+	AvailabilityZone string
+	SubnetId         string
+	SubnetCidr       string
+	IsAzDefault      bool
+	SubnetName       string
+	AutoPublicIP     bool
 }
 
 type inventoryCluster struct {
@@ -200,6 +217,7 @@ type inventoryFirewallRuleAWS struct {
 	VPC               string
 	SecurityGroupName string
 	SecurityGroupID   string
+	IPs               []string
 }
 
 type inventoryFirewallRuleDocker struct {
