@@ -8,6 +8,7 @@ type clientConfigureCmd struct {
 	VSCode      clientConfigureVSCodeCmd      `command:"vscode" subcommands-optional:"true" description:"add languages to VSCode"`
 	Trino       clientConfigureTrinoCmd       `command:"trino" subcommands-optional:"true" description:"change aerospike seed IPs for trino"`
 	RestGateway clientConfigureRestGatewayCmd `command:"rest-gateway" subcommands-optional:"true" description:"change aerospike seed IPs for the rest-gateway"`
+	Firewall    clientConfigureFirewallCmd    `command:"firewall" subcommands-optional:"true" description:"Add firewall rules to existing client machines"`
 	Help        helpCmd                       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
