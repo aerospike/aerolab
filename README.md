@@ -6,6 +6,10 @@ applications in a controlled development environment.
 
 **NOTE:** AeroLab is intended for local development and testing environments. It is not recommended for production operations. 
 
+## Upgrading
+
+[See this document on upgrading from versions 6.0- to 6.1+](docs/upgrade-to-610.md)
+
 ## Releases
 
 The [releases page](https://github.com/aerospike/aerolab/releases) contains links to current installer

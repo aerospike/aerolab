@@ -9,33 +9,33 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
-type clusterAddFirewallCmd struct {
-	ClusterName TypeClusterName          `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
-	Gcp         clusterAddFirewallCmdGcp `no-flag:"true"`
-	Aws         clusterAddFirewallCmdAws `no-flag:"true"`
-	Remove      bool                     `short:"r" long:"remove" description:"Set to remove the given firewalls instead of adding them"`
-	Help        helpCmd                  `command:"help" subcommands-optional:"true" description:"Print help"`
+type clientConfigureFirewallCmd struct {
+	ClusterName TypeClientName                `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"client"`
+	Gcp         clientConfigureFirewallCmdGcp `no-flag:"true"`
+	Aws         clientConfigureFirewallCmdAws `no-flag:"true"`
+	Remove      bool                          `short:"r" long:"remove" description:"Set to remove the given firewalls instead of adding them"`
+	Help        helpCmd                       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-type clusterAddFirewallCmdGcp struct {
+type clientConfigureFirewallCmdGcp struct {
 	NamePrefix []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
 	Zone       string   `long:"zone" description:"zone name"`
 }
 
-type clusterAddFirewallCmdAws struct {
+type clientConfigureFirewallCmdAws struct {
 	NamePrefix []string `long:"secgroup-name" description:"Name prefix to use to add, can be specified multiple times" default:"AeroLab"`
 }
 
 func init() {
-	addBackendSwitch("cluster.add.firewall", "gcp", &a.opts.Cluster.Add.Firewall.Gcp)
-	addBackendSwitch("cluster.add.firewall", "aws", &a.opts.Cluster.Add.Firewall.Aws)
+	addBackendSwitch("client.configure.firewall", "gcp", &a.opts.Client.Configure.Firewall.Gcp)
+	addBackendSwitch("client.configure.firewall", "aws", &a.opts.Client.Configure.Firewall.Aws)
 }
 
-func (c *clusterAddFirewallCmd) Execute(args []string) error {
+func (c *clientConfigureFirewallCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	b.WorkOnServers()
+	b.WorkOnClients()
 	if a.opts.Config.Backend.Type == "docker" {
 		return errors.New("feature not supported on docker backend")
 	}

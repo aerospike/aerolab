@@ -8,12 +8,15 @@ In order to convert clusters and clients created with AeroLab versions `6.0` or 
 
 ```
 aerolab config aws create-security-groups
+
 aerolab cluster add firewall -n CLUSTERNAME
+aerolab client configure firewall -n CLIENTNAME
+
 aerolab config aws lock-security-groups -n AeroLabServer
 aerolab config aws lock-security-groups -n AeroLabClient
 ```
 
-The command `aerolab cluster add firewall -n CLUSTERNAME` can be repeated multiple times if multiple clusters/clients are present.
+The commands `aerolab cluster add firewall -n CLUSTERNAME` and `aerolab client configure firewall -n CLIENTNAME` can be repeated multiple times if multiple clusters/clients are present.
 
 ## GCP
 
