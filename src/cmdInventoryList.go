@@ -20,10 +20,10 @@ func (c *inventoryListCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	return c.run(true, true, true, true)
+	return c.run(true, true, true, true, true)
 }
 
-func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool) error {
+func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool) error {
 	inv, err := b.Inventory()
 	if err != nil {
 		return err
@@ -55,7 +55,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		if c.JsonPretty {
 			enc.SetIndent("", "    ")
 		}
-		if showClusters && showClients && showTemplates && showFirewalls {
+		if showClusters && showClients && showTemplates && showFirewalls && showSubnets {
 			err = enc.Encode(inv)
 			return err
 		}
@@ -79,6 +79,12 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 		if showFirewalls {
 			err = enc.Encode(inv.FirewallRules)
+			if err != nil {
+				return err
+			}
+		}
+		if showSubnets {
+			err = enc.Encode(inv.Subnets)
 			if err != nil {
 				return err
 			}
@@ -258,12 +264,13 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			table.Render()
 		case "aws":
 			fmt.Println("\nSECURITY GROUPS:")
-			table.SetHeader([]string{"VPC", "Security Group Name", "Security Group ID"})
+			table.SetHeader([]string{"VPC", "Security Group Name", "Security Group ID", "IPs"})
 			for _, v := range inv.FirewallRules {
 				vv := []string{
 					v.AWS.VPC,
 					v.AWS.SecurityGroupName,
 					v.AWS.SecurityGroupID,
+					strings.Join(v.AWS.IPs, ","),
 				}
 				table.Append(vv)
 			}
@@ -277,6 +284,35 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					v.Docker.NetworkDriver,
 					v.Docker.Subnets,
 					v.Docker.MTU,
+				}
+				table.Append(vv)
+			}
+			table.Render()
+		}
+	}
+
+	if showSubnets {
+		table := tablewriter.NewWriter(os.Stdout)
+		table.SetAutoFormatHeaders(false)
+		switch a.opts.Config.Backend.Type {
+		case "aws":
+			fmt.Println("\nSUBNETS:")
+			table.SetHeader([]string{"VPC ID", "VPC Name", "VPC Cidr", "Avail. Zone", "Subnet ID", "Subnet Cidr", "AZ Default", "Subnet Name", "Auto-Assign IP"})
+			for _, v := range inv.Subnets {
+				autoIP := "no (enable to use with aerolab)"
+				if v.AWS.AutoPublicIP {
+					autoIP = "yes (ok)"
+				}
+				vv := []string{
+					v.AWS.VpcId,
+					v.AWS.VpcName,
+					v.AWS.VpcCidr,
+					v.AWS.AvailabilityZone,
+					v.AWS.SubnetId,
+					v.AWS.SubnetCidr,
+					fmt.Sprintf("%t", v.AWS.IsAzDefault),
+					v.AWS.SubnetName,
+					autoIP,
 				}
 				table.Append(vv)
 			}

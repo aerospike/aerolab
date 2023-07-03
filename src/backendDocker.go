@@ -879,7 +879,7 @@ func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
 		return d.clusterListFullNoJson()
 	}
 	a.opts.Inventory.List.Json = isJson
-	return "", a.opts.Inventory.List.run(d.server, d.client, false, false)
+	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 func (d *backendDocker) clusterListFullNoJson() (string, error) {
@@ -946,5 +946,5 @@ func (d *backendDocker) clusterListFullNoJson() (string, error) {
 // returns an unformatted string with list of clusters, to be printed to user
 func (d *backendDocker) TemplateListFull(isJson bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	return "", a.opts.Inventory.List.run(false, false, true, false)
+	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }

@@ -164,6 +164,16 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 		return ij, err
 	}
 
+	ijSubnets, err := d.listSubnets(false)
+	if err != nil {
+		return ij, err
+	}
+	for _, ijs := range ijSubnets {
+		ij.Subnets = append(ij.Subnets, inventorySubnet{
+			AWS: ijs,
+		})
+	}
+
 	for _, i := range []int{1, 2} {
 		if i == 1 {
 			d.WorkOnServers()
@@ -230,6 +240,10 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							clientType = *tag.Value
 						}
 					}
+					sgs := []string{}
+					for _, sgss := range instance.SecurityGroups {
+						sgs = append(sgs, *sgss.GroupName)
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
 							ClusterName:      clusterName,
@@ -244,6 +258,7 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							OSVersion:        osVer,
 							AerospikeVersion: asdVer,
 							Zone:             a.opts.Config.Backend.Region,
+							Firewalls:        sgs,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -260,6 +275,7 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							AerospikeVersion: asdVer,
 							ClientType:       clientType,
 							Zone:             a.opts.Config.Backend.Region,
+							Firewalls:        sgs,
 						})
 					}
 				}
@@ -1041,12 +1057,12 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 
 func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	return "", a.opts.Inventory.List.run(d.server, d.client, false, false)
+	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	return "", a.opts.Inventory.List.run(false, false, true, false)
+	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
 var deployAwsTemplateShutdownMaking = make(chan int, 1)
@@ -1127,7 +1143,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	// end tag setup
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
-	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true)
+	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true, extra.firewallNamePrefix)
 	if err != nil {
 		return err
 	}
@@ -1576,7 +1592,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		if i == start {
 			printID = true
 		}
-		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID)
+		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID, extra.firewallNamePrefix)
 		if err != nil {
 			return err
 		}

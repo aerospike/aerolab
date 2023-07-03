@@ -30,6 +30,7 @@ type listSubnetsCmd struct {
 
 type destroySecGroupsCmd struct {
 	NamePrefix string  `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
+	Internal   bool    `short:"i" long:"internal" description:"Also remove the internal firewall rule if it exists"`
 	VPC        string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -43,7 +44,6 @@ type createSecGroupsCmd struct {
 type lockSecGroupsCmd struct {
 	NamePrefix string  `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
 	IP         string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
-	Ssh        bool    `short:"s" long:"ssh" description:"set to also lock port 22 SSH to the given IP/mask for server and client groups"`
 	VPC        string  `short:"v" long:"vpc" description:"VPC to handle sec groups for; default: default-VPC" default:""`
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -100,7 +100,7 @@ func (c *destroySecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Removing security groups")
-	err := b.DeleteSecurityGroups(c.VPC, c.NamePrefix, true)
+	err := b.DeleteSecurityGroups(c.VPC, c.NamePrefix, c.Internal)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (c *lockSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Locking security groups")
-	err := b.LockSecurityGroups(c.IP, c.Ssh, c.VPC, c.NamePrefix)
+	err := b.LockSecurityGroups(c.IP, true, c.VPC, c.NamePrefix)
 	if err != nil {
 		return err
 	}
