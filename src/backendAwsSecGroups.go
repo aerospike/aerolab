@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -63,7 +64,7 @@ func (d *backendAws) resolveVPCdo(create bool) (*ec2.DescribeVpcsOutput, error) 
 	return out, err
 }
 
-func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string, printID bool) (secGroup string, subnet string, err error) {
+func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string, printID bool, namePrefixes []string) (secGroup string, subnet string, err error) {
 	var vpc string
 	if secGroupID == "" || !strings.HasPrefix(subnetID, "subnet-") {
 		if !strings.HasPrefix(subnetID, "subnet-") {
@@ -135,53 +136,68 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 			log.Printf("Using security group ID %s", secGroup)
 		}
 	} else {
-		groupName := "AeroLabServer"
-		if d.client {
-			groupName = "AeroLabClient"
-		}
-		groupName = groupName + "-" + strings.TrimPrefix(vpc, "vpc-")
-		var out *ec2.DescribeSecurityGroupsOutput
-		var err error
-		if vpc == "" {
-			out, err = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
-				GroupNames: aws.StringSlice([]string{groupName}),
-			})
+		groupNames := namePrefixes
+		if d.server {
+			groupNames = append(groupNames, "AeroLabServer")
 		} else {
-			out, err = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
-				Filters: []*ec2.Filter{
-					{
-						Name:   aws.String("vpc-id"),
-						Values: aws.StringSlice([]string{vpc}),
-					},
-					{
-						Name:   aws.String("group-name"),
-						Values: aws.StringSlice([]string{groupName}),
-					},
-				},
-			})
+			groupNames = append(groupNames, "AeroLabClient")
 		}
-		if err != nil && !strings.Contains(err.Error(), "InvalidGroup.NotFound") {
-			return "", "", fmt.Errorf("could not resolve security groups: %s", err)
-		}
-		if (err != nil && strings.Contains(err.Error(), "InvalidGroup.NotFound")) || len(out.SecurityGroups) == 0 {
-			log.Print("Managed Security groups not found in VPC for given subnet, creating AeroLabServer and AeroLabClient")
-			secGroup, err = d.createSecGroups(vpc)
-			if err != nil {
-				return "", "", fmt.Errorf("could create security groups: %s", err)
+		var secGroupList []string
+		for _, groupPrefix := range groupNames {
+			groupName := groupPrefix + "-" + strings.TrimPrefix(vpc, "vpc-")
+			var out *ec2.DescribeSecurityGroupsOutput
+			var err error
+			if vpc == "" {
+				out, err = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+					GroupNames: aws.StringSlice([]string{groupName}),
+				})
+			} else {
+				out, err = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+					Filters: []*ec2.Filter{
+						{
+							Name:   aws.String("vpc-id"),
+							Values: aws.StringSlice([]string{vpc}),
+						},
+						{
+							Name:   aws.String("group-name"),
+							Values: aws.StringSlice([]string{groupName}),
+						},
+					},
+				})
 			}
-			log.Print("WARN: Created unrestricted security group for aerolab clients; to lock these down, use: aerolab config aws lock-security-groups")
-		} else {
-			secGroup = aws.StringValue(out.SecurityGroups[0].GroupId)
-			log.Printf("Using security group ID %s name %s", secGroup, groupName)
+			if err != nil && !strings.Contains(err.Error(), "InvalidGroup.NotFound") {
+				return "", "", fmt.Errorf("could not resolve security groups: %s", err)
+			}
+			if (err != nil && strings.Contains(err.Error(), "InvalidGroup.NotFound")) || len(out.SecurityGroups) == 0 {
+				log.Print("Managed Security groups not found in VPC for given subnet, creating...")
+				secGroupsA, err := d.createSecGroups(vpc, groupPrefix)
+				if err != nil {
+					return "", "", fmt.Errorf("could create security groups: %s", err)
+				}
+				for _, sssg := range secGroupsA {
+					if !inslice.HasString(secGroupList, sssg) {
+						secGroupList = append(secGroupList, sssg)
+					}
+				}
+				secGroup = strings.Join(secGroupList, ",")
+				log.Printf("Using security group IDs %s", secGroup)
+			} else {
+				secGroupA := aws.StringValue(out.SecurityGroups[0].GroupId)
+				if !inslice.HasString(secGroupList, secGroupA) {
+					secGroupList = append(secGroupList, secGroupA)
+				}
+				secGroup = strings.Join(secGroupList, ",")
+				log.Printf("Using security group ID %s name %s", secGroupA, groupName)
+			}
 		}
 	}
 
 	return
 }
 
-func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
+func (d *backendAws) createSecGroups(vpc string, namePrefix string) (secGroups []string, err error) {
 	var secGroupIds []string
-	groupNames := []string{"AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-"), "AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-")}
+	groupNames := []string{"AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-"), "AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-"), namePrefix + "-" + strings.TrimPrefix(vpc, "vpc-")}
 
 	// create groups
 	for i, groupName := range groupNames {
@@ -191,25 +207,42 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 			VpcId:       aws.String(vpc),
 		})
 		if err != nil {
-			return "", fmt.Errorf("could not create default server security group for AeroLab in vpc %s: %s", vpc, err)
+			if !strings.Contains(err.Error(), "InvalidGroup.Duplicate") || i > 1 {
+				return nil, fmt.Errorf("could not create default server security group for AeroLab in vpc %s: %s", vpc, err)
+			} else {
+				secGroupIds = append(secGroupIds, "EXISTS")
+				continue
+			}
 		}
 		if i == 0 && d.server {
-			secGroup = aws.StringValue(out.GroupId)
+			secGroups = append(secGroups, aws.StringValue(out.GroupId))
 		} else if i == 1 && d.client {
-			secGroup = aws.StringValue(out.GroupId)
+			secGroups = append(secGroups, aws.StringValue(out.GroupId))
+		} else if i == 2 {
+			secGroups = append(secGroups, aws.StringValue(out.GroupId))
 		}
 		secGroupIds = append(secGroupIds, aws.StringValue(out.GroupId))
 		err = d.ec2svc.WaitUntilSecurityGroupExists(&ec2.DescribeSecurityGroupsInput{
 			GroupIds: []*string{out.GroupId},
 		})
 		if err != nil {
-			d.deleteSecGroups(vpc)
-			return "", fmt.Errorf("an error occurred while waiting for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+			if i == 2 {
+				d.deleteSecGroups(vpc, namePrefix, false)
+			} else {
+				d.deleteSecGroups(vpc, namePrefix, true)
+			}
+			return nil, fmt.Errorf("an error occurred while waiting for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
 		}
 	}
 
 	// add ingress rule for inter-comms
-	for _, groupId := range secGroupIds {
+	for groupNo, groupId := range secGroupIds {
+		if groupNo > 1 {
+			break
+		}
+		if groupId == "EXISTS" {
+			continue
+		}
 		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId: aws.String(groupId),
 			IpPermissions: []*ec2.IpPermission{
@@ -233,13 +266,21 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 			},
 		})
 		if err != nil {
-			d.deleteSecGroups(vpc)
-			return "", fmt.Errorf("an error occurred while adding ingress intercomms for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+			d.deleteSecGroups(vpc, namePrefix, true)
+			return nil, fmt.Errorf("an error occurred while adding ingress intercomms for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
 		}
 	}
 
+	ip := getip2()
+	if !strings.Contains(ip, "/") {
+		ip = ip + "/32"
+	}
+
 	// add ingress rule for port 22
-	for _, groupId := range secGroupIds {
+	for groupNo, groupId := range secGroupIds {
+		if groupNo < 2 {
+			continue
+		}
 		_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 			GroupId: aws.String(groupId),
 			IpPermissions: []*ec2.IpPermission{
@@ -249,7 +290,7 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 					ToPort:     aws.Int64(22),
 					IpRanges: []*ec2.IpRange{
 						{
-							CidrIp:      aws.String("0.0.0.0/0"),
+							CidrIp:      aws.String(ip),
 							Description: aws.String("ssh from anywhere"),
 						},
 					},
@@ -257,13 +298,16 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 			},
 		})
 		if err != nil {
-			d.deleteSecGroups(vpc)
-			return "", fmt.Errorf("an error occurred while adding ingress port 22 for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+			d.deleteSecGroups(vpc, namePrefix, false)
+			return nil, fmt.Errorf("an error occurred while adding ingress port 22 for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
 		}
 	}
 
 	// ingress rule for client for special ports (grafana, vscode), apply on server too, in case we want access from the great beyond
-	for _, groupId := range secGroupIds {
+	for groupNo, groupId := range secGroupIds {
+		if groupNo < 2 {
+			continue
+		}
 		for _, port := range []int64{3000, 8080, 8888, 9200} {
 			_, err := d.ec2svc.AuthorizeSecurityGroupIngress(&ec2.AuthorizeSecurityGroupIngressInput{
 				GroupId: aws.String(groupId),
@@ -274,7 +318,7 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 						ToPort:     aws.Int64(port),
 						IpRanges: []*ec2.IpRange{
 							{
-								CidrIp:      aws.String("0.0.0.0/0"),
+								CidrIp:      aws.String(ip),
 								Description: aws.String("allow " + strconv.Itoa(int(port)) + " from anywhere"),
 							},
 						},
@@ -282,27 +326,58 @@ func (d *backendAws) createSecGroups(vpc string) (secGroup string, err error) {
 				},
 			})
 			if err != nil {
-				d.deleteSecGroups(vpc)
-				return "", fmt.Errorf("an error occurred while adding ingress port 22 for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
+				d.deleteSecGroups(vpc, namePrefix, false)
+				return nil, fmt.Errorf("an error occurred while adding ingress port 22 for security group to exist after creation for AeroLab in vpc %s: %s", vpc, err)
 			}
 		}
 	}
-	return secGroup, nil
+	return secGroups, nil
 }
 
-func (d *backendAws) deleteSecGroups(vpc string) error {
+func (d *backendAws) deleteSecGroups(vpc string, namePrefix string, internal bool) error {
 	// prerequisite - remove dependencies between groups if such exist
-	var group1, group2 *ec2.DescribeSecurityGroupsOutput
-	var err1, err2 error
+	var group1, group2, group3 *ec2.DescribeSecurityGroupsOutput
+	var err1, err2, err3 error
 	if vpc == "" {
-		group1, err1 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
-			GroupNames: aws.StringSlice([]string{"AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-")}),
-		})
-		group2, err2 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
-			GroupNames: aws.StringSlice([]string{"AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-")}),
+		if internal {
+			group1, err1 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+				GroupNames: aws.StringSlice([]string{"AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-")}),
+			})
+			group2, err2 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+				GroupNames: aws.StringSlice([]string{"AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-")}),
+			})
+		}
+		group3, err3 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+			GroupNames: aws.StringSlice([]string{namePrefix + "-" + strings.TrimPrefix(vpc, "vpc-")}),
 		})
 	} else {
-		group1, err1 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+		if internal {
+			group1, err1 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+				Filters: []*ec2.Filter{
+					{
+						Name:   aws.String("vpc-id"),
+						Values: aws.StringSlice([]string{vpc}),
+					},
+					{
+						Name:   aws.String("group-name"),
+						Values: aws.StringSlice([]string{"AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-")}),
+					},
+				},
+			})
+			group2, err2 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+				Filters: []*ec2.Filter{
+					{
+						Name:   aws.String("vpc-id"),
+						Values: aws.StringSlice([]string{vpc}),
+					},
+					{
+						Name:   aws.String("group-name"),
+						Values: aws.StringSlice([]string{"AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-")}),
+					},
+				},
+			})
+		}
+		group3, err3 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 			Filters: []*ec2.Filter{
 				{
 					Name:   aws.String("vpc-id"),
@@ -310,24 +385,12 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 				},
 				{
 					Name:   aws.String("group-name"),
-					Values: aws.StringSlice([]string{"AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-")}),
-				},
-			},
-		})
-		group2, err2 = d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
-			Filters: []*ec2.Filter{
-				{
-					Name:   aws.String("vpc-id"),
-					Values: aws.StringSlice([]string{vpc}),
-				},
-				{
-					Name:   aws.String("group-name"),
-					Values: aws.StringSlice([]string{"AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-")}),
+					Values: aws.StringSlice([]string{namePrefix + "-" + strings.TrimPrefix(vpc, "vpc-")}),
 				},
 			},
 		})
 	}
-	if err1 == nil && err2 == nil && len(group1.SecurityGroups) > 0 && len(group2.SecurityGroups) > 0 {
+	if internal && err1 == nil && err2 == nil && len(group1.SecurityGroups) > 0 && len(group2.SecurityGroups) > 0 {
 		_, err := d.ec2svc.RevokeSecurityGroupIngress(&ec2.RevokeSecurityGroupIngressInput{
 			GroupId: group1.SecurityGroups[0].GroupId,
 			IpPermissions: []*ec2.IpPermission{
@@ -369,34 +432,15 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 	}
 	var nerr error
 	if vpc == "" {
-		_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
-			GroupName: aws.String("AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-")),
-		})
-		if err != nil {
-			nerr = fmt.Errorf("failed to delete AeroLabServer group: %s", err)
-		}
-		_, err = d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
-			GroupName: aws.String("AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-")),
-		})
-		if err != nil {
-			if nerr == nil {
-				nerr = fmt.Errorf("failed to delete AeroLabClient group: %s", err)
-			} else {
-				nerr = fmt.Errorf("%s ;; failed to delete AeroLabClient group: %s", nerr, err)
-			}
-		}
-	} else {
-		if len(group1.SecurityGroups) > 0 {
+		if internal {
 			_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
-				GroupId: group1.SecurityGroups[0].GroupId,
+				GroupName: aws.String("AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-")),
 			})
 			if err != nil {
 				nerr = fmt.Errorf("failed to delete AeroLabServer group: %s", err)
 			}
-		}
-		if len(group2.SecurityGroups) > 0 {
-			_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
-				GroupId: group2.SecurityGroups[0].GroupId,
+			_, err = d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+				GroupName: aws.String("AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-")),
 			})
 			if err != nil {
 				if nerr == nil {
@@ -406,11 +450,137 @@ func (d *backendAws) deleteSecGroups(vpc string) error {
 				}
 			}
 		}
+		_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+			GroupName: aws.String(namePrefix + "-" + strings.TrimPrefix(vpc, "vpc-")),
+		})
+		if err != nil {
+			if nerr == nil {
+				nerr = fmt.Errorf("failed to delete %s group: %s", namePrefix, err)
+			} else {
+				nerr = fmt.Errorf("%s ;; failed to delete %s group: %s", nerr, namePrefix, err)
+			}
+		}
+	} else {
+		if internal {
+			if len(group1.SecurityGroups) > 0 {
+				_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+					GroupId: group1.SecurityGroups[0].GroupId,
+				})
+				if err != nil {
+					nerr = fmt.Errorf("failed to delete AeroLabServer group: %s", err)
+				}
+			}
+			if len(group2.SecurityGroups) > 0 {
+				_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+					GroupId: group2.SecurityGroups[0].GroupId,
+				})
+				if err != nil {
+					if nerr == nil {
+						nerr = fmt.Errorf("failed to delete AeroLabClient group: %s", err)
+					} else {
+						nerr = fmt.Errorf("%s ;; failed to delete AeroLabClient group: %s", nerr, err)
+					}
+				}
+			}
+		}
+		if err3 == nil && len(group3.SecurityGroups) > 0 {
+			_, err := d.ec2svc.DeleteSecurityGroup(&ec2.DeleteSecurityGroupInput{
+				GroupId: group3.SecurityGroups[0].GroupId,
+			})
+			if err != nil {
+				if nerr == nil {
+					nerr = fmt.Errorf("failed to delete external group: %s", err)
+				} else {
+					nerr = fmt.Errorf("%s ;; failed to delete external group: %s", nerr, err)
+				}
+			}
+		}
 	}
 	return nerr
 }
 
-func (d *backendAws) DeleteSecurityGroups(vpc string) error {
+func (d *backendAws) AssignSecurityGroups(clusterName string, names []string, vpc string, remove bool) error {
+	var instIds []*ec2.Instance
+	var secGroupIds []string
+	// find all instanceIds for a given cluster; if 0 found, error
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagUsedBy),
+				Values: []*string{aws.String(awsTagUsedByValue)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			instance := instance
+			if *instance.State.Code != int64(48) {
+				for _, tag := range instance.Tags {
+					if *tag.Key == awsTagClusterName {
+						if *tag.Value == clusterName {
+							instIds = append(instIds, instance)
+						}
+					}
+				}
+			}
+		}
+	}
+	if len(instIds) == 0 {
+		return errors.New("cluster not found")
+	}
+	// list security groups, if groups with given names not found, error
+	secGroups, err := d.listSecurityGroups(false)
+	if err != nil {
+		return err
+	}
+
+	for _, name := range names {
+		found := false
+		for _, sg := range secGroups {
+			if strings.Split(sg.AWS.SecurityGroupName, "-")[0] == name {
+				found = true
+				secGroupIds = append(secGroupIds, sg.AWS.SecurityGroupID)
+				break
+			}
+		}
+		if !found {
+			return fmt.Errorf("security group with prefix %s not found", name)
+		}
+	}
+	for _, inst := range instIds {
+		sgids := secGroupIds
+		if !remove {
+			for _, sgold := range inst.SecurityGroups {
+				if !inslice.HasString(sgids, *sgold.GroupId) {
+					sgids = append(sgids, *sgold.GroupId)
+				}
+			}
+		} else {
+			sgids = []string{}
+			for _, sgold := range inst.SecurityGroups {
+				if !inslice.HasString(secGroupIds, *sgold.GroupId) {
+					sgids = append(sgids, *sgold.GroupId)
+				}
+			}
+		}
+		_, err := d.ec2svc.ModifyInstanceAttribute(&ec2.ModifyInstanceAttributeInput{
+			Groups:     aws.StringSlice(sgids),
+			InstanceId: inst.InstanceId,
+		})
+		if err != nil {
+			return err
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	// for each instance, modify the security group assignments
+	return nil
+}
+
+func (d *backendAws) DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error {
 	if vpc == "" {
 		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
@@ -431,10 +601,10 @@ func (d *backendAws) DeleteSecurityGroups(vpc string) error {
 			log.Printf("WARN: more than 1 default VPC found, choosing first one in list: %s", vpc)
 		}
 	}
-	return d.deleteSecGroups(vpc)
+	return d.deleteSecGroups(vpc, namePrefix, internal)
 }
 
-func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string) error {
+func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error {
 	portList := []int64{3000, 8080, 8888, 9200}
 	if lockSSH {
 		portList = append(portList, 22)
@@ -457,14 +627,10 @@ func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string) err
 		}
 		vpc = aws.StringValue(out.Vpcs[0].VpcId)
 	}
-	err := d.lockSecurityGroups(ip, portList, "AeroLabClient-"+strings.TrimPrefix(vpc, "vpc-"), vpc)
-	if err != nil {
-		return err
-	}
-	return d.lockSecurityGroups(ip, portList, "AeroLabServer-"+strings.TrimPrefix(vpc, "vpc-"), vpc)
+	return d.lockSecurityGroups(ip, portList, namePrefix+"-"+strings.TrimPrefix(vpc, "vpc-"), vpc, namePrefix)
 }
 
-func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupName string, vpc string) error {
+func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupName string, vpc string, namePrefix string) error {
 	var sgi *ec2.DescribeSecurityGroupsInput
 	if vpc == "" {
 		sgi = &ec2.DescribeSecurityGroupsInput{
@@ -509,7 +675,9 @@ func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupNam
 			}
 		}
 	}
-
+	if namePrefix == "AeroLabServer" || namePrefix == "AeroLabClient" {
+		return nil
+	}
 	if ip == "discover-caller-ip" {
 		ip = getip2()
 	}
@@ -563,7 +731,7 @@ func getip2() string {
 	return ip.Query
 }
 
-func (d *backendAws) CreateSecurityGroups(vpc string) error {
+func (d *backendAws) CreateSecurityGroups(vpc string, namePrefix string) error {
 	if vpc == "" {
 		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
@@ -584,31 +752,62 @@ func (d *backendAws) CreateSecurityGroups(vpc string) error {
 			log.Printf("WARN: more than 1 default VPC found, choosing first one in list: %s", vpc)
 		}
 	}
-	_, err := d.createSecGroups(vpc)
+	_, err := d.createSecGroups(vpc, namePrefix)
 	return err
 }
 
 func (d *backendAws) ListSecurityGroups() error {
+	_, err := d.listSecurityGroups(true)
+	return err
+}
+
+func (d *backendAws) listSecurityGroups(stdout bool) ([]inventoryFirewallRule, error) {
 	out, err := d.ec2svc.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var output []string
+	rules := []inventoryFirewallRule{}
 	for _, sg := range out.SecurityGroups {
-		if !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabServer-") && !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabClient-") {
-			continue
+		nIps := []string{}
+		for _, sga := range sg.IpPermissions {
+			for _, sgb := range sga.IpRanges {
+				if !inslice.HasString(nIps, *sgb.CidrIp) {
+					nIps = append(nIps, *sgb.CidrIp)
+				}
+			}
 		}
-		output = append(output, fmt.Sprintf("%s\t%s\t%s", aws.StringValue(sg.VpcId), aws.StringValue(sg.GroupName), aws.StringValue(sg.GroupId)))
+		if len(nIps) == 0 && (strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabServer-") || strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabClient-")) {
+			nIps = []string{"internal"}
+		}
+		rules = append(rules, inventoryFirewallRule{
+			AWS: &inventoryFirewallRuleAWS{
+				VPC:               aws.StringValue(sg.VpcId),
+				SecurityGroupName: aws.StringValue(sg.GroupName),
+				SecurityGroupID:   aws.StringValue(sg.GroupId),
+				IPs:               nIps,
+			},
+		})
 	}
-	sort.Strings(output)
-	w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
-	fmt.Fprintln(w, "VPC_ID\tSecurityGroupName\tSecurityGroupID")
-	fmt.Fprintln(w, "------\t-----------------\t---------------")
-	for _, line := range output {
-		fmt.Fprint(w, line+"\n")
+	if stdout {
+		var output []string
+		for _, sg := range out.SecurityGroups {
+			/*
+				if !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabServer-") && !strings.HasPrefix(aws.StringValue(sg.GroupName), "AeroLabClient-") {
+					continue
+				}
+			*/
+			output = append(output, fmt.Sprintf("%s\t%s\t%s", aws.StringValue(sg.VpcId), aws.StringValue(sg.GroupName), aws.StringValue(sg.GroupId)))
+		}
+		sort.Strings(output)
+		w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
+		fmt.Fprintln(w, "VPC_ID\tSecurityGroupName\tSecurityGroupID")
+		fmt.Fprintln(w, "------\t-----------------\t---------------")
+		for _, line := range output {
+			fmt.Fprint(w, line+"\n")
+		}
+		w.Flush()
 	}
-	w.Flush()
-	return nil
+	return rules, nil
 }
 
 type vpc struct {
@@ -617,13 +816,18 @@ type vpc struct {
 }
 
 func (d *backendAws) ListSubnets() error {
+	_, err := d.listSubnets(true)
+	return err
+}
+func (d *backendAws) listSubnets(stdout bool) ([]inventorySubnetAWS, error) {
+	ij := []inventorySubnetAWS{}
 	out, err := d.ec2svc.DescribeSubnets(&ec2.DescribeSubnetsInput{})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	outv, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	vpcList := make(map[string]*vpc)
 	for _, avpc := range outv.Vpcs {
@@ -640,9 +844,12 @@ func (d *backendAws) ListSubnets() error {
 		}
 	}
 	foundVPCs := []string{}
-	w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
-	fmt.Fprintln(w, "VPC_ID\tVPC_Name\tVPC_Cidr\tAvailZone\tSubnet_ID\tSubnet_CIDR\tAZ-Default\tSubnet_Name\tAutoPublicIP")
-	fmt.Fprintln(w, "------\t--------\t--------\t---------\t---------\t-----------\t----------\t-----------\t------------")
+	var w *tabwriter.Writer
+	if stdout {
+		w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
+		fmt.Fprintln(w, "VPC_ID\tVPC_Name\tVPC_Cidr\tAvailZone\tSubnet_ID\tSubnet_CIDR\tAZ-Default\tSubnet_Name\tAutoPublicIP")
+		fmt.Fprintln(w, "------\t--------\t--------\t---------\t---------\t-----------\t----------\t-----------\t------------")
+	}
 	lines := []string{}
 	for _, sub := range out.Subnets {
 		nameTag := ""
@@ -664,19 +871,40 @@ func (d *backendAws) ListSubnets() error {
 		if aws.BoolValue(sub.MapPublicIpOnLaunch) {
 			autoIP = "yes (ok)"
 		}
+		ij = append(ij, inventorySubnetAWS{
+			VpcId:            aws.StringValue(sub.VpcId),
+			VpcName:          avpc.name,
+			VpcCidr:          avpc.cidr,
+			AvailabilityZone: aws.StringValue(sub.AvailabilityZone),
+			SubnetId:         aws.StringValue(sub.SubnetId),
+			SubnetCidr:       aws.StringValue(sub.CidrBlock),
+			IsAzDefault:      aws.BoolValue(sub.DefaultForAz),
+			SubnetName:       nameTag,
+			AutoPublicIP:     aws.BoolValue(sub.MapPublicIpOnLaunch),
+		})
 		lines = append(lines, fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%t\t%s\t%s\n", aws.StringValue(sub.VpcId), avpc.name, avpc.cidr, aws.StringValue(sub.AvailabilityZone), aws.StringValue(sub.SubnetId), aws.StringValue(sub.CidrBlock), aws.BoolValue(sub.DefaultForAz), nameTag, autoIP))
 	}
-	sort.Strings(lines)
-	for _, line := range lines {
-		fmt.Fprint(w, line)
+	if stdout {
+		sort.Strings(lines)
+		for _, line := range lines {
+			fmt.Fprint(w, line)
+		}
 	}
-
 	for _, foundVPC := range foundVPCs {
 		delete(vpcList, foundVPC)
 	}
 	for id, vpc := range vpcList {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, vpc.name, vpc.cidr, "", "", "", "", "", "")
+		ij = append(ij, inventorySubnetAWS{
+			VpcId:   id,
+			VpcName: vpc.name,
+			VpcCidr: vpc.cidr,
+		})
+		if stdout {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", id, vpc.name, vpc.cidr, "", "", "", "", "", "")
+		}
 	}
-	w.Flush()
-	return nil
+	if stdout {
+		w.Flush()
+	}
+	return ij, nil
 }

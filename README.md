@@ -6,6 +6,10 @@ applications in a controlled development environment.
 
 **NOTE:** AeroLab is intended for local development and testing environments. It is not recommended for production operations. 
 
+## Upgrading
+
+[See this document on upgrading from versions 6.0- to 6.1+](docs/upgrade-to-610.md)
+
 ## Releases
 
 The [releases page](https://github.com/aerospike/aerolab/releases) contains links to current installer
@@ -41,23 +45,30 @@ setting up tunneling for direct container access.
 
 You can see the IP addresses of running AeroLab containers with the `aerolab cluster-list` command.
 
-## Table of contents
+## Documentation
 
-[Getting started](docs/GETTING_STARTED.md)
-
-[AeroLab on AWS](docs/aws-setup.md)
-
-[AeroLab on GCP](docs/gcp-setup.md)
-
-[Help commands](docs/usage/help.md)
-
-[Usage examples](docs/usage/index.md)
-
-[Deploying clients](docs/deploy_clients/index.md)
-
-[REST API](docs/rest-api.md)
-
-[Utility scripts](docs/utility_scripts/index.md)
+* [Getting started](docs/GETTING_STARTED.md)
+* [Help commands](docs/usage/help.md)
+* [GCP](docs/gcp-setup.md)
+  * [Partitioner](docs/partitioner/partition-disks.md)
+  * [Advanced - GCP Firewall Rules](docs/gcp-firewall.md)
+* [AWS](docs/aws-setup.md)
+  * [Partitioner](docs/partitioner/partition-disks.md)
+  * [Advanced - AWS Firewall Rules](docs/aws-firewall.md)
+  * [Advanced - Custom VPC](docs/vpc.md)
+* [Usage examples](docs/usage/index.md)
+  * [Basic](docs/usage/basic/index.md)
+  * [Advanced](docs/usage/advanced/index.md)
+  * [Full Stack](docs/usage/full-stack/index.md)
+* [Deploying clients](docs/deploy_clients/index.md)
+  * [Elastic Search](docs/deploy_clients/elasticsearch.md)
+  * [Rest Gateway](docs/deploy_clients/restgw.md)
+  * [Trino](docs/deploy_clients/trino.md)
+  * [VSCode](docs/deploy_clients/vscode.md)
+  * [AMS monitoring stack](docs/usage/monitoring/ams.md)
+  * [Tools and Asbench](docs/usage/full-stack/index.md)
+* [REST API](docs/rest-api.md)
+* [Utility scripts](docs/utility_scripts/index.md)
 
 ## Changelog
 

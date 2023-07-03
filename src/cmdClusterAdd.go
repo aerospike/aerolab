@@ -4,6 +4,7 @@ import "os"
 
 type clusterAddCmd struct {
 	Exporter clusterAddExporterCmd `command:"exporter" subcommands-optional:"true" description:"Install ams exporter in a cluster or clusters"`
+	Firewall clusterAddFirewallCmd `command:"firewall" subcommands-optional:"true" description:"Add firewall rules to an existing cluster"`
 	Help     helpCmd               `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

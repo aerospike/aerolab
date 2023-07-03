@@ -17,24 +17,26 @@ func getBackend() (backend, error) {
 }
 
 type backendExtra struct {
-	cpuLimit        string   // docker only
-	ramLimit        string   // docker only
-	swapLimit       string   // docker only
-	privileged      bool     // docker only
-	exposePorts     []string // docker only
-	switches        string   // docker only
-	dockerHostname  bool     // docker only
-	network         string   // docker only
-	securityGroupID string   // aws only
-	subnetID        string   // aws only
-	ebs             string   // aws only
-	instanceType    string   // aws/gcp only
-	ami             string   // aws/gcp only
-	publicIP        bool     // aws/gcp only
-	tags            []string // aws/gcp only
-	disks           []string // gcp only
-	zone            string   // gcp only
-	labels          []string // gcp only
+	clientType         string   // all: ams|elasticsearch|rest-gateway|VSCode|...
+	cpuLimit           string   // docker only
+	ramLimit           string   // docker only
+	swapLimit          string   // docker only
+	privileged         bool     // docker only
+	exposePorts        []string // docker only
+	switches           string   // docker only
+	dockerHostname     bool     // docker only
+	network            string   // docker only
+	securityGroupID    string   // aws only
+	subnetID           string   // aws only
+	ebs                string   // aws only
+	instanceType       string   // aws/gcp only
+	ami                string   // aws/gcp only
+	publicIP           bool     // aws/gcp only
+	tags               []string // aws/gcp only
+	firewallNamePrefix []string // aws/gcp only
+	disks              []string // gcp only
+	zone               string   // gcp only
+	labels             []string // gcp only
 }
 
 type backendVersion struct {
@@ -111,11 +113,12 @@ type backend interface {
 	VacuumTemplates() error
 	VacuumTemplate(v backendVersion) error
 	// may implement
-	DeleteSecurityGroups(vpc string) error
+	DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error
 	// may implement
-	CreateSecurityGroups(vpc string) error
+	CreateSecurityGroups(vpc string, namePrefix string) error
 	// may implement
-	LockSecurityGroups(ip string, lockSSH bool, vpc string) error
+	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error
+	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool) error
 	// may implement
 	ListSecurityGroups() error
 	// may implement
@@ -125,6 +128,111 @@ type backend interface {
 	DeleteNetwork(name string) error
 	PruneNetworks() error
 	ListNetworks(csv bool, writer io.Writer) error
+	Inventory() (inventoryJson, error)
+	GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error)
+}
+
+type inventoryJson struct {
+	Clusters      []inventoryCluster
+	Clients       []inventoryClient
+	Templates     []inventoryTemplate
+	FirewallRules []inventoryFirewallRule
+	Subnets       []inventorySubnet
+}
+
+type inventorySubnet struct {
+	AWS inventorySubnetAWS
+}
+
+type inventorySubnetAWS struct {
+	VpcId            string
+	VpcName          string
+	VpcCidr          string
+	AvailabilityZone string
+	SubnetId         string
+	SubnetCidr       string
+	IsAzDefault      bool
+	SubnetName       string
+	AutoPublicIP     bool
+}
+
+type inventoryCluster struct {
+	ClusterName      string
+	NodeNo           string
+	PrivateIp        string
+	PublicIp         string
+	InstanceId       string
+	ImageId          string
+	State            string
+	Arch             string
+	Distribution     string
+	OSVersion        string
+	AerospikeVersion string
+	Firewalls        []string
+	Zone             string
+}
+
+type inventoryClient struct {
+	ClientName       string
+	NodeNo           string
+	PrivateIp        string
+	PublicIp         string
+	InstanceId       string
+	ImageId          string
+	State            string
+	Arch             string
+	Distribution     string
+	OSVersion        string
+	AerospikeVersion string
+	ClientType       string
+	AccessUrl        string
+	AccessPort       string
+	Firewalls        []string
+	Zone             string
+}
+
+type inventoryTemplate struct {
+	Distribution     string
+	OSVersion        string
+	AerospikeVersion string
+	Arch             string
+}
+
+type inventoryFirewallRule struct {
+	GCP    *inventoryFirewallRuleGCP
+	AWS    *inventoryFirewallRuleAWS
+	Docker *inventoryFirewallRuleDocker
+}
+
+type inventoryFirewallRuleGCP struct {
+	FirewallName string
+	TargetTags   []string
+	SourceTags   []string
+	SourceRanges []string
+	AllowPorts   []string
+	DenyPorts    []string
+}
+
+type inventoryFirewallRuleAWS struct {
+	VPC               string
+	SecurityGroupName string
+	SecurityGroupID   string
+	IPs               []string
+}
+
+type inventoryFirewallRuleDocker struct {
+	NetworkName   string
+	NetworkDriver string
+	Subnets       string
+	MTU           string
+}
+
+type instanceType struct {
+	InstanceName             string
+	CPUs                     int
+	RamGB                    float64
+	EphemeralDisks           int
+	EphemeralDiskTotalSizeGB float64
 }
 
 // check return code from exec function

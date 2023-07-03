@@ -1,6 +1,21 @@
 #### 6.1.0
 * Add extra version check in `client tools` creator.
 * Fix support for `amazon:2` on `arm` discovery.
+* Add option for `logs get` to download logs in parallel using the `--threads X` option.
+* Symlink `attach shell` command to `cluster attach` command.
+* Add option in `tls generate` to have different bit sizes.
+* If `-f` force option is not specified in the `destroy` commands, ask for confirmation via `stdin`.
+* Basic anonymous telemetry enabled by default for internal Aerospike users.
+* Added `inventory list` command, which prints all of the inventory (clusters, clients, firewalls, templates) in table or json format.
+* Standardize the `list` commands to the `insventory list` output for cloud backends.
+* Added `nano` command to all distributions.
+* Update API packages to latest as of June 28th, 2023.
+* Add new command `inventory instance-types` to allow for quick lookup of instance types in `AWS` and `GCP` clouds.
+* Move all aerolab files and config paths to `~/.aerolab`.
+* When creating firewalls/security groups, by default these will be locked to the caller's IP address.
+* Allow to specify custom name for firewalls and security groups.
+* Make the `GCP` backend disks use the `NVME` interface for disks.
+* The `client create none` now supports backends other than Docker.
 
 #### 6.0.3
 * Handle bug in IP discovery on `docker` backend with custom networks.

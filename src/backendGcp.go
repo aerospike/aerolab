@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -59,6 +58,7 @@ const (
 	gcpClientTagOperatingSystem  = "aerolab4client_operating_system"
 	gcpClientTagOSVersion        = "aerolab4client_operating_system_version"
 	gcpClientTagAerospikeVersion = "aerolab4client_aerospike_version"
+	gcpClientTagClientType       = "aerolab4client_type"
 	gcpClientFirewallTag         = "aerolab-client"
 )
 
@@ -94,6 +94,223 @@ func (d *backendGcp) WorkOnServers() {
 	gcpTagOperatingSystem = gcpServerTagOperatingSystem
 	gcpTagOSVersion = gcpServerTagOSVersion
 	gcpTagAerospikeVersion = gcpServerTagAerospikeVersion
+}
+
+func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	if gcpZone == "" {
+		return nil, errors.New("GCP Zone is required, specify with --zone")
+	}
+	ctx := context.Background()
+	instancesClient, err := compute.NewMachineTypesRESTClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("newInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+	req := &computepb.AggregatedListMachineTypesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("zone=" + gcpZone),
+	}
+	it := instancesClient.AggregatedList(ctx, req)
+	ij := []instanceType{}
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range pair.Value.MachineTypes {
+			if !findArm && strings.HasPrefix(*t.Name, "t2") {
+				continue
+			}
+			if findArm && !strings.HasPrefix(*t.Name, "t2") {
+				continue
+			}
+			if (minCpu > 0 && int(t.GetGuestCpus()) < minCpu) || (maxCpu > 0 && int(t.GetGuestCpus()) > maxCpu) {
+				continue
+			}
+			if (minRam > 0 && float64(t.GetMemoryMb())/1024 < minRam) || (maxRam > 0 && float64(t.GetMemoryMb())/1024 > maxRam) {
+				continue
+			}
+			eph := 0
+			ephs := float64(0)
+			if !*t.IsSharedCpu && !strings.HasPrefix(*t.Name, "e2-") && !strings.HasPrefix(*t.Name, "t2d-") && !strings.HasPrefix(*t.Name, "t2a-") && !strings.HasPrefix(*t.Name, "m2-") && !strings.HasPrefix(*t.Name, "c3-") {
+				if strings.HasPrefix(*t.Name, "c2-") || strings.HasPrefix(*t.Name, "c2d-") || strings.HasPrefix(*t.Name, "a2-") || strings.HasPrefix(*t.Name, "m1-") || strings.HasPrefix(*t.Name, "m3-") || strings.HasPrefix(*t.Name, "g2-") {
+					eph = 8
+					ephs = 3 * 1024
+				} else if strings.HasPrefix(*t.Name, "n1-") || strings.HasPrefix(*t.Name, "n2-") || strings.HasPrefix(*t.Name, "n2d-") {
+					eph = 24
+					ephs = 9 * 1024
+				} else {
+					eph = -1
+					ephs = -1
+				}
+			}
+			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
+				continue
+			}
+			ij = append(ij, instanceType{
+				InstanceName:             *t.Name,
+				CPUs:                     int(t.GetGuestCpus()),
+				RamGB:                    float64(t.GetMemoryMb()) / 1024,
+				EphemeralDisks:           eph,
+				EphemeralDiskTotalSizeGB: ephs,
+			})
+		}
+	}
+	return ij, err
+}
+
+func (d *backendGcp) Inventory() (inventoryJson, error) {
+	ij := inventoryJson{}
+
+	tmpl, err := d.ListTemplates()
+	if err != nil {
+		return ij, err
+	}
+	for _, d := range tmpl {
+		arch := "amd64"
+		if d.isArm {
+			arch = "arm64"
+		}
+		ij.Templates = append(ij.Templates, inventoryTemplate{
+			AerospikeVersion: d.aerospikeVersion,
+			Distribution:     d.distroName,
+			OSVersion:        d.distroVersion,
+			Arch:             arch,
+		})
+	}
+
+	ctx := context.Background()
+	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+	if err != nil {
+		return ij, fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer firewallsClient.Close()
+	req := &computepb.ListFirewallsRequest{
+		Project: a.opts.Config.Backend.Project,
+	}
+	it := firewallsClient.List(ctx, req)
+	for {
+		firewallRule, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return ij, err
+		}
+		allow := []string{}
+		for _, all := range firewallRule.Allowed {
+			allow = append(allow, all.Ports...)
+		}
+		deny := []string{}
+		for _, all := range firewallRule.Denied {
+			deny = append(deny, all.Ports...)
+		}
+		ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
+			GCP: &inventoryFirewallRuleGCP{
+				FirewallName: *firewallRule.Name,
+				TargetTags:   firewallRule.TargetTags,
+				SourceTags:   firewallRule.SourceTags,
+				SourceRanges: firewallRule.SourceRanges,
+				AllowPorts:   allow,
+				DenyPorts:    deny,
+			},
+		})
+	}
+
+	for _, i := range []int{1, 2} {
+		if i == 1 {
+			d.WorkOnServers()
+		} else {
+			d.WorkOnClients()
+		}
+		ctx = context.Background()
+		instancesClient, err := compute.NewInstancesRESTClient(ctx)
+		if err != nil {
+			return ij, fmt.Errorf("newInstancesRESTClient: %w", err)
+		}
+		defer instancesClient.Close()
+		// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
+		reqi := &computepb.AggregatedListInstancesRequest{
+			Project: a.opts.Config.Backend.Project,
+			Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagEnclose(gcpTagUsedByValue)),
+		}
+		iti := instancesClient.AggregatedList(ctx, reqi)
+		for {
+			pair, err := iti.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return ij, err
+			}
+			instances := pair.Value.Instances
+			if len(instances) > 0 {
+				for _, instance := range instances {
+					if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+						sysArch := "x86_64"
+						if arm, _ := d.IsSystemArm(*instance.MachineType); arm {
+							sysArch = "aarch64"
+						}
+						pubIp := ""
+						privIp := ""
+						if len(instance.NetworkInterfaces) > 0 {
+							if instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" {
+								privIp = *instance.NetworkInterfaces[0].NetworkIP
+							}
+							if len(instance.NetworkInterfaces[0].AccessConfigs) > 0 {
+								if instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != nil && *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != "" {
+									pubIp = *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP
+								}
+							}
+						}
+						zoneSplit := strings.Split(*instance.Zone, "/zones/")
+						zone := ""
+						if len(zoneSplit) > 1 {
+							zone = zoneSplit[1]
+						}
+						if i == 1 {
+							ij.Clusters = append(ij.Clusters, inventoryCluster{
+								ClusterName:      instance.Labels[gcpTagClusterName],
+								NodeNo:           instance.Labels[gcpTagNodeNumber],
+								InstanceId:       *instance.Name,
+								ImageId:          instance.GetSourceMachineImage(),
+								State:            *instance.Status,
+								Arch:             sysArch,
+								Distribution:     instance.Labels[gcpTagOperatingSystem],
+								OSVersion:        instance.Labels[gcpTagOSVersion],
+								AerospikeVersion: instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:        privIp,
+								PublicIp:         pubIp,
+								Firewalls:        instance.Tags.Items,
+								Zone:             zone,
+							})
+						} else {
+							ij.Clients = append(ij.Clients, inventoryClient{
+								ClientName:       instance.Labels[gcpTagClusterName],
+								NodeNo:           instance.Labels[gcpTagNodeNumber],
+								InstanceId:       *instance.Name,
+								ImageId:          instance.GetSourceMachineImage(),
+								State:            *instance.Status,
+								Arch:             sysArch,
+								Distribution:     instance.Labels[gcpTagOperatingSystem],
+								OSVersion:        instance.Labels[gcpTagOSVersion],
+								AerospikeVersion: instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:        privIp,
+								PublicIp:         pubIp,
+								ClientType:       instance.Labels[gcpClientTagClientType],
+								Firewalls:        instance.Tags.Items,
+								Zone:             zone,
+							})
+						}
+					}
+				}
+			}
+		}
+	}
+	return ij, nil
 }
 
 func (d *backendGcp) CreateNetwork(name string, driver string, subnet string, mtu string) error {
@@ -327,124 +544,9 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nlist, nil
 }
 
-type gcpClusterListFull struct {
-	ClusterName string
-	NodeNumber  string
-	IpAddress   string
-	PublicIp    string
-	InstanceId  string
-	State       string
-	Arch        string
-}
-
 func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
-	clist := []gcpClusterListFull{}
-	ctx := context.Background()
-	instancesClient, err := compute.NewInstancesRESTClient(ctx)
-	if err != nil {
-		return "", fmt.Errorf("newInstancesRESTClient: %w", err)
-	}
-	defer instancesClient.Close()
-
-	// Use the `MaxResults` parameter to limit the number of results that the API returns per response page.
-	req := &computepb.AggregatedListInstancesRequest{
-		Project: a.opts.Config.Backend.Project,
-		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagEnclose(gcpTagUsedByValue)),
-	}
-	it := instancesClient.AggregatedList(ctx, req)
-	for {
-		pair, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return "", err
-		}
-		instances := pair.Value.Instances
-		if len(instances) > 0 {
-			for _, instance := range instances {
-				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
-					sysArch := "x86_64"
-					if arm, _ := d.IsSystemArm(*instance.MachineType); arm {
-						sysArch = "aarch64"
-					}
-					pubIp := "N/A"
-					privIp := "N/A"
-					if len(instance.NetworkInterfaces) > 0 {
-						if instance.NetworkInterfaces[0].NetworkIP != nil && *instance.NetworkInterfaces[0].NetworkIP != "" {
-							privIp = *instance.NetworkInterfaces[0].NetworkIP
-						}
-						if len(instance.NetworkInterfaces[0].AccessConfigs) > 0 {
-							if instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != nil && *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP != "" {
-								pubIp = *instance.NetworkInterfaces[0].AccessConfigs[0].NatIP
-							}
-						}
-					}
-					clist = append(clist, gcpClusterListFull{
-						ClusterName: instance.Labels[gcpTagClusterName],
-						NodeNumber:  instance.Labels[gcpTagNodeNumber],
-						IpAddress:   privIp,
-						PublicIp:    pubIp,
-						InstanceId:  *instance.Name,
-						State:       *instance.Status,
-						Arch:        sysArch,
-					})
-				}
-			}
-		}
-	}
-	clusterName := 20
-	nodeNumber := 6
-	ipAddress := 15
-	publicIp := 15
-	instanceId := 20
-	state := 20
-	arch := 10
-	for _, item := range clist {
-		if len(item.ClusterName) > clusterName {
-			clusterName = len(item.ClusterName)
-		}
-		if len(item.NodeNumber) > nodeNumber {
-			nodeNumber = len(item.NodeNumber)
-		}
-		if len(item.IpAddress) > ipAddress {
-			ipAddress = len(item.IpAddress)
-		}
-		if len(item.PublicIp) > publicIp {
-			publicIp = len(item.PublicIp)
-		}
-		if len(item.InstanceId) > instanceId {
-			instanceId = len(item.InstanceId)
-		}
-		if len(item.State) > state {
-			state = len(item.State)
-		}
-		if len(item.Arch) > arch {
-			arch = len(item.Arch)
-		}
-	}
-	sort.Slice(clist, func(i, j int) bool {
-		if clist[i].ClusterName < clist[j].ClusterName {
-			return true
-		}
-		if clist[i].ClusterName > clist[j].ClusterName {
-			return false
-		}
-		ino, _ := strconv.Atoi(clist[i].NodeNumber)
-		jno, _ := strconv.Atoi(clist[j].NodeNumber)
-		return ino < jno
-	})
-	if !isJson {
-		sprintf := "%-" + strconv.Itoa(clusterName) + "s %-" + strconv.Itoa(nodeNumber) + "s %-" + strconv.Itoa(ipAddress) + "s %-" + strconv.Itoa(publicIp) + "s %-" + strconv.Itoa(instanceId) + "s %-" + strconv.Itoa(state) + "s %-" + strconv.Itoa(arch) + "s\n"
-		result := fmt.Sprintf(sprintf, "ClusterName", "NodeNo", "PrivateIp", "PublicIp", "InstanceId", "State", "Arch")
-		result = result + fmt.Sprintf(sprintf, "--------------------", "------", "---------------", "---------------", "--------------------", "--------------------", "----------")
-		for _, item := range clist {
-			result = result + fmt.Sprintf(sprintf, item.ClusterName, item.NodeNumber, item.IpAddress, item.PublicIp, item.InstanceId, item.State, item.Arch)
-		}
-		return result, nil
-	}
-	out, err := json.MarshalIndent(clist, "", "    ")
-	return string(out), err
+	a.opts.Inventory.List.Json = isJson
+	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 type instanceDetail struct {
@@ -1004,55 +1106,9 @@ func (d *backendGcp) VacuumTemplates() error {
 	return d.vacuum(nil)
 }
 
-type gcpTemplateListFull struct {
-	OsName           string
-	OsVersion        string
-	AerospikeVersion string
-	ImageId          string
-	Arch             string
-}
-
 func (d *backendGcp) TemplateListFull(isJson bool) (string, error) {
-	result := "Templates:\n\nOS_NAME\t\tOS_VER\t\tAEROSPIKE_VERSION\t\tARCH\n--------------------------------------------------------------------------\n"
-	resList := []gcpTemplateListFull{}
-
-	ctx := context.Background()
-	imagesClient, err := compute.NewImagesRESTClient(ctx)
-	if err != nil {
-		return "", fmt.Errorf("NewImagesRESTClient: %w", err)
-	}
-	defer imagesClient.Close()
-	req := computepb.ListImagesRequest{
-		Project: a.opts.Config.Backend.Project,
-		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagEnclose(gcpTagUsedByValue)),
-	}
-
-	it := imagesClient.List(ctx, &req)
-	for {
-		image, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return "", err
-		}
-		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
-			result = fmt.Sprintf("%s%s\t\t%s\t\t%s\t\t%s\n", result, image.Labels[gcpTagOperatingSystem], gcpResourceNameBack(image.Labels[gcpTagOSVersion]), gcpResourceNameBack(image.Labels[gcpTagAerospikeVersion]), *image.Architecture)
-			resList = append(resList, gcpTemplateListFull{
-				OsName:           image.Labels[gcpTagOperatingSystem],
-				OsVersion:        gcpResourceNameBack(image.Labels[gcpTagOSVersion]),
-				AerospikeVersion: gcpResourceNameBack(image.Labels[gcpTagAerospikeVersion]),
-				ImageId:          *image.Name,
-				Arch:             *image.Architecture,
-			})
-		}
-	}
-
-	if !isJson {
-		return result, nil
-	}
-	out, err := json.MarshalIndent(resList, "", "    ")
-	return string(out), err
+	a.opts.Inventory.List.Json = isJson
+	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
 // get KeyPair
@@ -1245,11 +1301,12 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	}
 	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
-	err = d.createSecurityGroupsIfNotExist()
-	if err != nil {
-		return fmt.Errorf("firewall: %s", err)
+	for _, fnp := range extra.firewallNamePrefix {
+		err = d.createSecurityGroupsIfNotExist(fnp)
+		if err != nil {
+			return fmt.Errorf("firewall: %s", err)
+		}
 	}
-
 	ctx := context.Background()
 	instancesClient, err := compute.NewInstancesRESTClient(ctx)
 	if err != nil {
@@ -1261,7 +1318,8 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	if v.isArm {
 		instanceType = "t2a-standard-1"
 	}
-	tags := append(extra.tags, "aerolab-server")
+	fnp := append(extra.firewallNamePrefix, "aerolab-server")
+	tags := append(extra.tags, fnp...)
 	req := &computepb.InsertInstanceRequest{
 		Project: a.opts.Config.Backend.Project,
 		Zone:    extra.zone,
@@ -1491,11 +1549,73 @@ func (d *backendGcp) ListSubnets() error {
 	return errors.New("not implemented")
 }
 
-func (d *backendGcp) CreateSecurityGroups(vpc string) error {
-	return d.createSecurityGroupsIfNotExist()
+func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool) error {
+	ctx := context.Background()
+	for _, name := range names {
+		if err := d.createSecurityGroupsIfNotExist(name); err != nil {
+			return err
+		}
+	}
+	client, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer client.Close()
+
+	nodes, err := d.NodeListInCluster(clusterName)
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		inst, err := client.Get(ctx, &computepb.GetInstanceRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Instance: fmt.Sprintf("aerolab4-%s-%d", clusterName, node),
+			Zone:     zone,
+		})
+		if err != nil {
+			return err
+		}
+		var newNames []string
+		if remove {
+			newNames = []string{}
+			for _, name := range inst.Tags.Items {
+				if !inslice.HasString(names, name) {
+					newNames = append(newNames, name)
+				}
+			}
+		} else {
+			newNames = names
+			for _, name := range inst.Tags.Items {
+				if !inslice.HasString(newNames, name) {
+					newNames = append(newNames, name)
+				}
+			}
+		}
+		setTags := &computepb.SetTagsInstanceRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Instance: fmt.Sprintf("aerolab4-%s-%d", clusterName, node),
+			TagsResource: &computepb.Tags{
+				Items:       newNames,
+				Fingerprint: inst.Tags.Fingerprint,
+			},
+			Zone: zone,
+		}
+		op, err := client.SetTags(ctx, setTags)
+		if err != nil {
+			return err
+		}
+		if err = op.Wait(ctx); err != nil {
+			return fmt.Errorf("unable to wait for the operation: %w", err)
+		}
+	}
+	return nil
 }
 
-func (d *backendGcp) createSecurityGroupInternal() error {
+func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string) error {
+	return d.createSecurityGroupsIfNotExist(namePrefix)
+}
+
+func (d *backendGcp) createSecurityGroupExternal(namePrefix string) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -1511,10 +1631,9 @@ func (d *backendGcp) createSecurityGroupInternal() error {
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
-		Name:      proto.String("aerolab-managed-external"),
+		Name:      proto.String(namePrefix),
 		TargetTags: []string{
-			"aerolab-server",
-			"aerolab-client",
+			namePrefix,
 		},
 		Description: proto.String("Allowing external access to aerolab-managed instance services"),
 		SourceRanges: []string{
@@ -1538,7 +1657,7 @@ func (d *backendGcp) createSecurityGroupInternal() error {
 	return nil
 }
 
-func (d *backendGcp) createSecurityGroupExternal() error {
+func (d *backendGcp) createSecurityGroupInternal(namePrefix string) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -1581,7 +1700,7 @@ func (d *backendGcp) createSecurityGroupExternal() error {
 	return nil
 }
 
-func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string) error {
+func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error {
 	if ip == "discover-caller-ip" {
 		ip = getip2()
 	}
@@ -1603,10 +1722,9 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string) err
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
-		Name:      proto.String("aerolab-managed-external"),
+		Name:      proto.String(namePrefix),
 		TargetTags: []string{
-			"aerolab-server",
-			"aerolab-client",
+			namePrefix,
 		},
 		Description: proto.String("Allowing external access to aerolab-managed instance services"),
 		SourceRanges: []string{
@@ -1616,7 +1734,7 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string) err
 
 	req := &computepb.UpdateFirewallRequest{
 		Project:          a.opts.Config.Backend.Project,
-		Firewall:         "aerolab-managed-external",
+		Firewall:         namePrefix,
 		FirewallResource: firewallRule,
 	}
 
@@ -1631,7 +1749,7 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string) err
 	return nil
 }
 
-func (d *backendGcp) DeleteSecurityGroups(vpc string) error {
+func (d *backendGcp) DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -1653,10 +1771,10 @@ func (d *backendGcp) DeleteSecurityGroups(vpc string) error {
 		if err != nil {
 			return err
 		}
-		if *firewallRule.Name == "aerolab-managed-internal" {
+		if *firewallRule.Name == "aerolab-managed-internal" && internal {
 			existInternal = true
 		}
-		if *firewallRule.Name == "aerolab-managed-external" {
+		if *firewallRule.Name == namePrefix {
 			existExternal = true
 		}
 	}
@@ -1664,7 +1782,7 @@ func (d *backendGcp) DeleteSecurityGroups(vpc string) error {
 	if existExternal {
 		req := &computepb.DeleteFirewallRequest{
 			Project:  a.opts.Config.Backend.Project,
-			Firewall: "aerolab-managed-external",
+			Firewall: namePrefix,
 		}
 
 		op, err := firewallsClient.Delete(ctx, req)
@@ -1738,7 +1856,7 @@ func (d *backendGcp) ListSecurityGroups() error {
 	return nil
 }
 
-func (d *backendGcp) createSecurityGroupsIfNotExist() error {
+func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -1764,18 +1882,22 @@ func (d *backendGcp) createSecurityGroupsIfNotExist() error {
 		if *firewallRule.Name == "aerolab-managed-internal" {
 			existInternal = true
 		}
-		if *firewallRule.Name == "aerolab-managed-external" {
+		if *firewallRule.Name == namePrefix {
 			existExternal = true
 		}
 	}
 	if !existInternal {
-		err = d.createSecurityGroupInternal()
+		err = d.createSecurityGroupInternal(namePrefix)
 		if err != nil {
 			return err
 		}
 	}
 	if !existExternal {
-		err = d.createSecurityGroupExternal()
+		err = d.createSecurityGroupExternal(namePrefix)
+		if err != nil {
+			return err
+		}
+		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix)
 		if err != nil {
 			return err
 		}
@@ -1812,10 +1934,14 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		return err
 	}
 	labels[gcpTagClusterName] = name
+	if extra.clientType == "" {
+		extra.clientType = "not-available"
+	}
+	labels[gcpClientTagClientType] = extra.clientType
 
 	disksInt := []gcpDisk{}
 	if len(extra.disks) == 0 {
-		extra.disks = []string{"balanced:20"}
+		extra.disks = []string{"pd-balanced:20"}
 	}
 	for _, disk := range extra.disks {
 		if disk == "local-ssd" {
@@ -1891,9 +2017,11 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 	}
 
-	err = d.createSecurityGroupsIfNotExist()
-	if err != nil {
-		return fmt.Errorf("firewall: %s", err)
+	for _, fnp := range extra.firewallNamePrefix {
+		err = d.createSecurityGroupsIfNotExist(fnp)
+		if err != nil {
+			return fmt.Errorf("firewall: %s", err)
+		}
 	}
 	var keyPath string
 	ops := []gcpMakeOps{}
@@ -1926,10 +2054,14 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			}
 			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", extra.zone, nDisk.diskType)
 			var diskSize *int64
-			attachmentType := proto.String(computepb.SavedAttachedDisk_SCRATCH.String())
+			attachmentType := proto.String(computepb.AttachedDisk_SCRATCH.String())
+			var devIface *string
 			if strings.HasPrefix(nDisk.diskType, "pd-") {
+				devIface = nil
 				diskSize = proto.Int64(int64(nDisk.diskSize))
 				attachmentType = proto.String(computepb.AttachedDisk_PERSISTENT.String())
+			} else {
+				devIface = proto.String(computepb.AttachedDisk_NVME.String())
 			}
 			disksList = append(disksList, &computepb.AttachedDisk{
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
@@ -1940,6 +2072,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 				AutoDelete: proto.Bool(true),
 				Boot:       proto.Bool(boot),
 				Type:       attachmentType,
+				Interface:  devIface,
 			})
 		}
 		// create instance (remember name and labels and tags and extra tags)
@@ -1951,7 +2084,8 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		defer instancesClient.Close()
 
 		instanceType := extra.instanceType
-		tags := append(extra.tags, "aerolab-server")
+		fnp := append(extra.firewallNamePrefix, "aerolab-server")
+		tags := append(extra.tags, fnp...)
 		req := &computepb.InsertInstanceRequest{
 			Project: a.opts.Config.Backend.Project,
 			Zone:    extra.zone,
