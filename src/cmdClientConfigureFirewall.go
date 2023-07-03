@@ -52,7 +52,7 @@ func (c *clientConfigureFirewallCmd) Execute(args []string) error {
 		}
 
 	}
-	log.Println("Running cluster.add.firewall")
+	log.Println("Running client.configure.firewall")
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return err
