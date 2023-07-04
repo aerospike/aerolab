@@ -233,6 +233,7 @@ type instanceType struct {
 	RamGB                    float64
 	EphemeralDisks           int
 	EphemeralDiskTotalSizeGB float64
+	PriceUSD                 float64
 }
 
 // check return code from exec function

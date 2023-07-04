@@ -1,3 +1,6 @@
+#### 6.2.0
+* Add pricing information to `inventory instance-types` command.
+
 #### 6.1.0
 * Add extra version check in `client tools` creator.
 * Fix support for `amazon:2` on `arm` discovery.
