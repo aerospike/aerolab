@@ -22,6 +22,7 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/bestmethod/inslice"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/api/cloudbilling/v1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/proto"
 )
@@ -96,9 +97,232 @@ func (d *backendGcp) WorkOnServers() {
 	gcpTagAerospikeVersion = gcpServerTagAerospikeVersion
 }
 
+type gcpInstancePricing struct {
+	perCoreHour  float64
+	perRamGBHour float64
+	gpuPriceHour float64
+	gpuUltraHour float64
+}
+
+// map[instanceTypePrefix]gcpInstancePricing
+func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInstancePricing, error) {
+	zoneTest := strings.Split(zone, "-")
+	if len(zoneTest) > 2 {
+		zone = zoneTest[0] + "-" + zoneTest[1]
+	}
+	prices := make(map[string]*gcpInstancePricing)
+	ctx := context.Background()
+	svc, err := cloudbilling.NewService(ctx)
+	if err != nil {
+		return prices, err
+	}
+	srv := cloudbilling.NewServicesSkusService(svc)
+	call := srv.List("services/6F81-5844-456A").CurrencyCode("USD")
+	err = call.Pages(ctx, func(resp *cloudbilling.ListSkusResponse) error {
+		for _, i := range resp.Skus {
+			if i.Category.ResourceFamily != "Compute" {
+				continue
+			}
+			if i.Category.UsageType != "OnDemand" {
+				continue
+			}
+			if !inslice.HasString(i.ServiceRegions, zone) {
+				continue
+			}
+			iGroup := strings.Split(i.Description, " ")
+			if len(iGroup) < 6 {
+				continue
+			}
+			if i.Category.ResourceGroup == "GPU" && iGroup[0] == "Nvidia" {
+				grp := ""
+				if strings.HasPrefix(i.Description, "Nvidia Tesla A100 GPU ") {
+					grp = "a2"
+				} else if strings.HasPrefix(i.Description, "Nvidia Tesla A100 80GB GPU ") {
+					grp = "a2"
+				} else if strings.HasPrefix(i.Description, "Nvidia L4 GPU ") {
+					grp = "g2"
+				} else {
+					continue
+				}
+				if _, ok := prices[grp]; !ok {
+					prices[grp] = &gcpInstancePricing{}
+				}
+				if strings.HasPrefix(i.Description, "Nvidia Tesla A100 GPU ") {
+					for _, j := range i.PricingInfo {
+						if j.PricingExpression == nil {
+							continue
+						}
+						if j.PricingExpression.UsageUnit != "h" {
+							continue
+						}
+						for _, x := range j.PricingExpression.TieredRates {
+							if x.UnitPrice == nil {
+								continue
+							}
+							if x.UnitPrice.CurrencyCode != "USD" {
+								continue
+							}
+							prices[grp].gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
+					}
+				} else if strings.HasPrefix(i.Description, "Nvidia Tesla A100 80GB GPU ") {
+					for _, j := range i.PricingInfo {
+						if j.PricingExpression == nil {
+							continue
+						}
+						if j.PricingExpression.UsageUnit != "h" {
+							continue
+						}
+						for _, x := range j.PricingExpression.TieredRates {
+							if x.UnitPrice == nil {
+								continue
+							}
+							if x.UnitPrice.CurrencyCode != "USD" {
+								continue
+							}
+							prices[grp].gpuUltraHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
+					}
+				} else if strings.HasPrefix(i.Description, "Nvidia L4 GPU ") {
+					for _, j := range i.PricingInfo {
+						if j.PricingExpression == nil {
+							continue
+						}
+						if j.PricingExpression.UsageUnit != "h" {
+							continue
+						}
+						for _, x := range j.PricingExpression.TieredRates {
+							if x.UnitPrice == nil {
+								continue
+							}
+							if x.UnitPrice.CurrencyCode != "USD" {
+								continue
+							}
+							prices[grp].gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
+					}
+				}
+				continue
+			}
+			if len(i.PricingInfo) == 0 || i.PricingInfo[0].PricingExpression == nil || len(i.PricingInfo[0].PricingExpression.TieredRates) == 0 {
+				continue
+			}
+			if i.Category.ResourceGroup == "G1Small" {
+				for _, j := range i.PricingInfo {
+					if j.PricingExpression == nil {
+						continue
+					}
+					if j.PricingExpression.UsageUnit != "h" {
+						continue
+					}
+					for _, x := range j.PricingExpression.TieredRates {
+						if x.UnitPrice == nil {
+							continue
+						}
+						if x.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						grp := "g1"
+						if _, ok := prices[grp]; !ok {
+							prices[grp] = &gcpInstancePricing{}
+						}
+						prices["g1"].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						prices["g1"].perRamGBHour = 0.0000000000001
+					}
+				}
+				continue
+			} else if i.Category.ResourceGroup == "F1Micro" {
+				for _, j := range i.PricingInfo {
+					if j.PricingExpression == nil {
+						continue
+					}
+					if j.PricingExpression.UsageUnit != "h" {
+						continue
+					}
+					for _, x := range j.PricingExpression.TieredRates {
+						if x.UnitPrice == nil {
+							continue
+						}
+						if x.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						grp := "f1"
+						if _, ok := prices[grp]; !ok {
+							prices[grp] = &gcpInstancePricing{}
+						}
+						prices["f1"].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						prices["f1"].perRamGBHour = 0.0000000000001
+					}
+				}
+				continue
+			} else if (iGroup[1] != "Instance" || (iGroup[2] != "Core" && iGroup[2] != "Ram") || iGroup[3] != "running" || iGroup[4] != "in") && ((iGroup[1] != "Predefined" && iGroup[1] != "AMD" && iGroup[1] != "Memory-optimized") || iGroup[2] != "Instance" || (iGroup[3] != "Core" && iGroup[3] != "Ram") || iGroup[4] != "running" || iGroup[5] != "in") {
+				continue
+			}
+			grp := strings.ToLower(iGroup[0])
+			if _, ok := prices[grp]; !ok {
+				prices[grp] = &gcpInstancePricing{}
+			}
+			if i.Category.ResourceGroup != "CPU" && i.Category.ResourceGroup != "RAM" && iGroup[1] == "Predefined" {
+				if iGroup[3] == "Core" {
+					i.Category.ResourceGroup = "CPU"
+				} else if iGroup[3] == "Ram" {
+					i.Category.ResourceGroup = "RAM"
+				}
+			}
+			switch i.Category.ResourceGroup {
+			case "CPU":
+				for _, j := range i.PricingInfo {
+					if j.PricingExpression == nil {
+						continue
+					}
+					if j.PricingExpression.UsageUnit != "h" {
+						continue
+					}
+					for _, x := range j.PricingExpression.TieredRates {
+						if x.UnitPrice == nil {
+							continue
+						}
+						if x.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						prices[grp].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+					}
+				}
+			case "RAM":
+				for _, j := range i.PricingInfo {
+					if j.PricingExpression == nil {
+						continue
+					}
+					if j.PricingExpression.UsageUnit != "GiBy.h" {
+						continue
+					}
+					for _, x := range j.PricingExpression.TieredRates {
+						if x.UnitPrice == nil {
+							continue
+						}
+						if x.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						prices[grp].perRamGBHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return prices, err
+	}
+	return prices, nil
+}
+
 func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
 	if gcpZone == "" {
 		return nil, errors.New("GCP Zone is required, specify with --zone")
+	}
+	prices, err := d.getInstancePricesPerHour(gcpZone)
+	if err != nil {
+		log.Printf("WARN: pricing error: %s", err)
 	}
 	ctx := context.Background()
 	instancesClient, err := compute.NewMachineTypesRESTClient(ctx)
@@ -150,12 +374,27 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
 				continue
 			}
+			prices := prices[strings.Split(*t.Name, "-")[0]]
+			price := float64(-1)
+			accels := 0
+			for _, acc := range t.Accelerators {
+				accels += int(*acc.GuestAcceleratorCount)
+			}
+			if prices != nil && prices.perCoreHour > 0 && prices.perRamGBHour > 0 && prices.gpuPriceHour >= 0 {
+				price = prices.perCoreHour*float64(*t.GuestCpus) + prices.perRamGBHour*float64(*t.MemoryMb/1024)
+				if strings.Contains(*t.Name, "-ultragpu") {
+					price = price + prices.gpuUltraHour*float64(accels)
+				} else {
+					price = price + prices.gpuPriceHour*float64(accels)
+				}
+			}
 			ij = append(ij, instanceType{
 				InstanceName:             *t.Name,
 				CPUs:                     int(t.GetGuestCpus()),
 				RamGB:                    float64(t.GetMemoryMb()) / 1024,
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
+				PriceUSD:                 price,
 			})
 		}
 	}
