@@ -116,6 +116,10 @@ func (c *inventorySorter) instanceTypesSort(i, j int) bool {
 	default:
 		cmpl := strings.Split(strings.Split((*c.cmpItem)[i].InstanceName, ".")[0], "-")[0]
 		cmpr := strings.Split(strings.Split((*c.cmpItem)[j].InstanceName, ".")[0], "-")[0]
+		if a.opts.Config.Backend.Type == "gcp" {
+			cmpl = strings.Join(strings.Split(strings.Split((*c.cmpItem)[i].InstanceName, ".")[0], "-")[0:2], "-")
+			cmpr = strings.Join(strings.Split(strings.Split((*c.cmpItem)[j].InstanceName, ".")[0], "-")[0:2], "-")
+		}
 		if cmpl < cmpr {
 			c.currentSo = 0
 			return true
@@ -164,7 +168,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day"})
+	table.SetHeader([]string{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month"})
 	table.SetAutoFormatHeaders(false)
 	for _, v := range t {
 		edisks := strconv.Itoa(v.EphemeralDisks)
@@ -183,6 +187,10 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		if v.PriceUSD <= 0 {
 			pricepd = "unknown"
 		}
+		pricepm := strconv.FormatFloat(v.PriceUSD*24*30.5, 'f', 2, 64)
+		if v.PriceUSD <= 0 {
+			pricepm = "unknown"
+		}
 		vv := []string{
 			v.InstanceName,
 			strconv.Itoa(v.CPUs),
@@ -191,6 +199,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 			edisksize,
 			price,
 			pricepd,
+			pricepm,
 		}
 		table.Append(vv)
 	}
@@ -201,5 +210,6 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	} else if a.opts.Config.Backend.Type == "aws" {
 		fmt.Println("* pricing does not include attached persistent disks (EBS); disk pricing at https://aws.amazon.com/ebs/pricing/")
 	}
+	fmt.Println("* above prices do not include taxes, add tax as required for total price; prices are estimates, see the calculator for exact pricing: https://cloudpricingcalculator.appspot.com/")
 	return nil
 }
