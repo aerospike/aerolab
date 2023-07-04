@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/bestmethod/inslice"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -21,6 +23,7 @@ type inventoryInstanceTypesCmd struct {
 	FilterMaxRAM float64                      `short:"R" long:"max-ram" description:"Search for max X RAM GB"`
 	EphemeralMin int                          `short:"e" long:"min-ephemeral" description:"Search only for instances with at least X ephemeral devices"`
 	EphemeralMax int                          `short:"E" long:"max-ephemeral" description:"Search only for instances with max X ephemeral devices"`
+	SortOrder    []string                     `short:"s" long:"sort" description:"Sort order; can be specified multiple times; values: name, cpu, ram, disks, size, price" default:"name"`
 	Gcp          inventoryInstanceTypesCmdGcp `no-flag:"true"`
 	Help         helpCmd                      `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -31,6 +34,99 @@ type inventoryInstanceTypesCmdGcp struct {
 
 func init() {
 	addBackendSwitch("inventory.instance-types", "gcp", &a.opts.Inventory.InstanceTypes.Gcp)
+}
+
+type inventorySorter struct {
+	SortOrders []string
+	currentSo  int
+	cmpItem    *[]instanceType
+}
+
+func (c *inventorySorter) instanceTypesSort(i, j int) bool {
+	if c.currentSo == len(c.SortOrders) {
+		c.currentSo = 0
+		return false
+	}
+	switch c.SortOrders[c.currentSo] {
+	case "cpu":
+		cmpl := (*c.cmpItem)[i].CPUs
+		cmpr := (*c.cmpItem)[j].CPUs
+		if cmpl < cmpr {
+			c.currentSo = 0
+			return true
+		} else if cmpl > cmpr {
+			c.currentSo = 0
+			return false
+		} else {
+			c.currentSo++
+			return c.instanceTypesSort(i, j)
+		}
+	case "ram":
+		cmpl := (*c.cmpItem)[i].RamGB
+		cmpr := (*c.cmpItem)[j].RamGB
+		if cmpl < cmpr {
+			c.currentSo = 0
+			return true
+		} else if cmpl > cmpr {
+			c.currentSo = 0
+			return false
+		} else {
+			c.currentSo++
+			return c.instanceTypesSort(i, j)
+		}
+	case "disks":
+		cmpl := (*c.cmpItem)[i].EphemeralDisks
+		cmpr := (*c.cmpItem)[j].EphemeralDisks
+		if cmpl < cmpr {
+			c.currentSo = 0
+			return true
+		} else if cmpl > cmpr {
+			c.currentSo = 0
+			return false
+		} else {
+			c.currentSo++
+			return c.instanceTypesSort(i, j)
+		}
+	case "size":
+		cmpl := (*c.cmpItem)[i].EphemeralDiskTotalSizeGB
+		cmpr := (*c.cmpItem)[j].EphemeralDiskTotalSizeGB
+		if cmpl < cmpr {
+			c.currentSo = 0
+			return true
+		} else if cmpl > cmpr {
+			c.currentSo = 0
+			return false
+		} else {
+			c.currentSo++
+			return c.instanceTypesSort(i, j)
+		}
+	case "price":
+		cmpl := (*c.cmpItem)[i].PriceUSD
+		cmpr := (*c.cmpItem)[j].PriceUSD
+		if cmpl < cmpr {
+			c.currentSo = 0
+			return true
+		} else if cmpl > cmpr {
+			c.currentSo = 0
+			return false
+		} else {
+			c.currentSo++
+			return c.instanceTypesSort(i, j)
+		}
+	default:
+		cmpl := strings.Split(strings.Split((*c.cmpItem)[i].InstanceName, ".")[0], "-")[0]
+		cmpr := strings.Split(strings.Split((*c.cmpItem)[j].InstanceName, ".")[0], "-")[0]
+		if cmpl < cmpr {
+			c.currentSo = 0
+			return true
+		} else if cmpl > cmpr {
+			c.currentSo = 0
+			return false
+		} else {
+			c.currentSo++
+			return c.instanceTypesSort(i, j)
+		}
+	}
 }
 
 func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
@@ -44,6 +140,20 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+
+	if !inslice.HasString(c.SortOrder, "name") {
+		c.SortOrder = append(c.SortOrder, "name")
+	}
+	if !inslice.HasString(c.SortOrder, "price") {
+		c.SortOrder = append(c.SortOrder, "price")
+	}
+	sorter := inventorySorter{
+		SortOrders: c.SortOrder,
+		currentSo:  0,
+		cmpItem:    &t,
+	}
+	sort.Slice(t, sorter.instanceTypesSort)
+
 	if c.Json {
 		enc := json.NewEncoder(os.Stdout)
 		if c.JsonPretty {
@@ -65,7 +175,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		if v.EphemeralDiskTotalSizeGB == -1 {
 			edisksize = "unknown"
 		}
-		price := strconv.FormatFloat(v.PriceUSD, 'f', 2, 64)
+		price := strconv.FormatFloat(v.PriceUSD, 'f', 4, 64)
 		if v.PriceUSD <= 0 {
 			price = "unknown"
 		}
