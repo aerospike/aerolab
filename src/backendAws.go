@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/pricing"
 	"github.com/bestmethod/inslice"
 )
 
@@ -87,8 +89,12 @@ func (d *backendAws) WorkOnServers() {
 }
 
 func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	prices, err := d.getInstancePricesPerHour()
+	if err != nil {
+		log.Printf("WARN: pricing error: %s", err)
+	}
 	it := []instanceType{}
-	err := d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
+	err = d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
 		for _, iType := range ec2Types.InstanceTypes {
 			sarch := []string{}
 			for _, sar := range iType.ProcessorInfo.SupportedArchitectures {
@@ -123,12 +129,17 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
 				continue
 			}
+			price := prices[*iType.InstanceType]
+			if price <= 0 {
+				price = -1
+			}
 			it = append(it, instanceType{
 				InstanceName:             *iType.InstanceType,
 				CPUs:                     int(*iType.VCpuInfo.DefaultVCpus),
 				RamGB:                    float64(int(*iType.MemoryInfo.SizeInMiB)) / 1024,
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
+				PriceUSD:                 price,
 			})
 		}
 		return true
@@ -137,6 +148,130 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 		return nil, err
 	}
 	return it, nil
+}
+
+// map[instanceType]priceUSD
+func (d *backendAws) getInstancePricesPerHour() (map[string]float64, error) {
+	prices := make(map[string]float64)
+	svc := pricing.New(d.sess, aws.NewConfig().WithRegion("us-east-1"))
+	input := &pricing.GetProductsInput{
+		ServiceCode: aws.String("AmazonEC2"),
+		MaxResults:  aws.Int64(100),
+		Filters: []*pricing.Filter{
+			{
+				Field: aws.String("regionCode"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String(a.opts.Config.Backend.Region),
+			},
+			{
+				Field: aws.String("marketoption"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("OnDemand"),
+			},
+			{
+				Field: aws.String("tenancy"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("Shared"), // other values: Dedicated, Host
+			},
+			{
+				Field: aws.String("capacitystatus"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("Used"), // other values: AllocatedCapacityReservation, UnusedCapacityReservation
+			},
+			{
+				Field: aws.String("preInstalledSw"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("NA"),
+			},
+			{
+				Field: aws.String("operatingSystem"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("Linux"),
+			},
+		},
+	}
+
+	result, err := svc.GetProducts(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case pricing.ErrCodeInternalErrorException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInternalErrorException, aerr.Error())
+			case pricing.ErrCodeInvalidParameterException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInvalidParameterException, aerr.Error())
+			case pricing.ErrCodeNotFoundException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeNotFoundException, aerr.Error())
+			case pricing.ErrCodeInvalidNextTokenException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInvalidNextTokenException, aerr.Error())
+			case pricing.ErrCodeExpiredNextTokenException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeExpiredNextTokenException, aerr.Error())
+			default:
+				return nil, fmt.Errorf("%s", aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			return nil, fmt.Errorf("%s", err.Error())
+		}
+	}
+	for {
+		for _, price := range result.PriceList {
+			/*
+				ret, err := json.MarshalIndent(price["terms"].(map[string]interface{})["OnDemand"].(map[string]interface{}), "", "    ")
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				fmt.Println(string(ret))
+			*/
+			for _, v := range price["terms"].(map[string]interface{})["OnDemand"].(map[string]interface{}) {
+				for _, vv := range v.(map[string]interface{})["priceDimensions"].(map[string]interface{}) {
+					if vv.(map[string]interface{})["unit"].(string) != "Hrs" {
+						return nil, fmt.Errorf("price format incorrect:%s", vv.(map[string]interface{})["unit"].(string))
+					}
+					nType := vv.(map[string]interface{})["description"].(string)
+					nTypes := strings.Split(nType, " per On Demand Linux ")
+					if len(nTypes) != 2 {
+						continue
+					}
+					if !strings.HasSuffix(nTypes[1], " Instance Hour") {
+						continue
+					}
+					nPriceStr := vv.(map[string]interface{})["pricePerUnit"].(map[string]interface{})["USD"].(string)
+					nPrice, err := strconv.ParseFloat(nPriceStr, 64)
+					if err != nil {
+						return nil, fmt.Errorf("price is NaN:%s: '%s'", err, nPriceStr)
+					}
+					prices[strings.TrimSuffix(nTypes[1], " Instance Hour")] = nPrice
+				}
+			}
+		}
+		input.NextToken = result.NextToken
+		if input.NextToken == nil || *input.NextToken == "" {
+			break
+		}
+		result, err = svc.GetProducts(input)
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case pricing.ErrCodeInternalErrorException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInternalErrorException, aerr.Error())
+				case pricing.ErrCodeInvalidParameterException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInvalidParameterException, aerr.Error())
+				case pricing.ErrCodeNotFoundException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeNotFoundException, aerr.Error())
+				case pricing.ErrCodeInvalidNextTokenException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInvalidNextTokenException, aerr.Error())
+				case pricing.ErrCodeExpiredNextTokenException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeExpiredNextTokenException, aerr.Error())
+				default:
+					return nil, fmt.Errorf("%s", aerr.Error())
+				}
+			} else {
+				return nil, fmt.Errorf("%s", err.Error())
+			}
+		}
+	}
+	return prices, nil
 }
 
 func (d *backendAws) Inventory() (inventoryJson, error) {

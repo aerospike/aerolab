@@ -54,7 +54,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB"})
+	table.SetHeader([]string{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day"})
 	table.SetAutoFormatHeaders(false)
 	for _, v := range t {
 		edisks := strconv.Itoa(v.EphemeralDisks)
@@ -65,18 +65,31 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		if v.EphemeralDiskTotalSizeGB == -1 {
 			edisksize = "unknown"
 		}
+		price := strconv.FormatFloat(v.PriceUSD, 'f', 2, 64)
+		if v.PriceUSD <= 0 {
+			price = "unknown"
+		}
+		pricepd := strconv.FormatFloat(v.PriceUSD*24, 'f', 2, 64)
+		if v.PriceUSD <= 0 {
+			pricepd = "unknown"
+		}
 		vv := []string{
 			v.InstanceName,
 			strconv.Itoa(v.CPUs),
 			strings.TrimSuffix(strconv.FormatFloat(v.RamGB, 'f', 2, 64), ".00"),
 			edisks,
 			edisksize,
+			price,
+			pricepd,
 		}
 		table.Append(vv)
 	}
 	table.Render()
 	if a.opts.Config.Backend.Type == "gcp" {
-		fmt.Println("* local ephemeral disks are not automatically allocated to the machines; these need to be requested in the quantity required; each disk is always 375 GB")
+		fmt.Println("* local ephemeral disks are not automatically allocated to the machines; these need to be requested in the quantity required; each local disk is always 375 GB")
+		fmt.Println("* pricing does not include any disks; disk pricing at https://cloud.google.com/compute/disks-image-pricing#disk")
+	} else if a.opts.Config.Backend.Type == "aws" {
+		fmt.Println("* pricing does not include attached persistent disks (EBS); disk pricing at https://aws.amazon.com/ebs/pricing/")
 	}
 	return nil
 }
