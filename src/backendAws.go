@@ -64,6 +64,7 @@ var (
 	awsTagOperatingSystem  = awsServerTagOperatingSystem
 	awsTagOSVersion        = awsServerTagOSVersion
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
+	awsTagCostPerHour      = "Aerolab4CostPerHour"
 )
 
 func (d *backendAws) WorkOnClients() {
@@ -1767,6 +1768,15 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	var reservations []*ec2.Reservation
 	var keyPath string
+	price := float64(-1)
+	it, err := d.getInstanceTypes()
+	if err == nil {
+		for _, iti := range it {
+			if iti.InstanceName == extra.instanceType {
+				price = iti.PriceUSD
+			}
+		}
+	}
 	for i := start; i < (nodeCount + start); i++ {
 		// tag setup
 		if extra.clientType == "" {
@@ -1798,6 +1808,10 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			{
 				Key:   aws.String(awsTagAerospikeVersion),
 				Value: aws.String(v.aerospikeVersion),
+			},
+			{
+				Key:   aws.String(awsTagCostPerHour),
+				Value: aws.String(strconv.FormatFloat(price, 'f', 8, 64)),
 			}}
 		tgs = append(tgs, extraTags...)
 		ts := ec2.TagSpecification{}
