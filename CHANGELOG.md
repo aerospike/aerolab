@@ -4,6 +4,7 @@
 * Add a 24-hour cache of `inventory instance-types` to allow for quick lookup.
 * Add display of price information on cluster and client creation.
 * Add option to only display price (without actually creating clusters or clients) using `--price` in the `create` commands.
+* Add `nodes count` multiplier to `inventory instance-types` to allow for easy cost visualization.
 
 #### 6.1.0
 * Add extra version check in `client tools` creator.

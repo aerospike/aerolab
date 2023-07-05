@@ -17,6 +17,7 @@ type inventoryInstanceTypesCmd struct {
 	Json         bool                         `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty   bool                         `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Arm          bool                         `short:"a" long:"arm" description:"Set to look for ARM instances instead of amd64"`
+	Nodes        int                          `short:"n" long:"nodes" description:"Number of nodes (essentially a price multiplier for the result)" default:"1"`
 	FilterMinCPU int                          `short:"c" long:"min-cpus" description:"Search for at least X CPUs"`
 	FilterMaxCPU int                          `short:"C" long:"max-cpus" description:"Search for max X CPUs"`
 	FilterMinRAM float64                      `short:"r" long:"min-ram" description:"Search for at least X RAM GB"`
@@ -179,15 +180,15 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		if v.EphemeralDiskTotalSizeGB == -1 {
 			edisksize = "unknown"
 		}
-		price := strconv.FormatFloat(v.PriceUSD, 'f', 4, 64)
+		price := strconv.FormatFloat(v.PriceUSD*float64(c.Nodes), 'f', 4, 64)
 		if v.PriceUSD <= 0 {
 			price = "unknown"
 		}
-		pricepd := strconv.FormatFloat(v.PriceUSD*24, 'f', 2, 64)
+		pricepd := strconv.FormatFloat(v.PriceUSD*24*float64(c.Nodes), 'f', 2, 64)
 		if v.PriceUSD <= 0 {
 			pricepd = "unknown"
 		}
-		pricepm := strconv.FormatFloat(v.PriceUSD*24*30.5, 'f', 2, 64)
+		pricepm := strconv.FormatFloat(v.PriceUSD*24*30.5*float64(c.Nodes), 'f', 2, 64)
 		if v.PriceUSD <= 0 {
 			pricepm = "unknown"
 		}
