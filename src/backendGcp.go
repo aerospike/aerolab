@@ -72,6 +72,7 @@ var (
 	gcpTagOperatingSystem  = gcpServerTagOperatingSystem
 	gcpTagOSVersion        = gcpServerTagOSVersion
 	gcpTagAerospikeVersion = gcpServerTagAerospikeVersion
+	gcpTagCostPerHour      = "aerolab_cost_ph"
 )
 
 func (d *backendGcp) WorkOnClients() {
@@ -2266,6 +2267,16 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		extra.clientType = "not-available"
 	}
 	labels[gcpClientTagClientType] = extra.clientType
+	price := float64(-1)
+	it, err := d.getInstanceTypes(extra.zone)
+	if err == nil {
+		for _, iti := range it {
+			if iti.InstanceName == extra.instanceType {
+				price = iti.PriceUSD
+			}
+		}
+	}
+	labels[gcpTagCostPerHour] = strconv.FormatFloat(price, 'f', 8, 64)
 
 	disksInt := []gcpDisk{}
 	if len(extra.disks) == 0 {

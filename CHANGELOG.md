@@ -5,7 +5,8 @@
 * Add display of price information on cluster and client creation.
 * Add option to only display price (without actually creating clusters or clients) using `--price` in the `create` commands.
 * Add `nodes count` multiplier to `inventory instance-types` to allow for easy cost visualization.
-* TODO: Track cost and pricing using tagging/labels and show estimated current running/idling cost in `list` views.
+* Track instance cost in instance tags/labels.
+* TODO: show node/cluster costs in `list` view.
 
 #### 6.1.0
 * Add extra version check in `client tools` creator.
