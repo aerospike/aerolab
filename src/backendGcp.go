@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -316,14 +317,72 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 	return prices, nil
 }
 
-func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
-	if gcpZone == "" {
-		return nil, errors.New("GCP Zone is required, specify with --zone")
+func (d *backendGcp) getInstanceTypesFromCache(zone string) ([]instanceType, error) {
+	cacheFile, err := a.aerolabRootDir()
+	if err != nil {
+		return nil, err
 	}
-	prices, err := d.getInstancePricesPerHour(gcpZone)
+	cacheFile = path.Join(cacheFile, "cache", "gcp.instance-types."+zone+".json")
+	f, err := os.Open(cacheFile)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	ita := &instanceTypesCache{}
+	err = dec.Decode(ita)
+	if err != nil {
+		return nil, err
+	}
+	if ita.Expires.Before(time.Now()) {
+		return ita.InstanceTypes, errors.New("cache expired")
+	}
+	return ita.InstanceTypes, nil
+}
+
+func (d *backendGcp) saveInstanceTypesToCache(it []instanceType, zone string) error {
+	cacheDir, err := a.aerolabRootDir()
+	if err != nil {
+		return err
+	}
+	cacheDir = path.Join(cacheDir, "cache")
+	cacheFile := path.Join(cacheDir, "gcp.instance-types."+zone+".json")
+	if _, err := os.Stat(cacheDir); err != nil {
+		if err = os.Mkdir(cacheDir, 0755); err != nil {
+			return err
+		}
+	}
+	f, err := os.OpenFile(cacheFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	ita := &instanceTypesCache{
+		Expires:       time.Now().Add(24 * time.Hour),
+		InstanceTypes: it,
+	}
+	err = enc.Encode(ita)
+	if err != nil {
+		os.Remove(cacheFile)
+		return err
+	}
+	return nil
+}
+
+func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
+	it, err := d.getInstanceTypesFromCache(zone)
+	if err == nil {
+		return it, err
+	}
+	saveCache := true
+	prices, err := d.getInstancePricesPerHour(zone)
 	if err != nil {
 		log.Printf("WARN: pricing error: %s", err)
+		saveCache = false
 	}
+	it = []instanceType{}
+	// find instance types
 	ctx := context.Background()
 	instancesClient, err := compute.NewMachineTypesRESTClient(ctx)
 	if err != nil {
@@ -332,30 +391,24 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 	defer instancesClient.Close()
 	req := &computepb.AggregatedListMachineTypesRequest{
 		Project: a.opts.Config.Backend.Project,
-		Filter:  proto.String("zone=" + gcpZone),
+		Filter:  proto.String("zone=" + zone),
 	}
-	it := instancesClient.AggregatedList(ctx, req)
-	ij := []instanceType{}
+	ita := instancesClient.AggregatedList(ctx, req)
 	for {
-		pair, err := it.Next()
+		pair, err := ita.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
+		isArm := false
+		isX86 := false
 		for _, t := range pair.Value.MachineTypes {
-			if !findArm && strings.HasPrefix(*t.Name, "t2") {
-				continue
-			}
-			if findArm && !strings.HasPrefix(*t.Name, "t2") {
-				continue
-			}
-			if (minCpu > 0 && int(t.GetGuestCpus()) < minCpu) || (maxCpu > 0 && int(t.GetGuestCpus()) > maxCpu) {
-				continue
-			}
-			if (minRam > 0 && float64(t.GetMemoryMb())/1024 < minRam) || (maxRam > 0 && float64(t.GetMemoryMb())/1024 > maxRam) {
-				continue
+			if strings.HasPrefix(*t.Name, "t2") {
+				isArm = true
+			} else {
+				isX86 = true
 			}
 			eph := 0
 			ephs := float64(0)
@@ -371,9 +424,6 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 					ephs = -1
 				}
 			}
-			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
-				continue
-			}
 			prices := prices[strings.Split(*t.Name, "-")[0]]
 			price := float64(-1)
 			accels := 0
@@ -388,17 +438,56 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 					price = price + prices.gpuPriceHour*float64(accels)
 				}
 			}
-			ij = append(ij, instanceType{
+			it = append(it, instanceType{
 				InstanceName:             *t.Name,
 				CPUs:                     int(t.GetGuestCpus()),
 				RamGB:                    float64(t.GetMemoryMb()) / 1024,
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
 				PriceUSD:                 price,
+				IsArm:                    isArm,
+				IsX86:                    isX86,
 			})
 		}
 	}
-	return ij, err
+	// end search
+	if saveCache {
+		err = d.saveInstanceTypesToCache(it, zone)
+		if err != nil {
+			log.Printf("WARN: failed to save instance types to cache: %s", err)
+		}
+	}
+	return it, nil
+}
+
+func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	if gcpZone == "" {
+		return nil, errors.New("GCP Zone is required, specify with --zone")
+	}
+	ita, err := d.getInstanceTypes(gcpZone)
+	if err != nil {
+		return ita, err
+	}
+	it := []instanceType{}
+	for _, i := range ita {
+		if findArm && !i.IsArm {
+			continue
+		}
+		if !findArm && !i.IsX86 {
+			continue
+		}
+		if (minCpu > 0 && i.CPUs < minCpu) || (maxCpu > 0 && i.CPUs > maxCpu) {
+			continue
+		}
+		if (minRam > 0 && i.RamGB < minRam) || (maxRam > 0 && i.RamGB > maxRam) {
+			continue
+		}
+		if (minDisks > 0 && i.EphemeralDisks < minDisks) || (maxDisks > 0 && i.EphemeralDisks > maxDisks) {
+			continue
+		}
+		it = append(it, i)
+	}
+	return it, nil
 }
 
 func (d *backendGcp) Inventory() (inventoryJson, error) {

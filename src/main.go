@@ -490,6 +490,16 @@ func (a *aerolab) configFileName() (cfgFile string, optional bool, err error) {
 	return
 }
 
+func (a *aerolab) aerolabRootDir() (dirPath string, err error) {
+	var home string
+	home, err = os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	dirPath = path.Join(home, ".aerolab")
+	return
+}
+
 func (a *aerolab) createDefaults() {
 	home, err := os.UserHomeDir()
 	if err != nil {

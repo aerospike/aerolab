@@ -1,6 +1,7 @@
 #### 6.2.0
 * Add pricing information to `inventory instance-types` command.
 * Sort options for `inventory instance-types` command.
+* Add a 24-hour cache of `inventory instance-types` to allow for quick lookup.
 
 #### 6.1.0
 * Add extra version check in `client tools` creator.

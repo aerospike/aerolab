@@ -1,11 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -88,12 +90,71 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
-func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+func (d *backendAws) getInstanceTypesFromCache() ([]instanceType, error) {
+	cacheFile, err := a.aerolabRootDir()
+	if err != nil {
+		return nil, err
+	}
+	cacheFile = path.Join(cacheFile, "cache", "aws.instance-types."+a.opts.Config.Backend.Region+".json")
+	f, err := os.Open(cacheFile)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	ita := &instanceTypesCache{}
+	err = dec.Decode(ita)
+	if err != nil {
+		return nil, err
+	}
+	if ita.Expires.Before(time.Now()) {
+		return ita.InstanceTypes, errors.New("cache expired")
+	}
+	return ita.InstanceTypes, nil
+}
+
+func (d *backendAws) saveInstanceTypesToCache(it []instanceType) error {
+	cacheDir, err := a.aerolabRootDir()
+	if err != nil {
+		return err
+	}
+	cacheDir = path.Join(cacheDir, "cache")
+	cacheFile := path.Join(cacheDir, "aws.instance-types."+a.opts.Config.Backend.Region+".json")
+	if _, err := os.Stat(cacheDir); err != nil {
+		if err = os.Mkdir(cacheDir, 0755); err != nil {
+			return err
+		}
+	}
+	f, err := os.OpenFile(cacheFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	ita := &instanceTypesCache{
+		Expires:       time.Now().Add(24 * time.Hour),
+		InstanceTypes: it,
+	}
+	err = enc.Encode(ita)
+	if err != nil {
+		os.Remove(cacheFile)
+		return err
+	}
+	return nil
+}
+
+func (d *backendAws) getInstanceTypes() ([]instanceType, error) {
+	it, err := d.getInstanceTypesFromCache()
+	if err == nil {
+		return it, err
+	}
+	saveCache := true
 	prices, err := d.getInstancePricesPerHour()
 	if err != nil {
 		log.Printf("WARN: pricing error: %s", err)
+		saveCache = false
 	}
-	it := []instanceType{}
+	it = []instanceType{}
 	err = d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
 		for _, iType := range ec2Types.InstanceTypes {
 			sarch := []string{}
@@ -105,18 +166,14 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 			if len(sarch) == 0 {
 				continue
 			}
+			isArm := false
+			isX86 := false
 			sarchString := strings.Join(sarch, ",")
-			if !findArm && !strings.Contains(sarchString, "amd64") && !strings.Contains(sarchString, "x86") && !strings.Contains(sarchString, "x64") {
-				continue
+			if strings.Contains(sarchString, "amd64") || strings.Contains(sarchString, "x86") || strings.Contains(sarchString, "x64") {
+				isX86 = true
 			}
-			if findArm && !strings.Contains(sarchString, "arm64") && !strings.Contains(sarchString, "aarch64") {
-				continue
-			}
-			if (minCpu > 0 && int(*iType.VCpuInfo.DefaultVCpus) < minCpu) || (maxCpu > 0 && int(*iType.VCpuInfo.DefaultVCpus) > maxCpu) {
-				continue
-			}
-			if (minRam > 0 && float64(int(*iType.MemoryInfo.SizeInMiB))/1024 < minRam) || (maxRam > 0 && float64(int(*iType.MemoryInfo.SizeInMiB))/1024 > maxRam) {
-				continue
+			if strings.Contains(sarchString, "arm64") || strings.Contains(sarchString, "aarch64") {
+				isArm = true
 			}
 			eph := 0
 			ephs := float64(0)
@@ -125,9 +182,6 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 				for _, d := range iType.InstanceStorageInfo.Disks {
 					eph = eph + int(*d.Count)
 				}
-			}
-			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
-				continue
 			}
 			price := prices[*iType.InstanceType]
 			if price <= 0 {
@@ -140,12 +194,47 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
 				PriceUSD:                 price,
+				IsArm:                    isArm,
+				IsX86:                    isX86,
 			})
 		}
 		return true
 	})
 	if err != nil {
 		return nil, err
+	}
+	if saveCache {
+		err = d.saveInstanceTypesToCache(it)
+		if err != nil {
+			log.Printf("WARN: failed to save instance types to cache: %s", err)
+		}
+	}
+	return it, nil
+}
+
+func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	ita, err := d.getInstanceTypes()
+	if err != nil {
+		return ita, err
+	}
+	it := []instanceType{}
+	for _, i := range ita {
+		if findArm && !i.IsArm {
+			continue
+		}
+		if !findArm && !i.IsX86 {
+			continue
+		}
+		if (minCpu > 0 && i.CPUs < minCpu) || (maxCpu > 0 && i.CPUs > maxCpu) {
+			continue
+		}
+		if (minRam > 0 && i.RamGB < minRam) || (maxRam > 0 && i.RamGB > maxRam) {
+			continue
+		}
+		if (minDisks > 0 && i.EphemeralDisks < minDisks) || (maxDisks > 0 && i.EphemeralDisks > maxDisks) {
+			continue
+		}
+		it = append(it, i)
 	}
 	return it, nil
 }

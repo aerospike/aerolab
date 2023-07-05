@@ -4,6 +4,7 @@ import (
 	"io"
 	"os/exec"
 	"syscall"
+	"time"
 )
 
 var backends = make(map[string]backend)
@@ -227,6 +228,11 @@ type inventoryFirewallRuleDocker struct {
 	MTU           string
 }
 
+type instanceTypesCache struct {
+	Expires       time.Time
+	InstanceTypes []instanceType
+}
+
 type instanceType struct {
 	InstanceName             string
 	CPUs                     int
@@ -234,6 +240,8 @@ type instanceType struct {
 	EphemeralDisks           int
 	EphemeralDiskTotalSizeGB float64
 	PriceUSD                 float64
+	IsArm                    bool
+	IsX86                    bool
 }
 
 // check return code from exec function
