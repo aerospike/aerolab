@@ -73,6 +73,8 @@ var (
 	gcpTagOSVersion        = gcpServerTagOSVersion
 	gcpTagAerospikeVersion = gcpServerTagAerospikeVersion
 	gcpTagCostPerHour      = "aerolab_cost_ph"
+	gcpTagCostLastRun      = "aerolab_cost_sofar"
+	gcpTagCostStartTime    = "aerolab_cost_starttime"
 )
 
 func (d *backendGcp) WorkOnClients() {
@@ -600,38 +602,73 @@ func (d *backendGcp) Inventory() (inventoryJson, error) {
 						if len(zoneSplit) > 1 {
 							zone = zoneSplit[1]
 						}
+						startTime := int(0)
+						lastRunCost := float64(0)
+						pricePerHour := float64(0)
+						lastRunCost, err = strconv.ParseFloat(gcplabelDecode(instance.Labels[gcpTagCostLastRun]), 64)
+						if err != nil {
+							lastRunCost = 0
+						}
+						pricePerHour, err = strconv.ParseFloat(gcplabelDecode(instance.Labels[gcpTagCostPerHour]), 64)
+						if err != nil {
+							pricePerHour = 0
+						}
+						startTime, err = strconv.Atoi(gcplabelDecode(instance.Labels[gcpTagCostStartTime]))
+						if err != nil {
+							if instance.LastStartTimestamp != nil {
+								startTimeT, err := time.Parse(time.RFC3339, *instance.LastStartTimestamp)
+								if err == nil && !startTimeT.IsZero() {
+									startTime = int(startTimeT.Unix())
+								}
+							}
+							if startTime == 0 && instance.CreationTimestamp != nil {
+								startTimeT, err := time.Parse(time.RFC3339, *instance.CreationTimestamp)
+								if err == nil && !startTimeT.IsZero() {
+									startTime = int(startTimeT.Unix())
+								}
+							}
+						}
+						currentCost := lastRunCost
+						if startTime != 0 {
+							now := int(time.Now().Unix())
+							delta := now - startTime
+							deltaH := float64(delta) / 3600
+							currentCost = lastRunCost + (pricePerHour * deltaH)
+						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
-								ClusterName:      instance.Labels[gcpTagClusterName],
-								NodeNo:           instance.Labels[gcpTagNodeNumber],
-								InstanceId:       *instance.Name,
-								ImageId:          instance.GetSourceMachineImage(),
-								State:            *instance.Status,
-								Arch:             sysArch,
-								Distribution:     instance.Labels[gcpTagOperatingSystem],
-								OSVersion:        instance.Labels[gcpTagOSVersion],
-								AerospikeVersion: instance.Labels[gcpTagAerospikeVersion],
-								PrivateIp:        privIp,
-								PublicIp:         pubIp,
-								Firewalls:        instance.Tags.Items,
-								Zone:             zone,
+								ClusterName:         instance.Labels[gcpTagClusterName],
+								NodeNo:              instance.Labels[gcpTagNodeNumber],
+								InstanceId:          *instance.Name,
+								ImageId:             instance.GetSourceMachineImage(),
+								State:               *instance.Status,
+								Arch:                sysArch,
+								Distribution:        instance.Labels[gcpTagOperatingSystem],
+								OSVersion:           instance.Labels[gcpTagOSVersion],
+								AerospikeVersion:    instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:           privIp,
+								PublicIp:            pubIp,
+								Firewalls:           instance.Tags.Items,
+								Zone:                zone,
+								InstanceRunningCost: currentCost,
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
-								ClientName:       instance.Labels[gcpTagClusterName],
-								NodeNo:           instance.Labels[gcpTagNodeNumber],
-								InstanceId:       *instance.Name,
-								ImageId:          instance.GetSourceMachineImage(),
-								State:            *instance.Status,
-								Arch:             sysArch,
-								Distribution:     instance.Labels[gcpTagOperatingSystem],
-								OSVersion:        instance.Labels[gcpTagOSVersion],
-								AerospikeVersion: instance.Labels[gcpTagAerospikeVersion],
-								PrivateIp:        privIp,
-								PublicIp:         pubIp,
-								ClientType:       instance.Labels[gcpClientTagClientType],
-								Firewalls:        instance.Tags.Items,
-								Zone:             zone,
+								ClientName:          instance.Labels[gcpTagClusterName],
+								NodeNo:              instance.Labels[gcpTagNodeNumber],
+								InstanceId:          *instance.Name,
+								ImageId:             instance.GetSourceMachineImage(),
+								State:               *instance.Status,
+								Arch:                sysArch,
+								Distribution:        instance.Labels[gcpTagOperatingSystem],
+								OSVersion:           instance.Labels[gcpTagOSVersion],
+								AerospikeVersion:    instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:           privIp,
+								PublicIp:            pubIp,
+								ClientType:          instance.Labels[gcpClientTagClientType],
+								Firewalls:           instance.Tags.Items,
+								Zone:                zone,
+								InstanceRunningCost: currentCost,
 							})
 						}
 					}
@@ -640,6 +677,14 @@ func (d *backendGcp) Inventory() (inventoryJson, error) {
 		}
 	}
 	return ij, nil
+}
+
+func gcplabelDecode(a string) string {
+	return strings.ReplaceAll(a, "-", ".")
+}
+
+func gcplabelEncodeToSave(a string) string {
+	return strings.ReplaceAll(a, ".", "-")
 }
 
 func (d *backendGcp) CreateNetwork(name string, driver string, subnet string, mtu string) error {
@@ -879,8 +924,13 @@ func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
 }
 
 type instanceDetail struct {
-	instanceZone string
-	instanceName string
+	instanceZone       string
+	instanceName       string
+	labels             map[string]string
+	labelFingerprint   string
+	LastStartTimestamp *string
+	CreationTimestamp  *string
+	instanceState      string
 }
 
 func (d *backendGcp) getInstanceDetails(name string, nodes []int) (zones map[int]instanceDetail, err error) {
@@ -920,9 +970,24 @@ func (d *backendGcp) getInstanceDetails(name string, nodes []int) (zones map[int
 						for _, node := range nodes {
 							if strconv.Itoa(node) == instance.Labels[gcpTagNodeNumber] {
 								zone := strings.Split(*instance.Zone, "/")
+								var lrt, ct string
+								var lrtp, ctp *string
+								if instance.LastStartTimestamp != nil {
+									lrt = *instance.LastStartTimestamp
+									lrtp = &lrt
+								}
+								if instance.CreationTimestamp != nil {
+									ct = *instance.CreationTimestamp
+									ctp = &ct
+								}
 								zones[node] = instanceDetail{
-									instanceZone: zone[len(zone)-1],
-									instanceName: *instance.Name,
+									instanceZone:       zone[len(zone)-1],
+									instanceName:       *instance.Name,
+									labels:             instance.Labels,
+									labelFingerprint:   *instance.LabelFingerprint,
+									LastStartTimestamp: lrtp,
+									CreationTimestamp:  ctp,
+									instanceState:      *instance.Status,
 								}
 							}
 						}
@@ -959,6 +1024,21 @@ func (d *backendGcp) ClusterStart(name string, nodes []int) error {
 			return fmt.Errorf("NewInstancesRESTClient: %w", err)
 		}
 		defer instancesClient.Close()
+		if zones[node].instanceState == "TERMINATED" {
+			zones[node].labels[gcpTagCostStartTime] = gcplabelEncodeToSave(strconv.Itoa(int(time.Now().Unix())))
+			_, err = instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+				Project:  a.opts.Config.Backend.Project,
+				Zone:     zones[node].instanceZone,
+				Instance: zones[node].instanceName,
+				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+					LabelFingerprint: proto.String(zones[node].labelFingerprint),
+					Labels:           zones[node].labels,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("unable label instance: %w", err)
+			}
+		}
 		req := &computepb.StartInstanceRequest{
 			Project:  a.opts.Config.Backend.Project,
 			Zone:     zones[node].instanceZone,
@@ -1044,6 +1124,51 @@ func (d *backendGcp) ClusterStop(name string, nodes []int) error {
 		if err != nil {
 			return fmt.Errorf("unable to stop instance: %w", err)
 		}
+		// label
+		if zones[node].instanceState != "TERMINATED" {
+			startTime := int(0)
+			lastRunCost := float64(0)
+			pricePerHour := float64(0)
+			lastRunCost, err = strconv.ParseFloat(gcplabelDecode(zones[node].labels[gcpTagCostLastRun]), 64)
+			if err != nil {
+				lastRunCost = 0
+			}
+			pricePerHour, err = strconv.ParseFloat(gcplabelDecode(zones[node].labels[gcpTagCostPerHour]), 64)
+			if err != nil {
+				pricePerHour = 0
+			}
+			startTime, err = strconv.Atoi(gcplabelDecode(zones[node].labels[gcpTagCostStartTime]))
+			if err != nil {
+				if zones[node].LastStartTimestamp != nil {
+					startTimeT, err := time.Parse(time.RFC3339, *zones[node].LastStartTimestamp)
+					if err == nil && !startTimeT.IsZero() {
+						startTime = int(startTimeT.Unix())
+					}
+				}
+				if startTime == 0 && zones[node].CreationTimestamp != nil {
+					startTimeT, err := time.Parse(time.RFC3339, *zones[node].CreationTimestamp)
+					if err == nil && !startTimeT.IsZero() {
+						startTime = int(startTimeT.Unix())
+					}
+				}
+			}
+			lastRunCost = lastRunCost + (pricePerHour * (float64((int(time.Now().Unix()) - startTime)) / 3600))
+			zones[node].labels[gcpTagCostStartTime] = "0"
+			zones[node].labels[gcpTagCostLastRun] = gcplabelEncodeToSave(strconv.FormatFloat(lastRunCost, 'f', 8, 64))
+			_, err = instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+				Project:  a.opts.Config.Backend.Project,
+				Zone:     zones[node].instanceZone,
+				Instance: zones[node].instanceName,
+				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+					LabelFingerprint: proto.String(zones[node].labelFingerprint),
+					Labels:           zones[node].labels,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("unable label instance: %w", err)
+			}
+		}
+		// label end
 		ops = append(ops, gcpMakeOps{
 			op:  op,
 			ctx: ctx,
@@ -2276,7 +2401,9 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			}
 		}
 	}
-	labels[gcpTagCostPerHour] = strconv.FormatFloat(price, 'f', 8, 64)
+	labels[gcpTagCostPerHour] = gcplabelEncodeToSave(strconv.FormatFloat(price, 'f', 8, 64))
+	labels[gcpTagCostLastRun] = gcplabelEncodeToSave(strconv.FormatFloat(0, 'f', 8, 64))
+	labels[gcpTagCostStartTime] = gcplabelEncodeToSave(strconv.Itoa(int(time.Now().Unix())))
 
 	disksInt := []gcpDisk{}
 	if len(extra.disks) == 0 {

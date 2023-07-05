@@ -158,38 +158,40 @@ type inventorySubnetAWS struct {
 }
 
 type inventoryCluster struct {
-	ClusterName      string
-	NodeNo           string
-	PrivateIp        string
-	PublicIp         string
-	InstanceId       string
-	ImageId          string
-	State            string
-	Arch             string
-	Distribution     string
-	OSVersion        string
-	AerospikeVersion string
-	Firewalls        []string
-	Zone             string
+	ClusterName         string
+	NodeNo              string
+	PrivateIp           string
+	PublicIp            string
+	InstanceId          string
+	ImageId             string
+	State               string
+	Arch                string
+	Distribution        string
+	OSVersion           string
+	AerospikeVersion    string
+	Firewalls           []string
+	Zone                string
+	InstanceRunningCost float64
 }
 
 type inventoryClient struct {
-	ClientName       string
-	NodeNo           string
-	PrivateIp        string
-	PublicIp         string
-	InstanceId       string
-	ImageId          string
-	State            string
-	Arch             string
-	Distribution     string
-	OSVersion        string
-	AerospikeVersion string
-	ClientType       string
-	AccessUrl        string
-	AccessPort       string
-	Firewalls        []string
-	Zone             string
+	ClientName          string
+	NodeNo              string
+	PrivateIp           string
+	PublicIp            string
+	InstanceId          string
+	ImageId             string
+	State               string
+	Arch                string
+	Distribution        string
+	OSVersion           string
+	AerospikeVersion    string
+	ClientType          string
+	AccessUrl           string
+	AccessPort          string
+	Firewalls           []string
+	Zone                string
+	InstanceRunningCost float64
 }
 
 type inventoryTemplate struct {
