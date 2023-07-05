@@ -87,6 +87,10 @@ func (c *clientCreateRestGatewayCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.PriceOnly {
+		return nil
+	}
+
 	a.opts.Client.Add.RestGateway.ClientName = c.ClientName
 	a.opts.Client.Add.RestGateway.StartScript = c.StartScript
 	a.opts.Client.Add.RestGateway.Machines = TypeMachines(intSliceToString(machines, ","))

@@ -62,6 +62,10 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.PriceOnly {
+		return nil
+	}
+
 	a.opts.Client.Add.AMS.nodes = nodes
 	a.opts.Client.Add.AMS.ClientName = c.ClientName
 	a.opts.Client.Add.AMS.StartScript = c.StartScript

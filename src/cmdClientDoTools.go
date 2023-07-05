@@ -84,6 +84,10 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.PriceOnly {
+		return nil
+	}
+
 	a.opts.Client.Add.Tools.ClientName = c.ClientName
 	a.opts.Client.Add.Tools.StartScript = c.StartScript
 	a.opts.Client.Add.Tools.Machines = TypeMachines(intSliceToString(machines, ","))

@@ -22,7 +22,8 @@ type clientCreateBaseCmd struct {
 	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
 	osSelectorCmd
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	PriceOnly bool    `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clientCreateBaseCmd) isGrow() bool {
@@ -45,6 +46,21 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		fmt.Println("Running client.create." + nt)
 	} else {
 		fmt.Println("Running client.grow." + nt)
+	}
+	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
+		return nil, logFatal("Docker backend does not support pricing")
+	}
+	iType := c.Aws.InstanceType
+	if a.opts.Config.Backend.Type == "gcp" {
+		iType = c.Gcp.InstanceType
+	}
+	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
+	printPrice(isArm, c.Gcp.Zone, iType, c.ClientCount)
+	if c.PriceOnly {
+		return nil, nil
 	}
 
 	var startScriptSize os.FileInfo
@@ -145,7 +161,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	}
 	c.Gcp.IsArm = c.Aws.IsArm
 
-	isArm := c.Aws.IsArm
+	isArm = c.Aws.IsArm
 	if b.Arch() == TypeArchAmd {
 		isArm = false
 	}

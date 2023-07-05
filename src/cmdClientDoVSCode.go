@@ -48,6 +48,9 @@ func (c *clientCreateVSCodeCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.PriceOnly {
+		return nil
+	}
 	a.opts.Client.Add.VSCode.ClientName = c.ClientName
 	a.opts.Client.Add.VSCode.StartScript = c.StartScript
 	a.opts.Client.Add.VSCode.Machines = TypeMachines(intSliceToString(machines, ","))

@@ -36,6 +36,7 @@ type clusterCreateCmd struct {
 	Aws                   clusterCreateCmdAws    `no-flag:"true"`
 	Gcp                   clusterCreateCmdGcp    `no-flag:"true"`
 	Docker                clusterCreateCmdDocker `no-flag:"true"`
+	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 	Help                  helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -149,6 +150,29 @@ func (c *clusterCreateCmd) preChDir() {
 	}
 }
 
+func printPrice(isArm bool, zone string, iType string, instances int) {
+	price := float64(-1)
+	iTypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, isArm, zone)
+	if err != nil {
+		log.Printf("Could not get instance pricing: %s", err)
+	} else {
+		for _, i := range iTypes {
+			if i.InstanceName == iType {
+				price = i.PriceUSD * float64(instances)
+			}
+		}
+		priceH := "unknown"
+		priceD := "unknown"
+		priceM := "unknown"
+		if price > 0 {
+			priceH = strconv.FormatFloat(price, 'f', 4, 64)
+			priceD = strconv.FormatFloat(price*24, 'f', 2, 64)
+			priceM = strconv.FormatFloat(price*24*30.5, 'f', 2, 64)
+		}
+		log.Printf("Pre-tax cost for %d %s instances (does not include disk or network costs): $ %s/hour ; $ %s/day ; $ %s/month", instances, iType, priceH, priceD, priceM)
+	}
+}
+
 func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if earlyProcess(args) {
 		return nil
@@ -160,15 +184,29 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		log.Println("Running cluster.grow")
 	}
 
+	isArm := false
 	if a.opts.Config.Backend.Type == "aws" {
+		isArm = c.Aws.IsArm
 		if c.Aws.InstanceType == "" {
 			return logFatal("AWS backend requires InstanceType to be specified")
 		}
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
 		if c.Gcp.InstanceType == "" {
 			return logFatal("GCP backend requires InstanceType to be specified")
 		}
+	}
+	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
+		return logFatal("Docker backend does not support pricing")
+	}
+	iType := c.Aws.InstanceType
+	if a.opts.Config.Backend.Type == "gcp" {
+		iType = c.Gcp.InstanceType
+	}
+	printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount)
+	if c.PriceOnly {
+		return nil
 	}
 
 	c.preChDir()
@@ -281,7 +319,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	// if we need to lookup version, do it
 	var url string
-	isArm := c.Aws.IsArm
+	isArm = c.Aws.IsArm
 	if b.Arch() == TypeArchAmd {
 		isArm = false
 	}

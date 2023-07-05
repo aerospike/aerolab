@@ -63,6 +63,10 @@ func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.PriceOnly {
+		return nil
+	}
+
 	a.opts.Client.Add.ElasticSearch.ClientName = c.ClientName
 	a.opts.Client.Add.ElasticSearch.StartScript = c.StartScript
 	a.opts.Client.Add.ElasticSearch.Machines = TypeMachines(intSliceToString(machines, ","))
