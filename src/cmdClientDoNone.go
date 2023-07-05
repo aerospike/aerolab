@@ -21,7 +21,8 @@ type clientCreateNoneCmd struct {
 	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
 	osSelectorCmd
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	PriceOnly bool    `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clientCreateNoneCmd) isGrow() bool {
@@ -33,6 +34,21 @@ func (c *clientCreateNoneCmd) isGrow() bool {
 
 func (c *clientCreateNoneCmd) Execute(args []string) error {
 	if earlyProcess(args) {
+		return nil
+	}
+	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
+		return logFatal("Docker backend does not support pricing")
+	}
+	iType := c.Aws.InstanceType
+	if a.opts.Config.Backend.Type == "gcp" {
+		iType = c.Gcp.InstanceType
+	}
+	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
+	printPrice(isArm, c.Gcp.Zone, iType, c.ClientCount)
+	if c.PriceOnly {
 		return nil
 	}
 	_, err := c.createBase(args, "none")

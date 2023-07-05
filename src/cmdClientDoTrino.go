@@ -41,6 +41,9 @@ func (c *clientCreateTrinoCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.PriceOnly {
+		return nil
+	}
 	a.opts.Client.Add.Trino.ClientName = c.ClientName
 	a.opts.Client.Add.Trino.StartScript = c.StartScript
 	a.opts.Client.Add.Trino.Machines = TypeMachines(intSliceToString(machines, ","))
