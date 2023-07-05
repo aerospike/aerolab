@@ -65,6 +65,8 @@ var (
 	awsTagOSVersion        = awsServerTagOSVersion
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 	awsTagCostPerHour      = "Aerolab4CostPerHour"
+	awsTagCostLastRun      = "Aerolab4CostSoFar"
+	awsTagCostStartTime    = "Aerolab4CostStartTime"
 )
 
 func (d *backendAws) WorkOnClients() {
@@ -432,6 +434,9 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 					state := ""
 					arch := ""
 					clientType := ""
+					startTime := int(0)
+					lastRunCost := float64(0)
+					pricePerHour := float64(0)
 					if instance.PublicIpAddress != nil {
 						publicIp = *instance.PublicIpAddress
 					}
@@ -463,44 +468,68 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							asdVer = *tag.Value
 						} else if *tag.Key == awsClientTagClientType {
 							clientType = *tag.Value
+						} else if *tag.Key == awsTagCostLastRun {
+							lastRunCost, err = strconv.ParseFloat(*tag.Value, 64)
+							if err != nil {
+								lastRunCost = 0
+							}
+						} else if *tag.Key == awsTagCostPerHour {
+							pricePerHour, err = strconv.ParseFloat(*tag.Value, 64)
+							if err != nil {
+								pricePerHour = 0
+							}
+						} else if *tag.Key == awsTagCostStartTime {
+							startTime, err = strconv.Atoi(*tag.Value)
+							if err != nil {
+								startTime = int(instance.LaunchTime.Unix())
+							}
 						}
 					}
 					sgs := []string{}
 					for _, sgss := range instance.SecurityGroups {
 						sgs = append(sgs, *sgss.GroupName)
 					}
+					currentCost := lastRunCost
+					if startTime != 0 {
+						now := int(time.Now().Unix())
+						delta := now - startTime
+						deltaH := float64(delta) / 3600
+						currentCost = lastRunCost + (pricePerHour * deltaH)
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
-							ClusterName:      clusterName,
-							NodeNo:           nodeNo,
-							PublicIp:         publicIp,
-							PrivateIp:        privateIp,
-							InstanceId:       instanceId,
-							ImageId:          imageId,
-							State:            state,
-							Arch:             arch,
-							Distribution:     os,
-							OSVersion:        osVer,
-							AerospikeVersion: asdVer,
-							Zone:             a.opts.Config.Backend.Region,
-							Firewalls:        sgs,
+							ClusterName:         clusterName,
+							NodeNo:              nodeNo,
+							PublicIp:            publicIp,
+							PrivateIp:           privateIp,
+							InstanceId:          instanceId,
+							ImageId:             imageId,
+							State:               state,
+							Arch:                arch,
+							Distribution:        os,
+							OSVersion:           osVer,
+							AerospikeVersion:    asdVer,
+							Zone:                a.opts.Config.Backend.Region,
+							Firewalls:           sgs,
+							InstanceRunningCost: currentCost,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
-							ClientName:       clusterName,
-							NodeNo:           nodeNo,
-							PublicIp:         publicIp,
-							PrivateIp:        privateIp,
-							InstanceId:       instanceId,
-							ImageId:          imageId,
-							State:            state,
-							Arch:             arch,
-							Distribution:     os,
-							OSVersion:        osVer,
-							AerospikeVersion: asdVer,
-							ClientType:       clientType,
-							Zone:             a.opts.Config.Backend.Region,
-							Firewalls:        sgs,
+							ClientName:          clusterName,
+							NodeNo:              nodeNo,
+							PublicIp:            publicIp,
+							PrivateIp:           privateIp,
+							InstanceId:          instanceId,
+							ImageId:             imageId,
+							State:               state,
+							Arch:                arch,
+							Distribution:        os,
+							OSVersion:           osVer,
+							AerospikeVersion:    asdVer,
+							ClientType:          clientType,
+							Zone:                a.opts.Config.Backend.Region,
+							Firewalls:           sgs,
+							InstanceRunningCost: currentCost,
 						})
 					}
 				}
@@ -899,16 +928,36 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 		for _, instance := range reservation.Instances {
 			if *instance.State.Code != int64(48) {
 				var nodeNumber int
+				startTime := 0
 				for _, tag := range instance.Tags {
 					if *tag.Key == awsTagNodeNumber {
 						nodeNumber, err = strconv.Atoi(*tag.Value)
 						if err != nil {
 							return errors.New("problem with node numbers in the given cluster. Investigate manually")
 						}
+					} else if *tag.Key == awsTagCostStartTime {
+						startTime, err = strconv.Atoi(*tag.Value)
+						if err != nil {
+							startTime = 0
+						}
 					}
 				}
 				if inslice.HasInt(nodes, nodeNumber) {
 					if instance.State.Code != &stateCodes[0] && instance.State.Code != &stateCodes[1] {
+						if startTime == 0 {
+							tagi := &ec2.CreateTagsInput{
+								Resources: aws.StringSlice([]string{*instance.InstanceId}),
+								Tags: []*ec2.Tag{
+									{
+										Key:   aws.String(awsTagCostStartTime),
+										Value: aws.String(strconv.Itoa(int(time.Now().Unix()))),
+									}},
+							}
+							_, err := d.ec2svc.CreateTags(tagi)
+							if err != nil {
+								return fmt.Errorf("could not update instance start time tags: %s", err)
+							}
+						}
 						input := &ec2.StartInstancesInput{
 							InstanceIds: []*string{
 								aws.String(*instance.InstanceId),
@@ -1007,11 +1056,29 @@ func (d *backendAws) ClusterStop(name string, nodes []int) error {
 		for _, instance := range reservation.Instances {
 			if *instance.State.Code != int64(48) {
 				var nodeNumber int
+				lastRunCost := float64(0)
+				pricePerHour := float64(0)
+				startTime := 0
 				for _, tag := range instance.Tags {
 					if *tag.Key == awsTagNodeNumber {
 						nodeNumber, err = strconv.Atoi(*tag.Value)
 						if err != nil {
 							return errors.New("problem with node numbers in the given cluster. Investigate manually")
+						}
+					} else if *tag.Key == awsTagCostLastRun {
+						lastRunCost, err = strconv.ParseFloat(*tag.Value, 64)
+						if err != nil {
+							lastRunCost = 0
+						}
+					} else if *tag.Key == awsTagCostPerHour {
+						pricePerHour, err = strconv.ParseFloat(*tag.Value, 64)
+						if err != nil {
+							pricePerHour = 0
+						}
+					} else if *tag.Key == awsTagCostStartTime {
+						startTime, err = strconv.Atoi(*tag.Value)
+						if err != nil {
+							startTime = int(instance.LaunchTime.Unix())
 						}
 					}
 				}
@@ -1026,6 +1093,25 @@ func (d *backendAws) ClusterStop(name string, nodes []int) error {
 					result, err := d.ec2svc.StopInstances(input)
 					if err != nil {
 						return fmt.Errorf("error starting instance %s\n%s\n%s", *instance.InstanceId, result, err)
+					}
+					// on cluster stop, calculate and set the lastRun tag, and set startTime to 0
+					if startTime != 0 {
+						lastRunCost = lastRunCost + (pricePerHour * (float64((int(time.Now().Unix()) - startTime)) / 3600))
+						tagi := &ec2.CreateTagsInput{
+							Resources: aws.StringSlice([]string{*instance.InstanceId}),
+							Tags: []*ec2.Tag{
+								{
+									Key:   aws.String(awsTagCostStartTime),
+									Value: aws.String("0"),
+								}, {
+									Key:   aws.String(awsTagCostLastRun),
+									Value: aws.String(strconv.FormatFloat(lastRunCost, 'f', 8, 64)),
+								}},
+						}
+						_, err = d.ec2svc.CreateTags(tagi)
+						if err != nil {
+							return fmt.Errorf("could not update instance start time tags: %s", err)
+						}
 					}
 				}
 			}
@@ -1812,6 +1898,14 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			{
 				Key:   aws.String(awsTagCostPerHour),
 				Value: aws.String(strconv.FormatFloat(price, 'f', 8, 64)),
+			},
+			{
+				Key:   aws.String(awsTagCostLastRun),
+				Value: aws.String(strconv.FormatFloat(0, 'f', 8, 64)),
+			},
+			{
+				Key:   aws.String(awsTagCostStartTime),
+				Value: aws.String(strconv.Itoa(int(time.Now().Unix()))),
 			}}
 		tgs = append(tgs, extraTags...)
 		ts := ec2.TagSpecification{}
