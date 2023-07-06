@@ -7,6 +7,8 @@
 * Add `nodes count` multiplier to `inventory instance-types` to allow for easy cost visualization.
 * Track instance cost in instance tags/labels.
 * Show instance running costs in `list` views.
+* Parallelize `aerospike start/stop/restart/status` commands, `roster show/apply` commands and `files upload/download/sync` commands.
+* Some config parsing bugfixes for handling of accidentally saved `aerolab config defaults` values.
 
 #### 6.1.0
 * Add extra version check in `client tools` creator.

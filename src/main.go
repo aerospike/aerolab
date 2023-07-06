@@ -424,6 +424,10 @@ func writeConfigFile() error {
 }
 
 func (a *aerolab) parseArgs(args []string) {
+	a.opts.Config.Defaults.Reset = false
+	a.opts.Config.Defaults.OnlyChanged = false
+	a.opts.Config.Defaults.Key = ""
+	a.opts.Config.Defaults.Value = ""
 	_, err := a.parser.ParseArgs(args)
 	if a.early {
 		return
