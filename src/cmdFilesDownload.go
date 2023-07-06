@@ -8,6 +8,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
@@ -19,13 +20,14 @@ type filesRestCmd struct {
 }
 
 type filesDownloadCmd struct {
-	ClusterName TypeClusterName     `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes       TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
-	IsClient    bool                `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
-	Aws         filesDownloadCmdAws `no-flag:"true"`
-	Gcp         filesDownloadCmdAws `no-flag:"true"`
-	Files       filesRestCmd        `positional-args:"true"`
-	doLegacy    bool                // set to do legacy if non-legacy fails
+	ClusterName     TypeClusterName     `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes           TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
+	IsClient        bool                `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
+	Aws             filesDownloadCmdAws `no-flag:"true"`
+	Gcp             filesDownloadCmdAws `no-flag:"true"`
+	Files           filesRestCmd        `positional-args:"true"`
+	ParallelThreads int                 `short:"t" long:"threads" description:"Download/Upload files from/to this many nodes in parallel" default:"1"`
+	doLegacy        bool                // set to do legacy if non-legacy fails
 }
 
 type filesDownloadCmdAws struct {
@@ -103,24 +105,62 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 		verbose = c.Gcp.Verbose
 		legacy = c.Gcp.Legacy
 	}
-	for _, node := range nodes {
-		if len(nodes) > 1 {
+
+	if c.ParallelThreads == 1 || len(nodes) == 1 {
+		for _, node := range nodes {
+			if len(nodes) > 1 {
+				dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
+				os.MkdirAll(dst, 0755)
+			}
+			err = c.get(node, dst, verbose, legacy)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		parallel := make(chan int, c.ParallelThreads)
+		hasError := make(chan bool, len(nodes))
+		wait := new(sync.WaitGroup)
+		for _, node := range nodes {
+			parallel <- 1
+			wait.Add(1)
 			dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
 			os.MkdirAll(dst, 0755)
+			go c.getParallel(node, dst, verbose, legacy, parallel, wait, hasError)
 		}
-		err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose, legacy)
-		if err != nil {
-			if !c.doLegacy {
-				log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
-			} else {
-				log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=switching legacy mode to %t and retrying", string(c.ClusterName), node, err, !legacy)
-				err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose, !legacy)
-				if err != nil {
-					log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=giving up", string(c.ClusterName), node, err)
-				}
-			}
+		wait.Wait()
+		if len(hasError) > 0 {
+			return fmt.Errorf("failed to get files from %d nodes", len(hasError))
 		}
 	}
 	log.Print("Done")
 	return nil
+}
+
+func (c *filesDownloadCmd) get(node int, dst string, verbose bool, legacy bool) error {
+	err := b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose, legacy)
+	if err != nil {
+		if !c.doLegacy {
+			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
+		} else {
+			log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=switching legacy mode to %t and retrying", string(c.ClusterName), node, err, !legacy)
+			err = b.Download(string(c.ClusterName), node, string(c.Files.Source), dst, verbose, !legacy)
+			if err != nil {
+				log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=giving up", string(c.ClusterName), node, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (c *filesDownloadCmd) getParallel(node int, dst string, verbose bool, legacy bool, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+	defer func() {
+		<-parallel
+		wait.Done()
+	}()
+	err := c.get(node, dst, verbose, legacy)
+	if err != nil {
+		log.Printf("ERROR getting logs from node %d: %s", node, err)
+		hasError <- true
+	}
 }

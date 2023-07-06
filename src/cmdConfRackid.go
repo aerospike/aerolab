@@ -12,7 +12,7 @@ import (
 )
 
 type confRackIdCmd struct {
-	aerospikeStartCmd
+	aerospikeStartSelectorCmd
 	RackId     string `short:"i" long:"id" description:"Rack ID to use" default:"0"`
 	Namespaces string `short:"m" long:"namespaces" description:"comma-separated list of namespaces to modify; empty=all" default:""`
 	NoRoster   bool   `short:"r" long:"no-roster" description:"if SC namespaces are found: aerolab will automatically restart aerospike and reset the roster for SC namespaces to reflect the rack-id; set this to not set the roster"`

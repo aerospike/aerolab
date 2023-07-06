@@ -2417,7 +2417,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			continue
 		}
 		if !strings.HasPrefix(disk, "pd-") {
-			return errors.New("invalid disk definition, disk must be local-ssd, or pd-*:sizeGB (eg pd-balanced:20 or pd-ssd:40)")
+			return errors.New("invalid disk definition, disk must be local-ssd, or pd-*:sizeGB (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40)")
 		}
 		diska := strings.Split(disk, ":")
 		if len(diska) != 2 {

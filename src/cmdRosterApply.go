@@ -6,6 +6,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/bestmethod/inslice"
 )
@@ -28,6 +29,29 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	}
 	log.Print("Done")
 	return nil
+}
+
+func (c *rosterApplyCmd) findNodes(n int) []string {
+	out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
+	if err != nil {
+		log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, err)
+		return nil
+	}
+	observedNodesSplit := strings.Split(strings.Trim(string(out[0]), "\t\r\n "), ":observed_nodes=")
+	if len(observedNodesSplit) < 2 {
+		log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, out[0])
+		return nil
+	}
+	return strings.Split(observedNodesSplit[1], ",")
+}
+
+func (c *rosterApplyCmd) findNodesParallel(node int, parallel chan int, wait *sync.WaitGroup, ob chan []string) {
+	defer func() {
+		<-parallel
+		wait.Done()
+	}()
+	on := c.findNodes(node)
+	ob <- on
 }
 
 func (c *rosterApplyCmd) runApply(args []string) error {
@@ -65,21 +89,30 @@ func (c *rosterApplyCmd) runApply(args []string) error {
 
 	if newRoster == "" {
 		foundNodes := []string{}
-		for _, n := range nodesList {
-			out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
-			if err != nil {
-				log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, err)
-				continue
+		if c.ParallelThreads == 1 || len(nodesList) == 1 {
+			for _, n := range nodesList {
+				observedNodes := c.findNodes(n)
+				for _, on := range observedNodes {
+					if !inslice.HasString(foundNodes, on) {
+						foundNodes = append(foundNodes, on)
+					}
+				}
 			}
-			observedNodesSplit := strings.Split(strings.Trim(string(out[0]), "\t\r\n "), ":observed_nodes=")
-			if len(observedNodesSplit) < 2 {
-				log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, out[0])
-				continue
+		} else {
+			parallel := make(chan int, c.ParallelThreads)
+			wait := new(sync.WaitGroup)
+			observedNodes := make(chan []string, len(nodesList))
+			for _, n := range nodesList {
+				parallel <- 1
+				wait.Add(1)
+				go c.findNodesParallel(n, parallel, wait, observedNodes)
 			}
-			observedNodes := strings.Split(observedNodesSplit[1], ",")
-			for _, on := range observedNodes {
-				if !inslice.HasString(foundNodes, on) {
-					foundNodes = append(foundNodes, on)
+			wait.Wait()
+			if len(observedNodes) > 0 {
+				for _, on := range <-observedNodes {
+					if !inslice.HasString(foundNodes, on) {
+						foundNodes = append(foundNodes, on)
+					}
 				}
 			}
 		}
@@ -93,6 +126,85 @@ func (c *rosterApplyCmd) runApply(args []string) error {
 	if a.opts.Config.Backend.Type != "docker" {
 		rosterCmd = []string{"asinfo", "-v", "roster-set:namespace=" + c.Namespace + "\\;nodes=" + newRoster}
 	}
+
+	if c.ParallelThreads == 1 || len(nodesList) == 1 {
+		c.applyRoster(nodesList, rosterCmd)
+	} else {
+		parallel := make(chan int, c.ParallelThreads)
+		wait := new(sync.WaitGroup)
+		for _, n := range nodesList {
+			parallel <- 1
+			wait.Add(1)
+			go c.applyRosterParallel(n, rosterCmd, parallel, wait)
+		}
+		wait.Wait()
+	}
+
+	if c.NoRecluster {
+		log.Print("Done. Roster applied, did not recluster!")
+		return nil
+	}
+
+	if c.ParallelThreads == 1 || len(nodesList) == 1 {
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "recluster:namespace=" + c.Namespace}}, nodesList)
+		if err != nil {
+			outn := ""
+			for _, i := range out {
+				outn = outn + string(i) + "\n"
+			}
+			log.Printf("WARNING: could not send recluster to all the nodes: %s: %s", err, outn)
+		}
+	} else {
+		parallel := make(chan int, c.ParallelThreads)
+		wait := new(sync.WaitGroup)
+		for _, n := range nodesList {
+			parallel <- 1
+			wait.Add(1)
+			go func(n int, parallel chan int, wait *sync.WaitGroup) {
+				defer func() {
+					<-parallel
+					wait.Done()
+				}()
+				out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "recluster:namespace=" + c.Namespace}}, []int{n})
+				if err != nil {
+					outn := ""
+					for _, i := range out {
+						outn = outn + string(i) + "\n"
+					}
+					log.Printf("WARNING: could not send recluster to all the nodes: %s: %s", err, outn)
+				}
+			}(n, parallel, wait)
+		}
+		wait.Wait()
+	}
+	err = c.show(args)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *rosterApplyCmd) applyRosterParallel(node int, rosterCmd []string, parallel chan int, wait *sync.WaitGroup) {
+	defer func() {
+		<-parallel
+		wait.Done()
+	}()
+	out, err := b.RunCommands(string(c.ClusterName), [][]string{rosterCmd}, []int{node})
+	for _, out1 := range out {
+		if strings.Contains(string(out1), "ERROR") {
+			log.Print(string(out1))
+		}
+	}
+	if err != nil {
+		outn := ""
+		for _, i := range out {
+			outn = outn + string(i) + "\n"
+		}
+		log.Printf("WARNING: could not apply roster to %d: %s: %s", node, err, outn)
+	}
+}
+
+func (c *rosterApplyCmd) applyRoster(nodesList []int, rosterCmd []string) {
 	out, err := b.RunCommands(string(c.ClusterName), [][]string{rosterCmd}, nodesList)
 	for _, out1 := range out {
 		if strings.Contains(string(out1), "ERROR") {
@@ -106,23 +218,4 @@ func (c *rosterApplyCmd) runApply(args []string) error {
 		}
 		log.Printf("WARNING: could not apply roster to all the nodes: %s: %s", err, outn)
 	}
-
-	if c.NoRecluster {
-		log.Print("Done. Roster applied, did not recluster!")
-		return nil
-	}
-
-	out, err = b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "recluster:namespace=" + c.Namespace}}, nodesList)
-	if err != nil {
-		outn := ""
-		for _, i := range out {
-			outn = outn + string(i) + "\n"
-		}
-		log.Printf("WARNING: could not send recluster to all the nodes: %s: %s", err, outn)
-	}
-	err = c.show(args)
-	if err != nil {
-		return err
-	}
-	return nil
 }

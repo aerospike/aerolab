@@ -6,6 +6,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/bestmethod/inslice"
 )
@@ -87,20 +88,57 @@ func (c *filesUploadCmd) runUpload(args []string) error {
 		verbose = c.Gcp.Verbose
 		legacy = c.Gcp.Legacy
 	}
-	for _, node := range nodes {
-		err = b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), verbose, legacy)
-		if err != nil {
-			if !c.doLegacy {
-				log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
-			} else {
-				log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=switching legacy mode to %t and retrying", string(c.ClusterName), node, err, !legacy)
-				err = b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), verbose, !legacy)
-				if err != nil {
-					log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=giving up", string(c.ClusterName), node, err)
-				}
+
+	if c.ParallelThreads == 1 || len(nodes) == 1 {
+		for _, node := range nodes {
+			err = c.put(node, verbose, legacy)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		parallel := make(chan int, c.ParallelThreads)
+		hasError := make(chan bool, len(nodes))
+		wait := new(sync.WaitGroup)
+		for _, node := range nodes {
+			parallel <- 1
+			wait.Add(1)
+			go c.putParallel(node, verbose, legacy, parallel, wait, hasError)
+		}
+		wait.Wait()
+		if len(hasError) > 0 {
+			return fmt.Errorf("failed to upload files to %d nodes", len(hasError))
+		}
+	}
+
+	log.Print("Done")
+	return nil
+}
+
+func (c *filesUploadCmd) put(node int, verbose bool, legacy bool) error {
+	err := b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), verbose, legacy)
+	if err != nil {
+		if !c.doLegacy {
+			log.Printf("ERROR SRC=%s:%d MSG=%s", string(c.ClusterName), node, err)
+		} else {
+			log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=switching legacy mode to %t and retrying", string(c.ClusterName), node, err, !legacy)
+			err = b.Upload(string(c.ClusterName), node, string(c.Files.Source), string(c.Files.Destination), verbose, !legacy)
+			if err != nil {
+				log.Printf("ERROR SRC=%s:%d MSG=%s ACTION=giving up", string(c.ClusterName), node, err)
 			}
 		}
 	}
-	log.Print("Done")
 	return nil
+}
+
+func (c *filesUploadCmd) putParallel(node int, verbose bool, legacy bool, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+	defer func() {
+		<-parallel
+		wait.Done()
+	}()
+	err := c.put(node, verbose, legacy)
+	if err != nil {
+		log.Printf("ERROR getting logs from node %d: %s", node, err)
+		hasError <- true
+	}
 }

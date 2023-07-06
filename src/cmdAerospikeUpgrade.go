@@ -13,7 +13,7 @@ import (
 )
 
 type aerospikeUpgradeCmd struct {
-	aerospikeStartCmd
+	aerospikeStartSelectorCmd
 	aerospikeVersionSelectorCmd
 	Aws              aerospikeUpgradeCmdAws `no-flag:"true"`
 	Gcp              aerospikeUpgradeCmdAws `no-flag:"true"`

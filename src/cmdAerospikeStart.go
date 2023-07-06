@@ -1,6 +1,11 @@
 package main
 
 type aerospikeStartCmd struct {
+	aerospikeStartSelectorCmd
+	ParallelThreads int `short:"t" long:"threads" description:"Upload files to this many nodes in parallel" default:"1"`
+}
+
+type aerospikeStartSelectorCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`

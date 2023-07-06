@@ -9,7 +9,7 @@ import (
 )
 
 type confFixMeshCmd struct {
-	aerospikeStartCmd
+	aerospikeStartSelectorCmd
 }
 
 func (c *confFixMeshCmd) Execute(args []string) error {

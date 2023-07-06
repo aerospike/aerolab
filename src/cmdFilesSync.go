@@ -20,6 +20,7 @@ type filesSyncCmd struct {
 	DestNodes         TypeNodes       `short:"o" long:"dest-nodes" description:"Destination nodes, comma separated; empty = all except source node" default:""`
 	IsClientD         bool            `short:"C" long:"dest-client" description:"set this to indicate destination is client group"`
 	Path              string          `short:"p" long:"path" description:"Path to sync"`
+	ParallelThreads   int             `short:"t" long:"threads" description:"Upload files to this many nodes in parallel" default:"1"`
 }
 
 func (c *filesSyncCmd) Execute(args []string) error {
@@ -136,7 +137,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	a.opts.Files.Download.Files.Source = flags.Filename(c.Path)
 	a.opts.Files.Download.Files.Destination = flags.Filename(dir)
 	a.opts.Files.Download.IsClient = c.IsClientS
-	a.opts.Files.Upload.doLegacy = true
+	a.opts.Files.Download.doLegacy = true
 	err = a.opts.Files.Download.Execute(nil)
 	if err != nil {
 		return err
@@ -150,6 +151,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	dst, _ := path.Split(strings.TrimSuffix(c.Path, "/"))
 	a.opts.Files.Upload.Files.Destination = flags.Filename(dst)
 	a.opts.Files.Upload.doLegacy = true
+	a.opts.Files.Upload.ParallelThreads = c.ParallelThreads
 	err = a.opts.Files.Upload.Execute(nil)
 	if err != nil {
 		return err
