@@ -8,7 +8,6 @@
   * `cluster add exporter`
   * `xdr connect`
   * `xdr create-clusters`
-  * `cluster partition*`
   * `client create *`
 
 * Consider adding log-monitoring stack (Aerospike-Grafana-Integration) command.

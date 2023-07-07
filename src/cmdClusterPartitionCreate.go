@@ -7,16 +7,18 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type clusterPartitionCreateCmd struct {
-	ClusterName  TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes        TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	FilterDisks  TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
-	FilterType   string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
-	Partitions   string          `short:"p" long:"partitions" description:"partitions to create, size is in %% of total disk space; ex: 25,25,25,25; default: just remove all partitions"`
-	NoBlkdiscard bool            `short:"b" long:"no-blkdiscard" description:"set to prevent aerolab from running blkdiscard on the disks and partitions"`
-	Help         helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	FilterDisks     TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
+	FilterType      string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
+	Partitions      string          `short:"p" long:"partitions" description:"partitions to create, size is in %% of total disk space; ex: 25,25,25,25; default: just remove all partitions"`
+	NoBlkdiscard    bool            `short:"b" long:"no-blkdiscard" description:"set to prevent aerolab from running blkdiscard on the disks and partitions"`
+	ParallelThreads int             `short:"T" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type partition struct {
@@ -76,6 +78,7 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Partition.List.FilterDisks = c.FilterDisks
 	a.opts.Cluster.Partition.List.FilterType = c.FilterType
 	a.opts.Cluster.Partition.List.FilterPartitions = "ALL"
+	a.opts.Cluster.Partition.List.ParallelThreads = c.ParallelThreads
 	d, err := a.opts.Cluster.Partition.List.run(false)
 	if err != nil {
 		return err
@@ -89,6 +92,9 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 		filterDiskCount = len(filterDisks)
 	}
 	nodes := []int{}
+	parallel := make(chan int, c.ParallelThreads)
+	hasError := make(chan bool, len(nodes))
+	wait := new(sync.WaitGroup)
 	for nodeNo, disks := range d {
 		script := makePartCommand()
 		diskCount := 0
@@ -131,20 +137,72 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 			return fmt.Errorf("could not find all the required disks on node %d", nodeNo)
 		}
 		nodes = append(nodes, nodeNo)
-		err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/partition.disks.sh", strings.NewReader(script.String()), script.Len()}}, []int{nodeNo})
-		if err != nil {
-			return err
+		if c.ParallelThreads == 1 {
+			err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/partition.disks.sh", strings.NewReader(script.String()), script.Len()}}, []int{nodeNo})
+			if err != nil {
+				return err
+			}
+		} else {
+			parallel <- 1
+			wait.Add(1)
+			go func(script partcommand, nodeNo int, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+				defer func() {
+					<-parallel
+					wait.Done()
+				}()
+				err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/partition.disks.sh", strings.NewReader(script.String()), script.Len()}}, []int{nodeNo})
+				if err != nil {
+					fmt.Printf("Node %d error: %s", nodeNo, err)
+					hasError <- true
+				}
+			}(script, nodeNo, parallel, wait, hasError)
 		}
+	}
+	wait.Wait()
+	if len(hasError) > 0 {
+		return fmt.Errorf("failed from %d nodes", len(hasError))
 	}
 	sort.Ints(nodes)
-	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "/opt/partition.disks.sh"}}, nodes)
-	if err != nil {
-		nout := ""
-		for _, o := range out {
-			nout = nout + "\n" + string(o)
+
+	if c.ParallelThreads == 1 {
+		out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "/opt/partition.disks.sh"}}, nodes)
+		if err != nil {
+			nout := ""
+			for _, o := range out {
+				nout = nout + "\n" + string(o)
+			}
+			return fmt.Errorf("%s: %s", err, nout)
 		}
-		return fmt.Errorf("%s: %s", err, nout)
+	} else {
+		parallel = make(chan int, c.ParallelThreads)
+		hasError = make(chan bool, len(nodes))
+		wait = new(sync.WaitGroup)
+		for _, node := range nodes {
+			parallel <- 1
+			wait.Add(1)
+			go func(nodeNo int, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+				defer func() {
+					<-parallel
+					wait.Done()
+				}()
+				out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "/opt/partition.disks.sh"}}, []int{nodeNo})
+				if err != nil {
+					nout := ""
+					for _, o := range out {
+						nout = nout + "\n" + string(o)
+					}
+					log.Printf("Node %d: %s: %s", nodeNo, err, nout)
+					hasError <- true
+				}
+			}(node, parallel, wait, hasError)
+
+		}
+		wait.Wait()
+		if len(hasError) > 0 {
+			return fmt.Errorf("failed from %d nodes", len(hasError))
+		}
 	}
+
 	log.Print("Done")
 	return nil
 }
