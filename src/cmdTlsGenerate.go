@@ -9,20 +9,23 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/bestmethod/inslice"
 )
 
 type tlsGenerateCmd struct {
-	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name/Client group" default:"mydc"`
-	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	IsClient    bool            `short:"C" long:"client" description:"set to indicate the certficates should end up on client groups"`
-	TlsName     string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
-	CaName      string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
-	Bits        int             `short:"b" long:"cert-bits" description:"Bits size for the CA and certs" default:"2048"`
-	NoUpload    bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
-	ChDir       string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
-	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name/Client group" default:"mydc"`
+	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	IsClient        bool            `short:"C" long:"client" description:"set to indicate the certficates should end up on client groups"`
+	TlsName         string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
+	CaName          string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
+	Bits            int             `short:"b" long:"cert-bits" description:"Bits size for the CA and certs" default:"2048"`
+	NoUpload        bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
+	NoMesh          bool            `short:"m" long:"no-mesh" description:"If set, will not configure mesh-seed-address-port to use TLS"`
+	ChDir           string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
+	ParallelThreads int             `short:"T" long:"threads" description:"Use this many threads in parallel when uploading the certificates to nodes" default:"50"`
+	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *tlsGenerateCmd) Execute(args []string) error {
@@ -137,67 +140,94 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 	}
 
 	if !c.NoUpload {
-		_, err = b.RunCommands(string(c.ClusterName), [][]string{{"mkdir", "-p", fmt.Sprintf("/etc/aerospike/ssl/%s", c.TlsName)}}, nodes)
-		if err != nil {
-			return fmt.Errorf("could not mkdir ssl location: %s", err)
-		}
+		if c.ParallelThreads == 1 || len(nodes) == 1 {
+			_, err = b.RunCommands(string(c.ClusterName), [][]string{{"mkdir", "-p", fmt.Sprintf("/etc/aerospike/ssl/%s", c.TlsName)}}, nodes)
+			if err != nil {
+				return fmt.Errorf("could not mkdir ssl location: %s", err)
+			}
 
-		files := []string{"cert.pem", "key.pem", c.CaName + ".pem"}
-		fl := []fileList{}
-		for _, file := range files {
-			ct, err := os.ReadFile(file)
+			files := []string{"cert.pem", "key.pem", c.CaName + ".pem"}
+			fl := []fileList{}
+			for _, file := range files {
+				ct, err := os.ReadFile(file)
+				if err != nil {
+					return err
+				}
+				fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), bytes.NewReader(ct), len(ct)})
+			}
+			err = b.CopyFilesToCluster(string(c.ClusterName), fl, nodes)
 			if err != nil {
 				return err
 			}
-			fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), bytes.NewReader(ct), len(ct)})
-		}
-		err = b.CopyFilesToCluster(string(c.ClusterName), fl, nodes)
-		if err != nil {
-			return err
+		} else {
+			parallel := make(chan int, c.ParallelThreads)
+			hasError := make(chan bool, len(nodes))
+			wait := new(sync.WaitGroup)
+			for _, node := range nodes {
+				parallel <- 1
+				wait.Add(1)
+				go func(node int, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+					defer func() {
+						<-parallel
+						wait.Done()
+					}()
+					_, err := b.RunCommands(string(c.ClusterName), [][]string{{"mkdir", "-p", fmt.Sprintf("/etc/aerospike/ssl/%s", c.TlsName)}}, []int{node})
+					if err != nil {
+						log.Printf("could not mkdir ssl location: %s", err)
+						hasError <- true
+					}
+					files := []string{"cert.pem", "key.pem", c.CaName + ".pem"}
+					fl := []fileList{}
+					for _, file := range files {
+						ct, err := os.ReadFile(file)
+						if err != nil {
+							log.Println(err)
+							hasError <- true
+						}
+						fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), bytes.NewReader(ct), len(ct)})
+					}
+					err = b.CopyFilesToCluster(string(c.ClusterName), fl, []int{node})
+					if err != nil {
+						log.Println(err)
+						hasError <- true
+					}
+				}(node, parallel, wait, hasError)
+			}
+			wait.Wait()
+			if len(hasError) > 0 {
+				return fmt.Errorf("failed to get logs from %d nodes", len(hasError))
+			}
 		}
 	}
 
 	os.Chdir("..")
 
-	if !c.NoUpload {
+	if !c.NoUpload && !c.NoMesh {
 		//for each node, read config
 		var nodeIps []string
 		nodeIps, err = b.GetClusterNodeIps(string(c.ClusterName))
 		if err != nil {
 			return err
 		}
-		var r [][]string
-		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
-		var conf [][]byte
-		for _, node := range nodes {
-			conf, err = b.RunCommands(string(c.ClusterName), r, []int{node})
-			if err != nil {
-				return err
-			}
-			if strings.Contains(string(conf[0]), "mode mesh") {
-				//enable tls for mesh
-				newconf := ""
-				scanner := bufio.NewScanner(strings.NewReader(string(conf[0])))
-				for scanner.Scan() {
-					t := scanner.Text()
-					t = strings.Trim(t, "\r")
-					if strings.Contains(t, "port 3002") && !strings.Contains(t, "tls-port") {
-						t = "tls-port 3012\ntls-name " + c.TlsName + "\n"
-						for _, nodeIp := range nodeIps {
-							//t = t + fmt.Sprintf("mesh-seed-address-port %s 3002\n", mesh_ip_list[j])
-							t = t + fmt.Sprintf("tls-mesh-seed-address-port %s 3012\n", nodeIp)
-						}
-					} else if strings.Contains(t, "mesh-seed-address-port") {
-						t = ""
-					}
-					if strings.TrimSpace(t) != "" {
-						newconf = newconf + "\n" + t
-					}
-				}
-				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)}}, []int{node})
+		if c.ParallelThreads == 1 || len(nodes) == 1 {
+			for _, node := range nodes {
+				err = c.fixMesh(node, nodeIps)
 				if err != nil {
 					return err
 				}
+			}
+		} else {
+			parallel := make(chan int, c.ParallelThreads)
+			hasError := make(chan bool, len(nodes))
+			wait := new(sync.WaitGroup)
+			for _, node := range nodes {
+				parallel <- 1
+				wait.Add(1)
+				go c.fixMeshParallel(node, nodeIps, parallel, wait, hasError)
+			}
+			wait.Wait()
+			if len(hasError) > 0 {
+				return fmt.Errorf("failed to get logs from %d nodes", len(hasError))
 			}
 		}
 	}
@@ -212,6 +242,53 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 `, c.TlsName, c.TlsName, c.TlsName, c.CaName)
 	fmt.Println("--- aerospike.conf end ---")
 	log.Print("Done")
+	return nil
+}
+
+func (c *tlsGenerateCmd) fixMeshParallel(node int, nodeIps []string, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+	defer func() {
+		<-parallel
+		wait.Done()
+	}()
+	err := c.fixMesh(node, nodeIps)
+	if err != nil {
+		log.Printf("ERROR getting logs from node %d: %s", node, err)
+		hasError <- true
+	}
+}
+
+func (c *tlsGenerateCmd) fixMesh(node int, nodeIps []string) error {
+	var r [][]string
+	r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
+	conf, err := b.RunCommands(string(c.ClusterName), r, []int{node})
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(conf[0]), "mode mesh") {
+		//enable tls for mesh
+		newconf := ""
+		scanner := bufio.NewScanner(strings.NewReader(string(conf[0])))
+		for scanner.Scan() {
+			t := scanner.Text()
+			t = strings.Trim(t, "\r")
+			if strings.Contains(t, "port 3002") && !strings.Contains(t, "tls-port") {
+				t = "tls-port 3012\ntls-name " + c.TlsName + "\n"
+				for _, nodeIp := range nodeIps {
+					//t = t + fmt.Sprintf("mesh-seed-address-port %s 3002\n", mesh_ip_list[j])
+					t = t + fmt.Sprintf("tls-mesh-seed-address-port %s 3012\n", nodeIp)
+				}
+			} else if strings.Contains(t, "mesh-seed-address-port") {
+				t = ""
+			}
+			if strings.TrimSpace(t) != "" {
+				newconf = newconf + "\n" + t
+			}
+		}
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)}}, []int{node})
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -2,7 +2,7 @@ package main
 
 type aerospikeStartCmd struct {
 	aerospikeStartSelectorCmd
-	ParallelThreads int `short:"t" long:"threads" description:"Upload files to this many nodes in parallel" default:"1"`
+	ParallelThreads int `short:"t" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
 }
 
 type aerospikeStartSelectorCmd struct {
