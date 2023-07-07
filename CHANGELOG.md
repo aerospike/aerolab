@@ -14,6 +14,7 @@
   * `tls generate/copy`
   * `conf fix-mesh`
   * `cluster start`
+  * `cluster partition *`
 * Some config parsing bugfixes for handling of accidentally saved `aerolab config defaults` values.
 * Allow specifying not to configure TLS for `mesh` in `tls generate` command.
 
