@@ -49,7 +49,11 @@ func (c *completionBashCmd) Execute(args []string) error {
 	completionBash = fmt.Sprintf(completionBash, "", extra)
 
 	if c.NoInstall {
+		fmt.Println("--- SCRIPT START ---")
 		fmt.Println(completionBash)
+		fmt.Println("\n--- RC FILE .bashrc CONTENTS ---")
+		fmt.Println("source ${HOME}/.aerolab.completion.bash")
+		fmt.Println("\n--- END ---")
 		return nil
 	}
 
