@@ -219,6 +219,9 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/node.json"},
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/users.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/users.json"},
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/xdr.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/xdr.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/set.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/set.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/uniquedata.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/uniquedata.json"},
+		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/geoview.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/geoview.json"},
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/asbench2.json"},
 		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node-exporter-full.json", "https://raw.githubusercontent.com/rfmoz/grafana-dashboards/master/prometheus/node-exporter-full.json"},
 	}
