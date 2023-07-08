@@ -17,7 +17,8 @@ type inventoryInstanceTypesCmd struct {
 	Json         bool                         `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty   bool                         `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Arm          bool                         `short:"a" long:"arm" description:"Set to look for ARM instances instead of amd64"`
-	Nodes        int                          `short:"n" long:"nodes" description:"Number of nodes (essentially a price multiplier for the result)" default:"1"`
+	Nodes        int                          `short:"N" long:"nodes" description:"Number of nodes (essentially a price multiplier for the result)" default:"1"`
+	FilterName   string                       `short:"n" long:"name" description:"Filter by full or partial name"`
 	FilterMinCPU int                          `short:"c" long:"min-cpus" description:"Search for at least X CPUs"`
 	FilterMaxCPU int                          `short:"C" long:"max-cpus" description:"Search for max X CPUs"`
 	FilterMinRAM float64                      `short:"r" long:"min-ram" description:"Search for at least X RAM GB"`
@@ -172,6 +173,9 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	table.SetHeader([]string{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month"})
 	table.SetAutoFormatHeaders(false)
 	for _, v := range t {
+		if c.FilterName != "" && !strings.HasPrefix(v.InstanceName, c.FilterName) {
+			continue
+		}
 		edisks := strconv.Itoa(v.EphemeralDisks)
 		edisksize := strings.TrimSuffix(strconv.FormatFloat(v.EphemeralDiskTotalSizeGB, 'f', 2, 64), ".00")
 		if v.EphemeralDisks == -1 {
