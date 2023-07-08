@@ -2409,6 +2409,22 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	if len(extra.disks) == 0 {
 		extra.disks = []string{"pd-balanced:20"}
 	}
+	nDisks := extra.disks
+	extra.disks = []string{}
+	for _, disk := range nDisks {
+		diskb := strings.Split(disk, "@")
+		disk = diskb[0]
+		count := 1
+		if len(diskb) > 1 {
+			count, err = strconv.Atoi(diskb[1])
+			if err != nil {
+				return fmt.Errorf("invalid definition of %s: %s", disk, err)
+			}
+		}
+		for i := 1; i <= count; i++ {
+			extra.disks = append(extra.disks, disk)
+		}
+	}
 	for _, disk := range extra.disks {
 		if disk == "local-ssd" {
 			disksInt = append(disksInt, gcpDisk{
