@@ -55,8 +55,10 @@ aerolab cluster create -n testcluster -c 3 --instance e2-medium --zone us-centra
 
 #### Basic cluster with 40GB root volume, 2x local SSD drives and 2x 380GB persistent ssd volumes
 
+Disk volumes can be requested using a shorthand of `type:size@count` or `local-ssd@count`, for example:
+
 ```bash
-aerolab cluster create -n testcluster -c 3 --instance c2d-standard-16 --zone us-central1-a --disk=pd-ssd:40 --disk=local-ssd --disk=local-ssd --disk=pd-ssd:380 --disk=pd-ssd:380
+aerolab cluster create -n testcluster -c 3 --instance c2d-standard-16 --zone us-central1-a --disk=pd-ssd:40 --disk=local-ssd@2 --disk=pd-ssd:380@2
 ```
 
 #### Lock security-groups so that machines are only accessible from the AeroLab IP address:
