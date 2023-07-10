@@ -1327,6 +1327,18 @@ func (d *backendGcp) TemplateDestroy(v backendVersion) error {
 }
 
 func (d *backendGcp) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
+	fr := []fileListReader{}
+	for _, f := range files {
+		fr = append(fr, fileListReader{
+			filePath:     f.filePath,
+			fileSize:     f.fileSize,
+			fileContents: strings.NewReader(f.fileContents),
+		})
+	}
+	return d.CopyFilesToClusterReader(name, fr, nodes)
+}
+
+func (d *backendGcp) CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error {
 	var err error
 	if len(nodes) == 0 {
 		nodes, err = d.NodeListInCluster(name)
@@ -1713,7 +1725,7 @@ func (d *backendGcp) makeLabels(extra []string, isArm string, v backendVersion) 
 	return labels, nil
 }
 
-func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error {
 	if extra.zone == "" {
 		return errors.New("zone must be specified")
 	}
@@ -1878,7 +1890,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	fmt.Println("Connection succeeded, continuing deployment...")
 
 	// copy files as required to VM
-	files = append(files, fileList{"/root/installer.sh", strings.NewReader(script), len(script)})
+	files = append(files, fileListReader{"/root/installer.sh", strings.NewReader(script), len(script)})
 	err = scp("root", fmt.Sprintf("%s:22", instIp), keyPath, files)
 	if err != nil {
 		return fmt.Errorf("scp failed: %s", err)

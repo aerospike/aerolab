@@ -169,16 +169,29 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = b.RunCommands(string(c.sourceClusterName), [][]string{{"mkdir", "-p", "/opt/aerospike/xdr"}}, sourceNodeList)
-	if err != nil {
-		return fmt.Errorf("failed running mkdir /opt/aerospike/xdr: %s", err)
+	returns := parallelize.MapLimit(sourceNodeList, c.parallelLimit, func(node int) error {
+		_, err = b.RunCommands(string(c.sourceClusterName), [][]string{{"mkdir", "-p", "/opt/aerospike/xdr"}}, []int{node})
+		if err != nil {
+			return fmt.Errorf("failed running mkdir /opt/aerospike/xdr: %s", err)
+		}
+		return nil
+	})
+	isError := false
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %d returned %s", sourceNodeList[i], ret)
+			isError = true
+		}
+	}
+	if isError {
+		return errors.New("some nodes returned errors")
 	}
 	//for each source node
 	c.xDestIpList = destIpList
 	c.xDestinations = destinations
 	c.xNamespaces = namespaces
-	returns := parallelize.MapLimit(sourceNodeList, c.parallelLimit, c.doItXdrConnect)
-	isError := false
+	returns = parallelize.MapLimit(sourceNodeList, c.parallelLimit, c.doItXdrConnect)
+	isError = false
 	for i, ret := range returns {
 		if ret != nil {
 			log.Printf("Node %d returned %s", sourceNodeList[i], ret)
@@ -396,7 +409,7 @@ func (c *xdrConnectRealCmd) doItXdrConnect(snode int) error {
 	}
 
 	finalConf := strings.Join(confsx, "\n")
-	err = b.CopyFilesToCluster(string(c.sourceClusterName), []fileList{{"/etc/aerospike/aerospike.conf", strings.NewReader(finalConf), len(finalConf)}}, []int{snode})
+	err = b.CopyFilesToCluster(string(c.sourceClusterName), []fileList{{"/etc/aerospike/aerospike.conf", finalConf, len(finalConf)}}, []int{snode})
 	if err != nil {
 		return fmt.Errorf("error trying to modify config file while configuring xdr: %s", err)
 	}

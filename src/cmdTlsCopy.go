@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -125,7 +124,7 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 			return err
 		}
 		nout := out[0]
-		fl = append(fl, fileList{path.Join("/etc/aerospike/ssl/", c.TlsName, file), bytes.NewReader(nout), len(nout)})
+		fl = append(fl, fileList{path.Join("/etc/aerospike/ssl/", c.TlsName, file), string(nout), len(nout)})
 	}
 	b.WorkOnServers()
 	if c.IsDestinationClient {

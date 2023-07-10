@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 )
 
@@ -109,7 +108,7 @@ func (c *clusterStartCmd) finishStartParallel(ClusterName string, node int, para
 
 func (c *clusterStartCmd) finishStart(ClusterName string, nodes []int) error {
 	autoloader := "[ ! -d /opt/autoload ] && exit 0; RET=0; for f in $(ls /opt/autoload |sort -n); do /bin/bash /opt/autoload/${f}; CRET=$?; if [ ${CRET} -ne 0 ]; then RET=${CRET}; fi; done; exit ${RET}"
-	err := b.CopyFilesToCluster(ClusterName, []fileList{{"/usr/local/bin/autoloader.sh", strings.NewReader(autoloader), len(autoloader)}}, nodes)
+	err := b.CopyFilesToCluster(ClusterName, []fileList{{"/usr/local/bin/autoloader.sh", autoloader, len(autoloader)}}, nodes)
 	if err != nil {
 		log.Printf("Could not upload /usr/local/bin/autoloader.sh, will not start scripts from /opt/autoload: %s", err)
 	}

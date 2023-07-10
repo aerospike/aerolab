@@ -420,8 +420,8 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			return err
 		}
 		defer packagefile.Close()
-		nFiles := []fileList{}
-		nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile, pfilelen})
+		nFiles := []fileListReader{}
+		nFiles = append(nFiles, fileListReader{"/root/installer.tgz", packagefile, pfilelen})
 		nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName.String()+":"+c.DistroVersion.String()]
 		if a.opts.Config.Backend.Type == "gcp" {
 			extra.firewallNamePrefix = c.Gcp.NamePrefix
@@ -659,31 +659,23 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	if c.HeartbeatMode == "mesh" || c.HeartbeatMode == "mcast" || !c.NoOverrideClusterName || string(c.CustomConfigFilePath) != "" {
-		newconf2rd := strings.NewReader(newconf2)
-		files = append(files, fileList{"/etc/aerospike/aerospike.conf", newconf2rd, len(newconf2)})
+		files = append(files, fileList{"/etc/aerospike/aerospike.conf", newconf2, len(newconf2)})
 	}
 	if string(c.CustomToolsFilePath) != "" {
 		toolsconf, err := os.ReadFile(string(c.CustomToolsFilePath))
 		if err != nil {
 			return err
 		}
-		files = append(files, fileList{"/etc/aerospike/astools.conf", bytes.NewReader(toolsconf), len(toolsconf)})
+		files = append(files, fileList{"/etc/aerospike/astools.conf", string(toolsconf), len(toolsconf)})
 	}
 
 	// load features file path if needed
 	if string(featuresFilePath) != "" {
-		stat, err := os.Stat(string(featuresFilePath))
-		pfilelen := 0
+		ffp, err := os.ReadFile(string(featuresFilePath))
 		if err != nil {
 			return err
 		}
-		pfilelen = int(stat.Size())
-		ffp, err := os.Open(string(featuresFilePath))
-		if err != nil {
-			return err
-		}
-		defer ffp.Close()
-		files = append(files, fileList{"/etc/aerospike/features.conf", ffp, pfilelen})
+		files = append(files, fileList{"/etc/aerospike/features.conf", string(ffp), len(ffp)})
 	}
 
 	nodeListNew := []int{}
@@ -716,11 +708,11 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			}
 			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], string(c.ClusterName), nnode))...)
 			hst := fmt.Sprintf("%s-%d\n", string(c.ClusterName), nnode)
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
+			err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
 			if err != nil {
 				return err
 			}
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
+			err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
 			if err != nil {
 				return err
 			}
@@ -739,8 +731,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// store deployed aerospike version
-	averrd := strings.NewReader(c.AerospikeVersion.String())
-	files = append(files, fileList{"/opt/aerolab.aerospike.version", averrd, len(c.AerospikeVersion)})
+	files = append(files, fileList{"/opt/aerolab.aerospike.version", c.AerospikeVersion.String(), len(c.AerospikeVersion)})
 
 	// actually save files to nodes in cluster if needed
 	if len(files) > 0 {
@@ -772,15 +763,14 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		}
 		if a.opts.Config.Backend.Type == "docker" {
 			in := strings.Replace(string(out[0]), "console {", "file /var/log/aerospike.log {", 1)
-			inrd := strings.NewReader(in)
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", inrd, len(in)}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", in, len(in)}}, []int{nnode})
 			if err != nil {
 				return err
 			}
 		}
 		if (a.opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices) || (a.opts.Config.Backend.Type == "gcp" && !c.Gcp.NoBestPractices) {
 			thpString := c.thpString()
-			err := b.CopyFilesToCluster(string(c.ClusterName), []fileList{{
+			err := b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{
 				filePath:     "/etc/systemd/system/aerospike.service.d/aerolab-thp.conf",
 				fileSize:     len(thpString),
 				fileContents: strings.NewReader(thpString),
@@ -830,8 +820,8 @@ ExecStart=/bin/bash /usr/local/bin/aerospike-access-address.sh
 		
 [Install]
 WantedBy=multi-user.target`
-			var systemdScript fileList
-			var accessAddressScript fileList
+			var systemdScript fileListReader
+			var accessAddressScript fileListReader
 			systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
 			systemdScript.fileContents = strings.NewReader(systemdScriptContents)
 			systemdScript.fileSize = len(systemdScriptContents)
@@ -845,7 +835,7 @@ sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/m
 			accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
 			accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
 			accessAddressScript.fileSize = len(accessAddressScriptContents)
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{systemdScript, accessAddressScript}, []int{nnode})
+			err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{systemdScript, accessAddressScript}, []int{nnode})
 			if err != nil {
 				return fmt.Errorf("could not make access-address script in aws: %s", err)
 			}
@@ -870,8 +860,8 @@ ExecStart=/bin/bash /usr/local/bin/aerospike-access-address.sh
 		
 [Install]
 WantedBy=multi-user.target`
-			var systemdScript fileList
-			var accessAddressScript fileList
+			var systemdScript fileListReader
+			var accessAddressScript fileListReader
 			systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
 			systemdScript.fileContents = strings.NewReader(systemdScriptContents)
 			systemdScript.fileSize = len(systemdScriptContents)
@@ -902,7 +892,7 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 			accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
 			accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
 			accessAddressScript.fileSize = len(accessAddressScriptContents)
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{systemdScript, accessAddressScript}, []int{nnode})
+			err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{systemdScript, accessAddressScript}, []int{nnode})
 			if err != nil {
 				return fmt.Errorf("could not make access-address script in aws: %s", err)
 			}
@@ -921,7 +911,7 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 			if err != nil {
 				log.Printf("ERROR: could not install early script: %s", err)
 			} else {
-				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, []int{nnode})
+				err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, []int{nnode})
 				if err != nil {
 					log.Printf("ERROR: could not install early script: %s", err)
 				}
@@ -933,7 +923,7 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 			if err != nil {
 				log.Printf("ERROR: could not install late script: %s", err)
 			} else {
-				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, []int{nnode})
+				err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, []int{nnode})
 				if err != nil {
 					log.Printf("ERROR: could not install late script: %s", err)
 				}

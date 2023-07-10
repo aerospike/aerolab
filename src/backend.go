@@ -49,6 +49,12 @@ type backendVersion struct {
 
 type fileList struct {
 	filePath     string
+	fileContents string
+	fileSize     int
+}
+
+type fileListReader struct {
+	filePath     string
 	fileContents io.ReadSeeker
 	fileSize     int
 }
@@ -76,13 +82,14 @@ type backend interface {
 	// return a slice of 'version' structs containing versions of templates available
 	ListTemplates() ([]backendVersion, error)
 	// deploy a template, naming it with version, running 'script' inside for installation and copying 'files' into it
-	DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error
+	DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error
 	// destroy template for a given version
 	TemplateDestroy(v backendVersion) error
 	// deploy cluster from template, requires version, name of new cluster and node count to deploy
 	DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error
 	// copy files to cluster, requires cluster name, list of files to copy and list of nodes in cluster to copy to
 	CopyFilesToCluster(name string, files []fileList, nodes []int) error
+	CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error
 	// run command(s) inside node(s) in cluster. Requires cluster name, commands as slice of command slices, and nodes list slice
 	// returns a slice of byte slices containing each node/command output and error
 	RunCommands(clusterName string, commands [][]string, nodes []int) ([][]byte, error)

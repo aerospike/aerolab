@@ -80,7 +80,7 @@ func (c *clientStartCmd) runStart(args []string) error {
 			parallelize.MapLimit(nodes[ClusterName], c.ParallelThreads, func(nnode int) error {
 				// generic startup scripts
 				autoloader := "[ ! -d /opt/autoload ] && exit 0; RET=0; for f in $(ls /opt/autoload |sort -n); do /bin/bash /opt/autoload/${f}; CRET=$?; if [ ${CRET} -ne 0 ]; then RET=${CRET}; fi; done; exit ${RET}"
-				err = b.CopyFilesToCluster(ClusterName, []fileList{{"/usr/local/bin/autoloader.sh", strings.NewReader(autoloader), len(autoloader)}}, []int{nnode})
+				err = b.CopyFilesToCluster(ClusterName, []fileList{{"/usr/local/bin/autoloader.sh", autoloader, len(autoloader)}}, []int{nnode})
 				if err != nil {
 					log.Printf("Could not upload /usr/local/bin/autoloader.sh, will not start scripts from /opt/autoload: %s", err)
 				}

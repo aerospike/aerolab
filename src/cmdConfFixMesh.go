@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"strings"
 	"sync"
 
 	"github.com/bestmethod/inslice"
@@ -108,7 +107,7 @@ func (c *confFixMeshCmd) fixIt(i int, nip map[int]string, clusterIps []string, n
 	if err != nil {
 		return err
 	}
-	files = append(files, fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)})
+	files = append(files, fileList{"/etc/aerospike/aerospike.conf", newconf, len(newconf)})
 	if len(files) > 0 {
 		err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{i})
 		if err != nil {

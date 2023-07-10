@@ -380,7 +380,7 @@ func (d *backendDocker) VacuumTemplate(v backendVersion) error {
 
 var deployTemplateShutdownMaking = make(chan int, 1)
 
-func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error {
 	if err := d.versionToReal(&v); err != nil {
 		return err
 	}
@@ -400,8 +400,7 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 		return fmt.Errorf("could not start vanilla container: %s;%s", out, err)
 	}
 	// copy add script to files list
-	scriptReader := bytes.NewReader([]byte(script))
-	files = append(files, fileList{"/root/install.sh", scriptReader, len(script)})
+	files = append(files, fileListReader{"/root/install.sh", strings.NewReader(script), len(script)})
 	// copy all files to container
 	err = d.copyFilesToContainer(templName, files)
 	if err != nil {
@@ -619,6 +618,18 @@ func (d *backendDocker) centosNaming(v backendVersion) (templName string) {
 }
 
 func (d *backendDocker) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
+	fr := []fileListReader{}
+	for _, f := range files {
+		fr = append(fr, fileListReader{
+			filePath:     f.filePath,
+			fileSize:     f.fileSize,
+			fileContents: strings.NewReader(f.fileContents),
+		})
+	}
+	return d.CopyFilesToClusterReader(name, fr, nodes)
+}
+
+func (d *backendDocker) CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error {
 	var err error
 	if nodes == nil {
 		nodes, err = d.NodeListInCluster(name)
@@ -841,7 +852,7 @@ func (d *backendDocker) RunCustomOut(clusterName string, node int, command []str
 	return err
 }
 
-func (d *backendDocker) copyFilesToContainer(name string, files []fileList) error {
+func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader) error {
 	var err error
 	for _, file := range files {
 		var tmpfile *os.File

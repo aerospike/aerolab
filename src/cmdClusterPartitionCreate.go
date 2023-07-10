@@ -138,7 +138,7 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 		}
 		nodes = append(nodes, nodeNo)
 		if c.ParallelThreads == 1 {
-			err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/partition.disks.sh", strings.NewReader(script.String()), script.Len()}}, []int{nodeNo})
+			err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/partition.disks.sh", script.String(), script.Len()}}, []int{nodeNo})
 			if err != nil {
 				return err
 			}
@@ -150,7 +150,7 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 					<-parallel
 					wait.Done()
 				}()
-				err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/partition.disks.sh", strings.NewReader(script.String()), script.Len()}}, []int{nodeNo})
+				err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/partition.disks.sh", script.String(), script.Len()}}, []int{nodeNo})
 				if err != nil {
 					fmt.Printf("Node %d error: %s", nodeNo, err)
 					hasError <- true
