@@ -1,11 +1,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/aerospike/aerolab/parallelize"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
@@ -23,6 +26,7 @@ type clientAddToolsCmd struct {
 	StartScript         flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	aerospikeVersionCmd
 	osSelectorCmd
+	ParallelThreads int `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
 	chDirCmd
 	Aws  clientAddToolsAwsCmd `no-flag:"true"`
 	Gcp  clientAddToolsAwsCmd `no-flag:"true"`
@@ -100,6 +104,7 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 	a.opts.Client.Add.Tools.Aws.IsArm = c.Aws.IsArm
 	a.opts.Client.Add.Tools.Gcp.IsArm = c.Gcp.IsArm
 	a.opts.Client.Add.Tools.CustomToolsFilePath = c.CustomToolsFilePath
+	a.opts.Client.Add.Tools.ParallelThreads = c.ParallelThreads
 	return a.opts.Client.Add.Tools.addTools(args)
 }
 
@@ -146,21 +151,17 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/opt/installer.tgz")
 	a.opts.Files.Upload.IsClient = true
 	a.opts.Files.Upload.doLegacy = true
+	a.opts.Files.Upload.ParallelThreads = c.ParallelThreads
 	err = a.opts.Files.Upload.runUpload(args)
 	if err != nil {
 		return err
 	}
-	a.opts.Attach.Client.ClientName = c.ClientName
-	if c.Machines == "" {
-		c.Machines = "ALL"
+	if c.Machines == "ALL" || c.Machines == "" {
+		err = c.Machines.ExpandNodes(c.ClientName.String())
+		if err != nil {
+			return err
+		}
 	}
-	a.opts.Attach.Client.Machine = c.Machines
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "cd /opt && tar -zxvf installer.tgz && cd aerospike-server-* ; ./asinstall"})
-	if err != nil {
-		return err
-	}
-
-	// add asbench wrapper script
 	runasbench := runAsbenchScript()
 	f, err := os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "runasbench-")
 	if err != nil {
@@ -173,19 +174,73 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	if err != nil {
 		return fmt.Errorf("could not write a temp file for asbench wrapper: %s", err)
 	}
+
+	nodesList := []int{}
+	for _, m := range strings.Split(c.Machines.String(), ",") {
+		nnode, err := strconv.Atoi(m)
+		if err != nil {
+			return err
+		}
+		nodesList = append(nodesList, nnode)
+	}
+
+	returns := parallelize.MapLimit(nodesList, c.ParallelThreads, func(nnode int) error {
+		out, err := b.RunCommands(c.ClientName.String(), [][]string{{"/bin/bash", "-c", "cd /opt && tar -zxvf installer.tgz && cd aerospike-server-* ; ./asinstall"}}, []int{nnode})
+		if err != nil {
+			if len(out) > 0 {
+				return fmt.Errorf("%s : %s", err, string(out[0]))
+			} else {
+				return err
+			}
+		}
+		return nil
+	})
+
+	isError := false
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %d returned %s", nodesList[i], ret)
+			isError = true
+		}
+	}
+	if isError {
+		return errors.New("some nodes returned errors")
+	}
+
+	// add asbench wrapper script
 	a.opts.Files.Upload.ClusterName = TypeClusterName(c.ClientName)
 	a.opts.Files.Upload.Nodes = TypeNodes(c.Machines)
 	a.opts.Files.Upload.Files.Source = flags.Filename(fName)
 	a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/bin/run_asbench")
 	a.opts.Files.Upload.IsClient = true
 	a.opts.Files.Upload.doLegacy = true
+	a.opts.Files.Upload.ParallelThreads = c.ParallelThreads
 	err = a.opts.Files.Upload.runUpload(args)
 	if err != nil {
 		return err
 	}
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 755 /usr/bin/run_asbench"})
-	if err != nil {
-		return err
+
+	returns = parallelize.MapLimit(nodesList, c.ParallelThreads, func(nnode int) error {
+		out, err := b.RunCommands(c.ClientName.String(), [][]string{{"/bin/bash", "-c", "chmod 755 /usr/bin/run_asbench"}}, []int{nnode})
+		if err != nil {
+			if len(out) > 0 {
+				return fmt.Errorf("%s : %s", err, string(out[0]))
+			} else {
+				return err
+			}
+		}
+		return nil
+	})
+
+	isError = false
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %d returned %s", nodesList[i], ret)
+			isError = true
+		}
+	}
+	if isError {
+		return errors.New("some nodes returned errors")
 	}
 
 	// upload custom tools
@@ -196,6 +251,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike/astools.conf")
 		a.opts.Files.Upload.IsClient = true
 		a.opts.Files.Upload.doLegacy = true
+		a.opts.Files.Upload.ParallelThreads = c.ParallelThreads
 		err = a.opts.Files.Upload.runUpload(args)
 		if err != nil {
 			return err
@@ -210,6 +266,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		a.opts.Files.Upload.Files.Destination = flags.Filename("/usr/local/bin/start.sh")
 		a.opts.Files.Upload.IsClient = true
 		a.opts.Files.Upload.doLegacy = true
+		a.opts.Files.Upload.ParallelThreads = c.ParallelThreads
 		err = a.opts.Files.Upload.runUpload(args)
 		if err != nil {
 			return err

@@ -921,11 +921,11 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 			if err != nil {
 				log.Printf("ERROR: could not install early script: %s", err)
 			} else {
-				defer earlyFile.Close()
 				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, []int{nnode})
 				if err != nil {
 					log.Printf("ERROR: could not install early script: %s", err)
 				}
+				earlyFile.Close()
 			}
 		}
 		if string(c.ScriptLate) != "" {
@@ -933,11 +933,11 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 			if err != nil {
 				log.Printf("ERROR: could not install late script: %s", err)
 			} else {
-				defer lateFile.Close()
 				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, []int{nnode})
 				if err != nil {
 					log.Printf("ERROR: could not install late script: %s", err)
 				}
+				lateFile.Close()
 			}
 		}
 		return nil
