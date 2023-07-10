@@ -3,12 +3,6 @@
 * Support for `Azure` backend.
 * Add auto-cluster-expiries for cloud engines.
 * Clients/Connectors - make connectors more plugin-based using deployment scripts instead of baking in deployments into aerolab.
-* Parallelize:
-  * `cluster create`
-  * `cluster add exporter`
-  * `xdr connect`
-  * `xdr create-clusters`
-  * `client create *`
 
 * Consider adding log-monitoring stack (Aerospike-Grafana-Integration) command.
 * Consider adding telemetry to all users (anonymous usage only).

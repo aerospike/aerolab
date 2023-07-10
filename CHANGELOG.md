@@ -16,6 +16,11 @@
   * `conf fix-mesh`
   * `cluster start`
   * `cluster partition *`
+  * `xdr connect`
+  * `xdr create-clusters`
+  * `cluster add exporter`
+  * `cluster create`
+  * `client create *`
 * Some config parsing bugfixes for handling of accidentally saved `aerolab config defaults` values.
 * Allow specifying not to configure TLS for `mesh` in `tls generate` command.
 * Allow specifying multiple disks of same type in `gcp` backend; for example `--disk local-ssd@5` will request 5 local SSDs and `--disk pd-ssd:50@5` will request 5 `pd-ssd` of size 50GB.
