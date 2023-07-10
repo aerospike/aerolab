@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
@@ -32,6 +33,7 @@ type clusterCreateCmd struct {
 	NoSetHostname         bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
 	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
 	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
+	ParallelThreads       int                    `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
 	NoVacuumOnFail        bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
 	Aws                   clusterCreateCmdAws    `no-flag:"true"`
 	Gcp                   clusterCreateCmdGcp    `no-flag:"true"`
@@ -691,14 +693,14 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		}
 	}
 
-	// set hostnames for aws
+	// set hostnames for aws and gcp
 	if a.opts.Config.Backend.Type != "docker" && !c.NoSetHostname {
 		nip, err := b.GetNodeIpMap(string(c.ClusterName), false)
 		if err != nil {
 			return err
 		}
 		log.Printf("Node IP map: %v", nip)
-		for _, nnode := range nodeListNew {
+		returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(nnode int) error {
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClusterName), nnode)
 			newHostname = strings.ReplaceAll(newHostname, "_", "-")
 			hComm := [][]string{
@@ -722,6 +724,17 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			if err != nil {
 				return err
 			}
+			return nil
+		})
+		isError := false
+		for i, ret := range returns {
+			if ret != nil {
+				log.Printf("Node %d returned %s", nodeListNew[i], ret)
+				isError = true
+			}
+		}
+		if isError {
+			return errors.New("some nodes returned errors")
 		}
 	}
 
@@ -731,50 +744,54 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 
 	// actually save files to nodes in cluster if needed
 	if len(files) > 0 {
-		err := b.CopyFilesToCluster(string(c.ClusterName), files, nodeListNew)
-		if err != nil {
-			return err
+		returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(nnode int) error {
+			err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{nnode})
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		isError := false
+		for i, ret := range returns {
+			if ret != nil {
+				log.Printf("Node %d returned %s", nodeListNew[i], ret)
+				isError = true
+			}
+		}
+		if isError {
+			return errors.New("some nodes returned errors")
 		}
 	}
 
 	// if docker fix logging location
-	var out [][]byte
-	out, err = b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, nodeListNew)
-	if err != nil {
-		return err
-	}
-	if a.opts.Config.Backend.Type == "docker" {
-		var in [][]byte
-		for _, out1 := range out {
-			in1 := strings.Replace(string(out1), "console {", "file /var/log/aerospike.log {", 1)
-			in = append(in, []byte(in1))
+	// if aws, adopt best-practices
+	returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(nnode int) error {
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{nnode})
+		if err != nil {
+			return err
 		}
-		for i, node := range nodeListNew {
-			inrd := bytes.NewReader(in[i])
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", inrd, len(in[i])}}, []int{node})
+		if a.opts.Config.Backend.Type == "docker" {
+			in := strings.Replace(string(out[0]), "console {", "file /var/log/aerospike.log {", 1)
+			inrd := strings.NewReader(in)
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", inrd, len(in)}}, []int{nnode})
 			if err != nil {
 				return err
 			}
 		}
-	}
-
-	// if aws, adopt best-practices
-	if (a.opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices) || (a.opts.Config.Backend.Type == "gcp" && !c.Gcp.NoBestPractices) {
-		thpString := c.thpString()
-		err := b.CopyFilesToCluster(string(c.ClusterName), []fileList{{
-			filePath:     "/etc/systemd/system/aerospike.service.d/aerolab-thp.conf",
-			fileSize:     len(thpString),
-			fileContents: strings.NewReader(thpString),
-		}}, nodeListNew)
-		if err != nil {
-			log.Printf("WARNING! THP Disable script could not be installed: %s", err)
+		if (a.opts.Config.Backend.Type == "aws" && !c.Aws.NoBestPractices) || (a.opts.Config.Backend.Type == "gcp" && !c.Gcp.NoBestPractices) {
+			thpString := c.thpString()
+			err := b.CopyFilesToCluster(string(c.ClusterName), []fileList{{
+				filePath:     "/etc/systemd/system/aerospike.service.d/aerolab-thp.conf",
+				fileSize:     len(thpString),
+				fileContents: strings.NewReader(thpString),
+			}}, []int{nnode})
+			if err != nil {
+				log.Printf("WARNING! THP Disable script could not be installed: %s", err)
+			}
 		}
-	}
-
-	// also create locations if not exist
-	for i, node := range nodeListNew {
-		log := string(out[i])
-		scanner := bufio.NewScanner(strings.NewReader(log))
+		// also create locations if not exist
+		logx := string(out[0])
+		scanner := bufio.NewScanner(strings.NewReader(logx))
 		for scanner.Scan() {
 			t := scanner.Text()
 			if (strings.Contains(t, "/var") || strings.Contains(t, "/opt") || strings.Contains(t, "/etc") || strings.Contains(t, "/tmp")) && !strings.HasPrefix(strings.TrimLeft(t, " "), "#") {
@@ -794,16 +811,15 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 					nDir = nLoc
 				}
 				// create dir
-				nout, err := b.RunCommands(string(c.ClusterName), [][]string{{"mkdir", "-p", nDir}}, []int{node})
+				nout, err := b.RunCommands(string(c.ClusterName), [][]string{{"mkdir", "-p", nDir}}, []int{nnode})
 				if err != nil {
 					return fmt.Errorf("could not create directory on node: %s\n%s\n%s", nDir, err, string(nout[0]))
 				}
 			}
 		}
-	}
-	// aws-public-ip
-	if c.Aws.PublicIP && a.opts.Config.Backend.Type == "aws" {
-		systemdScriptContents := `[Unit]
+		// aws-public-ip
+		if c.Aws.PublicIP && a.opts.Config.Backend.Type == "aws" {
+			systemdScriptContents := `[Unit]
 Description=Fix Aerospike access-address and alternate-access-address
 RequiredBy=aerospike.service
 Before=aerospike.service
@@ -814,36 +830,36 @@ ExecStart=/bin/bash /usr/local/bin/aerospike-access-address.sh
 		
 [Install]
 WantedBy=multi-user.target`
-		var systemdScript fileList
-		var accessAddressScript fileList
-		systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
-		systemdScript.fileContents = strings.NewReader(systemdScriptContents)
-		systemdScript.fileSize = len(systemdScriptContents)
-		accessAddressScriptContents := `grep 'alternate-access-address' /etc/aerospike/aerospike.conf
+			var systemdScript fileList
+			var accessAddressScript fileList
+			systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
+			systemdScript.fileContents = strings.NewReader(systemdScriptContents)
+			systemdScript.fileSize = len(systemdScriptContents)
+			accessAddressScriptContents := `grep 'alternate-access-address' /etc/aerospike/aerospike.conf
 if [ $? -ne 0 ]
 then
 	sed -i 's/address any/address any\naccess-address\nalternate-access-address\n/g' /etc/aerospike/aerospike.conf
 fi
 sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/meta-data/local-ipv4)/g" -e "s/alternate-access-address.*/alternate-access-address $(curl http://169.254.169.254/latest/meta-data/public-ipv4)/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
 `
-		accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
-		accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
-		accessAddressScript.fileSize = len(accessAddressScriptContents)
-		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{systemdScript, accessAddressScript}, nodeListNew)
-		if err != nil {
-			return fmt.Errorf("could not make access-address script in aws: %s", err)
-		}
-		bouta, err := b.RunCommands(string(c.ClusterName), [][]string{{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, {"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, {"systemctl", "daemon-reload"}, {"systemctl", "enable", "aerospike-access-address.service"}, {"service", "aerospike-access-address", "start"}}, nodeListNew)
-		if err != nil {
-			nstr := ""
-			for _, bout := range bouta {
-				nstr = fmt.Sprintf("%s\n%s", nstr, string(bout))
+			accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
+			accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
+			accessAddressScript.fileSize = len(accessAddressScriptContents)
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{systemdScript, accessAddressScript}, []int{nnode})
+			if err != nil {
+				return fmt.Errorf("could not make access-address script in aws: %s", err)
 			}
-			return fmt.Errorf("could not register access-address script in aws: %s\n%s", err, nstr)
-		}
-	} else if c.Gcp.PublicIP && a.opts.Config.Backend.Type == "gcp" {
-		// curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip
-		systemdScriptContents := `[Unit]
+			bouta, err := b.RunCommands(string(c.ClusterName), [][]string{{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, {"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, {"systemctl", "daemon-reload"}, {"systemctl", "enable", "aerospike-access-address.service"}, {"service", "aerospike-access-address", "start"}}, []int{nnode})
+			if err != nil {
+				nstr := ""
+				for _, bout := range bouta {
+					nstr = fmt.Sprintf("%s\n%s", nstr, string(bout))
+				}
+				return fmt.Errorf("could not register access-address script in aws: %s\n%s", err, nstr)
+			}
+		} else if c.Gcp.PublicIP && a.opts.Config.Backend.Type == "gcp" {
+			// curl -H "Metadata-Flavor: Google" http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip
+			systemdScriptContents := `[Unit]
 Description=Fix Aerospike access-address and alternate-access-address
 RequiredBy=aerospike.service
 Before=aerospike.service
@@ -854,12 +870,12 @@ ExecStart=/bin/bash /usr/local/bin/aerospike-access-address.sh
 		
 [Install]
 WantedBy=multi-user.target`
-		var systemdScript fileList
-		var accessAddressScript fileList
-		systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
-		systemdScript.fileContents = strings.NewReader(systemdScriptContents)
-		systemdScript.fileSize = len(systemdScriptContents)
-		accessAddressScriptContents := `INTIP=""; EXTIP=""
+			var systemdScript fileList
+			var accessAddressScript fileList
+			systemdScript.filePath = "/etc/systemd/system/aerospike-access-address.service"
+			systemdScript.fileContents = strings.NewReader(systemdScriptContents)
+			systemdScript.fileSize = len(systemdScriptContents)
+			accessAddressScriptContents := `INTIP=""; EXTIP=""
 attempts=0
 max=120
 while [ "${INTIP}" = "" ]
@@ -883,56 +899,80 @@ then
 fi
 sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-address.*/alternate-access-address ${EXTIP}/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
 `
-		accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
-		accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
-		accessAddressScript.fileSize = len(accessAddressScriptContents)
-		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{systemdScript, accessAddressScript}, nodeListNew)
-		if err != nil {
-			return fmt.Errorf("could not make access-address script in aws: %s", err)
-		}
-		bouta, err := b.RunCommands(string(c.ClusterName), [][]string{{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, {"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, {"systemctl", "daemon-reload"}, {"systemctl", "enable", "aerospike-access-address.service"}, {"service", "aerospike-access-address", "start"}}, nodeListNew)
-		if err != nil {
-			nstr := ""
-			for _, bout := range bouta {
-				nstr = fmt.Sprintf("%s\n%s", nstr, string(bout))
+			accessAddressScript.filePath = "/usr/local/bin/aerospike-access-address.sh"
+			accessAddressScript.fileContents = strings.NewReader(accessAddressScriptContents)
+			accessAddressScript.fileSize = len(accessAddressScriptContents)
+			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{systemdScript, accessAddressScript}, []int{nnode})
+			if err != nil {
+				return fmt.Errorf("could not make access-address script in aws: %s", err)
 			}
-			return fmt.Errorf("could not register access-address script in aws: %s\n%s", err, nstr)
+			bouta, err := b.RunCommands(string(c.ClusterName), [][]string{{"chmod", "755", "/usr/local/bin/aerospike-access-address.sh"}, {"chmod", "755", "/etc/systemd/system/aerospike-access-address.service"}, {"systemctl", "daemon-reload"}, {"systemctl", "enable", "aerospike-access-address.service"}, {"service", "aerospike-access-address", "start"}}, []int{nnode})
+			if err != nil {
+				nstr := ""
+				for _, bout := range bouta {
+					nstr = fmt.Sprintf("%s\n%s", nstr, string(bout))
+				}
+				return fmt.Errorf("could not register access-address script in aws: %s\n%s", err, nstr)
+			}
 		}
-	}
-
-	// install early/late scripts
-	if string(c.ScriptEarly) != "" {
-		earlyFile, err := os.Open(string(c.ScriptEarly))
-		if err != nil {
-			log.Printf("ERROR: could not install early script: %s", err)
-		} else {
-			defer earlyFile.Close()
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, nodeListNew)
+		// install early/late scripts
+		if string(c.ScriptEarly) != "" {
+			earlyFile, err := os.Open(string(c.ScriptEarly))
 			if err != nil {
 				log.Printf("ERROR: could not install early script: %s", err)
+			} else {
+				defer earlyFile.Close()
+				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/early.sh", earlyFile, int(earlySize.Size())}}, []int{nnode})
+				if err != nil {
+					log.Printf("ERROR: could not install early script: %s", err)
+				}
 			}
 		}
-	}
-	if string(c.ScriptLate) != "" {
-		lateFile, err := os.Open(string(c.ScriptLate))
-		if err != nil {
-			log.Printf("ERROR: could not install late script: %s", err)
-		} else {
-			defer lateFile.Close()
-			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, nodeListNew)
+		if string(c.ScriptLate) != "" {
+			lateFile, err := os.Open(string(c.ScriptLate))
 			if err != nil {
 				log.Printf("ERROR: could not install late script: %s", err)
+			} else {
+				defer lateFile.Close()
+				err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/usr/local/bin/late.sh", lateFile, int(lateSize.Size())}}, []int{nnode})
+				if err != nil {
+					log.Printf("ERROR: could not install late script: %s", err)
+				}
 			}
 		}
+		return nil
+	})
+	isError := false
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %d returned %s", nodeListNew[i], ret)
+			isError = true
+		}
+	}
+	if isError {
+		return errors.New("some nodes returned errors")
 	}
 
 	// start cluster
 	if c.AutoStartAerospike == "y" {
-		var comm [][]string
-		comm = append(comm, []string{"service", "aerospike", "start"})
-		_, err = b.RunCommands(string(c.ClusterName), comm, nodeListNew)
-		if err != nil {
-			return err
+		returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(node int) error {
+			var comm [][]string
+			comm = append(comm, []string{"service", "aerospike", "start"})
+			_, err = b.RunCommands(string(c.ClusterName), comm, []int{node})
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		isError := false
+		for i, ret := range returns {
+			if ret != nil {
+				log.Printf("Node %d returned %s", nodeListNew[i], ret)
+				isError = true
+			}
+		}
+		if isError {
+			return errors.New("some nodes returned errors")
 		}
 	}
 

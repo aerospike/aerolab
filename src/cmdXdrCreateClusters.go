@@ -61,6 +61,7 @@ func (c *xdrCreateClustersCmd) Execute(args []string) error {
 
 	c.sourceClusterName = c.ClusterName
 	c.destinationClusterNames = c.DestinationClusterNames
+	c.parallelLimit = c.ParallelThreads
 	err = c.runXdrConnect(args)
 	if err != nil {
 		return err
