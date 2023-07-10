@@ -32,6 +32,9 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if len(cList) > 1 {
+		return fmt.Errorf("only one cluster can be specified at a time")
+	}
 
 	//arms
 	armlist := []int{}
