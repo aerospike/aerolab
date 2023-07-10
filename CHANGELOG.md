@@ -13,13 +13,9 @@
   * `roster show/apply`
   * `files upload/download/sync`
   * `tls generate/copy`
-  * `conf fix-mesh`
-  * `cluster start`
-  * `cluster partition *`
-  * `xdr connect`
-  * `xdr create-clusters`
-  * `cluster add exporter`
-  * `cluster create`
+  * `conf fix-mesh/rack-id`
+  * `cluster create/start/partition */add exporter`
+  * `xdr connect/create-clusters`
   * `client create base/none/tools`
   * `client configure tools`
 * Some config parsing bugfixes for handling of accidentally saved `aerolab config defaults` values.
