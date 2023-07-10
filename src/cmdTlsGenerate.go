@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -153,7 +152,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 				if err != nil {
 					return err
 				}
-				fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), bytes.NewReader(ct), len(ct)})
+				fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), string(ct), len(ct)})
 			}
 			err = b.CopyFilesToCluster(string(c.ClusterName), fl, nodes)
 			if err != nil {
@@ -184,7 +183,7 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 							log.Println(err)
 							hasError <- true
 						}
-						fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), bytes.NewReader(ct), len(ct)})
+						fl = append(fl, fileList{fmt.Sprintf("/etc/aerospike/ssl/%s/%s", c.TlsName, file), string(ct), len(ct)})
 					}
 					err = b.CopyFilesToCluster(string(c.ClusterName), fl, []int{node})
 					if err != nil {
@@ -284,7 +283,7 @@ func (c *tlsGenerateCmd) fixMesh(node int, nodeIps []string) error {
 				newconf = newconf + "\n" + t
 			}
 		}
-		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)}}, []int{node})
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", newconf, len(newconf)}}, []int{node})
 		if err != nil {
 			return err
 		}

@@ -820,6 +820,18 @@ func (d *backendAws) TemplateDestroy(v backendVersion) error {
 }
 
 func (d *backendAws) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
+	fr := []fileListReader{}
+	for _, f := range files {
+		fr = append(fr, fileListReader{
+			filePath:     f.filePath,
+			fileSize:     f.fileSize,
+			fileContents: strings.NewReader(f.fileContents),
+		})
+	}
+	return d.CopyFilesToClusterReader(name, fr, nodes)
+}
+
+func (d *backendAws) CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error {
 	var err error
 	nodeIps, err := d.GetNodeIpMap(name, false)
 	if err != nil {
@@ -1378,7 +1390,7 @@ func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 
 var deployAwsTemplateShutdownMaking = make(chan int, 1)
 
-func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error {
 	addShutdownHandler("deployAwsTemplate", func(os.Signal) {
 		deployAwsTemplateShutdownMaking <- 1
 		d.VacuumTemplate(v)
@@ -1649,7 +1661,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	}
 
 	// copy files as required to VM
-	files = append(files, fileList{"/root/installer.sh", strings.NewReader(script), len(script)})
+	files = append(files, fileListReader{"/root/installer.sh", strings.NewReader(script), len(script)})
 	err = scp("root", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, files)
 	if err != nil {
 		return fmt.Errorf("scp failed: %s", err)

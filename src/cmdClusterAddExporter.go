@@ -87,7 +87,7 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			}
 			cts := "pidof node_exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup /usr/bin/node_exporter >/var/log/node_exporter.log 2>&1 & jobs -p %1'"
 			ctsr := strings.NewReader(cts)
-			err = b.CopyFilesToCluster(cluster, []fileList{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, []int{node})
+			err = b.CopyFilesToClusterReader(cluster, []fileListReader{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, []int{node})
 			if err != nil {
 				return err
 			}
@@ -130,7 +130,7 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			}
 			cts := "pidof node_exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup /usr/bin/node_exporter >/var/log/node_exporter.log 2>&1 & jobs -p %1'"
 			ctsr := strings.NewReader(cts)
-			err = b.CopyFilesToCluster(cluster, []fileList{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, []int{node})
+			err = b.CopyFilesToClusterReader(cluster, []fileListReader{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, []int{node})
 			if err != nil {
 				return err
 			}

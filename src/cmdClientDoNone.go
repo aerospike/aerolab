@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -228,11 +227,11 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			}
 			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], string(c.ClientName), nnode))...)
 			hst := fmt.Sprintf("%s-%d\n", string(c.ClientName), nnode)
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hostname", hst, len(hst)}}, []int{nnode})
 			if err != nil {
 				return err
 			}
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hosts", string(nr[0]), len(nr[0])}}, []int{nnode})
 			if err != nil {
 				return err
 			}
@@ -244,7 +243,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			if err != nil {
 				log.Printf("ERROR: could not install early script: %s", err)
 			} else {
-				err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/usr/local/bin/start.sh", StartScriptFile, int(startScriptSize.Size())}}, []int{nnode})
+				err = b.CopyFilesToClusterReader(string(c.ClientName), []fileListReader{{"/usr/local/bin/start.sh", StartScriptFile, int(startScriptSize.Size())}}, []int{nnode})
 				if err != nil {
 					log.Printf("ERROR: could not install early script: %s", err)
 				}
@@ -253,7 +252,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		} else {
 			emptyStart := "#!/bin/bash\ndate"
 			StartScriptFile := strings.NewReader(emptyStart)
-			b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/usr/local/bin/start.sh", StartScriptFile, len(emptyStart)}}, []int{nnode})
+			b.CopyFilesToClusterReader(string(c.ClientName), []fileListReader{{"/usr/local/bin/start.sh", StartScriptFile, len(emptyStart)}}, []int{nnode})
 		}
 		return nil
 	})

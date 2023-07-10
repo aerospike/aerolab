@@ -247,7 +247,7 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		return err
 	}
 	aconf = buf.Bytes()
-	err = b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/etc/aerospike/aerospike.conf", bytes.NewReader(aconf), len(aconf)}}, []int{nodeNo})
+	err = b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/etc/aerospike/aerospike.conf", string(aconf), len(aconf)}}, []int{nodeNo})
 	if err != nil {
 		return err
 	}

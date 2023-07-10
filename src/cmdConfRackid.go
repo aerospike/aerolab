@@ -112,7 +112,7 @@ func (c *confRackIdCmd) Execute(args []string) error {
 		buf := new(bytes.Buffer)
 		cc.Write(buf, "", "    ", true)
 		newconf := buf.String()
-		files = append(files, fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)})
+		files = append(files, fileList{"/etc/aerospike/aerospike.conf", newconf, len(newconf)})
 		if len(files) > 0 {
 			err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{i})
 			if err != nil {

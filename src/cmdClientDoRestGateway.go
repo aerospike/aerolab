@@ -149,7 +149,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 		b.WorkOnClients()
 	}
 	script := c.installScript()
-	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/opt/install-gw.sh", strings.NewReader(script), len(script)}}, c.machines)
+	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/opt/install-gw.sh", script, len(script)}}, c.machines)
 	if err != nil {
 		return err
 	}

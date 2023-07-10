@@ -179,7 +179,7 @@ func remoteSession(user string, addr string, privateKey string) (*SSH, error) {
 	return client, nil
 }
 
-func scp(user string, addr string, privateKey string, files []fileList) error {
+func scp(user string, addr string, privateKey string, files []fileListReader) error {
 	for _, file := range files {
 		err := scpFile(user, addr, privateKey, file)
 		if err != nil {
@@ -190,7 +190,7 @@ func scp(user string, addr string, privateKey string, files []fileList) error {
 	return nil
 }
 
-func scpFile(user string, addr string, privateKey string, file fileList) error {
+func scpFile(user string, addr string, privateKey string, file fileListReader) error {
 	file.fileContents.Seek(0, 0)
 	//fmt.Printf("%s %s %s %s %d\n", user, addr, privateKey, file.filePath, file.fileSize)
 	sess, err := remoteSession(user, addr, privateKey)
