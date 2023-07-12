@@ -103,6 +103,7 @@ type featureFile struct {
 	name       string    // fileName
 	version    string    // feature-key-version              1
 	validUntil time.Time // valid-until-date                 2024-01-15
+	serial     int       // serial-number                    680515527
 }
 
 func init() {
@@ -457,10 +458,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	featuresFilePath := c.FeaturesFilePath
 	if !isCommunity {
 		if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
-			log.Print("WARNING: you are attempting to install version 4.6+ and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+			log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 			bufio.NewReader(os.Stdin).ReadBytes('\n')
 		}
-		if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
+		if string(featuresFilePath) == "" && ((aver_major == 6 && aver_minor > 0) || aver_major > 6) {
 			if c.NodeCount == 1 {
 				log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
 			} else {
@@ -471,14 +472,14 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		if featuresFilePath != "" {
 			ff, err := os.Stat(string(featuresFilePath))
 			if err != nil {
-				logFatal("Features file path specified does not exist: %s", err)
+				return logFatal("Features file path specified does not exist: %s", err)
 			}
 			fffileList := []string{}
 			ffFiles := []featureFile{}
 			if ff.IsDir() {
 				ffDir, err := os.ReadDir(string(featuresFilePath))
 				if err != nil {
-					logFatal("Features file path director read failed: %s", err)
+					return logFatal("Features file path director read failed: %s", err)
 				}
 				for _, ffFile := range ffDir {
 					if ffFile.IsDir() {
@@ -492,7 +493,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			for _, ffFile := range fffileList {
 				ffc, err := os.ReadFile(ffFile)
 				if err != nil {
-					logFatal("Features file read failed for %s: %s", ffFile, err)
+					return logFatal("Features file read failed for %s: %s", ffFile, err)
 				}
 				// populate ffFiles from ffc contents for unexpired features files, WARN on finding expired ones
 				ffFiles1 := featureFile{
@@ -527,6 +528,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 						}
 						// 2024-01-15
 						ffFiles1.validUntil = time.Date(ffy, time.Month(ffm), ffd, 0, 0, 0, 0, time.UTC)
+					} else if strings.HasPrefix(line, "serial-number") {
+						ffser := strings.TrimLeft(strings.TrimPrefix(line, "serial-number"), " \t")
+						ffser = strings.TrimRight(ffser, " \t\n")
+						ffFiles1.serial, _ = strconv.Atoi(ffser)
 					}
 				}
 				if ffFiles1.version != "" {
@@ -536,57 +541,69 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 					ffFiles = append(ffFiles, ffFiles1)
 				}
 			}
+			foundFile := featureFile{}
 			if (aver_major == 6 && aver_minor >= 3) || aver_major > 6 {
-				foundFile := featureFile{}
 				for _, ffFile := range ffFiles {
 					if ffFile.version != "2" {
 						continue
 					}
-					if ffFile.validUntil.After(foundFile.validUntil) {
+					if ffFile.serial > foundFile.serial && ffFile.validUntil.After(time.Now()) {
+						foundFile = ffFile
+					} else if ffFile.serial == foundFile.serial && ffFile.validUntil.After(foundFile.validUntil) && ffFile.validUntil.After(time.Now()) {
 						foundFile = ffFile
 					}
 				}
 				if foundFile.name == "" {
-					logFatal("Features file v2 not found in the FeaturesFilePath directory")
+					log.Print("WARNING: A valid features file v2 not found in the configured FeaturesFilePath")
 				}
 				featuresFilePath = flags.Filename(foundFile.name)
 			} else if (aver_major == 5 && aver_minor <= 4) || (aver_major == 4 && aver_minor > 5) {
-				foundFile := featureFile{}
 				for _, ffFile := range ffFiles {
 					if ffFile.version != "1" {
 						continue
 					}
-					if ffFile.validUntil.After(foundFile.validUntil) {
+					if ffFile.serial > foundFile.serial && ffFile.validUntil.After(time.Now()) {
+						foundFile = ffFile
+					} else if ffFile.serial == foundFile.serial && ffFile.validUntil.After(foundFile.validUntil) && ffFile.validUntil.After(time.Now()) {
 						foundFile = ffFile
 					}
 				}
 				if foundFile.name == "" {
-					logFatal("Features file v1 not found in the FeaturesFilePath directory")
+					log.Print("WARNING: A valid features file v1 not found in the configured FeaturesFilePath")
 				}
 				featuresFilePath = flags.Filename(foundFile.name)
 			} else if (aver_major == 6 && aver_minor < 3) || (aver_major == 5 && aver_minor > 4) {
-				foundFile := featureFile{}
 				for _, ffFile := range ffFiles {
 					if ffFile.version == "2" && (foundFile.version == "1" || foundFile.version == "") {
 						foundFile = ffFile
 						continue
 					}
-					if ffFile.validUntil.After(foundFile.validUntil) {
+					if ffFile.serial > foundFile.serial && ffFile.validUntil.After(time.Now()) {
+						foundFile = ffFile
+					} else if ffFile.serial == foundFile.serial && ffFile.validUntil.After(foundFile.validUntil) && ffFile.validUntil.After(time.Now()) {
 						foundFile = ffFile
 					}
 				}
 				if foundFile.name == "" {
-					logFatal("Features files not found in the FeaturesFilePath directory")
+					log.Print("WARNING: A valid features file not found in the configured FeaturesFilePath")
 				}
 				featuresFilePath = flags.Filename(foundFile.name)
 			}
 			if c.FeaturesFilePrintDetail {
 				for _, ffFile := range ffFiles {
-					log.Printf("feature-file=%s version=%s valid-until=%s", ffFile.name, ffFile.version, ffFile.validUntil.String())
+					log.Printf("feature-file=%s version=%s valid-until=%s serial=%d", ffFile.name, ffFile.version, ffFile.validUntil.String(), ffFile.serial)
 				}
 			}
-			if ((aver_major == 4 && aver_minor > 5) || aver_major > 4) && featuresFilePath == "" {
-				logFatal("ERROR: could not find a valid features file in the path specified for this version of aerospike. Ensure the feature file exists and is of the correct file version.")
+			if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
+				log.Print("WARNING: you are attempting to install version 4.6-6.0 and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+				bufio.NewReader(os.Stdin).ReadBytes('\n')
+			} else if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
+				if c.NodeCount == 1 {
+					log.Print("WARNING: FeaturesFilePath does not contain a valid feature file. Using embedded features files.")
+				} else {
+					log.Print("WARNING: you are attempting to install more than 1 node and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+					bufio.NewReader(os.Stdin).ReadBytes('\n')
+				}
 			} else if (aver_major == 4 && aver_minor > 5) || aver_major > 4 {
 				log.Printf("Features file: %s", featuresFilePath)
 			} else {
