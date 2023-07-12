@@ -2,7 +2,7 @@
 
 ## Sub-topics:
 
-[Partitioning disks in AWS](partitioner/partition-disks.md)
+[Partitioning disks in GCP](partitioner/partition-disks.md)
 
 [Use all disks for a namespace](partitioner/all-disks.md)
 
@@ -32,8 +32,7 @@ The most basic configuration is:
 aerolab config backend -t gcp -o project-name
 ```
 
-To specify a custom location where SSH keys are stored and override the
-default AWS region configuration, extra parameters may be supplied:
+To specify a custom location where SSH keys are stored and set the project configuration, extra parameters may be supplied:
 
 ```bash
 aerolab config backend -t gcp -o project-name -p /PATH/TO/KEYS [-d /path/to/tmpdir/for-aerolab/to/use]
