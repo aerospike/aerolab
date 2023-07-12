@@ -3,11 +3,11 @@ module github.com/aerospike/aerolab
 go 1.20
 
 require (
-	cloud.google.com/go/compute v1.20.1
+	cloud.google.com/go/compute v1.21.0
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
 	github.com/aerospike/aerospike-client-go/v6 v6.12.0
-	github.com/aws/aws-sdk-go v1.44.297
+	github.com/aws/aws-sdk-go v1.44.299
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/google/uuid v1.3.0
 	github.com/jroimartin/gocui v0.5.0
@@ -16,7 +16,7 @@ require (
 	github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
 	golang.org/x/crypto v0.11.0
 	golang.org/x/term v0.10.0
-	google.golang.org/api v0.130.0
+	google.golang.org/api v0.131.0
 	google.golang.org/protobuf v1.31.0
 )
 
@@ -39,8 +39,8 @@ require (
 	golang.org/x/sys v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230706204954-ccb25ca9f130 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230706204954-ccb25ca9f130 // indirect
+	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 	google.golang.org/grpc v1.56.2 // indirect
 )

@@ -1,4 +1,4 @@
-# cloud.google.com/go/compute v1.20.1
+# cloud.google.com/go/compute v1.21.0
 ## explicit; go 1.19
 cloud.google.com/go/compute/apiv1
 cloud.google.com/go/compute/apiv1/computepb
@@ -45,9 +45,10 @@ github.com/aerospike/aerospike-client-go/v6/pkg/ripemd160
 github.com/aerospike/aerospike-client-go/v6/types
 github.com/aerospike/aerospike-client-go/v6/types/rand
 github.com/aerospike/aerospike-client-go/v6/utils/buffer
-# github.com/aws/aws-sdk-go v1.44.297
+# github.com/aws/aws-sdk-go v1.44.299
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
+github.com/aws/aws-sdk-go/aws/auth/bearer
 github.com/aws/aws-sdk-go/aws/awserr
 github.com/aws/aws-sdk-go/aws/awsutil
 github.com/aws/aws-sdk-go/aws/client
@@ -88,6 +89,7 @@ github.com/aws/aws-sdk-go/service/ec2
 github.com/aws/aws-sdk-go/service/pricing
 github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
+github.com/aws/aws-sdk-go/service/ssooidc
 github.com/aws/aws-sdk-go/service/sts
 github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
@@ -241,7 +243,7 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# google.golang.org/api v0.130.0
+# google.golang.org/api v0.131.0
 ## explicit; go 1.19
 google.golang.org/api/cloudbilling/v1
 google.golang.org/api/googleapi
@@ -270,15 +272,15 @@ google.golang.org/appengine/internal/socket
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/socket
 google.golang.org/appengine/urlfetch
-# google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130
+# google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/cloud/extendedops
 google.golang.org/genproto/internal
-# google.golang.org/genproto/googleapis/api v0.0.0-20230706204954-ccb25ca9f130
+# google.golang.org/genproto/googleapis/api v0.0.0-20230711160842-782d3b101e98
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20230706204954-ccb25ca9f130
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
