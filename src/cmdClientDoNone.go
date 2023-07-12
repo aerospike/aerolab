@@ -48,7 +48,9 @@ func (c *clientCreateNoneCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type == "gcp" {
 		isArm = c.Gcp.IsArm
 	}
-	printPrice(isArm, c.Gcp.Zone, iType, c.ClientCount)
+	if a.opts.Config.Backend.Type != "docker" {
+		printPrice(isArm, c.Gcp.Zone, iType, c.ClientCount)
+	}
 	if c.PriceOnly {
 		return nil
 	}
