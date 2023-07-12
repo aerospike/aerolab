@@ -206,7 +206,9 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if a.opts.Config.Backend.Type == "gcp" {
 		iType = c.Gcp.InstanceType
 	}
-	printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount)
+	if a.opts.Config.Backend.Type != "docker" {
+		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount)
+	}
 	if c.PriceOnly {
 		return nil
 	}
@@ -455,7 +457,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	featuresFilePath := c.FeaturesFilePath
 	if !isCommunity {
 		if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
-			log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
+			log.Print("WARNING: you are attempting to install version 4.6+ and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
 			bufio.NewReader(os.Stdin).ReadBytes('\n')
 		}
 		if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
