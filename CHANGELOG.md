@@ -22,6 +22,9 @@
 * Allow specifying not to configure TLS for `mesh` in `tls generate` command.
 * Allow specifying multiple disks of same type in `gcp` backend; for example `--disk local-ssd@5` will request 5 local SSDs and `--disk pd-ssd:50@5` will request 5 `pd-ssd` of size 50GB.
 * Improve feature key file version checking.
+* Allow tagging by `owner` during cluster and client creation. Specify owner to always use with `aerolab config defaults -k '*.Owner' -v owner-name-all-lowercase-no-spaces`.
+* Capture outcomes of run commands in internal user telemetry.
+* Add telemetry version into output.
 
 #### 6.1.0
 * Add extra version check in `client tools` creator.
