@@ -110,7 +110,7 @@ type backend interface {
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
-	ClusterListFull(json bool) (string, error)
+	ClusterListFull(json bool, owner string) (string, error)
 	// return formatted for printing template list
 	TemplateListFull(json bool) (string, error)
 	// upload files to node
@@ -136,7 +136,7 @@ type backend interface {
 	DeleteNetwork(name string) error
 	PruneNetworks() error
 	ListNetworks(csv bool, writer io.Writer) error
-	Inventory() (inventoryJson, error)
+	Inventory(owner string) (inventoryJson, error)
 	GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error)
 }
 
@@ -179,6 +179,7 @@ type inventoryCluster struct {
 	Firewalls           []string
 	Zone                string
 	InstanceRunningCost float64
+	Owner               string
 }
 
 type inventoryClient struct {
@@ -199,6 +200,7 @@ type inventoryClient struct {
 	Firewalls           []string
 	Zone                string
 	InstanceRunningCost float64
+	Owner               string
 }
 
 type inventoryTemplate struct {

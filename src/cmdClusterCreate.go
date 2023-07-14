@@ -38,6 +38,7 @@ type clusterCreateCmd struct {
 	Aws                   clusterCreateCmdAws    `no-flag:"true"`
 	Gcp                   clusterCreateCmdGcp    `no-flag:"true"`
 	Docker                clusterCreateCmdDocker `no-flag:"true"`
+	Owner                 string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 	Help                  helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -614,8 +615,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	log.Print("Starting deployment")
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
+		extra.labels = append(extra.labels, "owner="+c.Owner)
 	} else {
 		extra.firewallNamePrefix = c.Aws.NamePrefix
+		extra.tags = append(extra.tags, "owner="+c.Owner)
 	}
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {

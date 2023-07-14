@@ -32,7 +32,7 @@ func (d *backendDocker) GetInstanceTypes(minCpu int, maxCpu int, minRam float64,
 	return nil, nil
 }
 
-func (d *backendDocker) Inventory() (inventoryJson, error) {
+func (d *backendDocker) Inventory(owner string) (inventoryJson, error) {
 	ij := inventoryJson{}
 
 	tmpl, err := d.ListTemplates()
@@ -885,7 +885,7 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
+func (d *backendDocker) ClusterListFull(isJson bool, owner string) (string, error) {
 	if !isJson {
 		return d.clusterListFullNoJson()
 	}
