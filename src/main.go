@@ -16,8 +16,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/bestmethod/inslice"
 	"github.com/google/uuid"
 	flags "github.com/rglonek/jeddevdk-goflags"
@@ -197,6 +199,8 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	if b != nil {
 		b.WorkOnServers()
 	}
+	telemetryNoSaveMutex.Lock()
+	log.SetOutput(&tStderr{})
 	go telemetry()
 	/*
 		err = telemetry()
@@ -209,7 +213,30 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	return false
 }
 
+var currentTelemetry telemetryItem
+var telemetryDir string
+var telemetryNoSave = true
+var telemetryNoSaveMutex = new(sync.Mutex)
+var telemetryMutex = new(sync.Mutex)
+
+type tStderr struct {
+	OutSize int
+}
+
+func (t *tStderr) Write(b []byte) (int, error) {
+	telemetryMutex.Lock()
+	defer telemetryMutex.Unlock()
+	if t.OutSize > 100 {
+		currentTelemetry.StderrTruncated = true
+		return os.Stderr.Write(b)
+	}
+	currentTelemetry.Stderr = append(currentTelemetry.Stderr, string(b))
+	t.OutSize++
+	return os.Stderr.Write(b)
+}
+
 func telemetry() error {
+	defer telemetryNoSaveMutex.Unlock()
 	// basic checks
 	if len(os.Args) < 2 {
 		return nil
@@ -265,7 +292,7 @@ func telemetry() error {
 	if err != nil {
 		return err
 	}
-	telemetryDir := path.Join(home, ".aerolab/telemetry")
+	telemetryDir = path.Join(home, ".aerolab/telemetry")
 
 	// check if telemetry is disabled
 	if _, err := os.Stat(path.Join(home, ".aerolab/telemetry/disable")); err == nil {
@@ -296,6 +323,31 @@ func telemetry() error {
 		}
 	}
 
+	// create telemetry item
+	currentTelemetry.UUID = string(uuidx)
+	currentTelemetry.StartTime = time.Now().UnixMicro()
+	currentTelemetry.CmdLine = os.Args[1:]
+	currentTelemetry.Version = telemetryVersion
+
+	// add changed default values to the item
+	ret := make(chan configValueCmd, 1)
+	a.opts.Config.Defaults.OnlyChanged = true
+	keyField := reflect.ValueOf(a.opts).Elem()
+	go a.opts.Config.Defaults.getValues(keyField, "", ret, "")
+	for {
+		val, ok := <-ret
+		if !ok {
+			break
+		}
+		if strings.HasSuffix(val.key, ".Password") || strings.HasSuffix(val.key, ".Pass") || strings.HasSuffix(val.key, ".User") || strings.HasSuffix(val.key, ".Username") {
+			continue
+		}
+		currentTelemetry.Defaults = append(currentTelemetry.Defaults, telemetryDefault{
+			Key:   val.key,
+			Value: val.value,
+		})
+	}
+
 	// get telemetry items
 	telemetryFiles := []string{}
 	err = filepath.WalkDir(telemetryDir, func(path string, d fs.DirEntry, err error) error {
@@ -319,59 +371,46 @@ func telemetry() error {
 	}
 
 	// if telemetry count > 1000, abort
-	if len(telemetryFiles) > 1000 {
+	if len(telemetryFiles) < 1000 {
+		telemetryNoSave = false
+	}
+
+	go func() {
+		// sort telemetryFiles
+		sort.Strings(telemetryFiles)
+
+		// ship telemetryFiles oldest to newest and remove from disk
+		for _, file := range telemetryFiles {
+			if err = telemetryShip(file); err == nil {
+				err = os.Remove(file)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+	return nil
+}
+
+func telemetrySaveCurrent(returnError error) error {
+	telemetryNoSaveMutex.Lock()
+	if telemetryNoSave {
+		telemetryNoSaveMutex.Unlock()
 		return nil
 	}
-
-	// sort telemetryFiles
-	sort.Strings(telemetryFiles)
-
-	// create telemetry item
-	item := telemetryItem{
-		UUID:    string(uuidx),
-		Time:    time.Now().UnixMicro(),
-		CmdLine: os.Args[1:],
+	telemetryNoSaveMutex.Unlock()
+	if returnError != nil {
+		currentTelemetry.Error = aws.String(returnError.Error())
 	}
-
-	// add changed default values to the item
-	ret := make(chan configValueCmd, 1)
-	a.opts.Config.Defaults.OnlyChanged = true
-	keyField := reflect.ValueOf(a.opts).Elem()
-	go a.opts.Config.Defaults.getValues(keyField, "", ret, "")
-	for {
-		val, ok := <-ret
-		if !ok {
-			break
-		}
-		if strings.HasSuffix(val.key, ".Password") || strings.HasSuffix(val.key, ".Pass") || strings.HasSuffix(val.key, ".User") || strings.HasSuffix(val.key, ".Username") {
-			continue
-		}
-		item.Defaults = append(item.Defaults, telemetryDefault{
-			Key:   val.key,
-			Value: val.value,
-		})
-	}
-
-	// add current command to telemetry
-	telemetryString, err := json.Marshal(item)
+	currentTelemetry.EndTime = time.Now().UnixMicro()
+	telemetryString, err := json.Marshal(currentTelemetry)
 	if err != nil {
 		return err
 	}
-	newFile := path.Join(telemetryDir, "item-"+strconv.Itoa(int(item.Time)))
+	newFile := path.Join(telemetryDir, "item-"+strconv.Itoa(int(currentTelemetry.StartTime)))
 	err = os.WriteFile(newFile, telemetryString, 0644)
 	if err != nil {
 		return err
-	}
-	telemetryFiles = append(telemetryFiles, newFile)
-
-	// ship telemetryFiles oldest to newest and remove from disk
-	for _, file := range telemetryFiles {
-		if err = telemetryShip(file); err == nil {
-			err = os.Remove(file)
-			if err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }
@@ -393,10 +432,15 @@ func telemetryShip(file string) error {
 }
 
 type telemetryItem struct {
-	CmdLine  []string
-	UUID     string
-	Time     int64
-	Defaults []telemetryDefault
+	CmdLine         []string
+	UUID            string
+	StartTime       int64
+	EndTime         int64
+	Defaults        []telemetryDefault
+	Version         string
+	Error           *string
+	Stderr          []string
+	StderrTruncated bool
 }
 
 type telemetryDefault struct {
@@ -441,10 +485,12 @@ func (a *aerolab) parseArgs(args []string) {
 				fmt.Println(err)
 			}
 		} else {
-			fmt.Println(err)
+			log.Println(err)
 		}
+		telemetrySaveCurrent(err)
 		os.Exit(1)
 	}
+	telemetrySaveCurrent(err)
 }
 
 func (a *aerolab) parseFile() (cfgFile string, err error) {
