@@ -493,7 +493,7 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 	return it, nil
 }
 
-func (d *backendGcp) Inventory() (inventoryJson, error) {
+func (d *backendGcp) Inventory(filterOwner string) (inventoryJson, error) {
 	ij := inventoryJson{}
 
 	tmpl, err := d.ListTemplates()
@@ -581,6 +581,11 @@ func (d *backendGcp) Inventory() (inventoryJson, error) {
 			if len(instances) > 0 {
 				for _, instance := range instances {
 					if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+						if filterOwner != "" {
+							if instance.Labels["owner"] != filterOwner {
+								continue
+							}
+						}
 						sysArch := "x86_64"
 						if arm, _ := d.IsSystemArm(*instance.MachineType); arm {
 							sysArch = "aarch64"
@@ -651,6 +656,7 @@ func (d *backendGcp) Inventory() (inventoryJson, error) {
 								Firewalls:           instance.Tags.Items,
 								Zone:                zone,
 								InstanceRunningCost: currentCost,
+								Owner:               instance.Labels["owner"],
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
@@ -669,6 +675,7 @@ func (d *backendGcp) Inventory() (inventoryJson, error) {
 								Firewalls:           instance.Tags.Items,
 								Zone:                zone,
 								InstanceRunningCost: currentCost,
+								Owner:               instance.Labels["owner"],
 							})
 						}
 					}
@@ -918,8 +925,9 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nlist, nil
 }
 
-func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
+func (d *backendGcp) ClusterListFull(isJson bool, owner string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
+	a.opts.Inventory.List.Owner = owner
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 

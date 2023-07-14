@@ -366,7 +366,7 @@ func (d *backendAws) getInstancePricesPerHour() (map[string]float64, error) {
 	return prices, nil
 }
 
-func (d *backendAws) Inventory() (inventoryJson, error) {
+func (d *backendAws) Inventory(filterOwner string) (inventoryJson, error) {
 	ij := inventoryJson{}
 
 	tmpl, err := d.ListTemplates()
@@ -455,9 +455,12 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 					if instance.Architecture != nil {
 						arch = *instance.Architecture
 					}
+					owner := ""
 					for _, tag := range instance.Tags {
 						if *tag.Key == awsTagClusterName {
 							clusterName = *tag.Value
+						} else if *tag.Key == "owner" {
+							owner = *tag.Value
 						} else if *tag.Key == awsTagNodeNumber {
 							nodeNo = *tag.Value
 						} else if *tag.Key == awsTagOperatingSystem {
@@ -483,6 +486,11 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							if err != nil {
 								startTime = int(instance.LaunchTime.Unix())
 							}
+						}
+					}
+					if filterOwner != "" {
+						if owner != filterOwner {
+							continue
 						}
 					}
 					sgs := []string{}
@@ -512,6 +520,7 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							Zone:                a.opts.Config.Backend.Region,
 							Firewalls:           sgs,
 							InstanceRunningCost: currentCost,
+							Owner:               owner,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -530,6 +539,7 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							Zone:                a.opts.Config.Backend.Region,
 							Firewalls:           sgs,
 							InstanceRunningCost: currentCost,
+							Owner:               owner,
 						})
 					}
 				}
@@ -1378,8 +1388,9 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool, owner string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
+	a.opts.Inventory.List.Owner = owner
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
