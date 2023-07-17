@@ -366,42 +366,54 @@ func (d *backendAws) getInstancePricesPerHour() (map[string]float64, error) {
 	return prices, nil
 }
 
-func (d *backendAws) Inventory(filterOwner string) (inventoryJson, error) {
+func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (inventoryJson, error) {
 	ij := inventoryJson{}
 
-	tmpl, err := d.ListTemplates()
-	if err != nil {
-		return ij, err
-	}
-	for _, d := range tmpl {
-		arch := "amd64"
-		if d.isArm {
-			arch = "arm64"
+	if inslice.HasInt(inventoryItems, InventoryItemTemplates) {
+		tmpl, err := d.ListTemplates()
+		if err != nil {
+			return ij, err
 		}
-		ij.Templates = append(ij.Templates, inventoryTemplate{
-			AerospikeVersion: d.aerospikeVersion,
-			Distribution:     d.distroName,
-			OSVersion:        d.distroVersion,
-			Arch:             arch,
-		})
+		for _, d := range tmpl {
+			arch := "amd64"
+			if d.isArm {
+				arch = "arm64"
+			}
+			ij.Templates = append(ij.Templates, inventoryTemplate{
+				AerospikeVersion: d.aerospikeVersion,
+				Distribution:     d.distroName,
+				OSVersion:        d.distroVersion,
+				Arch:             arch,
+			})
+		}
 	}
 
-	ij.FirewallRules, err = d.listSecurityGroups(false)
-	if err != nil {
-		return ij, err
+	if inslice.HasInt(inventoryItems, InventoryItemFirewalls) {
+		var err error
+		ij.FirewallRules, err = d.listSecurityGroups(false)
+		if err != nil {
+			return ij, err
+		}
+
+		ijSubnets, err := d.listSubnets(false)
+		if err != nil {
+			return ij, err
+		}
+		for _, ijs := range ijSubnets {
+			ij.Subnets = append(ij.Subnets, inventorySubnet{
+				AWS: ijs,
+			})
+		}
 	}
 
-	ijSubnets, err := d.listSubnets(false)
-	if err != nil {
-		return ij, err
+	nCheckList := []int{}
+	if inslice.HasInt(inventoryItems, InventoryItemClusters) {
+		nCheckList = []int{1}
 	}
-	for _, ijs := range ijSubnets {
-		ij.Subnets = append(ij.Subnets, inventorySubnet{
-			AWS: ijs,
-		})
+	if inslice.HasInt(inventoryItems, InventoryItemClients) {
+		nCheckList = append(nCheckList, 2)
 	}
-
-	for _, i := range []int{1, 2} {
+	for _, i := range nCheckList {
 		if i == 1 {
 			d.WorkOnServers()
 		} else {

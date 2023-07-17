@@ -136,7 +136,7 @@ type backend interface {
 	DeleteNetwork(name string) error
 	PruneNetworks() error
 	ListNetworks(csv bool, writer io.Writer) error
-	Inventory(owner string) (inventoryJson, error)
+	Inventory(owner string, inventoryItems []int) (inventoryJson, error)
 	GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error)
 }
 
@@ -266,3 +266,8 @@ func checkExecRetcode(err error) int {
 	}
 	return 0
 }
+
+var InventoryItemClusters = 1
+var InventoryItemClients = 2
+var InventoryItemFirewalls = 3
+var InventoryItemTemplates = 4

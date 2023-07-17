@@ -32,50 +32,61 @@ func (d *backendDocker) GetInstanceTypes(minCpu int, maxCpu int, minRam float64,
 	return nil, nil
 }
 
-func (d *backendDocker) Inventory(owner string) (inventoryJson, error) {
+func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventoryJson, error) {
 	ij := inventoryJson{}
 
-	tmpl, err := d.ListTemplates()
-	if err != nil {
-		return ij, err
-	}
-	for _, d := range tmpl {
-		arch := "amd64"
-		if d.isArm {
-			arch = "arm64"
+	if inslice.HasInt(inventoryItems, InventoryItemTemplates) {
+		tmpl, err := d.ListTemplates()
+		if err != nil {
+			return ij, err
 		}
-		ij.Templates = append(ij.Templates, inventoryTemplate{
-			AerospikeVersion: d.aerospikeVersion,
-			Distribution:     d.distroName,
-			OSVersion:        d.distroVersion,
-			Arch:             arch,
-		})
+		for _, d := range tmpl {
+			arch := "amd64"
+			if d.isArm {
+				arch = "arm64"
+			}
+			ij.Templates = append(ij.Templates, inventoryTemplate{
+				AerospikeVersion: d.aerospikeVersion,
+				Distribution:     d.distroName,
+				OSVersion:        d.distroVersion,
+				Arch:             arch,
+			})
+		}
 	}
 
-	b := new(bytes.Buffer)
-	err = d.ListNetworks(true, b)
-	if err != nil {
-		return ij, err
-	}
-	for i, line := range strings.Split(b.String(), "\n") {
-		if i == 0 {
-			continue
+	if inslice.HasInt(inventoryItems, InventoryItemFirewalls) {
+		b := new(bytes.Buffer)
+		err := d.ListNetworks(true, b)
+		if err != nil {
+			return ij, err
 		}
-		neta := strings.Split(line, ",")
-		if len(neta) != 4 {
-			continue
+		for i, line := range strings.Split(b.String(), "\n") {
+			if i == 0 {
+				continue
+			}
+			neta := strings.Split(line, ",")
+			if len(neta) != 4 {
+				continue
+			}
+			ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
+				Docker: &inventoryFirewallRuleDocker{
+					NetworkName:   neta[0],
+					NetworkDriver: neta[1],
+					Subnets:       neta[2],
+					MTU:           neta[3],
+				},
+			})
 		}
-		ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
-			Docker: &inventoryFirewallRuleDocker{
-				NetworkName:   neta[0],
-				NetworkDriver: neta[1],
-				Subnets:       neta[2],
-				MTU:           neta[3],
-			},
-		})
 	}
 
-	for _, i := range []int{1, 2} {
+	nCheckList := []int{}
+	if inslice.HasInt(inventoryItems, InventoryItemClusters) {
+		nCheckList = []int{1}
+	}
+	if inslice.HasInt(inventoryItems, InventoryItemClients) {
+		nCheckList = append(nCheckList, 2)
+	}
+	for _, i := range nCheckList {
 		if i == 1 {
 			d.WorkOnServers()
 		} else {
