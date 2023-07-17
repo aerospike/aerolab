@@ -64,3 +64,9 @@ printf "userDestinationPassword" > xdr-dst-password.txt
 aerolab files upload -n src xdr-dst-password.txt /etc/aerospike/xdr-dst-password.txt
 rm xdr-dst-password.txt
 ```
+
+### Restart source cluster
+
+```
+aerolab aerospike restart -n src
+```
