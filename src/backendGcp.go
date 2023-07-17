@@ -493,71 +493,82 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 	return it, nil
 }
 
-func (d *backendGcp) Inventory(filterOwner string) (inventoryJson, error) {
+func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (inventoryJson, error) {
 	ij := inventoryJson{}
 
-	tmpl, err := d.ListTemplates()
-	if err != nil {
-		return ij, err
-	}
-	for _, d := range tmpl {
-		arch := "amd64"
-		if d.isArm {
-			arch = "arm64"
-		}
-		ij.Templates = append(ij.Templates, inventoryTemplate{
-			AerospikeVersion: d.aerospikeVersion,
-			Distribution:     d.distroName,
-			OSVersion:        d.distroVersion,
-			Arch:             arch,
-		})
-	}
-
-	ctx := context.Background()
-	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
-	if err != nil {
-		return ij, fmt.Errorf("NewInstancesRESTClient: %w", err)
-	}
-	defer firewallsClient.Close()
-	req := &computepb.ListFirewallsRequest{
-		Project: a.opts.Config.Backend.Project,
-	}
-	it := firewallsClient.List(ctx, req)
-	for {
-		firewallRule, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
+	if inslice.HasInt(inventoryItems, InventoryItemTemplates) {
+		tmpl, err := d.ListTemplates()
 		if err != nil {
 			return ij, err
 		}
-		allow := []string{}
-		for _, all := range firewallRule.Allowed {
-			allow = append(allow, all.Ports...)
+		for _, d := range tmpl {
+			arch := "amd64"
+			if d.isArm {
+				arch = "arm64"
+			}
+			ij.Templates = append(ij.Templates, inventoryTemplate{
+				AerospikeVersion: d.aerospikeVersion,
+				Distribution:     d.distroName,
+				OSVersion:        d.distroVersion,
+				Arch:             arch,
+			})
 		}
-		deny := []string{}
-		for _, all := range firewallRule.Denied {
-			deny = append(deny, all.Ports...)
-		}
-		ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
-			GCP: &inventoryFirewallRuleGCP{
-				FirewallName: *firewallRule.Name,
-				TargetTags:   firewallRule.TargetTags,
-				SourceTags:   firewallRule.SourceTags,
-				SourceRanges: firewallRule.SourceRanges,
-				AllowPorts:   allow,
-				DenyPorts:    deny,
-			},
-		})
 	}
 
-	for _, i := range []int{1, 2} {
+	if inslice.HasInt(inventoryItems, InventoryItemFirewalls) {
+		ctx := context.Background()
+		firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+		if err != nil {
+			return ij, fmt.Errorf("NewInstancesRESTClient: %w", err)
+		}
+		defer firewallsClient.Close()
+		req := &computepb.ListFirewallsRequest{
+			Project: a.opts.Config.Backend.Project,
+		}
+		it := firewallsClient.List(ctx, req)
+		for {
+			firewallRule, err := it.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return ij, err
+			}
+			allow := []string{}
+			for _, all := range firewallRule.Allowed {
+				allow = append(allow, all.Ports...)
+			}
+			deny := []string{}
+			for _, all := range firewallRule.Denied {
+				deny = append(deny, all.Ports...)
+			}
+			ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
+				GCP: &inventoryFirewallRuleGCP{
+					FirewallName: *firewallRule.Name,
+					TargetTags:   firewallRule.TargetTags,
+					SourceTags:   firewallRule.SourceTags,
+					SourceRanges: firewallRule.SourceRanges,
+					AllowPorts:   allow,
+					DenyPorts:    deny,
+				},
+			})
+		}
+	}
+
+	nCheckList := []int{}
+	if inslice.HasInt(inventoryItems, InventoryItemClusters) {
+		nCheckList = []int{1}
+	}
+	if inslice.HasInt(inventoryItems, InventoryItemClients) {
+		nCheckList = append(nCheckList, 2)
+	}
+	for _, i := range nCheckList {
 		if i == 1 {
 			d.WorkOnServers()
 		} else {
 			d.WorkOnClients()
 		}
-		ctx = context.Background()
+		ctx := context.Background()
 		instancesClient, err := compute.NewInstancesRESTClient(ctx)
 		if err != nil {
 			return ij, fmt.Errorf("newInstancesRESTClient: %w", err)

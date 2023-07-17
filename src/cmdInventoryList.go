@@ -26,7 +26,21 @@ func (c *inventoryListCmd) Execute(args []string) error {
 }
 
 func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool) error {
-	inv, err := b.Inventory(c.Owner)
+	inventoryItems := []int{}
+	if showClusters {
+		inventoryItems = append(inventoryItems, InventoryItemClusters)
+	}
+	if showClients {
+		inventoryItems = append(inventoryItems, InventoryItemClients)
+	}
+	if showTemplates {
+		inventoryItems = append(inventoryItems, InventoryItemTemplates)
+	}
+	if showFirewalls || showSubnets {
+		inventoryItems = append(inventoryItems, InventoryItemFirewalls)
+	}
+
+	inv, err := b.Inventory(c.Owner, inventoryItems)
 	if err != nil {
 		return err
 	}
