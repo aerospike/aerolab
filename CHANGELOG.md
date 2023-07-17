@@ -25,6 +25,7 @@
 * Allow tagging by `owner` during cluster and client creation. Specify owner to always use with `aerolab config defaults -k '*.Owner' -v owner-name-all-lowercase-no-spaces`.
 * Capture outcomes of run commands in internal user telemetry.
 * Add telemetry version into output.
+* Add `conf adjust` to allow for adjusting aerospike configuration on a deployed cluster on the fly.
 
 #### 6.1.0
 * Add extra version check in `client tools` creator.
