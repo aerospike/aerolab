@@ -1,6 +1,6 @@
 package main
 
-var version = "v6.2.0"
+var version = "v6.2.0-dirty"
 
 var telemetryVersion = "3"
 
