@@ -83,4 +83,9 @@ rm -rf aerolab-linux-arm64
 rpmbuild --target=arm64-redhat-linux --buildroot $(pwd)/aerolab-rpm-centos -bb aerolab-rpm-centos/aerolab.spec
 mv aerolab-linux-arm64.rpm final/aerolab-linux-arm64-${ver}.rpm
 
+echo "step 7"
+ver=$(cat ../VERSION.md)
+sed -i.bak "s/^var version = .*/var version = \"v${ver}\"/g" ../src/version.go
+rm -f ../src/version.go.bak
+
 echo "Ready to sign, package and notarize mac binaries"
