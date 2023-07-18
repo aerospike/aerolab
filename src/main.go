@@ -328,6 +328,7 @@ func telemetry() error {
 	currentTelemetry.StartTime = time.Now().UnixMicro()
 	currentTelemetry.CmdLine = os.Args[1:]
 	currentTelemetry.Version = telemetryVersion
+	currentTelemetry.AeroLabVersion = version
 
 	// add changed default values to the item
 	ret := make(chan configValueCmd, 1)
@@ -438,6 +439,7 @@ type telemetryItem struct {
 	EndTime         int64
 	Defaults        []telemetryDefault
 	Version         string
+	AeroLabVersion  string
 	Error           *string
 	Stderr          []string
 	StderrTruncated bool
