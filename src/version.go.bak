@@ -2,6 +2,6 @@ package main
 
 var version = "v6.2.0-1fed7cd"
 
-var telemetryVersion = "3"
+var telemetryVersion = "2"
 
 var simulateArmInstaller = false
