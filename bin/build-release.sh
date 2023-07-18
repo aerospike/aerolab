@@ -6,10 +6,12 @@ which rpmbuild; [ $? -ne 0 ] && brew install rpm
 which upx; [ $? -ne 0 ] && brew install upx
 
 # version
+VVVV="-dirty"
+[ "$1" = "official" ] && VVVV=""
 echo "step 2"
 ver=$(cat ../VERSION.md)
 commit=$(git show --summary |egrep '^commit' |awk '{print $2}'); commit=${commit:0:7}
-sed -i.bak "s/^var version = .*/var version = \"v${ver}-${commit}\"/g" ../src/version.go
+sed -i.bak "s/^var version = .*/var version = \"v${ver}-${commit}${VVVV}\"/g" ../src/version.go
 rm -f ../src/version.go.bak
 
 # cleanup
@@ -85,7 +87,7 @@ mv aerolab-linux-arm64.rpm final/aerolab-linux-arm64-${ver}.rpm
 
 echo "step 7"
 ver=$(cat ../VERSION.md)
-sed -i.bak "s/^var version = .*/var version = \"v${ver}\"/g" ../src/version.go
+sed -i.bak "s/^var version = .*/var version = \"v${ver}-dirty\"/g" ../src/version.go
 rm -f ../src/version.go.bak
 
 echo "Ready to sign, package and notarize mac binaries"
