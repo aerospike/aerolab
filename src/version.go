@@ -6,7 +6,7 @@ import (
 )
 
 //go:generate sh -c "git rev-parse --short HEAD > embed_commit.txt"
-//go:generate sh -c "git rev-parse --abbrev-ref HEAD > embed_branch.txt"
+//go:generate sh -c "cat ../VERSION.md > embed_branch.txt"
 //go:generate sh -c "echo '-unofficial' > embed_tail.txt"
 
 //go:embed embed_commit.txt
@@ -18,7 +18,7 @@ var vBranch string
 //go:embed embed_tail.txt
 var vEdition string
 
-var version = strings.Trim(vBranch, "\t\r\n ") + "-" + strings.Trim(vCommit, "\t\r\n ") + strings.Trim(vEdition, "\t\r\n ")
+var version = "v" + strings.Trim(vBranch, "\t\r\n ") + "-" + strings.Trim(vCommit, "\t\r\n ") + strings.Trim(vEdition, "\t\r\n ")
 
 var telemetryVersion = "3"
 
