@@ -22,8 +22,15 @@ func init() {
 }
 
 func (c *xdrCreateClustersCmd) Execute(args []string) error {
-	if earlyProcess(args) {
+	if earlyProcessV2(nil, true) {
 		return nil
+	}
+	if inslice.HasString(args, "help") {
+		if a.opts.Config.Backend.Type == "docker" {
+			printHelp("The aerolab command can be optionally followed by '--' and then extra switches that will be passed directory to Docker. Ex: aerolab xdr create-clusters -- -v local:remote --device-read-bps=...\n\n")
+		} else {
+			printHelp("")
+		}
 	}
 
 	log.Print("Running xdr.create-clusters")

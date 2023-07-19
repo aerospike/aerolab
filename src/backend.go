@@ -24,7 +24,7 @@ type backendExtra struct {
 	swapLimit          string   // docker only
 	privileged         bool     // docker only
 	exposePorts        []string // docker only
-	switches           string   // docker only
+	switches           []string // docker only
 	dockerHostname     bool     // docker only
 	network            string   // docker only
 	securityGroupID    string   // aws only
