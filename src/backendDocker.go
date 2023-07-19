@@ -583,7 +583,7 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 			exposeList = append(exposeList, "--hostname", name+"-"+strconv.Itoa(node))
 		}
 		if len(extra.switches) > 0 {
-			exposeList = append(exposeList, strings.Split(extra.switches, " ")...)
+			exposeList = append(exposeList, extra.switches...)
 		}
 		for _, ep := range extra.exposePorts {
 			exposeList = append(exposeList, "-p", ep)

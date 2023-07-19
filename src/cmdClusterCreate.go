@@ -40,7 +40,6 @@ type clusterCreateCmd struct {
 	Docker                clusterCreateCmdDocker `no-flag:"true"`
 	Owner                 string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
-	Help                  helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type osSelectorCmd struct {
@@ -91,7 +90,6 @@ type clusterCreateCmdGcp struct {
 }
 
 type clusterCreateCmdDocker struct {
-	ExtraFlags        string `short:"F" long:"extra-flags" description:"Additional flags to pass to docker, Ex: -F '-v /local:/remote'"`
 	ExposePortsToHost string `short:"e" long:"expose-ports" description:"Only on docker, if a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
 	CpuLimit          string `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
 	RamLimit          string `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
@@ -178,8 +176,15 @@ func printPrice(isArm bool, zone string, iType string, instances int) {
 }
 
 func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
-	if earlyProcess(args) {
+	if earlyProcessV2(nil, true) {
 		return nil
+	}
+	if inslice.HasString(args, "help") {
+		if a.opts.Config.Backend.Type == "docker" {
+			printHelp("The aerolab command can be optionally followed by '--' and then extra switches that will be passed directory to Docker. Ex: aerolab cluster create -c 2 -n bob -- -v local:remote --device-read-bps=...\n\n")
+		} else {
+			printHelp("")
+		}
 	}
 
 	if !isGrow {
@@ -359,7 +364,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		privileged:      c.Docker.Privileged,
 		network:         c.Docker.NetworkName,
 		exposePorts:     ep,
-		switches:        c.Docker.ExtraFlags,
+		switches:        args,
 		dockerHostname:  !c.NoSetHostname,
 		ami:             c.Aws.AMI,
 		instanceType:    c.Aws.InstanceType,

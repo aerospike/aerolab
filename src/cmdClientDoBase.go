@@ -22,10 +22,9 @@ type clientCreateBaseCmd struct {
 	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
 	osSelectorCmd
-	ParallelThreads int     `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	PriceOnly       bool    `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
-	Owner           string  `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	Help            helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ParallelThreads int    `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	PriceOnly       bool   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Owner           string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 }
 
 func (c *clientCreateBaseCmd) isGrow() bool {
@@ -36,8 +35,15 @@ func (c *clientCreateBaseCmd) isGrow() bool {
 }
 
 func (c *clientCreateBaseCmd) Execute(args []string) error {
-	if earlyProcess(args) {
+	if earlyProcessV2(nil, true) {
 		return nil
+	}
+	if inslice.HasString(args, "help") {
+		if a.opts.Config.Backend.Type == "docker" {
+			printHelp("The aerolab command can be optionally followed by '--' and then extra switches that will be passed directory to Docker. Ex: aerolab cluster create -c 2 -n bob -- -v local:remote --device-read-bps=...\n\n")
+		} else {
+			printHelp("")
+		}
 	}
 	_, err := c.createBase(args, "base")
 	return err
@@ -134,7 +140,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		privileged:      c.Docker.Privileged,
 		network:         c.Docker.NetworkName,
 		exposePorts:     ep,
-		switches:        c.Docker.ExtraFlags,
+		switches:        args,
 		dockerHostname:  !c.NoSetHostname,
 		ami:             c.Aws.AMI,
 		instanceType:    c.Aws.InstanceType,

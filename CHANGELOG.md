@@ -27,6 +27,7 @@
 * Add telemetry version into output.
 * Add `conf adjust` to allow for adjusting aerospike configuration on a deployed cluster on the fly.
 * Move to using `Makefiles` for build and linux packaging process.
+* Fix handling of extra docker flags in docker backend.
 
 #### 6.1.0
 * Add extra version check in `client tools` creator.
