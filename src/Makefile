@@ -4,8 +4,8 @@
 .PHONY: help
 help:
 	@printf "\nSHORTHANDS:\n\
-	\tmake build install                         - build and install on current system\n\
-	\tmake build-linux pkg-linux                 - build and package all linux releases\n\
+	\tmake build && make install                 - build and install on current system\n\
+	\tmake build-linux && make pkg-linux         - build and package all linux releases\n\
 	\n\
 	BUILD COMMANDS:\n\
 	\tbuild              - A version for the current system\n\
@@ -22,6 +22,7 @@ help:
 	\n\
 	CLEAN COMMANDS:\n\
 	\tclean              - Remove remainders of a build and reset source modified during build\n\
+	\tcleanall           - Clean and remove all created packages\n\
 	\n\
 	PACKAGING COMMANDS:\n\
 	\tpkg-linux          - Package all linux packages - zip, rpm and deb\n\
@@ -42,28 +43,32 @@ help:
 build: run_build
 
 .PHONY: buildall
-buildall: clean prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin reset2
+buildall: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin reset2
 
 .PHONY: build-linux-amd64
-build-linux-amd64: clean prep compile_linux_wip_arm64 reset1 compile_linux_amd64 reset2
+build-linux-amd64: prep compile_linux_wip_arm64 reset1 compile_linux_amd64 reset2
 
 .PHONY: build-linux-arm64
-build-linux-arm64: clean prep compile_linux_wip_amd64 reset1 compile_linux_arm64 reset2
+build-linux-arm64: prep compile_linux_wip_amd64 reset1 compile_linux_arm64 reset2
 
 .PHONY: build-linux
-build-linux: clean prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2
+build-linux: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2
 
 .PHONY: build-darwin-amd64
-build-darwin-amd64: clean prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin_amd64 reset2
+build-darwin-amd64: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin_amd64 reset2
 
 .PHONY: build-darwin-arm64
-build-darwin-arm64: clean prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin_arm64 reset2
+build-darwin-arm64: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin_arm64 reset2
 
 .PHONY: build-darwin
-build-darwin: clean prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2
+build-darwin: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2
 
 .PHONY: install
 install: run_install
+
+.PHONY: cleanall
+cleanall: clean
+	rm -f ../bin/packages/*
 
 .PHONY: clean
 clean:
@@ -76,7 +81,6 @@ clean:
 	rm -f aerolab-macos-arm64
 	rm -f embed_*.txt
 	rm -f ../bin/aerolab-*
-	rm -f ../bin/packages/*
 	rm -f ../bin/deb
 	rm -f ../bin/deb.deb
 	rm -f ../bin/aerolab
@@ -218,7 +222,7 @@ compile_darwin_arm64:
 	mv aerolab-macos-arm64 ../bin/
 
 .PHONY: official
-official: clean prep
+official: prep
 	printf "" > embed_tail.txt
 
 .PHONY: build-official
@@ -267,6 +271,7 @@ ifeq (, $(shell which zip))
 $(error "No zip in $(PATH), install zip package")
 endif
 	cp ../bin/aerolab-linux-amd64 ../bin/aerolab
+	rm -f ../bin/packages/aerolab-linux-amd64-${ver}.zip
 	bash -ce "cd ../bin && zip packages/aerolab-linux-amd64-${ver}.zip aerolab"
 	rm -f ../bin/aerolab
 
@@ -276,6 +281,7 @@ ifeq (, $(shell which zip))
 $(error "No zip in $(PATH), install zip package")
 endif
 	cp ../bin/aerolab-linux-arm64 ../bin/aerolab
+	rm -f ../bin/packages/aerolab-linux-arm64-${ver}.zip
 	bash -ce "cd ../bin && zip packages/aerolab-linux-arm64-${ver}.zip aerolab"
 	rm -f ../bin/aerolab
 
@@ -287,10 +293,13 @@ pkg-rpm-amd64:
 ifeq (, $(shell which rpmbuild))
 $(error "No rpmbuild in $(PATH), install rpmbuild package")
 endif
+	rm -rf ../bin/aerolab-rpm-centos
 	cp -a ../bin/aerolabrpm ../bin/aerolab-rpm-centos
 	sed -i.bak "s/VERSIONHERE/${ver}/g" ../bin/aerolab-rpm-centos/aerolab.spec
 	cp ../bin/aerolab-linux-amd64 ../bin/aerolab-rpm-centos/usr/bin/aerolab
+	rm -f ../bin/aerolab-linux-x86_64.rpm
 	bash -ce "cd ../bin && rpmbuild --target=x86_64-redhat-linux --buildroot \$$(pwd)/aerolab-rpm-centos -bb aerolab-rpm-centos/aerolab.spec"
+	rm -f ../bin/packages/aerolab-linux-amd64-${ver}.rpm
 	mv ../bin/aerolab-linux-x86_64.rpm ../bin/packages/aerolab-linux-amd64-${ver}.rpm
 
 .PHONY: pkg-rpm-arm64
@@ -298,10 +307,13 @@ pkg-rpm-arm64:
 ifeq (, $(shell which rpmbuild))
 $(error "No rpmbuild in $(PATH), install rpmbuild package")
 endif
+	rm -rf ../bin/aerolab-rpm-centos
 	cp -a ../bin/aerolabrpm ../bin/aerolab-rpm-centos
 	sed -i.bak "s/VERSIONHERE/${ver}/g" ../bin/aerolab-rpm-centos/aerolab.spec
 	cp ../bin/aerolab-linux-arm64 ../bin/aerolab-rpm-centos/usr/bin/aerolab
+	rm -f ../bin/aerolab-linux-arm64.rpm
 	bash -ce "cd ../bin && rpmbuild --target=arm64-redhat-linux --buildroot \$$(pwd)/aerolab-rpm-centos -bb aerolab-rpm-centos/aerolab.spec"
+	rm -f ../bin/packages/aerolab-linux-arm64-${ver}.rpm
 	mv ../bin/aerolab-linux-arm64.rpm ../bin/packages/aerolab-linux-arm64-${ver}.rpm
 
 .PHONY: pkg-rpm
