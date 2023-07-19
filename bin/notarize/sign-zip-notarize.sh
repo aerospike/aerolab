@@ -77,7 +77,7 @@ while true; do
     echo ""
     cat notarization_progress
     echo "Notarization succeeded"
-    mv ${FILE} ../final/${FILE_NZIP}-${ver}.zip
+    mv ${FILE} ../packages/${FILE_NZIP}-${ver}.zip
     break
   elif grep -q "Status: in progress" notarization_progress; then
     continue
