@@ -21,6 +21,9 @@ macOS | `aerolab-macos-*` | Native macOS binary, compiled for x86_64 and M serie
 Linux | `aerolab-linux-*` | Native package for Linux (all x86_64 and ARM64 distros)
 Windows | `aerolab-linux-*` | Install and start using [WSL2](https://learn.microsoft.com/en-us/windows/wsl/about) on Windows
 
+## Manual build
+
+See [this document](docs/building.md) for manually building AeroLab (not recommended).
 
 ## Supported backends
 
