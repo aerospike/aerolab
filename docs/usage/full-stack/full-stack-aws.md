@@ -93,7 +93,7 @@ aerolab client destroy -f -n ${ams_name}
 ### Get IP address of a cluster node
 
 ```
-NODEIP=$(aerolab cluster list -j |grep -A7 ${cluster_name} |grep IpAddress |head -1 |egrep -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
+NODEIP=$(aerolab cluster list -i |grep ${cluster_name} |head -1 |egrep -o 'ext_ip=.*' |awk -F'=' '{print $2}')
 echo "Seed: ${NODEIP}"
 ```
 
