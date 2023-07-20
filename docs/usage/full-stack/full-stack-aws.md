@@ -103,6 +103,12 @@ echo "Seed: ${NODEIP}"
 aerolab client attach -n ${client_name} -l all --detach -- /bin/bash -c "run_asbench -h ${NODEIP}:3000 -U superman -Pkrypton -n ${namespace} -s \$(hostname) --latency -b testbin -K 0 -k 1000000 -z 16 -t 0 -o I1 -w I --socket-timeout 200 --timeout 1000 -B allowReplica --max-retries 2"
 ```
 
+### Check if `asbench` is running
+
+```
+aerolab client attach -n ${client_name} -l all -- ps -ef |grep asbench
+```
+
 ### Stop `asbench`
 
 ```
