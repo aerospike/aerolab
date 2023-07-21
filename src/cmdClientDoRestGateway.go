@@ -168,6 +168,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 	log.Print("Documentation can be found at: https://aerospike.github.io/aerospike-rest-gateway/")
 	log.Print("Rest gateway logs are on the nodes in /var/log/, use 'client attach' command to explore the logs; connect with browser or curl to get the data")
 	log.Print("Startup parameters are in /opt/autoload/01-restgw.sh on each node")
+	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 7.2 and the current client creation methods will be removed in AeroLab 8.0")
 	return nil
 }
 
