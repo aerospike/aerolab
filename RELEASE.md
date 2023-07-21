@@ -14,6 +14,9 @@ See [the documentation](https://github.com/aerospike/aerolab/blob/v7.0.0/README.
 * Add option to map and expose ports in Docker backend on a 1:1 pairing (eg 3100 node 1, 3101 node 2 etc) - so not workarounds are needed to access Aerospike clusters on Docker Desktop from the Desktop.
 * AeroLab Support for deploying Amazon 2023 server >= 6.4.
 * AeroLab Support for deploying Debian 12 server >= 6.4.
+* Add MacOS packaging and signing to makefile to move fully away from bash scripts.
+* Add deprecation warning around client machines and how they are handled in 8.0.
+* Message INFO at end of cluster create pointing user at AMS documentation informing them ams exists.
 
 ### Download aerolab from Assets below
 
