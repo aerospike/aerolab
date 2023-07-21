@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -13,7 +12,7 @@ import (
 )
 
 type aerospikeUpgradeCmd struct {
-	aerospikeStartCmd
+	aerospikeStartSelectorCmd
 	aerospikeVersionSelectorCmd
 	Aws              aerospikeUpgradeCmdAws `no-flag:"true"`
 	Gcp              aerospikeUpgradeCmdAws `no-flag:"true"`
@@ -142,7 +141,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		return err
 	}
 	defer fnContents.Close()
-	err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/root/upgrade.tgz", fnContents, pfilelen}}, nodeList)
+	err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/root/upgrade.tgz", fnContents, pfilelen}}, nodeList)
 	if err != nil {
 		return err
 	}
@@ -177,7 +176,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// recover aerospike.conf backup
-		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", bytes.NewReader(nfile), len(nfile)}}, []int{i})
+		err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", string(nfile), len(nfile)}}, []int{i})
 		if err != nil {
 			return err
 		}

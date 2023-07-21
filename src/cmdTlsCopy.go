@@ -1,12 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/bestmethod/inslice"
 )
@@ -19,6 +20,7 @@ type tlsCopyCmd struct {
 	DestinationNodeList    TypeNodes       `short:"a" long:"destination-nodes" description:"List of destination nodes to copy the TLS certs to, comma separated. Empty=ALL." default:""`
 	IsDestinationClient    bool            `short:"C" long:"destination-client" description:"set to indicate the destination cluster is a client group"`
 	TlsName                string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
+	ParallelThreads        int             `short:"T" long:"threads" description:"Use this many threads in parallel when uploading the certificates to nodes" default:"50"`
 	Help                   helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -122,20 +124,52 @@ func (c *tlsCopyCmd) Execute(args []string) error {
 			return err
 		}
 		nout := out[0]
-		fl = append(fl, fileList{path.Join("/etc/aerospike/ssl/", c.TlsName, file), bytes.NewReader(nout), len(nout)})
+		fl = append(fl, fileList{path.Join("/etc/aerospike/ssl/", c.TlsName, file), string(nout), len(nout)})
 	}
 	b.WorkOnServers()
 	if c.IsDestinationClient {
 		b.WorkOnClients()
 	}
-	_, err = b.RunCommands(string(c.DestinationClusterName), [][]string{{"rm", "-rf", path.Join("/etc/aerospike/ssl/", c.TlsName)}, {"mkdir", "-p", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, nodesList)
-	if err != nil {
-		return err
-	}
 
-	err = b.CopyFilesToCluster(string(c.DestinationClusterName), fl, nodesList)
-	if err != nil {
-		return err
+	if c.ParallelThreads == 1 || len(nodesList) == 1 {
+		_, err = b.RunCommands(string(c.DestinationClusterName), [][]string{{"rm", "-rf", path.Join("/etc/aerospike/ssl/", c.TlsName)}, {"mkdir", "-p", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, nodesList)
+		if err != nil {
+			return err
+		}
+
+		err = b.CopyFilesToCluster(string(c.DestinationClusterName), fl, nodesList)
+		if err != nil {
+			return err
+		}
+	} else {
+		parallel := make(chan int, c.ParallelThreads)
+		hasError := make(chan bool, len(nodesList))
+		wait := new(sync.WaitGroup)
+		for _, node := range nodesList {
+			parallel <- 1
+			wait.Add(1)
+			go func(node int, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+				defer func() {
+					<-parallel
+					wait.Done()
+				}()
+				_, err := b.RunCommands(string(c.DestinationClusterName), [][]string{{"rm", "-rf", path.Join("/etc/aerospike/ssl/", c.TlsName)}, {"mkdir", "-p", path.Join("/etc/aerospike/ssl/", c.TlsName)}}, []int{node})
+				if err != nil {
+					log.Println(err)
+					hasError <- true
+				}
+
+				err = b.CopyFilesToCluster(string(c.DestinationClusterName), fl, []int{node})
+				if err != nil {
+					log.Println(err)
+					hasError <- true
+				}
+			}(node, parallel, wait, hasError)
+		}
+		wait.Wait()
+		if len(hasError) > 0 {
+			return fmt.Errorf("failed to get logs from %d nodes", len(hasError))
+		}
 	}
 	b.WorkOnServers()
 	log.Print("Done")

@@ -6,6 +6,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync"
 )
 
 type clusterPartitionMkfsCmd struct {
@@ -18,6 +19,7 @@ type clusterPartitionMkfsCmd struct {
 	MkfsOpts         string          `short:"s" long:"fs-options" description:"filesystem mkfs options" default:""`
 	MountRoot        string          `short:"r" long:"mount-root" description:"path to where all the mounts will be created" default:"/mnt/"`
 	MountOpts        string          `short:"o" long:"mount-options" description:"additional mount options to pass, ex: noatime,noexec" default:""`
+	ParallelThreads  int             `short:"T" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
 	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -45,6 +47,7 @@ func (c *clusterPartitionMkfsCmd) Execute(args []string) error {
 	a.opts.Cluster.Partition.List.FilterDisks = c.FilterDisks
 	a.opts.Cluster.Partition.List.FilterType = c.FilterType
 	a.opts.Cluster.Partition.List.FilterPartitions = c.FilterPartitions
+	a.opts.Cluster.Partition.List.ParallelThreads = c.ParallelThreads
 	d, err := a.opts.Cluster.Partition.List.run(false)
 	if err != nil {
 		return err
@@ -63,6 +66,9 @@ func (c *clusterPartitionMkfsCmd) Execute(args []string) error {
 		filterPartCount = len(filterPartitions)
 	}
 	nodes := []int{}
+	parallel := make(chan int, c.ParallelThreads)
+	hasError := make(chan bool, len(nodes))
+	wait := new(sync.WaitGroup)
 	for nodeNo, disks := range d {
 		script := makePartCommand()
 		diskCount := 0
@@ -100,19 +106,70 @@ func (c *clusterPartitionMkfsCmd) Execute(args []string) error {
 			return fmt.Errorf("could not find all the required disks on node %d", nodeNo)
 		}
 		nodes = append(nodes, nodeNo)
-		err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/mkfs.disks.sh", strings.NewReader(script.String()), script.Len()}}, []int{nodeNo})
-		if err != nil {
-			return err
+		if c.ParallelThreads == 1 {
+			err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/mkfs.disks.sh", script.String(), script.Len()}}, []int{nodeNo})
+			if err != nil {
+				return err
+			}
+		} else {
+			parallel <- 1
+			wait.Add(1)
+			go func(script partcommand, nodeNo int, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+				defer func() {
+					<-parallel
+					wait.Done()
+				}()
+				err := b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/opt/mkfs.disks.sh", script.String(), script.Len()}}, []int{nodeNo})
+				if err != nil {
+					fmt.Printf("Node %d error: %s", nodeNo, err)
+					hasError <- true
+				}
+			}(script, nodeNo, parallel, wait, hasError)
 		}
 	}
+	wait.Wait()
+	if len(hasError) > 0 {
+		return fmt.Errorf("failed from %d nodes", len(hasError))
+	}
 	sort.Ints(nodes)
-	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "/opt/mkfs.disks.sh"}}, nodes)
-	if err != nil {
-		nout := ""
-		for _, o := range out {
-			nout = nout + "\n" + string(o)
+
+	if c.ParallelThreads == 1 {
+		out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "/opt/mkfs.disks.sh"}}, nodes)
+		if err != nil {
+			nout := ""
+			for _, o := range out {
+				nout = nout + "\n" + string(o)
+			}
+			return fmt.Errorf("%s: %s", err, nout)
 		}
-		return fmt.Errorf("%s: %s", err, nout)
+	} else {
+		parallel = make(chan int, c.ParallelThreads)
+		hasError = make(chan bool, len(nodes))
+		wait = new(sync.WaitGroup)
+		for _, node := range nodes {
+			parallel <- 1
+			wait.Add(1)
+			go func(nodeNo int, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+				defer func() {
+					<-parallel
+					wait.Done()
+				}()
+				out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "/opt/mkfs.disks.sh"}}, []int{nodeNo})
+				if err != nil {
+					nout := ""
+					for _, o := range out {
+						nout = nout + "\n" + string(o)
+					}
+					log.Printf("Node %d: %s: %s", nodeNo, err, nout)
+					hasError <- true
+				}
+			}(node, parallel, wait, hasError)
+
+		}
+		wait.Wait()
+		if len(hasError) > 0 {
+			return fmt.Errorf("failed from %d nodes", len(hasError))
+		}
 	}
 	log.Print("Done")
 	return nil

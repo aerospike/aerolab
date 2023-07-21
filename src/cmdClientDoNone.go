@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strings"
 
+	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
@@ -21,7 +21,9 @@ type clientCreateNoneCmd struct {
 	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
 	osSelectorCmd
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ParallelThreads int    `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	PriceOnly       bool   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Owner           string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 }
 
 func (c *clientCreateNoneCmd) isGrow() bool {
@@ -32,7 +34,31 @@ func (c *clientCreateNoneCmd) isGrow() bool {
 }
 
 func (c *clientCreateNoneCmd) Execute(args []string) error {
-	if earlyProcess(args) {
+	if earlyProcessV2(nil, true) {
+		return nil
+	}
+	if inslice.HasString(args, "help") {
+		if a.opts.Config.Backend.Type == "docker" {
+			printHelp("The aerolab command can be optionally followed by '--' and then extra switches that will be passed directory to Docker. Ex: aerolab cluster create -c 2 -n bob -- -v local:remote --device-read-bps=...\n\n")
+		} else {
+			printHelp("")
+		}
+	}
+	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
+		return logFatal("Docker backend does not support pricing")
+	}
+	iType := c.Aws.InstanceType
+	if a.opts.Config.Backend.Type == "gcp" {
+		iType = c.Gcp.InstanceType
+	}
+	isArm := c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		isArm = c.Gcp.IsArm
+	}
+	if a.opts.Config.Backend.Type != "docker" {
+		printPrice(isArm, c.Gcp.Zone, iType, c.ClientCount)
+	}
+	if c.PriceOnly {
 		return nil
 	}
 	_, err := c.createBase(args, "none")
@@ -113,7 +139,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		privileged:      c.Docker.Privileged,
 		network:         c.Docker.NetworkName,
 		exposePorts:     ep,
-		switches:        c.Docker.ExtraFlags,
+		switches:        args,
 		dockerHostname:  !c.NoSetHostname,
 		ami:             c.Aws.AMI,
 		instanceType:    c.Aws.InstanceType,
@@ -122,6 +148,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		subnetID:        c.Aws.SubnetID,
 		publicIP:        c.Aws.PublicIP,
 		tags:            c.Aws.Tags,
+		clientType:      strings.ToLower(nt),
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra = &backendExtra{
@@ -132,6 +159,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			disks:        c.Gcp.Disks,
 			zone:         c.Gcp.Zone,
 			labels:       c.Gcp.Labels,
+			clientType:   strings.ToLower(nt),
 		}
 	}
 
@@ -158,8 +186,10 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	log.Printf("Distro: %s Version: %s", string(c.DistroName), string(c.DistroVersion))
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
+		extra.labels = append(extra.labels, "owner="+c.Owner)
 	} else {
 		extra.firewallNamePrefix = c.Aws.NamePrefix
+		extra.tags = append(extra.tags, "owner="+c.Owner)
 	}
 	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {
@@ -182,15 +212,17 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			nodeListNew = append(nodeListNew, i)
 		}
 	}
-
-	// set hostnames for cloud
+	var nip map[int]string
 	if a.opts.Config.Backend.Type != "docker" && !c.NoSetHostname {
-		nip, err := b.GetNodeIpMap(string(c.ClientName), false)
+		nip, err = b.GetNodeIpMap(string(c.ClientName), false)
 		if err != nil {
 			return nil, err
 		}
 		log.Printf("Node IP map: %v", nip)
-		for _, nnode := range nodeListNew {
+	}
+	returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(nnode int) error {
+		// set hostnames for cloud
+		if a.opts.Config.Backend.Type != "docker" && !c.NoSetHostname {
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClientName), nnode)
 			newHostname = strings.ReplaceAll(newHostname, "_", "-")
 			hComm := [][]string{
@@ -198,41 +230,53 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			}
 			nr, err := b.RunCommands(string(c.ClientName), hComm, []int{nnode})
 			if err != nil {
-				return nil, fmt.Errorf("could not set hostname: %s:%s", err, nr)
+				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
 			}
 			nr, err = b.RunCommands(string(c.ClientName), [][]string{{"sed", "s/" + nip[nnode] + ".*//g", "/etc/hosts"}}, []int{nnode})
 			if err != nil {
-				return nil, fmt.Errorf("could not set hostname: %s:%s", err, nr)
+				return fmt.Errorf("could not set hostname: %s:%s", err, nr)
 			}
 			nr[0] = append(nr[0], []byte(fmt.Sprintf("\n%s %s-%d\n", nip[nnode], string(c.ClientName), nnode))...)
 			hst := fmt.Sprintf("%s-%d\n", string(c.ClientName), nnode)
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hostname", strings.NewReader(hst), len(hst)}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hostname", hst, len(hst)}}, []int{nnode})
 			if err != nil {
-				return nil, err
+				return err
 			}
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hosts", bytes.NewReader(nr[0]), len(nr[0])}}, []int{nnode})
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/hosts", string(nr[0]), len(nr[0])}}, []int{nnode})
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
-	}
 
-	// install early/late scripts
-	if string(c.StartScript) != "" {
-		StartScriptFile, err := os.Open(string(c.StartScript))
-		if err != nil {
-			log.Printf("ERROR: could not install early script: %s", err)
-		} else {
-			defer StartScriptFile.Close()
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/usr/local/bin/start.sh", StartScriptFile, int(startScriptSize.Size())}}, nodeListNew)
+		// install early/late scripts
+		if string(c.StartScript) != "" {
+			StartScriptFile, err := os.Open(string(c.StartScript))
 			if err != nil {
 				log.Printf("ERROR: could not install early script: %s", err)
+			} else {
+				err = b.CopyFilesToClusterReader(string(c.ClientName), []fileListReader{{"/usr/local/bin/start.sh", StartScriptFile, int(startScriptSize.Size())}}, []int{nnode})
+				if err != nil {
+					log.Printf("ERROR: could not install early script: %s", err)
+				}
+				StartScriptFile.Close()
 			}
+		} else {
+			emptyStart := "#!/bin/bash\ndate"
+			StartScriptFile := strings.NewReader(emptyStart)
+			b.CopyFilesToClusterReader(string(c.ClientName), []fileListReader{{"/usr/local/bin/start.sh", StartScriptFile, len(emptyStart)}}, []int{nnode})
 		}
-	} else {
-		emptyStart := "#!/bin/bash\ndate"
-		StartScriptFile := strings.NewReader(emptyStart)
-		b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/usr/local/bin/start.sh", StartScriptFile, len(emptyStart)}}, nodeListNew)
+		return nil
+	})
+
+	isError := false
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %d returned %s", nodeListNew[i], ret)
+			isError = true
+		}
+	}
+	if isError {
+		return nil, errors.New("some nodes returned errors")
 	}
 
 	log.Println("Done")

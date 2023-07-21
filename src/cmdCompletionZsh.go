@@ -29,7 +29,11 @@ func (c *completionZshCmd) Execute(args []string) error {
 	completionBash = fmt.Sprintf(completionBash, "[ ${#COMP_WORDS[@]} -eq ${COMP_CWORD} ] && COMP_WORDS+=(\"\")", extra)
 
 	if c.NoInstall {
+		fmt.Println("--- SCRIPT START ---")
 		fmt.Println(completionBash)
+		fmt.Println("\n--- RC FILE .zshrc CONTENTS ---")
+		fmt.Println("autoload -Uz compinit bashcompinit && compinit && bashcompinit\nsource ${HOME}/.aerolab.completion.zsh")
+		fmt.Println("\n--- END ---")
 		return nil
 	}
 

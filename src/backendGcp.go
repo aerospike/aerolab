@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/bestmethod/inslice"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/api/cloudbilling/v1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/proto"
 )
@@ -70,6 +72,9 @@ var (
 	gcpTagOperatingSystem  = gcpServerTagOperatingSystem
 	gcpTagOSVersion        = gcpServerTagOSVersion
 	gcpTagAerospikeVersion = gcpServerTagAerospikeVersion
+	gcpTagCostPerHour      = "aerolab_cost_ph"
+	gcpTagCostLastRun      = "aerolab_cost_sofar"
+	gcpTagCostStartTime    = "aerolab_cost_starttime"
 )
 
 func (d *backendGcp) WorkOnClients() {
@@ -96,10 +101,291 @@ func (d *backendGcp) WorkOnServers() {
 	gcpTagAerospikeVersion = gcpServerTagAerospikeVersion
 }
 
-func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
-	if gcpZone == "" {
-		return nil, errors.New("GCP Zone is required, specify with --zone")
+type gcpInstancePricing struct {
+	perCoreHour  float64
+	perRamGBHour float64
+	gpuPriceHour float64
+	gpuUltraHour float64
+}
+
+// map[instanceTypePrefix]gcpInstancePricing
+func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInstancePricing, error) {
+	zoneTest := strings.Split(zone, "-")
+	if len(zoneTest) > 2 {
+		zone = zoneTest[0] + "-" + zoneTest[1]
 	}
+	prices := make(map[string]*gcpInstancePricing)
+	ctx := context.Background()
+	svc, err := cloudbilling.NewService(ctx)
+	if err != nil {
+		return prices, err
+	}
+	srv := cloudbilling.NewServicesSkusService(svc)
+	call := srv.List("services/6F81-5844-456A").CurrencyCode("USD")
+	err = call.Pages(ctx, func(resp *cloudbilling.ListSkusResponse) error {
+		for _, i := range resp.Skus {
+			if i.Category.ResourceFamily != "Compute" {
+				continue
+			}
+			if i.Category.UsageType != "OnDemand" {
+				continue
+			}
+			if !inslice.HasString(i.ServiceRegions, zone) {
+				continue
+			}
+			iGroup := strings.Split(i.Description, " ")
+			if len(iGroup) < 6 {
+				continue
+			}
+			if i.Category.ResourceGroup == "GPU" && iGroup[0] == "Nvidia" {
+				grp := ""
+				if strings.HasPrefix(i.Description, "Nvidia Tesla A100 GPU ") {
+					grp = "a2"
+				} else if strings.HasPrefix(i.Description, "Nvidia Tesla A100 80GB GPU ") {
+					grp = "a2"
+				} else if strings.HasPrefix(i.Description, "Nvidia L4 GPU ") {
+					grp = "g2"
+				} else {
+					continue
+				}
+				if _, ok := prices[grp]; !ok {
+					prices[grp] = &gcpInstancePricing{}
+				}
+				if strings.HasPrefix(i.Description, "Nvidia Tesla A100 GPU ") {
+					for _, j := range i.PricingInfo {
+						if j.PricingExpression == nil {
+							continue
+						}
+						if j.PricingExpression.UsageUnit != "h" {
+							continue
+						}
+						for _, x := range j.PricingExpression.TieredRates {
+							if x.UnitPrice == nil {
+								continue
+							}
+							if x.UnitPrice.CurrencyCode != "USD" {
+								continue
+							}
+							prices[grp].gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
+					}
+				} else if strings.HasPrefix(i.Description, "Nvidia Tesla A100 80GB GPU ") {
+					for _, j := range i.PricingInfo {
+						if j.PricingExpression == nil {
+							continue
+						}
+						if j.PricingExpression.UsageUnit != "h" {
+							continue
+						}
+						for _, x := range j.PricingExpression.TieredRates {
+							if x.UnitPrice == nil {
+								continue
+							}
+							if x.UnitPrice.CurrencyCode != "USD" {
+								continue
+							}
+							prices[grp].gpuUltraHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
+					}
+				} else if strings.HasPrefix(i.Description, "Nvidia L4 GPU ") {
+					for _, j := range i.PricingInfo {
+						if j.PricingExpression == nil {
+							continue
+						}
+						if j.PricingExpression.UsageUnit != "h" {
+							continue
+						}
+						for _, x := range j.PricingExpression.TieredRates {
+							if x.UnitPrice == nil {
+								continue
+							}
+							if x.UnitPrice.CurrencyCode != "USD" {
+								continue
+							}
+							prices[grp].gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
+					}
+				}
+				continue
+			}
+			if len(i.PricingInfo) == 0 || i.PricingInfo[0].PricingExpression == nil || len(i.PricingInfo[0].PricingExpression.TieredRates) == 0 {
+				continue
+			}
+			if i.Category.ResourceGroup == "G1Small" {
+				for _, j := range i.PricingInfo {
+					if j.PricingExpression == nil {
+						continue
+					}
+					if j.PricingExpression.UsageUnit != "h" {
+						continue
+					}
+					for _, x := range j.PricingExpression.TieredRates {
+						if x.UnitPrice == nil {
+							continue
+						}
+						if x.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						grp := "g1"
+						if _, ok := prices[grp]; !ok {
+							prices[grp] = &gcpInstancePricing{}
+						}
+						prices["g1"].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						prices["g1"].perRamGBHour = 0.0000000000001
+					}
+				}
+				continue
+			} else if i.Category.ResourceGroup == "F1Micro" {
+				for _, j := range i.PricingInfo {
+					if j.PricingExpression == nil {
+						continue
+					}
+					if j.PricingExpression.UsageUnit != "h" {
+						continue
+					}
+					for _, x := range j.PricingExpression.TieredRates {
+						if x.UnitPrice == nil {
+							continue
+						}
+						if x.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						grp := "f1"
+						if _, ok := prices[grp]; !ok {
+							prices[grp] = &gcpInstancePricing{}
+						}
+						prices["f1"].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						prices["f1"].perRamGBHour = 0.0000000000001
+					}
+				}
+				continue
+			} else if (iGroup[1] != "Instance" || (iGroup[2] != "Core" && iGroup[2] != "Ram") || iGroup[3] != "running" || iGroup[4] != "in") && ((iGroup[1] != "Predefined" && iGroup[1] != "AMD" && iGroup[1] != "Memory-optimized") || iGroup[2] != "Instance" || (iGroup[3] != "Core" && iGroup[3] != "Ram") || iGroup[4] != "running" || iGroup[5] != "in") {
+				continue
+			}
+			grp := strings.ToLower(iGroup[0])
+			if _, ok := prices[grp]; !ok {
+				prices[grp] = &gcpInstancePricing{}
+			}
+			if i.Category.ResourceGroup != "CPU" && i.Category.ResourceGroup != "RAM" && iGroup[1] == "Predefined" {
+				if iGroup[3] == "Core" {
+					i.Category.ResourceGroup = "CPU"
+				} else if iGroup[3] == "Ram" {
+					i.Category.ResourceGroup = "RAM"
+				}
+			}
+			switch i.Category.ResourceGroup {
+			case "CPU":
+				for _, j := range i.PricingInfo {
+					if j.PricingExpression == nil {
+						continue
+					}
+					if j.PricingExpression.UsageUnit != "h" {
+						continue
+					}
+					for _, x := range j.PricingExpression.TieredRates {
+						if x.UnitPrice == nil {
+							continue
+						}
+						if x.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						prices[grp].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+					}
+				}
+			case "RAM":
+				for _, j := range i.PricingInfo {
+					if j.PricingExpression == nil {
+						continue
+					}
+					if j.PricingExpression.UsageUnit != "GiBy.h" {
+						continue
+					}
+					for _, x := range j.PricingExpression.TieredRates {
+						if x.UnitPrice == nil {
+							continue
+						}
+						if x.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						prices[grp].perRamGBHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return prices, err
+	}
+	return prices, nil
+}
+
+func (d *backendGcp) getInstanceTypesFromCache(zone string) ([]instanceType, error) {
+	cacheFile, err := a.aerolabRootDir()
+	if err != nil {
+		return nil, err
+	}
+	cacheFile = path.Join(cacheFile, "cache", "gcp.instance-types."+zone+".json")
+	f, err := os.Open(cacheFile)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	ita := &instanceTypesCache{}
+	err = dec.Decode(ita)
+	if err != nil {
+		return nil, err
+	}
+	if ita.Expires.Before(time.Now()) {
+		return ita.InstanceTypes, errors.New("cache expired")
+	}
+	return ita.InstanceTypes, nil
+}
+
+func (d *backendGcp) saveInstanceTypesToCache(it []instanceType, zone string) error {
+	cacheDir, err := a.aerolabRootDir()
+	if err != nil {
+		return err
+	}
+	cacheDir = path.Join(cacheDir, "cache")
+	cacheFile := path.Join(cacheDir, "gcp.instance-types."+zone+".json")
+	if _, err := os.Stat(cacheDir); err != nil {
+		if err = os.Mkdir(cacheDir, 0755); err != nil {
+			return err
+		}
+	}
+	f, err := os.OpenFile(cacheFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	ita := &instanceTypesCache{
+		Expires:       time.Now().Add(24 * time.Hour),
+		InstanceTypes: it,
+	}
+	err = enc.Encode(ita)
+	if err != nil {
+		os.Remove(cacheFile)
+		return err
+	}
+	return nil
+}
+
+func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
+	it, err := d.getInstanceTypesFromCache(zone)
+	if err == nil {
+		return it, err
+	}
+	saveCache := true
+	prices, err := d.getInstancePricesPerHour(zone)
+	if err != nil {
+		log.Printf("WARN: pricing error: %s", err)
+		saveCache = false
+	}
+	it = []instanceType{}
+	// find instance types
 	ctx := context.Background()
 	instancesClient, err := compute.NewMachineTypesRESTClient(ctx)
 	if err != nil {
@@ -108,30 +394,24 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 	defer instancesClient.Close()
 	req := &computepb.AggregatedListMachineTypesRequest{
 		Project: a.opts.Config.Backend.Project,
-		Filter:  proto.String("zone=" + gcpZone),
+		Filter:  proto.String("zone=" + zone),
 	}
-	it := instancesClient.AggregatedList(ctx, req)
-	ij := []instanceType{}
+	ita := instancesClient.AggregatedList(ctx, req)
 	for {
-		pair, err := it.Next()
+		pair, err := ita.Next()
 		if err == iterator.Done {
 			break
 		}
 		if err != nil {
 			return nil, err
 		}
+		isArm := false
+		isX86 := false
 		for _, t := range pair.Value.MachineTypes {
-			if !findArm && strings.HasPrefix(*t.Name, "t2") {
-				continue
-			}
-			if findArm && !strings.HasPrefix(*t.Name, "t2") {
-				continue
-			}
-			if (minCpu > 0 && int(t.GetGuestCpus()) < minCpu) || (maxCpu > 0 && int(t.GetGuestCpus()) > maxCpu) {
-				continue
-			}
-			if (minRam > 0 && float64(t.GetMemoryMb())/1024 < minRam) || (maxRam > 0 && float64(t.GetMemoryMb())/1024 > maxRam) {
-				continue
+			if strings.HasPrefix(*t.Name, "t2") {
+				isArm = true
+			} else {
+				isX86 = true
 			}
 			eph := 0
 			ephs := float64(0)
@@ -147,86 +427,148 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 					ephs = -1
 				}
 			}
-			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
-				continue
+			prices := prices[strings.Split(*t.Name, "-")[0]]
+			price := float64(-1)
+			accels := 0
+			for _, acc := range t.Accelerators {
+				accels += int(*acc.GuestAcceleratorCount)
 			}
-			ij = append(ij, instanceType{
+			if prices != nil && prices.perCoreHour > 0 && prices.perRamGBHour > 0 && prices.gpuPriceHour >= 0 {
+				price = prices.perCoreHour*float64(*t.GuestCpus) + prices.perRamGBHour*float64(*t.MemoryMb/1024)
+				if strings.Contains(*t.Name, "-ultragpu") {
+					price = price + prices.gpuUltraHour*float64(accels)
+				} else {
+					price = price + prices.gpuPriceHour*float64(accels)
+				}
+			}
+			it = append(it, instanceType{
 				InstanceName:             *t.Name,
 				CPUs:                     int(t.GetGuestCpus()),
 				RamGB:                    float64(t.GetMemoryMb()) / 1024,
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
+				PriceUSD:                 price,
+				IsArm:                    isArm,
+				IsX86:                    isX86,
 			})
 		}
 	}
-	return ij, err
+	// end search
+	if saveCache {
+		err = d.saveInstanceTypesToCache(it, zone)
+		if err != nil {
+			log.Printf("WARN: failed to save instance types to cache: %s", err)
+		}
+	}
+	return it, nil
 }
 
-func (d *backendGcp) Inventory() (inventoryJson, error) {
+func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	if gcpZone == "" {
+		return nil, errors.New("GCP Zone is required, specify with --zone")
+	}
+	ita, err := d.getInstanceTypes(gcpZone)
+	if err != nil {
+		return ita, err
+	}
+	it := []instanceType{}
+	for _, i := range ita {
+		if findArm && !i.IsArm {
+			continue
+		}
+		if !findArm && !i.IsX86 {
+			continue
+		}
+		if (minCpu > 0 && i.CPUs < minCpu) || (maxCpu > 0 && i.CPUs > maxCpu) {
+			continue
+		}
+		if (minRam > 0 && i.RamGB < minRam) || (maxRam > 0 && i.RamGB > maxRam) {
+			continue
+		}
+		if (minDisks > 0 && i.EphemeralDisks < minDisks) || (maxDisks > 0 && i.EphemeralDisks > maxDisks) {
+			continue
+		}
+		it = append(it, i)
+	}
+	return it, nil
+}
+
+func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (inventoryJson, error) {
 	ij := inventoryJson{}
 
-	tmpl, err := d.ListTemplates()
-	if err != nil {
-		return ij, err
-	}
-	for _, d := range tmpl {
-		arch := "amd64"
-		if d.isArm {
-			arch = "arm64"
-		}
-		ij.Templates = append(ij.Templates, inventoryTemplate{
-			AerospikeVersion: d.aerospikeVersion,
-			Distribution:     d.distroName,
-			OSVersion:        d.distroVersion,
-			Arch:             arch,
-		})
-	}
-
-	ctx := context.Background()
-	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
-	if err != nil {
-		return ij, fmt.Errorf("NewInstancesRESTClient: %w", err)
-	}
-	defer firewallsClient.Close()
-	req := &computepb.ListFirewallsRequest{
-		Project: a.opts.Config.Backend.Project,
-	}
-	it := firewallsClient.List(ctx, req)
-	for {
-		firewallRule, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
+	if inslice.HasInt(inventoryItems, InventoryItemTemplates) {
+		tmpl, err := d.ListTemplates()
 		if err != nil {
 			return ij, err
 		}
-		allow := []string{}
-		for _, all := range firewallRule.Allowed {
-			allow = append(allow, all.Ports...)
+		for _, d := range tmpl {
+			arch := "amd64"
+			if d.isArm {
+				arch = "arm64"
+			}
+			ij.Templates = append(ij.Templates, inventoryTemplate{
+				AerospikeVersion: d.aerospikeVersion,
+				Distribution:     d.distroName,
+				OSVersion:        d.distroVersion,
+				Arch:             arch,
+			})
 		}
-		deny := []string{}
-		for _, all := range firewallRule.Denied {
-			deny = append(deny, all.Ports...)
-		}
-		ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
-			GCP: &inventoryFirewallRuleGCP{
-				FirewallName: *firewallRule.Name,
-				TargetTags:   firewallRule.TargetTags,
-				SourceTags:   firewallRule.SourceTags,
-				SourceRanges: firewallRule.SourceRanges,
-				AllowPorts:   allow,
-				DenyPorts:    deny,
-			},
-		})
 	}
 
-	for _, i := range []int{1, 2} {
+	if inslice.HasInt(inventoryItems, InventoryItemFirewalls) {
+		ctx := context.Background()
+		firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
+		if err != nil {
+			return ij, fmt.Errorf("NewInstancesRESTClient: %w", err)
+		}
+		defer firewallsClient.Close()
+		req := &computepb.ListFirewallsRequest{
+			Project: a.opts.Config.Backend.Project,
+		}
+		it := firewallsClient.List(ctx, req)
+		for {
+			firewallRule, err := it.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return ij, err
+			}
+			allow := []string{}
+			for _, all := range firewallRule.Allowed {
+				allow = append(allow, all.Ports...)
+			}
+			deny := []string{}
+			for _, all := range firewallRule.Denied {
+				deny = append(deny, all.Ports...)
+			}
+			ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
+				GCP: &inventoryFirewallRuleGCP{
+					FirewallName: *firewallRule.Name,
+					TargetTags:   firewallRule.TargetTags,
+					SourceTags:   firewallRule.SourceTags,
+					SourceRanges: firewallRule.SourceRanges,
+					AllowPorts:   allow,
+					DenyPorts:    deny,
+				},
+			})
+		}
+	}
+
+	nCheckList := []int{}
+	if inslice.HasInt(inventoryItems, InventoryItemClusters) {
+		nCheckList = []int{1}
+	}
+	if inslice.HasInt(inventoryItems, InventoryItemClients) {
+		nCheckList = append(nCheckList, 2)
+	}
+	for _, i := range nCheckList {
 		if i == 1 {
 			d.WorkOnServers()
 		} else {
 			d.WorkOnClients()
 		}
-		ctx = context.Background()
+		ctx := context.Background()
 		instancesClient, err := compute.NewInstancesRESTClient(ctx)
 		if err != nil {
 			return ij, fmt.Errorf("newInstancesRESTClient: %w", err)
@@ -250,6 +592,11 @@ func (d *backendGcp) Inventory() (inventoryJson, error) {
 			if len(instances) > 0 {
 				for _, instance := range instances {
 					if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+						if filterOwner != "" {
+							if instance.Labels["owner"] != filterOwner {
+								continue
+							}
+						}
 						sysArch := "x86_64"
 						if arm, _ := d.IsSystemArm(*instance.MachineType); arm {
 							sysArch = "aarch64"
@@ -271,38 +618,75 @@ func (d *backendGcp) Inventory() (inventoryJson, error) {
 						if len(zoneSplit) > 1 {
 							zone = zoneSplit[1]
 						}
+						startTime := int(0)
+						lastRunCost := float64(0)
+						pricePerHour := float64(0)
+						lastRunCost, err = strconv.ParseFloat(gcplabelDecode(instance.Labels[gcpTagCostLastRun]), 64)
+						if err != nil {
+							lastRunCost = 0
+						}
+						pricePerHour, err = strconv.ParseFloat(gcplabelDecode(instance.Labels[gcpTagCostPerHour]), 64)
+						if err != nil {
+							pricePerHour = 0
+						}
+						startTime, err = strconv.Atoi(gcplabelDecode(instance.Labels[gcpTagCostStartTime]))
+						if err != nil {
+							if instance.LastStartTimestamp != nil {
+								startTimeT, err := time.Parse(time.RFC3339, *instance.LastStartTimestamp)
+								if err == nil && !startTimeT.IsZero() {
+									startTime = int(startTimeT.Unix())
+								}
+							}
+							if startTime == 0 && instance.CreationTimestamp != nil {
+								startTimeT, err := time.Parse(time.RFC3339, *instance.CreationTimestamp)
+								if err == nil && !startTimeT.IsZero() {
+									startTime = int(startTimeT.Unix())
+								}
+							}
+						}
+						currentCost := lastRunCost
+						if startTime != 0 {
+							now := int(time.Now().Unix())
+							delta := now - startTime
+							deltaH := float64(delta) / 3600
+							currentCost = lastRunCost + (pricePerHour * deltaH)
+						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
-								ClusterName:      instance.Labels[gcpTagClusterName],
-								NodeNo:           instance.Labels[gcpTagNodeNumber],
-								InstanceId:       *instance.Name,
-								ImageId:          instance.GetSourceMachineImage(),
-								State:            *instance.Status,
-								Arch:             sysArch,
-								Distribution:     instance.Labels[gcpTagOperatingSystem],
-								OSVersion:        instance.Labels[gcpTagOSVersion],
-								AerospikeVersion: instance.Labels[gcpTagAerospikeVersion],
-								PrivateIp:        privIp,
-								PublicIp:         pubIp,
-								Firewalls:        instance.Tags.Items,
-								Zone:             zone,
+								ClusterName:         instance.Labels[gcpTagClusterName],
+								NodeNo:              instance.Labels[gcpTagNodeNumber],
+								InstanceId:          *instance.Name,
+								ImageId:             instance.GetSourceMachineImage(),
+								State:               *instance.Status,
+								Arch:                sysArch,
+								Distribution:        instance.Labels[gcpTagOperatingSystem],
+								OSVersion:           instance.Labels[gcpTagOSVersion],
+								AerospikeVersion:    instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:           privIp,
+								PublicIp:            pubIp,
+								Firewalls:           instance.Tags.Items,
+								Zone:                zone,
+								InstanceRunningCost: currentCost,
+								Owner:               instance.Labels["owner"],
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
-								ClientName:       instance.Labels[gcpTagClusterName],
-								NodeNo:           instance.Labels[gcpTagNodeNumber],
-								InstanceId:       *instance.Name,
-								ImageId:          instance.GetSourceMachineImage(),
-								State:            *instance.Status,
-								Arch:             sysArch,
-								Distribution:     instance.Labels[gcpTagOperatingSystem],
-								OSVersion:        instance.Labels[gcpTagOSVersion],
-								AerospikeVersion: instance.Labels[gcpTagAerospikeVersion],
-								PrivateIp:        privIp,
-								PublicIp:         pubIp,
-								ClientType:       instance.Labels[gcpClientTagClientType],
-								Firewalls:        instance.Tags.Items,
-								Zone:             zone,
+								ClientName:          instance.Labels[gcpTagClusterName],
+								NodeNo:              instance.Labels[gcpTagNodeNumber],
+								InstanceId:          *instance.Name,
+								ImageId:             instance.GetSourceMachineImage(),
+								State:               *instance.Status,
+								Arch:                sysArch,
+								Distribution:        instance.Labels[gcpTagOperatingSystem],
+								OSVersion:           instance.Labels[gcpTagOSVersion],
+								AerospikeVersion:    instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:           privIp,
+								PublicIp:            pubIp,
+								ClientType:          instance.Labels[gcpClientTagClientType],
+								Firewalls:           instance.Tags.Items,
+								Zone:                zone,
+								InstanceRunningCost: currentCost,
+								Owner:               instance.Labels["owner"],
 							})
 						}
 					}
@@ -311,6 +695,14 @@ func (d *backendGcp) Inventory() (inventoryJson, error) {
 		}
 	}
 	return ij, nil
+}
+
+func gcplabelDecode(a string) string {
+	return strings.ReplaceAll(a, "-", ".")
+}
+
+func gcplabelEncodeToSave(a string) string {
+	return strings.ReplaceAll(a, ".", "-")
 }
 
 func (d *backendGcp) CreateNetwork(name string, driver string, subnet string, mtu string) error {
@@ -544,14 +936,20 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nlist, nil
 }
 
-func (d *backendGcp) ClusterListFull(isJson bool) (string, error) {
+func (d *backendGcp) ClusterListFull(isJson bool, owner string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
+	a.opts.Inventory.List.Owner = owner
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 type instanceDetail struct {
-	instanceZone string
-	instanceName string
+	instanceZone       string
+	instanceName       string
+	labels             map[string]string
+	labelFingerprint   string
+	LastStartTimestamp *string
+	CreationTimestamp  *string
+	instanceState      string
 }
 
 func (d *backendGcp) getInstanceDetails(name string, nodes []int) (zones map[int]instanceDetail, err error) {
@@ -591,9 +989,24 @@ func (d *backendGcp) getInstanceDetails(name string, nodes []int) (zones map[int
 						for _, node := range nodes {
 							if strconv.Itoa(node) == instance.Labels[gcpTagNodeNumber] {
 								zone := strings.Split(*instance.Zone, "/")
+								var lrt, ct string
+								var lrtp, ctp *string
+								if instance.LastStartTimestamp != nil {
+									lrt = *instance.LastStartTimestamp
+									lrtp = &lrt
+								}
+								if instance.CreationTimestamp != nil {
+									ct = *instance.CreationTimestamp
+									ctp = &ct
+								}
 								zones[node] = instanceDetail{
-									instanceZone: zone[len(zone)-1],
-									instanceName: *instance.Name,
+									instanceZone:       zone[len(zone)-1],
+									instanceName:       *instance.Name,
+									labels:             instance.Labels,
+									labelFingerprint:   *instance.LabelFingerprint,
+									LastStartTimestamp: lrtp,
+									CreationTimestamp:  ctp,
+									instanceState:      *instance.Status,
 								}
 							}
 						}
@@ -630,6 +1043,21 @@ func (d *backendGcp) ClusterStart(name string, nodes []int) error {
 			return fmt.Errorf("NewInstancesRESTClient: %w", err)
 		}
 		defer instancesClient.Close()
+		if zones[node].instanceState == "TERMINATED" {
+			zones[node].labels[gcpTagCostStartTime] = gcplabelEncodeToSave(strconv.Itoa(int(time.Now().Unix())))
+			_, err = instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+				Project:  a.opts.Config.Backend.Project,
+				Zone:     zones[node].instanceZone,
+				Instance: zones[node].instanceName,
+				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+					LabelFingerprint: proto.String(zones[node].labelFingerprint),
+					Labels:           zones[node].labels,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("unable label instance: %w", err)
+			}
+		}
 		req := &computepb.StartInstanceRequest{
 			Project:  a.opts.Config.Backend.Project,
 			Zone:     zones[node].instanceZone,
@@ -715,6 +1143,51 @@ func (d *backendGcp) ClusterStop(name string, nodes []int) error {
 		if err != nil {
 			return fmt.Errorf("unable to stop instance: %w", err)
 		}
+		// label
+		if zones[node].instanceState != "TERMINATED" {
+			startTime := int(0)
+			lastRunCost := float64(0)
+			pricePerHour := float64(0)
+			lastRunCost, err = strconv.ParseFloat(gcplabelDecode(zones[node].labels[gcpTagCostLastRun]), 64)
+			if err != nil {
+				lastRunCost = 0
+			}
+			pricePerHour, err = strconv.ParseFloat(gcplabelDecode(zones[node].labels[gcpTagCostPerHour]), 64)
+			if err != nil {
+				pricePerHour = 0
+			}
+			startTime, err = strconv.Atoi(gcplabelDecode(zones[node].labels[gcpTagCostStartTime]))
+			if err != nil {
+				if zones[node].LastStartTimestamp != nil {
+					startTimeT, err := time.Parse(time.RFC3339, *zones[node].LastStartTimestamp)
+					if err == nil && !startTimeT.IsZero() {
+						startTime = int(startTimeT.Unix())
+					}
+				}
+				if startTime == 0 && zones[node].CreationTimestamp != nil {
+					startTimeT, err := time.Parse(time.RFC3339, *zones[node].CreationTimestamp)
+					if err == nil && !startTimeT.IsZero() {
+						startTime = int(startTimeT.Unix())
+					}
+				}
+			}
+			lastRunCost = lastRunCost + (pricePerHour * (float64((int(time.Now().Unix()) - startTime)) / 3600))
+			zones[node].labels[gcpTagCostStartTime] = "0"
+			zones[node].labels[gcpTagCostLastRun] = gcplabelEncodeToSave(strconv.FormatFloat(lastRunCost, 'f', 8, 64))
+			_, err = instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+				Project:  a.opts.Config.Backend.Project,
+				Zone:     zones[node].instanceZone,
+				Instance: zones[node].instanceName,
+				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+					LabelFingerprint: proto.String(zones[node].labelFingerprint),
+					Labels:           zones[node].labels,
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("unable label instance: %w", err)
+			}
+		}
+		// label end
 		ops = append(ops, gcpMakeOps{
 			op:  op,
 			ctx: ctx,
@@ -873,6 +1346,18 @@ func (d *backendGcp) TemplateDestroy(v backendVersion) error {
 }
 
 func (d *backendGcp) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
+	fr := []fileListReader{}
+	for _, f := range files {
+		fr = append(fr, fileListReader{
+			filePath:     f.filePath,
+			fileSize:     f.fileSize,
+			fileContents: strings.NewReader(f.fileContents),
+		})
+	}
+	return d.CopyFilesToClusterReader(name, fr, nodes)
+}
+
+func (d *backendGcp) CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error {
 	var err error
 	if len(nodes) == 0 {
 		nodes, err = d.NodeListInCluster(name)
@@ -1259,7 +1744,7 @@ func (d *backendGcp) makeLabels(extra []string, isArm string, v backendVersion) 
 	return labels, nil
 }
 
-func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error {
 	if extra.zone == "" {
 		return errors.New("zone must be specified")
 	}
@@ -1424,7 +1909,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	fmt.Println("Connection succeeded, continuing deployment...")
 
 	// copy files as required to VM
-	files = append(files, fileList{"/root/installer.sh", strings.NewReader(script), len(script)})
+	files = append(files, fileListReader{"/root/installer.sh", strings.NewReader(script), len(script)})
 	err = scp("root", fmt.Sprintf("%s:22", instIp), keyPath, files)
 	if err != nil {
 		return fmt.Errorf("scp failed: %s", err)
@@ -1938,10 +2423,38 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		extra.clientType = "not-available"
 	}
 	labels[gcpClientTagClientType] = extra.clientType
+	price := float64(-1)
+	it, err := d.getInstanceTypes(extra.zone)
+	if err == nil {
+		for _, iti := range it {
+			if iti.InstanceName == extra.instanceType {
+				price = iti.PriceUSD
+			}
+		}
+	}
+	labels[gcpTagCostPerHour] = gcplabelEncodeToSave(strconv.FormatFloat(price, 'f', 8, 64))
+	labels[gcpTagCostLastRun] = gcplabelEncodeToSave(strconv.FormatFloat(0, 'f', 8, 64))
+	labels[gcpTagCostStartTime] = gcplabelEncodeToSave(strconv.Itoa(int(time.Now().Unix())))
 
 	disksInt := []gcpDisk{}
 	if len(extra.disks) == 0 {
 		extra.disks = []string{"pd-balanced:20"}
+	}
+	nDisks := extra.disks
+	extra.disks = []string{}
+	for _, disk := range nDisks {
+		diskb := strings.Split(disk, "@")
+		disk = diskb[0]
+		count := 1
+		if len(diskb) > 1 {
+			count, err = strconv.Atoi(diskb[1])
+			if err != nil {
+				return fmt.Errorf("invalid definition of %s: %s", disk, err)
+			}
+		}
+		for i := 1; i <= count; i++ {
+			extra.disks = append(extra.disks, disk)
+		}
 	}
 	for _, disk := range extra.disks {
 		if disk == "local-ssd" {
@@ -1951,7 +2464,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			continue
 		}
 		if !strings.HasPrefix(disk, "pd-") {
-			return errors.New("invalid disk definition, disk must be local-ssd, or pd-*:sizeGB (eg pd-balanced:20 or pd-ssd:40)")
+			return errors.New("invalid disk definition, disk must be local-ssd, or pd-*:sizeGB (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40)")
 		}
 		diska := strings.Split(disk, ":")
 		if len(diska) != 2 {

@@ -4,6 +4,7 @@ import (
 	"io"
 	"os/exec"
 	"syscall"
+	"time"
 )
 
 var backends = make(map[string]backend)
@@ -23,7 +24,7 @@ type backendExtra struct {
 	swapLimit          string   // docker only
 	privileged         bool     // docker only
 	exposePorts        []string // docker only
-	switches           string   // docker only
+	switches           []string // docker only
 	dockerHostname     bool     // docker only
 	network            string   // docker only
 	securityGroupID    string   // aws only
@@ -47,6 +48,12 @@ type backendVersion struct {
 }
 
 type fileList struct {
+	filePath     string
+	fileContents string
+	fileSize     int
+}
+
+type fileListReader struct {
 	filePath     string
 	fileContents io.ReadSeeker
 	fileSize     int
@@ -75,13 +82,14 @@ type backend interface {
 	// return a slice of 'version' structs containing versions of templates available
 	ListTemplates() ([]backendVersion, error)
 	// deploy a template, naming it with version, running 'script' inside for installation and copying 'files' into it
-	DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error
+	DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error
 	// destroy template for a given version
 	TemplateDestroy(v backendVersion) error
 	// deploy cluster from template, requires version, name of new cluster and node count to deploy
 	DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error
 	// copy files to cluster, requires cluster name, list of files to copy and list of nodes in cluster to copy to
 	CopyFilesToCluster(name string, files []fileList, nodes []int) error
+	CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error
 	// run command(s) inside node(s) in cluster. Requires cluster name, commands as slice of command slices, and nodes list slice
 	// returns a slice of byte slices containing each node/command output and error
 	RunCommands(clusterName string, commands [][]string, nodes []int) ([][]byte, error)
@@ -102,7 +110,7 @@ type backend interface {
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
-	ClusterListFull(json bool) (string, error)
+	ClusterListFull(json bool, owner string) (string, error)
 	// return formatted for printing template list
 	TemplateListFull(json bool) (string, error)
 	// upload files to node
@@ -128,7 +136,7 @@ type backend interface {
 	DeleteNetwork(name string) error
 	PruneNetworks() error
 	ListNetworks(csv bool, writer io.Writer) error
-	Inventory() (inventoryJson, error)
+	Inventory(owner string, inventoryItems []int) (inventoryJson, error)
 	GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error)
 }
 
@@ -157,38 +165,42 @@ type inventorySubnetAWS struct {
 }
 
 type inventoryCluster struct {
-	ClusterName      string
-	NodeNo           string
-	PrivateIp        string
-	PublicIp         string
-	InstanceId       string
-	ImageId          string
-	State            string
-	Arch             string
-	Distribution     string
-	OSVersion        string
-	AerospikeVersion string
-	Firewalls        []string
-	Zone             string
+	ClusterName         string
+	NodeNo              string
+	PrivateIp           string
+	PublicIp            string
+	InstanceId          string
+	ImageId             string
+	State               string
+	Arch                string
+	Distribution        string
+	OSVersion           string
+	AerospikeVersion    string
+	Firewalls           []string
+	Zone                string
+	InstanceRunningCost float64
+	Owner               string
 }
 
 type inventoryClient struct {
-	ClientName       string
-	NodeNo           string
-	PrivateIp        string
-	PublicIp         string
-	InstanceId       string
-	ImageId          string
-	State            string
-	Arch             string
-	Distribution     string
-	OSVersion        string
-	AerospikeVersion string
-	ClientType       string
-	AccessUrl        string
-	AccessPort       string
-	Firewalls        []string
-	Zone             string
+	ClientName          string
+	NodeNo              string
+	PrivateIp           string
+	PublicIp            string
+	InstanceId          string
+	ImageId             string
+	State               string
+	Arch                string
+	Distribution        string
+	OSVersion           string
+	AerospikeVersion    string
+	ClientType          string
+	AccessUrl           string
+	AccessPort          string
+	Firewalls           []string
+	Zone                string
+	InstanceRunningCost float64
+	Owner               string
 }
 
 type inventoryTemplate struct {
@@ -227,12 +239,20 @@ type inventoryFirewallRuleDocker struct {
 	MTU           string
 }
 
+type instanceTypesCache struct {
+	Expires       time.Time
+	InstanceTypes []instanceType
+}
+
 type instanceType struct {
 	InstanceName             string
 	CPUs                     int
 	RamGB                    float64
 	EphemeralDisks           int
 	EphemeralDiskTotalSizeGB float64
+	PriceUSD                 float64
+	IsArm                    bool
+	IsX86                    bool
 }
 
 // check return code from exec function
@@ -246,3 +266,8 @@ func checkExecRetcode(err error) int {
 	}
 	return 0
 }
+
+var InventoryItemClusters = 1
+var InventoryItemClients = 2
+var InventoryItemFirewalls = 3
+var InventoryItemTemplates = 4

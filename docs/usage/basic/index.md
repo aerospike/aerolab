@@ -33,3 +33,5 @@
 [Deploy a rack-aware cluster with strong consistency](racks-sc.md)
 
 [Strong consistency](strong.md)
+
+[Adjusting running Aerospike configuration](conf-adjust.md)

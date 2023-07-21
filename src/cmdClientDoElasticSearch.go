@@ -63,6 +63,10 @@ func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.PriceOnly {
+		return nil
+	}
+
 	a.opts.Client.Add.ElasticSearch.ClientName = c.ClientName
 	a.opts.Client.Add.ElasticSearch.StartScript = c.StartScript
 	a.opts.Client.Add.ElasticSearch.Machines = TypeMachines(intSliceToString(machines, ","))
@@ -92,7 +96,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 	masterNode := 1
 	if len(c.existingNodes) == 0 {
 		script := c.installScriptAllNodes(c.RamLimit, isDocker) + c.installScriptMasterNode()
-		err := b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/root/install.sh", fileContents: strings.NewReader(script), fileSize: len(script)}}, []int{1})
+		err := b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/root/install.sh", fileContents: script, fileSize: len(script)}}, []int{1})
 		if err != nil {
 			return err
 		}
@@ -137,7 +141,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 		}
 		cert := base64.StdEncoding.EncodeToString(out[0])
 		script := c.installScriptAllNodes(c.RamLimit, isDocker) + c.installScriptSlaveNodesOnSlaves(token, cert)
-		err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/root/install.sh", fileContents: strings.NewReader(script), fileSize: len(script)}}, []int{node})
+		err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/root/install.sh", fileContents: script, fileSize: len(script)}}, []int{node})
 		if err != nil {
 			return err
 		}

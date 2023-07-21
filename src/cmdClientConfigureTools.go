@@ -7,14 +7,16 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 )
 
 type clientConfigureToolsCmd struct {
-	ClientName TypeClientName  `short:"n" long:"group-name" description:"Client group name" default:"client"`
-	Machines   TypeMachines    `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
-	ConnectAMS TypeClusterName `short:"m" long:"ams" default:"ams" description:"AMS client machine name"`
-	Help       helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClientName      TypeClientName  `short:"n" long:"group-name" description:"Client group name" default:"client"`
+	Machines        TypeMachines    `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
+	ConnectAMS      TypeClusterName `short:"m" long:"ams" default:"ams" description:"AMS client machine name"`
+	ParallelThreads int             `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clientConfigureToolsCmd) Execute(args []string) error {
@@ -55,12 +57,12 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 		no, _ := strconv.Atoi(tnode)
 		tnodes = append(tnodes, no)
 	}
-	// store IP on tools nodes
-	err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/opt/asbench-grafana.ip", fileContents: strings.NewReader(ip), fileSize: len(ip)}}, tnodes)
-	if err != nil {
-		return fmt.Errorf("could not upload file 1: %s", err)
-	}
-	for _, tnode := range tnodes {
+	returns := parallelize.MapLimit(tnodes, c.ParallelThreads, func(tnode int) error {
+		// store IP on tools nodes
+		err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/opt/asbench-grafana.ip", fileContents: ip, fileSize: len(ip)}}, []int{tnode})
+		if err != nil {
+			return fmt.Errorf("could not upload file 1: %s", err)
+		}
 		// arm fill
 		isArm := false
 		if a.opts.Config.Backend.Type == "docker" {
@@ -81,34 +83,58 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 		}
 		// install promtail if not found
 		promScript := promTailScript(isArm)
-		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/install-promtail.sh", fileContents: strings.NewReader(promScript), fileSize: len(promScript)}}, []int{tnode})
+		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/install-promtail.sh", fileContents: promScript, fileSize: len(promScript)}}, []int{tnode})
 		if err != nil {
 			return fmt.Errorf("failed to install loki download script: %s", err)
 		}
+		// install
+		out, err := b.RunCommands(c.ClientName.String(), [][]string{{"/bin/bash", "/opt/install-promtail.sh"}}, []int{tnode})
+		if err != nil {
+			if len(out) > 0 {
+				return fmt.Errorf("%s :: %s", err, string(out[0]))
+			} else {
+				return err
+			}
+		}
+		// install promtail config file
+		promScript = promTailConf()
+		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/configure-promtail.sh", fileContents: promScript, fileSize: len(promScript)}}, []int{tnode})
+		if err != nil {
+			return fmt.Errorf("failed to install conf script: %s", err)
+		}
+		out, err = b.RunCommands(c.ClientName.String(), [][]string{{"/bin/bash", "/opt/configure-promtail.sh"}}, []int{tnode})
+		if err != nil {
+			if len(out) > 0 {
+				return fmt.Errorf("%s :: %s", err, string(out[0]))
+			} else {
+				return err
+			}
+		}
+		// install promtail startup script
+		out, err = b.RunCommands(c.ClientName.String(), [][]string{{"/bin/bash", "-c", "mkdir -p /opt/autoload; echo 'nohup /usr/bin/promtail -config.file=/etc/promtail/promtail.yaml -log-config-reverse-order > /var/log/promtail.log 2>&1 &' > /opt/autoload/10-promtail; chmod 755 /opt/autoload/*"}}, []int{tnode})
+		if err != nil {
+			if len(out) > 0 {
+				return fmt.Errorf("%s :: %s", err, string(out[0]))
+			} else {
+				return err
+			}
+		}
+		// kill promtail
+		b.RunCommands(c.ClientName.String(), [][]string{{"pkill", "-9", "promtail"}}, []int{tnode})
+		return nil
+	})
+	isError := false
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %d returned %s", tnodes[i], ret)
+			isError = true
+		}
 	}
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/install-promtail.sh"})
-	if err != nil {
-		return fmt.Errorf("failed to install loki: %s", err)
-	}
-	// install promtail config file
-	promScript := promTailConf()
-	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/configure-promtail.sh", fileContents: strings.NewReader(promScript), fileSize: len(promScript)}}, tnodes)
-	if err != nil {
-		return fmt.Errorf("failed to install conf script: %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/configure-promtail.sh"})
-	if err != nil {
-		return fmt.Errorf("failed to install conf: %s", err)
-	}
-
-	// install promtail startup script
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "mkdir -p /opt/autoload; echo 'nohup /usr/bin/promtail -config.file=/etc/promtail/promtail.yaml -log-config-reverse-order > /var/log/promtail.log 2>&1 &' > /opt/autoload/10-promtail; chmod 755 /opt/autoload/*"})
-	if err != nil {
-		return fmt.Errorf("failed to install promtail startup script: %s", err)
+	if isError {
+		return errors.New("some nodes returned errors")
 	}
 
 	// (re)start promtail
-	a.opts.Attach.Client.run([]string{"pkill", "-9", "promtail"})
 	a.opts.Attach.Client.Detach = true
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/autoload/10-promtail"})
 	if err != nil {

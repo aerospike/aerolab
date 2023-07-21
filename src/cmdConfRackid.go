@@ -2,21 +2,25 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 )
 
 type confRackIdCmd struct {
-	aerospikeStartCmd
-	RackId     string `short:"i" long:"id" description:"Rack ID to use" default:"0"`
-	Namespaces string `short:"m" long:"namespaces" description:"comma-separated list of namespaces to modify; empty=all" default:""`
-	NoRoster   bool   `short:"r" long:"no-roster" description:"if SC namespaces are found: aerolab will automatically restart aerospike and reset the roster for SC namespaces to reflect the rack-id; set this to not set the roster"`
-	NoRestart  bool   `short:"e" long:"no-restart" description:"if no SC namespaces are found: aerolab will automatically restart aerospike when rackid is set; set this to prevent said action"`
+	aerospikeStartSelectorCmd
+	RackId          string `short:"i" long:"id" description:"Rack ID to use" default:"0"`
+	Namespaces      string `short:"m" long:"namespaces" description:"comma-separated list of namespaces to modify; empty=all" default:""`
+	NoRoster        bool   `short:"r" long:"no-roster" description:"if SC namespaces are found: aerolab will automatically restart aerospike and reset the roster for SC namespaces to reflect the rack-id; set this to not set the roster"`
+	NoRestart       bool   `short:"e" long:"no-restart" description:"if no SC namespaces are found: aerolab will automatically restart aerospike when rackid is set; set this to prevent said action"`
+	ParallelThreads int    `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
 }
 
 func (c *confRackIdCmd) Execute(args []string) error {
@@ -67,11 +71,12 @@ func (c *confRackIdCmd) Execute(args []string) error {
 	if c.Namespaces != "" {
 		namespaces = strings.Split(c.Namespaces, ",")
 	}
-	foundns := 0
 
 	// fix config if needed, read custom config file path if needed
 	scFound := []string{}
-	for _, i := range nodes {
+	scFoundLock := new(sync.Mutex)
+	returns := parallelize.MapLimit(nodes, c.ParallelThreads, func(i int) error {
+		foundns := 0
 		files := []fileList{}
 		var r [][]string
 		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
@@ -96,9 +101,11 @@ func (c *confRackIdCmd) Execute(args []string) error {
 					cc.Stanza(key).SetValue("rack-id", c.RackId)
 					if cc.Stanza(key).Type("strong-consistency") == aeroconf.ValueString {
 						if sc, err := cc.Stanza(key).GetValues("strong-consistency"); err == nil && len(sc) > 0 && strings.ToLower(*sc[0]) == "true" {
+							scFoundLock.Lock()
 							if !inslice.HasString(scFound, ns[1]) {
 								scFound = append(scFound, ns[1])
 							}
+							scFoundLock.Unlock()
 						}
 					}
 					foundns++
@@ -112,13 +119,24 @@ func (c *confRackIdCmd) Execute(args []string) error {
 		buf := new(bytes.Buffer)
 		cc.Write(buf, "", "    ", true)
 		newconf := buf.String()
-		files = append(files, fileList{"/etc/aerospike/aerospike.conf", strings.NewReader(newconf), len(newconf)})
+		files = append(files, fileList{"/etc/aerospike/aerospike.conf", newconf, len(newconf)})
 		if len(files) > 0 {
 			err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{i})
 			if err != nil {
 				return fmt.Errorf("cluster=%s node=%v CopyFilesToCluster error=%s", string(c.ClusterName), i, err)
 			}
 		}
+		return nil
+	})
+	isError := false
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %d returned %s", nodes[i], ret)
+			isError = true
+		}
+	}
+	if isError {
+		return errors.New("some nodes returned errors")
 	}
 
 	if len(scFound) > 0 {
@@ -129,6 +147,7 @@ func (c *confRackIdCmd) Execute(args []string) error {
 			log.Print("Strong-consistency namespaces found, restarting aerospike and setting up the roster")
 			a.opts.Aerospike.Restart.ClusterName = c.ClusterName
 			a.opts.Aerospike.Restart.Nodes = ""
+			a.opts.Aerospike.Restart.ParallelThreads = c.ParallelThreads
 			err = a.opts.Aerospike.Restart.run(args, "restart")
 			if err != nil {
 				log.Printf("ERROR running 'aerospike restart': %s", err)
@@ -137,6 +156,7 @@ func (c *confRackIdCmd) Execute(args []string) error {
 				a.opts.Roster.Apply.ClusterName = c.ClusterName
 				a.opts.Roster.Apply.Namespace = namespace
 				a.opts.Roster.Apply.Nodes = ""
+				a.opts.Roster.Apply.ParallelThreads = c.ParallelThreads
 				err = a.opts.Roster.Apply.runApply(args)
 				if err != nil {
 					log.Printf("ERROR running 'roster apply': %s", err)
@@ -147,7 +167,8 @@ func (c *confRackIdCmd) Execute(args []string) error {
 	} else {
 		if !c.NoRestart {
 			a.opts.Aerospike.Restart.ClusterName = c.ClusterName
-			a.opts.Aerospike.Restart.Nodes = c.Nodes
+			a.opts.Aerospike.Restart.Nodes = ""
+			a.opts.Aerospike.Restart.ParallelThreads = c.ParallelThreads
 			err = a.opts.Aerospike.Restart.run(args, "restart")
 			if err != nil {
 				log.Printf("ERROR running 'aerospike restart': %s", err)

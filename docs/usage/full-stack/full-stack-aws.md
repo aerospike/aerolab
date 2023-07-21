@@ -93,7 +93,7 @@ aerolab client destroy -f -n ${ams_name}
 ### Get IP address of a cluster node
 
 ```
-NODEIP=$(aerolab cluster list -j |grep -A7 ${cluster_name} |grep IpAddress |head -1 |egrep -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
+NODEIP=$(aerolab cluster list -i |grep ${cluster_name} |head -1 |egrep -o 'ext_ip=.*' |awk -F'=' '{print $2}')
 echo "Seed: ${NODEIP}"
 ```
 
@@ -101,6 +101,12 @@ echo "Seed: ${NODEIP}"
 
 ```
 aerolab client attach -n ${client_name} -l all --detach -- /bin/bash -c "run_asbench -h ${NODEIP}:3000 -U superman -Pkrypton -n ${namespace} -s \$(hostname) --latency -b testbin -K 0 -k 1000000 -z 16 -t 0 -o I1 -w I --socket-timeout 200 --timeout 1000 -B allowReplica --max-retries 2"
+```
+
+### Check if `asbench` is running
+
+```
+aerolab client attach -n ${client_name} -l all -- ps -ef |grep asbench
 ```
 
 ### Stop `asbench`
