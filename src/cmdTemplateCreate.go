@@ -121,8 +121,8 @@ func (c *templateCreateCmd) Execute(args []string) error {
 		return err
 	}
 	defer packagefile.Close()
-	nFiles := []fileList{}
-	nFiles = append(nFiles, fileList{"/root/installer.tgz", packagefile, pfilelen})
+	nFiles := []fileListReader{}
+	nFiles = append(nFiles, fileListReader{"/root/installer.tgz", packagefile, pfilelen})
 	nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName.String()+":"+c.DistroVersion.String()]
 	extra := &backendExtra{
 		ami:             c.Aws.AMI,

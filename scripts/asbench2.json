@@ -1,4 +1,35 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_LOKI",
+      "label": "Loki",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
+    }
+  ],
+  "__elements": {},
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "10.0.2"
+    },
+    {
+      "type": "datasource",
+      "id": "loki",
+      "name": "Loki",
+      "version": "1.0.0"
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
+    }
+  ],
   "annotations": {
     "list": [
       {
@@ -42,7 +73,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
-  "id": 6,
+  "id": null,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -59,7 +90,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -138,7 +169,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap runtime\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -166,7 +197,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -245,7 +276,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>,\"\n| unwrap total\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -273,7 +304,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -352,7 +383,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "min_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>,\"\n| unwrap min_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -380,7 +411,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -442,113 +473,6 @@
             "x": 12,
             "y": 10
           },
-          "id": 104,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "${loki}"
-              },
-              "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>,\"\n| unwrap max_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
-              "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
-              "legendFormat": "{{host}}-{{instance}}",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Max (across clients) Read latency for all transactions",
-          "transformations": [
-            {
-              "id": "calculateField",
-              "options": {
-                "mode": "reduceRow",
-                "reduce": {
-                  "reducer": "max"
-                },
-                "replaceFields": true
-              }
-            }
-          ],
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "${loki}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": 60000,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "µs"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 12,
-            "x": 0,
-            "y": 19
-          },
           "id": 94,
           "options": {
             "legend": {
@@ -566,7 +490,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b50\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -594,7 +518,114 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": 60000,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "µs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 19
+          },
+          "id": 106,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "${DS_LOKI}"
+              },
+              "editorMode": "code",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b90\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
+              "legendFormat": "{{host}}-{{instance}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Max (across clients) Read latency for 90% of transactions",
+          "transformations": [
+            {
+              "id": "calculateField",
+              "options": {
+                "mode": "reduceRow",
+                "reduce": {
+                  "reducer": "max"
+                },
+                "replaceFields": true
+              }
+            }
+          ],
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -656,7 +687,7 @@
             "x": 12,
             "y": 19
           },
-          "id": 106,
+          "id": 96,
           "options": {
             "legend": {
               "calcs": [],
@@ -673,17 +704,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b90\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Max (across clients) Read latency for 90% of transactions",
+          "title": "Max (across clients) Read latency for 99% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -701,7 +732,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -763,7 +794,7 @@
             "x": 0,
             "y": 28
           },
-          "id": 96,
+          "id": 108,
           "options": {
             "legend": {
               "calcs": [],
@@ -780,17 +811,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p9\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Max (across clients) Read latency for 99% of transactions",
+          "title": "Max (across clients) Read latency for 99.9% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -808,7 +839,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -870,7 +901,7 @@
             "x": 12,
             "y": 28
           },
-          "id": 108,
+          "id": 98,
           "options": {
             "legend": {
               "calcs": [],
@@ -887,17 +918,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p9\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Max (across clients) Read latency for 99.9% of transactions",
+          "title": "Max (across clients) Read latency for 99.99% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -915,7 +946,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -977,7 +1008,7 @@
             "x": 0,
             "y": 37
           },
-          "id": 98,
+          "id": 104,
           "options": {
             "legend": {
               "calcs": [],
@@ -994,17 +1025,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>,\"\n| unwrap max_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Max (across clients) Read latency for 99.99% of transactions",
+          "title": "Max (across clients) Read latency for all transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1036,7 +1067,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -1115,7 +1146,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap runtime\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -1143,7 +1174,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -1222,7 +1253,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>,\"\n| unwrap total\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -1250,7 +1281,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -1329,7 +1360,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "min_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>,\"\n| unwrap min_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -1357,7 +1388,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -1419,113 +1450,6 @@
             "x": 12,
             "y": 11
           },
-          "id": 73,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "${loki}"
-              },
-              "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>,\"\n| unwrap max_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
-              "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
-              "legendFormat": "{{host}}-{{instance}}",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Max (across clients) Write latency for all transactions",
-          "transformations": [
-            {
-              "id": "calculateField",
-              "options": {
-                "mode": "reduceRow",
-                "reduce": {
-                  "reducer": "max"
-                },
-                "replaceFields": true
-              }
-            }
-          ],
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "${loki}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": 60000,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "µs"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 12,
-            "x": 0,
-            "y": 20
-          },
           "id": 105,
           "options": {
             "legend": {
@@ -1543,7 +1467,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b50\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -1572,7 +1496,114 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": 60000,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "µs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 0,
+            "y": 20
+          },
+          "id": 85,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "${DS_LOKI}"
+              },
+              "editorMode": "code",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b90\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
+              "legendFormat": "{{host}}-{{instance}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Max (across clients) Write latency for 90% of transactions",
+          "transformations": [
+            {
+              "id": "calculateField",
+              "options": {
+                "mode": "reduceRow",
+                "reduce": {
+                  "reducer": "max"
+                },
+                "replaceFields": true
+              }
+            }
+          ],
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -1634,7 +1665,7 @@
             "x": 12,
             "y": 20
           },
-          "id": 85,
+          "id": 107,
           "options": {
             "legend": {
               "calcs": [],
@@ -1651,17 +1682,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b90\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Max (across clients) Write latency for 90% of transactions",
+          "title": "Max (across clients) Write latency for 99% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1679,7 +1710,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -1741,7 +1772,7 @@
             "x": 0,
             "y": 29
           },
-          "id": 107,
+          "id": 83,
           "options": {
             "legend": {
               "calcs": [],
@@ -1758,17 +1789,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p9\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Max (across clients) Write latency for 99% of transactions",
+          "title": "Max (across clients) Write latency for 99.9% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1786,7 +1817,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -1848,7 +1879,7 @@
             "x": 12,
             "y": 29
           },
-          "id": 83,
+          "id": 109,
           "options": {
             "legend": {
               "calcs": [],
@@ -1865,17 +1896,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p9\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Max (across clients) Write latency for 99.9% of transactions",
+          "title": "Max (across clients) Write latency for 99.99% of transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -1893,7 +1924,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -1955,7 +1986,7 @@
             "x": 0,
             "y": 38
           },
-          "id": 109,
+          "id": 73,
           "options": {
             "legend": {
               "calcs": [],
@@ -1972,17 +2003,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>,\"\n| unwrap max_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Max (across clients) Write latency for 99.99% of transactions",
+          "title": "Max (across clients) Write latency for all transactions",
           "transformations": [
             {
               "id": "calculateField",
@@ -2014,7 +2045,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2093,7 +2124,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap runtime\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -2109,7 +2140,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2188,7 +2219,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>,\"\n| unwrap total\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -2204,7 +2235,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2283,7 +2314,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>,\"\n| unwrap min_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -2299,7 +2330,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2361,7 +2392,7 @@
             "x": 12,
             "y": 12
           },
-          "id": 93,
+          "id": 81,
           "options": {
             "legend": {
               "calcs": [],
@@ -2378,23 +2409,23 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>,\"\n| unwrap max_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b50\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Read latencies - Max Latency",
+          "title": "Latency for 50% of transactions",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2454,101 +2485,6 @@
             "h": 9,
             "w": 12,
             "x": 0,
-            "y": 21
-          },
-          "id": 81,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "${loki}"
-              },
-              "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b50\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
-              "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
-              "legendFormat": "{{host}}-{{instance}}",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Latency for 50% of transactions",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "${loki}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": 60000,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "µs"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 12,
-            "x": 12,
             "y": 21
           },
           "id": 95,
@@ -2568,7 +2504,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b90\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -2584,7 +2520,102 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": 60000,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "µs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 21
+          },
+          "id": 84,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "${DS_LOKI}"
+              },
+              "editorMode": "code",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
+              "legendFormat": "{{host}}-{{instance}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Latency for 99% of transactions",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2646,7 +2677,7 @@
             "x": 0,
             "y": 30
           },
-          "id": 84,
+          "id": 97,
           "options": {
             "legend": {
               "calcs": [],
@@ -2663,23 +2694,23 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p9\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Latency for 99% of transactions",
+          "title": "Latency for 99.9% of transactions",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2741,7 +2772,7 @@
             "x": 12,
             "y": 30
           },
-          "id": 97,
+          "id": 82,
           "options": {
             "legend": {
               "calcs": [],
@@ -2758,23 +2789,23 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p9\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Latency for 99.9% of transactions",
+          "title": "Latency for 99.99% of transactions",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2817,7 +2848,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -2835,7 +2867,7 @@
             "x": 0,
             "y": 39
           },
-          "id": 82,
+          "id": 93,
           "options": {
             "legend": {
               "calcs": [],
@@ -2852,17 +2884,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: read\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>,\"\n| unwrap max_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Latency for 99.99% of transactions",
+          "title": "Read latencies - Max Latency",
           "type": "timeseries"
         }
       ],
@@ -2882,7 +2914,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -2961,7 +2993,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>,\"\n| unwrap runtime\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -2977,7 +3009,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3056,7 +3088,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>,\"\n| unwrap total\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -3072,7 +3104,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3151,7 +3183,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>,\"\n| unwrap min_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -3167,7 +3199,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3229,7 +3261,7 @@
             "x": 12,
             "y": 13
           },
-          "id": 87,
+          "id": 74,
           "options": {
             "legend": {
               "calcs": [],
@@ -3246,23 +3278,23 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>,\"\n| unwrap max_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b50\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Write latencies - Max Latency",
+          "title": "Latency for 50% of transactions",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3322,101 +3354,6 @@
             "h": 9,
             "w": 12,
             "x": 0,
-            "y": 22
-          },
-          "id": 74,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "loki",
-                "uid": "${loki}"
-              },
-              "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b50\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
-              "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
-              "legendFormat": "{{host}}-{{instance}}",
-              "queryType": "range",
-              "refId": "A"
-            }
-          ],
-          "title": "Latency for 50% of transactions",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "loki",
-            "uid": "${loki}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": 60000,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "µs"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 9,
-            "w": 12,
-            "x": 12,
             "y": 22
           },
           "id": 75,
@@ -3436,7 +3373,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b90\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -3452,7 +3389,102 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": 60000,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "µs"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 12,
+            "x": 12,
+            "y": 22
+          },
+          "id": 76,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "loki",
+                "uid": "${DS_LOKI}"
+              },
+              "editorMode": "code",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
+              "legendFormat": "{{host}}-{{instance}}",
+              "queryType": "range",
+              "refId": "A"
+            }
+          ],
+          "title": "Latency for 99% of transactions",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3514,7 +3546,7 @@
             "x": 0,
             "y": 31
           },
-          "id": 76,
+          "id": 77,
           "options": {
             "legend": {
               "calcs": [],
@@ -3531,23 +3563,23 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p9\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Latency for 99% of transactions",
+          "title": "Latency for 99.9% of transactions",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3609,7 +3641,7 @@
             "x": 12,
             "y": 31
           },
-          "id": 77,
+          "id": 78,
           "options": {
             "legend": {
               "calcs": [],
@@ -3626,23 +3658,23 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p9\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Latency for 99.9% of transactions",
+          "title": "Latency for 99.99% of transactions",
           "type": "timeseries"
         },
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3704,7 +3736,7 @@
             "x": 0,
             "y": 40
           },
-          "id": 78,
+          "id": 87,
           "options": {
             "legend": {
               "calcs": [],
@@ -3721,17 +3753,17 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
-              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>, <b50>, <b90>, <b99>, <b99p9>, <b99p99>\"\n| unwrap b99p99\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
+              "expr": "max_over_time({job=\"asbench\"}\n|= \"hdr: write\"\n| pattern \"<_> <_> <_>Z <runtime>, <total>, <min_latency>, <max_latency>,\"\n| unwrap max_latency\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
               "key": "Q-86757075-42c2-43be-9c4b-1f91822ecd30-0",
               "legendFormat": "{{host}}-{{instance}}",
               "queryType": "range",
               "refId": "A"
             }
           ],
-          "title": "Latency for 99.99% of transactions",
+          "title": "Write latencies - Max Latency",
           "type": "timeseries"
         }
       ],
@@ -3751,7 +3783,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3829,7 +3861,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_tps\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -3845,7 +3877,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -3923,7 +3955,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_hits\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -3939,7 +3971,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4017,7 +4049,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_timeouts\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4033,7 +4065,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4111,7 +4143,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_miss\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4127,7 +4159,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4205,7 +4237,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_errors\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4235,7 +4267,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4278,8 +4310,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4313,7 +4344,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_tps\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4329,7 +4360,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4372,8 +4403,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4407,7 +4437,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_hits\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4423,7 +4453,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4466,8 +4496,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4501,7 +4530,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_timeouts\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4517,7 +4546,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4560,8 +4589,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4595,7 +4623,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_miss\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4611,7 +4639,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4654,8 +4682,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4689,7 +4716,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_errors\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4719,7 +4746,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4762,8 +4789,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4797,7 +4823,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_tps\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4813,7 +4839,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4856,8 +4882,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4891,7 +4916,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_hits\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -4907,7 +4932,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -4950,8 +4975,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4985,7 +5009,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_timeouts\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -5001,7 +5025,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5044,8 +5068,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5079,7 +5102,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_miss\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -5095,7 +5118,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5138,8 +5161,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5173,7 +5195,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_errors\n| __error__ != \"SampleExtractionErr\" [20s]) by (host, instance)",
@@ -5203,7 +5225,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5246,8 +5268,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5281,7 +5302,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_tps\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -5309,7 +5330,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5352,8 +5373,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5387,7 +5407,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_hits\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -5415,7 +5435,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5458,8 +5478,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5493,7 +5512,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_timeouts\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -5521,7 +5540,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5564,8 +5583,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5599,7 +5617,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_miss\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -5627,7 +5645,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5670,8 +5688,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5705,7 +5722,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> total(tps=<total_tps> (hit=<total_hits> miss=<total_miss>) timeouts=<total_timeouts> errors=<total_errors>)\"\n| unwrap total_errors\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -5747,7 +5764,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5790,8 +5807,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5825,7 +5841,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_tps\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -5853,7 +5869,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -5896,8 +5912,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5931,7 +5946,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_hits\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -5959,7 +5974,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -6002,8 +6017,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -6037,7 +6051,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_timeouts\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -6065,7 +6079,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -6108,8 +6122,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -6143,7 +6156,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_miss\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -6171,7 +6184,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -6214,8 +6227,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -6249,7 +6261,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> write(tps=<write_tps> (hit=<write_hits> miss=<write_miss>) timeouts=<write_timeouts> errors=<write_errors>)\"\n| unwrap write_errors\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -6291,7 +6303,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -6334,8 +6346,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -6369,7 +6380,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_tps\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -6397,7 +6408,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -6440,8 +6451,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -6475,7 +6485,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_hits\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -6503,7 +6513,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -6546,8 +6556,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -6581,7 +6590,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_timeouts\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -6609,7 +6618,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -6652,8 +6661,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -6687,7 +6695,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_miss\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -6715,7 +6723,7 @@
         {
           "datasource": {
             "type": "loki",
-            "uid": "${loki}"
+            "uid": "${DS_LOKI}"
           },
           "description": "",
           "fieldConfig": {
@@ -6758,8 +6766,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -6793,7 +6800,7 @@
             {
               "datasource": {
                 "type": "loki",
-                "uid": "${loki}"
+                "uid": "${DS_LOKI}"
               },
               "editorMode": "code",
               "expr": "max_over_time({job=\"asbench\"}\n|= \"INFO write\"\n| pattern \"<_> <_> <_> read(tps=<read_tps> (hit=<read_hits> miss=<read_miss>) timeouts=<read_timeouts> errors=<read_errors>)\"\n| unwrap read_errors\n| __error__ != \"SampleExtractionErr\" [30s]) by (host, instance)",
@@ -6859,6 +6866,6 @@
   "timezone": "browser",
   "title": "ASBenchmark Client",
   "uid": "asBench01",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }

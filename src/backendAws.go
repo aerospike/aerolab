@@ -1,18 +1,22 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/pricing"
 	"github.com/bestmethod/inslice"
 )
 
@@ -60,6 +64,9 @@ var (
 	awsTagOperatingSystem  = awsServerTagOperatingSystem
 	awsTagOSVersion        = awsServerTagOSVersion
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
+	awsTagCostPerHour      = "Aerolab4CostPerHour"
+	awsTagCostLastRun      = "Aerolab4CostSoFar"
+	awsTagCostStartTime    = "Aerolab4CostStartTime"
 )
 
 func (d *backendAws) WorkOnClients() {
@@ -86,9 +93,72 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
-func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
-	it := []instanceType{}
-	err := d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
+func (d *backendAws) getInstanceTypesFromCache() ([]instanceType, error) {
+	cacheFile, err := a.aerolabRootDir()
+	if err != nil {
+		return nil, err
+	}
+	cacheFile = path.Join(cacheFile, "cache", "aws.instance-types."+a.opts.Config.Backend.Region+".json")
+	f, err := os.Open(cacheFile)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	ita := &instanceTypesCache{}
+	err = dec.Decode(ita)
+	if err != nil {
+		return nil, err
+	}
+	if ita.Expires.Before(time.Now()) {
+		return ita.InstanceTypes, errors.New("cache expired")
+	}
+	return ita.InstanceTypes, nil
+}
+
+func (d *backendAws) saveInstanceTypesToCache(it []instanceType) error {
+	cacheDir, err := a.aerolabRootDir()
+	if err != nil {
+		return err
+	}
+	cacheDir = path.Join(cacheDir, "cache")
+	cacheFile := path.Join(cacheDir, "aws.instance-types."+a.opts.Config.Backend.Region+".json")
+	if _, err := os.Stat(cacheDir); err != nil {
+		if err = os.Mkdir(cacheDir, 0755); err != nil {
+			return err
+		}
+	}
+	f, err := os.OpenFile(cacheFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	enc := json.NewEncoder(f)
+	ita := &instanceTypesCache{
+		Expires:       time.Now().Add(24 * time.Hour),
+		InstanceTypes: it,
+	}
+	err = enc.Encode(ita)
+	if err != nil {
+		os.Remove(cacheFile)
+		return err
+	}
+	return nil
+}
+
+func (d *backendAws) getInstanceTypes() ([]instanceType, error) {
+	it, err := d.getInstanceTypesFromCache()
+	if err == nil {
+		return it, err
+	}
+	saveCache := true
+	prices, err := d.getInstancePricesPerHour()
+	if err != nil {
+		log.Printf("WARN: pricing error: %s", err)
+		saveCache = false
+	}
+	it = []instanceType{}
+	err = d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
 		for _, iType := range ec2Types.InstanceTypes {
 			sarch := []string{}
 			for _, sar := range iType.ProcessorInfo.SupportedArchitectures {
@@ -99,18 +169,14 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 			if len(sarch) == 0 {
 				continue
 			}
+			isArm := false
+			isX86 := false
 			sarchString := strings.Join(sarch, ",")
-			if !findArm && !strings.Contains(sarchString, "amd64") && !strings.Contains(sarchString, "x86") && !strings.Contains(sarchString, "x64") {
-				continue
+			if strings.Contains(sarchString, "amd64") || strings.Contains(sarchString, "x86") || strings.Contains(sarchString, "x64") {
+				isX86 = true
 			}
-			if findArm && !strings.Contains(sarchString, "arm64") && !strings.Contains(sarchString, "aarch64") {
-				continue
-			}
-			if (minCpu > 0 && int(*iType.VCpuInfo.DefaultVCpus) < minCpu) || (maxCpu > 0 && int(*iType.VCpuInfo.DefaultVCpus) > maxCpu) {
-				continue
-			}
-			if (minRam > 0 && float64(int(*iType.MemoryInfo.SizeInMiB))/1024 < minRam) || (maxRam > 0 && float64(int(*iType.MemoryInfo.SizeInMiB))/1024 > maxRam) {
-				continue
+			if strings.Contains(sarchString, "arm64") || strings.Contains(sarchString, "aarch64") {
+				isArm = true
 			}
 			eph := 0
 			ephs := float64(0)
@@ -120,8 +186,9 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 					eph = eph + int(*d.Count)
 				}
 			}
-			if (minDisks > 0 && eph < minDisks) || (maxDisks > 0 && eph > maxDisks) {
-				continue
+			price := prices[*iType.InstanceType]
+			if price <= 0 {
+				price = -1
 			}
 			it = append(it, instanceType{
 				InstanceName:             *iType.InstanceType,
@@ -129,6 +196,9 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 				RamGB:                    float64(int(*iType.MemoryInfo.SizeInMiB)) / 1024,
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
+				PriceUSD:                 price,
+				IsArm:                    isArm,
+				IsX86:                    isX86,
 			})
 		}
 		return true
@@ -136,45 +206,214 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 	if err != nil {
 		return nil, err
 	}
+	if saveCache {
+		err = d.saveInstanceTypesToCache(it)
+		if err != nil {
+			log.Printf("WARN: failed to save instance types to cache: %s", err)
+		}
+	}
 	return it, nil
 }
 
-func (d *backendAws) Inventory() (inventoryJson, error) {
+func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
+	ita, err := d.getInstanceTypes()
+	if err != nil {
+		return ita, err
+	}
+	it := []instanceType{}
+	for _, i := range ita {
+		if findArm && !i.IsArm {
+			continue
+		}
+		if !findArm && !i.IsX86 {
+			continue
+		}
+		if (minCpu > 0 && i.CPUs < minCpu) || (maxCpu > 0 && i.CPUs > maxCpu) {
+			continue
+		}
+		if (minRam > 0 && i.RamGB < minRam) || (maxRam > 0 && i.RamGB > maxRam) {
+			continue
+		}
+		if (minDisks > 0 && i.EphemeralDisks < minDisks) || (maxDisks > 0 && i.EphemeralDisks > maxDisks) {
+			continue
+		}
+		it = append(it, i)
+	}
+	return it, nil
+}
+
+// map[instanceType]priceUSD
+func (d *backendAws) getInstancePricesPerHour() (map[string]float64, error) {
+	prices := make(map[string]float64)
+	svc := pricing.New(d.sess, aws.NewConfig().WithRegion("us-east-1"))
+	input := &pricing.GetProductsInput{
+		ServiceCode: aws.String("AmazonEC2"),
+		MaxResults:  aws.Int64(100),
+		Filters: []*pricing.Filter{
+			{
+				Field: aws.String("regionCode"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String(a.opts.Config.Backend.Region),
+			},
+			{
+				Field: aws.String("marketoption"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("OnDemand"),
+			},
+			{
+				Field: aws.String("tenancy"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("Shared"), // other values: Dedicated, Host
+			},
+			{
+				Field: aws.String("capacitystatus"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("Used"), // other values: AllocatedCapacityReservation, UnusedCapacityReservation
+			},
+			{
+				Field: aws.String("preInstalledSw"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("NA"),
+			},
+			{
+				Field: aws.String("operatingSystem"),
+				Type:  aws.String("TERM_MATCH"),
+				Value: aws.String("Linux"),
+			},
+		},
+	}
+
+	result, err := svc.GetProducts(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case pricing.ErrCodeInternalErrorException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInternalErrorException, aerr.Error())
+			case pricing.ErrCodeInvalidParameterException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInvalidParameterException, aerr.Error())
+			case pricing.ErrCodeNotFoundException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeNotFoundException, aerr.Error())
+			case pricing.ErrCodeInvalidNextTokenException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInvalidNextTokenException, aerr.Error())
+			case pricing.ErrCodeExpiredNextTokenException:
+				return nil, fmt.Errorf("%s: %s", pricing.ErrCodeExpiredNextTokenException, aerr.Error())
+			default:
+				return nil, fmt.Errorf("%s", aerr.Error())
+			}
+		} else {
+			// Print the error, cast err to awserr.Error to get the Code and
+			// Message from an error.
+			return nil, fmt.Errorf("%s", err.Error())
+		}
+	}
+	for {
+		for _, price := range result.PriceList {
+			/*
+				ret, err := json.MarshalIndent(price["terms"].(map[string]interface{})["OnDemand"].(map[string]interface{}), "", "    ")
+				if err != nil {
+					fmt.Println(err.Error())
+				}
+				fmt.Println(string(ret))
+			*/
+			for _, v := range price["terms"].(map[string]interface{})["OnDemand"].(map[string]interface{}) {
+				for _, vv := range v.(map[string]interface{})["priceDimensions"].(map[string]interface{}) {
+					if vv.(map[string]interface{})["unit"].(string) != "Hrs" {
+						return nil, fmt.Errorf("price format incorrect:%s", vv.(map[string]interface{})["unit"].(string))
+					}
+					nType := vv.(map[string]interface{})["description"].(string)
+					nTypes := strings.Split(nType, " per On Demand Linux ")
+					if len(nTypes) != 2 {
+						continue
+					}
+					if !strings.HasSuffix(nTypes[1], " Instance Hour") {
+						continue
+					}
+					nPriceStr := vv.(map[string]interface{})["pricePerUnit"].(map[string]interface{})["USD"].(string)
+					nPrice, err := strconv.ParseFloat(nPriceStr, 64)
+					if err != nil {
+						return nil, fmt.Errorf("price is NaN:%s: '%s'", err, nPriceStr)
+					}
+					prices[strings.TrimSuffix(nTypes[1], " Instance Hour")] = nPrice
+				}
+			}
+		}
+		input.NextToken = result.NextToken
+		if input.NextToken == nil || *input.NextToken == "" {
+			break
+		}
+		result, err = svc.GetProducts(input)
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case pricing.ErrCodeInternalErrorException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInternalErrorException, aerr.Error())
+				case pricing.ErrCodeInvalidParameterException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInvalidParameterException, aerr.Error())
+				case pricing.ErrCodeNotFoundException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeNotFoundException, aerr.Error())
+				case pricing.ErrCodeInvalidNextTokenException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeInvalidNextTokenException, aerr.Error())
+				case pricing.ErrCodeExpiredNextTokenException:
+					return nil, fmt.Errorf("%s: %s", pricing.ErrCodeExpiredNextTokenException, aerr.Error())
+				default:
+					return nil, fmt.Errorf("%s", aerr.Error())
+				}
+			} else {
+				return nil, fmt.Errorf("%s", err.Error())
+			}
+		}
+	}
+	return prices, nil
+}
+
+func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (inventoryJson, error) {
 	ij := inventoryJson{}
 
-	tmpl, err := d.ListTemplates()
-	if err != nil {
-		return ij, err
-	}
-	for _, d := range tmpl {
-		arch := "amd64"
-		if d.isArm {
-			arch = "arm64"
+	if inslice.HasInt(inventoryItems, InventoryItemTemplates) {
+		tmpl, err := d.ListTemplates()
+		if err != nil {
+			return ij, err
 		}
-		ij.Templates = append(ij.Templates, inventoryTemplate{
-			AerospikeVersion: d.aerospikeVersion,
-			Distribution:     d.distroName,
-			OSVersion:        d.distroVersion,
-			Arch:             arch,
-		})
+		for _, d := range tmpl {
+			arch := "amd64"
+			if d.isArm {
+				arch = "arm64"
+			}
+			ij.Templates = append(ij.Templates, inventoryTemplate{
+				AerospikeVersion: d.aerospikeVersion,
+				Distribution:     d.distroName,
+				OSVersion:        d.distroVersion,
+				Arch:             arch,
+			})
+		}
 	}
 
-	ij.FirewallRules, err = d.listSecurityGroups(false)
-	if err != nil {
-		return ij, err
+	if inslice.HasInt(inventoryItems, InventoryItemFirewalls) {
+		var err error
+		ij.FirewallRules, err = d.listSecurityGroups(false)
+		if err != nil {
+			return ij, err
+		}
+
+		ijSubnets, err := d.listSubnets(false)
+		if err != nil {
+			return ij, err
+		}
+		for _, ijs := range ijSubnets {
+			ij.Subnets = append(ij.Subnets, inventorySubnet{
+				AWS: ijs,
+			})
+		}
 	}
 
-	ijSubnets, err := d.listSubnets(false)
-	if err != nil {
-		return ij, err
+	nCheckList := []int{}
+	if inslice.HasInt(inventoryItems, InventoryItemClusters) {
+		nCheckList = []int{1}
 	}
-	for _, ijs := range ijSubnets {
-		ij.Subnets = append(ij.Subnets, inventorySubnet{
-			AWS: ijs,
-		})
+	if inslice.HasInt(inventoryItems, InventoryItemClients) {
+		nCheckList = append(nCheckList, 2)
 	}
-
-	for _, i := range []int{1, 2} {
+	for _, i := range nCheckList {
 		if i == 1 {
 			d.WorkOnServers()
 		} else {
@@ -207,6 +446,9 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 					state := ""
 					arch := ""
 					clientType := ""
+					startTime := int(0)
+					lastRunCost := float64(0)
+					pricePerHour := float64(0)
 					if instance.PublicIpAddress != nil {
 						publicIp = *instance.PublicIpAddress
 					}
@@ -225,9 +467,12 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 					if instance.Architecture != nil {
 						arch = *instance.Architecture
 					}
+					owner := ""
 					for _, tag := range instance.Tags {
 						if *tag.Key == awsTagClusterName {
 							clusterName = *tag.Value
+						} else if *tag.Key == "owner" {
+							owner = *tag.Value
 						} else if *tag.Key == awsTagNodeNumber {
 							nodeNo = *tag.Value
 						} else if *tag.Key == awsTagOperatingSystem {
@@ -238,44 +483,75 @@ func (d *backendAws) Inventory() (inventoryJson, error) {
 							asdVer = *tag.Value
 						} else if *tag.Key == awsClientTagClientType {
 							clientType = *tag.Value
+						} else if *tag.Key == awsTagCostLastRun {
+							lastRunCost, err = strconv.ParseFloat(*tag.Value, 64)
+							if err != nil {
+								lastRunCost = 0
+							}
+						} else if *tag.Key == awsTagCostPerHour {
+							pricePerHour, err = strconv.ParseFloat(*tag.Value, 64)
+							if err != nil {
+								pricePerHour = 0
+							}
+						} else if *tag.Key == awsTagCostStartTime {
+							startTime, err = strconv.Atoi(*tag.Value)
+							if err != nil {
+								startTime = int(instance.LaunchTime.Unix())
+							}
+						}
+					}
+					if filterOwner != "" {
+						if owner != filterOwner {
+							continue
 						}
 					}
 					sgs := []string{}
 					for _, sgss := range instance.SecurityGroups {
 						sgs = append(sgs, *sgss.GroupName)
 					}
+					currentCost := lastRunCost
+					if startTime != 0 {
+						now := int(time.Now().Unix())
+						delta := now - startTime
+						deltaH := float64(delta) / 3600
+						currentCost = lastRunCost + (pricePerHour * deltaH)
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
-							ClusterName:      clusterName,
-							NodeNo:           nodeNo,
-							PublicIp:         publicIp,
-							PrivateIp:        privateIp,
-							InstanceId:       instanceId,
-							ImageId:          imageId,
-							State:            state,
-							Arch:             arch,
-							Distribution:     os,
-							OSVersion:        osVer,
-							AerospikeVersion: asdVer,
-							Zone:             a.opts.Config.Backend.Region,
-							Firewalls:        sgs,
+							ClusterName:         clusterName,
+							NodeNo:              nodeNo,
+							PublicIp:            publicIp,
+							PrivateIp:           privateIp,
+							InstanceId:          instanceId,
+							ImageId:             imageId,
+							State:               state,
+							Arch:                arch,
+							Distribution:        os,
+							OSVersion:           osVer,
+							AerospikeVersion:    asdVer,
+							Zone:                a.opts.Config.Backend.Region,
+							Firewalls:           sgs,
+							InstanceRunningCost: currentCost,
+							Owner:               owner,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
-							ClientName:       clusterName,
-							NodeNo:           nodeNo,
-							PublicIp:         publicIp,
-							PrivateIp:        privateIp,
-							InstanceId:       instanceId,
-							ImageId:          imageId,
-							State:            state,
-							Arch:             arch,
-							Distribution:     os,
-							OSVersion:        osVer,
-							AerospikeVersion: asdVer,
-							ClientType:       clientType,
-							Zone:             a.opts.Config.Backend.Region,
-							Firewalls:        sgs,
+							ClientName:          clusterName,
+							NodeNo:              nodeNo,
+							PublicIp:            publicIp,
+							PrivateIp:           privateIp,
+							InstanceId:          instanceId,
+							ImageId:             imageId,
+							State:               state,
+							Arch:                arch,
+							Distribution:        os,
+							OSVersion:           osVer,
+							AerospikeVersion:    asdVer,
+							ClientType:          clientType,
+							Zone:                a.opts.Config.Backend.Region,
+							Firewalls:           sgs,
+							InstanceRunningCost: currentCost,
+							Owner:               owner,
 						})
 					}
 				}
@@ -566,6 +842,18 @@ func (d *backendAws) TemplateDestroy(v backendVersion) error {
 }
 
 func (d *backendAws) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
+	fr := []fileListReader{}
+	for _, f := range files {
+		fr = append(fr, fileListReader{
+			filePath:     f.filePath,
+			fileSize:     f.fileSize,
+			fileContents: strings.NewReader(f.fileContents),
+		})
+	}
+	return d.CopyFilesToClusterReader(name, fr, nodes)
+}
+
+func (d *backendAws) CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error {
 	var err error
 	nodeIps, err := d.GetNodeIpMap(name, false)
 	if err != nil {
@@ -674,16 +962,36 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 		for _, instance := range reservation.Instances {
 			if *instance.State.Code != int64(48) {
 				var nodeNumber int
+				startTime := 0
 				for _, tag := range instance.Tags {
 					if *tag.Key == awsTagNodeNumber {
 						nodeNumber, err = strconv.Atoi(*tag.Value)
 						if err != nil {
 							return errors.New("problem with node numbers in the given cluster. Investigate manually")
 						}
+					} else if *tag.Key == awsTagCostStartTime {
+						startTime, err = strconv.Atoi(*tag.Value)
+						if err != nil {
+							startTime = 0
+						}
 					}
 				}
 				if inslice.HasInt(nodes, nodeNumber) {
 					if instance.State.Code != &stateCodes[0] && instance.State.Code != &stateCodes[1] {
+						if startTime == 0 {
+							tagi := &ec2.CreateTagsInput{
+								Resources: aws.StringSlice([]string{*instance.InstanceId}),
+								Tags: []*ec2.Tag{
+									{
+										Key:   aws.String(awsTagCostStartTime),
+										Value: aws.String(strconv.Itoa(int(time.Now().Unix()))),
+									}},
+							}
+							_, err := d.ec2svc.CreateTags(tagi)
+							if err != nil {
+								return fmt.Errorf("could not update instance start time tags: %s", err)
+							}
+						}
 						input := &ec2.StartInstancesInput{
 							InstanceIds: []*string{
 								aws.String(*instance.InstanceId),
@@ -782,11 +1090,29 @@ func (d *backendAws) ClusterStop(name string, nodes []int) error {
 		for _, instance := range reservation.Instances {
 			if *instance.State.Code != int64(48) {
 				var nodeNumber int
+				lastRunCost := float64(0)
+				pricePerHour := float64(0)
+				startTime := 0
 				for _, tag := range instance.Tags {
 					if *tag.Key == awsTagNodeNumber {
 						nodeNumber, err = strconv.Atoi(*tag.Value)
 						if err != nil {
 							return errors.New("problem with node numbers in the given cluster. Investigate manually")
+						}
+					} else if *tag.Key == awsTagCostLastRun {
+						lastRunCost, err = strconv.ParseFloat(*tag.Value, 64)
+						if err != nil {
+							lastRunCost = 0
+						}
+					} else if *tag.Key == awsTagCostPerHour {
+						pricePerHour, err = strconv.ParseFloat(*tag.Value, 64)
+						if err != nil {
+							pricePerHour = 0
+						}
+					} else if *tag.Key == awsTagCostStartTime {
+						startTime, err = strconv.Atoi(*tag.Value)
+						if err != nil {
+							startTime = int(instance.LaunchTime.Unix())
 						}
 					}
 				}
@@ -801,6 +1127,25 @@ func (d *backendAws) ClusterStop(name string, nodes []int) error {
 					result, err := d.ec2svc.StopInstances(input)
 					if err != nil {
 						return fmt.Errorf("error starting instance %s\n%s\n%s", *instance.InstanceId, result, err)
+					}
+					// on cluster stop, calculate and set the lastRun tag, and set startTime to 0
+					if startTime != 0 {
+						lastRunCost = lastRunCost + (pricePerHour * (float64((int(time.Now().Unix()) - startTime)) / 3600))
+						tagi := &ec2.CreateTagsInput{
+							Resources: aws.StringSlice([]string{*instance.InstanceId}),
+							Tags: []*ec2.Tag{
+								{
+									Key:   aws.String(awsTagCostStartTime),
+									Value: aws.String("0"),
+								}, {
+									Key:   aws.String(awsTagCostLastRun),
+									Value: aws.String(strconv.FormatFloat(lastRunCost, 'f', 8, 64)),
+								}},
+						}
+						_, err = d.ec2svc.CreateTags(tagi)
+						if err != nil {
+							return fmt.Errorf("could not update instance start time tags: %s", err)
+						}
 					}
 				}
 			}
@@ -1055,8 +1400,9 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-func (d *backendAws) ClusterListFull(isJson bool) (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool, owner string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
+	a.opts.Inventory.List.Owner = owner
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
@@ -1067,7 +1413,7 @@ func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
 
 var deployAwsTemplateShutdownMaking = make(chan int, 1)
 
-func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error {
 	addShutdownHandler("deployAwsTemplate", func(os.Signal) {
 		deployAwsTemplateShutdownMaking <- 1
 		d.VacuumTemplate(v)
@@ -1338,7 +1684,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	}
 
 	// copy files as required to VM
-	files = append(files, fileList{"/root/installer.sh", strings.NewReader(script), len(script)})
+	files = append(files, fileListReader{"/root/installer.sh", strings.NewReader(script), len(script)})
 	err = scp("root", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, files)
 	if err != nil {
 		return fmt.Errorf("scp failed: %s", err)
@@ -1543,6 +1889,15 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	var reservations []*ec2.Reservation
 	var keyPath string
+	price := float64(-1)
+	it, err := d.getInstanceTypes()
+	if err == nil {
+		for _, iti := range it {
+			if iti.InstanceName == extra.instanceType {
+				price = iti.PriceUSD
+			}
+		}
+	}
 	for i := start; i < (nodeCount + start); i++ {
 		// tag setup
 		if extra.clientType == "" {
@@ -1574,6 +1929,18 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			{
 				Key:   aws.String(awsTagAerospikeVersion),
 				Value: aws.String(v.aerospikeVersion),
+			},
+			{
+				Key:   aws.String(awsTagCostPerHour),
+				Value: aws.String(strconv.FormatFloat(price, 'f', 8, 64)),
+			},
+			{
+				Key:   aws.String(awsTagCostLastRun),
+				Value: aws.String(strconv.FormatFloat(0, 'f', 8, 64)),
+			},
+			{
+				Key:   aws.String(awsTagCostStartTime),
+				Value: aws.String(strconv.Itoa(int(time.Now().Unix()))),
 			}}
 		tgs = append(tgs, extraTags...)
 		ts := ec2.TagSpecification{}

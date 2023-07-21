@@ -6,9 +6,10 @@ import (
 )
 
 type clusterListCmd struct {
-	Json bool    `short:"j" long:"json" description:"Provide output in json format"`
-	IP   bool    `short:"i" long:"ip" description:"print only the IP of the client machines (disables JSON output)"`
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Owner string  `long:"owner" description:"Only show resources tagged with this owner"`
+	Json  bool    `short:"j" long:"json" description:"Provide output in json format"`
+	IP    bool    `short:"i" long:"ip" description:"print only the IP of the client machines (disables JSON output)"`
+	Help  helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clusterListCmd) Execute(args []string) error {
@@ -54,7 +55,7 @@ func (c *clusterListCmd) Execute(args []string) error {
 		}
 		return nil
 	}
-	f, e := b.ClusterListFull(c.Json)
+	f, e := b.ClusterListFull(c.Json, c.Owner)
 	if e != nil {
 		return e
 	}

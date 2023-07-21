@@ -11,22 +11,30 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 )
 
 type clientStartCmd struct {
+	ClientName      TypeClientName `short:"n" long:"group-name" description:"Client names, comma separated OR 'all' to affect all clusters" default:"client"`
+	Machines        TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
+	ParallelThreads int            `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	Help            helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	clientStartStopDestroyCmd
+}
+
+type clientStopCmd struct {
 	ClientName TypeClientName `short:"n" long:"group-name" description:"Client names, comma separated OR 'all' to affect all clusters" default:"client"`
 	Machines   TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	clientStartStopDestroyCmd
 }
 
-type clientStopCmd struct {
-	clientStartCmd
-}
-
 type clientDestroyCmd struct {
-	clientStartCmd
+	ClientName TypeClientName `short:"n" long:"group-name" description:"Client names, comma separated OR 'all' to affect all clusters" default:"client"`
+	Machines   TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
+	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	clientStartStopDestroyCmd
 	Parallel bool `short:"p" long:"parallel" description:"if destroying many clients at once, set this to destroy in parallel"`
 	Force    bool `short:"f" long:"force" description:"force stop before destroy"`
 }
@@ -69,31 +77,34 @@ func (c *clientStartCmd) runStart(args []string) error {
 			}
 		}
 		if err == nil {
-			// generic startup scripts
-			autoloader := "[ ! -d /opt/autoload ] && exit 0; RET=0; for f in $(ls /opt/autoload |sort -n); do /bin/bash /opt/autoload/${f}; CRET=$?; if [ ${CRET} -ne 0 ]; then RET=${CRET}; fi; done; exit ${RET}"
-			err = b.CopyFilesToCluster(ClusterName, []fileList{{"/usr/local/bin/autoloader.sh", strings.NewReader(autoloader), len(autoloader)}}, nodes[ClusterName])
-			if err != nil {
-				log.Printf("Could not upload /usr/local/bin/autoloader.sh, will not start scripts from /opt/autoload: %s", err)
-			}
-			out, err := b.RunCommands(ClusterName, [][]string{{"/bin/bash", "/usr/local/bin/autoloader.sh"}}, nodes[ClusterName])
-			if err != nil {
-				scriptErr = true
-				prt := ""
-				for i, o := range out {
-					prt = prt + "\n ---- " + strconv.Itoa(i) + " ----\n" + string(o)
+			parallelize.MapLimit(nodes[ClusterName], c.ParallelThreads, func(nnode int) error {
+				// generic startup scripts
+				autoloader := "[ ! -d /opt/autoload ] && exit 0; RET=0; for f in $(ls /opt/autoload |sort -n); do /bin/bash /opt/autoload/${f}; CRET=$?; if [ ${CRET} -ne 0 ]; then RET=${CRET}; fi; done; exit ${RET}"
+				err = b.CopyFilesToCluster(ClusterName, []fileList{{"/usr/local/bin/autoloader.sh", autoloader, len(autoloader)}}, []int{nnode})
+				if err != nil {
+					log.Printf("Could not upload /usr/local/bin/autoloader.sh, will not start scripts from /opt/autoload: %s", err)
 				}
-				log.Printf("Some startup sripts returned an error (%s). Outputs:%s", err, prt)
-			}
-			// custom startup script
-			out, err = b.RunCommands(ClusterName, [][]string{{"/bin/bash", "/usr/local/bin/start.sh"}}, nodes[ClusterName])
-			if err != nil {
-				scriptErr = true
-				prt := ""
-				for i, o := range out {
-					prt = prt + "\n ---- " + strconv.Itoa(i) + " ----\n" + string(o)
+				out, err := b.RunCommands(ClusterName, [][]string{{"/bin/bash", "/usr/local/bin/autoloader.sh"}}, []int{nnode})
+				if err != nil {
+					scriptErr = true
+					prt := ""
+					for i, o := range out {
+						prt = prt + "\n ---- " + strconv.Itoa(i) + " ----\n" + string(o)
+					}
+					log.Printf("Some startup sripts returned an error (%s). Outputs:%s", err, prt)
 				}
-				log.Printf("Some custom startup sripts returned an error (%s). Outputs:%s", err, prt)
-			}
+				// custom startup script
+				out, err = b.RunCommands(ClusterName, [][]string{{"/bin/bash", "/usr/local/bin/start.sh"}}, []int{nnode})
+				if err != nil {
+					scriptErr = true
+					prt := ""
+					for i, o := range out {
+						prt = prt + "\n ---- " + strconv.Itoa(i) + " ----\n" + string(o)
+					}
+					log.Printf("Some custom startup sripts returned an error (%s). Outputs:%s", err, prt)
+				}
+				return nil
+			})
 		}
 	}
 	if nerr != nil {

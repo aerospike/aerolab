@@ -1,18 +1,21 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 
+	"github.com/aerospike/aerolab/parallelize"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
 type clusterAddExporterCmd struct {
-	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
-	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	CustomConf  flags.Filename  `short:"o" long:"custom-conf" description:"To deploy a custom ape.toml configuration file, specify it's path here"`
-	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	CustomConf      flags.Filename  `short:"o" long:"custom-conf" description:"To deploy a custom ape.toml configuration file, specify it's path here"`
+	ParallelThreads int             `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 	clusterStartStopDestroyCmd
 }
 
@@ -28,6 +31,9 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String())
 	if err != nil {
 		return err
+	}
+	if len(cList) > 1 {
+		return fmt.Errorf("only one cluster can be specified at a time")
 	}
 
 	//arms
@@ -73,19 +79,32 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		commands = append(commands, []string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"})
 	}
 	for _, cluster := range cList {
-		out, err := b.RunCommands(cluster, commands, amdlist)
-		if err != nil {
-			nout := ""
-			for _, n := range out {
-				nout = nout + "\n" + string(n)
+		returns := parallelize.MapLimit(amdlist, c.ParallelThreads, func(node int) error {
+			out, err := b.RunCommands(cluster, commands, []int{node})
+			if err != nil {
+				nout := ""
+				for _, n := range out {
+					nout = nout + "\n" + string(n)
+				}
+				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 			}
-			return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+			cts := "pidof node_exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup /usr/bin/node_exporter >/var/log/node_exporter.log 2>&1 & jobs -p %1'"
+			ctsr := strings.NewReader(cts)
+			err = b.CopyFilesToClusterReader(cluster, []fileListReader{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, []int{node})
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		isError := false
+		for i, ret := range returns {
+			if ret != nil {
+				log.Printf("Node %d returned %s", amdlist[i], ret)
+				isError = true
+			}
 		}
-		cts := "pidof node_exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup /usr/bin/node_exporter >/var/log/node_exporter.log 2>&1 & jobs -p %1'"
-		ctsr := strings.NewReader(cts)
-		err = b.CopyFilesToCluster(cluster, []fileList{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, amdlist)
-		if err != nil {
-			log.Print(err)
+		if isError {
+			return errors.New("some nodes returned errors")
 		}
 	}
 
@@ -103,19 +122,32 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		commands = append(commands, []string{"/bin/bash", "-c", "mkdir -p /opt/autoload && echo \"pidof aerospike-prometheus-exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup aerospike-prometheus-exporter --config /etc/aerospike-prometheus-exporter/ape.toml >/var/log/exporter.log 2>&1 & jobs -p %1'\" > /opt/autoload/01-exporter; chmod 755 /opt/autoload/01-exporter"})
 	}
 	for _, cluster := range cList {
-		out, err := b.RunCommands(cluster, commands, armlist)
-		if err != nil {
-			nout := ""
-			for _, n := range out {
-				nout = nout + "\n" + string(n)
+		returns := parallelize.MapLimit(armlist, c.ParallelThreads, func(node int) error {
+			out, err := b.RunCommands(cluster, commands, []int{node})
+			if err != nil {
+				nout := ""
+				for _, n := range out {
+					nout = nout + "\n" + string(n)
+				}
+				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 			}
-			return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+			cts := "pidof node_exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup /usr/bin/node_exporter >/var/log/node_exporter.log 2>&1 & jobs -p %1'"
+			ctsr := strings.NewReader(cts)
+			err = b.CopyFilesToClusterReader(cluster, []fileListReader{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, []int{node})
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		isError := false
+		for i, ret := range returns {
+			if ret != nil {
+				log.Printf("Node %d returned %s", armlist[i], ret)
+				isError = true
+			}
 		}
-		cts := "pidof node_exporter; [ \\$? -eq 0 ] && exit 0; bash -c 'nohup /usr/bin/node_exporter >/var/log/node_exporter.log 2>&1 & jobs -p %1'"
-		ctsr := strings.NewReader(cts)
-		err = b.CopyFilesToCluster(cluster, []fileList{{filePath: "/opt/autoload/01-node-exporter", fileContents: ctsr, fileSize: len(cts)}}, armlist)
-		if err != nil {
-			log.Print(err)
+		if isError {
+			return errors.New("some nodes returned errors")
 		}
 	}
 
@@ -128,6 +160,7 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			a.opts.Files.Upload.Files.Source = c.CustomConf
 			a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike-prometheus-exporter/ape.toml")
 			a.opts.Files.Upload.doLegacy = true
+			a.opts.Files.Upload.ParallelThreads = c.ParallelThreads
 			err = a.opts.Files.Upload.runUpload(args)
 			if err != nil {
 				return err
@@ -140,13 +173,26 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		{"/bin/bash", "/opt/autoload/01-node-exporter"},
 	}
 	for _, cluster := range cList {
-		out, err := b.RunCommands(cluster, commands, nodes[cluster])
-		if err != nil {
-			nout := ""
-			for _, n := range out {
-				nout = nout + "\n" + string(n)
+		returns := parallelize.MapLimit(nodes[cluster], c.ParallelThreads, func(node int) error {
+			out, err := b.RunCommands(cluster, commands, []int{node})
+			if err != nil {
+				nout := ""
+				for _, n := range out {
+					nout = nout + "\n" + string(n)
+				}
+				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 			}
-			return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+			return nil
+		})
+		isError := false
+		for i, ret := range returns {
+			if ret != nil {
+				log.Printf("Node %d returned %s", nodes[cluster][i], ret)
+				isError = true
+			}
+		}
+		if isError {
+			return errors.New("some nodes returned errors")
 		}
 	}
 	if a.opts.Config.Backend.Type == "docker" {
@@ -154,13 +200,26 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			{"/bin/bash", "/opt/autoload/01-exporter"},
 		}
 		for _, cluster := range cList {
-			out, err := b.RunCommands(cluster, commands, nodes[cluster])
-			if err != nil {
-				nout := ""
-				for _, n := range out {
-					nout = nout + "\n" + string(n)
+			returns := parallelize.MapLimit(nodes[cluster], c.ParallelThreads, func(node int) error {
+				out, err := b.RunCommands(cluster, commands, []int{node})
+				if err != nil {
+					nout := ""
+					for _, n := range out {
+						nout = nout + "\n" + string(n)
+					}
+					return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 				}
-				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+				return nil
+			})
+			isError := false
+			for i, ret := range returns {
+				if ret != nil {
+					log.Printf("Node %d returned %s", nodes[cluster][i], ret)
+					isError = true
+				}
+			}
+			if isError {
+				return errors.New("some nodes returned errors")
 			}
 		}
 	} else {
@@ -172,13 +231,26 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			{"/bin/bash", "-c", "systemctl start aerospike-prometheus-exporter"},
 		}
 		for _, cluster := range cList {
-			out, err := b.RunCommands(cluster, commands, nodes[cluster])
-			if err != nil {
-				nout := ""
-				for _, n := range out {
-					nout = nout + "\n" + string(n)
+			returns := parallelize.MapLimit(nodes[cluster], c.ParallelThreads, func(node int) error {
+				out, err := b.RunCommands(cluster, commands, []int{node})
+				if err != nil {
+					nout := ""
+					for _, n := range out {
+						nout = nout + "\n" + string(n)
+					}
+					return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
 				}
-				return fmt.Errorf("error on cluster %s: %s: %s", cluster, nout, err)
+				return nil
+			})
+			isError := false
+			for i, ret := range returns {
+				if ret != nil {
+					log.Printf("Node %d returned %s", nodes[cluster][i], ret)
+					isError = true
+				}
+			}
+			if isError {
+				return errors.New("some nodes returned errors")
 			}
 		}
 	}

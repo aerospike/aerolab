@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/bestmethod/inslice"
 )
@@ -17,6 +19,7 @@ type clusterPartitionListCmd struct {
 	FilterDisks      TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
 	FilterPartitions TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number, empty or 0 = don't show partitions, ex: 1,2,4-8" default:"ALL"`
 	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
+	ParallelThreads  int             `short:"T" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
 	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -130,123 +133,191 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 		return nil, err
 	}
 	sort.Ints(nodes)
-	headerPrinted := false
-	for _, node := range nodes {
-		blkFormat := 1
-		ret, err := b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
-		if err != nil {
-			blkFormat = 2
-			ret, err = b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-p", "-o", "NAME,FSTYPE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
+	headerPrinted := NewSafeBool()
+	if len(nodes) == 1 || c.ParallelThreads == 1 {
+		for _, node := range nodes {
+			err = c.runList(dout, node, printable, filterDisks, filterPartitions, headerPrinted)
 			if err != nil {
-				return nil, err
+				return dout, err
 			}
 		}
-		disks := &blockDeviceInformation{}
-		err = json.Unmarshal(ret[0], disks)
-		if err != nil {
-			return nil, err
+	} else {
+		parallel := make(chan int, c.ParallelThreads)
+		hasError := make(chan bool, len(nodes))
+		wait := new(sync.WaitGroup)
+		for _, node := range nodes {
+			parallel <- 1
+			wait.Add(1)
+			go c.runListParallel(dout, node, printable, filterDisks, filterPartitions, headerPrinted, parallel, wait, hasError)
 		}
-		// fix centos weirdnesses ...
-		disks.BlockDevices = c.fixPartOut(disks.BlockDevices, blkFormat)
-		// centos fix end
-		out := []string{}
-		sort.Slice(disks.BlockDevices, func(x, y int) bool {
-			return disks.BlockDevices[x].Name < disks.BlockDevices[y].Name
-		})
-		diskNo := 0
-		for _, disk := range disks.BlockDevices {
-			if disk.Type != "disk" {
-				continue
-			}
-			diskType := ""
-			if (a.opts.Config.Backend.Type == "aws" && disk.Model == "Amazon Elastic Block Store") || (a.opts.Config.Backend.Type == "gcp" && strings.HasPrefix(disk.Model, "PersistentDisk")) {
-				diskType = "ebs"
-				if c.FilterType != "" && c.FilterType != "ALL" && c.FilterType != "ebs" {
-					continue
-				}
-			} else if (a.opts.Config.Backend.Type == "aws" && disk.Model == "Amazon EC2 NVMe Instance Storage") || (a.opts.Config.Backend.Type == "gcp" && disk.Model != "") {
-				diskType = "nvme"
-				if c.FilterType != "" && c.FilterType != "ALL" && c.FilterType != "nvme" {
-					continue
-				}
-			} else {
-				continue
-			}
-			if disk.MountPoint == "/" || strings.HasPrefix(disk.MountPoint, "/boot") {
-				continue
-			}
-			isRestricted := false
-			for _, part := range disk.Children {
-				if part.MountPoint == "/" || strings.HasPrefix(part.MountPoint, "/boot") {
-					isRestricted = true
-					break
-				}
-			}
-			if isRestricted {
-				continue
-			}
-			diskNo++
-			if c.FilterDisks != "ALL" && c.FilterDisks != "" && !inslice.HasInt(filterDisks, diskNo) {
-				continue
-			}
-			disk.diskNo = diskNo
-			disk.partNo = 0
-			disk.nodeNo = node
-			if _, ok := dout[node]; !ok {
-				dout[node] = make(map[int]map[int]blockDevices)
-			}
-			if _, ok := dout[node][diskNo]; !ok {
-				dout[node][diskNo] = make(map[int]blockDevices)
-			}
-			dout[node][diskNo][0] = disk
-			diskTypePrint := diskType
-			if a.opts.Config.Backend.Type == "gcp" {
-				if diskType == "ebs" {
-					diskTypePrint = "persistent"
-				} else {
-					diskTypePrint = "local"
-				}
-			}
-			out = append(out, fmt.Sprintf("%4d %-10s %4d    - %-12s %8s %6s %8s %s", node, diskTypePrint, diskNo, disk.Name, disk.Size, disk.FsType, disk.FsSize, disk.MountPoint))
-			if len(disk.Children) != 0 && c.FilterPartitions != "0" && c.FilterPartitions != "" {
-				sort.Slice(disk.Children, func(x, y int) bool {
-					return disk.Children[x].Name < disk.Children[y].Name
-				})
-				partNo := 0
-				for _, part := range disk.Children {
-					if part.Type != "part" {
-						continue
-					}
-					partNo++
-					if c.FilterPartitions == "ALL" || inslice.HasInt(filterPartitions, partNo) {
-						part.diskNo = diskNo
-						part.nodeNo = node
-						part.partNo = partNo
-						dout[node][diskNo][partNo] = part
-						diskTypePrint := diskType
-						if a.opts.Config.Backend.Type == "gcp" {
-							if diskType == "ebs" {
-								diskTypePrint = "persistent"
-							} else {
-								diskTypePrint = "local"
-							}
-						}
-						out = append(out, fmt.Sprintf("%4d %-10s %4d %4d %-12s %8s %6s %8s %s", node, diskTypePrint, diskNo, partNo, part.Name, part.Size, part.FsType, part.FsSize, part.MountPoint))
-					}
-				}
-			}
-		}
-		if printable && len(out) > 0 {
-			if !headerPrinted {
-				fmt.Println(strings.ToUpper("node type       disk part name             size fstype     fssize mountpoint"))
-				fmt.Println("----------------------------------------------------------------------")
-				headerPrinted = true
-			}
-			fmt.Println(strings.Join(out, "\n"))
+		wait.Wait()
+		if len(hasError) > 0 {
+			return dout, fmt.Errorf("failed to get logs from %d nodes", len(hasError))
 		}
 	}
-	if printable && !headerPrinted {
+	if printable && !headerPrinted.Get() {
 		fmt.Println("NO NON-OS DISKS FOUND MATCHING SEARCH CRITERIA")
 	}
 	return dout, nil
+}
+
+func (c *clusterPartitionListCmd) runListParallel(dout disks, node int, printable bool, filterDisks []int, filterPartitions []int, headerPrinted *SafeBool, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+	defer func() {
+		<-parallel
+		wait.Done()
+	}()
+	err := c.runList(dout, node, printable, filterDisks, filterPartitions, headerPrinted)
+	if err != nil {
+		log.Printf("ERROR getting logs from node %d: %s", node, err)
+		hasError <- true
+	}
+}
+
+func (c *clusterPartitionListCmd) runList(dout disks, node int, printable bool, filterDisks []int, filterPartitions []int, headerPrinted *SafeBool) error {
+	blkFormat := 1
+	ret, err := b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
+	if err != nil {
+		blkFormat = 2
+		ret, err = b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-p", "-o", "NAME,FSTYPE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
+		if err != nil {
+			return err
+		}
+	}
+	disks := &blockDeviceInformation{}
+	err = json.Unmarshal(ret[0], disks)
+	if err != nil {
+		return err
+	}
+	// fix centos weirdnesses ...
+	disks.BlockDevices = c.fixPartOut(disks.BlockDevices, blkFormat)
+	// centos fix end
+	out := []string{}
+	sort.Slice(disks.BlockDevices, func(x, y int) bool {
+		return disks.BlockDevices[x].Name < disks.BlockDevices[y].Name
+	})
+	diskNo := 0
+	for _, disk := range disks.BlockDevices {
+		if disk.Type != "disk" {
+			continue
+		}
+		diskType := ""
+		if (a.opts.Config.Backend.Type == "aws" && disk.Model == "Amazon Elastic Block Store") || (a.opts.Config.Backend.Type == "gcp" && strings.HasPrefix(disk.Model, "PersistentDisk")) {
+			diskType = "ebs"
+			if c.FilterType != "" && c.FilterType != "ALL" && c.FilterType != "ebs" {
+				continue
+			}
+		} else if (a.opts.Config.Backend.Type == "aws" && disk.Model == "Amazon EC2 NVMe Instance Storage") || (a.opts.Config.Backend.Type == "gcp" && disk.Model != "") {
+			diskType = "nvme"
+			if c.FilterType != "" && c.FilterType != "ALL" && c.FilterType != "nvme" {
+				continue
+			}
+		} else {
+			continue
+		}
+		if disk.MountPoint == "/" || strings.HasPrefix(disk.MountPoint, "/boot") {
+			continue
+		}
+		isRestricted := false
+		for _, part := range disk.Children {
+			if part.MountPoint == "/" || strings.HasPrefix(part.MountPoint, "/boot") {
+				isRestricted = true
+				break
+			}
+		}
+		if isRestricted {
+			continue
+		}
+		diskNo++
+		if c.FilterDisks != "ALL" && c.FilterDisks != "" && !inslice.HasInt(filterDisks, diskNo) {
+			continue
+		}
+		disk.diskNo = diskNo
+		disk.partNo = 0
+		disk.nodeNo = node
+		if _, ok := dout[node]; !ok {
+			dout[node] = make(map[int]map[int]blockDevices)
+		}
+		if _, ok := dout[node][diskNo]; !ok {
+			dout[node][diskNo] = make(map[int]blockDevices)
+		}
+		dout[node][diskNo][0] = disk
+		diskTypePrint := diskType
+		if a.opts.Config.Backend.Type == "gcp" {
+			if diskType == "ebs" {
+				diskTypePrint = "persistent"
+			} else {
+				diskTypePrint = "local"
+			}
+		}
+		out = append(out, fmt.Sprintf("%4d %-10s %4d    - %-12s %8s %6s %8s %s", node, diskTypePrint, diskNo, disk.Name, disk.Size, disk.FsType, disk.FsSize, disk.MountPoint))
+		if len(disk.Children) != 0 && c.FilterPartitions != "0" && c.FilterPartitions != "" {
+			sort.Slice(disk.Children, func(x, y int) bool {
+				return disk.Children[x].Name < disk.Children[y].Name
+			})
+			partNo := 0
+			for _, part := range disk.Children {
+				if part.Type != "part" {
+					continue
+				}
+				partNo++
+				if c.FilterPartitions == "ALL" || inslice.HasInt(filterPartitions, partNo) {
+					part.diskNo = diskNo
+					part.nodeNo = node
+					part.partNo = partNo
+					dout[node][diskNo][partNo] = part
+					diskTypePrint := diskType
+					if a.opts.Config.Backend.Type == "gcp" {
+						if diskType == "ebs" {
+							diskTypePrint = "persistent"
+						} else {
+							diskTypePrint = "local"
+						}
+					}
+					out = append(out, fmt.Sprintf("%4d %-10s %4d %4d %-12s %8s %6s %8s %s", node, diskTypePrint, diskNo, partNo, part.Name, part.Size, part.FsType, part.FsSize, part.MountPoint))
+				}
+			}
+		}
+	}
+	if printable && len(out) > 0 {
+		headerPrinted.lock.Lock()
+		if !headerPrinted.val {
+			fmt.Println(strings.ToUpper("node type       disk part name             size fstype     fssize mountpoint"))
+			fmt.Println("----------------------------------------------------------------------")
+			headerPrinted.val = true
+		}
+		headerPrinted.lock.Unlock()
+		fmt.Println(strings.Join(out, "\n"))
+	}
+	return nil
+}
+
+type SafeBool struct {
+	val  bool
+	lock *sync.RWMutex
+}
+
+func NewSafeBool() *SafeBool {
+	return &SafeBool{
+		lock: new(sync.RWMutex),
+	}
+}
+
+func (i *SafeBool) Get() bool {
+	i.lock.RLock()
+	defer i.lock.RUnlock()
+	return i.val
+}
+
+func (i *SafeBool) Set(p bool) {
+	i.lock.Lock()
+	i.val = p
+	i.lock.Unlock()
+}
+
+func (i *SafeBool) GetAndSet(p bool) bool {
+	i.lock.Lock()
+	defer i.lock.Unlock()
+	a := i.val
+	i.val = p
+	return a
 }

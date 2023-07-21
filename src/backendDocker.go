@@ -32,50 +32,61 @@ func (d *backendDocker) GetInstanceTypes(minCpu int, maxCpu int, minRam float64,
 	return nil, nil
 }
 
-func (d *backendDocker) Inventory() (inventoryJson, error) {
+func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventoryJson, error) {
 	ij := inventoryJson{}
 
-	tmpl, err := d.ListTemplates()
-	if err != nil {
-		return ij, err
-	}
-	for _, d := range tmpl {
-		arch := "amd64"
-		if d.isArm {
-			arch = "arm64"
+	if inslice.HasInt(inventoryItems, InventoryItemTemplates) {
+		tmpl, err := d.ListTemplates()
+		if err != nil {
+			return ij, err
 		}
-		ij.Templates = append(ij.Templates, inventoryTemplate{
-			AerospikeVersion: d.aerospikeVersion,
-			Distribution:     d.distroName,
-			OSVersion:        d.distroVersion,
-			Arch:             arch,
-		})
+		for _, d := range tmpl {
+			arch := "amd64"
+			if d.isArm {
+				arch = "arm64"
+			}
+			ij.Templates = append(ij.Templates, inventoryTemplate{
+				AerospikeVersion: d.aerospikeVersion,
+				Distribution:     d.distroName,
+				OSVersion:        d.distroVersion,
+				Arch:             arch,
+			})
+		}
 	}
 
-	b := new(bytes.Buffer)
-	err = d.ListNetworks(true, b)
-	if err != nil {
-		return ij, err
-	}
-	for i, line := range strings.Split(b.String(), "\n") {
-		if i == 0 {
-			continue
+	if inslice.HasInt(inventoryItems, InventoryItemFirewalls) {
+		b := new(bytes.Buffer)
+		err := d.ListNetworks(true, b)
+		if err != nil {
+			return ij, err
 		}
-		neta := strings.Split(line, ",")
-		if len(neta) != 4 {
-			continue
+		for i, line := range strings.Split(b.String(), "\n") {
+			if i == 0 {
+				continue
+			}
+			neta := strings.Split(line, ",")
+			if len(neta) != 4 {
+				continue
+			}
+			ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
+				Docker: &inventoryFirewallRuleDocker{
+					NetworkName:   neta[0],
+					NetworkDriver: neta[1],
+					Subnets:       neta[2],
+					MTU:           neta[3],
+				},
+			})
 		}
-		ij.FirewallRules = append(ij.FirewallRules, inventoryFirewallRule{
-			Docker: &inventoryFirewallRuleDocker{
-				NetworkName:   neta[0],
-				NetworkDriver: neta[1],
-				Subnets:       neta[2],
-				MTU:           neta[3],
-			},
-		})
 	}
 
-	for _, i := range []int{1, 2} {
+	nCheckList := []int{}
+	if inslice.HasInt(inventoryItems, InventoryItemClusters) {
+		nCheckList = []int{1}
+	}
+	if inslice.HasInt(inventoryItems, InventoryItemClients) {
+		nCheckList = append(nCheckList, 2)
+	}
+	for _, i := range nCheckList {
 		if i == 1 {
 			d.WorkOnServers()
 		} else {
@@ -380,7 +391,7 @@ func (d *backendDocker) VacuumTemplate(v backendVersion) error {
 
 var deployTemplateShutdownMaking = make(chan int, 1)
 
-func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []fileList, extra *backendExtra) error {
+func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error {
 	if err := d.versionToReal(&v); err != nil {
 		return err
 	}
@@ -400,8 +411,7 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 		return fmt.Errorf("could not start vanilla container: %s;%s", out, err)
 	}
 	// copy add script to files list
-	scriptReader := bytes.NewReader([]byte(script))
-	files = append(files, fileList{"/root/install.sh", scriptReader, len(script)})
+	files = append(files, fileListReader{"/root/install.sh", strings.NewReader(script), len(script)})
 	// copy all files to container
 	err = d.copyFilesToContainer(templName, files)
 	if err != nil {
@@ -573,7 +583,7 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 			exposeList = append(exposeList, "--hostname", name+"-"+strconv.Itoa(node))
 		}
 		if len(extra.switches) > 0 {
-			exposeList = append(exposeList, strings.Split(extra.switches, " ")...)
+			exposeList = append(exposeList, extra.switches...)
 		}
 		for _, ep := range extra.exposePorts {
 			exposeList = append(exposeList, "-p", ep)
@@ -619,6 +629,18 @@ func (d *backendDocker) centosNaming(v backendVersion) (templName string) {
 }
 
 func (d *backendDocker) CopyFilesToCluster(name string, files []fileList, nodes []int) error {
+	fr := []fileListReader{}
+	for _, f := range files {
+		fr = append(fr, fileListReader{
+			filePath:     f.filePath,
+			fileSize:     f.fileSize,
+			fileContents: strings.NewReader(f.fileContents),
+		})
+	}
+	return d.CopyFilesToClusterReader(name, fr, nodes)
+}
+
+func (d *backendDocker) CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error {
 	var err error
 	if nodes == nil {
 		nodes, err = d.NodeListInCluster(name)
@@ -841,7 +863,7 @@ func (d *backendDocker) RunCustomOut(clusterName string, node int, command []str
 	return err
 }
 
-func (d *backendDocker) copyFilesToContainer(name string, files []fileList) error {
+func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader) error {
 	var err error
 	for _, file := range files {
 		var tmpfile *os.File
@@ -874,7 +896,7 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileList) erro
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) ClusterListFull(isJson bool) (string, error) {
+func (d *backendDocker) ClusterListFull(isJson bool, owner string) (string, error) {
 	if !isJson {
 		return d.clusterListFullNoJson()
 	}

@@ -62,6 +62,10 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	if c.PriceOnly {
+		return nil
+	}
+
 	a.opts.Client.Add.AMS.nodes = nodes
 	a.opts.Client.Add.AMS.ClientName = c.ClientName
 	a.opts.Client.Add.AMS.StartScript = c.StartScript
@@ -310,7 +314,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		}
 	}
 	lokiScript, lokiSize := installLokiScript(isArm)
-	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/install-loki.sh", fileContents: strings.NewReader(lokiScript), fileSize: lokiSize}}, nodes)
+	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/install-loki.sh", fileContents: lokiScript, fileSize: lokiSize}}, nodes)
 	if err != nil {
 		return fmt.Errorf("failed to install loki download script: %s", err)
 	}

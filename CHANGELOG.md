@@ -1,3 +1,34 @@
+#### 6.2.0
+* Add option to filter instance types by name.
+* Add pricing information to `inventory instance-types` command.
+* Sort options for `inventory instance-types` command.
+* Add a 24-hour cache of `inventory instance-types` to allow for quick lookup.
+* Add display of price information on cluster and client creation.
+* Add option to only display price (without actually creating clusters or clients) using `--price` in the `create` commands.
+* Add `nodes count` multiplier to `inventory instance-types` to allow for easy cost visualization.
+* Track instance cost in instance tags/labels.
+* Show instance running costs in `list` views.
+* Parallelize the following commands (with thread limits):
+  * `aerospike start/stop/restart/status`
+  * `roster show/apply`
+  * `files upload/download/sync`
+  * `tls generate/copy`
+  * `conf fix-mesh/rack-id`
+  * `cluster create/start/partition */add exporter`
+  * `xdr connect/create-clusters`
+  * `client create base/none/tools`
+  * `client configure tools`
+* Some config parsing bugfixes for handling of accidentally saved `aerolab config defaults` values.
+* Allow specifying not to configure TLS for `mesh` in `tls generate` command.
+* Allow specifying multiple disks of same type in `gcp` backend; for example `--disk local-ssd@5` will request 5 local SSDs and `--disk pd-ssd:50@5` will request 5 `pd-ssd` of size 50GB.
+* Improve feature key file version checking.
+* Allow tagging by `owner` during cluster and client creation. Specify owner to always use with `aerolab config defaults -k '*.Owner' -v owner-name-all-lowercase-no-spaces`.
+* Capture outcomes of run commands in internal user telemetry.
+* Add telemetry version into output.
+* Add `conf adjust` to allow for adjusting aerospike configuration on a deployed cluster on the fly.
+* Move to using `Makefiles` for build and linux packaging process.
+* Fix handling of extra docker flags in docker backend.
+
 #### 6.1.0
 * Add extra version check in `client tools` creator.
 * Fix support for `amazon:2` on `arm` discovery.

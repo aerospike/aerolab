@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
 )
 
 type inventoryListCmd struct {
+	Owner      string  `long:"owner" description:"Only show resources tagged with this owner"`
 	Json       bool    `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool    `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -24,7 +26,21 @@ func (c *inventoryListCmd) Execute(args []string) error {
 }
 
 func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool) error {
-	inv, err := b.Inventory()
+	inventoryItems := []int{}
+	if showClusters {
+		inventoryItems = append(inventoryItems, InventoryItemClusters)
+	}
+	if showClients {
+		inventoryItems = append(inventoryItems, InventoryItemClients)
+	}
+	if showTemplates {
+		inventoryItems = append(inventoryItems, InventoryItemTemplates)
+	}
+	if showFirewalls || showSubnets {
+		inventoryItems = append(inventoryItems, InventoryItemFirewalls)
+	}
+
+	inv, err := b.Inventory(c.Owner, inventoryItems)
 	if err != nil {
 		return err
 	}
@@ -172,9 +188,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		fmt.Println("\nCLUSTERS:")
 		table := tablewriter.NewWriter(os.Stdout)
 		if a.opts.Config.Backend.Type == "gcp" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost"})
+		} else if a.opts.Config.Backend.Type == "aws" {
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost"})
 		} else {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner"})
 		}
 		table.SetAutoFormatHeaders(false)
 		for _, v := range inv.Clusters {
@@ -197,19 +215,28 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				strings.ReplaceAll(v.OSVersion, "-", "."),
 				strings.ReplaceAll(v.AerospikeVersion, "-", "."),
 				strings.Join(v.Firewalls, ","),
+				v.Owner,
 			)
+			if a.opts.Config.Backend.Type != "docker" {
+				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+			}
 			table.Append(vv)
 		}
 		table.Render()
+		if a.opts.Config.Backend.Type != "docker" {
+			fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
+		}
 	}
 
 	if showClients {
 		fmt.Println("\nCLIENTS:")
 		table := tablewriter.NewWriter(os.Stdout)
 		if a.opts.Config.Backend.Type == "gcp" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Client Type", "Access URL", "Access Port"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost"})
+		} else if a.opts.Config.Backend.Type == "aws" {
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost"})
 		} else {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Client Type", "Access URL", "Access Port"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port"})
 		}
 		table.SetAutoFormatHeaders(false)
 		for _, v := range inv.Clients {
@@ -231,15 +258,21 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				v.Distribution,
 				strings.ReplaceAll(v.OSVersion, "-", "."),
 				strings.Join(v.Firewalls, ","),
+				v.Owner,
 				v.ClientType,
 				v.AccessUrl,
 				v.AccessPort,
 			)
+			if a.opts.Config.Backend.Type != "docker" {
+				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+			}
 			table.Append(vv)
 		}
 		table.Render()
 		if a.opts.Config.Backend.Type == "docker" {
 			fmt.Println("* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL")
+		} else {
+			fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
 		}
 	}
 
