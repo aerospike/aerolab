@@ -19,6 +19,7 @@ See [the documentation](https://github.com/aerospike/aerolab/blob/v7.0.0/README.
 * Message INFO at end of cluster create pointing user at AMS documentation informing them ams exists.
 * GCP move some values from labels to custom metadata
 * GCP support setting custom metadata values
+* Check Aerospike-AWS-Secrets-Manager support adding
 
 ### Download aerolab from Assets below
 
