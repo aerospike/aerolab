@@ -8,6 +8,7 @@
 * TODO Add MacOS packaging and signing to makefile to move fully away from bash scripts.
 * TODO GCP move some values from labels to custom metadata
 * TODO GCP support setting custom metadata values
+* TODO Check Aerospike-AWS-Secrets-Manager support adding
 
 #### 6.2.0
 * Add option to filter instance types by name.
