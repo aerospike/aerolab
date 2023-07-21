@@ -6,6 +6,8 @@
 * Add MacOS packaging and signing to makefile to move fully away from bash scripts.
 * Add deprecation warning around client machines and how they are handled in 8.0.
 * Message INFO at end of cluster create pointing user at AMS documentation informing them ams exists.
+* GCP move some values from labels to custom metadata
+* GCP support setting custom metadata values
 
 #### 6.2.0
 * Add option to filter instance types by name.
