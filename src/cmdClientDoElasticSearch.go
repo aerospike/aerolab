@@ -177,6 +177,7 @@ For best results, use FireFox, as it has a built-in JSON explorer features. It a
 		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:9200 in your browser instead of using the client IP from `client list` command.")
 	}
 	log.Println("Done")
+	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 7.2 and the current client creation methods will be removed in AeroLab 8.0")
 	return nil
 }
 

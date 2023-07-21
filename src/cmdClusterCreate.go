@@ -994,6 +994,8 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 	}
 
 	// done
+	log.Println("INFO: Cluster monitoring can be setup using `aerolab cluster add exporter` and `aerolab client create ams` commands.")
+	log.Println("See documentation for more information about the monitoring stack: https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/ams.md")
 	log.Println("Done")
 	return nil
 }
