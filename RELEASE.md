@@ -1,6 +1,6 @@
 ### Upgrading
 
-If using AWS or GCP backends, extra steps are required to migrate the firewalls to a new system.
+If using AWS or GCP backends, extra steps are required to migrate the firewalls from AeroLab version 6.0 or below to a new system.
 
 [Follow this manual for upgrade instructions](https://github.com/aerospike/aerolab/blob/v7.0.0/docs/upgrade-to-610.md)
 
