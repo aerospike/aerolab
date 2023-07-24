@@ -1,13 +1,15 @@
 #### 7.0.0
 * Message INFO at end of cluster create pointing user at AMS documentation informing them ams exists.
 * Add deprecation warning around client machines and how they are handled in 8.0.
-* TODO Add option for auto-expiring clusters in GCP and AWS.
-* TODO Add option to map and expose ports in Docker backend on a 1:1 pairing (eg 3100 node 1, 3101 node 2 etc) - so not workarounds are needed to access Aerospike clusters on Docker Desktop from the Desktop.
-* TODO AeroLab Support for deploying Amazon 2023 server >= 6.4.
-* TODO AeroLab Support for deploying Debian 12 server >= 6.4.
-* TODO Add MacOS packaging and signing to makefile to move fully away from bash scripts.
+* Handle new AMS stack conventions and dashboards; auto-discover all available dashboards and folders.
+* Add options for specifying replacement or additive dashboard lists to AMS stack.
 * TODO GCP move some values from labels to custom metadata
 * TODO GCP support setting custom metadata values
+* TODO Add option to map and expose ports in Docker backend on a 1:1 pairing (eg 3100 node 1, 3101 node 2 etc) - so not workarounds are needed to access Aerospike clusters on Docker Desktop from the Desktop.
+* TODO Add MacOS packaging and signing to makefile to move fully away from bash scripts.
+* TODO Add option for auto-expiring clusters in GCP and AWS.
+* TODO AeroLab Support for deploying Amazon 2023 server >= 6.4.
+* TODO AeroLab Support for deploying Debian 12 server >= 6.4.
 * TODO Check Aerospike-AWS-Secrets-Manager support adding
 
 #### 6.2.0

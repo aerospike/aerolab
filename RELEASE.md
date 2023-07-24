@@ -20,6 +20,8 @@ See [the documentation](https://github.com/aerospike/aerolab/blob/v7.0.0/README.
 * GCP move some values from labels to custom metadata
 * GCP support setting custom metadata values
 * Check Aerospike-AWS-Secrets-Manager support adding
+* Handle new AMS stack conventions and dashboards; auto-discover all available dashboards and folders.
+* Add options for specifying replacement or additive dashboard lists to AMS stack.
 
 ### Download aerolab from Assets below
 
