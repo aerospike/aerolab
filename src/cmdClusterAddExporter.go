@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	"github.com/aerospike/aerolab/parallelize"
@@ -165,6 +168,72 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			if err != nil {
 				return err
 			}
+		}
+	}
+
+	// patch in the expose ports if on docker
+	if a.opts.Config.Backend.Type == "docker" {
+		inv, err := b.Inventory("", []int{InventoryItemClusters})
+		if err != nil {
+			return err
+		}
+		b.WorkOnServers()
+		returns := parallelize.MapLimit(inv.Clusters, c.ParallelThreads, func(item inventoryCluster) error {
+			if item.ClusterName != c.ClusterName.String() {
+				return nil
+			}
+			if item.DockerExposePorts == "" {
+				return nil
+			}
+			nodeNo, err := strconv.Atoi(item.NodeNo)
+			if err != nil {
+				return err
+			}
+			out, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike-prometheus-exporter/ape.toml"}}, []int{nodeNo})
+			if err != nil {
+				return err
+			}
+			scanner := bufio.NewScanner(bytes.NewReader(out[0]))
+			in := ""
+			found := false
+			for scanner.Scan() {
+				line := scanner.Text()
+				linex := strings.Trim(line, "\r\t\n ")
+				if strings.HasPrefix(linex, "db_port") {
+					in = in + "db_port = " + item.DockerExposePorts + "\n"
+					found = true
+				} else {
+					in = in + line + "\n"
+				}
+			}
+			if !found {
+				scanner = bufio.NewScanner(bytes.NewReader(out[0]))
+				in = ""
+				for scanner.Scan() {
+					line := scanner.Text()
+					linex := strings.Trim(line, "\r\t\n ")
+					if strings.HasPrefix(linex, "[Aerospike]") {
+						in = in + line + "\n" + "db_port = " + item.DockerExposePorts + "\n"
+					} else {
+						in = in + line + "\n"
+					}
+				}
+			}
+			err = b.CopyFilesToClusterReader(item.ClusterName, []fileListReader{{"/etc/aerospike-prometheus-exporter/ape.toml", strings.NewReader(in), len(in)}}, []int{nodeNo})
+			if err != nil {
+				log.Printf("ERROR: could not install ape.toml after docker port patching: %s", err)
+			}
+			return nil
+		})
+		isError := false
+		for i, ret := range returns {
+			if ret != nil {
+				log.Printf("Node %s returned %s", inv.Clusters[i].NodeNo, ret)
+				isError = true
+			}
+		}
+		if isError {
+			return errors.New("some nodes returned errors")
 		}
 	}
 

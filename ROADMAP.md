@@ -5,6 +5,7 @@
 ### 7.1
 
 * Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
+* Test and release for Windows platform
 
 ### 7.2
 

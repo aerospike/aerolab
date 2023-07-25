@@ -1,8 +1,7 @@
 
 # AeroLab
 
-AeroLab is a tool that creates Aerospike development and testing clusters in Docker or on AWS, streamlining efforts to test cluster configuration options, upgrade procedures, and client
-applications in a controlled development environment.
+AeroLab is a tool that creates Aerospike development and testing clusters in Docker or on AWS, streamlining efforts to test cluster configuration options, upgrade procedures, and client applications in a controlled development environment.
 
 **NOTE:** AeroLab is intended for local development and testing environments. It is not recommended for production operations. 
 
@@ -35,18 +34,15 @@ See [this document](docs/building.md) for manually building AeroLab (not recomme
 * AWS
 * GCP
 
-## Routing to the containers using other Docker solutions
+## Routing to the containers using Docker Desktop
 
-Containers cannot be accessed directly by their IPs in certain Docker installations (specifically on macOS
-and Windows). To work around this, you can create a tunnel to a Docker container. Once a tunnel container is set up,
-you can access AeroLab containers directly. For example, if your Aerospike node is on 172.17.0.3 port 3000,
-you can directly seed from that node on the desktop. This is particularly important when starting multi-node
-clusters, because client code on the desktop must be able to connect to all nodes.
+Containers on Docker Desktop cannot be accessed directly by their IPs. For this purpose, AeroLab will automatically attempt to map host ports to container ports.
 
-See the tunnel container [setup instructions](docs/tunnel-container-setup.md) for more information about
-setting up tunneling for direct container access.
+The containers can then be accessed using IP `127.0.0.1` and the port shown under `aerolab inventory list`. Aerospike clusters created using this method can be seeded and connected to directly from the desktop computer, using the `services-alternate` option in either Aerospike tools or in the client libraries.
 
-You can see the IP addresses of running AeroLab containers with the `aerolab cluster-list` command.
+To disable this functionality and prevent AeroLab from modifying Aerospike configuration files to that effect, create clusters with the `--no-autoexpose` switch.
+
+An alternative method of access exists on MacOS and Linux, if using `--no-autoexpose`. See the tunnel container [setup instructions](docs/tunnel-container-setup.md) for more information about setting up tunneling for direct container access.
 
 ## Documentation
 

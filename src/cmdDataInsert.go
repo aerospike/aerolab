@@ -92,15 +92,32 @@ func (c *dataInsertCmd) insert(args []string) error {
 	if err != nil {
 		return logFatal("Could not init backend: %s", err)
 	}
+	seedNode, err := c.checkSeedPort()
+	if err != nil {
+		return err
+	}
+	var extraArgs []string
+	if a.opts.Config.Backend.Type == "docker" {
+		found := false
+		for _, arg := range os.Args[1:] {
+			if strings.HasPrefix(arg, "-g") || strings.HasPrefix(arg, "--seed-node") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			extraArgs = append(extraArgs, "-g", seedNode)
+		}
+	}
 	log.Print("Unpacking start")
-	if err := c.unpack(args); err != nil {
+	if err := c.unpack(args, extraArgs); err != nil {
 		return err
 	}
 	log.Print("Unpacking done")
 	return nil
 }
 
-func (c *dataInsertSelectorCmd) unpack(args []string) error {
+func (c *dataInsertSelectorCmd) unpack(args []string, extraArgs []string) error {
 	if c.IsClient {
 		b.WorkOnClients()
 	}
@@ -179,6 +196,7 @@ func (c *dataInsertSelectorCmd) unpack(args []string) error {
 	runCommand := []string{"/aerolab.run"}
 	runCommand = append(runCommand, os.Args[1:]...)
 	runCommand = append(runCommand, "-d", "1")
+	runCommand = append(runCommand, extraArgs...)
 	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), runCommand)
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(2): %s", err)

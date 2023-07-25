@@ -57,11 +57,16 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 		return nil
 	}
 	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":3000") {
-		fmt.Println("Docker backend is in use, but AMS access port is not being forwarded. If using Docker Desktop, use '-e 3000:3000' parameter in order to forward port 3000 for grafana. This can only be done for one system. Press ENTER to continue regardless.")
-		if !c.JustDoIt {
-			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		if c.Docker.NoAutoExpose {
+			fmt.Println("Docker backend is in use, but AMS access port is not being forwarded. If using Docker Desktop, use '-e 3000:3000' parameter in order to forward port 3000 for grafana. This can only be done for one system. Press ENTER to continue regardless.")
+			if !c.JustDoIt {
+				bufio.NewReader(os.Stdin).ReadBytes('\n')
+			}
+		} else {
+			c.Docker.ExposePortsToHost = strings.Trim("3000:3000,"+c.Docker.ExposePortsToHost, ",")
 		}
 	}
+
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
@@ -534,12 +539,10 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			return err
 		}
 	}
-	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs. Username:Password is admin:admin")
+	log.Printf("Username:Password is admin:admin")
 	log.Print("Done")
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")
-	if a.opts.Config.Backend.Type == "docker" {
-		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:3000 in your browser instead of using the client IP from `client list` command.")
-	}
+	log.Print("Execute `aerolab inventory list` to get access URL.")
 	if a.opts.Config.Backend.Type == "aws" {
 		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
 	}
