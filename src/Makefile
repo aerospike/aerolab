@@ -3,10 +3,10 @@
 ## requirements: make, dpkg-deb, zip, rpmbuild, upx
 
 ## environment variable import
-SIGNER := $(aerolab_signer)
-INSTALLSIGNER := $(aerolab_installsigner)
-APPLEID := $(aerolab_appleid)
-APPLEPW := $(aerolab_applepw)
+SIGNER := "$(aerolab_signer)"
+INSTALLSIGNER := "$(aerolab_installsigner)"
+APPLEID := "$(aerolab_appleid)"
+APPLEPW := "$(aerolab_applepw)"
 
 ## available make commands
 .PHONY: help
