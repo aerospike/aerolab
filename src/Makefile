@@ -1,6 +1,7 @@
 .NOTPARALLEL:
 
 ## requirements: make, dpkg-deb, zip, rpmbuild, upx
+## macos pkg requirement: http://s.sudre.free.fr/Software/files/Packages.dmg
 
 ## environment variable import
 SIGNER := "$(aerolab_signer)"
@@ -406,11 +407,15 @@ endif
 
 .PHONY: macos-pkg-build
 macos-pkg-build:
-# TODO
+	cp -a ../bin/aerolab-macos-amd64 ../bin/macos-pkg/aerolab/
+	cp -a ../bin/aerolab-macos-arm64 ../bin/macos-pkg/aerolab/
+	sed "s/AEROLABVERSIONHERE/${ver}/g" ../bin/macos-pkg/AeroLab-template.pkgproj > ../bin/macos-pkg/AeroLab.pkgproj
+	bash -ce "cd ../bin/macos-pkg && /usr/local/bin/packagesbuild --project AeroLab.pkgproj"
+	mv ../bin/macos-pkg/build/AeroLab.pkg ../bin/aerolab-macos-${ver}-unsigned.pkg
 
 .PHONY: macos-pkg-sign
 macos-pkg-sign:
-	productsign --timestamp --sign ${INSTALLSIGNER} ../bin/AeroLab.pkg ../bin/packages/aerolab-macos-${ver}.pkg
+	productsign --timestamp --sign ${INSTALLSIGNER} ../bin/aerolab-macos-${ver}-unsigned.pkg ../bin/packages/aerolab-macos-${ver}.pkg
 
 .PHONY: macos-pkg-notarize
 macos-pkg-notarize:
@@ -425,13 +430,13 @@ macos-pkg-notarize:
 	if grep -q "Status: success" notarization_progress_pkg; then \
 		echo "" ;\
 		cat notarization_progress_pkg ;\
-		echo "ZIP-ARM Notarization succeeded" ;\
+		echo "PKG Notarization succeeded" ;\
 		break ;\
 	elif grep -q "Status: in progress" notarization_progress_pkg; then \
 		continue ;\
 	else \
 		cat notarization_progress_pkg ;\
-		echo "ZIP-ARM Notarization failed" ;\
+		echo "PKG Notarization failed" ;\
 		exit 1 ;\
 	fi ;\
 	done
