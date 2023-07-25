@@ -117,7 +117,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		return nil, logFatal("Max node count is 255")
 	}
 
-	if totalNodes > 1 && c.Docker.ExposePortsToHost != "" {
+	if totalNodes > 1 && c.Docker.ExposePortsToHost != "" && strings.Contains(c.Docker.ExposePortsToHost, ":") {
 		return nil, logFatal("Cannot use docker export-ports feature with more than 1 node")
 	}
 

@@ -12,6 +12,7 @@ type clientConfigureRestGatewayCmd struct {
 	ClientName TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
 	Machines   TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
 	Seed       string         `short:"s" long:"seed" description:"seed IP to change to"`
+	SeedPort   string         `short:"p" long:"seed-port" description:"seed PORT to change to"`
 	User       string         `long:"user" description:"connect policy username"`
 	Pass       string         `long:"pass" description:"connect policy password"`
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -70,6 +71,9 @@ func (c *clientConfigureRestGatewayCmd) UpdateScript() string {
 	ret := "set -e\n"
 	if c.Seed != "" {
 		ret = ret + fmt.Sprintf("sed -i 's/^SEED=.*/SEED=%s/g' /opt/autoload/01-restgw.sh\n", c.Seed)
+	}
+	if c.SeedPort != "" {
+		ret = ret + fmt.Sprintf("sed -i 's/^SEED_PORT=.*/SEED_PORT=%s/g' /opt/autoload/01-restgw.sh\n", c.SeedPort)
 	}
 	if c.User != "" {
 		ret = ret + fmt.Sprintf("sed -i 's/^AUTH_USER=.*/AUTH_USER=%s/g' /opt/autoload/01-restgw.sh\n", c.User)

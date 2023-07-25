@@ -7,7 +7,10 @@ You can use both backends at once, and use AeroLab commands on either one.
 
 ### Docker instructions
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on your machine.
+1. Docker on your machine. Below are some of the example methods to obtain docker:
+  * Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on your machine.
+  * Install [Docker Laptop](https://github.com/aerospike-community/docker-laptop/blob/docker-laptop/README.md) on your MacOS machine.
+  * Install Docker on Linux for your linux distribution.
 
 2. Start Docker. To make sure it's running, run `docker version` at the command line.
 
@@ -15,11 +18,11 @@ You can use both backends at once, and use AeroLab commands on either one.
 
 ### AWS
 
-#### configure-aws-cli
+See [aws-setup.md](aws-setup.md)
 
-Follow [this manual](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) to install the AWS CLI.
+### GCP
 
-Run `aws configure` to configure basic access to AWS.
+See [gcp-setup.md](gcp-setup.md)
 
 ### Download AeroLab from the releases page
 

@@ -54,11 +54,9 @@ region = DEFAULT_REGION_TO_USE
 You can use the default AWS subnets and security groups and
 AeroLab will create the required security groups with minimal permissions required.
 
-:::note
 If you do not specify a VPC, AeroLab will create it, together with default subnets.
-:::
 
-### Security Groups
+#### Security Groups
 
 AeroLab clusters require a security group. The following rules allow full connectivity:
 
@@ -68,7 +66,7 @@ AeroLab clusters require a security group. The following rules allow full connec
 
 If you plan to deploy AMS or other clients:
 
-1. Create a security group (sg-yyyy) with a rule to allow all outbound (default) and allow inbound from any IP adress to the following TCP ports: 22, 3000, 8888, 8080.
+1. Create a security group (sg-yyyy) with a rule to allow all outbound (default) and allow inbound from any IP adress to the following TCP ports: 22, 3000, 8888, 8080, 8081, 9200.
 
 2. Edit the security group (sg-yyyy), adding 2 rules:
    a) Allow all ports from self source (sg-yyyy).
@@ -78,7 +76,7 @@ If you plan to deploy AMS or other clients:
 
 Use (sg-xxxx) for clusters and (sg-yyyy) for client machines.
 
-### Subnets
+#### Subnets
 
 If creating a new subnet and/or VPC, configure the VPC and Subnet such that:
 * the instances will have automatically assigned public DNS

@@ -16,7 +16,7 @@ import (
 
 type clientCreateElasticSearchCmd struct {
 	clientCreateBaseCmd
-	RamLimit int  `short:"r" long:"ram-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
+	RamLimit int  `long:"mem-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
 	JustDoIt bool `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
 }
 
@@ -24,7 +24,7 @@ type clientAddElasticSearchCmd struct {
 	ClientName    TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
 	Machines      TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
 	StartScript   flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
-	RamLimit      int            `short:"r" long:"ram-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
+	RamLimit      int            `long:"mem-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
 	existingNodes []int
 	Help          helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -34,9 +34,13 @@ func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
 		return nil
 	}
 	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":9200") {
-		fmt.Println("Docker backend is in use, but elasticsearch access port is not being forwarded. If using Docker Desktop, use '-e 9200:9200' parameter in order to forward port 9200. This can only be done for one elasticsearch node. Press ENTER to continue regardless.")
-		if !c.JustDoIt {
-			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		if c.Docker.NoAutoExpose {
+			fmt.Println("Docker backend is in use, but elasticsearch access port is not being forwarded. If using Docker Desktop, use '-e 9200:9200' parameter in order to forward port 9200. This can only be done for one elasticsearch node. Press ENTER to continue regardless.")
+			if !c.JustDoIt {
+				bufio.NewReader(os.Stdin).ReadBytes('\n')
+			}
+		} else {
+			c.Docker.ExposePortsToHost = strings.Trim("9200,"+c.Docker.ExposePortsToHost, ",")
 		}
 	}
 	if c.ClientCount > 1 && c.RamLimit == 0 && a.opts.Config.Backend.Type == "docker" {
@@ -174,7 +178,7 @@ For best results, use FireFox, as it has a built-in JSON explorer features. It a
 
 `)
 	if a.opts.Config.Backend.Type == "docker" {
-		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:9200 in your browser instead of using the client IP from `client list` command.")
+		log.Print("Execute `aerolab inventory list` to get access URL.")
 	}
 	log.Println("Done")
 	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 7.2 and the current client creation methods will be removed in AeroLab 8.0")

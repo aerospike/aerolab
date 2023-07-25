@@ -50,18 +50,35 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		if nip == "" {
 			nip = v.PrivateIp
 		}
+		port := ""
+		if a.opts.Config.Backend.Type == "docker" && inv.Clients[vi].DockerExposePorts != "" {
+			nip = "127.0.0.1"
+			port = ":" + inv.Clients[vi].DockerExposePorts
+		}
 		switch strings.ToLower(v.ClientType) {
 		case "ams":
-			inv.Clients[vi].AccessUrl = "http://" + nip + ":3000"
+			if port == "" {
+				port = ":3000"
+			}
+			inv.Clients[vi].AccessUrl = "http://" + nip + port
 			inv.Clients[vi].AccessPort = "3000"
 		case "elasticsearch":
-			inv.Clients[vi].AccessUrl = "http://" + nip + ":9200/NAMESPACE/_search"
+			if port == "" {
+				port = ":9200"
+			}
+			inv.Clients[vi].AccessUrl = "http://" + nip + port + "/NAMESPACE/_search"
 			inv.Clients[vi].AccessPort = "9200"
 		case "rest-gateway":
-			inv.Clients[vi].AccessUrl = "http://" + nip + ":8082"
-			inv.Clients[vi].AccessPort = "8082"
+			if port == "" {
+				port = ":8081"
+			}
+			inv.Clients[vi].AccessUrl = "http://" + nip + port
+			inv.Clients[vi].AccessPort = "8081"
 		case "vscode":
-			inv.Clients[vi].AccessUrl = "http://" + nip + ":8080"
+			if port == "" {
+				port = ":8080"
+			}
+			inv.Clients[vi].AccessUrl = "http://" + nip + port
 			inv.Clients[vi].AccessPort = "8080"
 		}
 	}
@@ -192,7 +209,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		} else if a.opts.Config.Backend.Type == "aws" {
 			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost"})
 		} else {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Exposed Port 1"})
 		}
 		table.SetAutoFormatHeaders(false)
 		for _, v := range inv.Clusters {
@@ -219,6 +236,8 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			)
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+			} else {
+				vv = append(vv, v.DockerExposePorts)
 			}
 			table.Append(vv)
 		}
@@ -236,7 +255,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		} else if a.opts.Config.Backend.Type == "aws" {
 			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost"})
 		} else {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Exposed Port 1"})
 		}
 		table.SetAutoFormatHeaders(false)
 		for _, v := range inv.Clients {
@@ -265,6 +284,8 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			)
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+			} else {
+				vv = append(vv, v.DockerExposePorts)
 			}
 			table.Append(vv)
 		}
