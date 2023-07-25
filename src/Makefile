@@ -1,6 +1,14 @@
 .NOTPARALLEL:
-## available make commands
 
+## requirements: make, dpkg-deb, zip, rpmbuild, upx
+
+## environment variable import
+SIGNER := $(aerolab_signer)
+INSTALLSIGNER := $(aerolab_installsigner)
+APPLEID := $(aerolab_appleid)
+APPLEPW := $(aerolab_applepw)
+
+## available make commands
 .PHONY: help
 help:
 	@printf "\nSHORTHANDS:\n\
@@ -24,7 +32,7 @@ help:
 	\tclean              - Remove remainders of a build and reset source modified during build\n\
 	\tcleanall           - Clean and remove all created packages\n\
 	\n\
-	PACKAGING COMMANDS:\n\
+	LINUX PACKAGING COMMANDS:\n\
 	\tpkg-linux          - Package all linux packages - zip, rpm and deb\n\
 	\tpkg-zip            - Package linux zip\n\
 	\tpkg-rpm            - Package linux rpm\n\
@@ -36,8 +44,24 @@ help:
 	\tpkg-rpm-arm64      - Package linux rpm for arm64 only\n\
 	\tpkg-deb-arm64      - Package linux deb for arm64 only\n\
 	\n\
+	MACOS PACKAGING COMMANDS:\n\
+	\tmacos-codesign     - Codesign MacOS binaries\n\
+	\tmacos-pkg-build    - Create MacOS pkg installer\n\
+	\tmacos-pkg-sign     - Productsign MacOS pkg installer\n\
+	\tmacos-pkg-notarize - Codesign MacOS binaries\n\
+	\tmacos-zip-build    - Create MacOS zip packages\n\
+	\tmacos-zip-notarize - Notarize MacOS ZIP packages\n\
+	\tmacos-build-all    - Build and sign pkg and zip\n\
+	\tmacos-notarize-all - Notarize pkg and zip\n\
+	\n\
 	OUTPUTS: ../bin/ and ../bin/packages/\n\
 	"
+
+.PHONY: macos-build-all
+macos-build-all: macos-codesign macos-zip-build macos-pkg-build macos-pkg-sign
+
+.PHONY: macos-notarize-all
+macos-notarize-all: macos-pkg-notarize macos-zip-notarize
 
 .PHONY: build
 build: run_build
@@ -69,6 +93,8 @@ install: run_install
 .PHONY: cleanall
 cleanall: clean
 	rm -f ../bin/packages/*
+	rm -f notarize_result_pkg notarization_progress_pkg notarize_result_amd64 notarization_progress_amd64 notarize_result_arm64 notarization_progress_arm64
+	rm -f ../bin/AeroLab.pkg
 
 .PHONY: clean
 clean:
@@ -174,18 +200,14 @@ prep:
 .PHONY: compile_linux_wip_amd64
 compile_linux_wip_amd64:
 	env CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o aerolab-linux-amd64-wip
-ifeq (, $(shell which upx))
-$(warning "No upx in $(PATH), binaries will not be shrunk")
-else
+ifneq (, $(shell which upx))
 	upx aerolab-linux-amd64-wip
 endif
 
 .PHONY: compile_linux_wip_arm64
 compile_linux_wip_arm64:
 	env CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o aerolab-linux-arm64-wip
-ifeq (, $(shell which upx))
-$(warning "No upx in $(PATH), binaries will not be shrunk")
-else
+ifneq (, $(shell which upx))
 	upx aerolab-linux-arm64-wip
 endif
 
@@ -232,9 +254,6 @@ RET := $(shell echo)
 
 .PHONY: pkg-deb-amd64
 pkg-deb-amd64:
-ifeq (, $(shell which dpkg-deb))
-$(error "No dpkg-deb in $(PATH), install dpkg package")
-endif
 	cp ../bin/aerolab-linux-amd64 ../bin/aerolab
 	rm -rf ../bin/deb
 	mkdir -p ../bin/deb/DEBIAN
@@ -248,9 +267,6 @@ endif
 
 .PHONY: pkg-deb-arm64
 pkg-deb-arm64:
-ifeq (, $(shell which dpkg-deb))
-$(error "No dpkg-deb in $(PATH), install dpkg package")
-endif
 	cp ../bin/aerolab-linux-arm64 ../bin/aerolab
 	rm -rf ../bin/deb
 	mkdir -p ../bin/deb/DEBIAN
@@ -267,9 +283,6 @@ pkg-deb: pkg-deb-amd64 pkg-deb-arm64
 
 .PHONY: pkg-zip-amd64
 pkg-zip-amd64:
-ifeq (, $(shell which zip))
-$(error "No zip in $(PATH), install zip package")
-endif
 	cp ../bin/aerolab-linux-amd64 ../bin/aerolab
 	rm -f ../bin/packages/aerolab-linux-amd64-${ver}.zip
 	bash -ce "cd ../bin && zip packages/aerolab-linux-amd64-${ver}.zip aerolab"
@@ -277,9 +290,6 @@ endif
 
 .PHONY: pkg-zip-arm64
 pkg-zip-arm64:
-ifeq (, $(shell which zip))
-$(error "No zip in $(PATH), install zip package")
-endif
 	cp ../bin/aerolab-linux-arm64 ../bin/aerolab
 	rm -f ../bin/packages/aerolab-linux-arm64-${ver}.zip
 	bash -ce "cd ../bin && zip packages/aerolab-linux-arm64-${ver}.zip aerolab"
@@ -290,9 +300,6 @@ pkg-zip: pkg-zip-amd64 pkg-zip-arm64
 
 .PHONY: pkg-rpm-amd64
 pkg-rpm-amd64:
-ifeq (, $(shell which rpmbuild))
-$(error "No rpmbuild in $(PATH), install rpmbuild package")
-endif
 	rm -rf ../bin/aerolab-rpm-centos
 	cp -a ../bin/aerolabrpm ../bin/aerolab-rpm-centos
 	sed -i.bak "s/VERSIONHERE/${ver}/g" ../bin/aerolab-rpm-centos/aerolab.spec
@@ -304,9 +311,6 @@ endif
 
 .PHONY: pkg-rpm-arm64
 pkg-rpm-arm64:
-ifeq (, $(shell which rpmbuild))
-$(error "No rpmbuild in $(PATH), install rpmbuild package")
-endif
 	rm -rf ../bin/aerolab-rpm-centos
 	cp -a ../bin/aerolabrpm ../bin/aerolab-rpm-centos
 	sed -i.bak "s/VERSIONHERE/${ver}/g" ../bin/aerolab-rpm-centos/aerolab.spec
@@ -324,3 +328,112 @@ pkg-linux: pkg-zip pkg-deb pkg-rpm
 
 ### note - static linking
 ###go build -ldflags="-extldflags=-static"
+
+.PHONY: macos-codesign
+macos-codesign:
+ifeq (exists, $(shell [ -f ../bin/aerolab-macos-amd64 ] && echo "exists" || echo "not found"))
+	codesign --verbose --deep --timestamp --force --options runtime --sign ${SIGNER} ../bin/aerolab-macos-amd64
+	codesign --verbose --verify ../bin/aerolab-macos-amd64
+endif
+ifeq (exists, $(shell [ -f ../bin/aerolab-macos-arm64 ] && echo "exists" || echo "not found"))
+	codesign --verbose --deep --timestamp --force --options runtime --sign ${SIGNER} ../bin/aerolab-macos-arm64
+	codesign --verbose --verify ../bin/aerolab-macos-arm64
+endif
+
+.PHONY: macos-zip-build
+macos-zip-build:
+ifeq (exists, $(shell [ -f ../bin/aerolab-macos-amd64 ] && echo "exists" || echo "not found"))
+	cp ../bin/aerolab-macos-amd64 ../bin/aerolab
+	rm -f ../bin/packages/aerolab-macos-amd64-${ver}.zip
+	bash -ce "cd ../bin && zip packages/aerolab-macos-amd64-${ver}.zip aerolab"
+	rm -f ../bin/aerolab
+endif
+ifeq (exists, $(shell [ -f ../bin/aerolab-macos-arm64 ] && echo "exists" || echo "not found"))
+	cp ../bin/aerolab-macos-arm64 ../bin/aerolab
+	rm -f ../bin/packages/aerolab-macos-arm64-${ver}.zip
+	bash -ce "cd ../bin && zip packages/aerolab-macos-arm64-${ver}.zip aerolab"
+	rm -f ../bin/aerolab
+endif
+
+.PHONY: macos-zip-notarize
+macos-zip-notarize:
+ifeq (exists, $(shell [ -f ../bin/packages/aerolab-macos-amd64-${ver}.zip ] && echo "exists" || echo "not found"))
+	rm -f notarize_result_amd64 notarization_progress_amd64
+	xcrun -v altool --notarize-app --primary-bundle-id "aerolab" --username ${APPLEID} --password ${APPLEPW} --file ../bin/packages/aerolab-macos-amd64-${ver}.zip --output-format xml > notarize_result_amd64
+	reqid=$$(cat notarize_result_amd64 | grep -A1 "RequestUUID" | sed -n 's/\s*<string>\([^<]*\)<\/string>/\1/p' | xargs) ;\
+	echo "REQUEST ID: $${reqid}" ;\
+	while true; do \
+	printf "." ;\
+	sleep 10 ;\
+	xcrun altool --notarization-info $${reqid} -u ${APPLEID} -p ${APPLEPW} > notarization_progress_amd64 2>&1 ;\
+	if grep -q "Status: success" notarization_progress_amd64; then \
+		echo "" ;\
+		cat notarization_progress_amd64 ;\
+		echo "ZIP-AMD Notarization succeeded" ;\
+		break ;\
+	elif grep -q "Status: in progress" notarization_progress_amd64; then \
+		continue ;\
+	else \
+		cat notarization_progress_amd64 ;\
+		echo "ZIP-AMD Notarization failed" ;\
+		exit 1 ;\
+	fi ;\
+	done
+endif
+ifeq (exists, $(shell [ -f ../bin/packages/aerolab-macos-arm64-${ver}.zip ] && echo "exists" || echo "not found"))
+	rm -f notarize_result_arm64 notarization_progress_arm64
+	xcrun -v altool --notarize-app --primary-bundle-id "aerolab" --username ${APPLEID} --password ${APPLEPW} --file ../bin/packages/aerolab-macos-arm64-${ver}.zip --output-format xml > notarize_result_arm64
+	reqid=$$(cat notarize_result_arm64 | grep -A1 "RequestUUID" | sed -n 's/\s*<string>\([^<]*\)<\/string>/\1/p' | xargs) ;\
+	echo "REQUEST ID: $${reqid}" ;\
+	while true; do \
+	printf "." ;\
+	sleep 10 ;\
+	xcrun altool --notarization-info $${reqid} -u ${APPLEID} -p ${APPLEPW} > notarization_progress_arm64 2>&1 ;\
+	if grep -q "Status: success" notarization_progress_arm64; then \
+		echo "" ;\
+		cat notarization_progress_arm64 ;\
+		echo "ZIP-ARM Notarization succeeded" ;\
+		break ;\
+	elif grep -q "Status: in progress" notarization_progress_arm64; then \
+		continue ;\
+	else \
+		cat notarization_progress_arm64 ;\
+		echo "ZIP-ARM Notarization failed" ;\
+		exit 1 ;\
+	fi ;\
+	done
+endif
+
+.PHONY: macos-pkg-build
+macos-pkg-build:
+# TODO
+
+.PHONY: macos-pkg-sign
+macos-pkg-sign:
+	productsign --timestamp --sign ${INSTALLSIGNER} ../bin/AeroLab.pkg ../bin/packages/aerolab-macos-${ver}.pkg
+
+.PHONY: macos-pkg-notarize
+macos-pkg-notarize:
+	rm -f notarize_result_pkg notarization_progress_pkg
+	xcrun -v altool --notarize-app --primary-bundle-id "aerolab" --username ${APPLEID} --password ${APPLEPW} --file ../bin/packages/aerolab-macos-${ver}.pkg --output-format xml > notarize_result_pkg
+	reqid=$$(cat notarize_result_pkg | grep -A1 "RequestUUID" | sed -n 's/\s*<string>\([^<]*\)<\/string>/\1/p' | xargs) ;\
+	echo "REQUEST ID: $${reqid}" ;\
+	while true; do \
+	printf "." ;\
+	sleep 10 ;\
+	xcrun altool --notarization-info $${reqid} -u ${APPLEID} -p ${APPLEPW} > notarization_progress_pkg 2>&1 ;\
+	if grep -q "Status: success" notarization_progress_pkg; then \
+		echo "" ;\
+		cat notarization_progress_pkg ;\
+		echo "ZIP-ARM Notarization succeeded" ;\
+		break ;\
+	elif grep -q "Status: in progress" notarization_progress_pkg; then \
+		continue ;\
+	else \
+		cat notarization_progress_pkg ;\
+		echo "ZIP-ARM Notarization failed" ;\
+		exit 1 ;\
+	fi ;\
+	done
+
+### make cleanall && make build-official && make pkg-linux && make macos-build-all && make macos-notarize-all
