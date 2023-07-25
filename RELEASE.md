@@ -20,6 +20,7 @@ See [the documentation](https://github.com/aerospike/aerolab/blob/v7.0.0/README.
 * Check Aerospike-AWS-Secrets-Manager support adding
 * Handle new AMS stack conventions and dashboards; auto-discover all available dashboards and folders.
 * Add options for specifying replacement or additive dashboard lists to AMS stack.
+* Use GitHub Actions to create builds.
 
 ### Download aerolab from Assets below
 
