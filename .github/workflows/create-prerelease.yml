@@ -7,7 +7,7 @@ jobs:
         runs-on: macos-13
         steps:
             - run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" # install homebrew
-            - run: /usr/local/bin/brew install dpkg rpmbuild upx golang zip make wget # install deps
+            - run: /usr/local/bin/brew install dpkg rpm upx golang zip make wget # install deps
             - run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target / # install 'packages' dep for creating macos pkg
             - uses: actions/checkout@v3 # checkout the repository
             - run: | # compile and create linux packages
