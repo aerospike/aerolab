@@ -9,20 +9,6 @@ See [the documentation](https://github.com/aerospike/aerolab/blob/v7.0.0/README.
 
 [Changelog](https://github.com/aerospike/aerolab/blob/v7.0.0/CHANGELOG.md#7.0.0)
 
-### Latest changes:
-* Add option for auto-expiring clusters in GCP and AWS.
-* Add option to map and expose ports in Docker backend on a 1:1 pairing (eg 3100 node 1, 3101 node 2 etc) - so not workarounds are needed to access Aerospike clusters on Docker Desktop from the Desktop.
-* AeroLab Support for deploying Amazon 2023 server >= 6.4.
-* AeroLab Support for deploying Debian 12 server >= 6.4.
-* Add MacOS packaging and signing to makefile to move fully away from bash scripts.
-* Add deprecation warning around client machines and how they are handled in 8.0.
-* Message INFO at end of cluster create pointing user at AMS documentation informing them ams exists.
-* Check Aerospike-AWS-Secrets-Manager support adding
-* Handle new AMS stack conventions and dashboards; auto-discover all available dashboards and folders.
-* Add options for specifying replacement or additive dashboard lists to AMS stack.
-* Use GitHub Actions to create builds.
-* Add `conf namespace-memory` option to configure memory for a namespace for a given RAM total percentage.
-
 ### Download aerolab from Assets below
 
 Head to the releases page and download one of the installers, depending on where you are intending to execute aerolab command itself.
