@@ -59,14 +59,14 @@ func (c *confNamespaceMemoryCmd) Execute(args []string) error {
 			}
 			memSizeGb, err = strconv.Atoi(memBytes[1])
 			if err != nil {
-				return fmt.Errorf("Could not get memory from %s: %s", memBytes[1], err)
+				return fmt.Errorf("could not get memory from %s: %s", memBytes[1], err)
 			}
-			memSizeGb = memSizeGb / 1024 / 1024 / 1024
+			memSizeGb = memSizeGb / 1024 / 1024
 		}
 		if memSizeGb == 0 {
 			return errors.New("could not find memory size from free -b")
 		}
-		memSizeGb = memSizeGb * c.MemPct / 100
+		memSizeGb = memSizeGb * c.MemPct / 100 / 1024
 		if memSizeGb == 0 {
 			return errors.New("percentage would result in memory size 0")
 		}
