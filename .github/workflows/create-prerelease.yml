@@ -28,11 +28,13 @@ jobs:
                 security create-keychain -p mysecretpassword build.keychain
                 security default-keychain -s build.keychain
                 security unlock-keychain -p mysecretpassword build.keychain
+                security set-keychain-settings build.keychain
+                security unlock-keychain -p mysecretpassword build.keychain
                 echo "$APPLICATIONP12" | base64 -d > app.p12
                 echo "$INSTALLERP12" | base64 -d > install.p12
-                security unlock-keychain -p mysecretpassword build.keychain
                 security import app.p12 -k build.keychain -P $keypw -A
                 security import install.p12 -k build.keychain -P $keypw -A
+                security set-key-partition-list -S apple-tool:,apple: -s -k mysecretpassword build.keychain
             - name: "Sign and build MacOS"
               env:
                   xaerolab_appleid: ${{ secrets.APPLEUSER }}
