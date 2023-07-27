@@ -45,10 +45,6 @@ jobs:
                 export aerolab_applepw="${xaerolab_applepw}"
                 export aerolab_signer="${xaerolab_signer}"
                 export aerolab_installsigner="${xaerolab_installsigner}"
-                echo "${xaerolab_signer}"
-                echo "${aerolab_signer}"
-                echo "${xaerolab_installsigner}"
-                echo "${aerolab_installsigner}"
                 export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
             - name: "Create a new pre-release"
               env:
