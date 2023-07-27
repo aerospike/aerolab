@@ -1,4 +1,4 @@
-bin/aerolab*
+/bin/aerolab*
 !bin/aerolabrpm
 .DS_Store
 .vscode
