@@ -1,6 +1,16 @@
 name: Build and Create Pre-Release
 
-on: workflow_dispatch
+on:
+    workflow_dispatch:
+        inputs:
+            addCommit:
+                description: 'Add commit to pre-release (not intended for final releases)'
+                required: true
+                default: 'Yes'
+                type: choice
+                options:
+                - Yes
+                - No
 
 jobs:
     build-and-release:
@@ -51,13 +61,16 @@ jobs:
             - name: "Create a new pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
                 set -e
                 cd ~/work/aerolab/aerolab/bin/packages
                 COMMIT=$(git rev-parse --short HEAD)
                 VER=$(cat ../../VERSION.md)
                 BRANCH=$(git rev-parse --abbrev-ref HEAD)
-                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md --prerelease --target ${BRANCH} --title "AeroLab - v${VER}" ${VER}-${COMMIT} aerolab-linux-amd64-7.0.0.deb aerolab-linux-amd64-7.0.0.rpm aerolab-linux-amd64-7.0.0.zip aerolab-linux-arm64-7.0.0.deb aerolab-linux-arm64-7.0.0.rpm aerolab-linux-arm64-7.0.0.zip aerolab-macos-7.0.0.pkg aerolab-macos-amd64-7.0.0.zip aerolab-macos-arm64-7.0.0.zip
+                TAG=${VER}-${COMMIT}
+                [ "${ADDCOMMIT}" = "No" ] && TAG=${VER}
+                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md --prerelease --target ${BRANCH} --title "AeroLab - v${TAG}" ${TAG} aerolab-linux-amd64-7.0.0.deb aerolab-linux-amd64-7.0.0.rpm aerolab-linux-amd64-7.0.0.zip aerolab-linux-arm64-7.0.0.deb aerolab-linux-arm64-7.0.0.rpm aerolab-linux-arm64-7.0.0.zip aerolab-macos-7.0.0.pkg aerolab-macos-amd64-7.0.0.zip aerolab-macos-arm64-7.0.0.zip
             - name: "Delete previous pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -73,3 +86,21 @@ jobs:
                     echo "Removing $PREV"
                     gh release delete $PREV -R github.com/aerospike/aerolab --yes --cleanup-tag
                 fi
+            - name: "Send slack notification"
+              env:
+                  SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+                  SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                cd ~/work/aerolab/aerolab/src
+                COMMIT=$(git rev-parse --short HEAD)
+                VER=$(cat ../../VERSION.md)
+                if [ "${ADDCOMMIT}" = "Yes" ]
+                then
+                    TAG=${VER}-${COMMIT}
+                    curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage
+                else
+                    TAG=${VER}
+                    curl -d "text=A new pre-release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage
+                fi
+                exit 0
