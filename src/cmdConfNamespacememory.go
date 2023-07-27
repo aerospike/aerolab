@@ -67,10 +67,12 @@ func (c *confNamespaceMemoryCmd) Execute(args []string) error {
 		if memSizeGb == 0 {
 			return errors.New("could not find memory size from free -b")
 		}
+		sysSizeGb := memSizeGb / 1024
 		memSizeGb = memSizeGb * c.MemPct / 100 / 1024
 		if memSizeGb == 0 {
 			return errors.New("percentage would result in memory size 0")
 		}
+		log.Printf("node=%d totalRamGb=%d memory-size=%dG", node, sysSizeGb, memSizeGb)
 		// get config file
 		out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"cat", c.Path}}, []int{node})
 		if err != nil {
