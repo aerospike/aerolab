@@ -2,20 +2,28 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 
+	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
+	"gopkg.in/yaml.v3"
 )
 
 type clientCreateAMSCmd struct {
 	clientCreateBaseCmd
 	ConnectClusters TypeClusterName `short:"s" long:"clusters" default:"mydc" description:"comma-separated list of clusters to configure as source for this AMS"`
+	Dashboards      flags.Filename  `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
+	DebugDashboards bool            `long:"debug-dashboards" hidden:"true"`
 	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
 	chDirCmd
 }
@@ -29,6 +37,9 @@ type clientAddAMSCmd struct {
 	Aws             clientAddAMSCmdAws  `no-flag:"true"`
 	Gcp             clientAddAMSCmdAws  `no-flag:"true"`
 	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
+	Dashboards      flags.Filename      `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
+	ParallelThreads int                 `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	DebugDashboards bool                `long:"debug-dashboards" hidden:"true"`
 	Help            helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -46,13 +57,29 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 		return nil
 	}
 	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":3000") {
-		fmt.Println("Docker backend is in use, but AMS access port is not being forwarded. If using Docker Desktop, use '-e 3000:3000' parameter in order to forward port 3000 for grafana. This can only be done for one system. Press ENTER to continue regardless.")
-		if !c.JustDoIt {
-			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		if c.Docker.NoAutoExpose {
+			fmt.Println("Docker backend is in use, but AMS access port is not being forwarded. If using Docker Desktop, use '-e 3000:3000' parameter in order to forward port 3000 for grafana. This can only be done for one system. Press ENTER to continue regardless.")
+			if !c.JustDoIt {
+				bufio.NewReader(os.Stdin).ReadBytes('\n')
+			}
+		} else {
+			c.Docker.ExposePortsToHost = strings.Trim("3000:3000,"+c.Docker.ExposePortsToHost, ",")
 		}
 	}
+
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	}
+	custom := []CustomAMSDashboard{}
+	if c.Dashboards != "" {
+		cDashFile, err := os.ReadFile(strings.TrimPrefix(string(c.Dashboards), "+"))
+		if err != nil {
+			return err
+		}
+		err = yaml.Unmarshal(cDashFile, &custom)
+		if err != nil {
+			return err
+		}
 	}
 	nodes, err := c.checkClustersExist(c.ConnectClusters.String())
 	if err != nil {
@@ -75,6 +102,9 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 	a.opts.Client.Add.AMS.Gcp.IsArm = c.Gcp.IsArm
 	a.opts.Client.Add.AMS.DistroName = c.DistroName
 	a.opts.Client.Add.AMS.DistroVersion = c.DistroVersion
+	a.opts.Client.Add.AMS.Dashboards = c.Dashboards
+	a.opts.Client.Add.AMS.ParallelThreads = c.ParallelThreads
+	a.opts.Client.Add.AMS.DebugDashboards = c.DebugDashboards
 	return a.opts.Client.Add.AMS.addAMS(args)
 }
 
@@ -131,6 +161,60 @@ func (c *clientAddAMSCmd) checkClustersExist(clusters string) (map[string][]stri
 	return ret, nil
 }
 
+type GitHubDirEntry struct {
+	Name        string `json:"name"`         // ends with ".json" - file name to store as; or folder name to explore (/ add to suffix of Path)
+	Path        string `json:"path"`         // ends with ".json" for file; store name/path, stripping the 'config/grafana/dashboards/' first
+	Size        int    `json:"size"`         // not zero = file, zero = folder
+	DownloadURL string `json:"download_url"` // not empty = file, empty = folder
+	Type        string `json:"type"`         // dir or file
+}
+
+type CustomAMSDashboard struct {
+	Destination string  `yaml:"destination"`
+	FromFile    *string `yaml:"fromFile,omitempty"`
+	FromUrl     *string `yaml:"fromUrl,omitempty"`
+}
+
+func GitHubBuildDashboardList(baseUrl string, basePath string, currentPath string) (mkdirs [][]string, dashboards [][]string, err error) {
+	GitHubDirList := []GitHubDirEntry{}
+	req, err := http.NewRequest("GET", baseUrl+currentPath, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	req.Header.Add("Accept", "application/vnd.github+json")
+	req.Header.Add("X-GitHub-Api-Version", "2022-11-28")
+	client := &http.Client{}
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		err = fmt.Errorf("GET '%s': exit code (%d)", baseUrl+currentPath, response.StatusCode)
+		return nil, nil, err
+	}
+	err = json.NewDecoder(response.Body).Decode(&GitHubDirList)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, entry := range GitHubDirList {
+		if entry.Size != 0 && strings.HasSuffix(entry.Name, ".json") && entry.Type == "file" {
+			newPath := strings.TrimPrefix(entry.Path, basePath)
+			dashboards = append(dashboards, []string{"wget", "-q", "-O", "/var/lib/grafana/dashboards" + newPath, entry.DownloadURL})
+		} else if entry.Size == 0 && entry.DownloadURL == "" && entry.Type == "dir" {
+			newPath := strings.TrimPrefix(entry.Path, basePath)
+			mkdirs = append(mkdirs, []string{"mkdir", "-p", "/var/lib/grafana/dashboards" + newPath})
+			newMkdir, newDash, err := GitHubBuildDashboardList(baseUrl, basePath, entry.Path)
+			if err != nil {
+				return nil, nil, err
+			}
+			dashboards = append(dashboards, newDash...)
+			mkdirs = append(mkdirs, newMkdir...)
+		}
+	}
+	return mkdirs, dashboards, nil
+}
+
 func (c *clientAddAMSCmd) addAMS(args []string) error {
 	b.WorkOnClients()
 	a.opts.Attach.Client.ClientName = c.ClientName
@@ -139,8 +223,50 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	}
 	a.opts.Attach.Client.Machine = c.Machines
 
+	// custom dashboards - read
+	customDashboards := []CustomAMSDashboard{}
+	if c.Dashboards != "" {
+		cDashFile, err := os.ReadFile(strings.TrimPrefix(string(c.Dashboards), "+"))
+		if err != nil {
+			return err
+		}
+		err = yaml.Unmarshal(cDashFile, &customDashboards)
+		if err != nil {
+			return err
+		}
+	}
+
+	b.WorkOnClients()
+	var nodes []int
+	err := c.Machines.ExpandNodes(string(c.ClientName))
+	if err != nil {
+		return err
+	}
+	nodesList, err := b.NodeListInCluster(string(c.ClientName))
+	if err != nil {
+		return err
+	}
+	if c.Machines == "" {
+		nodes = nodesList
+	} else {
+		for _, nodeString := range strings.Split(c.Machines.String(), ",") {
+			nodeInt, err := strconv.Atoi(nodeString)
+			if err != nil {
+				return err
+			}
+			if !inslice.HasInt(nodesList, nodeInt) {
+				return fmt.Errorf("node %d does not exist in cluster", nodeInt)
+			}
+			nodes = append(nodes, nodeInt)
+		}
+	}
+	if len(nodes) == 0 {
+		err = errors.New("found 0 nodes in cluster")
+		return err
+	}
+
 	// install:prometheus
-	err := a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "apt-get update && apt-get -y install prometheus"})
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "apt-get update && apt-get -y install prometheus"})
 	if err != nil {
 		return fmt.Errorf("failed to install prometheus: %s", err)
 	}
@@ -209,59 +335,151 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to configure grafana (sed datasource): %s", err)
 	}
+	// dashboards
+	log.Println("Downloading dashboards...")
+	// first make basics
 	dashboards := [][]string{
+		{"wget", "-q", "-O", "/etc/grafana/provisioning/dashboards/all.yaml", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/dashboards/all.yaml"},
 		{"mkdir", "-p", "/var/lib/grafana/dashboards"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/alerts.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/alerts.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/cluster.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/cluster.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/exporters.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/exporters.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/latency.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/latency.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/namespace.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/namespace.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/node.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/users.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/users.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/xdr.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/xdr.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/set.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/set.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/uniquedata.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/uniquedata.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/geoview.json", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/dashboards/geoview.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/asbench.json", "https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/asbench2.json"},
-		{"wget", "-q", "-O", "/var/lib/grafana/dashboards/node-exporter-full.json", "https://raw.githubusercontent.com/rfmoz/grafana-dashboards/master/prometheus/node-exporter-full.json"},
 	}
 	for _, dashboard := range dashboards {
+		if c.DebugDashboards {
+			log.Printf("PRE: running %v", dashboard)
+		}
 		err = a.opts.Attach.Client.run(dashboard)
 		if err != nil {
 			return fmt.Errorf("failed to configure grafana (%v): %s", dashboard, err)
 		}
 	}
-	// expand nodes and install dashboards yaml initializer
-	f, err := os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "aerolab-ams.yaml")
-	if err != nil {
-		return err
+	mkdirList := []string{}
+	// install default dashboards
+	if c.Dashboards == "" || strings.HasPrefix(string(c.Dashboards), "+") {
+		baseUrl := "https://api.github.com/repos/aerospike/aerospike-monitoring/contents/"
+		currentPath := "config/grafana/dashboards"
+		newMkdir, newDash, err := GitHubBuildDashboardList(baseUrl, currentPath, currentPath)
+		if err != nil {
+			return err
+		}
+		for _, mkdir := range newMkdir {
+			if !inslice.HasString(mkdirList, mkdir[2]) {
+				if c.DebugDashboards {
+					log.Printf("MKDIR: running %v", mkdir)
+				}
+				mkdirList = append(mkdirList, mkdir[2])
+				err = a.opts.Attach.Client.run(mkdir)
+				if err != nil {
+					return fmt.Errorf("failed to configure grafana (%v): %s", mkdir, err)
+				}
+			} else {
+				if c.DebugDashboards {
+					log.Printf("MKDIR: duplicate, skipping %v", mkdir)
+				}
+			}
+		}
+		// this does not need to be sequential, can be done in parallel
+		returns := parallelize.MapLimit(newDash, c.ParallelThreads, func(dashboard []string) error {
+			if c.DebugDashboards {
+				log.Printf("WGET: running %v", dashboard)
+			}
+			err = a.opts.Attach.Client.run(dashboard)
+			if err != nil {
+				return fmt.Errorf("failed to configure grafana (%v): %s", dashboard, err)
+			}
+			return nil
+		})
+		isError := false
+		for _, ret := range returns {
+			if ret != nil {
+				log.Print(ret)
+				isError = true
+			}
+		}
+		if isError {
+			return errors.New("some commands returned errors")
+		}
 	}
-	_, err = f.WriteString(c.dashboardsYaml())
-	if err != nil {
-		f.Close()
-		os.Remove(f.Name())
-		return err
+	// custom dashboards
+	if len(customDashboards) > 0 {
+		dashboards = [][]string{}
+		nFiles := []fileList{}
+		for _, custom := range customDashboards {
+			fc := []byte{}
+			if custom.FromUrl != nil && *custom.FromUrl != "" {
+				resp, err := http.Get(*custom.FromUrl)
+				if err != nil {
+					return err
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode < 200 || resp.StatusCode > 299 {
+					return fmt.Errorf("URL %s returned %v:%s status code", *custom.FromUrl, resp.StatusCode, resp.Status)
+				}
+				fc, err = io.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+			}
+			if custom.FromFile != nil && *custom.FromFile != "" {
+				fc, err = os.ReadFile(*custom.FromFile)
+				if err != nil {
+					return err
+				}
+			}
+			destDir, _ := path.Split(custom.Destination)
+			if destDir != "/var/lib/grafana/dashboards" && destDir != "/var/lib/grafana/dashboards/" {
+				dashboards = append(dashboards, []string{"mkdir", "-p", destDir})
+			}
+			nFiles = append(nFiles, fileList{
+				filePath:     custom.Destination,
+				fileContents: string(fc),
+				fileSize:     len(fc),
+			})
+		}
+		for _, mkdir := range dashboards {
+			if !inslice.HasString(mkdirList, mkdir[2]) {
+				if c.DebugDashboards {
+					log.Printf("MKDIR: custom running %v", mkdir)
+				}
+				mkdirList = append(mkdirList, mkdir[2])
+				err = a.opts.Attach.Client.run(mkdir)
+				if err != nil {
+					return fmt.Errorf("failed to configure grafana (%v): %s", mkdir, err)
+				}
+			} else {
+				if c.DebugDashboards {
+					log.Printf("MKDIR: custom duplicate, skipping %v", mkdir)
+				}
+			}
+		}
+		// can parallelize
+		returns := parallelize.MapLimit(nFiles, c.ParallelThreads, func(nFile fileList) error {
+			if c.DebugDashboards {
+				log.Printf("UPLOAD: custom uploading %v", nFile.filePath)
+			}
+			err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{nFile}, nodes)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+		isError := false
+		for _, ret := range returns {
+			if ret != nil {
+				log.Print(ret)
+				isError = true
+			}
+		}
+		if isError {
+			return errors.New("some commands returned errors")
+		}
 	}
-	fName := f.Name()
-	f.Close()
-	defer os.Remove(fName)
-	a.opts.Files.Upload.ClusterName = TypeClusterName(c.ClientName)
-	a.opts.Files.Upload.Nodes = TypeNodes(c.Machines)
-	a.opts.Files.Upload.Files.Source = flags.Filename(fName)
-	a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/grafana/provisioning/dashboards/dashboards.yaml")
-	a.opts.Files.Upload.IsClient = true
-	a.opts.Files.Upload.doLegacy = true
-	err = a.opts.Files.Upload.runUpload(args)
-	if err != nil {
-		return err
-	}
+	log.Println("Installing services...")
 	// (re)start prometheus
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "service prometheus stop; sleep 2; service prometheus start"})
 	if err != nil {
 		return fmt.Errorf("failed to restart prometheus: %s", err)
 	}
 	// (re)start grafana
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 777 /etc/grafana/provisioning/dashboards/dashboards.yaml; [ ! -f /.dockerenv ] && systemctl daemon-reload && systemctl enable grafana-server; service grafana-server start; sleep 3; pidof grafana; exit $?"})
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "chmod 777 /etc/grafana/provisioning/dashboards/all.yaml; [ ! -f /.dockerenv ] && systemctl daemon-reload && systemctl enable grafana-server; service grafana-server start; sleep 3; pidof grafana; exit $?"})
 	if err != nil {
 		return fmt.Errorf("failed to restart grafana: %s", err)
 	}
@@ -273,34 +491,6 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	}
 
 	// loki - install
-	b.WorkOnClients()
-	var nodes []int
-	err = c.Machines.ExpandNodes(string(c.ClientName))
-	if err != nil {
-		return err
-	}
-	nodesList, err := b.NodeListInCluster(string(c.ClientName))
-	if err != nil {
-		return err
-	}
-	if c.Machines == "" {
-		nodes = nodesList
-	} else {
-		for _, nodeString := range strings.Split(c.Machines.String(), ",") {
-			nodeInt, err := strconv.Atoi(nodeString)
-			if err != nil {
-				return err
-			}
-			if !inslice.HasInt(nodesList, nodeInt) {
-				return fmt.Errorf("node %d does not exist in cluster", nodeInt)
-			}
-			nodes = append(nodes, nodeInt)
-		}
-	}
-	if len(nodes) == 0 {
-		err = errors.New("found 0 nodes in cluster")
-		return err
-	}
 	// arm fill
 	isArm := c.Aws.IsArm
 	if a.opts.Config.Backend.Type == "gcp" {
@@ -349,35 +539,18 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			return err
 		}
 	}
-	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs. Username:Password is admin:admin")
+	log.Printf("Username:Password is admin:admin")
 	log.Print("Done")
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")
-	if a.opts.Config.Backend.Type == "docker" {
-		log.Print("If using Docker Desktop, access the service using http://127.0.0.1:3000 in your browser instead of using the client IP from `client list` command.")
-	}
+	log.Print("Execute `aerolab inventory list` to get access URL.")
 	if a.opts.Config.Backend.Type == "aws" {
 		log.Print("NOTE: if allowing for AeroLab to manage AWS Security Group, if not already done so, consider restricting access by using: aerolab config aws lock-security-groups")
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
 		log.Print("NOTE: if not already done so, consider restricting access by using: aerolab config gcp lock-firewall-rules")
 	}
+	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 7.2 and the current client creation methods will be removed in AeroLab 8.0")
 	return nil
-}
-
-func (c *clientAddAMSCmd) dashboardsYaml() string {
-	return `apiVersion: 1
-
-providers:
-- name: 'default'
-  orgId: 1
-  folder: ''
-  type: file
-  disableDeletion: false
-  editable: true
-  allowUiUpdates: true
-  options:
-    path: /var/lib/grafana/dashboards
-`
 }
 
 func installLokiScript(isArm bool) (script string, size int) {

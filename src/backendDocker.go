@@ -92,7 +92,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 		} else {
 			d.WorkOnClients()
 		}
-		out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Label \"aerolab.client.type\"}}").CombinedOutput()
+		out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Image}}\t{{.Label \"aerolab.client.type\"}}\t{{.Ports}}").CombinedOutput()
 		if err != nil {
 			return ij, err
 		}
@@ -101,7 +101,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 			t := scanner.Text()
 			t = strings.Trim(t, "'\" \t\r\n")
 			tt := strings.Split(t, "\t")
-			if len(tt) != 4 && len(tt) != 5 {
+			if len(tt) < 4 || len(tt) > 6 {
 				continue
 			}
 			if !strings.HasPrefix(tt[1], dockerNameHeader) {
@@ -142,34 +142,46 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 			if len(tt) > 4 {
 				clientType = tt[4]
 			}
+			exposePorts := ""
+			if len(tt) > 5 {
+				ep1 := strings.Split(tt[5], "->")
+				if len(ep1) > 1 {
+					ep2 := strings.Split(ep1[0], ":")
+					if len(ep2) > 1 {
+						exposePorts = ep2[1]
+					}
+				}
+			}
 			if i == 1 {
 				ij.Clusters = append(ij.Clusters, inventoryCluster{
-					ClusterName:      nameNo[0],
-					NodeNo:           nameNo[1],
-					PublicIp:         "",
-					PrivateIp:        strings.ReplaceAll(ip, " ", ","),
-					InstanceId:       tt[0],
-					ImageId:          tt[3],
-					State:            tt[2],
-					Arch:             arch,
-					Distribution:     i2[0],
-					OSVersion:        i3[0],
-					AerospikeVersion: asdVer,
+					ClusterName:       nameNo[0],
+					NodeNo:            nameNo[1],
+					PublicIp:          "",
+					PrivateIp:         strings.ReplaceAll(ip, " ", ","),
+					InstanceId:        tt[0],
+					ImageId:           tt[3],
+					State:             tt[2],
+					Arch:              arch,
+					Distribution:      i2[0],
+					OSVersion:         i3[0],
+					AerospikeVersion:  asdVer,
+					DockerExposePorts: exposePorts,
 				})
 			} else {
 				ij.Clients = append(ij.Clients, inventoryClient{
-					ClientName:       nameNo[0],
-					NodeNo:           nameNo[1],
-					PublicIp:         "",
-					PrivateIp:        strings.ReplaceAll(ip, " ", ","),
-					InstanceId:       tt[0],
-					ImageId:          tt[3],
-					State:            tt[2],
-					Arch:             arch,
-					Distribution:     i2[0],
-					OSVersion:        i3[0],
-					AerospikeVersion: asdVer,
-					ClientType:       clientType,
+					ClientName:        nameNo[0],
+					NodeNo:            nameNo[1],
+					PublicIp:          "",
+					PrivateIp:         strings.ReplaceAll(ip, " ", ","),
+					InstanceId:        tt[0],
+					ImageId:           tt[3],
+					State:             tt[2],
+					Arch:              arch,
+					Distribution:      i2[0],
+					OSVersion:         i3[0],
+					AerospikeVersion:  asdVer,
+					ClientType:        clientType,
+					DockerExposePorts: exposePorts,
 				})
 			}
 		}
@@ -569,7 +581,40 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 	}
 	highestNode = highestNode + 1
 
+	var exposedList []int
+	if extra.autoExpose {
+		abc := d.server
+		abd := d.client
+		abe := dockerNameHeader
+		invJson, err := b.Inventory("", []int{InventoryItemClusters, InventoryItemClients})
+		d.server = abc
+		d.client = abd
+		dockerNameHeader = abe
+		if err != nil {
+			return err
+		}
+		for _, item := range invJson.Clusters {
+			p, _ := strconv.Atoi(item.DockerExposePorts)
+			if p > 0 {
+				exposedList = append(exposedList, p)
+			}
+		}
+		for _, item := range invJson.Clients {
+			p, _ := strconv.Atoi(item.DockerExposePorts)
+			if p > 0 {
+				exposedList = append(exposedList, p)
+			}
+		}
+	}
+	var exposeFreeList []int
+	for i := 3100; i < 3500; i++ {
+		if !inslice.HasInt(exposedList, i) {
+			exposeFreeList = append(exposeFreeList, i)
+		}
+	}
+	exposeFreeListNext := -1
 	for node := highestNode; node < nodeCount+highestNode; node = node + 1 {
+		exposeFreeListNext++
 		var out []byte
 		exposeList := []string{"run"}
 		if extra.clientType != "" {
@@ -584,6 +629,10 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		}
 		if len(extra.switches) > 0 {
 			exposeList = append(exposeList, extra.switches...)
+		}
+		if extra.autoExpose {
+			nPort := strconv.Itoa(exposeFreeList[exposeFreeListNext])
+			exposeList = append(exposeList, "-p", nPort+":"+nPort)
 		}
 		for _, ep := range extra.exposePorts {
 			exposeList = append(exposeList, "-p", ep)
@@ -897,72 +946,8 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader
 
 // returns an unformatted string with list of clusters, to be printed to user
 func (d *backendDocker) ClusterListFull(isJson bool, owner string) (string, error) {
-	if !isJson {
-		return d.clusterListFullNoJson()
-	}
 	a.opts.Inventory.List.Json = isJson
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
-}
-
-func (d *backendDocker) clusterListFullNoJson() (string, error) {
-	var err error
-	var out []byte
-	var response string
-	out, err = exec.Command("docker", "container", "list", "-a").CombinedOutput()
-	if err != nil {
-		return string(out), err
-	}
-	response = "Containers (clusters):\n======================\n"
-	scanner := bufio.NewScanner(strings.NewReader(string(out)))
-	for scanner.Scan() {
-		t := scanner.Text()
-		t = strings.Trim(t, "'\"")
-		if strings.HasPrefix(t, "CONTAINER ID") || strings.Contains(t, " "+dockerNameHeader) {
-			response = response + t + "\n"
-		}
-	}
-
-	out, err = exec.Command("docker", "container", "list", "-a", "--format", "{{json .Names}}").CombinedOutput()
-	if err != nil {
-		return "", err
-	}
-	var clusterList []string
-	scanner = bufio.NewScanner(strings.NewReader(string(out)))
-	for scanner.Scan() {
-		t := scanner.Text()
-		t = strings.Trim(t, "'\"")
-		clusterList = append(clusterList, t)
-	}
-	response = response + "\n\nTYPE   | NAME                 | NODE_NO | NODE_IP\n=========================================================\n"
-	for _, cluster := range clusterList {
-		if strings.HasPrefix(cluster, dockerNameHeader+"") {
-			out, err = exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", cluster).CombinedOutput()
-			if err != nil {
-				return "", err
-			}
-			ip := strings.ReplaceAll(strings.Trim(string(out), "'\" \n\r"), " ", ",")
-			ctype := "unknown"
-			if strings.HasPrefix(cluster, "aerolab-") {
-				ctype = "server"
-				cluster = strings.TrimPrefix(cluster, "aerolab-")
-			} else if strings.HasPrefix(cluster, "aerolab_c-") {
-				ctype = "client"
-				cluster = strings.TrimPrefix(cluster, "aerolab_c-")
-			}
-			cc := strings.Split(cluster, "_")
-			cluster = strings.Join(cc[0:len(cc)-1], "_")
-			node := cc[len(cc)-1]
-			for len(cluster) < 20 {
-				cluster = cluster + " "
-			}
-			for len(node) < 7 {
-				node = node + " "
-			}
-			response = response + ctype + " | " + cluster + " | " + node + " | " + ip + "\n"
-		}
-	}
-	response = response + "\n\nTo see all docker containers (including base OS images), not just those specific to aerolab:\n$ docker container list -a\n$ docker image list -a\n"
-	return response, nil
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
