@@ -1,7 +1,7 @@
 .NOTPARALLEL:
 
-## requirements: make, dpkg-deb, zip, rpmbuild, upx
-## macos pkg requirement: http://s.sudre.free.fr/Software/files/Packages.dmg
+## requirements: make dpkg rpmbuild upx golang zip wget
+## macos pkg requirement: https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg
 
 ## environment variable import
 SIGNER := "$(aerolab_signer)"
