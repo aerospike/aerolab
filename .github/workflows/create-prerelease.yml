@@ -90,9 +90,9 @@ jobs:
                   ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
                 echo "${ADDCOMMIT}"
-                cd ~/work/aerolab/aerolab/src
+                cd ~/work/aerolab/aerolab
                 COMMIT=$(git rev-parse --short HEAD)
-                VER=$(cat ../../VERSION.md)
+                VER=$(cat VERSION.md)
                 if [ "${ADDCOMMIT}" = "true" ]
                 then
                     TAG=${VER}-${COMMIT}
