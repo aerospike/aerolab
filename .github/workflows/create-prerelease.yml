@@ -6,16 +6,37 @@ jobs:
     build-and-release:
         runs-on: macos-13
         steps:
-            - run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" # install homebrew
-            - run: /usr/local/bin/brew install dpkg rpm upx golang zip make wget # install deps
-            - run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target / # install 'packages' dep for creating macos pkg
-            - uses: actions/checkout@v3 # checkout the repository
-            - run: export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux # compile and create linux packages
-            - run: |
-                cd ~/work/aerolab/aerolab/src
-                ../bin/aerolab-macos-amd64 version
-                which gh
-                gh --version
-            # todo: install everything required for signing
-            # todo: make macos-build-all && make macos-notarize-all
-            # todo: install gh commandline, and create a pre-release
+            - name: "Install Homebrew"
+              run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+            - name: "Install Dependencies"
+              run: /usr/local/bin/brew install dpkg rpm upx golang zip make wget
+            - name: "Install Packages.pkg for making macos PKG files"
+              run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target /
+            - name: "Git checkout"
+              uses: actions/checkout@v3
+            - name: "Compile and create linux packages"
+              run: export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
+            - name: "Print aerolab version"
+              run: ../bin/aerolab-macos-amd64 version
+            - name: "Sign and build MacOS"
+              env:
+                  aerolab_appleid: ${{ secrets.APPLEUSER }}
+                  aerolab_applepw: ${{ secrets.APPLEPW }}
+                  aerolab_signer: ${{ secrets.APPLESIGNER }}
+                  aerolab_installsigner: ${{ secrets.APPLEINSTALLSIGNER }}
+                  INSTALLERP12: ${{ secrets.INSTALLERP12 }}
+                  APPLICATIONP12: ${{ secrets.APPLICATIONP12 }}
+              run: | ## TODO: && make macos-notarize-all
+                security create-keychain -p mysecretpassword build.keychain
+                security default-keychain -s build.keychain
+                security unlock-keychain -p mysecretpassword build.keychain
+                echo "$APPLICATIONP12" | base64 -d > app.p12
+                echo "$INSTALLERP12" | base64 -d > install.p12
+                security unlock-keychain -p mysecretpassword build.keychain
+                security import app.p12 -k build.keychain -P $aerolab_applepw -A
+                security import install.p12 -k build.keychain -P $aerolab_applepw -A
+                export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all
+            - name: "DEBUG: Find everything"
+              run: find .
+            # todo: create a pre-release using the gh command
+            # todo: remove the old pre-release if it exists, using the gh command
