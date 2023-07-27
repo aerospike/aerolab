@@ -15,7 +15,7 @@ jobs:
             - name: "Install Homebrew"
               run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             - name: "Install Dependencies"
-              run: /usr/local/bin/brew install dpkg rpm upx golang zip make wget
+              run: /usr/local/bin/brew install dpkg rpm upx golang zip make wget jq
             - name: "Install Packages.pkg for making macos PKG files"
               run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target /
             - name: "Git checkout"
@@ -47,12 +47,14 @@ jobs:
                   xaerolab_applepw: ${{ secrets.APPLEPW }}
                   xaerolab_signer: ${{ secrets.APPLESIGNER }}
                   xaerolab_installsigner: ${{ secrets.APPLEINSTALLSIGNER }}
+                  xaerolab_teamid: ${{ secrets.APPLETEAMID }}
               run: |
                 set -e
                 export aerolab_appleid="${xaerolab_appleid}"
                 export aerolab_applepw="${xaerolab_applepw}"
                 export aerolab_signer="${xaerolab_signer}"
                 export aerolab_installsigner="${xaerolab_installsigner}"
+                export aerolab_teamid="${xaerolab_teamid}"
                 export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
             - name: "Create a new pre-release"
               env:
