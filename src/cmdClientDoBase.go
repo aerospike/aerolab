@@ -117,7 +117,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		return nil, logFatal("Max node count is 255")
 	}
 
-	if totalNodes > 1 && c.Docker.ExposePortsToHost != "" {
+	if totalNodes > 1 && c.Docker.ExposePortsToHost != "" && strings.Contains(c.Docker.ExposePortsToHost, ":") {
 		return nil, logFatal("Cannot use docker export-ports feature with more than 1 node")
 	}
 
@@ -299,5 +299,6 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		return nil, errors.New("some nodes returned errors")
 	}
 	log.Println("Done")
+	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 7.2 and the current client creation methods will be removed in AeroLab 8.0")
 	return nodeListNew, nil
 }

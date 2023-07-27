@@ -144,6 +144,13 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 	if c.isConnector {
 		b.WorkOnClients()
 	}
+	var inv inventoryJson
+	if a.opts.Config.Backend.Type == "docker" {
+		inv, err = b.Inventory("", []int{InventoryItemClusters})
+		if err != nil {
+			return err
+		}
+	}
 	for _, destination := range destinations {
 		if !inslice.HasString(destClusterList, destination) {
 			err = fmt.Errorf("cluster does not exist: %s", destination)
@@ -153,9 +160,22 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		if err != nil {
 			return err
 		}
-		destIps, err := b.GetClusterNodeIps(destination)
-		if err != nil {
-			return err
+		var destIps []string
+		if a.opts.Config.Backend.Type == "docker" {
+			for _, item := range inv.Clusters {
+				if item.ClusterName == destination {
+					if item.DockerExposePorts == "" {
+						destIps = append(destIps, item.PrivateIp)
+					} else {
+						destIps = append(destIps, item.PrivateIp+" "+item.DockerExposePorts)
+					}
+				}
+			}
+		} else {
+			destIps, err = b.GetClusterNodeIps(destination)
+			if err != nil {
+				return err
+			}
 		}
 		if len(destNodes) != len(destIps) {
 			return fmt.Errorf("cluster %s is not on or IP allocation failed. Run: cluster list", destination)
@@ -326,7 +346,11 @@ func (c *xdrConnectRealCmd) doItXdrConnect(snode int) error {
 			}
 			dst_cluster_ips := c.xDestIpList[found]
 			for j := 0; j < len(dst_cluster_ips); j++ {
-				dc_to_add = dc_to_add + fmt.Sprintf("\t\t%s %s %s\n", nodeAddressPort, dst_cluster_ips[j], useport)
+				if strings.Contains(dst_cluster_ips[j], " ") {
+					dc_to_add = dc_to_add + fmt.Sprintf("\t\t%s %s\n", nodeAddressPort, dst_cluster_ips[j])
+				} else {
+					dc_to_add = dc_to_add + fmt.Sprintf("\t\t%s %s %s\n", nodeAddressPort, dst_cluster_ips[j], useport)
+				}
 				if xdrVersion == "5" {
 					if _, ok := dc2namespace[found]; !ok {
 						dc2namespace[found] = []string{}

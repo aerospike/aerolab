@@ -27,6 +27,7 @@ type backendExtra struct {
 	switches           []string // docker only
 	dockerHostname     bool     // docker only
 	network            string   // docker only
+	autoExpose         bool     // docker only
 	securityGroupID    string   // aws only
 	subnetID           string   // aws only
 	ebs                string   // aws only
@@ -180,6 +181,7 @@ type inventoryCluster struct {
 	Zone                string
 	InstanceRunningCost float64
 	Owner               string
+	DockerExposePorts   string
 }
 
 type inventoryClient struct {
@@ -201,6 +203,7 @@ type inventoryClient struct {
 	Zone                string
 	InstanceRunningCost float64
 	Owner               string
+	DockerExposePorts   string
 }
 
 type inventoryTemplate struct {

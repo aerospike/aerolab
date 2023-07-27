@@ -6,3 +6,6 @@ CA/*
 log
 CA
 embed_*.txt
+notarization_progress*
+notarize_result*
+make.env

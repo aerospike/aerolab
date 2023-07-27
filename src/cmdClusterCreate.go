@@ -14,6 +14,7 @@ import (
 
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
+	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
@@ -90,7 +91,8 @@ type clusterCreateCmdGcp struct {
 }
 
 type clusterCreateCmdDocker struct {
-	ExposePortsToHost string `short:"e" long:"expose-ports" description:"Only on docker, if a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
+	ExposePortsToHost string `short:"e" long:"expose-ports" description:"If a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
+	NoAutoExpose      bool   `long:"no-autoexpose" description:"The easiest way to create multi-node clusters on docker desktop is to expose custom ports; this switch disables the functionality and leaves the listen/advertised IP:PORT in aerospike.conf untouched"`
 	CpuLimit          string `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
 	RamLimit          string `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
 	SwapLimit         string `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
@@ -625,6 +627,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		extra.firewallNamePrefix = c.Aws.NamePrefix
 		extra.tags = append(extra.tags, "owner="+c.Owner)
 	}
+	extra.autoExpose = !c.Docker.NoAutoExpose
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err
@@ -782,7 +785,17 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	}
 
 	// if docker fix logging location
+	// if docker also fix autoexpose
+	// if docker auto-adjust astools.conf on each node
 	// if aws, adopt best-practices
+	var inv inventoryJson
+	if a.opts.Config.Backend.Type == "docker" && !c.Docker.NoAutoExpose {
+		inv, err = b.Inventory("", []int{InventoryItemClusters})
+		if err != nil {
+			return err
+		}
+	}
+	b.WorkOnServers()
 	returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(nnode int) error {
 		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{nnode})
 		if err != nil {
@@ -790,6 +803,106 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		}
 		if a.opts.Config.Backend.Type == "docker" {
 			in := strings.Replace(string(out[0]), "console {", "file /var/log/aerospike.log {", 1)
+			if !c.Docker.NoAutoExpose {
+				port := ""
+				privateIp := ""
+				for _, item := range inv.Clusters {
+					if item.ClusterName == c.ClusterName.String() && item.NodeNo == strconv.Itoa(nnode) {
+						port = item.DockerExposePorts
+						privateIp = item.PrivateIp
+					}
+				}
+				if port == "" || privateIp == "" {
+					return errors.New("WARN: could not find privateIp/exposed port; not fixing")
+				}
+				confReader := strings.NewReader(in)
+				s, err := aeroconf.Parse(confReader)
+				if err != nil {
+					return err
+				}
+				if s.Type("network") == aeroconf.ValueNil {
+					s.NewStanza("network")
+				}
+				if s.Stanza("network").Type("service") == aeroconf.ValueNil {
+					s.Stanza("network").NewStanza("service")
+				}
+				if inslice.HasString(s.Stanza("network").Stanza("service").ListKeys(), "port") {
+					err = s.Stanza("network").Stanza("service").SetValue("port", port)
+					if err != nil {
+						return err
+					}
+					err = s.Stanza("network").Stanza("service").SetValue("access-address", privateIp)
+					if err != nil {
+						return err
+					}
+					err = s.Stanza("network").Stanza("service").SetValue("alternate-access-address", "127.0.0.1")
+					if err != nil {
+						return err
+					}
+				}
+				if inslice.HasString(s.Stanza("network").Stanza("service").ListKeys(), "tls-port") {
+					err = s.Stanza("network").Stanza("service").SetValue("tls-port", port)
+					if err != nil {
+						return err
+					}
+					err = s.Stanza("network").Stanza("service").SetValue("tlsaccess-address", privateIp)
+					if err != nil {
+						return err
+					}
+					err = s.Stanza("network").Stanza("service").SetValue("tls-alternate-access-address", "127.0.0.1")
+					if err != nil {
+						return err
+					}
+				}
+				buf := &bytes.Buffer{}
+				err = s.Write(buf, "", "    ", true)
+				if err != nil {
+					return err
+				}
+				in = buf.String()
+				// astools.conf
+				for _, item := range inv.Clusters {
+					if item.ClusterName == c.ClusterName.String() && item.NodeNo == strconv.Itoa(nnode) && item.DockerExposePorts != "" {
+						tools, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/astools.conf"}}, []int{nnode})
+						if err != nil {
+							return err
+						}
+						toolsConf := tools[0]
+						toolsConfNew := ""
+						// adjust astools
+						scanner := bufio.NewScanner(bytes.NewReader(toolsConf))
+						inCluster := false
+						found := false
+						for scanner.Scan() {
+							line := scanner.Text()
+							if strings.HasPrefix(line, "[cluster]") {
+								inCluster = true
+								toolsConfNew = toolsConfNew + line + "\n"
+							} else if strings.HasPrefix(line, "[") {
+								inCluster = false
+							} else if inCluster && strings.HasPrefix(line, "host") {
+								found = true
+								nline := strings.Split(strings.Trim(line, "\r\t\n "), ":")
+								if len(nline) == 3 {
+									nline[2] = item.DockerExposePorts + "\""
+								} else if len(nline) == 2 {
+									nline[1] = item.DockerExposePorts + "\""
+								}
+								line = strings.Join(nline, ":")
+								toolsConfNew = toolsConfNew + line + "\n"
+							}
+						}
+						if !found {
+							toolsConfNew = strings.ReplaceAll(string(toolsConf), "[cluster]", "[cluster]\nhost = \"localhost:"+item.DockerExposePorts+"\"")
+						}
+						// adjust end
+						err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/astools.conf", toolsConfNew, len(toolsConfNew)}}, []int{nnode})
+						if err != nil {
+							return err
+						}
+					}
+				}
+			}
 			err = b.CopyFilesToCluster(string(c.ClusterName), []fileList{{"/etc/aerospike/aerospike.conf", in, len(in)}}, []int{nnode})
 			if err != nil {
 				return err
@@ -994,6 +1107,8 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 	}
 
 	// done
+	log.Println("INFO: Cluster monitoring can be setup using `aerolab cluster add exporter` and `aerolab client create ams` commands.")
+	log.Println("See documentation for more information about the monitoring stack: https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/ams.md")
 	log.Println("Done")
 	return nil
 }

@@ -1,0 +1,9 @@
+name: Build and Create Pre-Release
+
+on: workflow_dispatch
+
+jobs:
+    build-and-release:
+        runs-on: macos-13
+        steps:
+            - uses: actions/checkout@v3

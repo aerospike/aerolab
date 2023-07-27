@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 
@@ -21,6 +23,7 @@ type clientCreateRestGatewayCmd struct {
 	ClusterName TypeClusterName        `short:"C" long:"cluster-name" description:"cluster name to connect to" default:"mydc"`
 	User        string                 `long:"user" description:"connect username"`
 	Pass        string                 `long:"pass" description:"connect password"`
+	JustDoIt    bool                   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
 	chDirCmd
 }
 
@@ -36,6 +39,7 @@ type clientAddRestGatewayCmd struct {
 	dirName     string
 	fileName    string
 	seedNode    string
+	seedPort    string
 	machines    []int
 	Help        helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -43,6 +47,16 @@ type clientAddRestGatewayCmd struct {
 func (c *clientCreateRestGatewayCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":8081") {
+		if c.Docker.NoAutoExpose {
+			fmt.Println("Docker backend is in use, but rest-gateway access port is not being forwarded. If using Docker Desktop, use '-e 8081:8081' parameter in order to forward port 8081. This can only be done for one elasticsearch node. Press ENTER to continue regardless.")
+			if !c.JustDoIt {
+				bufio.NewReader(os.Stdin).ReadBytes('\n')
+			}
+		} else {
+			c.Docker.ExposePortsToHost = strings.Trim("8081:8081,"+c.Docker.ExposePortsToHost, ",")
+		}
 	}
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("RG is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
@@ -77,6 +91,21 @@ func (c *clientCreateRestGatewayCmd) Execute(args []string) error {
 		if ip != "" {
 			a.opts.Client.Add.RestGateway.seedNode = ip
 			break
+		}
+	}
+	a.opts.Client.Add.RestGateway.seedPort = "3000"
+	if a.opts.Config.Backend.Type == "docker" {
+		inv, err := b.Inventory("", []int{InventoryItemClusters})
+		if err != nil {
+			return err
+		}
+		for _, item := range inv.Clusters {
+			if item.ClusterName == c.ClusterName.String() {
+				if item.PrivateIp != "" && item.DockerExposePorts != "" {
+					a.opts.Client.Add.RestGateway.seedPort = item.DockerExposePorts
+					a.opts.Client.Add.RestGateway.seedNode = item.PrivateIp
+				}
+			}
 		}
 	}
 	b.WorkOnClients()
@@ -120,6 +149,24 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 		}
 	}
 	c.dirName, c.fileName = c.Version.GetJarPath()
+	if c.seedPort == "" {
+		a.opts.Client.Add.RestGateway.seedPort = "3000"
+		if a.opts.Config.Backend.Type == "docker" {
+			inv, err := b.Inventory("", []int{InventoryItemClusters})
+			if err != nil {
+				return err
+			}
+			for _, item := range inv.Clusters {
+				if item.ClusterName == c.ClusterName.String() {
+					if item.PrivateIp != "" && item.DockerExposePorts != "" {
+						a.opts.Client.Add.RestGateway.seedPort = item.DockerExposePorts
+						a.opts.Client.Add.RestGateway.seedNode = item.PrivateIp
+					}
+				}
+			}
+			b.WorkOnClients()
+		}
+	}
 	if c.seedNode == "" {
 		b.WorkOnServers()
 		clist, err := b.ClusterList()
@@ -148,7 +195,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 		}
 		b.WorkOnClients()
 	}
-	script := c.installScript()
+	script := c.installScript(a.opts.Client.Add.RestGateway.seedPort)
 	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/opt/install-gw.sh", script, len(script)}}, c.machines)
 	if err != nil {
 		return err
@@ -168,10 +215,12 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 	log.Print("Documentation can be found at: https://aerospike.github.io/aerospike-rest-gateway/")
 	log.Print("Rest gateway logs are on the nodes in /var/log/, use 'client attach' command to explore the logs; connect with browser or curl to get the data")
 	log.Print("Startup parameters are in /opt/autoload/01-restgw.sh on each node")
+	log.Print("Execute `aerolab inventory list` to get access URL.")
+	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 7.2 and the current client creation methods will be removed in AeroLab 8.0")
 	return nil
 }
 
-func (c *clientAddRestGatewayCmd) installScript() string {
+func (c *clientAddRestGatewayCmd) installScript(seedPort string) string {
 	return fmt.Sprintf(`set -e
 apt-get update
 apt-get -y install openjdk-19-jre openjdk-19-jre-headless curl wget
@@ -184,13 +233,14 @@ cat <<'EOF' > /opt/autoload/01-restgw.sh
 SEED=%s
 AUTH_USER=%s
 AUTH_PASS=%s
+SEED_PORT=%s
 [ "${AUTH_USER}" == "" ] && AUTH_PARAMS="" || AUTH_PARAMS=(--aerospike.restclient.clientpolicy.user=${AUTH_USER} --aerospike.restclient.clientpolicy.password=${AUTH_PASS})
 cd /opt/%s
-nohup java -server -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8082 -Dcom.sun.management.jmxremote.rmi.port=8082 -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -XX:+UseG1GC -Xms2048m -Xmx2048m -jar ./%s --aerospike.restclient.hostname=${SEED} ${AUTH_PARAMS[@]} --logging.file.name=/var/log/restclient.log > /var/log/restclient_console.log 2>&1 &
+nohup java -server -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=8082 -Dcom.sun.management.jmxremote.rmi.port=8082 -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -XX:+UseG1GC -Xms2048m -Xmx2048m -jar ./%s --aerospike.restclient.hostname=${SEED} --aerospike.restclient.port=${SEED_PORT} ${AUTH_PARAMS[@]} --server.port=8081 --logging.file.name=/var/log/restclient.log > /var/log/restclient_console.log 2>&1 &
 EOF
 
 chmod 755 /opt/autoload/01-restgw.sh
-`, c.url, c.dirName, c.seedNode, c.User, c.Pass, c.dirName, c.fileName)
+`, c.url, c.dirName, c.seedNode, c.User, c.Pass, seedPort, c.dirName, c.fileName)
 }
 
 // returns url or error
@@ -268,5 +318,8 @@ func (version *TypeRestGatewayVersion) GetJarPath() (dirName string, fileName st
 	if VersionCheck("2.0.2", string(*version)) == -1 {
 		return "aerospike-client-rest-" + string(*version), "as-rest-client-" + string(*version) + ".jar"
 	}
-	return "aerospike-rest-gateway-" + string(*version), "as-rest-gateway-" + string(*version) + ".jar"
+	if VersionCheck("2.1.1", string(*version)) == -1 {
+		return "aerospike-rest-gateway-" + string(*version), "as-rest-gateway-" + string(*version) + ".jar"
+	}
+	return "aerospike-rest-gateway-" + string(*version), "aerospike-rest-gateway-" + string(*version) + ".jar"
 }
