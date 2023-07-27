@@ -1,6 +1,6 @@
 .NOTPARALLEL:
 
-## requirements: make dpkg rpmbuild upx golang zip wget
+## requirements: make dpkg rpmbuild upx golang zip wget jq
 ## macos pkg requirement: https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg
 
 ## environment variable import
@@ -8,6 +8,7 @@ SIGNER := "$(aerolab_signer)"
 INSTALLSIGNER := "$(aerolab_installsigner)"
 APPLEID := "$(aerolab_appleid)"
 APPLEPW := "$(aerolab_applepw)"
+TEAMID := "$(aerolab_teamid)"
 
 ## available make commands
 .PHONY: help
@@ -94,7 +95,7 @@ install: run_install
 .PHONY: cleanall
 cleanall: clean
 	rm -f ../bin/packages/*
-	rm -f notarize_result_pkg notarization_progress_pkg notarize_result_amd64 notarization_progress_amd64 notarize_result_arm64 notarization_progress_arm64
+	rm -f notarize_result_pkg notarize_result_amd64 notarize_result_arm64
 	rm -f ../bin/AeroLab.pkg
 
 .PHONY: clean
@@ -359,50 +360,28 @@ endif
 .PHONY: macos-zip-notarize
 macos-zip-notarize:
 ifeq (exists, $(shell [ -f ../bin/packages/aerolab-macos-amd64-${ver}.zip ] && echo "exists" || echo "not found"))
-	rm -f notarize_result_amd64 notarization_progress_amd64
-	xcrun -v altool --notarize-app --primary-bundle-id "aerolab" --username ${APPLEID} --password ${APPLEPW} --file ../bin/packages/aerolab-macos-amd64-${ver}.zip --output-format xml > notarize_result_amd64
-	reqid=$$(cat notarize_result_amd64 | grep -A1 "RequestUUID" | sed -n 's/\s*<string>\([^<]*\)<\/string>/\1/p' | xargs) ;\
-	echo "REQUEST ID: $${reqid}" ;\
-	while true; do \
-	printf "." ;\
-	sleep 10 ;\
-	xcrun altool --notarization-info $${reqid} -u ${APPLEID} -p ${APPLEPW} > notarization_progress_amd64 2>&1 ;\
-	if grep -q "Status: success" notarization_progress_amd64; then \
-		echo "" ;\
-		cat notarization_progress_amd64 ;\
-		echo "ZIP-AMD Notarization succeeded" ;\
-		break ;\
-	elif grep -q "Status: in progress" notarization_progress_amd64; then \
-		continue ;\
-	else \
-		cat notarization_progress_amd64 ;\
-		echo "ZIP-AMD Notarization failed" ;\
+	rm -f notarize_result_amd64
+	xcrun notarytool submit --apple-id ${APPLEID} --password ${APPLEPW} --team-id ${TEAMID} -f json --wait --timeout 10m ../bin/packages/aerolab-macos-amd64-${ver}.zip > notarize_result_amd64
+	if [ "$$(cat notarize_result_amd64 |jq .status)" != "Accepted" ] ;\
+	then \
+		echo "ZIP-AMD FAILED TO NOTARIZE" ;\
+		cat notarize_result_amd64 ;\
 		exit 1 ;\
-	fi ;\
-	done
+	else \
+		echo "ZIP-AMD NOTARIZE SUCCESS" ;\
+	fi
 endif
 ifeq (exists, $(shell [ -f ../bin/packages/aerolab-macos-arm64-${ver}.zip ] && echo "exists" || echo "not found"))
-	rm -f notarize_result_arm64 notarization_progress_arm64
-	xcrun -v altool --notarize-app --primary-bundle-id "aerolab" --username ${APPLEID} --password ${APPLEPW} --file ../bin/packages/aerolab-macos-arm64-${ver}.zip --output-format xml > notarize_result_arm64
-	reqid=$$(cat notarize_result_arm64 | grep -A1 "RequestUUID" | sed -n 's/\s*<string>\([^<]*\)<\/string>/\1/p' | xargs) ;\
-	echo "REQUEST ID: $${reqid}" ;\
-	while true; do \
-	printf "." ;\
-	sleep 10 ;\
-	xcrun altool --notarization-info $${reqid} -u ${APPLEID} -p ${APPLEPW} > notarization_progress_arm64 2>&1 ;\
-	if grep -q "Status: success" notarization_progress_arm64; then \
-		echo "" ;\
-		cat notarization_progress_arm64 ;\
-		echo "ZIP-ARM Notarization succeeded" ;\
-		break ;\
-	elif grep -q "Status: in progress" notarization_progress_arm64; then \
-		continue ;\
-	else \
-		cat notarization_progress_arm64 ;\
-		echo "ZIP-ARM Notarization failed" ;\
+	rm -f notarize_result_arm64
+	xcrun notarytool submit --apple-id ${APPLEID} --password ${APPLEPW} --team-id ${TEAMID} -f json --wait --timeout 10m ../bin/packages/aerolab-macos-arm64-${ver}.zip > notarize_result_arm64
+	if [ "$$(cat notarize_result_arm64 |jq .status)" != "Accepted" ] ;\
+	then \
+		echo "ZIP-ARM FAILED TO NOTARIZE" ;\
+		cat notarize_result_arm64 ;\
 		exit 1 ;\
-	fi ;\
-	done
+	else \
+		echo "ZIP-ARM NOTARIZE SUCCESS" ;\
+	fi
 endif
 
 .PHONY: macos-pkg-build
@@ -419,26 +398,15 @@ macos-pkg-sign:
 
 .PHONY: macos-pkg-notarize
 macos-pkg-notarize:
-	rm -f notarize_result_pkg notarization_progress_pkg
-	xcrun -v altool --notarize-app --primary-bundle-id "aerolab" --username ${APPLEID} --password ${APPLEPW} --file ../bin/packages/aerolab-macos-${ver}.pkg --output-format xml > notarize_result_pkg
-	reqid=$$(cat notarize_result_pkg | grep -A1 "RequestUUID" | sed -n 's/\s*<string>\([^<]*\)<\/string>/\1/p' | xargs) ;\
-	echo "REQUEST ID: $${reqid}" ;\
-	while true; do \
-	printf "." ;\
-	sleep 10 ;\
-	xcrun altool --notarization-info $${reqid} -u ${APPLEID} -p ${APPLEPW} > notarization_progress_pkg 2>&1 ;\
-	if grep -q "Status: success" notarization_progress_pkg; then \
-		echo "" ;\
-		cat notarization_progress_pkg ;\
-		echo "PKG Notarization succeeded" ;\
-		break ;\
-	elif grep -q "Status: in progress" notarization_progress_pkg; then \
-		continue ;\
-	else \
-		cat notarization_progress_pkg ;\
-		echo "PKG Notarization failed" ;\
+	rm -f notarize_result_pkg
+	xcrun notarytool submit --apple-id ${APPLEID} --password ${APPLEPW} --team-id ${TEAMID} -f json --wait --timeout 10m ../bin/packages/aerolab-macos-${ver}.pkg > notarize_result_pkg
+	if [ "$$(cat notarize_result_pkg |jq .status)" != "Accepted" ] ;\
+	then \
+		echo "PKG FAILED TO NOTARIZE" ;\
+		cat notarize_result_pkg ;\
 		exit 1 ;\
-	fi ;\
-	done
+	else \
+		echo "PKG NOTARIZE SUCCESS" ;\
+	fi
 
 ### make cleanall && make build-official && make pkg-linux && make macos-build-all && make macos-notarize-all
