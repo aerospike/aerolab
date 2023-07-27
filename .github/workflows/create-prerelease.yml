@@ -6,11 +6,7 @@ on:
             addCommit:
                 description: 'Add commit to pre-release (not intended for final releases)'
                 required: true
-                default: 'Yes'
-                type: choice
-                options:
-                - Yes
-                - No
+                type: boolean
 
 jobs:
     build-and-release:
@@ -64,12 +60,13 @@ jobs:
                   ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
                 set -e
+                echo "${ADDCOMMIT}"
                 cd ~/work/aerolab/aerolab/bin/packages
                 COMMIT=$(git rev-parse --short HEAD)
                 VER=$(cat ../../VERSION.md)
                 BRANCH=$(git rev-parse --abbrev-ref HEAD)
                 TAG=${VER}-${COMMIT}
-                [ "${ADDCOMMIT}" = "No" ] && TAG=${VER}
+                [ "${ADDCOMMIT}" = "false" ] && TAG=${VER}
                 gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md --prerelease --target ${BRANCH} --title "AeroLab - v${TAG}" ${TAG} aerolab-linux-amd64-7.0.0.deb aerolab-linux-amd64-7.0.0.rpm aerolab-linux-amd64-7.0.0.zip aerolab-linux-arm64-7.0.0.deb aerolab-linux-arm64-7.0.0.rpm aerolab-linux-arm64-7.0.0.zip aerolab-macos-7.0.0.pkg aerolab-macos-amd64-7.0.0.zip aerolab-macos-arm64-7.0.0.zip
             - name: "Delete previous pre-release"
               env:
@@ -92,10 +89,11 @@ jobs:
                   SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
                   ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
+                echo "${ADDCOMMIT}"
                 cd ~/work/aerolab/aerolab/src
                 COMMIT=$(git rev-parse --short HEAD)
                 VER=$(cat ../../VERSION.md)
-                if [ "${ADDCOMMIT}" = "Yes" ]
+                if [ "${ADDCOMMIT}" = "true" ]
                 then
                     TAG=${VER}-${COMMIT}
                     curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage
