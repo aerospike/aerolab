@@ -20,6 +20,7 @@ type confNamespaceMemoryCmd struct {
 	Namespace       string          `short:"m" long:"namespace" description:"Name of the namespace to adjust" default:"test"`
 	MemPct          int             `short:"r" long:"mem-pct" description:"The percentage of RAM to use for the namespace memory" default:"50"`
 	ParallelThreads int             `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *confNamespaceMemoryCmd) Execute(args []string) error {

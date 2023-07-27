@@ -17,7 +17,7 @@ jobs:
             - name: "Compile and create linux packages"
               run: export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
             - name: "Print aerolab version"
-              run: ../bin/aerolab-macos-amd64 version
+              run: cd ~/work/aerolab/aerolab/src && ../bin/aerolab-macos-amd64 version
             - name: "Sign and build MacOS"
               env:
                   aerolab_appleid: ${{ secrets.APPLEUSER }}
@@ -26,7 +26,8 @@ jobs:
                   aerolab_installsigner: ${{ secrets.APPLEINSTALLSIGNER }}
                   INSTALLERP12: ${{ secrets.INSTALLERP12 }}
                   APPLICATIONP12: ${{ secrets.APPLICATIONP12 }}
-              run: | ## TODO: && make macos-notarize-all
+              run: |
+                set -e
                 security create-keychain -p mysecretpassword build.keychain
                 security default-keychain -s build.keychain
                 security unlock-keychain -p mysecretpassword build.keychain
@@ -35,8 +36,29 @@ jobs:
                 security unlock-keychain -p mysecretpassword build.keychain
                 security import app.p12 -k build.keychain -P $aerolab_applepw -A
                 security import install.p12 -k build.keychain -P $aerolab_applepw -A
-                export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all
-            - name: "DEBUG: Find everything"
-              run: find .
-            # todo: create a pre-release using the gh command
-            # todo: remove the old pre-release if it exists, using the gh command
+                export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
+            - name: "Create a new pre-release"
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                set -e
+                cd ~/work/aerolab/aerolab/bin/packages
+                COMMIT=$(git rev-parse --short HEAD)
+                VER=$(cat ../../VERSION.md)
+                BRANCH=$(git rev-parse --abbrev-ref HEAD)
+                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md --prerelease --target ${BRANCH} --title "AeroLab - v${VER}" ${VER}-${COMMIT} aerolab-linux-amd64-7.0.0.deb aerolab-linux-amd64-7.0.0.rpm aerolab-linux-amd64-7.0.0.zip aerolab-linux-arm64-7.0.0.deb aerolab-linux-arm64-7.0.0.rpm aerolab-linux-arm64-7.0.0.zip aerolab-macos-7.0.0.pkg aerolab-macos-amd64-7.0.0.zip aerolab-macos-arm64-7.0.0.zip
+            - name: "Delete previous pre-release"
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                set -e
+                COUNT=$(gh release list -R github.com/aerospike/aerolab -L 100 |grep Pre-release |awk '{print $(NF-1)}' |wc -l)
+                if [ $COUNT -lt 2 ]
+                then
+                    echo "ERROR: found only one pre-release, not removing"
+                    exit 1
+                else
+                    PREV=$(gh release list -R github.com/aerospike/aerolab -L 100 |grep Pre-release |awk '{print $(NF-1)}' |tail -1)
+                    echo "Removing $PREV"
+                    gh release delete $PREV -R github.com/aerospike/aerolab --yes --cleanup-tag
+                fi
