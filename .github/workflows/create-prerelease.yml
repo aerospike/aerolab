@@ -18,12 +18,9 @@ jobs:
               run: export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
             - name: "Print aerolab version"
               run: cd ~/work/aerolab/aerolab/src && ../bin/aerolab-macos-amd64 version
-            - name: "Sign and build MacOS"
+            - name: "Prepare keychain for signing MacOS"
               env:
-                  aerolab_appleid: ${{ secrets.APPLEUSER }}
-                  aerolab_applepw: ${{ secrets.APPLEPW }}
-                  aerolab_signer: ${{ secrets.APPLESIGNER }}
-                  aerolab_installsigner: ${{ secrets.APPLEINSTALLSIGNER }}
+                  keypw: ${{ secrets.APPLEPW }}
                   INSTALLERP12: ${{ secrets.INSTALLERP12 }}
                   APPLICATIONP12: ${{ secrets.APPLICATIONP12 }}
               run: |
@@ -34,8 +31,24 @@ jobs:
                 echo "$APPLICATIONP12" | base64 -d > app.p12
                 echo "$INSTALLERP12" | base64 -d > install.p12
                 security unlock-keychain -p mysecretpassword build.keychain
-                security import app.p12 -k build.keychain -P $aerolab_applepw -A
-                security import install.p12 -k build.keychain -P $aerolab_applepw -A
+                security import app.p12 -k build.keychain -P $keypw -A
+                security import install.p12 -k build.keychain -P $keypw -A
+            - name: "Sign and build MacOS"
+              env:
+                  xaerolab_appleid: ${{ secrets.APPLEUSER }}
+                  xaerolab_applepw: ${{ secrets.APPLEPW }}
+                  xaerolab_signer: ${{ secrets.APPLESIGNER }}
+                  xaerolab_installsigner: ${{ secrets.APPLEINSTALLSIGNER }}
+              run: |
+                set -e
+                export aerolab_appleid="${xaerolab_appleid}"
+                export aerolab_applepw="${xaerolab_applepw}"
+                export aerolab_signer="${xaerolab_signer}"
+                export aerolab_installsigner="${xaerolab_installsigner}"
+                echo "${xaerolab_signer}"
+                echo "${aerolab_signer}"
+                echo "${xaerolab_installsigner}"
+                echo "${aerolab_installsigner}"
                 export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
             - name: "Create a new pre-release"
               env:
