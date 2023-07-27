@@ -67,7 +67,8 @@ jobs:
                 BRANCH=$(git rev-parse --abbrev-ref HEAD)
                 TAG=${VER}-${COMMIT}
                 [ "${ADDCOMMIT}" = "false" ] && TAG=${VER}
-                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md --prerelease --target ${BRANCH} --title "AeroLab - v${TAG}" ${TAG} aerolab-linux-amd64-7.0.0.deb aerolab-linux-amd64-7.0.0.rpm aerolab-linux-amd64-7.0.0.zip aerolab-linux-arm64-7.0.0.deb aerolab-linux-arm64-7.0.0.rpm aerolab-linux-arm64-7.0.0.zip aerolab-macos-7.0.0.pkg aerolab-macos-amd64-7.0.0.zip aerolab-macos-arm64-7.0.0.zip
+                FULLCOMMIT=$(git rev-parse HEAD)
+                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md --prerelease --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} aerolab-linux-amd64-7.0.0.deb aerolab-linux-amd64-7.0.0.rpm aerolab-linux-amd64-7.0.0.zip aerolab-linux-arm64-7.0.0.deb aerolab-linux-arm64-7.0.0.rpm aerolab-linux-arm64-7.0.0.zip aerolab-macos-7.0.0.pkg aerolab-macos-amd64-7.0.0.zip aerolab-macos-arm64-7.0.0.zip
             - name: "Delete previous pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
