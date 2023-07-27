@@ -6,4 +6,16 @@ jobs:
     build-and-release:
         runs-on: macos-13
         steps:
-            - uses: actions/checkout@v3
+            - run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" # install homebrew
+            - run: /usr/local/bin/brew install dpkg rpmbuild upx golang zip make wget # install deps
+            - run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target / # install 'packages' dep for creating macos pkg
+            - uses: actions/checkout@v3 # checkout the repository
+            - run: | # compile and create linux packages
+                export PATH=$PATH:/usr/local/bin
+                cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
+                ../bin/aerolab-macos-amd64 version
+                which gh
+                gh --version
+            # todo: install everything required for signing
+            # todo: make macos-build-all && make macos-notarize-all
+            # todo: install gh commandline, and create a pre-release
