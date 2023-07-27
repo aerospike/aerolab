@@ -6,6 +6,7 @@
 
 * Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
 * Test and release for Windows platform
+* Move to new notarization tool for MacOS
 
 ### 7.2
 
