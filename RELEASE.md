@@ -21,6 +21,7 @@ See [the documentation](https://github.com/aerospike/aerolab/blob/v7.0.0/README.
 * Handle new AMS stack conventions and dashboards; auto-discover all available dashboards and folders.
 * Add options for specifying replacement or additive dashboard lists to AMS stack.
 * Use GitHub Actions to create builds.
+* Add `conf namespace-memory` option to configure memory for a namespace for a given RAM total percentage.
 
 ### Download aerolab from Assets below
 

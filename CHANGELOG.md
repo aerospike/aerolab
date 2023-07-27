@@ -5,6 +5,7 @@
 * Add options for specifying replacement or additive dashboard lists to AMS stack.
 * Add option to map and expose ports in Docker backend on a 1:1 pairing (eg 3100 node 1, 3101 node 2 etc) - so not workarounds are needed to access Aerospike clusters on Docker Desktop from the Desktop.
 * Add MacOS packaging and signing to makefile to move fully away from bash scripts.
+* Add `conf namespace-memory` option to configure memory for a namespace for a given RAM total percentage.
 * TODO Use GitHub Actions to create builds
 * TODO Add option for auto-expiring clusters in GCP and AWS.
 * TODO AeroLab Support for deploying Amazon 2023 server >= 6.4.
