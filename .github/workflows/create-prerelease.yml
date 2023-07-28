@@ -7,7 +7,9 @@ on:
                 description: 'Add commit to pre-release (not intended for final releases)'
                 required: false
                 type: boolean
-
+            message:
+                description: "Slack notification change message"
+                required: true
 jobs:
     build-and-release:
         runs-on: macos-13
@@ -91,6 +93,7 @@ jobs:
                   SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
                   SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
                   ADDCOMMIT: ${{ inputs.addCommit }}
+                  MESSAGE: ${{ inputs.message }}
               run: |
                 echo "${ADDCOMMIT}"
                 cd ~/work/aerolab/aerolab
@@ -99,8 +102,8 @@ jobs:
                 if [ "${ADDCOMMIT}" = "true" ]
                 then
                     TAG=${VER}-${COMMIT}
-                    curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                    curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
                 else
                     TAG=${VER}
-                    curl -d "text=A new pre-release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                    curl -d "text=A new pre-release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
                 fi
