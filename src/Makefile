@@ -362,7 +362,7 @@ macos-zip-notarize:
 ifeq (exists, $(shell [ -f ../bin/packages/aerolab-macos-amd64-${ver}.zip ] && echo "exists" || echo "not found"))
 	rm -f notarize_result_amd64
 	xcrun notarytool submit --apple-id ${APPLEID} --password ${APPLEPW} --team-id ${TEAMID} -f json --wait --timeout 10m ../bin/packages/aerolab-macos-amd64-${ver}.zip > notarize_result_amd64
-	if [ "$$(cat notarize_result_amd64 |jq .status)" != "Accepted" ] ;\
+	if [ "$$(cat notarize_result_amd64 |jq -r .status)" != "Accepted" ] ;\
 	then \
 		echo "ZIP-AMD FAILED TO NOTARIZE" ;\
 		cat notarize_result_amd64 ;\
@@ -374,7 +374,7 @@ endif
 ifeq (exists, $(shell [ -f ../bin/packages/aerolab-macos-arm64-${ver}.zip ] && echo "exists" || echo "not found"))
 	rm -f notarize_result_arm64
 	xcrun notarytool submit --apple-id ${APPLEID} --password ${APPLEPW} --team-id ${TEAMID} -f json --wait --timeout 10m ../bin/packages/aerolab-macos-arm64-${ver}.zip > notarize_result_arm64
-	if [ "$$(cat notarize_result_arm64 |jq .status)" != "Accepted" ] ;\
+	if [ "$$(cat notarize_result_arm64 |jq -r .status)" != "Accepted" ] ;\
 	then \
 		echo "ZIP-ARM FAILED TO NOTARIZE" ;\
 		cat notarize_result_arm64 ;\
@@ -400,7 +400,7 @@ macos-pkg-sign:
 macos-pkg-notarize:
 	rm -f notarize_result_pkg
 	xcrun notarytool submit --apple-id ${APPLEID} --password ${APPLEPW} --team-id ${TEAMID} -f json --wait --timeout 10m ../bin/packages/aerolab-macos-${ver}.pkg > notarize_result_pkg
-	if [ "$$(cat notarize_result_pkg |jq .status)" != "Accepted" ] ;\
+	if [ "$$(cat notarize_result_pkg |jq -r .status)" != "Accepted" ] ;\
 	then \
 		echo "PKG FAILED TO NOTARIZE" ;\
 		cat notarize_result_pkg ;\
