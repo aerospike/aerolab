@@ -72,7 +72,7 @@ func (c *confNamespaceMemoryCmd) Execute(args []string) error {
 		if memSizeGb == 0 {
 			return errors.New("percentage would result in memory size 0")
 		}
-		log.Printf("Processing nodeNumber=%d totalRamGb=%d memory-size=%dG", node, sysSizeGb, memSizeGb)
+		log.Printf("Processing NodeNumber %d TotalRamGb %d memory-size=%dG", node, sysSizeGb, memSizeGb)
 		// get config file
 		out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"cat", c.Path}}, []int{node})
 		if err != nil {
