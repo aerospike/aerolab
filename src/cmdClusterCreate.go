@@ -45,7 +45,7 @@ type clusterCreateCmd struct {
 
 type osSelectorCmd struct {
 	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu"`
-	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2 debian:11|10|9|8" default:"latest"`
+	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest"`
 }
 
 type chDirCmd struct {

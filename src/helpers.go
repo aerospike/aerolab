@@ -359,6 +359,19 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 				}
 				ret = append(ret, dlvX)
 			}
+		} else if strings.HasPrefix(line, "amzn") {
+			dlv.distroName = "amazon"
+			dlv.distroVersion = strings.TrimPrefix(line, "amzn")
+			ret = append(ret, dlv)
+			if bothArch {
+				dlvX := &dlVersion{
+					url:           dlv.url,
+					distroName:    dlv.distroName,
+					distroVersion: dlv.distroVersion,
+					isArm:         !dlv.isArm,
+				}
+				ret = append(ret, dlvX)
+			}
 		} else if strings.HasPrefix(line, "debian") {
 			dlv.distroName = "debian"
 			dlv.distroVersion = strings.TrimPrefix(line, "debian")

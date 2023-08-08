@@ -10,7 +10,7 @@ import (
 type templateDeleteCmd struct {
 	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version (or 'all')"`
 	DistroName       TypeDistro           `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon (or 'all')"`
-	DistroVersion    TypeDistroVersion    `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2 debian:11|10|9|8 (or 'all')"`
+	DistroVersion    TypeDistroVersion    `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8 (or 'all')"`
 	Aws              templateDeleteCmdAws `no-flag:"true"`
 	Gcp              templateDeleteCmdAws `no-flag:"true"`
 	Help             helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
