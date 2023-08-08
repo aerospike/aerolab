@@ -108,7 +108,7 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 				return false, err
 			}
 		} else {
-			cmd.records[batchIndex].setError(resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
+			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
 			cmd.records[batchIndex].Err = chainErrors(newCustomNodeError(cmd.node, resultCode), cmd.records[batchIndex].Err)
 		}
 	}
@@ -162,7 +162,7 @@ func (cmd *batchCommandDelete) parseRecord(rec *BatchRecord, key *Key, opCount i
 }
 
 func (cmd *batchCommandDelete) Execute() Error {
-	return cmd.execute(cmd, true)
+	return cmd.execute(cmd)
 }
 
 func (cmd *batchCommandDelete) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
