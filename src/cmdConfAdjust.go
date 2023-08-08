@@ -24,15 +24,26 @@ func (c *confAdjustCmd) Execute(args []string) error {
 	if earlyProcessV2(nil, true) {
 		return nil
 	}
-	if len(args) < 2 {
+	if len(args) < 1 {
 		c.help()
 		return nil
 	}
 	command := args[0]
-	path := args[1]
+	path := ""
+	if len(args) > 1 {
+		path = args[1]
+	} else if command != "get" {
+		c.help()
+		return nil
+	}
 	setValues := []string{""}
 
 	switch command {
+	case "get":
+		if len(args) > 2 {
+			c.help()
+			return nil
+		}
 	case "delete":
 		if len(args) != 2 {
 			c.help()
@@ -76,11 +87,50 @@ func (c *confAdjustCmd) Execute(args []string) error {
 		}
 
 		sa := s
+		path = strings.ReplaceAll(path, "..", "±§±§±")
 		pathn := strings.Split(path, ".")
+		for i := range pathn {
+			pathn[i] = strings.ReplaceAll(pathn[i], "±§±§±", ".")
+		}
 		if pathn[0] == "" && len(pathn) > 1 {
 			pathn = pathn[1:]
 		}
 		switch command {
+		case "get":
+			prefix := ""
+			if len(nodes) > 1 {
+				prefix = fmt.Sprintf("(%v) ", node)
+			}
+			if path != "" {
+				for j, i := range pathn {
+					if sa.Type(i) == aeroconf.ValueString {
+						if len(pathn) > j+1 {
+							return fmt.Errorf("key item '%s' is a string not a stanza", i)
+						}
+						vals, err := sa.GetValues(i)
+						if err != nil {
+							return fmt.Errorf("could not get values for '%s'", i)
+						}
+						valstring := ""
+						for _, vv := range vals {
+							if valstring != "" {
+								valstring = valstring + " "
+							}
+							valstring = valstring + *vv
+						}
+						fmt.Printf("%s%s %s\n", prefix, i, valstring)
+						return nil
+					} else {
+						sa = sa.Stanza(i)
+						if sa == nil {
+							return errors.New("stanza not found")
+						}
+					}
+				}
+			}
+			var buf bytes.Buffer
+			sa.Write(&buf, prefix, "    ", true)
+			fmt.Print(buf.String())
 		case "delete":
 			for _, i := range pathn[0 : len(pathn)-1] {
 				sa = sa.Stanza(i)
@@ -114,17 +164,19 @@ func (c *confAdjustCmd) Execute(args []string) error {
 				sa = sa.Stanza(i)
 			}
 		}
-		var buf bytes.Buffer
-		err = s.Write(&buf, "", "    ", true)
-		if err != nil {
-			return err
-		}
-		contents := buf.Bytes()
-		fileContents = bytes.NewReader(contents)
-		// edit end
-		err = b.CopyFilesToClusterReader(c.ClusterName.String(), []fileListReader{{filePath: c.Path, fileContents: fileContents, fileSize: len(contents)}}, []int{node})
-		if err != nil {
-			return err
+		if command != "get" {
+			var buf bytes.Buffer
+			err = s.Write(&buf, "", "    ", true)
+			if err != nil {
+				return err
+			}
+			contents := buf.Bytes()
+			fileContents = bytes.NewReader(contents)
+			// edit end
+			err = b.CopyFilesToClusterReader(c.ClusterName.String(), []fileListReader{{filePath: c.Path, fileContents: fileContents, fileSize: len(contents)}}, []int{node})
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -151,16 +203,20 @@ func (c *confAdjustCmd) help() {
 	-p, --path=  Path to aerospike configuration file (default: /etc/aerospike/aerospike.conf)
 	 --threads=  Number of parallel threads to run on (default: 50)`)
 	fmt.Println("\n" + `COMMANDS:
+	get    - get configuration/stanza and print to stdout
 	delete - delete configuration/stanza
 	set    - set configuration parameter
 	create - create a new stanza`)
 	fmt.Println("\n" + `PATH: path.to.item or path.to.stanza, e.g. network.heartbeat`)
 	fmt.Println("\n" + `SET-VALUE: for the 'set' command - used to specify value of parameter; leave empty to crete no-value param`)
+	fmt.Println("\n" + `To specify a literal dot in the configuraiton path, use .. (double-dot)`)
 	fmt.Printf("\n"+`EXAMPLES:
 	%s -n mydc create network.heartbeat
 	%s -n mydc set network.heartbeat.mode mesh
 	%s -n mydc set network.heartbeat.mesh-seed-address-port "172.17.0.2 3000" "172.17.0.3 3000"
 	%s -n mydc create service
 	%s -n mydc set service.proto-fd-max 3000
-	`+"\n", comm, comm, comm, comm, comm)
+	%s -n mydc get
+	%s -n mydc get network.service
+	`+"\n", comm, comm, comm, comm, comm, comm, comm)
 }
