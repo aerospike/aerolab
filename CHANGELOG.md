@@ -11,8 +11,8 @@
 * Option `conf adjust` now allows `get` to retrieve values.
 * Support for deploying Amazon 2023 server >= 6.4.
 * Support for deploying Debian 12 server >= 6.4.
+* Create manual on using AWS Secrets Manager.
 * TODO Add option for auto-expiring clusters in GCP and AWS.
-* TODO Check Aerospike-AWS-Secrets-Manager support adding
 
 #### 6.2.0
 * Add option to filter instance types by name.

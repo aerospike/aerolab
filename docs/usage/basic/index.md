@@ -35,3 +35,5 @@
 [Strong consistency](strong.md)
 
 [Adjusting running Aerospike configuration](conf-adjust.md)
+
+[Using AWS Secrets Manager](secrets_manager.md)
