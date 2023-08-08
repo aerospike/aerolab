@@ -1918,10 +1918,11 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		tgName := ec2.Tag{}
 		tgName.Key = aws.String("Name")
 		tgName.Value = aws.String(fmt.Sprintf("aerolab4-%s_%d", name, i))
-		tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgUsedBy, &tgName, &tgClientType, {
-			Key:   aws.String(awsTagOperatingSystem),
-			Value: aws.String(v.distroName),
-		},
+		tgs := []*ec2.Tag{&tgClusterName, &tgNodeNumber, &tgUsedBy, &tgName, &tgClientType,
+			{
+				Key:   aws.String(awsTagOperatingSystem),
+				Value: aws.String(v.distroName),
+			},
 			{
 				Key:   aws.String(awsTagOSVersion),
 				Value: aws.String(v.distroVersion),
@@ -1941,8 +1942,15 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			{
 				Key:   aws.String(awsTagCostStartTime),
 				Value: aws.String(strconv.Itoa(int(time.Now().Unix()))),
-			}}
+			},
+		}
 		tgs = append(tgs, extraTags...)
+		if !extra.expiresTime.IsZero() {
+			tgs = append(tgs, &ec2.Tag{
+				Key:   aws.String("aerolab4expires"),
+				Value: aws.String(extra.expiresTime.Format(time.RFC3339)),
+			})
+		}
 		ts := ec2.TagSpecification{}
 		ts.Tags = tgs
 		ntype := "instance"
