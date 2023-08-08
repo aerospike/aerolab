@@ -136,11 +136,15 @@ func (c *restCmd) helpValueDescriptionsDo(keyField reflect.Value, start string, 
 	}
 	tagDescription := tags.Get("description")
 	switch keyField.Type().Kind() {
-	case reflect.Int:
+	case reflect.Int, reflect.Int64:
 		if tagDefault == "" {
 			tagDefault = "0"
 		}
-		ret <- helpValue{start, tagDescription, "integer"}
+		if keyField.Type().String() != "time.Duration" {
+			ret <- helpValue{start, tagDescription, "integer"}
+		} else {
+			ret <- helpValue{start, tagDescription, "time.Duration"}
+		}
 	case reflect.String:
 		ret <- helpValue{start, tagDescription, "string"}
 	case reflect.Bool:

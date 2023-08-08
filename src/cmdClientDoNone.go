@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
@@ -190,6 +191,19 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	} else {
 		extra.firewallNamePrefix = c.Aws.NamePrefix
 		extra.tags = append(extra.tags, "owner="+c.Owner)
+	}
+	if a.opts.Config.Backend.Type == "aws" {
+		if c.Aws.Expires == 0 {
+			extra.expiresTime = time.Time{}
+		} else {
+			extra.expiresTime = time.Now().Add(c.Aws.Expires)
+		}
+	} else if a.opts.Config.Backend.Type == "gcp" {
+		if c.Gcp.Expires == 0 {
+			extra.expiresTime = time.Time{}
+		} else {
+			extra.expiresTime = time.Now().Add(c.Gcp.Expires)
+		}
 	}
 	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {

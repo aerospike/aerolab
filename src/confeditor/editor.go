@@ -84,55 +84,55 @@ func drawMenuItems(v *gocui.View, items []menuItem, linePadding int, depth int) 
 
 func fillMenuItems() {
 	menuItems = []menuItem{
-		menuItem{
+		{
 			Type:  typeMenuItemText,
 			Label: "namespace",
 			Children: []menuItem{
-				menuItem{
+				{
 					Type:  typeMenuItemCheckbox,
 					Label: "rack awareness",
 					Item:  itemRackAwareness,
 				},
-				menuItem{
+				{
 					Type:  typeMenuItemCheckbox,
 					Label: "strong consistency mode",
 					Item:  itemStrongConsistency,
 				},
-				menuItem{
+				{
 					Type:  typeMenuItemCheckbox,
 					Label: "all-flash index on disk",
 					Item:  itemStorageEngineAllFlash,
 				},
 			},
 		},
-		menuItem{
+		{
 			Type: typeMenuItemEmpty,
 		},
-		menuItem{
+		{
 			Type:  typeMenuItemText,
 			Label: "namespace storage engine",
 			Children: []menuItem{
-				menuItem{
+				{
 					Type:  typeMenuItemRadio,
 					Label: "memory",
 					Item:  itemStorageEngineMemory,
 				},
-				menuItem{
+				{
 					Type:  typeMenuItemRadio,
 					Label: "device (file)",
 					Item:  itemStorageDisk,
 					Children: []menuItem{
-						menuItem{
+						{
 							Type:  typeMenuItemCheckbox,
 							Label: "data also in memory",
 							Item:  itemStorageEngineDeviceAndMemory,
 						},
-						menuItem{
+						{
 							Type:  typeMenuItemCheckbox,
 							Label: "encryption at rest",
 							Item:  itemStorageEngineEncryption,
 						},
-						menuItem{
+						{
 							Type:  typeMenuItemCheckbox,
 							Label: "compression",
 							Item:  itemStorageEngineCompression,
@@ -141,44 +141,44 @@ func fillMenuItems() {
 				},
 			},
 		},
-		menuItem{
+		{
 			Type: typeMenuItemEmpty,
 		},
-		menuItem{
+		{
 			Type:  typeMenuItemText,
 			Label: "logging",
 			Children: []menuItem{
-				menuItem{
+				{
 					Type:  typeMenuItemText,
 					Label: "destination",
 					Children: []menuItem{
-						menuItem{
+						{
 							Type:  typeMenuItemRadio,
 							Label: "file",
 							Item:  itemLoggingDestinationFile,
 						},
-						menuItem{
+						{
 							Type:  typeMenuItemRadio,
 							Label: "console",
 							Item:  itemLoggingDestinationCOnsole,
 						},
 					},
 				},
-				menuItem{
+				{
 					Type:  typeMenuItemText,
 					Label: "level",
 					Children: []menuItem{
-						menuItem{
+						{
 							Type:  typeMenuItemRadio,
 							Label: "info",
 							Item:  itemLoggingLevelInfo,
 						},
-						menuItem{
+						{
 							Type:  typeMenuItemRadio,
 							Label: "debug",
 							Item:  itemLoggingLevelDebug,
 						},
-						menuItem{
+						{
 							Type:  typeMenuItemRadio,
 							Label: "detail",
 							Item:  itemLoggingLevelDetail,
@@ -187,24 +187,24 @@ func fillMenuItems() {
 				},
 			},
 		},
-		menuItem{
+		{
 			Type: typeMenuItemEmpty,
 		},
-		menuItem{
+		{
 			Type:  typeMenuItemText,
 			Label: "network - tls",
 			Children: []menuItem{
-				menuItem{
+				{
 					Type:  typeMenuItemCheckbox,
 					Label: "enabled",
 					Item:  itemTlsEnabled,
 					Children: []menuItem{
-						menuItem{
+						{
 							Type:  typeMenuItemCheckbox,
 							Label: "service port",
 							Item:  itemTlsService,
 						},
-						menuItem{
+						{
 							Type:  typeMenuItemCheckbox,
 							Label: "fabric port",
 							Item:  itemTlsFabric,
@@ -213,38 +213,38 @@ func fillMenuItems() {
 				},
 			},
 		},
-		menuItem{
+		{
 			Type: typeMenuItemEmpty,
 		},
-		menuItem{
+		{
 			Type:  typeMenuItemText,
 			Label: "security",
 			Children: []menuItem{
-				menuItem{
+				{
 					Type:  typeMenuItemRadio,
 					Label: "disabled",
 					Item:  itemSecurityOff,
 				},
-				menuItem{
+				{
 					Type:  typeMenuItemRadio,
 					Label: "enabled - builtin",
 					Item:  itemSecurityOnBasic,
 				},
-				menuItem{
+				{
 					Type:  typeMenuItemRadio,
 					Label: "enabled - ldap",
 					Item:  itemSecurityOnLdap,
 				},
 			},
 		},
-		menuItem{
+		{
 			Type: typeMenuItemEmpty,
 		},
-		menuItem{
+		{
 			Type:  typeMenuItemText,
 			Label: "security logging",
 			Children: []menuItem{
-				menuItem{
+				{
 					Type:  typeMenuItemCheckbox,
 					Label: "detail level",
 					Item:  itemSecurityLoggingDetail,

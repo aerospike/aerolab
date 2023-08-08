@@ -18,28 +18,61 @@ func getBackend() (backend, error) {
 }
 
 type backendExtra struct {
-	clientType         string   // all: ams|elasticsearch|rest-gateway|VSCode|...
-	cpuLimit           string   // docker only
-	ramLimit           string   // docker only
-	swapLimit          string   // docker only
-	privileged         bool     // docker only
-	exposePorts        []string // docker only
-	switches           []string // docker only
-	dockerHostname     bool     // docker only
-	network            string   // docker only
-	autoExpose         bool     // docker only
-	securityGroupID    string   // aws only
-	subnetID           string   // aws only
-	ebs                string   // aws only
-	instanceType       string   // aws/gcp only
-	ami                string   // aws/gcp only
-	publicIP           bool     // aws/gcp only
-	tags               []string // aws/gcp only
-	firewallNamePrefix []string // aws/gcp only
-	disks              []string // gcp only
-	zone               string   // gcp only
-	labels             []string // gcp only
+	clientType         string    // all: ams|elasticsearch|rest-gateway|VSCode|...
+	cpuLimit           string    // docker only
+	ramLimit           string    // docker only
+	swapLimit          string    // docker only
+	privileged         bool      // docker only
+	exposePorts        []string  // docker only
+	switches           []string  // docker only
+	dockerHostname     bool      // docker only
+	network            string    // docker only
+	autoExpose         bool      // docker only
+	securityGroupID    string    // aws only
+	subnetID           string    // aws only
+	ebs                string    // aws only
+	instanceType       string    // aws/gcp only
+	ami                string    // aws/gcp only
+	publicIP           bool      // aws/gcp only
+	tags               []string  // aws/gcp only
+	firewallNamePrefix []string  // aws/gcp only
+	expiresTime        time.Time // aws/gcp only
+	disks              []string  // gcp only
+	zone               string    // gcp only
+	labels             []string  // gcp only
 }
+
+/*
+TODO: aws
+1. start cluster with long expiry
+2. start cluster with short expiry
+3. start cluster with no expiry
+4. install the lambda manually and cloudwatch
+5. test if this works as expected
+6. delete lambda, cloudwatch, the 3 clusters
+DeployCluster - if checker doesn't exist, install it
+aerolab config aws expiry-install
+	-- lambda, cloudwatch
+aerolab config aws expiry-check-frequency
+aerolab config aws expiry-delete
+aerolab cluster expiry # adjust cluster expiry
+
+TODO: gcp
+Write lambda code
+DeployCluster - add expiry tag/label/metadata
+1. start cluster with long expiry
+2. start cluster with short expiry
+3. start cluster with no expiry
+4. install the lambda manually and cloudwatch
+5. test if this works as expected
+6. delete lambda, cloudwatch, the 3 clusters
+DeployCluster - if checker doesn't exist, install it
+aerolab config gcp expiry-install
+	-- code function (no api), cloudwatch
+aerolab config gcp expiry-check-frequency
+aerolab config gcp expiry-delete
+aerolab cluster expiry # adjust cluster expiry
+*/
 
 type backendVersion struct {
 	distroName       string

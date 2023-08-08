@@ -138,10 +138,9 @@ func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err
 				}
 			}
 		case "amazon":
-			if !(strings.HasPrefix(name, "amzn2-ami-kernel-") || strings.HasPrefix(name, "amzn2-ami-hvm-")) || !strings.Contains(name, "-hvm-") || !strings.HasSuffix(name, "-gp2") {
+			if v.distroVersion == "2" && ((!(strings.HasPrefix(name, "amzn2-ami-kernel-") || strings.HasPrefix(name, "amzn2-ami-hvm-")) || !strings.Contains(name, "-hvm-") || !strings.HasSuffix(name, "-gp2")) || (!strings.HasSuffix(name, "-x86_64-gp2") && !strings.HasSuffix(name, "-arm64-gp2"))) {
 				continue
-			}
-			if !strings.HasSuffix(name, "-x86_64-gp2") && !strings.HasSuffix(name, "-arm64-gp2") {
+			} else if v.distroVersion == "2023" && (!strings.HasPrefix(name, "al2023-ami-") || strings.HasPrefix(name, "al2023-ami-minimal-") || (!strings.HasSuffix(name, "-x86_64") && !strings.HasSuffix(name, "-arm64"))) {
 				continue
 			}
 			cdstring := *ami.CreationDate

@@ -5,12 +5,12 @@
 ### 7.1
 
 * Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
-* Test and release for Windows platform
-* Move to new notarization tool for MacOS
+* Test and release for Windows platform.
 
 ### 7.2
 
 * Add embed scripts into aerolab to embed quickstart and demos and client installation.
+* Consider adding an auto-building web interface.
 
 ### 8.0
 

@@ -14,8 +14,6 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v6/types"
-
 type queryPartitionObjectsCommand queryCommand
 
 func newQueryPartitionObjectsCommand(
@@ -32,7 +30,7 @@ func newQueryPartitionObjectsCommand(
 		statement:        statement,
 		operations:       nil,
 	}
-	cmd.terminationErrorType = types.SCAN_TERMINATED
+	cmd.terminationErrorType = statement.terminationError()
 	cmd.tracker = tracker
 	cmd.nodePartitions = nodePartitions
 	cmd.node = nodePartitions.node
@@ -53,7 +51,7 @@ func (cmd *queryPartitionObjectsCommand) shouldRetry(e Error) bool {
 }
 
 func (cmd *queryPartitionObjectsCommand) Execute() Error {
-	err := cmd.execute(cmd, true)
+	err := cmd.execute(cmd)
 	if err != nil {
 		// signal to the executor that no retries should be attempted
 		// don't send error unless no retries are planned

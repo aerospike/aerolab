@@ -7,10 +7,12 @@
 * Add MacOS packaging and signing to makefile to move fully away from bash scripts.
 * Add `conf namespace-memory` option to configure memory for a namespace for a given RAM total percentage.
 * Use GitHub Actions to create builds
+* Setting `conf adjust` value params, if it's `..`, treat as literal dot.
+* Option `conf adjust` now allows `get` to retrieve values.
+* Support for deploying Amazon 2023 server >= 6.4.
+* Support for deploying Debian 12 server >= 6.4.
+* Create manual on using AWS Secrets Manager.
 * TODO Add option for auto-expiring clusters in GCP and AWS.
-* TODO AeroLab Support for deploying Amazon 2023 server >= 6.4.
-* TODO AeroLab Support for deploying Debian 12 server >= 6.4.
-* TODO Check Aerospike-AWS-Secrets-Manager support adding
 
 #### 6.2.0
 * Add option to filter instance types by name.
