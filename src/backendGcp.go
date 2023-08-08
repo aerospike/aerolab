@@ -1245,6 +1245,13 @@ func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
 			return fmt.Errorf("unable to wait for the operation: %w", err)
 		}
 	}
+	cl, err := d.ClusterList()
+	if err != nil {
+		return fmt.Errorf("could not kill key as ClusterList failed: %s", err)
+	}
+	if !inslice.HasString(cl, name) {
+		d.killKey(name)
+	}
 	return nil
 }
 
