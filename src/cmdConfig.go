@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
@@ -309,12 +310,16 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 		tagDefault = tags.Get("default")
 	}
 	switch keyField.Type().Kind() {
-	case reflect.Int:
+	case reflect.Int, reflect.Int64:
 		if tagDefault == "" {
 			tagDefault = "0"
 		}
 		if !c.OnlyChanged || tagDefault != fmt.Sprintf("%d", keyField.Int()) {
-			ret <- configValueCmd{start, fmt.Sprintf("%d", keyField.Int())}
+			if keyField.Type().String() != "time.Duration" {
+				ret <- configValueCmd{start, fmt.Sprintf("%d", keyField.Int())}
+			} else {
+				ret <- configValueCmd{start, fmt.Sprintf("%v", time.Duration(keyField.Int()))}
+			}
 		}
 	case reflect.String:
 		if !c.OnlyChanged || keyField.String() != tagDefault {

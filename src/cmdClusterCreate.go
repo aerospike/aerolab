@@ -45,7 +45,7 @@ type clusterCreateCmd struct {
 
 type osSelectorCmd struct {
 	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu"`
-	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:8|7 amazon:2 debian:11|10|9|8" default:"latest"`
+	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest"`
 }
 
 type chDirCmd struct {
@@ -65,29 +65,31 @@ type aerospikeVersionSelectorCmd struct {
 }
 
 type clusterCreateCmdAws struct {
-	AMI             string   `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
-	InstanceType    string   `short:"I" long:"instance-type" description:"instance type to use" default:""`
-	Ebs             string   `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
-	SecurityGroupID string   `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
-	SubnetID        string   `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
-	PublicIP        bool     `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
-	IsArm           bool     `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices bool     `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
-	Tags            []string `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix      []string `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+	AMI             string        `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
+	InstanceType    string        `short:"I" long:"instance-type" description:"instance type to use" default:""`
+	Ebs             string        `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
+	SecurityGroupID string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
+	SubnetID        string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
+	PublicIP        bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	IsArm           bool          `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices bool          `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags            []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix      []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+	Expires         time.Duration `long:"expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
 }
 
 type clusterCreateCmdGcp struct {
-	Image           string   `long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
-	InstanceType    string   `long:"instance" description:"instance type to use" default:""`
-	Disks           []string `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
-	PublicIP        bool     `long:"external-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
-	Zone            string   `long:"zone" description:"zone name to deploy to"`
-	IsArm           bool     `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices bool     `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
-	Tags            []string `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
-	Labels          []string `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix      []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	Image           string        `long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
+	InstanceType    string        `long:"instance" description:"instance type to use" default:""`
+	Disks           []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
+	PublicIP        bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	Zone            string        `long:"zone" description:"zone name to deploy to"`
+	IsArm           bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags            []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
+	Labels          []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix      []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	Expires         time.Duration `long:"expires" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -628,6 +630,19 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		extra.tags = append(extra.tags, "owner="+c.Owner)
 	}
 	extra.autoExpose = !c.Docker.NoAutoExpose
+	if a.opts.Config.Backend.Type == "aws" {
+		if c.Aws.Expires == 0 {
+			extra.expiresTime = time.Time{}
+		} else {
+			extra.expiresTime = time.Now().Add(c.Aws.Expires)
+		}
+	} else if a.opts.Config.Backend.Type == "gcp" {
+		if c.Gcp.Expires == 0 {
+			extra.expiresTime = time.Time{}
+		} else {
+			extra.expiresTime = time.Now().Add(c.Gcp.Expires)
+		}
+	}
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err

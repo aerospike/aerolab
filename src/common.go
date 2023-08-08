@@ -26,9 +26,9 @@ func getLatestVersionForDistro(distro string) string {
 	case "centos":
 		return "9"
 	case "amazon":
-		return "2"
+		return "2023"
 	case "debian":
-		return "11"
+		return "12"
 	}
 	return ""
 }
@@ -47,12 +47,12 @@ func checkDistroVersion(distro string, version string) error {
 		}
 	case "amazon":
 		switch version {
-		case "2":
+		case "2023", "2":
 			return nil
 		}
 	case "debian":
 		switch version {
-		case "11", "10", "9", "8":
+		case "12", "11", "10", "9", "8":
 			return nil
 		}
 	default:

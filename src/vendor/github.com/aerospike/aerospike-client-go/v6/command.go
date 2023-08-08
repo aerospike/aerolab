@@ -25,7 +25,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v6/logger"
 	"github.com/aerospike/aerospike-client-go/v6/types"
 
-	ParticleType "github.com/aerospike/aerospike-client-go/v6/internal/particle_type"
+	ParticleType "github.com/aerospike/aerospike-client-go/v6/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
 )
 
@@ -130,8 +130,10 @@ type command interface {
 	parseRecordResults(ifc command, receiveSize int) (bool, Error)
 	prepareRetry(ifc command, isTimeout bool) bool
 
-	execute(ifc command, isRead bool) Error
-	executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) Error
+	isRead() bool
+
+	execute(ifc command) Error
+	executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int, commandWasSent bool) Error
 
 	canPutConnBack() bool
 
@@ -162,6 +164,7 @@ type baseCommand struct {
 	compressed bool
 
 	commandSentCounter int
+	commandWasSent     bool
 }
 
 // Writes the command for write operations
@@ -202,9 +205,9 @@ func (cmd *baseCommand) setWrite(policy *WritePolicy, operation OperationType, k
 	}
 
 	if binMap == nil {
-		cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(bins))
+		cmd.writeHeaderWrite(policy, _INFO2_WRITE, fieldCount, len(bins))
 	} else {
-		cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, len(binMap))
+		cmd.writeHeaderWrite(policy, _INFO2_WRITE, fieldCount, len(binMap))
 	}
 
 	if err := cmd.writeKey(key, policy.SendKey); err != nil {
@@ -259,7 +262,7 @@ func (cmd *baseCommand) setDelete(policy *WritePolicy, key *Key) Error {
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
-	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE|_INFO2_DELETE, fieldCount, 0)
+	cmd.writeHeaderWrite(policy, _INFO2_WRITE|_INFO2_DELETE, fieldCount, 0)
 	if err := cmd.writeKey(key, false); err != nil {
 		return err
 	}
@@ -298,7 +301,7 @@ func (cmd *baseCommand) setTouch(policy *WritePolicy, key *Key) Error {
 	if err := cmd.sizeBuffer(false); err != nil {
 		return err
 	}
-	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 1)
+	cmd.writeHeaderWrite(policy, _INFO2_WRITE, fieldCount, 1)
 	if err := cmd.writeKey(key, policy.SendKey); err != nil {
 		return err
 	}
@@ -335,7 +338,7 @@ func (cmd *baseCommand) setExists(policy *BasePolicy, key *Key) Error {
 	if err := cmd.sizeBuffer(false); err != nil {
 		return err
 	}
-	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 0)
+	cmd.writeHeaderReadHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, fieldCount, 0)
 	if err := cmd.writeKey(key, false); err != nil {
 		return err
 	}
@@ -369,7 +372,8 @@ func (cmd *baseCommand) setReadForKeyOnly(policy *BasePolicy, key *Key) Error {
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
-	cmd.writeHeader(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
+
+	cmd.writeHeaderRead(policy, _INFO1_READ|_INFO1_GET_ALL, 0, fieldCount, 0)
 	if err := cmd.writeKey(key, false); err != nil {
 		return err
 	}
@@ -411,7 +415,13 @@ func (cmd *baseCommand) setRead(policy *BasePolicy, key *Key, binNames []string)
 		if err := cmd.sizeBuffer(policy.compress()); err != nil {
 			return err
 		}
-		cmd.writeHeader(policy, _INFO1_READ, 0, fieldCount, len(binNames))
+
+		attr := _INFO1_READ
+		if len(binNames) == 0 {
+			attr |= _INFO1_GET_ALL
+		}
+		cmd.writeHeaderRead(policy, attr, 0, fieldCount, len(binNames))
+
 		if err := cmd.writeKey(key, false); err != nil {
 			return err
 		}
@@ -451,13 +461,11 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) Error {
 		}
 	}
 
-	cmd.estimateOperationSizeForBinName("")
 	if err := cmd.sizeBuffer(policy.compress()); err != nil {
 		return err
 	}
 
-	cmd.writeHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, 0, fieldCount, 1)
-
+	cmd.writeHeaderReadHeader(policy, _INFO1_READ|_INFO1_NOBINDATA, fieldCount, 0)
 	if err := cmd.writeKey(key, false); err != nil {
 		return err
 	}
@@ -466,7 +474,6 @@ func (cmd *baseCommand) setReadHeader(policy *BasePolicy, key *Key) Error {
 			return err
 		}
 	}
-	cmd.writeOperationForBinName("", _READ)
 	cmd.end()
 	cmd.markCompressed(policy)
 
@@ -510,11 +517,7 @@ func (cmd *baseCommand) setOperate(policy *WritePolicy, key *Key, args *operateA
 		return err
 	}
 
-	if args.writeAttr != 0 {
-		cmd.writeHeaderWithPolicy(policy, args.readAttr, args.writeAttr, fieldCount, len(args.operations))
-	} else {
-		cmd.writeHeader(&policy.BasePolicy, args.readAttr, args.writeAttr, fieldCount, len(args.operations))
-	}
+	cmd.writeHeaderReadWrite(policy, args.readAttr, args.writeAttr, fieldCount, len(args.operations))
 
 	if err := cmd.writeKey(key, policy.SendKey && args.hasWrite); err != nil {
 		return err
@@ -566,7 +569,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 		return err
 	}
 
-	cmd.writeHeaderWithPolicy(policy, 0, _INFO2_WRITE, fieldCount, 0)
+	cmd.writeHeaderWrite(policy, _INFO2_WRITE, fieldCount, 0)
 	if err := cmd.writeKey(key, policy.SendKey); err != nil {
 		return err
 	}
@@ -680,7 +683,7 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 				br := record.(*BatchRead)
 
 				if br.Policy != nil {
-					attr.setRead(br.Policy)
+					attr.setBatchRead(br.Policy)
 				} else {
 					attr.setRead(policy)
 				}
@@ -1136,7 +1139,7 @@ func (cmd *baseCommand) setBatchRead(policy *BatchPolicy, keys []*Key, batch *ba
 		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
-	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
@@ -1271,7 +1274,7 @@ func (cmd *baseCommand) setBatchIndexRead(policy *BatchPolicy, records []*BatchR
 		readAttr |= _INFO1_READ_MODE_AP_ALL
 	}
 
-	cmd.writeHeader(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr|_INFO1_BATCH, 0, fieldCount, 0)
 
 	if policy.FilterExpression != nil {
 		if err := cmd.writeFilterExpression(policy.FilterExpression, predSize); err != nil {
@@ -1445,11 +1448,16 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		readAttr |= _INFO1_NOBINDATA
 	}
 
+	infoAttr := 0
+	if cmd.node.cluster.supportsPartitionQuery.Get() {
+		infoAttr = _INFO3_PARTITION_DONE
+	}
+
 	operationCount := 0
-	if binNames != nil {
+	if len(binNames) > 0 {
 		operationCount = len(binNames)
 	}
-	cmd.writeHeader(&policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr, infoAttr, fieldCount, operationCount)
 
 	if namespace != nil {
 		cmd.writeFieldString(*namespace, NAMESPACE)
@@ -1712,7 +1720,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 	}
 
 	if background {
-		cmd.writeHeaderWithPolicy(wpolicy, 0, _INFO2_WRITE, fieldCount, operationCount)
+		cmd.writeHeaderWrite(wpolicy, _INFO2_WRITE, fieldCount, operationCount)
 	} else {
 		readAttr := _INFO1_READ | _INFO1_NOBINDATA
 		if policy.IncludeBinData {
@@ -1721,7 +1729,11 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 		if policy.ShortQuery {
 			readAttr |= _INFO1_SHORT_QUERY
 		}
-		cmd.writeHeader(&policy.BasePolicy, readAttr, 0, fieldCount, operationCount)
+		infoAttr := 0
+		if isNew {
+			infoAttr = _INFO3_PARTITION_DONE
+		}
+		cmd.writeHeaderRead(&policy.BasePolicy, readAttr, infoAttr, fieldCount, operationCount)
 	}
 
 	if statement.Namespace != "" {
@@ -1954,45 +1966,65 @@ func (cmd *baseCommand) estimateExpressionSize(exp *Expression) (int, Error) {
 	return size, nil
 }
 
-// Generic header write.
-func (cmd *baseCommand) writeHeader(policy *BasePolicy, readAttr int, writeAttr int, fieldCount int, operationCount int) {
+// Header write for write commands.
+func (cmd *baseCommand) writeHeaderWrite(policy *WritePolicy, writeAttr, fieldCount, operationCount int) {
+	// Set flags.
+	generation := uint32(0)
+	readAttr := 0
 	infoAttr := 0
 
-	switch policy.ReadModeSC {
-	case ReadModeSCSession:
-	case ReadModeSCLinearize:
-		infoAttr |= _INFO3_SC_READ_TYPE
-	case ReadModeSCAllowReplica:
-		infoAttr |= _INFO3_SC_READ_RELAX
-	case ReadModeSCAllowUnavailable:
-		infoAttr |= _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
+	switch policy.RecordExistsAction {
+	case UPDATE:
+	case UPDATE_ONLY:
+		infoAttr |= _INFO3_UPDATE_ONLY
+	case REPLACE:
+		infoAttr |= _INFO3_CREATE_OR_REPLACE
+	case REPLACE_ONLY:
+		infoAttr |= _INFO3_REPLACE_ONLY
+	case CREATE_ONLY:
+		writeAttr |= _INFO2_CREATE_ONLY
 	}
 
-	if policy.ReadModeAP == ReadModeAPAll {
-		readAttr |= _INFO1_READ_MODE_AP_ALL
+	switch policy.GenerationPolicy {
+	case NONE:
+	case EXPECT_GEN_EQUAL:
+		generation = policy.Generation
+		writeAttr |= _INFO2_GENERATION
+	case EXPECT_GEN_GT:
+		generation = policy.Generation
+		writeAttr |= _INFO2_GENERATION_GT
 	}
 
-	if policy.UseCompression {
-		readAttr |= _INFO1_COMPRESS_RESPONSE
+	if policy.CommitLevel == COMMIT_MASTER {
+		infoAttr |= _INFO3_COMMIT_MASTER
 	}
+
+	if policy.DurableDelete {
+		writeAttr |= _INFO2_DURABLE_DELETE
+	}
+
+	// if (policy.Xdr) {
+	// 	readAttr |= _INFO1_XDR;
+	// }
 
 	// Write all header data except total size which must be written last.
 	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
 	cmd.dataBuffer[9] = byte(readAttr)
 	cmd.dataBuffer[10] = byte(writeAttr)
 	cmd.dataBuffer[11] = byte(infoAttr)
-
-	for i := 12; i < 26; i++ {
-		cmd.dataBuffer[i] = 0
-	}
-	cmd.dataOffset = 26
+	cmd.dataBuffer[12] = 0 // unused
+	cmd.dataBuffer[13] = 0 // clear the result code
+	cmd.dataOffset = 14
+	cmd.WriteUint32(generation)
+	cmd.WriteUint32(policy.Expiration)
+	cmd.WriteInt32(0) // TODO: server timeout
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
 }
 
-// Header write for write operations.
-func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int, writeAttr int, fieldCount int, operationCount int) {
+// Header write for operate command.
+func (cmd *baseCommand) writeHeaderReadWrite(policy *WritePolicy, readAttr, writeAttr, fieldCount, operationCount int) {
 	// Set flags.
 	generation := uint32(0)
 	infoAttr := 0
@@ -2027,6 +2059,10 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 		writeAttr |= _INFO2_DURABLE_DELETE
 	}
 
+	// if (policy.xdr) {
+	// 	readAttr |= _INFO1_XDR;
+	// }
+
 	switch policy.ReadModeSC {
 	case ReadModeSCSession:
 	case ReadModeSCLinearize:
@@ -2054,16 +2090,82 @@ func (cmd *baseCommand) writeHeaderWithPolicy(policy *WritePolicy, readAttr int,
 	cmd.dataBuffer[13] = 0 // clear the result code
 	cmd.dataOffset = 14
 	cmd.WriteUint32(generation)
-	cmd.dataOffset = 18
 	cmd.WriteUint32(policy.Expiration)
+	cmd.WriteInt32(0) // TODO: Server timeout
+	cmd.WriteInt16(int16(fieldCount))
+	cmd.WriteInt16(int16(operationCount))
+	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
+}
 
-	// Initialize timeout. It will be written later.
-	cmd.dataBuffer[22] = 0
-	cmd.dataBuffer[23] = 0
-	cmd.dataBuffer[24] = 0
-	cmd.dataBuffer[25] = 0
+// Header write for read commands.
+func (cmd *baseCommand) writeHeaderRead(policy *BasePolicy, readAttr, infoAttr, fieldCount, operationCount int) {
+	// TODO: timeout argument
+	switch policy.ReadModeSC {
+	case ReadModeSCSession:
+	case ReadModeSCLinearize:
+		infoAttr |= _INFO3_SC_READ_TYPE
+	case ReadModeSCAllowReplica:
+		infoAttr |= _INFO3_SC_READ_RELAX
+	case ReadModeSCAllowUnavailable:
+		infoAttr |= _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
+	}
 
-	cmd.dataOffset = 26
+	if policy.ReadModeAP == ReadModeAPAll {
+		readAttr |= _INFO1_READ_MODE_AP_ALL
+	}
+
+	if policy.UseCompression {
+		readAttr |= _INFO1_COMPRESS_RESPONSE
+	}
+
+	// Write all header data except total size which must be written last.
+	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
+	cmd.dataBuffer[9] = byte(readAttr)
+	cmd.dataBuffer[10] = 0
+	cmd.dataBuffer[11] = byte(infoAttr)
+
+	for i := 12; i < 22; i++ {
+		cmd.dataBuffer[i] = 0
+	}
+	cmd.dataOffset = 22
+	// cmd.WriteInt32(int32(timeout))
+	cmd.WriteInt32(0)
+	cmd.WriteInt16(int16(fieldCount))
+	cmd.WriteInt16(int16(operationCount))
+	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
+}
+
+// Header write for read header commands.
+func (cmd *baseCommand) writeHeaderReadHeader(policy *BasePolicy, readAttr, fieldCount, operationCount int) {
+	infoAttr := 0
+
+	switch policy.ReadModeSC {
+	case ReadModeSCSession:
+	case ReadModeSCLinearize:
+		infoAttr |= _INFO3_SC_READ_TYPE
+	case ReadModeSCAllowReplica:
+		infoAttr |= _INFO3_SC_READ_RELAX
+	case ReadModeSCAllowUnavailable:
+		infoAttr |= _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
+	}
+
+	if policy.ReadModeAP == ReadModeAPAll {
+		readAttr |= _INFO1_READ_MODE_AP_ALL
+	}
+
+	// Write all header data except total size which must be written last.
+	cmd.dataBuffer[8] = _MSG_REMAINING_HEADER_SIZE // Message header length.
+	cmd.dataBuffer[9] = byte(readAttr)
+	cmd.dataBuffer[10] = byte(0)
+	cmd.dataBuffer[11] = byte(infoAttr)
+
+	for i := 12; i < 22; i++ {
+		cmd.dataBuffer[i] = 0
+	}
+
+	cmd.dataOffset = 22
+	// cmd.WriteInt32(serverTimeout) // TODO: handle argument
+	cmd.WriteInt32(0)
 	cmd.WriteInt16(int16(fieldCount))
 	cmd.WriteInt16(int16(operationCount))
 	cmd.dataOffset = int(_MSG_TOTAL_HEADER_SIZE)
@@ -2427,20 +2529,28 @@ func (cmd *baseCommand) compressedSize() int {
 	return int(size)
 }
 
-func (cmd *baseCommand) batchInDoubt(isWrite bool, commandSentCounter int) bool {
-	return isWrite && commandSentCounter > 1
+func (cmd *baseCommand) batchInDoubt(isWrite bool, commandWasSent bool) bool {
+	return isWrite && commandWasSent
 }
 
-////////////////////////////////////
+func (cmd *baseCommand) isRead() bool {
+	return true
+}
 
-func (cmd *baseCommand) execute(ifc command, isRead bool) Error {
+///////////////////////////////////////////////////////////////////////////////
+//
+//	Execute
+//
+///////////////////////////////////////////////////////////////////////////////
+
+func (cmd *baseCommand) execute(ifc command) Error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	deadline := policy.deadline()
 
-	return cmd.executeAt(ifc, policy, isRead, deadline, -1, 0)
+	return cmd.executeAt(ifc, policy, deadline, -1, false)
 }
 
-func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, deadline time.Time, iterations, commandSentCounter int) (errChain Error) {
+func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int, commandWasSent bool) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
 
@@ -2450,16 +2560,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 	var err Error
 
-	cmd.commandSentCounter = iterations
-
 	// Execute command until successful, timed out or maximum iterations have been reached.
 	for {
 		cmd.commandSentCounter++
 		loopCount++
 
 		// too many retries
-		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 0) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
-			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(isRead, commandSentCounter).setNode(cmd.node)
+		if (policy.MaxRetries <= 0 && cmd.commandSentCounter > 1) || (policy.MaxRetries > 0 && cmd.commandSentCounter > policy.MaxRetries) {
+			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandWasSent).setNode(cmd.node)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -2479,18 +2587,18 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
-					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.commandSentCounter, commandSentCounter)
+					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.commandSentCounter, cmd.commandWasSent)
 					if alreadyRetried {
 						// Batch was retried in separate subcommands. Complete this command.
 						if err != nil {
-							return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+							return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 						}
 						return nil
 					}
 
 					// chain the errors and retry
 					if err != nil {
-						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 						continue
 					}
 				}
@@ -2514,7 +2622,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 			// chain the errors
 			if err != nil {
-				errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter)
+				errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 			}
 
 			// Node is currently inactive. Retry.
@@ -2526,7 +2634,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			isClientTimeout = false
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 
 			// Max error rate achieved, try again per policy
 			continue
@@ -2537,7 +2645,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			isClientTimeout = false
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 
 			// exit immediately if connection pool is exhausted and the corresponding policy option is set
 			if policy.ExitFastOnExhaustedConnectionPool && errors.Is(err, ErrConnectionPoolExhausted) {
@@ -2563,7 +2671,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		err = ifc.writeBuffer(ifc)
 		if err != nil {
 			// chain the errors
-			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
@@ -2584,19 +2692,15 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 
 		// now that the deadline has been set in the buffer, compress the contents
 		if err = cmd.compress(); err != nil {
-			return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+			return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 		}
 
-		// if cmd, ok := ifc.(*operateCommand); ok {
-		// 	println("Writing...")
-		// 	ioutil.WriteFile("dump_not_ok"+strconv.Itoa(int(time.Now().UnixNano())), []byte(hex.Dump(cmd.dataBuffer[:cmd.dataOffset])), 0644)
-		// }
-
 		// Send command.
+		cmd.commandWasSent = true
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		if err != nil {
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 
 			isClientTimeout = false
 			if deviceOverloadError(err) {
@@ -2611,13 +2715,12 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 			logger.Logger.Debug("Node " + cmd.node.String() + ": " + err.Error())
 			continue
 		}
-		commandSentCounter++
 
 		// Parse results.
 		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 
 			if networkError(err) {
 				isTimeout := errors.Is(err, ErrTimeout)
@@ -2653,7 +2756,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 				cmd.conn = nil
 			}
 
-			return errChain.setInDoubt(isRead, commandSentCounter)
+			return errChain.setInDoubt(ifc.isRead(), cmd.commandWasSent)
 		}
 
 		// in case it has grown and re-allocated
@@ -2664,7 +2767,6 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 		}
 
 		// Put connection back in pool.
-		// cmd.node.PutConnection(cmd.conn)
 		ifc.putConnection(cmd.conn)
 
 		// command has completed successfully. Exit method.
@@ -2673,7 +2775,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, isRead bool, 
 	}
 
 	// execution timeout
-	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
+	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
 	return errChain
 }
 
