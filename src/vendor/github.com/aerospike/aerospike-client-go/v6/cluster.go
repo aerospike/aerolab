@@ -55,8 +55,8 @@ type Cluster struct {
 	infoPolicy          InfoPolicy
 	connectionThreshold iatomic.Int // number of parallel opening connections
 
-	nodeIndex    uint64 // only used via atomic operations
-	replicaIndex uint64 // only used via atomic operations
+	nodeIndex    iatomic.Int // only used via atomic operations
+	replicaIndex iatomic.Int // only used via atomic operations
 
 	wgTend      sync.WaitGroup
 	tendChannel chan struct{}
@@ -244,7 +244,7 @@ func (clstr *Cluster) tend() Error {
 
 	// All node additions/deletions are performed in tend goroutine.
 	// If active nodes don't exist, seed cluster.
-	if len(nodes) == 0 {
+	if len(nodes) == 0 || (clstr.clientPolicy.SeedOnlyCluster && len(nodes) < clstr.GetSeedCount()) {
 		logger.Logger.Info("No nodes available; seeding...")
 		if newNodesFound, err := clstr.seedNodes(); !newNodesFound {
 			return err
@@ -314,7 +314,7 @@ func (clstr *Cluster) tend() Error {
 			defer wg.Done()
 			for _, host := range __peer.hosts {
 				// attempt connection to the host
-				nv := nodeValidator{}
+				nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.SeedOnlyCluster}
 				if err := nv.validateNode(clstr, host); err != nil {
 					logger.Logger.Warn("Add node `%s` failed: `%s`", host, err)
 					continue
@@ -365,11 +365,6 @@ func (clstr *Cluster) tend() Error {
 				logger.Logger.Debug("The following nodes will be removed: %s", n)
 			}
 			clstr.removeNodes(removeList)
-
-			if partMap != nil {
-				// remove departed nodes from the partition map
-				partMap.removeNodes(removeList)
-			}
 		}
 
 		clstr.aggregateNodestats(removeList)
@@ -441,7 +436,7 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 		h := node.host.String()
 		if stats, exists := clstr.stats[h]; exists {
 			statsCopy := stats.clone()
-			statsCopy.ConnectionsOpen = int64(node.connectionCount.Get())
+			statsCopy.ConnectionsOpen.Set(node.connectionCount.Get())
 			res[h] = statsCopy
 		}
 	}
@@ -449,7 +444,7 @@ func (clstr *Cluster) statsCopy() map[string]nodeStats {
 	// stats for nodes which do not exist anymore
 	for h, stats := range clstr.stats {
 		if _, exists := res[h]; !exists {
-			stats.ConnectionsOpen = 0
+			stats.ConnectionsOpen.Set(0)
 			res[h] = stats.clone()
 		}
 	}
@@ -589,7 +584,7 @@ func (clstr *Cluster) seedNodes() (newSeedsFound bool, errChain Error) {
 	for i, seed := range seedArray {
 		go func(index int, seed *Host) {
 			nodesToAdd := make(nodesToAddT, 128)
-			nv := nodeValidator{}
+			nv := nodeValidator{seedOnlyCluster: clstr.clientPolicy.SeedOnlyCluster}
 			err := nv.seedNodes(clstr, seed, nodesToAdd)
 			if err != nil {
 				logger.Logger.Warn("Seed %s failed: %s", seed.String(), err.Error())
@@ -655,9 +650,14 @@ func (clstr *Cluster) addAlias(host *Host, node *Node) {
 }
 
 func (clstr *Cluster) findNodesToRemove(refreshCount int) []*Node {
-	nodes := clstr.GetNodes()
-
 	removeList := []*Node{}
+
+	if clstr.clientPolicy.SeedOnlyCluster {
+		// Don't remove any node even if its bad or inactive.
+		return removeList
+	}
+
+	nodes := clstr.GetNodes()
 
 	for _, node := range nodes {
 		if !node.IsActive() {
@@ -729,6 +729,11 @@ func (clstr *Cluster) addNodes(nodesToAdd map[string]*Node) {
 
 	clstr.nodes.Update(func(val interface{}) (interface{}, error) {
 		nodes := val.([]*Node)
+		if clstr.clientPolicy.SeedOnlyCluster && clstr.GetSeedCount() == len(nodes) {
+			// Don't add new nodes.
+			return nodes, nil
+		}
+
 		for _, node := range nodesToAdd {
 			if node != nil && !clstr.findNodeName(nodes, node.name) {
 				logger.Logger.Debug("Adding node %s (%s) to the cluster.", node.name, node.host.String())
@@ -823,7 +828,7 @@ func (clstr *Cluster) GetRandomNode() (*Node, Error) {
 	if length > 0 {
 		for i := 0; i < length; i++ {
 			// Must handle concurrency with other non-tending goroutines, so nodeIndex is consistent.
-			index := int(atomic.AddUint64(&clstr.nodeIndex, 1) % uint64(length))
+			index := clstr.nodeIndex.IncrementAndGet() % length
 			node := nodeArray[index]
 
 			if node != nil && node.IsActive() {
@@ -840,6 +845,16 @@ func (clstr *Cluster) GetRandomNode() (*Node, Error) {
 func (clstr *Cluster) GetNodes() []*Node {
 	// Must copy array reference for copy on write semantics to work.
 	return clstr.nodes.Get().([]*Node)
+}
+
+// GetSeedCount is the count of seed nodes
+func (clstr *Cluster) GetSeedCount() int {
+	res, _ := clstr.seeds.GetSyncedVia(func(val interface{}) (interface{}, error) {
+		seeds := val.([]*Host)
+		return len(seeds), nil
+	})
+
+	return res.(int)
 }
 
 // GetSeeds returns a list of all seed nodes in the cluster
