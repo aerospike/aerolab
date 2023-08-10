@@ -29,6 +29,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// TODO: expiry install, check-frequency-adjust, expiry remove; use expiriesCodeGcpMod and expiriesCodeGcpFunction
+
 func (d *backendGcp) Arch() TypeArch {
 	return TypeArchUndef
 }
@@ -109,8 +111,13 @@ type gcpInstancePricing struct {
 	gpuUltraHour float64
 }
 
+type gcpClusterExpiryInstances struct {
+	labelFingerprint string
+	labels           map[string]string
+}
+
 func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
-	instances := make(map[string]string)
+	instances := make(map[string]gcpClusterExpiryInstances)
 	if d.server {
 		j, err := d.Inventory("", []int{InventoryItemClusters})
 		d.WorkOnServers()
@@ -119,7 +126,7 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 		}
 		for _, jj := range j.Clusters {
 			if jj.ClusterName == clusterName {
-				instances[jj.InstanceId] = jj.gcpLabelFingerprint
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpLabelFingerprint, jj.gcpLabels}
 			}
 		}
 	} else {
@@ -130,7 +137,7 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 		}
 		for _, jj := range j.Clients {
 			if jj.ClientName == clusterName {
-				instances[jj.InstanceId] = jj.gcpLabelFingerprint
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpLabelFingerprint, jj.gcpLabels}
 			}
 		}
 	}
@@ -141,22 +148,23 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 	if expiry != 0 {
 		expiresTime = time.Now().Add(expiry)
 	}
-	newExpiry := make(map[string]string)
-	newExpiry["aerolab4expires"] = strings.ToLower(strings.ReplaceAll(expiresTime.Format(time.RFC3339), ":", "_"))
+	newExpiry := strings.ToLower(strings.ReplaceAll(expiresTime.Format(time.RFC3339), ":", "_"))
 	ctx := context.Background()
 	instancesClient, err := compute.NewInstancesRESTClient(ctx)
 	if err != nil {
 		return fmt.Errorf("NewInstancesRESTClient: %w", err)
 	}
 	defer instancesClient.Close()
-	for instanceName, labelFinterprint := range instances {
+	for instanceName, labelData := range instances {
+		newLabels := labelData.labels
+		newLabels["aerolab4expires"] = newExpiry
 		_, err = instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 			Project:  a.opts.Config.Backend.Project,
 			Zone:     zone,
 			Instance: instanceName,
 			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-				LabelFingerprint: proto.String(labelFinterprint),
-				Labels:           newExpiry,
+				LabelFingerprint: proto.String(labelData.labelFingerprint),
+				Labels:           newLabels,
 			},
 		})
 		if err != nil {
@@ -179,7 +187,7 @@ func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
 }
 
 func (d *backendGcp) EnableServices() error {
-	gcloudServices := []string{"logging.googleapis.com", "cloudfunctions.googleapis.com", "cloudbuild.googleapis.com", "pubsub.googleapis.com", "cloudscheduler.googleapis.com", "compute.googleapis.com"}
+	gcloudServices := []string{"logging.googleapis.com", "cloudfunctions.googleapis.com", "cloudbuild.googleapis.com", "pubsub.googleapis.com", "cloudscheduler.googleapis.com", "compute.googleapis.com", "run.googleapis.com"}
 	for _, gs := range gcloudServices {
 		log.Printf("===== Running: gcloud services enable %s =====", gs)
 		out, err := exec.Command("gcloud", "services", "enable", gs).CombinedOutput()
@@ -753,7 +761,8 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								InstanceRunningCost: currentCost,
 								Owner:               instance.Labels["owner"],
 								gcpLabelFingerprint: *instance.LabelFingerprint,
-								Expires:             strings.ToUpper(strings.ReplaceAll(instance.Labels["aerolab4expiry"], "_", ":")),
+								Expires:             strings.ToUpper(strings.ReplaceAll(instance.Labels["aerolab4expires"], "_", ":")),
+								gcpLabels:           instance.Labels,
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
@@ -774,7 +783,8 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								InstanceRunningCost: currentCost,
 								Owner:               instance.Labels["owner"],
 								gcpLabelFingerprint: *instance.LabelFingerprint,
-								Expires:             strings.ToUpper(strings.ReplaceAll(instance.Labels["aerolab4expiry"], "_", ":")),
+								Expires:             strings.ToUpper(strings.ReplaceAll(instance.Labels["aerolab4expires"], "_", ":")),
+								gcpLabels:           instance.Labels,
 							})
 						}
 					}
@@ -2559,11 +2569,11 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			continue
 		}
 		if !strings.HasPrefix(disk, "pd-") {
-			return errors.New("invalid disk definition, disk must be local-ssd, or pd-*:sizeGB (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40)")
+			return errors.New("invalid disk definition, disk must be local-ssd[@count], or pd-*:sizeGB[@count] (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40 or pd-ssd:40@5 or local-ssd@5)")
 		}
 		diska := strings.Split(disk, ":")
 		if len(diska) != 2 {
-			return errors.New("disk specification incorrect, must be type:sizeGB; example: balanced:20")
+			return errors.New("invalid disk definition, disk must be local-ssd[@count], or pd-*:sizeGB[@count] (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40 or pd-ssd:40@5 or local-ssd@5)")
 		}
 		dint, err := strconv.Atoi(diska[1])
 		if err != nil {

@@ -192,6 +192,7 @@ type inventoryCluster struct {
 	DockerExposePorts   string
 	Expires             string
 	gcpLabelFingerprint string
+	gcpLabels           map[string]string
 }
 
 type inventoryClient struct {
@@ -216,6 +217,7 @@ type inventoryClient struct {
 	DockerExposePorts   string
 	Expires             string
 	gcpLabelFingerprint string
+	gcpLabels           map[string]string
 }
 
 type inventoryTemplate struct {
