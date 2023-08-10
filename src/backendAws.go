@@ -749,6 +749,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 						arch = *instance.Architecture
 					}
 					owner := ""
+					expires := ""
 					for _, tag := range instance.Tags {
 						if *tag.Key == awsTagClusterName {
 							clusterName = *tag.Value
@@ -764,6 +765,8 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							asdVer = *tag.Value
 						} else if *tag.Key == awsClientTagClientType {
 							clientType = *tag.Value
+						} else if *tag.Key == "aerolab4expires" {
+							expires = *tag.Value
 						} else if *tag.Key == awsTagCostLastRun {
 							lastRunCost, err = strconv.ParseFloat(*tag.Value, 64)
 							if err != nil {
@@ -814,6 +817,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Firewalls:           sgs,
 							InstanceRunningCost: currentCost,
 							Owner:               owner,
+							Expires:             expires,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -833,6 +837,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Firewalls:           sgs,
 							InstanceRunningCost: currentCost,
 							Owner:               owner,
+							Expires:             expires,
 						})
 					}
 				}

@@ -58,6 +58,7 @@ aerolab config gcp expiry-install
 aerolab config gcp expiry-check-frequency
 aerolab config gcp expiry-delete
 aerolab cluster add expiry # adjust cluster expiry // aerolab client configure expiry
+inventory listing - add expires check and output
 */
 
 type backendVersion struct {
@@ -206,6 +207,7 @@ type inventoryCluster struct {
 	InstanceRunningCost float64
 	Owner               string
 	DockerExposePorts   string
+	Expires             string
 }
 
 type inventoryClient struct {
@@ -228,6 +230,7 @@ type inventoryClient struct {
 	InstanceRunningCost float64
 	Owner               string
 	DockerExposePorts   string
+	Expires             string
 }
 
 type inventoryTemplate struct {
