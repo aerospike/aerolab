@@ -205,9 +205,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		fmt.Println("\nCLUSTERS:")
 		table := tablewriter.NewWriter(os.Stdout)
 		if a.opts.Config.Backend.Type == "gcp" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires"})
 		} else {
 			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Exposed Port 1"})
 		}
@@ -236,6 +236,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			)
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+				vv = append(vv, v.Expires)
 			} else {
 				vv = append(vv, v.DockerExposePorts)
 			}
@@ -251,9 +252,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		fmt.Println("\nCLIENTS:")
 		table := tablewriter.NewWriter(os.Stdout)
 		if a.opts.Config.Backend.Type == "gcp" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost"})
+			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires"})
 		} else {
 			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Exposed Port 1"})
 		}
@@ -284,6 +285,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			)
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+				vv = append(vv, v.Expires)
 			} else {
 				vv = append(vv, v.DockerExposePorts)
 			}

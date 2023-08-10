@@ -7,7 +7,7 @@ require (
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
 	github.com/aerospike/aerospike-client-go/v6 v6.13.0
-	github.com/aws/aws-sdk-go v1.44.319
+	github.com/aws/aws-sdk-go v1.44.320
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/google/uuid v1.3.0
 	github.com/jroimartin/gocui v0.5.0
