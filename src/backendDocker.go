@@ -28,6 +28,10 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) EnableServices() error {
+	return nil
+}
+
 func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int) error {
 	return nil
 }
