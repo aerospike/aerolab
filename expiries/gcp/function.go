@@ -92,6 +92,9 @@ func aerolabExpireDo() error {
 		}
 		instances := pair.Value.Instances
 		for _, instance := range instances {
+			if strings.ToUpper(*instance.Status) == "STOPPING" || strings.ToUpper(*instance.Status) == "TERMINATED" {
+				continue
+			}
 			expire, ok := instance.Labels["aerolab4expires"]
 			if !ok {
 				continue
@@ -117,7 +120,7 @@ func aerolabExpireDo() error {
 		}
 	}
 
-	log.Printf("Enumerated through %d instances, shutting down %d instances", enumCount, len(deleteList))
+	log.Printf("Enumerated through %d instances, shutting down %d instances", enumCount, len(deleteListForLog))
 	if len(deleteList) == 0 {
 		return nil
 	}
