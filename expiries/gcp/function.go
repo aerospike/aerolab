@@ -126,6 +126,8 @@ func aerolabExpireDo() error {
 	}
 	// expire deleteList
 	for zone, names := range deleteList {
+		ss := strings.Split(zone, "/")
+		zone = ss[len(ss)-1]
 		for _, name := range names {
 			req := &computepb.DeleteInstanceRequest{
 				Instance: name,
