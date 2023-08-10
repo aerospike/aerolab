@@ -17,13 +17,17 @@ jobs:
             - name: "Install Homebrew"
               run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             - name: "Install Dependencies"
-              run: /usr/local/bin/brew install dpkg rpm upx zip make wget jq golang
+              run: /usr/local/bin/brew install dpkg rpm upx zip make wget jq
+            - name: "Install golang"
+              run: |
+                wget https://go.dev/dl/go1.21.0.darwin-amd64.pkg
+                sudo installer -store -pkg go1.21.0.darwin-amd64.pkg -target /
             - name: "Install Packages.pkg for making macos PKG files"
               run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target /
             - name: "Git checkout"
               uses: actions/checkout@v3
             - name: "Compile and create linux packages"
-              run: export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
+              run: export PATH=$PATH:/usr/local/bin:/usr/local/go/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
             - name: "Print aerolab version"
               run: cd ~/work/aerolab/aerolab/src && ../bin/aerolab-macos-amd64 version
             - name: "Prepare keychain for signing MacOS"
@@ -57,7 +61,7 @@ jobs:
                 export aerolab_signer="${xaerolab_signer}"
                 export aerolab_installsigner="${xaerolab_installsigner}"
                 export aerolab_teamid="${xaerolab_teamid}"
-                export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
+                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
             - name: "Create a new pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
