@@ -43,20 +43,6 @@ type backendExtra struct {
 }
 
 /*
-TODO: aws
-1. start cluster with long expiry
-2. start cluster with short expiry
-3. start cluster with no expiry
-4. install the lambda manually and cloudwatch
-5. test if this works as expected
-6. delete lambda, cloudwatch, the 3 clusters
-DeployCluster - if checker doesn't exist, install it
-aerolab config aws expiry-install
-	-- lambda, cloudwatch
-aerolab config aws expiry-check-frequency
-aerolab config aws expiry-delete
-aerolab cluster expiry # adjust cluster expiry
-
 TODO: gcp
 Write lambda code
 DeployCluster - add expiry tag/label/metadata
@@ -71,7 +57,7 @@ aerolab config gcp expiry-install
 	-- code function (no api), cloudwatch
 aerolab config gcp expiry-check-frequency
 aerolab config gcp expiry-delete
-aerolab cluster expiry # adjust cluster expiry
+aerolab cluster add expiry # adjust cluster expiry // aerolab client configure expiry
 */
 
 type backendVersion struct {
@@ -100,6 +86,11 @@ var TypeArchArm = TypeArch(1)
 var TypeArchAmd = TypeArch(2)
 
 type backend interface {
+	// expiries calls
+	ExpiriesSystemInstall(intervalMinutes int) error
+	ExpiriesSystemRemove() error
+	ExpiriesSystemFrequency(intervalMinutes int) error
+	ClusterExpiry(clusterName string, expiry time.Duration) error
 	// returns whether the given system is arm (using instanceType)
 	IsSystemArm(systemType string) (bool, error)
 	// check if given node is ARM or not

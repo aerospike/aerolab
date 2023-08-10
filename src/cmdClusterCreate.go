@@ -75,7 +75,7 @@ type clusterCreateCmdAws struct {
 	NoBestPractices bool          `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags            []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix      []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
-	Expires         time.Duration `long:"expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
+	Expires         time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
 }
 
 type clusterCreateCmdGcp struct {
@@ -89,7 +89,7 @@ type clusterCreateCmdGcp struct {
 	Tags            []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels          []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix      []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	Expires         time.Duration `long:"expires" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
+	Expires         time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
 }
 
 type clusterCreateCmdDocker struct {

@@ -13,8 +13,8 @@ github.com/aerospike/aerospike-client-go/v5 v5.11.0/go.mod h1:e/zYeIoBg9We63fLKa
 github.com/aerospike/aerospike-client-go/v6 v6.13.0 h1:9V5qKtdF2t9hDUKRKU8POUMKtOyw6pkfhHlVI6L32cU=
 github.com/aerospike/aerospike-client-go/v6 v6.13.0/go.mod h1:2Syy0n4FKdgJxn0ZCfLfggVdaTXgMaGW6EOlPV6MGG4=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
-github.com/aws/aws-sdk-go v1.44.319 h1:cwynvM8DBwWGzlINTZ6XLkGy5O99wZIS0197j3B61Fs=
-github.com/aws/aws-sdk-go v1.44.319/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
+github.com/aws/aws-sdk-go v1.44.320 h1:o2cno15HVUYj+IAgZHJ5No6ifAxwa2HcluzahMEPfOw=
+github.com/aws/aws-sdk-go v1.44.320/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf h1:/jMpLhzWQWdZeorH74kr1lmzWorNXlyD1CVgnI/x81I=
 github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf/go.mod h1:4sPAXglGsGECmmnqzVv9xjZ6beMuAsM+Xp8HqN4r3JY=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

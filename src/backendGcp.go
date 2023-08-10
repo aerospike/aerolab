@@ -108,6 +108,19 @@ type gcpInstancePricing struct {
 	gpuUltraHour float64
 }
 
+func (d *backendGcp) ClusterExpiry(clusterName string, expiry time.Duration) error {
+	return nil
+}
+func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int) error {
+	return nil
+}
+func (d *backendGcp) ExpiriesSystemRemove() error {
+	return nil
+}
+func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
+	return nil
+}
+
 // map[instanceTypePrefix]gcpInstancePricing
 func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInstancePricing, error) {
 	zoneTest := strings.Split(zone, "-")
