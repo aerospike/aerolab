@@ -28,7 +28,18 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 	svc := ec2.New(sess)
 
 	// list instances
-	instances, err := svc.DescribeInstances(&ec2.DescribeInstancesInput{})
+	instances, err := svc.DescribeInstances(&ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: aws.StringSlice([]string{"pending", "running", "stopping", "stopped"}),
+			},
+			{
+				Name:   aws.String("tag-key"),
+				Values: aws.StringSlice([]string{"aerolab4expires"}),
+			},
+		},
+	})
 	if err != nil {
 		return makeErrorResponse("Could not list instances: ", err)
 	}
@@ -37,8 +48,10 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 	now := time.Now()
 	deleteList := []string{}
 	deleteListForLog := []string{}
+	enumCount := 0
 	for _, reservation := range instances.Reservations {
 		for _, instance := range reservation.Instances {
+			enumCount++
 			tags := make(map[string]string)
 			for _, tag := range instance.Tags {
 				tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
@@ -48,7 +61,7 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 				if err != nil {
 					log.Printf("Could not handle expiry for instance %s: %s: %s", aws.StringValue(instance.InstanceId), expires, err)
 				}
-				if expiry.Before(now) || expiry.After(time.Date(1985, time.April, 29, 0, 0, 0, 0, time.UTC)) {
+				if expiry.Before(now) && expiry.After(time.Date(1985, time.April, 29, 0, 0, 0, 0, time.UTC)) {
 					deleteList = append(deleteList, aws.StringValue(instance.InstanceId))
 					name := tags["Aerolab4ClusterName"]
 					node := tags["Aerolab4NodeNumber"]
@@ -63,6 +76,7 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 	}
 
 	// exit if no instances found to delete
+	log.Printf("Enumerated through %d instances, shutting down %d instances", enumCount, len(deleteList))
 	if len(deleteList) == 0 {
 		return MyResponse{Message: "Completed", Status: "OK"}, nil
 	}

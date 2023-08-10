@@ -45,7 +45,7 @@ github.com/aerospike/aerospike-client-go/v6/types
 github.com/aerospike/aerospike-client-go/v6/types/particle_type
 github.com/aerospike/aerospike-client-go/v6/types/rand
 github.com/aerospike/aerospike-client-go/v6/utils/buffer
-# github.com/aws/aws-sdk-go v1.44.319
+# github.com/aws/aws-sdk-go v1.44.320
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/auth/bearer
@@ -78,6 +78,8 @@ github.com/aws/aws-sdk-go/internal/strings
 github.com/aws/aws-sdk-go/internal/sync/singleflight
 github.com/aws/aws-sdk-go/private/protocol
 github.com/aws/aws-sdk-go/private/protocol/ec2query
+github.com/aws/aws-sdk-go/private/protocol/eventstream
+github.com/aws/aws-sdk-go/private/protocol/eventstream/eventstreamapi
 github.com/aws/aws-sdk-go/private/protocol/json/jsonutil
 github.com/aws/aws-sdk-go/private/protocol/jsonrpc
 github.com/aws/aws-sdk-go/private/protocol/query
@@ -86,7 +88,10 @@ github.com/aws/aws-sdk-go/private/protocol/rest
 github.com/aws/aws-sdk-go/private/protocol/restjson
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/ec2
+github.com/aws/aws-sdk-go/service/iam
+github.com/aws/aws-sdk-go/service/lambda
 github.com/aws/aws-sdk-go/service/pricing
+github.com/aws/aws-sdk-go/service/scheduler
 github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
 github.com/aws/aws-sdk-go/service/ssooidc

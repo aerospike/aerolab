@@ -16,8 +16,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/pricing"
+	"github.com/aws/aws-sdk-go/service/scheduler"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/bestmethod/inslice"
+	"github.com/google/uuid"
 )
 
 func (d *backendAws) Arch() TypeArch {
@@ -25,10 +30,14 @@ func (d *backendAws) Arch() TypeArch {
 }
 
 type backendAws struct {
-	sess   *session.Session
-	ec2svc *ec2.EC2
-	server bool
-	client bool
+	sess      *session.Session
+	ec2svc    *ec2.EC2
+	lambda    *lambda.Lambda
+	scheduler *scheduler.Scheduler
+	iam       *iam.IAM
+	sts       *sts.STS
+	server    bool
+	client    bool
 }
 
 func init() {
@@ -91,6 +100,278 @@ func (d *backendAws) WorkOnServers() {
 	awsTagOperatingSystem = awsServerTagOperatingSystem
 	awsTagOSVersion = awsServerTagOSVersion
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
+}
+
+func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int) error {
+	// if a scheduler already exists, return EXISTS as it's all been already made
+	q, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
+		NamePrefix: aws.String("aerolab-expiries"),
+	})
+	if err == nil && len(q.Schedules) > 0 {
+		return errors.New("EXISTS")
+	}
+	log.Println("Installing cluster expiry system")
+	// attempt to remove any garbage left behind by previous installation efforts
+	d.ExpiriesSystemRemove()
+
+	ident, err := d.sts.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	if err != nil {
+		return err
+	}
+	accountId := *ident.Account
+
+	lambdaRole, err := d.iam.CreateRole(&iam.CreateRoleInput{
+		RoleName:                 aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+		AssumeRolePolicyDocument: aws.String(`{"Statement":[{"Action":"sts:AssumeRole","Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"}}],"Version":"2012-10-17"}`),
+	})
+	if err != nil {
+		return err
+	}
+	err = d.iam.WaitUntilRoleExists(&iam.GetRoleInput{
+		RoleName: lambdaRole.Role.RoleName,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = d.iam.PutRolePolicy(&iam.PutRolePolicyInput{
+		PolicyName:     aws.String("aerolab-expiries-lambda-policy-" + a.opts.Config.Backend.Region),
+		RoleName:       aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+		PolicyDocument: aws.String(fmt.Sprintf(`{"Statement":[{"Action":"logs:CreateLogGroup","Effect":"Allow","Resource":"arn:aws:logs:%s:%s:*"},{"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Effect":"Allow","Resource":["arn:aws:logs:%s:%s:log-group:/aws/lambda/aerolab-expiries:*"]}],"Version":"2012-10-17"}`, a.opts.Config.Backend.Region, accountId, a.opts.Config.Backend.Region, accountId)),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = d.iam.AttachRolePolicy(&iam.AttachRolePolicyInput{
+		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonEC2FullAccess"),
+	})
+	if err != nil {
+		return err
+	}
+
+	schedRole, err := d.iam.CreateRole(&iam.CreateRoleInput{
+		RoleName:                 aws.String("aerolab-expiries-scheduler-" + a.opts.Config.Backend.Region),
+		AssumeRolePolicyDocument: aws.String(fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect": "Allow","Principal":{"Service":"scheduler.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"aws:SourceAccount":"%s"}}}]}`, accountId)),
+	})
+	if err != nil {
+		return err
+	}
+	err = d.iam.WaitUntilRoleExists(&iam.GetRoleInput{
+		RoleName: schedRole.Role.RoleName,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = d.iam.PutRolePolicy(&iam.PutRolePolicyInput{
+		PolicyName:     aws.String("aerolab-expiries-scheduler-policy-" + a.opts.Config.Backend.Region),
+		RoleName:       aws.String("aerolab-expiries-scheduler-" + a.opts.Config.Backend.Region),
+		PolicyDocument: aws.String(fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["lambda:InvokeFunction"],"Resource":["arn:aws:lambda:%s:%s:function:aerolab-expiries:*","arn:aws:lambda:%s:%s:function:aerolab-expiries"]}]}`, a.opts.Config.Backend.Region, accountId, a.opts.Config.Backend.Region, accountId)),
+	})
+	if err != nil {
+		return err
+	}
+
+	function, err := d.lambda.CreateFunction(&lambda.CreateFunctionInput{
+		Code: &lambda.FunctionCode{
+			ZipFile: expiriesCodeAws,
+		},
+		FunctionName: aws.String("aerolab-expiries"),
+		Handler:      aws.String("bootstrap"),
+		PackageType:  aws.String("Zip"),
+		Timeout:      aws.Int64(60),
+		Publish:      aws.Bool(true),
+		Runtime:      aws.String("provided.al2"),
+		Role:         lambdaRole.Role.Arn,
+	})
+	if err != nil && strings.Contains(err.Error(), "InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda") {
+		retries := 0
+		for {
+			retries++
+			log.Println("IAM not ready, waiting for IAM and retrying to create Lambda")
+			time.Sleep(5 * time.Second)
+			function, err = d.lambda.CreateFunction(&lambda.CreateFunctionInput{
+				Code: &lambda.FunctionCode{
+					ZipFile: expiriesCodeAws,
+				},
+				FunctionName: aws.String("aerolab-expiries"),
+				Handler:      aws.String("bootstrap"),
+				PackageType:  aws.String("Zip"),
+				Timeout:      aws.Int64(60),
+				Publish:      aws.Bool(true),
+				Runtime:      aws.String("provided.al2"),
+				Role:         lambdaRole.Role.Arn,
+			})
+			if err != nil && !strings.Contains(err.Error(), "InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda") {
+				return err
+			} else if err == nil {
+				break
+			} else if retries > 3 {
+				return err
+			}
+		}
+	} else if err != nil {
+		return err
+	}
+
+	_, err = d.scheduler.CreateSchedule(&scheduler.CreateScheduleInput{
+		Name:               aws.String("aerolab-expiries"),
+		ScheduleExpression: aws.String("rate(" + strconv.Itoa(intervalMinutes) + " minutes)"),
+		State:              aws.String("ENABLED"),
+		ClientToken:        aws.String("aerolab-expiries-" + a.opts.Config.Backend.Region),
+		FlexibleTimeWindow: &scheduler.FlexibleTimeWindow{
+			Mode: aws.String(scheduler.FlexibleTimeWindowModeOff),
+		},
+		Target: &scheduler.Target{
+			Arn:     function.FunctionArn,
+			RoleArn: schedRole.Role.Arn,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Println("Cluster expiry system installed")
+	return nil
+}
+
+func (d *backendAws) ClusterExpiry(clusterName string, expiry time.Duration) error {
+	var instances []string
+	if d.server {
+		j, err := d.Inventory("", []int{InventoryItemClusters})
+		d.WorkOnServers()
+		if err != nil {
+			return err
+		}
+		for _, jj := range j.Clusters {
+			if jj.ClusterName == clusterName {
+				instances = append(instances, jj.InstanceId)
+			}
+		}
+	} else {
+		j, err := d.Inventory("", []int{InventoryItemClients})
+		d.WorkOnClients()
+		if err != nil {
+			return err
+		}
+		for _, jj := range j.Clients {
+			if jj.ClientName == clusterName {
+				instances = append(instances, jj.InstanceId)
+			}
+		}
+	}
+	if len(instances) == 0 {
+		return errors.New("not found any instances for the given name")
+	}
+	var expiresTime time.Time
+	if expiry != 0 {
+		expiresTime = time.Now().Add(expiry)
+	}
+	_, err := d.ec2svc.CreateTags(&ec2.CreateTagsInput{
+		Resources: aws.StringSlice(instances),
+		Tags: []*ec2.Tag{
+			{
+				Key:   aws.String("aerolab4expires"),
+				Value: aws.String(expiresTime.Format(time.RFC3339)),
+			},
+		},
+	})
+	return err
+}
+
+func (d *backendAws) ExpiriesSystemRemove() error {
+	var ret []string
+	_, err := d.scheduler.DeleteSchedule(&scheduler.DeleteScheduleInput{
+		Name:        aws.String("aerolab-expiries"),
+		ClientToken: aws.String(uuid.New().String()),
+	})
+	if err != nil && !strings.Contains(err.Error(), "Schedule aerolab-expiries does not exist") {
+		ret = append(ret, err.Error())
+	}
+
+	_, err = d.lambda.DeleteFunction(&lambda.DeleteFunctionInput{
+		FunctionName: aws.String("aerolab-expiries"),
+	})
+	if err != nil && !strings.Contains(err.Error(), "ResourceNotFoundException: Function not found") {
+		ret = append(ret, err.Error())
+	}
+
+	_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
+		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonEC2FullAccess"),
+		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+	})
+	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+		ret = append(ret, err.Error())
+	}
+	_, err = d.iam.DeleteRolePolicy(&iam.DeleteRolePolicyInput{
+		PolicyName: aws.String("aerolab-expiries-lambda-policy-" + a.opts.Config.Backend.Region),
+		RoleName:   aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+	})
+	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+		ret = append(ret, err.Error())
+	}
+	_, err = d.iam.DeleteRole(&iam.DeleteRoleInput{
+		RoleName: aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+	})
+	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+		ret = append(ret, err.Error())
+	}
+
+	_, err = d.iam.DeleteRolePolicy(&iam.DeleteRolePolicyInput{
+		PolicyName: aws.String("aerolab-expiries-scheduler-policy-" + a.opts.Config.Backend.Region),
+		RoleName:   aws.String("aerolab-expiries-scheduler-" + a.opts.Config.Backend.Region),
+	})
+	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+		ret = append(ret, err.Error())
+	}
+	_, err = d.iam.DeleteRole(&iam.DeleteRoleInput{
+		RoleName: aws.String("aerolab-expiries-scheduler-" + a.opts.Config.Backend.Region),
+	})
+	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+		ret = append(ret, err.Error())
+	}
+
+	if len(ret) != 0 {
+		return errors.New(strings.Join(ret, "\n\n"))
+	}
+	return nil
+}
+
+func (d *backendAws) ExpiriesSystemFrequency(intervalMinutes int) error {
+	out, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
+		NamePrefix: aws.String("aerolab-expiries"),
+	})
+	if err != nil {
+		return err
+	}
+	if len(out.Schedules) == 0 {
+		return errors.New("schedule not found")
+	}
+	roleArn := ""
+	err = d.iam.ListRolesPages(&iam.ListRolesInput{}, func(o *iam.ListRolesOutput, lastPage bool) (nextPage bool) {
+		for _, role := range o.Roles {
+			if *role.RoleName == ("aerolab-expiries-scheduler-" + a.opts.Config.Backend.Region) {
+				roleArn = *role.Arn
+				return false
+			}
+		}
+		return true
+	})
+	if err != nil {
+		return err
+	}
+	_, err = d.scheduler.UpdateSchedule(&scheduler.UpdateScheduleInput{
+		Name:               aws.String("aerolab-expiries"),
+		ScheduleExpression: aws.String("rate(" + strconv.Itoa(intervalMinutes) + " minutes)"),
+		State:              aws.String("ENABLED"),
+		FlexibleTimeWindow: &scheduler.FlexibleTimeWindow{
+			Mode: aws.String(scheduler.FlexibleTimeWindowModeOff),
+		},
+		Target: &scheduler.Target{
+			Arn:     out.Schedules[0].Target.Arn,
+			RoleArn: aws.String(roleArn),
+		},
+	})
+	return err
 }
 
 func (d *backendAws) getInstanceTypesFromCache() ([]instanceType, error) {
@@ -600,7 +881,39 @@ func (d *backendAws) Init() error {
 		return fmt.Errorf("could not establish a session to aws, make sure your ~/.aws/credentials file is correct\n%s", err)
 	}
 
+	var lambdaSvc *lambda.Lambda
+	if a.opts.Config.Backend.Region == "" {
+		lambdaSvc = lambda.New(d.sess)
+	} else {
+		lambdaSvc = lambda.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
+	}
+
+	var schedulerSvc *scheduler.Scheduler
+	if a.opts.Config.Backend.Region == "" {
+		schedulerSvc = scheduler.New(d.sess)
+	} else {
+		schedulerSvc = scheduler.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
+	}
+
+	var iamSvc *iam.IAM
+	if a.opts.Config.Backend.Region == "" {
+		iamSvc = iam.New(d.sess)
+	} else {
+		iamSvc = iam.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
+	}
+
+	var stsSvc *sts.STS
+	if a.opts.Config.Backend.Region == "" {
+		stsSvc = sts.New(d.sess)
+	} else {
+		stsSvc = sts.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
+	}
+
+	d.scheduler = schedulerSvc
+	d.lambda = lambdaSvc
 	d.ec2svc = svc
+	d.iam = iamSvc
+	d.sts = stsSvc
 	d.WorkOnServers()
 	return nil
 }
@@ -1896,6 +2209,12 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			if iti.InstanceName == extra.instanceType {
 				price = iti.PriceUSD
 			}
+		}
+	}
+	if !extra.expiresTime.IsZero() {
+		err = d.ExpiriesSystemInstall(10)
+		if err != nil && err.Error() != "EXISTS" {
+			log.Printf("WARNING: Failed to install the expiry system, clusters will not expire: %s", err)
 		}
 	}
 	for i := start; i < (nodeCount + start); i++ {
