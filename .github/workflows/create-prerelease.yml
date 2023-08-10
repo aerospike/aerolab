@@ -4,11 +4,15 @@ on:
     workflow_dispatch:
         inputs:
             addCommit:
-                description: 'Add commit to pre-release (not intended for final releases)'
+                description: 'Pre-release?'
                 required: false
                 type: boolean
+            sendSlackMessage:
+              description: 'Send Slack Message?'
+              required: false
+              type: boolean
             message:
-                description: "Slack notification change message"
+                description: "What changed (for slack message)"
                 required: true
 jobs:
     build-and-release:
@@ -27,7 +31,13 @@ jobs:
             - name: "Git checkout"
               uses: actions/checkout@v3
             - name: "Compile and create linux packages"
-              run: export PATH=$PATH:/usr/local/bin:/usr/local/go/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                buildcmd="build-prerelease"
+                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
+                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
+                cd ~/work/aerolab/aerolab/src && make cleanall && make ${buildcmd} && make pkg-linux
             - name: "Print aerolab version"
               run: cd ~/work/aerolab/aerolab/src && ../bin/aerolab-macos-amd64 version
             - name: "Prepare keychain for signing MacOS"
@@ -98,16 +108,20 @@ jobs:
                   SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
                   ADDCOMMIT: ${{ inputs.addCommit }}
                   MESSAGE: ${{ inputs.message }}
+                  SENDSLACK: ${{ inputs.sendSlackMessage }}
               run: |
-                echo "${ADDCOMMIT}"
-                cd ~/work/aerolab/aerolab
-                COMMIT=$(git rev-parse --short HEAD)
-                VER=$(cat VERSION.md)
-                if [ "${ADDCOMMIT}" = "true" ]
+                if [ "${SENDSLACK}" = "true" ]
                 then
-                    TAG=${VER}-${COMMIT}
-                    curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
-                else
-                    TAG=${VER}
-                    curl -d "text=A new pre-release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                  echo "${ADDCOMMIT}"
+                  cd ~/work/aerolab/aerolab
+                  COMMIT=$(git rev-parse --short HEAD)
+                  VER=$(cat VERSION.md)
+                  if [ "${ADDCOMMIT}" = "true" ]
+                  then
+                      TAG=${VER}-${COMMIT}
+                      curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                  else
+                      TAG=${VER}
+                      curl -d "text=A new pre-release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                  fi
                 fi

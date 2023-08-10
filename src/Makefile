@@ -251,8 +251,15 @@ compile_darwin_arm64:
 official: prep
 	printf "" > embed_tail.txt
 
+.PHONY: prerelease
+prerelease: prep
+	printf "-prerelease" > embed_tail.txt
+
 .PHONY: build-official
 build-official: official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin reset2
+
+.PHONY: build-prerelease
+build-prerelease: prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin reset2
 
 RET := $(shell echo)
 
@@ -411,4 +418,5 @@ macos-pkg-notarize:
 		echo "PKG NOTARIZE SUCCESS" ;\
 	fi
 
+### make cleanall && make build-prerelease && make pkg-linux && make macos-build-all && make macos-notarize-all
 ### make cleanall && make build-official && make pkg-linux && make macos-build-all && make macos-notarize-all
