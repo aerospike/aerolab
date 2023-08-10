@@ -37,7 +37,7 @@ func (d *backendDocker) ExpiriesSystemRemove() error {
 func (d *backendDocker) ExpiriesSystemFrequency(intervalMinutes int) error {
 	return nil
 }
-func (d *backendDocker) ClusterExpiry(clusterName string, expiry time.Duration) error {
+func (d *backendDocker) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
 	return nil
 }
 

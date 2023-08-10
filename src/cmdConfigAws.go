@@ -33,8 +33,8 @@ func (c *expiryInstallCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	if a.opts.Config.Backend.Type != "aws" {
-		return logFatal("required backend type to be AWS")
+	if a.opts.Config.Backend.Type == "docker" {
+		return logFatal("required backend type to be AWS|GCP")
 	}
 	err := b.ExpiriesSystemInstall(c.Frequency)
 	if err != nil {
@@ -51,8 +51,8 @@ func (c *expiryRemoveCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	if a.opts.Config.Backend.Type != "aws" {
-		return logFatal("required backend type to be AWS")
+	if a.opts.Config.Backend.Type == "docker" {
+		return logFatal("required backend type to be AWS|GCP")
 	}
 	err := b.ExpiriesSystemRemove()
 	if err != nil {
@@ -70,8 +70,8 @@ func (c *expiryCheckFreqCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	if a.opts.Config.Backend.Type != "aws" {
-		return logFatal("required backend type to be AWS")
+	if a.opts.Config.Backend.Type == "docker" {
+		return logFatal("required backend type to be AWS|GCP")
 	}
 	err := b.ExpiriesSystemFrequency(c.Frequency)
 	if err != nil {

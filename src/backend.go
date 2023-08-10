@@ -91,7 +91,7 @@ type backend interface {
 	ExpiriesSystemInstall(intervalMinutes int) error
 	ExpiriesSystemRemove() error
 	ExpiriesSystemFrequency(intervalMinutes int) error
-	ClusterExpiry(clusterName string, expiry time.Duration) error
+	ClusterExpiry(zone string, clusterName string, expiry time.Duration) error
 	// returns whether the given system is arm (using instanceType)
 	IsSystemArm(systemType string) (bool, error)
 	// check if given node is ARM or not
@@ -208,6 +208,7 @@ type inventoryCluster struct {
 	Owner               string
 	DockerExposePorts   string
 	Expires             string
+	gcpLabelFingerprint string
 }
 
 type inventoryClient struct {
@@ -231,6 +232,7 @@ type inventoryClient struct {
 	Owner               string
 	DockerExposePorts   string
 	Expires             string
+	gcpLabelFingerprint string
 }
 
 type inventoryTemplate struct {

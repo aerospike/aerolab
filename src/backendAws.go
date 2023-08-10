@@ -234,7 +234,7 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int) error {
 	return nil
 }
 
-func (d *backendAws) ClusterExpiry(clusterName string, expiry time.Duration) error {
+func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
 	var instances []string
 	if d.server {
 		j, err := d.Inventory("", []int{InventoryItemClusters})
