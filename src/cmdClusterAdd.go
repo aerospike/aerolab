@@ -20,9 +20,18 @@ func (c *clusterAddCmd) Execute(args []string) error {
 }
 
 type clusterAddExpiryCmd struct {
-	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Expires     time.Duration   `long:"expire" description:"length of life of nodes prior to expiry from now; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
-	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName        `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Expires     time.Duration          `long:"expire" description:"length of life of nodes prior to expiry from now; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
+	Gcp         clusterAddExpiryCmdGcp `no-flag:"true"`
+	Help        helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type clusterAddExpiryCmdGcp struct {
+	Zone string `long:"zone" description:"zone name where the nodes are"`
+}
+
+func init() {
+	addBackendSwitch("cluster.add.expiry", "gcp", &a.opts.Cluster.Add.Expiry.Gcp)
 }
 
 func (c *clusterAddExpiryCmd) Execute(args []string) error {
@@ -33,5 +42,5 @@ func (c *clusterAddExpiryCmd) Execute(args []string) error {
 		return errors.New("feature not supported on docker")
 	}
 	b.WorkOnServers()
-	return b.ClusterExpiry(c.ClusterName.String(), c.Expires)
+	return b.ClusterExpiry(c.Gcp.Zone, c.ClusterName.String(), c.Expires)
 }

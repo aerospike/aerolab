@@ -108,15 +108,71 @@ type gcpInstancePricing struct {
 	gpuUltraHour float64
 }
 
-func (d *backendGcp) ClusterExpiry(clusterName string, expiry time.Duration) error {
+func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
+	instances := make(map[string]string)
+	if d.server {
+		j, err := d.Inventory("", []int{InventoryItemClusters})
+		d.WorkOnServers()
+		if err != nil {
+			return err
+		}
+		for _, jj := range j.Clusters {
+			if jj.ClusterName == clusterName {
+				instances[jj.InstanceId] = jj.gcpLabelFingerprint
+			}
+		}
+	} else {
+		j, err := d.Inventory("", []int{InventoryItemClients})
+		d.WorkOnClients()
+		if err != nil {
+			return err
+		}
+		for _, jj := range j.Clients {
+			if jj.ClientName == clusterName {
+				instances[jj.InstanceId] = jj.gcpLabelFingerprint
+			}
+		}
+	}
+	if len(instances) == 0 {
+		return errors.New("not found any instances for the given name")
+	}
+	var expiresTime time.Time
+	if expiry != 0 {
+		expiresTime = time.Now().Add(expiry)
+	}
+	newExpiry := make(map[string]string)
+	newExpiry["aerolab4expires"] = strings.ToLower(strings.ReplaceAll(expiresTime.Format(time.RFC3339), ":", "_"))
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+	for instanceName, labelFinterprint := range instances {
+		_, err = instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Zone:     zone,
+			Instance: instanceName,
+			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+				LabelFingerprint: proto.String(labelFinterprint),
+				Labels:           newExpiry,
+			},
+		})
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
+
 func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int) error {
 	return nil
 }
+
 func (d *backendGcp) ExpiriesSystemRemove() error {
 	return nil
 }
+
 func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
 	return nil
 }
@@ -681,6 +737,8 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								Zone:                zone,
 								InstanceRunningCost: currentCost,
 								Owner:               instance.Labels["owner"],
+								gcpLabelFingerprint: *instance.LabelFingerprint,
+								Expires:             strings.ToUpper(strings.ReplaceAll(instance.Labels["aerolab4expiry"], "_", ":")),
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
@@ -700,6 +758,8 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								Zone:                zone,
 								InstanceRunningCost: currentCost,
 								Owner:               instance.Labels["owner"],
+								gcpLabelFingerprint: *instance.LabelFingerprint,
+								Expires:             strings.ToUpper(strings.ReplaceAll(instance.Labels["aerolab4expiry"], "_", ":")),
 							})
 						}
 					}
@@ -2558,6 +2618,13 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	var keyPath string
 	ops := []gcpMakeOps{}
+	if !extra.expiresTime.IsZero() {
+		err = d.ExpiriesSystemInstall(10)
+		if err != nil && err.Error() != "EXISTS" {
+			log.Printf("WARNING: Failed to install the expiry system, clusters will not expire: %s", err)
+		}
+		labels["aerolab4expires"] = strings.ToLower(strings.ReplaceAll(extra.expiresTime.Format(time.RFC3339), ":", "_"))
+	}
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
