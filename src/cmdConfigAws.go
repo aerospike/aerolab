@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 )
@@ -11,12 +12,71 @@ type configAwsCmd struct {
 	CreateSecGroups  createSecGroupsCmd  `command:"create-security-groups" subcommands-optional:"true" description:"create AeroLab-managed security groups in a given VPC"`
 	ListSecGroups    listSecGroupsCmd    `command:"list-security-groups" subcommands-optional:"true" description:"list current aerolab-managed security groups"`
 	ListSubnets      listSubnetsCmd      `command:"list-subnets" subcommands-optional:"true" description:"list VPCs and subnets in the current region"`
+	ExpiryInstall    expiryInstallCmd    `command:"expiry-install" subcommands-optional:"true" description:"install the expiry system scheduler and lambda with the required IAM roles"`
+	ExpiryRemove     expiryRemoveCmd     `command:"expiry-remove" subcommands-optional:"true" description:"remove the expiry system scheduler, lambda and created IAM roles"`
+	ExpiryCheckFreq  expiryCheckFreqCmd  `command:"expiry-run-frequency" subcommands-optional:"true" description:"adjust how often the scheduler runs the expiry check lambda"`
 	Help             helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *configAwsCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
 	os.Exit(1)
+	return nil
+}
+
+type expiryInstallCmd struct {
+	Frequency int     `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"10"`
+	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *expiryInstallCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "aws" {
+		return logFatal("required backend type to be AWS")
+	}
+	err := b.ExpiriesSystemInstall(c.Frequency)
+	if err != nil {
+		return errors.New(err.Error())
+	}
+	return nil
+}
+
+type expiryRemoveCmd struct {
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *expiryRemoveCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "aws" {
+		return logFatal("required backend type to be AWS")
+	}
+	err := b.ExpiriesSystemRemove()
+	if err != nil {
+		return errors.New(err.Error())
+	}
+	return nil
+}
+
+type expiryCheckFreqCmd struct {
+	Frequency int     `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"10"`
+	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *expiryCheckFreqCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "aws" {
+		return logFatal("required backend type to be AWS")
+	}
+	err := b.ExpiriesSystemFrequency(c.Frequency)
+	if err != nil {
+		return errors.New(err.Error())
+	}
 	return nil
 }
 

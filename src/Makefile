@@ -108,6 +108,7 @@ clean:
 	rm -f aerolab-macos-amd64
 	rm -f aerolab-macos-arm64
 	rm -f embed_*.txt
+	rm -f myFunction.zip
 	rm -f ../bin/aerolab-*
 	rm -f ../bin/deb
 	rm -f ../bin/deb.deb
@@ -198,6 +199,7 @@ reset2:
 .PHONY: prep
 prep:
 	go generate
+	cd ../expiries/aws && $(MAKE)
 
 .PHONY: compile_linux_wip_amd64
 compile_linux_wip_amd64:

@@ -28,6 +28,19 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int) error {
+	return nil
+}
+func (d *backendDocker) ExpiriesSystemRemove() error {
+	return nil
+}
+func (d *backendDocker) ExpiriesSystemFrequency(intervalMinutes int) error {
+	return nil
+}
+func (d *backendDocker) ClusterExpiry(clusterName string, expiry time.Duration) error {
+	return nil
+}
+
 func (d *backendDocker) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error) {
 	return nil, nil
 }
