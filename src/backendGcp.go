@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"sort"
 	"strconv"
@@ -174,6 +175,20 @@ func (d *backendGcp) ExpiriesSystemRemove() error {
 }
 
 func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
+	return nil
+}
+
+func (d *backendGcp) EnableServices() error {
+	gcloudServices := []string{"logging.googleapis.com", "cloudfunctions.googleapis.com", "cloudbuild.googleapis.com", "pubsub.googleapis.com", "cloudscheduler.googleapis.com", "compute.googleapis.com"}
+	for _, gs := range gcloudServices {
+		log.Printf("===== Running: gcloud services enable %s =====", gs)
+		out, err := exec.Command("gcloud", "services", "enable", gs).CombinedOutput()
+		if err != nil {
+			log.Printf("ERROR: %s", err)
+			log.Println(string(out))
+		}
+	}
+	log.Println("Done")
 	return nil
 }
 

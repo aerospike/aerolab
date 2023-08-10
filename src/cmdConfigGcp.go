@@ -6,6 +6,7 @@ import (
 )
 
 type configGcpCmd struct {
+	EnableServices   enableServicesCmd  `command:"enable-services" subcommands-optional:"true" description:"enable GCP cloud APIs and services required for AeroLab"`
 	DestroySecGroups destroyFirewallCmd `command:"delete-firewall-rules" subcommands-optional:"true" description:"delete aerolab-managed firewall rules"`
 	LockSecGroups    lockFirewallCmd    `command:"lock-firewall-rules" subcommands-optional:"true" description:"lock the client firewall rules so that AMS/vscode are only accessible from a set IP"`
 	CreateSecGroups  createFirewallCmd  `command:"create-firewall-rules" subcommands-optional:"true" description:"create AeroLab-managed firewall rules"`
@@ -19,6 +20,24 @@ type configGcpCmd struct {
 func (c *configGcpCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
 	os.Exit(1)
+	return nil
+}
+
+type enableServicesCmd struct {
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *enableServicesCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "gcp" {
+		return logFatal("required backend type to be GCP")
+	}
+	err := b.EnableServices()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

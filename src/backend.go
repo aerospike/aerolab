@@ -42,25 +42,6 @@ type backendExtra struct {
 	labels             []string  // gcp only
 }
 
-/*
-TODO: gcp
-Write lambda code
-DeployCluster - add expiry tag/label/metadata
-1. start cluster with long expiry
-2. start cluster with short expiry
-3. start cluster with no expiry
-4. install the lambda manually and cloudwatch
-5. test if this works as expected
-6. delete lambda, cloudwatch, the 3 clusters
-DeployCluster - if checker doesn't exist, install it
-aerolab config gcp expiry-install
-	-- code function (no api), cloudwatch
-aerolab config gcp expiry-check-frequency
-aerolab config gcp expiry-delete
-aerolab cluster add expiry # adjust cluster expiry // aerolab client configure expiry
-inventory listing - add expires check and output
-*/
-
 type backendVersion struct {
 	distroName       string
 	distroVersion    string
@@ -87,6 +68,8 @@ var TypeArchArm = TypeArch(1)
 var TypeArchAmd = TypeArch(2)
 
 type backend interface {
+	// cause gcp
+	EnableServices() error
 	// expiries calls
 	ExpiriesSystemInstall(intervalMinutes int) error
 	ExpiriesSystemRemove() error

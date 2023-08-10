@@ -38,6 +38,14 @@ To specify a custom location where SSH keys are stored and set the project confi
 aerolab config backend -t gcp -o project-name -p /PATH/TO/KEYS [-d /path/to/tmpdir/for-aerolab/to/use]
 ```
 
+### Enable services on AeroLab using gcloud command automatically
+
+Google Cloud has all services and APIs disabled until requested to enable those. AeroLab has a feature for enabling any services it needs if they are disabled.
+
+```
+aerolab config gcp enable-services
+```
+
 ## Deploy an Aerospike cluster in GCP
 
 Extra parameters are required when working with the `gcp` backend as opposed to the `docker` backend.

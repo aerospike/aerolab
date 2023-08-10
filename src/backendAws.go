@@ -234,6 +234,10 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int) error {
 	return nil
 }
 
+func (d *backendAws) EnableServices() error {
+	return nil
+}
+
 func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
 	var instances []string
 	if d.server {
