@@ -804,6 +804,9 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 						deltaH := float64(delta) / 3600
 						currentCost = lastRunCost + (pricePerHour * deltaH)
 					}
+					if expires == "0001-01-01T00:00:00Z" {
+						expires = ""
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
 							ClusterName:         clusterName,
