@@ -27,7 +27,7 @@ jobs:
             - name: "Git checkout"
               uses: actions/checkout@v3
             - name: "Compile and create linux packages"
-              run: export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
+              run: export PATH=$PATH:/usr/local/bin:/usr/local/go/bin && cd ~/work/aerolab/aerolab/src && make cleanall && make build-official && make pkg-linux
             - name: "Print aerolab version"
               run: cd ~/work/aerolab/aerolab/src && ../bin/aerolab-macos-amd64 version
             - name: "Prepare keychain for signing MacOS"
@@ -61,7 +61,7 @@ jobs:
                 export aerolab_signer="${xaerolab_signer}"
                 export aerolab_installsigner="${xaerolab_installsigner}"
                 export aerolab_teamid="${xaerolab_teamid}"
-                export PATH=$PATH:/usr/local/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
+                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
             - name: "Create a new pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
