@@ -7,7 +7,7 @@ require (
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
 	github.com/aerospike/aerospike-client-go/v6 v6.13.0
-	github.com/aws/aws-sdk-go v1.44.320
+	github.com/aws/aws-sdk-go v1.44.321
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/google/uuid v1.3.0
 	github.com/jroimartin/gocui v0.5.0
@@ -25,7 +25,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/s2a-go v0.1.4 // indirect
+	github.com/google/s2a-go v0.1.5 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.5 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect

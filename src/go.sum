@@ -13,8 +13,8 @@ github.com/aerospike/aerospike-client-go/v5 v5.11.0/go.mod h1:e/zYeIoBg9We63fLKa
 github.com/aerospike/aerospike-client-go/v6 v6.13.0 h1:9V5qKtdF2t9hDUKRKU8POUMKtOyw6pkfhHlVI6L32cU=
 github.com/aerospike/aerospike-client-go/v6 v6.13.0/go.mod h1:2Syy0n4FKdgJxn0ZCfLfggVdaTXgMaGW6EOlPV6MGG4=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
-github.com/aws/aws-sdk-go v1.44.320 h1:o2cno15HVUYj+IAgZHJ5No6ifAxwa2HcluzahMEPfOw=
-github.com/aws/aws-sdk-go v1.44.320/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
+github.com/aws/aws-sdk-go v1.44.321 h1:iXwFLxWjZPjYqjPq0EcCs46xX7oDLEELte1+BzgpKk8=
+github.com/aws/aws-sdk-go v1.44.321/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf h1:/jMpLhzWQWdZeorH74kr1lmzWorNXlyD1CVgnI/x81I=
 github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf/go.mod h1:4sPAXglGsGECmmnqzVv9xjZ6beMuAsM+Xp8HqN4r3JY=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
@@ -75,8 +75,8 @@ github.com/google/go-cmp v0.5.3/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/
 github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 github.com/google/go-cmp v0.5.9 h1:O2Tfq5qg4qc4AmwVlvv0oLiVAGB7enBSJ2x2DqQFi38=
 github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 h1:yAJXTCF9TqKcTiHJAE8dj7HMvPfh66eeA2JYW7eFpSE=
-github.com/google/s2a-go v0.1.4 h1:1kZ/sQM3srePvKs3tXAvQzo66XfcReoqFpIpIccE7Oc=
-github.com/google/s2a-go v0.1.4/go.mod h1:Ej+mSEMGRnqRzjc7VtF+jdBwYG5fuJfiZ8ELkjEwM0A=
+github.com/google/s2a-go v0.1.5 h1:8IYp3w9nysqv3JH+NJgXJzGbDHzLOTj43BmSkp+O7qg=
+github.com/google/s2a-go v0.1.5/go.mod h1:Ej+mSEMGRnqRzjc7VtF+jdBwYG5fuJfiZ8ELkjEwM0A=
 github.com/google/uuid v1.1.2/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
