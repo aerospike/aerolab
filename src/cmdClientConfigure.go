@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,6 +27,7 @@ func (c *clientConfigureCmd) Execute(args []string) error {
 
 type clientAddExpiryCmd struct {
 	ClusterName TypeClientName         `short:"n" long:"name" description:"Client name" default:"mydc"`
+	Nodes       TypeMachines           `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Expires     time.Duration          `long:"expire" description:"length of life of nodes prior to expiry from now; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
 	Gcp         clusterAddExpiryCmdGcp `no-flag:"true"`
 	Help        helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -42,5 +45,28 @@ func (c *clientAddExpiryCmd) Execute(args []string) error {
 		return errors.New("feature not supported on docker")
 	}
 	b.WorkOnClients()
-	return b.ClusterExpiry(c.Gcp.Zone, c.ClusterName.String(), c.Expires)
+	err := c.Nodes.ExpandNodes(c.ClusterName.String())
+	if err != nil {
+		return err
+	}
+	nodes, err := c.Nodes.Translate(c.ClusterName.String())
+	if err != nil {
+		return err
+	}
+	return b.ClusterExpiry(c.Gcp.Zone, c.ClusterName.String(), c.Expires, nodes)
+}
+
+func (n *TypeMachines) Translate(clusterName string) ([]int, error) {
+	if n.String() == "" {
+		return b.NodeListInCluster(clusterName)
+	}
+	nodes := []int{}
+	for _, ns := range strings.Split(n.String(), ",") {
+		nn, err := strconv.Atoi(ns)
+		if err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, nn)
+	}
+	return nodes, nil
 }
