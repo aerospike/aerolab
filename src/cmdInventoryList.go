@@ -245,6 +245,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		table.Render()
 		if a.opts.Config.Backend.Type != "docker" {
 			fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
+		} else {
+			fmt.Println("* to connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP on the given exposed port (or configured aerospike services port - default 3000)")
+			fmt.Println("* to connect to the cluster when using Docker Desktop, execute 'aerolab cluster list` and connect to IP 127.0.0.1:EXPOSED_PORT with a connect policy of `--services-alternate`")
 		}
 	}
 

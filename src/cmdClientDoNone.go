@@ -205,6 +205,35 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			extra.expiresTime = time.Now().Add(c.Gcp.Expires)
 		}
 	}
+	expirySet := false
+	for _, aaa := range os.Args {
+		if strings.HasPrefix(aaa, "--aws-expire") || strings.HasPrefix(aaa, "--gcp-expire") {
+			expirySet = true
+		}
+	}
+	if c.isGrow() && !expirySet {
+		extra.expiresTime = time.Time{}
+		ij, err := b.Inventory("", []int{InventoryItemClients})
+		b.WorkOnClients()
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range ij.Clients {
+			if item.Expires == "" || item.Expires == "0001-01-01T00:00:00Z" {
+				extra.expiresTime = time.Time{}
+				break
+			}
+			expiry, err := time.Parse(time.RFC3339, item.Expires)
+			if err != nil {
+				return nil, err
+			}
+			if extra.expiresTime.IsZero() || expiry.After(extra.expiresTime) {
+				extra.expiresTime = expiry
+			}
+		}
+	} else if c.isGrow() && expirySet {
+		log.Println("WARNING: you are setting a different expiry to these nodes than the existing ones. To change expiry for all nodes, use: aerolab client configure expiry")
+	}
 	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {
 		return nil, err
