@@ -214,7 +214,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	if c.isGrow() && !expirySet {
 		extra.expiresTime = time.Time{}
 		ij, err := b.Inventory("", []int{InventoryItemClients})
-		b.WorkOnServers()
+		b.WorkOnClients()
 		if err != nil {
 			return nil, err
 		}
