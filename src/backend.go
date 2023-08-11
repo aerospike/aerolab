@@ -74,7 +74,7 @@ type backend interface {
 	ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error
 	ExpiriesSystemRemove() error
 	ExpiriesSystemFrequency(intervalMinutes int) error
-	ClusterExpiry(zone string, clusterName string, expiry time.Duration) error
+	ClusterExpiry(zone string, clusterName string, expiry time.Duration, nodes []int) error
 	// returns whether the given system is arm (using instanceType)
 	IsSystemArm(systemType string) (bool, error)
 	// check if given node is ARM or not

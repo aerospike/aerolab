@@ -238,7 +238,7 @@ func (d *backendAws) EnableServices() error {
 	return nil
 }
 
-func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
+func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.Duration, nodes []int) error {
 	var instances []string
 	if d.server {
 		j, err := d.Inventory("", []int{InventoryItemClusters})
@@ -247,7 +247,8 @@ func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.
 			return err
 		}
 		for _, jj := range j.Clusters {
-			if jj.ClusterName == clusterName {
+			nodeNo, _ := strconv.Atoi(jj.NodeNo)
+			if jj.ClusterName == clusterName && (len(nodes) == 0 || inslice.HasInt(nodes, nodeNo)) {
 				instances = append(instances, jj.InstanceId)
 			}
 		}
@@ -258,7 +259,8 @@ func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.
 			return err
 		}
 		for _, jj := range j.Clients {
-			if jj.ClientName == clusterName {
+			nodeNo, _ := strconv.Atoi(jj.NodeNo)
+			if jj.ClientName == clusterName && (len(nodes) == 0 || inslice.HasInt(nodes, nodeNo)) {
 				instances = append(instances, jj.InstanceId)
 			}
 		}

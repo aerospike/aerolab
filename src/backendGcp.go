@@ -116,7 +116,7 @@ type gcpClusterExpiryInstances struct {
 	labels           map[string]string
 }
 
-func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
+func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.Duration, nodes []int) error {
 	instances := make(map[string]gcpClusterExpiryInstances)
 	if d.server {
 		j, err := d.Inventory("", []int{InventoryItemClusters})
@@ -125,7 +125,8 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 			return err
 		}
 		for _, jj := range j.Clusters {
-			if jj.ClusterName == clusterName {
+			nodeNo, _ := strconv.Atoi(jj.NodeNo)
+			if jj.ClusterName == clusterName && (len(nodes) == 0 || inslice.HasInt(nodes, nodeNo)) {
 				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpLabelFingerprint, jj.gcpLabels}
 			}
 		}
@@ -136,7 +137,8 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 			return err
 		}
 		for _, jj := range j.Clients {
-			if jj.ClientName == clusterName {
+			nodeNo, _ := strconv.Atoi(jj.NodeNo)
+			if jj.ClientName == clusterName && (len(nodes) == 0 || inslice.HasInt(nodes, nodeNo)) {
 				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpLabelFingerprint, jj.gcpLabels}
 			}
 		}
