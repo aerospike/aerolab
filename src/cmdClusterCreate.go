@@ -75,7 +75,7 @@ type clusterCreateCmdAws struct {
 	NoBestPractices bool          `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags            []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix      []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
-	Expires         time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
+	Expires         time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 }
 
 type clusterCreateCmdGcp struct {
@@ -89,7 +89,7 @@ type clusterCreateCmdGcp struct {
 	Tags            []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels          []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix      []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	Expires         time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry" default:"30h"`
+	Expires         time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -642,6 +642,35 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		} else {
 			extra.expiresTime = time.Now().Add(c.Gcp.Expires)
 		}
+	}
+	expirySet := false
+	for _, aaa := range os.Args {
+		if strings.HasPrefix(aaa, "--aws-expire") || strings.HasPrefix(aaa, "--gcp-expire") {
+			expirySet = true
+		}
+	}
+	if isGrow && !expirySet {
+		extra.expiresTime = time.Time{}
+		ij, err := b.Inventory("", []int{InventoryItemClusters})
+		b.WorkOnServers()
+		if err != nil {
+			return err
+		}
+		for _, item := range ij.Clusters {
+			if item.Expires == "" || item.Expires == "0001-01-01T00:00:00Z" {
+				extra.expiresTime = time.Time{}
+				break
+			}
+			expiry, err := time.Parse(time.RFC3339, item.Expires)
+			if err != nil {
+				return err
+			}
+			if extra.expiresTime.IsZero() || expiry.After(extra.expiresTime) {
+				extra.expiresTime = expiry
+			}
+		}
+	} else if isGrow && expirySet {
+		log.Println("WARNING: you are setting a different expiry to these nodes than the existing ones. To change expiry for all nodes, use: aerolab client configure expiry")
 	}
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
