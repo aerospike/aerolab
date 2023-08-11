@@ -670,7 +670,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			}
 		}
 	} else if isGrow && expirySet {
-		log.Println("WARNING: you are setting a different expiry to these nodes than the existing ones. To change expiry for all nodes, use: aerolab client configure expiry")
+		log.Println("WARNING: you are setting a different expiry to these nodes than the existing ones. To change expiry for all nodes, use: aerolab cluster add expiry")
 	}
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
