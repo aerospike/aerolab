@@ -9,4 +9,6 @@
 /notarization_progress*
 /notarize_result*
 /make.env
-myFunction.zip
+/myFunction.zip
+/gcpFunction.txt
+/gcpMod.txt

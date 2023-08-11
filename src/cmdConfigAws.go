@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strings"
 )
 
 type configAwsCmd struct {
@@ -25,18 +26,31 @@ func (c *configAwsCmd) Execute(args []string) error {
 }
 
 type expiryInstallCmd struct {
-	Frequency int     `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"10"`
-	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Frequency int                 `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"10"`
+	Gcp       expiryInstallCmdGcp `no-flag:"true"`
+	Help      helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type expiryInstallCmdGcp struct {
+	Region string `long:"region" description:"region to deploy the function to"`
+}
+
+func init() {
+	addBackendSwitch("config.gcp.expiry-install", "gcp", &a.opts.Config.Gcp.ExpiryInstall.Gcp)
 }
 
 func (c *expiryInstallCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	if a.opts.Config.Backend.Type != "aws" {
-		return logFatal("required backend type to be AWS")
+	if a.opts.Config.Backend.Type == "docker" {
+		return logFatal("required backend type to be AWS|GCP")
 	}
-	err := b.ExpiriesSystemInstall(c.Frequency)
+	deployRegion := strings.Split(c.Gcp.Region, "-")
+	if len(deployRegion) > 2 {
+		deployRegion = deployRegion[:len(deployRegion)-1]
+	}
+	err := b.ExpiriesSystemInstall(c.Frequency, strings.Join(deployRegion, "-"))
 	if err != nil {
 		return errors.New(err.Error())
 	}
@@ -51,8 +65,8 @@ func (c *expiryRemoveCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	if a.opts.Config.Backend.Type != "aws" {
-		return logFatal("required backend type to be AWS")
+	if a.opts.Config.Backend.Type == "docker" {
+		return logFatal("required backend type to be AWS|GCP")
 	}
 	err := b.ExpiriesSystemRemove()
 	if err != nil {
@@ -70,8 +84,8 @@ func (c *expiryCheckFreqCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	if a.opts.Config.Backend.Type != "aws" {
-		return logFatal("required backend type to be AWS")
+	if a.opts.Config.Backend.Type == "docker" {
+		return logFatal("required backend type to be AWS|GCP")
 	}
 	err := b.ExpiriesSystemFrequency(c.Frequency)
 	if err != nil {

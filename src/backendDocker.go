@@ -28,7 +28,11 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
-func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int) error {
+func (d *backendDocker) EnableServices() error {
+	return nil
+}
+
+func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
 	return nil
 }
 func (d *backendDocker) ExpiriesSystemRemove() error {
@@ -37,7 +41,7 @@ func (d *backendDocker) ExpiriesSystemRemove() error {
 func (d *backendDocker) ExpiriesSystemFrequency(intervalMinutes int) error {
 	return nil
 }
-func (d *backendDocker) ClusterExpiry(clusterName string, expiry time.Duration) error {
+func (d *backendDocker) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
 	return nil
 }
 

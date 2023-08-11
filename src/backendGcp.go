@@ -12,16 +12,19 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"text/tabwriter"
 	"time"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/bestmethod/inslice"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/cloudbilling/v1"
 	"google.golang.org/api/iterator"
@@ -108,16 +111,249 @@ type gcpInstancePricing struct {
 	gpuUltraHour float64
 }
 
-func (d *backendGcp) ClusterExpiry(clusterName string, expiry time.Duration) error {
+type gcpClusterExpiryInstances struct {
+	labelFingerprint string
+	labels           map[string]string
+}
+
+func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
+	instances := make(map[string]gcpClusterExpiryInstances)
+	if d.server {
+		j, err := d.Inventory("", []int{InventoryItemClusters})
+		d.WorkOnServers()
+		if err != nil {
+			return err
+		}
+		for _, jj := range j.Clusters {
+			if jj.ClusterName == clusterName {
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpLabelFingerprint, jj.gcpLabels}
+			}
+		}
+	} else {
+		j, err := d.Inventory("", []int{InventoryItemClients})
+		d.WorkOnClients()
+		if err != nil {
+			return err
+		}
+		for _, jj := range j.Clients {
+			if jj.ClientName == clusterName {
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpLabelFingerprint, jj.gcpLabels}
+			}
+		}
+	}
+	if len(instances) == 0 {
+		return errors.New("not found any instances for the given name")
+	}
+	var expiresTime time.Time
+	if expiry != 0 {
+		expiresTime = time.Now().Add(expiry)
+	}
+	newExpiry := strings.ToLower(strings.ReplaceAll(expiresTime.Format(time.RFC3339), ":", "_"))
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+	for instanceName, labelData := range instances {
+		newLabels := labelData.labels
+		newLabels["aerolab4expires"] = newExpiry
+		_, err = instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Zone:     zone,
+			Instance: instanceName,
+			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+				LabelFingerprint: proto.String(labelData.labelFingerprint),
+				Labels:           newLabels,
+			},
+		})
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
-func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int) error {
+
+func (d *backendGcp) expiriesSystemInstall(intervalMinutes int, deployRegion string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	err := d.ExpiriesSystemInstall(intervalMinutes, deployRegion)
+	if err != nil && err.Error() != "EXISTS" {
+		log.Printf("WARNING: Failed to install the expiry system, clusters will not expire: %s", err)
+	}
+}
+
+func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+	rd, err := a.aerolabRootDir()
+	if err != nil {
+		return fmt.Errorf("error getting aerolab home dir: %s", err)
+	}
+	log.Println("Expiries: checking if job exists already")
+	if lastRegion, err := os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project)); err == nil {
+		if _, err = exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(lastRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
+			log.Println("Expiries: done")
+			return errors.New("EXISTS")
+		}
+	}
+
+	log.Println("Expiries: cleaning up old jobs")
+	d.expiriesSystemRemove(false) // cleanup
+
+	err = os.WriteFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project), []byte(deployRegion), 0644)
+	if err != nil {
+		return fmt.Errorf("could not note the region where scheduler got deployed: %s", err)
+	}
+
+	log.Println("Expiries: preparing commands")
+	cron := "*/" + strconv.Itoa(intervalMinutes) + " * * * *"
+	if intervalMinutes >= 60 {
+		if intervalMinutes%60 != 0 || intervalMinutes > 1440 {
+			return errors.New("frequency can be 0-60 in 1-minute increments, or 60-1440 at 60-minute increments")
+		}
+		if intervalMinutes == 1440 {
+			cron = "0 1 * * *"
+		} else {
+			if intervalMinutes == 60 {
+				cron = "0 * * * *"
+			} else {
+				cron = "0 */" + strconv.Itoa(intervalMinutes/60) + " * * *"
+			}
+		}
+	}
+
+	tmpDirPath, err := os.MkdirTemp("", "aerolabexpiries")
+	if err != nil {
+		return fmt.Errorf("mkdir-temp: %s", err)
+	}
+	defer os.RemoveAll(tmpDirPath)
+	err = os.WriteFile(path.Join(tmpDirPath, "go.mod"), expiriesCodeGcpMod, 0644)
+	if err != nil {
+		return fmt.Errorf("write go.mod: %s", err)
+	}
+	err = os.WriteFile(path.Join(tmpDirPath, "function.go"), expiriesCodeGcpFunction, 0644)
+	if err != nil {
+		return fmt.Errorf("write function.go: %s", err)
+	}
+	token := uuid.New().String()
+
+	log.Println("Expiries: running gcloud functions deploy ...")
+	deploy := []string{"functions", "deploy", "aerolab-expiries"}
+	deploy = append(deploy, "--region="+deployRegion)
+	deploy = append(deploy, "--allow-unauthenticated")
+	deploy = append(deploy, "--entry-point=AerolabExpire")
+	deploy = append(deploy, "--gen2")
+	deploy = append(deploy, "--runtime=go120")
+	deploy = append(deploy, "--serve-all-traffic-latest-revision")
+	deploy = append(deploy, "--source="+tmpDirPath)
+	deploy = append(deploy, "--memory=256M")
+	deploy = append(deploy, "--timeout=60s")
+	deploy = append(deploy, "--trigger-location=deployRegion")
+	deploy = append(deploy, "--set-env-vars=TOKEN="+token)
+	deploy = append(deploy, "--max-instances=2")
+	deploy = append(deploy, "--min-instances=0")
+	deploy = append(deploy, "--trigger-http")
+	deploy = append(deploy, "--project="+a.opts.Config.Backend.Project)
+	//--stage-bucket=STAGE_BUCKET
+	out, err := exec.Command("gcloud", deploy...).CombinedOutput()
+	if err != nil {
+		fmt.Println(string(out))
+		return fmt.Errorf("run gcloud functions deploy: %s", err)
+	}
+
+	log.Println("Expiries: running gcloud scheduler create ...")
+	sched := []string{"scheduler", "jobs", "create", "http", "aerolab-expiries"}
+	sched = append(sched, "--location="+deployRegion)
+	sched = append(sched, "--schedule="+cron)
+	uri := "https://" + deployRegion + "-" + a.opts.Config.Backend.Project + ".cloudfunctions.net/aerolab-expiries"
+	sched = append(sched, "--uri="+uri)
+	sched = append(sched, "--max-backoff=15s")
+	sched = append(sched, "--min-backoff=5s")
+	sched = append(sched, "--max-doublings=2")
+	sched = append(sched, "--max-retry-attempts=0")
+	sched = append(sched, "--time-zone=Etc/UTC")
+	mBody := "{\"token\":\"" + token + "\"}"
+	sched = append(sched, "--message-body="+mBody)
+	sched = append(sched, "--project="+a.opts.Config.Backend.Project)
+	out, err = exec.Command("gcloud", sched...).CombinedOutput()
+	if err != nil {
+		fmt.Println(string(out))
+		return fmt.Errorf("run gcloud scheduler jobs create http: %s", err)
+	}
+
+	log.Println("Expiries: done")
 	return nil
 }
+
 func (d *backendGcp) ExpiriesSystemRemove() error {
+	return d.expiriesSystemRemove(true)
+}
+
+func (d *backendGcp) expiriesSystemRemove(printErr bool) error {
+	rd, err := a.aerolabRootDir()
+	if err != nil {
+		return fmt.Errorf("error getting aerolab home dir: %s", err)
+	}
+	lastRegion, err := os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project))
+	if err != nil {
+		return fmt.Errorf("could not read job region from %s: %s", path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project), err)
+	}
+	var nerr error
+	if out, err := exec.Command("gcloud", "scheduler", "jobs", "delete", "aerolab-expiries", "--location", string(lastRegion), "--quiet", "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err != nil {
+		if printErr {
+			fmt.Println(string(out))
+		}
+		nerr = errors.New("some deletions failed")
+	}
+	if out, err := exec.Command("gcloud", "functions", "delete", "aerolab-expiries", "--region", string(lastRegion), "--gen2", "--quiet", "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err != nil {
+		if printErr {
+			fmt.Println(string(out))
+		}
+		nerr = errors.New("some deletions failed")
+	}
+	return nerr
+}
+
+func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
+	cron := "*/" + strconv.Itoa(intervalMinutes) + " * * * *"
+	if intervalMinutes >= 60 {
+		if intervalMinutes%60 != 0 || intervalMinutes > 1440 {
+			return errors.New("frequency can be 0-60 in 1-minute increments, or 60-1440 at 60-minute increments")
+		}
+		if intervalMinutes == 1440 {
+			cron = "0 1 * * *"
+		} else {
+			if intervalMinutes == 60 {
+				cron = "0 * * * *"
+			} else {
+				cron = "0 */" + strconv.Itoa(intervalMinutes/60) + " * * *"
+			}
+		}
+	}
+	rd, err := a.aerolabRootDir()
+	if err != nil {
+		return fmt.Errorf("error getting aerolab home dir: %s", err)
+	}
+	lastRegion, err := os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project))
+	if err != nil {
+		return fmt.Errorf("could not read job region from %s: %s", path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project), err)
+	}
+	if out, err := exec.Command("gcloud", "scheduler", "jobs", "update", "http", "aerolab-expiries", "--location", string(lastRegion), "--schedule", cron, "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err != nil {
+		fmt.Println(string(out))
+		return err
+	}
 	return nil
 }
-func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
+
+func (d *backendGcp) EnableServices() error {
+	gcloudServices := []string{"logging.googleapis.com", "cloudfunctions.googleapis.com", "cloudbuild.googleapis.com", "pubsub.googleapis.com", "cloudscheduler.googleapis.com", "compute.googleapis.com", "run.googleapis.com"}
+	for _, gs := range gcloudServices {
+		log.Printf("===== Running: gcloud services enable --project %s %s =====", a.opts.Config.Backend.Project, gs)
+		out, err := exec.Command("gcloud", "services", "enable", "--project", a.opts.Config.Backend.Project, gs).CombinedOutput()
+		if err != nil {
+			log.Printf("ERROR: %s", err)
+			log.Println(string(out))
+		}
+	}
+	log.Println("Done")
 	return nil
 }
 
@@ -664,6 +900,10 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 							deltaH := float64(delta) / 3600
 							currentCost = lastRunCost + (pricePerHour * deltaH)
 						}
+						expires := strings.ToUpper(strings.ReplaceAll(instance.Labels["aerolab4expires"], "_", ":"))
+						if expires == "0001-01-01T00:00:00Z" {
+							expires = ""
+						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
 								ClusterName:         instance.Labels[gcpTagClusterName],
@@ -681,6 +921,9 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								Zone:                zone,
 								InstanceRunningCost: currentCost,
 								Owner:               instance.Labels["owner"],
+								gcpLabelFingerprint: *instance.LabelFingerprint,
+								Expires:             expires,
+								gcpLabels:           instance.Labels,
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
@@ -700,6 +943,9 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								Zone:                zone,
 								InstanceRunningCost: currentCost,
 								Owner:               instance.Labels["owner"],
+								gcpLabelFingerprint: *instance.LabelFingerprint,
+								Expires:             expires,
+								gcpLabels:           instance.Labels,
 							})
 						}
 					}
@@ -2484,11 +2730,11 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			continue
 		}
 		if !strings.HasPrefix(disk, "pd-") {
-			return errors.New("invalid disk definition, disk must be local-ssd, or pd-*:sizeGB (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40)")
+			return errors.New("invalid disk definition, disk must be local-ssd[@count], or pd-*:sizeGB[@count] (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40 or pd-ssd:40@5 or local-ssd@5)")
 		}
 		diska := strings.Split(disk, ":")
 		if len(diska) != 2 {
-			return errors.New("disk specification incorrect, must be type:sizeGB; example: balanced:20")
+			return errors.New("invalid disk definition, disk must be local-ssd[@count], or pd-*:sizeGB[@count] (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40 or pd-ssd:40@5 or local-ssd@5)")
 		}
 		dint, err := strconv.Atoi(diska[1])
 		if err != nil {
@@ -2558,6 +2804,17 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	var keyPath string
 	ops := []gcpMakeOps{}
+	expWg := new(sync.WaitGroup)
+	if !extra.expiresTime.IsZero() {
+		defer expWg.Wait()
+		deployRegion := strings.Split(extra.zone, "-")
+		if len(deployRegion) > 2 {
+			deployRegion = deployRegion[:len(deployRegion)-1]
+		}
+		expWg.Add(1)
+		go d.expiriesSystemInstall(10, strings.Join(deployRegion, "-"), expWg)
+		labels["aerolab4expires"] = strings.ToLower(strings.ReplaceAll(extra.expiresTime.Format(time.RFC3339), ":", "_"))
+	}
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
