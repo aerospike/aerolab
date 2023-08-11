@@ -102,7 +102,7 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
-func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int) error {
+func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
 	// if a scheduler already exists, return EXISTS as it's all been already made
 	q, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
 		NamePrefix: aws.String("aerolab-expiries"),
@@ -234,7 +234,11 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int) error {
 	return nil
 }
 
-func (d *backendAws) ClusterExpiry(clusterName string, expiry time.Duration) error {
+func (d *backendAws) EnableServices() error {
+	return nil
+}
+
+func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.Duration) error {
 	var instances []string
 	if d.server {
 		j, err := d.Inventory("", []int{InventoryItemClusters})
@@ -799,6 +803,9 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 						delta := now - startTime
 						deltaH := float64(delta) / 3600
 						currentCost = lastRunCost + (pricePerHour * deltaH)
+					}
+					if expires == "0001-01-01T00:00:00Z" {
+						expires = ""
 					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
@@ -2217,7 +2224,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 	}
 	if !extra.expiresTime.IsZero() {
-		err = d.ExpiriesSystemInstall(10)
+		err = d.ExpiriesSystemInstall(10, "")
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, clusters will not expire: %s", err)
 		}

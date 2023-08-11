@@ -109,6 +109,8 @@ clean:
 	rm -f aerolab-macos-arm64
 	rm -f embed_*.txt
 	rm -f myFunction.zip
+	rm -f gcpMod.txt
+	rm -f gcpFunction.txt
 	rm -f ../bin/aerolab-*
 	rm -f ../bin/deb
 	rm -f ../bin/deb.deb

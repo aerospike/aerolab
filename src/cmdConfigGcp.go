@@ -6,16 +6,38 @@ import (
 )
 
 type configGcpCmd struct {
+	EnableServices   enableServicesCmd  `command:"enable-services" subcommands-optional:"true" description:"enable GCP cloud APIs and services required for AeroLab"`
 	DestroySecGroups destroyFirewallCmd `command:"delete-firewall-rules" subcommands-optional:"true" description:"delete aerolab-managed firewall rules"`
 	LockSecGroups    lockFirewallCmd    `command:"lock-firewall-rules" subcommands-optional:"true" description:"lock the client firewall rules so that AMS/vscode are only accessible from a set IP"`
 	CreateSecGroups  createFirewallCmd  `command:"create-firewall-rules" subcommands-optional:"true" description:"create AeroLab-managed firewall rules"`
 	ListSecGroups    listFirewallCmd    `command:"list-firewall-rules" subcommands-optional:"true" description:"list current aerolab-managed firewall rules"`
+	ExpiryInstall    expiryInstallCmd   `command:"expiry-install" subcommands-optional:"true" description:"install the expiry system scheduler and lambda with the required IAM roles"`
+	ExpiryRemove     expiryRemoveCmd    `command:"expiry-remove" subcommands-optional:"true" description:"remove the expiry system scheduler, lambda and created IAM roles"`
+	ExpiryCheckFreq  expiryCheckFreqCmd `command:"expiry-run-frequency" subcommands-optional:"true" description:"adjust how often the scheduler runs the expiry check lambda"`
 	Help             helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *configGcpCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
 	os.Exit(1)
+	return nil
+}
+
+type enableServicesCmd struct {
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *enableServicesCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "gcp" {
+		return logFatal("required backend type to be GCP")
+	}
+	err := b.EnableServices()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
