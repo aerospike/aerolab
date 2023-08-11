@@ -1124,6 +1124,12 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 	// done
 	log.Println("INFO: Cluster monitoring can be setup using `aerolab cluster add exporter` and `aerolab client create ams` commands.")
 	log.Println("See documentation for more information about the monitoring stack: https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/ams.md")
+	if a.opts.Config.Backend.Type == "docker" && !c.Docker.NoAutoExpose {
+		log.Println("To connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP on the given exposed port")
+		log.Println("To connect to the cluster when using Docker Desktop, execute 'aerolab cluster list` and connect to IP 127.0.0.1:EXPOSED_PORT with a connect policy of `--services-alternate`")
+	} else if a.opts.Config.Backend.Type == "docker" {
+		log.Println("To connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP:SERVICE_PORT (default:3000)")
+	}
 	log.Println("Done")
 	return nil
 }
