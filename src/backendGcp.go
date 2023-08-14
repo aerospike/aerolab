@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -746,6 +748,57 @@ func (d *backendGcp) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 
 func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (inventoryJson, error) {
 	ij := inventoryJson{}
+
+	if inslice.HasInt(inventoryItems, InventoryItemExpirySystem) {
+		ij.ExpirySystem = append(ij.ExpirySystem, inventoryExpiry{})
+		rd, err := a.aerolabRootDir()
+		if err != nil {
+			return ij, err
+		}
+		nWait := new(sync.WaitGroup)
+		nWait.Add(1)
+		defer nWait.Wait()
+		go func() {
+			defer nWait.Done()
+			if lastRegion, err := os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project)); err == nil {
+				if out, err := exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(lastRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
+					scanner := bufio.NewScanner(bytes.NewReader(out))
+					for scanner.Scan() {
+						line := strings.TrimRight(scanner.Text(), "\r\n\t ")
+						if strings.HasPrefix(line, "name: projects/") && strings.HasSuffix(line, "/jobs/aerolab-expiries") {
+							ij.ExpirySystem[0].Scheduler = strings.TrimPrefix(line, "name: ")
+						} else if strings.HasPrefix(line, "schedule: '") && strings.HasSuffix(line, "'") {
+							ij.ExpirySystem[0].Schedule = strings.TrimSuffix(strings.TrimPrefix(line, "schedule: '"), "'")
+						}
+					}
+				}
+				if out, err := exec.Command("gcloud", "functions", "describe", "aerolab-expiries", "--region", string(lastRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
+					scanner := bufio.NewScanner(bytes.NewReader(out))
+					bucket := ""
+					object := ""
+					inSource := false
+					inStorageSource := false
+					for scanner.Scan() {
+						line := strings.TrimRight(scanner.Text(), "\r\n\t ")
+						if strings.HasPrefix(line, "name: projects/") && strings.HasSuffix(line, "/functions/aerolab-expiries") {
+							ij.ExpirySystem[0].Function = strings.TrimPrefix(line, "name: ")
+						} else if strings.HasPrefix(line, "  source:") {
+							inSource = true
+						} else if inSource && strings.HasPrefix(line, "    storageSource:") {
+							inStorageSource = true
+						} else if inStorageSource && strings.HasPrefix(line, "      bucket:") {
+							bucket = strings.TrimPrefix(line, "      bucket: ")
+						} else if inStorageSource && strings.HasPrefix(line, "      object:") {
+							object = strings.TrimPrefix(line, "      object: ")
+						}
+						if bucket != "" && object != "" && ij.ExpirySystem[0].SourceBucket == "" {
+							ij.ExpirySystem[0].SourceBucket = bucket + "/" + object
+						}
+					}
+				}
+			}
+		}()
+	}
 
 	if inslice.HasInt(inventoryItems, InventoryItemTemplates) {
 		tmpl, err := d.ListTemplates()
