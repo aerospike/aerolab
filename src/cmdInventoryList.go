@@ -22,10 +22,12 @@ func (c *inventoryListCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	return c.run(true, true, true, true, true)
+	return c.run(true, true, true, true, true, inventoryShowExpirySystem)
 }
 
-func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool) error {
+const inventoryShowExpirySystem = 1
+
+func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool, showOthers ...int) error {
 	inventoryItems := []int{}
 	if showClusters {
 		inventoryItems = append(inventoryItems, InventoryItemClusters)
@@ -38,6 +40,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	}
 	if showFirewalls || showSubnets {
 		inventoryItems = append(inventoryItems, InventoryItemFirewalls)
+	}
+	for _, showOther := range showOthers {
+		if showOther&inventoryShowExpirySystem > 0 {
+			inventoryItems = append(inventoryItems, InventoryItemExpirySystem)
+		}
 	}
 
 	inv, err := b.Inventory(c.Owner, inventoryItems)
@@ -120,6 +127,14 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			err = enc.Encode(inv.Subnets)
 			if err != nil {
 				return err
+			}
+		}
+		for _, showOther := range showOthers {
+			if showOther&inventoryShowExpirySystem > 0 {
+				err = enc.Encode(inv.ExpirySystem)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -376,6 +391,42 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				table.Append(vv)
 			}
 			table.Render()
+		}
+	}
+
+	for _, showOther := range showOthers {
+		if showOther&inventoryShowExpirySystem > 0 {
+			table := tablewriter.NewWriter(os.Stdout)
+			table.SetAutoFormatHeaders(false)
+			switch a.opts.Config.Backend.Type {
+			case "aws":
+				fmt.Println("\nEXPIRY_SYSTEM:")
+				table.SetHeader([]string{"IAM Function Rule", "IAM Scheduler Rule", "Function", "Scheduler", "Schedule"})
+				for _, v := range inv.ExpirySystem {
+					vv := []string{
+						v.IAMFunction,
+						v.IAMScheduler,
+						v.Function,
+						v.Scheduler,
+						v.Schedule,
+					}
+					table.Append(vv)
+				}
+				table.Render()
+			case "gcp":
+				fmt.Println("\nEXPIRY_SYSTEM:")
+				table.SetHeader([]string{"Function", "Source Bucket", "Scheduler", "Schedule"})
+				for _, v := range inv.ExpirySystem {
+					vv := []string{
+						v.Function,
+						v.SourceBucket,
+						v.Scheduler,
+						v.Schedule,
+					}
+					table.Append(vv)
+				}
+				table.Render()
+			}
 		}
 	}
 	return nil
