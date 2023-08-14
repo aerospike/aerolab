@@ -656,6 +656,35 @@ func (d *backendAws) getInstancePricesPerHour() (map[string]float64, error) {
 func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (inventoryJson, error) {
 	ij := inventoryJson{}
 
+	if inslice.HasInt(inventoryItems, InventoryItemExpirySystem) {
+		ij.ExpirySystem = append(ij.ExpirySystem, inventoryExpiry{})
+		q, err := d.scheduler.GetSchedule(&scheduler.GetScheduleInput{
+			Name: aws.String("aerolab-expiries"),
+		})
+		if err == nil {
+			ij.ExpirySystem[0].Scheduler = *q.Arn
+			ij.ExpirySystem[0].Schedule = *q.ScheduleExpression
+		}
+		q2, err := d.lambda.GetFunction(&lambda.GetFunctionInput{
+			FunctionName: aws.String("aerolab-expiries"),
+		})
+		if err == nil {
+			ij.ExpirySystem[0].Function = *q2.Configuration.FunctionArn
+		}
+		q3, err := d.iam.GetRole(&iam.GetRoleInput{
+			RoleName: aws.String("aerolab-expiries-scheduler-" + a.opts.Config.Backend.Region),
+		})
+		if err == nil {
+			ij.ExpirySystem[0].IAMScheduler = *q3.Role.Arn
+		}
+		q4, err := d.iam.GetRole(&iam.GetRoleInput{
+			RoleName: aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+		})
+		if err == nil {
+			ij.ExpirySystem[0].IAMFunction = *q4.Role.Arn
+		}
+	}
+
 	if inslice.HasInt(inventoryItems, InventoryItemTemplates) {
 		tmpl, err := d.ListTemplates()
 		if err != nil {

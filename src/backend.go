@@ -155,6 +155,16 @@ type inventoryJson struct {
 	Templates     []inventoryTemplate
 	FirewallRules []inventoryFirewallRule
 	Subnets       []inventorySubnet
+	ExpirySystem  []inventoryExpiry
+}
+
+type inventoryExpiry struct {
+	IAMScheduler string
+	IAMFunction  string
+	Scheduler    string
+	Function     string
+	Schedule     string
+	SourceBucket string
 }
 
 type inventorySubnet struct {
@@ -288,3 +298,4 @@ var InventoryItemClusters = 1
 var InventoryItemClients = 2
 var InventoryItemFirewalls = 3
 var InventoryItemTemplates = 4
+var InventoryItemExpirySystem = 5
