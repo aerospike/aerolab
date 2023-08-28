@@ -1,5 +1,6 @@
 #### 7.0.1
-* GitHub broke support for `wget` by producing `403 Forbidden` on `HEAD` requests; this fix implements use of `curl` instead.
+* GitHub broke support for `wget` for source files in old repo releases page by producing `403 Forbidden` on `HEAD` requests; this fix implements a new link.
+* Update dependencies to latest.
 
 #### 7.0.0
 * Message INFO at end of cluster create pointing user at AMS documentation informing them ams exists.
