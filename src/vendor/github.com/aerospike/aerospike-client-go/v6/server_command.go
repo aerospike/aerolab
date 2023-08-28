@@ -15,6 +15,9 @@
 package aerospike
 
 import (
+	"math/rand"
+
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v6/utils/buffer"
 )
@@ -93,4 +96,71 @@ func (cmd *serverCommand) isRead() bool {
 
 func (cmd *serverCommand) Execute() Error {
 	return cmd.execute(cmd)
+}
+
+func (cmd *serverCommand) ExecuteGRPC(clnt *ProxyClient) Error {
+	cmd.dataBuffer = bufPool.Get().([]byte)
+	defer cmd.grpcPutBufferBack()
+
+	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
+	if err != nil {
+		return err
+	}
+
+	execReq := &kvs.BackgroundExecuteRequest{
+		Statement:   cmd.statement.grpc(cmd.policy, cmd.operations),
+		WritePolicy: cmd.writePolicy.grpc_exec(),
+	}
+
+	req := kvs.AerospikeRequestPayload{
+		Id:                       rand.Uint32(),
+		Iteration:                1,
+		Payload:                  cmd.dataBuffer[:cmd.dataOffset],
+		BackgroundExecuteRequest: execReq,
+	}
+
+	conn, err := clnt.grpcConn()
+	if err != nil {
+		return err
+	}
+
+	client := kvs.NewQueryClient(conn)
+
+	ctx := cmd.policy.grpcDeadlineContext()
+
+	streamRes, gerr := client.BackgroundExecute(ctx, &req)
+	if gerr != nil {
+		return newGrpcError(gerr, gerr.Error())
+	}
+
+	cmd.commandWasSent = true
+
+	readCallback := func() ([]byte, Error) {
+		res, gerr := streamRes.Recv()
+		if gerr != nil {
+			e := newGrpcError(gerr)
+			return nil, e
+		}
+
+		if res.Status != 0 {
+			e := newGrpcStatusError(res)
+			return res.Payload, e
+		}
+
+		if !res.HasNext {
+			return nil, errGRPCStreamEnd
+		}
+
+		return res.Payload, nil
+	}
+
+	cmd.conn = newGrpcFakeConnection(nil, readCallback)
+	err = cmd.parseResult(cmd, cmd.conn)
+	if err != nil && err != errGRPCStreamEnd {
+		return err
+	}
+
+	clnt.returnGrpcConnToPool(conn)
+
+	return nil
 }

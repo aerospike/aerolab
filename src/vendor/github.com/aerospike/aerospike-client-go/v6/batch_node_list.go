@@ -276,6 +276,7 @@ func newBatchOperateNodeListIfc(cluster *Cluster, policy *BatchPolicy, records [
 		}
 
 		if err != nil {
+			records[i].chainError(err)
 			records[i].setError(node, err.resultCode(), false)
 			// Don't interrupt the batch request because of INVALID_NAMESPACE error
 			// These keys will not be sent to the server
@@ -292,6 +293,18 @@ func newBatchOperateNodeListIfc(cluster *Cluster, policy *BatchPolicy, records [
 		}
 	}
 	return batchNodes, errs
+}
+
+func newGrpcBatchOperateListIfc(policy *BatchPolicy, records []BatchRecordIfc) (*batchNode, Error) {
+	// Split keys by server node.
+	batchNode := new(batchNode)
+	for i := range records {
+		b := records[i]
+		b.prepare()
+		batchNode.AddKey(i)
+	}
+
+	return batchNode, nil
 }
 
 func findBatchNode(nodes []*batchNode, node *Node) *batchNode {

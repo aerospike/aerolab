@@ -36,9 +36,9 @@ apt-get -y install python
 apt-get -y install nano
 apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || apt-get update && apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
 apt-get -y install dnsutils iputils-ping telnet netcat sysstat vim
-wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz || exit 1
-tar -zxvf tc.tar.gz || exit 1
-mv tcconfig-ubuntu-venv-tc /tcconfig || exit 1
+wget https://github.com/rglonek/tcconfig-ubuntu-venv/releases/download/latest/tc.tar.gz
+tar -zxvf tc.tar.gz
+mv tcconfig-ubuntu-venv-tc /tcconfig
 mv /tcconfig/lib/* /tcconfig/lib/python$(python3 --version |egrep -o '[0-9]+\.[0-9]+')
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -213,9 +213,9 @@ apt-get -y install python
 apt-get -y install nano
 apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
 apt-get -y install dnsutils iputils-ping telnet netcat sysstat vim
-wget https://github.com/bestmethod/tcconfig-ubuntu-venv/archive/tc.tar.gz || exit 1
-tar -zxvf tc.tar.gz || exit 1
-mv /tcconfig-ubuntu-venv-tc /tcconfig || exit 1
+wget https://github.com/rglonek/tcconfig-ubuntu-venv/releases/download/latest/tc.tar.gz
+tar -zxvf tc.tar.gz
+mv /tcconfig-ubuntu-venv-tc /tcconfig
 mv /tcconfig/lib/* /tcconfig/lib/python$(python3 --version |egrep -o '[0-9]+\.[0-9]+')
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
