@@ -1,3 +1,6 @@
+#### 7.0.1
+* GitHub broke support for `wget` by producing `403 Forbidden` on `HEAD` requests; this fix implements use of `curl` instead.
+
 #### 7.0.0
 * Message INFO at end of cluster create pointing user at AMS documentation informing them ams exists.
 * Add deprecation warning around client machines and how they are handled in 8.0.
