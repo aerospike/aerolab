@@ -15,13 +15,18 @@
 package aerospike
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"runtime"
 	"strconv"
 	"strings"
 
+	kvs "github.com/aerospike/aerospike-client-go/v6/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v6/types"
+	grpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Error is the internal error interface for the Aerospike client's errors.
@@ -51,7 +56,7 @@ type Error interface {
 	iter(int) Error
 	setInDoubt(bool, bool) Error
 	setNode(*Node) Error
-	markInDoubt() Error
+	markInDoubt(bool) Error
 	markInDoubtIf(bool) Error
 	wrap(error) Error
 }
@@ -141,6 +146,121 @@ func newCommonError(e error, messages ...string) Error {
 	return ne
 }
 
+func newGrpcError(e error, messages ...string) Error {
+	if ae, ok := e.(Error); ok && ae.resultCode() == types.GRPC_ERROR {
+		return ae
+	}
+
+	// convert error to Aerospike errors
+	if e == context.DeadlineExceeded {
+		return ErrNetTimeout.err()
+	} else if e == grpc.ErrClientConnTimeout {
+		return ErrNetTimeout.err()
+	} else if e == grpc.ErrServerStopped {
+		return ErrServerNotAvailable.err()
+	}
+
+	// try to convert the error
+	code := status.Code(e)
+	if code == codes.Unknown {
+		if s := status.Convert(e); s != nil {
+			code = s.Code()
+		}
+	}
+
+	switch code {
+	case codes.OK:
+		return nil
+	case codes.Canceled:
+		return ErrNetTimeout.err()
+	case codes.InvalidArgument:
+		return newError(types.PARAMETER_ERROR, messages...)
+	case codes.DeadlineExceeded:
+		return ErrNetTimeout.err()
+	case codes.NotFound:
+		return newError(types.SERVER_NOT_AVAILABLE, messages...)
+	case codes.PermissionDenied:
+		return newError(types.FAIL_FORBIDDEN, messages...)
+	case codes.ResourceExhausted:
+		return newError(types.QUOTA_EXCEEDED, messages...)
+	case codes.FailedPrecondition:
+		return newError(types.PARAMETER_ERROR, messages...)
+	case codes.Aborted:
+		return newError(types.SERVER_ERROR)
+	case codes.OutOfRange:
+		return newError(types.PARAMETER_ERROR, messages...)
+	case codes.Unimplemented:
+		return newError(types.SERVER_NOT_AVAILABLE, messages...)
+	case codes.Internal:
+		return newError(types.SERVER_ERROR, messages...)
+	case codes.Unavailable:
+		return newError(types.SERVER_NOT_AVAILABLE, messages...)
+	case codes.DataLoss:
+		return ErrNetwork.err()
+	case codes.Unauthenticated:
+		return newError(types.NOT_AUTHENTICATED, messages...)
+
+	case codes.AlreadyExists:
+	case codes.Unknown:
+	}
+
+	ne := newError(types.GRPC_ERROR, messages...)
+	ne.wrap(e)
+	return ne
+}
+
+func newGrpcStatusError(res *kvs.AerospikeResponsePayload) Error {
+	if res.Status >= 0 {
+		return newError(types.ResultCode(res.Status)).markInDoubt(res.InDoubt)
+	}
+
+	var resultCode = types.OK
+	switch res.Status {
+	case -16:
+		// BATCH_FAILED
+		resultCode = types.BATCH_FAILED
+	case -15:
+		// NO_RESPONSE
+		resultCode = types.NO_RESPONSE
+	case -12:
+		// MAX_ERROR_RATE
+		resultCode = types.MAX_ERROR_RATE
+	case -11:
+		// MAX_RETRIES_EXCEEDED
+		resultCode = types.MAX_RETRIES_EXCEEDED
+	case -10:
+		// SERIALIZE_ERROR
+		resultCode = types.SERIALIZE_ERROR
+	case -9:
+		// ASYNC_QUEUE_FULL
+		// resultCode = types.ASYNC_QUEUE_FULL
+		return newError(types.SERVER_ERROR, "Server ASYNC_QUEUE_FULL").markInDoubt(res.InDoubt)
+	case -8:
+		// SERVER_NOT_AVAILABLE
+		resultCode = types.SERVER_NOT_AVAILABLE
+	case -7:
+		// NO_MORE_CONNECTIONS
+		resultCode = types.NO_AVAILABLE_CONNECTIONS_TO_NODE
+	case -5:
+		// QUERY_TERMINATED
+		resultCode = types.QUERY_TERMINATED
+	case -4:
+		// SCAN_TERMINATED
+		resultCode = types.SCAN_TERMINATED
+	case -3:
+		// INVALID_NODE_ERROR
+		resultCode = types.INVALID_NODE_ERROR
+	case -2:
+		// PARSE_ERROR
+		resultCode = types.PARSE_ERROR
+	case -1:
+		// CLIENT_ERROR
+		resultCode = types.COMMON_ERROR
+	}
+
+	return newError(resultCode).markInDoubt(res.InDoubt)
+}
+
 // SetInDoubt sets whether it is possible that the write transaction may have completed
 // even though this error was generated.  This may be the case when a
 // client error occurs (like timeout) after the command was sent to the server.
@@ -156,8 +276,8 @@ func (ase *AerospikeError) setNode(node *Node) Error {
 	return ase
 }
 
-func (ase *AerospikeError) markInDoubt() Error {
-	ase.InDoubt = true
+func (ase *AerospikeError) markInDoubt(v bool) Error {
+	ase.InDoubt = v
 	return ase
 }
 
@@ -385,11 +505,13 @@ var (
 	ErrClusterIsEmpty                  = newConstError(types.INVALID_NODE_ERROR, "cluster is empty")
 	ErrInvalidUser                     = newConstError(types.INVALID_USER)
 	ErrNotAuthenticated                = newConstError(types.NOT_AUTHENTICATED)
-	ErrNetwork                         = newConstError(types.NOT_AUTHENTICATED)
+	ErrNetwork                         = newConstError(types.NETWORK_ERROR)
 	ErrInvalidObjectType               = newConstError(types.SERIALIZE_ERROR, "invalid type for result object. It should be of type struct pointer or addressable")
 	ErrMaxRetriesExceeded              = newConstError(types.MAX_RETRIES_EXCEEDED, "command execution timed out on client: Exceeded number of retries. See `Policy.MaxRetries`.")
 	ErrInvalidParam                    = newConstError(types.PARAMETER_ERROR)
 	ErrLuaPoolEmpty                    = newConstError(types.COMMON_ERROR, "Error fetching a lua instance from pool")
+
+	errGRPCStreamEnd = newError(types.OK, "GRPC Steam was ended successfully")
 )
 
 //revive:enable

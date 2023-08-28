@@ -64,7 +64,7 @@ type BatchRecord struct {
 	// If not OK, the record will be nil.
 	ResultCode types.ResultCode
 
-	// Err encapsulates the possible error chain for this keys
+	// Err encapsulates the possible error chain for this key
 	Err Error
 
 	// InDoubt signifies the possiblity that the write transaction may have completed even though an error
@@ -133,7 +133,7 @@ func (br *BatchRecord) setRecord(record *Record) {
 func (br *BatchRecord) setError(node *Node, resultCode types.ResultCode, inDoubt bool) {
 	br.ResultCode = resultCode
 	br.InDoubt = inDoubt
-	br.chainError(newError(br.ResultCode).setNode(node).markInDoubtIf(inDoubt))
+	br.Err = newError(br.ResultCode).setNode(node).markInDoubtIf(inDoubt)
 }
 
 // Set error result. For internal use only.
@@ -158,6 +158,6 @@ func (br *BatchRecord) getType() batchRecordType {
 }
 
 // Return wire protocol size. For internal use only.
-func (br *BatchRecord) size() (int, Error) {
-	return 0, nil
+func (br *BatchRecord) size(parentPolicy *BasePolicy) (int, Error) {
+	panic("UNREACHABLE")
 }

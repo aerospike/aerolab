@@ -66,7 +66,12 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) Err
 	rval := reflect.ValueOf(obj)
 	binNames := objectMappings.getFields(rval.Type())
 
-	command, err := newReadCommand(clnt.cluster, policy, key, binNames, nil)
+	partition, err := PartitionForRead(clnt.cluster, policy, key)
+	if err != nil {
+		return err
+	}
+
+	command, err := newReadCommand(clnt.cluster, policy, key, binNames, partition)
 	if err != nil {
 		return err
 	}
