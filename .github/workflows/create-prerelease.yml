@@ -21,7 +21,7 @@ jobs:
             - name: "Install Homebrew"
               run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             - name: "Install Dependencies"
-              run: /usr/local/bin/brew install dpkg rpm upx zip make wget jq
+              run: /usr/local/bin/brew install --overwrite dpkg rpm upx zip make wget jq
             - name: "Install golang"
               run: |
                 wget https://go.dev/dl/go1.21.0.darwin-amd64.pkg
