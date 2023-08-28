@@ -70,7 +70,7 @@ type clusterCreateCmdAws struct {
 	Ebs             string        `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
 	SecurityGroupID string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID        string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
-	PublicIP        bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	PublicIP        bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	IsArm           bool          `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices bool          `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags            []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
@@ -82,7 +82,7 @@ type clusterCreateCmdGcp struct {
 	Image           string        `long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
 	InstanceType    string        `long:"instance" description:"instance type to use" default:""`
 	Disks           []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
-	PublicIP        bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	PublicIP        bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone            string        `long:"zone" description:"zone name to deploy to"`
 	IsArm           bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
