@@ -1,6 +1,7 @@
 #### 7.1.0
 * Update expiry system dependencies.
 * Telemetry - if telemetry is enabled, tag instances with telemetry tag so that the expiry system can report it.
+* Upgrade - check if new version is available in the background, if so, inform user and point at the releases page.
 * Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
 * Test and release for Windows platform.
 
