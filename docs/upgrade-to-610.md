@@ -1,8 +1,8 @@
-# Upgrading AeroLab to 6.1.0
+# Upgrading AeroLab to 6.1.0+
 
 If using `AWS` or `GCP` backend, incompatible firewall features have been added.
 
-In order to convert clusters and clients created with AeroLab versions `6.0` or below to `6.1` compatible setup, run the following commands after AeroLab has been upgraded to `6.1`.
+In order to convert clusters and clients created with AeroLab versions `6.0` or below to `6.1+` compatible setup, run the following commands after AeroLab has been upgraded to `6.1+`.
 
 ## AWS
 
