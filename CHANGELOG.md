@@ -1,4 +1,5 @@
 #### 7.1.0
+* Update expiry system dependencies.
 * Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
 * Test and release for Windows platform.
 
