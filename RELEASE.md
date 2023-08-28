@@ -7,9 +7,9 @@ If using AWS or GCP backends, extra steps are required to migrate the firewalls 
 NOTE: AeroLab 7.0.0 implements an instance expiry system. By default your instances will terminate after 30 hours. To modify this behaviour, create clusters with `--aws-expires TIME` or `--gcp-expires`. For example `--aws-expires 50h`. To disable expiry, set to `0`.
 
 ### Documentation and changelog
-See [the documentation](https://github.com/aerospike/aerolab/blob/v7.0.0/README.md) for full installation and usage instructions.
+See [the documentation](https://github.com/aerospike/aerolab/blob/v7.0.1/README.md) for full installation and usage instructions.
 
-[Changelog](https://github.com/aerospike/aerolab/blob/v7.0.0/CHANGELOG.md#7.0.0)
+[Changelog](https://github.com/aerospike/aerolab/blob/v7.0.1/CHANGELOG.md#7.0.1)
 
 ### Download aerolab from Assets below
 

@@ -1234,3 +1234,19 @@ func unwrapValue(v interface{}) interface{} {
 
 	return v
 }
+
+func grpcValuePacked(v Value) []byte {
+	if v == nil {
+		return nil
+	}
+
+	sz, err := v.pack(nil)
+	if err != nil {
+		panic(err)
+	}
+	buf := newBuffer(sz)
+	if _, err := v.pack(buf); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
