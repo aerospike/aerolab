@@ -1,3 +1,7 @@
+#### 7.1.0
+* Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
+* Test and release for Windows platform.
+
 #### 7.0.1
 * GitHub broke support for `wget` for source files in old repo releases page by producing `403 Forbidden` on `HEAD` requests; this fix implements a new link.
 * Update dependencies to latest.
