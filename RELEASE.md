@@ -17,20 +17,17 @@ Head to the releases page and download one of the installers, depending on where
 
 Note that aerolab will still be able to deploy Aerospike on both arm and x64 architectures, regardless of which aerolab binary you are using.
 
-Operating System | CPU | File | Comments
---- | --- | --- | ---
-MacOS | ALL | `aerolab-macos-VERSION.pkg` | multi-arch AeroLab installer for MacOS
-MacOS | arm | `aerolab-macos-arm64-VERSION.zip` | single executable binary in a zip file
-MacOS | Intel/AMD | `aerolab-macos-amd64-VERSION.zip` | single executable binary in a zip file
-Linux (generic) | arm | `aerolab-linux-arm64-VERSION.zip` | single executable binary in a zip file
-Linux (generic) | Intel/AMD | `aerolab-linux-amd64-VERSION.zip` | single executable binary in a zip file
-Linux (centos) | arm | `aerolab-linux-arm64-VERSION.rpm` | RPM for installing on centos/rhel-based distros
-Linux (centos) | Intel/AMD | `aerolab-linux-x86_64-VERSION.rpm` | RPM for installing on centos/rhel-based distros
-Linux (ubuntu) | arm | `aerolab-linux-arm64-VERSION.deb` | DEB for installing on ubuntu/debian-based distros
-Linux (ubuntu) | Intel/AMD | `aerolab-linux-amd64-VERSION.deb` | DEB for installing on ubuntu/debian-based distros
+AeroLab is currently compiled and packaged for amd64 and arm64 as below:
+* MacOS as an installer and compressed binaries
+* Linux as zip, deb and rpm
+* Windows as zip executables
 
-#### Install
+#### Install - MacOS and Linux
 
 It is advisable to use the provided installer files for your distro. Upon download, run the installation and `aerolab` command will become available.
 
 Alternatively, manual installation can be performed by downloading the relevant `zip` file, unpacking it, and then moving the unpacked `aerolab` binary to `/usr/local/bin/` or `/usr/bin/`. Remember to `chmod +x` the binary too.
+
+#### Install - Windows users
+
+Download the zip file, unpack it to a directory (for example `c:\apps\aerolab.exe`) and make an alias in Powershell with `New-Alias -Name aerolab -Value c:\apps\aerolab.exe`.
