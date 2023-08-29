@@ -30,18 +30,18 @@ type clusterCreateCmd struct {
 	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
 	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
-	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
-	NoSetHostname         bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
-	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
-	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
-	ParallelThreads       int                    `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	NoVacuumOnFail        bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
-	Aws                   clusterCreateCmdAws    `no-flag:"true"`
-	Gcp                   clusterCreateCmdGcp    `no-flag:"true"`
-	Docker                clusterCreateCmdDocker `no-flag:"true"`
-	Owner                 string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	AutoStartAerospike    TypeYesNo      `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
+	NoOverrideClusterName bool           `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
+	NoSetHostname         bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
+	ScriptEarly           flags.Filename `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
+	ScriptLate            flags.Filename `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
+	parallelThreads
+	NoVacuumOnFail bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	Aws            clusterCreateCmdAws    `no-flag:"true"`
+	Gcp            clusterCreateCmdGcp    `no-flag:"true"`
+	Docker         clusterCreateCmdDocker `no-flag:"true"`
+	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 }
 
 type osSelectorCmd struct {

@@ -19,8 +19,8 @@ type clusterPartitionListCmd struct {
 	FilterDisks      TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
 	FilterPartitions TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number, empty or 0 = don't show partitions, ex: 1,2,4-8" default:"ALL"`
 	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
-	ParallelThreads  int             `short:"T" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	parallelThreads
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clusterPartitionListCmd) Execute(args []string) error {

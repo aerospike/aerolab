@@ -22,8 +22,8 @@ type clusterPartitionConfCmd struct {
 	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
 	Namespace        string          `short:"m" long:"namespace" description:"namespace to modify the settings for" default:""`
 	ConfDest         string          `short:"o" long:"configure" description:"what to configure the selections as; options: device|shadow|allflash" default:""`
-	ParallelThreads  int             `short:"T" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	parallelThreads
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clusterPartitionConfCmd) Execute(args []string) error {

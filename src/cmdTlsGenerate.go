@@ -15,17 +15,17 @@ import (
 )
 
 type tlsGenerateCmd struct {
-	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name/Client group" default:"mydc"`
-	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	IsClient        bool            `short:"C" long:"client" description:"set to indicate the certficates should end up on client groups"`
-	TlsName         string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
-	CaName          string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
-	Bits            int             `short:"b" long:"cert-bits" description:"Bits size for the CA and certs" default:"2048"`
-	NoUpload        bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
-	NoMesh          bool            `short:"m" long:"no-mesh" description:"If set, will not configure mesh-seed-address-port to use TLS"`
-	ChDir           string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
-	ParallelThreads int             `short:"T" long:"threads" description:"Use this many threads in parallel when uploading the certificates to nodes" default:"50"`
-	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name/Client group" default:"mydc"`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	IsClient    bool            `short:"C" long:"client" description:"set to indicate the certficates should end up on client groups"`
+	TlsName     string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
+	CaName      string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
+	Bits        int             `short:"b" long:"cert-bits" description:"Bits size for the CA and certs" default:"2048"`
+	NoUpload    bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
+	NoMesh      bool            `short:"m" long:"no-mesh" description:"If set, will not configure mesh-seed-address-port to use TLS"`
+	ChDir       string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
+	parallelThreads
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *tlsGenerateCmd) Execute(args []string) error {
