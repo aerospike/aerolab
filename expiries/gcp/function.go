@@ -1,6 +1,7 @@
 package aerolabexpire
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	compute "cloud.google.com/go/compute/apiv1"
@@ -82,6 +84,7 @@ func aerolabExpireDo() error {
 		Project: projectId,
 	}
 	iti := instancesClient.AggregatedList(ctx, reqi)
+	defer telemetryLock.Wait()
 	for {
 		pair, err := iti.Next()
 		if err == iterator.Done {
@@ -116,6 +119,9 @@ func aerolabExpireDo() error {
 					node = instance.Labels["aerolab4client_node_number"]
 				}
 				deleteListForLog = append(deleteListForLog, fmt.Sprintf("instanceId=%s zone=%s clusterName=%s nodeNo=%s", *instance.Name, *instance.Zone, name, node))
+				if _, ok := instance.Labels["telemetry"]; ok {
+					telemetryShip(instance.Labels["telemetry"], *instance.Zone, *instance.Name, name, node)
+				}
 			}
 		}
 	}
@@ -142,6 +148,60 @@ func aerolabExpireDo() error {
 				return fmt.Errorf("unable to delete instance: %w", err)
 			}
 		}
+	}
+	return nil
+}
+
+type telemetry struct {
+	UUID          string
+	Job           string
+	Cloud         string
+	Zone          string
+	Instance      string
+	ClusterName   string
+	NodeNo        string
+	ExpiryVersion string
+	CmdLine       []string
+	Time          int64
+}
+
+var telemetryLock = new(sync.WaitGroup)
+
+func telemetryShip(uuid string, zone string, instance string, clusterName string, nodeNo string) {
+	telemetryLock.Add(1)
+	go func() {
+		defer telemetryLock.Done()
+		err := telemetryShipDo(uuid, zone, instance, clusterName, nodeNo)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+}
+
+func telemetryShipDo(uuid string, zone string, instance string, clusterName string, nodeNo string) error {
+	t := &telemetry{
+		UUID:          uuid,
+		Job:           "expire",
+		Cloud:         "GCP",
+		Zone:          zone,
+		Instance:      instance,
+		ClusterName:   clusterName,
+		NodeNo:        nodeNo,
+		ExpiryVersion: "2",
+		Time:          time.Now().Unix(),
+		CmdLine:       []string{"EXPIRY"},
+	}
+	contents, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+	url := "https://us-central1-aerospike-gaia.cloudfunctions.net/aerolab-telemetrics"
+	ret, err := http.Post(url, "application/json", bytes.NewReader(contents))
+	if err != nil {
+		return err
+	}
+	if ret.StatusCode < 200 || ret.StatusCode > 299 {
+		return fmt.Errorf("returned ret code: %d:%s", ret.StatusCode, ret.Status)
 	}
 	return nil
 }
