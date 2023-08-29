@@ -201,6 +201,7 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 		b.WorkOnServers()
 	}
 	telemetryNoSaveMutex.Lock()
+	expiryTelemetryLock.Lock()
 	log.SetOutput(&tStderr{})
 	go telemetry()
 	/*
@@ -219,6 +220,8 @@ var telemetryDir string
 var telemetryNoSave = true
 var telemetryNoSaveMutex = new(sync.Mutex)
 var telemetryMutex = new(sync.Mutex)
+var expiryTelemetryUUID = ""
+var expiryTelemetryLock = new(sync.Mutex)
 
 type tStderr struct {
 	OutSize int
@@ -237,6 +240,7 @@ func (t *tStderr) Write(b []byte) (int, error) {
 }
 
 func telemetry() error {
+	defer expiryTelemetryLock.Unlock()
 	defer telemetryNoSaveMutex.Unlock()
 	// basic checks
 	if len(os.Args) < 2 {
@@ -323,7 +327,7 @@ func telemetry() error {
 			return err
 		}
 	}
-
+	expiryTelemetryUUID = string(uuidx)
 	// create telemetry item
 	currentTelemetry.UUID = string(uuidx)
 	currentTelemetry.StartTime = time.Now().UnixMicro()

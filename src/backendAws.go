@@ -2307,6 +2307,14 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			},
 		}
 		tgs = append(tgs, extraTags...)
+		expiryTelemetryLock.Lock()
+		if expiryTelemetryUUID != "" {
+			tgs = append(tgs, &ec2.Tag{
+				Key:   aws.String("telemetry"),
+				Value: aws.String(expiryTelemetryUUID),
+			})
+		}
+		expiryTelemetryLock.Unlock()
 		if !extra.expiresTime.IsZero() {
 			tgs = append(tgs, &ec2.Tag{
 				Key:   aws.String("aerolab4expires"),
