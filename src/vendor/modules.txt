@@ -102,6 +102,9 @@ github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 ## explicit
 github.com/bestmethod/inslice
+# github.com/containerd/console v1.0.3
+## explicit; go 1.13
+github.com/containerd/console
 # github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 ## explicit
 github.com/golang/groupcache/lru
@@ -156,8 +159,8 @@ github.com/jmespath/go-jmespath
 # github.com/jroimartin/gocui v0.5.0
 ## explicit; go 1.16
 github.com/jroimartin/gocui
-# github.com/kr/text v0.2.0
-## explicit
+# github.com/kr/pretty v0.3.0
+## explicit; go 1.12
 # github.com/mattn/go-runewidth v0.0.15
 ## explicit; go 1.9
 github.com/mattn/go-runewidth
