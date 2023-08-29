@@ -22,9 +22,9 @@ type clientCreateNoneCmd struct {
 	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
 	osSelectorCmd
-	ParallelThreads int    `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	PriceOnly       bool   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
-	Owner           string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	parallelThreads
+	PriceOnly bool   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Owner     string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 }
 
 func (c *clientCreateNoneCmd) isGrow() bool {

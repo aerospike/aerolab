@@ -19,8 +19,8 @@ type clusterPartitionMkfsCmd struct {
 	MkfsOpts         string          `short:"s" long:"fs-options" description:"filesystem mkfs options" default:""`
 	MountRoot        string          `short:"r" long:"mount-root" description:"path to where all the mounts will be created" default:"/mnt/"`
 	MountOpts        string          `short:"o" long:"mount-options" description:"additional mount options to pass, ex: noatime,noexec" default:""`
-	ParallelThreads  int             `short:"T" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	parallelThreads
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clusterPartitionMkfsCmd) Execute(args []string) error {

@@ -12,6 +12,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
@@ -38,9 +39,9 @@ type clientAddAMSCmd struct {
 	Gcp             clientAddAMSCmdAws  `no-flag:"true"`
 	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
 	Dashboards      flags.Filename      `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
-	ParallelThreads int                 `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	DebugDashboards bool                `long:"debug-dashboards" hidden:"true"`
-	Help            helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
+	parallelThreads
+	DebugDashboards bool    `long:"debug-dashboards" hidden:"true"`
+	Help            helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type clientAddAMSCmdAws struct {
@@ -381,9 +382,19 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			if c.DebugDashboards {
 				log.Printf("WGET: running %v", dashboard)
 			}
-			err = a.opts.Attach.Client.run(dashboard)
-			if err != nil {
-				return fmt.Errorf("failed to configure grafana (%v): %s", dashboard, err)
+			tries := 0
+			for {
+				err = a.opts.Attach.Client.run(dashboard)
+				if err != nil {
+					tries++
+					if tries == 5 {
+						return fmt.Errorf("failed to configure grafana (%v): %s", dashboard, err)
+					} else {
+						time.Sleep(time.Second * 2)
+					}
+				} else {
+					break
+				}
 			}
 			return nil
 		})
@@ -455,9 +466,19 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			if c.DebugDashboards {
 				log.Printf("UPLOAD: custom uploading %v", nFile.filePath)
 			}
-			err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{nFile}, nodes)
-			if err != nil {
-				return err
+			tries := 0
+			for {
+				err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{nFile}, nodes)
+				if err != nil {
+					tries++
+					if tries == 5 {
+						return err
+					} else {
+						time.Sleep(time.Second * 2)
+					}
+				} else {
+					break
+				}
 			}
 			return nil
 		})

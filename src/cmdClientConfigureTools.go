@@ -12,11 +12,11 @@ import (
 )
 
 type clientConfigureToolsCmd struct {
-	ClientName      TypeClientName  `short:"n" long:"group-name" description:"Client group name" default:"client"`
-	Machines        TypeMachines    `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
-	ConnectAMS      TypeClusterName `short:"m" long:"ams" default:"ams" description:"AMS client machine name"`
-	ParallelThreads int             `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClientName TypeClientName  `short:"n" long:"group-name" description:"Client group name" default:"client"`
+	Machines   TypeMachines    `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
+	ConnectAMS TypeClusterName `short:"m" long:"ams" default:"ams" description:"AMS client machine name"`
+	parallelThreads
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clientConfigureToolsCmd) Execute(args []string) error {

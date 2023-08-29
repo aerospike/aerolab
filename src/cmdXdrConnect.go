@@ -48,7 +48,7 @@ type xdrConnectCmd struct {
 	DestinationClusterNames TypeClusterName `short:"D" long:"destinations" description:"Destination Cluster names, comma separated." default:"destdc"`
 	IsConnector             bool            `short:"c" long:"connector" description:"set to indicate that the destination is a client connector, not a cluster"`
 	Aws                     xdrConnectAws   `no-flag:"true"`
-	ParallelThreads         int             `long:"threads" description:"Download logs from this many nodes in parallel" default:"50"`
+	parallelThreads
 	xdrConnectRealCmd
 }
 
