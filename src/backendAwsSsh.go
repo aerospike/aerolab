@@ -243,7 +243,7 @@ func scpFile(user string, addr string, privateKey string, file fileListReader) e
 }
 
 func scpExecDownload(user string, ip string, port string, privateKey string, sourcePath string, destPath string, out io.Writer, timeout time.Duration, verbose bool, legacy bool) error {
-	params := []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"}
+	params := []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=" + os.DevNull}
 	if timeout != 0 {
 		params = append(params, []string{"-o", "ConnectTimeout=" + strconv.Itoa(int(timeout.Seconds()))}...)
 	}
@@ -258,7 +258,7 @@ func scpExecDownload(user string, ip string, port string, privateKey string, sou
 }
 
 func scpExecUpload(user string, ip string, port string, privateKey string, sourcePath string, destPath string, out io.Writer, timeout time.Duration, verbose bool, legacy bool) error {
-	params := []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"}
+	params := []string{"-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=" + os.DevNull}
 	if timeout != 0 {
 		params = append(params, []string{"-o", "ConnectTimeout=" + strconv.Itoa(int(timeout.Seconds()))}...)
 	}

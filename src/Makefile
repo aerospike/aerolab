@@ -18,7 +18,7 @@ help:
 	\tmake build-linux && make pkg-linux         - build and package all linux releases\n\
 	\n\
 	BUILD COMMANDS:\n\
-	\tbuild              - A version for the current system\n\
+	\tbuild              - A version for the current system (linux and mac only)\n\
 	\tbuildall           - All versions for all supported systems\n\
 	\tbuild-linux-amd64  - Linux on x86_64\n\
 	\tbuild-linux-arm64  - Linux on aarch64\n\
@@ -26,9 +26,12 @@ help:
 	\tbuild-darwin-amd64 - MacOS on x86_64\n\
 	\tbuild-darwin-arm64 - MacOS on M1/M2 style aarach64\n\
 	\tbuild-darwin       - MacOS on x86_64 and aarch64\n\
+	\tbuild-windows-amd64- Windows on x86_64 and aarch64\n\
+	\tbuild-windows-arm64- Windows on ARM\n\
+	\tbuild-windows      - Windows on x86_64 and arm64\n\
 	\n\
 	INSTALL COMMANDS:\n\
-	\tinstall            - Install a previously built aerolab on the current system\n\
+	\tinstall            - Install a previously built aerolab on the current system (linux and mac only)\n\
 	\n\
 	CLEAN COMMANDS:\n\
 	\tclean              - Remove remainders of a build and reset source modified during build\n\
@@ -45,6 +48,11 @@ help:
 	\tpkg-zip-arm64      - Package linux zip for arm64 only\n\
 	\tpkg-rpm-arm64      - Package linux rpm for arm64 only\n\
 	\tpkg-deb-arm64      - Package linux deb for arm64 only\n\
+	\n\
+	WINDOWS PACKAGING COMMANDS:\n\
+	\tpkg-windows-zip       - Package windows zip\n\
+	\tpkg-windows-zip-amd64 - Package windows zip for amd64 only\n\
+	\tpkg-windows-zip-arm64 - Package windows zip for arm64 only\n\
 	\n\
 	MACOS PACKAGING COMMANDS:\n\
 	\tmacos-codesign     - Codesign MacOS binaries\n\
@@ -69,7 +77,7 @@ macos-notarize-all: macos-pkg-notarize macos-zip-notarize
 build: run_build
 
 .PHONY: buildall
-buildall: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin reset2
+buildall: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin compile_windows reset2
 
 .PHONY: build-linux-amd64
 build-linux-amd64: prep compile_linux_wip_arm64 reset1 compile_linux_amd64 reset2
@@ -88,6 +96,15 @@ build-darwin-arm64: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 
 
 .PHONY: build-darwin
 build-darwin: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2
+
+.PHONY: build-windows-amd64
+build-windows-amd64: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows_amd64 reset2
+
+.PHONY: build-windows-arm64
+build-windows-arm64: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows_arm64 reset2
+
+.PHONY: build-windows
+build-windows: prep compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2
 
 .PHONY: install
 install: run_install
@@ -117,6 +134,7 @@ clean:
 	rm -f ../bin/aerolab
 	printf "package main\n\nvar nLinuxBinaryX64 []byte\n\nvar nLinuxBinaryArm64 []byte\n" > embed_linux.go
 	cp embed_linux.go embed_darwin.go
+	cp embed_linux.go embed_windows.go
 
 ## actual code
 
@@ -188,6 +206,7 @@ endif
 reset1:
 	printf "package main\n\nvar nLinuxBinaryX64 []byte\n\nvar nLinuxBinaryArm64 []byte\n" > embed_linux.go
 	cp embed_linux.go embed_darwin.go
+	cp embed_linux.go embed_windows.go
 
 .PHONY: reset2
 reset2:
@@ -197,6 +216,7 @@ reset2:
 	rm -f embed_*.txt
 	printf "package main\n\nvar nLinuxBinaryX64 []byte\n\nvar nLinuxBinaryArm64 []byte\n" > embed_linux.go
 	cp embed_linux.go embed_darwin.go
+	cp embed_linux.go embed_windows.go
 
 .PHONY: prep
 prep:
@@ -249,6 +269,26 @@ compile_darwin_arm64:
 	env CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o aerolab-macos-arm64
 	mv aerolab-macos-arm64 ../bin/
 
+.PHONY: compile_windows
+compile_windows:
+	printf "package main\n\nimport _ \"embed\"\n\n//go:embed aerolab-linux-amd64-wip\nvar nLinuxBinaryX64 []byte\n\n//go:embed aerolab-linux-arm64-wip\nvar nLinuxBinaryArm64 []byte" > embed_windows.go
+	env CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o aerolab-windows-amd64.exe
+	env CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o aerolab-windows-arm64.exe
+	mv aerolab-windows-amd64.exe ../bin/
+	mv aerolab-windows-arm64.exe ../bin/
+
+.PHONY: compile_windows_amd64
+compile_windows_amd64:
+	printf "package main\n\nimport _ \"embed\"\n\n//go:embed aerolab-linux-amd64-wip\nvar nLinuxBinaryX64 []byte\n\n//go:embed aerolab-linux-arm64-wip\nvar nLinuxBinaryArm64 []byte" > embed_windows.go
+	env CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o aerolab-windows-amd64.exe
+	mv aerolab-windows-amd64.exe ../bin/
+
+.PHONY: compile_windows_arm64
+compile_windows_arm64:
+	printf "package main\n\nimport _ \"embed\"\n\n//go:embed aerolab-linux-amd64-wip\nvar nLinuxBinaryX64 []byte\n\n//go:embed aerolab-linux-arm64-wip\nvar nLinuxBinaryArm64 []byte" > embed_windows.go
+	env CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o aerolab-windows-arm64.exe
+	mv aerolab-windows-arm64.exe ../bin/
+
 .PHONY: official
 official: prep
 	printf "" > embed_tail.txt
@@ -258,10 +298,10 @@ prerelease: prep
 	printf "-prerelease" > embed_tail.txt
 
 .PHONY: build-official
-build-official: official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin reset2
+build-official: official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin compile_windows reset2
 
 .PHONY: build-prerelease
-build-prerelease: prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin reset2
+build-prerelease: prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin compile_windows reset2
 
 RET := $(shell echo)
 
@@ -307,6 +347,23 @@ pkg-zip-arm64:
 	rm -f ../bin/packages/aerolab-linux-arm64-${ver}.zip
 	bash -ce "cd ../bin && zip packages/aerolab-linux-arm64-${ver}.zip aerolab"
 	rm -f ../bin/aerolab
+
+.PHONY: pkg-windows-zip
+pkg-windows-zip: pkg-windows-zip-amd64 pkg-windows-zip-arm64
+
+.PHONY: pkg-windows-zip-amd64
+pkg-windows-zip-amd64:
+	cp ../bin/aerolab-windows-amd64.exe ../bin/aerolab.exe
+	rm -f ../bin/packages/aerolab-windows-amd64-${ver}.zip
+	bash -ce "cd ../bin && zip packages/aerolab-windows-amd64-${ver}.zip aerolab.exe"
+	rm -f ../bin/aerolab.exe
+
+.PHONY: pkg-windows-zip-arm64
+pkg-windows-zip-arm64:
+	cp ../bin/aerolab-windows-arm64.exe ../bin/aerolab.exe
+	rm -f ../bin/packages/aerolab-windows-arm64-${ver}.zip
+	bash -ce "cd ../bin && zip packages/aerolab-windows-arm64-${ver}.zip aerolab.exe"
+	rm -f ../bin/aerolab.exe
 
 .PHONY: pkg-zip
 pkg-zip: pkg-zip-amd64 pkg-zip-arm64
@@ -420,5 +477,5 @@ macos-pkg-notarize:
 		echo "PKG NOTARIZE SUCCESS" ;\
 	fi
 
-### make cleanall && make build-prerelease && make pkg-linux && make macos-build-all && make macos-notarize-all
-### make cleanall && make build-official && make pkg-linux && make macos-build-all && make macos-notarize-all
+### make cleanall && make build-prerelease && make pkg-linux && make pkg-windows-zip && make macos-build-all && make macos-notarize-all
+### make cleanall && make build-official && make pkg-linux && make pkg-windows-zip && make macos-build-all && make macos-notarize-all

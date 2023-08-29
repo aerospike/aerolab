@@ -292,10 +292,10 @@ func telemetry() error {
 	if err != nil {
 		return err
 	}
-	telemetryDir = path.Join(home, ".aerolab/telemetry")
+	telemetryDir = path.Join(home, ".aerolab", "telemetry")
 
 	// check if telemetry is disabled
-	if _, err := os.Stat(path.Join(home, ".aerolab/telemetry/disable")); err == nil {
+	if _, err := os.Stat(path.Join(home, ".aerolab", "telemetry", "disable")); err == nil {
 		return err
 	}
 
@@ -537,7 +537,7 @@ func (a *aerolab) configFileName() (cfgFile string, optional bool, err error) {
 		if err != nil {
 			return
 		}
-		cfgFile = path.Join(home, ".aerolab/conf")
+		cfgFile = path.Join(home, ".aerolab", "conf")
 	}
 	return
 }

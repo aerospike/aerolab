@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -91,18 +92,18 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 
 	var commands [][]string
 	comm := "openssl"
-	_, errA := os.Stat("CA/private/" + c.CaName + ".key")
-	_, errB := os.Stat("CA/" + c.CaName + ".pem")
+	_, errA := os.Stat(path.Join("CA", "private", c.CaName+".key"))
+	_, errB := os.Stat(path.Join("CA", c.CaName+".pem"))
 	if errA != nil || errB != nil {
-		commands = append(commands, []string{"req", "-new", "-nodes", "-x509", "-extensions", "v3_ca", "-keyout", "private/" + c.CaName + ".key", "-out", c.CaName + ".pem", "-days", "3650", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.CaName)})
+		commands = append(commands, []string{"req", "-new", "-nodes", "-x509", "-extensions", "v3_ca", "-keyout", path.Join("private", c.CaName+".key"), "-out", c.CaName + ".pem", "-days", "3650", "-config", "openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.CaName)})
 	}
-	commands = append(commands, []string{"req", "-new", "-nodes", "-extensions", "v3_req", "-out", "req.pem", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.TlsName)})
-	commands = append(commands, []string{"ca", "-batch", "-extensions", "v3_req", "-out", "cert.pem", "-config", "./openssl.cnf", "-infiles", "req.pem"})
+	commands = append(commands, []string{"req", "-new", "-nodes", "-extensions", "v3_req", "-out", "req.pem", "-config", "openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=Denial/L=Springfield/O=Dis/CN=%s", c.TlsName)})
+	commands = append(commands, []string{"ca", "-batch", "-extensions", "v3_req", "-out", "cert.pem", "-config", "openssl.cnf", "-infiles", "req.pem"})
 	//os.RemoveAll("CA")
 	if _, err := os.Stat("CA"); err != nil {
 		os.Mkdir("CA", 0755)
 	}
-	err = os.Chdir("./CA")
+	err = os.Chdir("CA")
 	if err != nil {
 		return err
 	}
