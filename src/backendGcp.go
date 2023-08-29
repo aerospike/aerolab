@@ -2870,6 +2870,11 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		go d.expiriesSystemInstall(10, strings.Join(deployRegion, "-"), expWg)
 		labels["aerolab4expires"] = strings.ToLower(strings.ReplaceAll(extra.expiresTime.Format(time.RFC3339), ":", "_"))
 	}
+	expiryTelemetryLock.Lock()
+	if expiryTelemetryUUID != "" {
+		labels["telemetry"] = string(expiryTelemetryUUID)
+	}
+	expiryTelemetryLock.Unlock()
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
