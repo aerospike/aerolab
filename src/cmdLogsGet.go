@@ -20,7 +20,7 @@ type logsGetCmd struct {
 	Journal     bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
 	LogLocation string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
 	Destination flags.Filename  `short:"d" long:"destination" description:"Destination directory (will be created if doesn't exist)" default:"./logs/"`
-	parallelThreads
+	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

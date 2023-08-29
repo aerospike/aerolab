@@ -19,7 +19,7 @@ type clusterPartitionMkfsCmd struct {
 	MkfsOpts         string          `short:"s" long:"fs-options" description:"filesystem mkfs options" default:""`
 	MountRoot        string          `short:"r" long:"mount-root" description:"path to where all the mounts will be created" default:"/mnt/"`
 	MountOpts        string          `short:"o" long:"mount-options" description:"additional mount options to pass, ex: noatime,noexec" default:""`
-	parallelThreads
+	parallelThreadsLongCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

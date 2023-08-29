@@ -17,7 +17,7 @@ type confAdjustCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Path        string          `short:"p" long:"path" description:"Path to aerospike.conf on the remote nodes" default:"/etc/aerospike/aerospike.conf"`
-	parallelThreads
+	parallelThreadsCmd
 }
 
 func (c *confAdjustCmd) Execute(args []string) error {

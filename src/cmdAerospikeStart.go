@@ -2,7 +2,7 @@ package main
 
 type aerospikeStartCmd struct {
 	aerospikeStartSelectorCmd
-	parallelThreads
+	parallelThreadsCmd
 }
 
 type aerospikeStartSelectorCmd struct {

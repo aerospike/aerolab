@@ -19,7 +19,7 @@ type confNamespaceMemoryCmd struct {
 	Path        string          `short:"p" long:"path" description:"Path to aerospike.conf on the remote nodes" default:"/etc/aerospike/aerospike.conf"`
 	Namespace   string          `short:"m" long:"namespace" description:"Name of the namespace to adjust" default:"test"`
 	MemPct      int             `short:"r" long:"mem-pct" description:"The percentage of RAM to use for the namespace memory" default:"50"`
-	parallelThreads
+	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

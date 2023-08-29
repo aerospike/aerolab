@@ -39,7 +39,7 @@ type clientAddAMSCmd struct {
 	Gcp             clientAddAMSCmdAws  `no-flag:"true"`
 	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
 	Dashboards      flags.Filename      `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
-	parallelThreads
+	parallelThreadsCmd
 	DebugDashboards bool    `long:"debug-dashboards" hidden:"true"`
 	Help            helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }

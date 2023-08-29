@@ -35,7 +35,7 @@ type clusterCreateCmd struct {
 	NoSetHostname         bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
 	ScriptEarly           flags.Filename `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
 	ScriptLate            flags.Filename `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
-	parallelThreads
+	parallelThreadsCmd
 	NoVacuumOnFail bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
 	Aws            clusterCreateCmdAws    `no-flag:"true"`
 	Gcp            clusterCreateCmdGcp    `no-flag:"true"`

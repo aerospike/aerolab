@@ -26,7 +26,7 @@ type clientAddToolsCmd struct {
 	StartScript         flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	aerospikeVersionCmd
 	osSelectorCmd
-	parallelThreads
+	parallelThreadsCmd
 	chDirCmd
 	Aws  clientAddToolsAwsCmd `no-flag:"true"`
 	Gcp  clientAddToolsAwsCmd `no-flag:"true"`
