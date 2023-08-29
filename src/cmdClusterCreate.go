@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -125,31 +126,31 @@ func (c *clusterCreateCmd) preChDir() {
 		return
 	}
 
-	if string(c.CustomConfigFilePath) != "" && !strings.HasPrefix(string(c.CustomConfigFilePath), "/") {
+	if string(c.CustomConfigFilePath) != "" && !filepath.IsAbs(string(c.CustomConfigFilePath)) {
 		if _, err := os.Stat(string(c.CustomConfigFilePath)); err == nil {
 			c.CustomConfigFilePath = flags.Filename(path.Join(cur, string(c.CustomConfigFilePath)))
 		}
 	}
 
-	if string(c.CustomToolsFilePath) != "" && !strings.HasPrefix(string(c.CustomToolsFilePath), "/") {
+	if string(c.CustomToolsFilePath) != "" && !filepath.IsAbs(string(c.CustomToolsFilePath)) {
 		if _, err := os.Stat(string(c.CustomToolsFilePath)); err == nil {
 			c.CustomToolsFilePath = flags.Filename(path.Join(cur, string(c.CustomToolsFilePath)))
 		}
 	}
 
-	if string(c.FeaturesFilePath) != "" && !strings.HasPrefix(string(c.FeaturesFilePath), "/") {
+	if string(c.FeaturesFilePath) != "" && !filepath.IsAbs(string(c.FeaturesFilePath)) {
 		if _, err := os.Stat(string(c.FeaturesFilePath)); err == nil {
 			c.FeaturesFilePath = flags.Filename(path.Join(cur, string(c.FeaturesFilePath)))
 		}
 	}
 
-	if string(c.ScriptEarly) != "" && !strings.HasPrefix(string(c.ScriptEarly), "/") {
+	if string(c.ScriptEarly) != "" && !filepath.IsAbs(string(c.ScriptEarly)) {
 		if _, err := os.Stat(string(c.ScriptEarly)); err == nil {
 			c.ScriptEarly = flags.Filename(path.Join(cur, string(c.ScriptEarly)))
 		}
 	}
 
-	if string(c.ScriptLate) != "" && !strings.HasPrefix(string(c.ScriptLate), "/") {
+	if string(c.ScriptLate) != "" && !filepath.IsAbs(string(c.ScriptLate)) {
 		if _, err := os.Stat(string(c.ScriptLate)); err == nil {
 			c.ScriptLate = flags.Filename(path.Join(cur, string(c.ScriptLate)))
 		}

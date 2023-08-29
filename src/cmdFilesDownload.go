@@ -109,7 +109,7 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 	if c.ParallelThreads == 1 || len(nodes) == 1 {
 		for _, node := range nodes {
 			if len(nodes) > 1 {
-				dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
+				dst = path.Join(string(c.Files.Destination), strconv.Itoa(node))
 				os.MkdirAll(dst, 0755)
 			}
 			err = c.get(node, dst, verbose, legacy)
@@ -124,7 +124,7 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 		for _, node := range nodes {
 			parallel <- 1
 			wait.Add(1)
-			dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
+			dst = path.Join(string(c.Files.Destination), strconv.Itoa(node))
 			os.MkdirAll(dst, 0755)
 			go c.getParallel(node, dst, verbose, legacy, parallel, wait, hasError)
 		}
