@@ -158,6 +158,7 @@ func fixAerospikeConfig(conf string, mgroup string, mesh string, mesh_ip_list []
 	return newconf, nil
 }
 
+// returns -1 if v1 is newer, or 1 if v2 is newer
 func VersionCheck(v1 string, v2 string) int {
 	if v1 == v2 {
 		return 0
