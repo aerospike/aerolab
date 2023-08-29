@@ -89,6 +89,7 @@ var a = &aerolab{
 }
 
 func main() {
+	go a.isLatestVersion()
 	a.main(os.Args[0], os.Args[1:])
 }
 
