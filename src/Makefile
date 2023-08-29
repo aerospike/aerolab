@@ -124,6 +124,8 @@ clean:
 	rm -f aerolab-linux-arm64
 	rm -f aerolab-macos-amd64
 	rm -f aerolab-macos-arm64
+	rm -f aerolab-windows-amd64.exe
+	rm -f aerolab-windows-arm64.exe
 	rm -f embed_*.txt
 	rm -f myFunction.zip
 	rm -f gcpMod.txt
