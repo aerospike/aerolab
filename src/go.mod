@@ -9,6 +9,7 @@ require (
 	github.com/aerospike/aerospike-client-go/v6 v6.14.0
 	github.com/aws/aws-sdk-go v1.44.333
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
+	github.com/containerd/console v1.0.3
 	github.com/google/uuid v1.3.1
 	github.com/jroimartin/gocui v0.5.0
 	github.com/olekukonko/tablewriter v0.0.5
@@ -29,7 +30,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.2.5 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
+	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
