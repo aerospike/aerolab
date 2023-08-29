@@ -26,7 +26,7 @@ type filesDownloadCmd struct {
 	Aws         filesDownloadCmdAws `no-flag:"true"`
 	Gcp         filesDownloadCmdAws `no-flag:"true"`
 	Files       filesRestCmd        `positional-args:"true"`
-	parallelThreads
+	parallelThreadsCmd
 	doLegacy bool // set to do legacy if non-legacy fails
 }
 

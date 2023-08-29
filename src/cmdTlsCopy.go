@@ -20,7 +20,7 @@ type tlsCopyCmd struct {
 	DestinationNodeList    TypeNodes       `short:"a" long:"destination-nodes" description:"List of destination nodes to copy the TLS certs to, comma separated. Empty=ALL." default:""`
 	IsDestinationClient    bool            `short:"C" long:"destination-client" description:"set to indicate the destination cluster is a client group"`
 	TlsName                string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
-	parallelThreads
+	parallelThreadsLongCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

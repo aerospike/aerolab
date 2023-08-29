@@ -20,7 +20,7 @@ type filesSyncCmd struct {
 	DestNodes         TypeNodes       `short:"o" long:"dest-nodes" description:"Destination nodes, comma separated; empty = all except source node" default:""`
 	IsClientD         bool            `short:"C" long:"dest-client" description:"set this to indicate destination is client group"`
 	Path              string          `short:"p" long:"path" description:"Path to sync"`
-	parallelThreads
+	parallelThreadsCmd
 }
 
 func (c *filesSyncCmd) Execute(args []string) error {

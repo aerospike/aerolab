@@ -17,8 +17,8 @@ type clusterPartitionCreateCmd struct {
 	FilterType   string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
 	Partitions   string          `short:"p" long:"partitions" description:"partitions to create, size is in %% of total disk space; ex: 25,25,25,25; default: just remove all partitions"`
 	NoBlkdiscard bool            `short:"b" long:"no-blkdiscard" description:"set to prevent aerolab from running blkdiscard on the disks and partitions"`
-	parallelThreads
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Help         helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	parallelThreadsLongCmd
 }
 
 type partition struct {

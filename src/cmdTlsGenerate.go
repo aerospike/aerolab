@@ -24,7 +24,7 @@ type tlsGenerateCmd struct {
 	NoUpload    bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
 	NoMesh      bool            `short:"m" long:"no-mesh" description:"If set, will not configure mesh-seed-address-port to use TLS"`
 	ChDir       string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
-	parallelThreads
+	parallelThreadsLongCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

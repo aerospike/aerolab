@@ -18,7 +18,7 @@ import (
 type clientStartCmd struct {
 	ClientName TypeClientName `short:"n" long:"group-name" description:"Client names, comma separated OR 'all' to affect all clusters" default:"client"`
 	Machines   TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
-	parallelThreads
+	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	clientStartStopDestroyCmd
 }

@@ -15,7 +15,7 @@ type clientConfigureToolsCmd struct {
 	ClientName TypeClientName  `short:"n" long:"group-name" description:"Client group name" default:"client"`
 	Machines   TypeMachines    `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
 	ConnectAMS TypeClusterName `short:"m" long:"ams" default:"ams" description:"AMS client machine name"`
-	parallelThreads
+	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
