@@ -3,6 +3,7 @@
 * Test and release for Windows platform.
 * Upgrade - check if new version is available in the background, if so, inform user and point at the releases page.
 * Telemetry - if telemetry is enabled, tag instances with telemetry tag so that the expiry system can report it.
+* GCP backend: automatically attempt to enable cloud billing API for pricing lookups.
 * TODO: Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
 
 #### 7.0.1

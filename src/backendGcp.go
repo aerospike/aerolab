@@ -361,6 +361,16 @@ func (d *backendGcp) EnableServices() error {
 	return nil
 }
 
+func (d *backendGcp) getInstancePricePerHourEnableService(zone string) (map[string]*gcpInstancePricing, error) {
+	log.Println("WARN: pricing API is not enabled, attempting to enable")
+	out, err := exec.Command("gcloud", "services", "enable", "--project", a.opts.Config.Backend.Project, "cloudbilling.googleapis.com").CombinedOutput()
+	if err != nil {
+		return make(map[string]*gcpInstancePricing), fmt.Errorf("WARN: failed to enable cloud-billing API: %s, %s", err, string(out))
+	}
+	log.Println("Pricing API enabled, continuing")
+	return d.getInstancePricesPerHour(zone)
+}
+
 // map[instanceTypePrefix]gcpInstancePricing
 func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInstancePricing, error) {
 	zoneTest := strings.Split(zone, "-")
@@ -371,7 +381,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 	ctx := context.Background()
 	svc, err := cloudbilling.NewService(ctx)
 	if err != nil {
-		return prices, err
+		if strings.Contains(err.Error(), "accessNotConfigured") {
+			return d.getInstancePricePerHourEnableService(zone)
+		} else {
+			return prices, err
+		}
 	}
 	srv := cloudbilling.NewServicesSkusService(svc)
 	call := srv.List("services/6F81-5844-456A").CurrencyCode("USD")
@@ -568,7 +582,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 		return nil
 	})
 	if err != nil {
-		return prices, err
+		if strings.Contains(err.Error(), "accessNotConfigured") {
+			return d.getInstancePricePerHourEnableService(zone)
+		} else {
+			return prices, err
+		}
 	}
 	return prices, nil
 }
