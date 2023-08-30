@@ -36,14 +36,30 @@ jobs:
               run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target /
             - name: "Git checkout"
               uses: actions/checkout@v3
-            - name: "Compile and create linux packages"
+            - name: "Compile"
               env:
                   ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
                 buildcmd="build-prerelease"
                 [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
                 export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
-                cd ~/work/aerolab/aerolab/src && make cleanall && make ${buildcmd} && make pkg-linux
+                cd ~/work/aerolab/aerolab/src && make cleanall && make ${buildcmd}
+            - name: "Create linux packages"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                buildcmd="build-prerelease"
+                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
+                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
+                cd ~/work/aerolab/aerolab/src && make pkg-linux
+            - name: "Create windows zips"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                buildcmd="build-prerelease"
+                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
+                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
+                cd ~/work/aerolab/aerolab/src && make pkg-windows-zip
             - name: "Print aerolab version"
               run: cd ~/work/aerolab/aerolab/src && ../bin/aerolab-macos-amd64 version
             - name: "Prepare keychain for signing MacOS"
