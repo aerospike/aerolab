@@ -89,6 +89,9 @@ var a = &aerolab{
 }
 
 func main() {
+	if installSelf() {
+		return
+	}
 	go a.isLatestVersion()
 	a.main(os.Args[0], os.Args[1:])
 }
@@ -204,9 +207,9 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	telemetryNoSaveMutex.Lock()
 	expiryTelemetryLock.Lock()
 	log.SetOutput(&tStderr{})
-	go telemetry()
+	go a.telemetry()
 	/*
-		err = telemetry()
+		err = a.telemetry()
 		if err != nil {
 			log.Printf("TELEMETRY:%s", err)
 		} else {
@@ -240,7 +243,7 @@ func (t *tStderr) Write(b []byte) (int, error) {
 	return os.Stderr.Write(b)
 }
 
-func telemetry() error {
+func (a *aerolab) telemetry() error {
 	defer expiryTelemetryLock.Unlock()
 	defer telemetryNoSaveMutex.Unlock()
 	// basic checks
@@ -294,14 +297,14 @@ func telemetry() error {
 	}
 
 	// resolve telemetry directory
-	home, err := os.UserHomeDir()
+	home, err := a.aerolabRootDir()
 	if err != nil {
 		return err
 	}
-	telemetryDir = path.Join(home, ".aerolab", "telemetry")
+	telemetryDir = path.Join(home, "telemetry")
 
 	// check if telemetry is disabled
-	if _, err := os.Stat(path.Join(home, ".aerolab", "telemetry", "disable")); err == nil {
+	if _, err := os.Stat(path.Join(telemetryDir, "disable")); err == nil {
 		return err
 	}
 
@@ -539,22 +542,12 @@ func (a *aerolab) configFileName() (cfgFile string, optional bool, err error) {
 	if cfgFile == "" {
 		optional = true
 		var home string
-		home, err = os.UserHomeDir()
+		home, err = a.aerolabRootDir()
 		if err != nil {
 			return
 		}
-		cfgFile = path.Join(home, ".aerolab", "conf")
+		cfgFile = path.Join(home, "conf")
 	}
-	return
-}
-
-func (a *aerolab) aerolabRootDir() (dirPath string, err error) {
-	var home string
-	home, err = os.UserHomeDir()
-	if err != nil {
-		return
-	}
-	dirPath = path.Join(home, ".aerolab")
 	return
 }
 
@@ -564,7 +557,11 @@ func (a *aerolab) createDefaults() {
 		log.Printf("WARN could not determine user's home directory: %s", err)
 		return
 	}
-	ahome := path.Join(home, ".aerolab")
+	ahome, err := a.aerolabRootDir()
+	if err != nil {
+		log.Printf("WARN could not determine user's home directory: %s", err)
+		return
+	}
 	if _, err := os.Stat(ahome); err != nil {
 		err = os.MkdirAll(ahome, 0755)
 		if err != nil {

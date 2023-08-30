@@ -30,4 +30,6 @@ Alternatively, manual installation can be performed by downloading the relevant 
 
 #### Install - Windows users
 
-Download the zip file, unpack it to a directory (for example `c:\apps\aerolab.exe`) and make an alias in Powershell with `New-Alias -Name aerolab -Value c:\apps\aerolab.exe`.
+Download the zip file, unpack it and run it from `Explorer` by double-clicking on it. AeroLab will install itself and become available in `PowerShell` as the `aerolab` command. You may need to close and reopen PowerShell for the changes to take effect.
+
+Alternative, the binary itself may be called straight from `PowerShell` without first installing.
