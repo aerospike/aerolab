@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 
@@ -52,7 +50,8 @@ func (c *clientCreateRestGatewayCmd) Execute(args []string) error {
 		if c.Docker.NoAutoExpose {
 			fmt.Println("Docker backend is in use, but rest-gateway access port is not being forwarded. If using Docker Desktop, use '-e 8081:8081' parameter in order to forward port 8081. This can only be done for one elasticsearch node. Press ENTER to continue regardless.")
 			if !c.JustDoIt {
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			}
 		} else {
 			c.Docker.ExposePortsToHost = strings.Trim("8081:8081,"+c.Docker.ExposePortsToHost, ",")

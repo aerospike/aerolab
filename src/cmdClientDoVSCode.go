@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -35,7 +34,8 @@ func (c *clientCreateVSCodeCmd) Execute(args []string) error {
 		if c.Docker.NoAutoExpose {
 			fmt.Println("Docker backend is in use, but vscode access port is not being forwarded. If using Docker Desktop, use '-e 8080:8080' parameter in order to forward port 8080. Press ENTER to continue regardless.")
 			if !c.JustDoIt {
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			}
 		} else {
 			c.Docker.ExposePortsToHost = strings.Trim("8080:8080,"+c.Docker.ExposePortsToHost, ",")

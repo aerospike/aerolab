@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -61,7 +60,8 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 		if c.Docker.NoAutoExpose {
 			fmt.Println("Docker backend is in use, but AMS access port is not being forwarded. If using Docker Desktop, use '-e 3000:3000' parameter in order to forward port 3000 for grafana. This can only be done for one system. Press ENTER to continue regardless.")
 			if !c.JustDoIt {
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			}
 		} else {
 			c.Docker.ExposePortsToHost = strings.Trim("3000:3000,"+c.Docker.ExposePortsToHost, ",")

@@ -470,14 +470,16 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if !isCommunity {
 		if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
 			log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-			bufio.NewReader(os.Stdin).ReadBytes('\n')
+			var ignoreMe string
+			fmt.Scanln(&ignoreMe)
 		}
 		if string(featuresFilePath) == "" && ((aver_major == 6 && aver_minor > 0) || aver_major > 6) {
 			if c.NodeCount == 1 {
 				log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
 			} else {
 				log.Print("WARNING: you are attempting to install more than 1 node and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			}
 		}
 		if featuresFilePath != "" {
@@ -607,13 +609,15 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			}
 			if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
 				log.Print("WARNING: you are attempting to install version 4.6-6.0 and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			} else if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
 				if c.NodeCount == 1 {
 					log.Print("WARNING: FeaturesFilePath does not contain a valid feature file. Using embedded features files.")
 				} else {
 					log.Print("WARNING: you are attempting to install more than 1 node and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-					bufio.NewReader(os.Stdin).ReadBytes('\n')
+					var ignoreMe string
+					fmt.Scanln(&ignoreMe)
 				}
 			} else if (aver_major == 4 && aver_minor > 5) || aver_major > 4 {
 				log.Printf("Features file: %s", featuresFilePath)
