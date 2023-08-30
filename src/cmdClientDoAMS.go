@@ -266,6 +266,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		return err
 	}
 
+	defer backendRestoreTerminal()
 	// install:prometheus
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "apt-get update && apt-get -y install prometheus"})
 	if err != nil {
@@ -560,6 +561,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			return err
 		}
 	}
+	backendRestoreTerminal()
 	log.Printf("Username:Password is admin:admin")
 	log.Print("Done")
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")

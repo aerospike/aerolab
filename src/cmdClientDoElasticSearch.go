@@ -129,6 +129,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 		}
 		nodes = append(nodes, nodeInt)
 	}
+	defer backendRestoreTerminal()
 	for _, node := range nodes {
 		if node == masterNode {
 			continue
@@ -164,6 +165,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 			return err
 		}
 	}
+	backendRestoreTerminal()
 	fmt.Print(`
 ES username/password is: elastic/elastic
 

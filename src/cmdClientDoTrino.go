@@ -96,10 +96,12 @@ func (c *clientAddTrinoCmd) addTrino(args []string) error {
 	}
 	a.opts.Attach.Client.Machine = c.Machines
 	nargs := []string{"/bin/bash", "/install.sh", "-t", c.TrinoVersion, "-h", c.ConnectCluster, "-a", c.ConnectorVersion}
+	defer backendRestoreTerminal()
 	err = a.opts.Attach.Client.run(nargs)
 	if err != nil {
 		return err
 	}
+	backendRestoreTerminal()
 	log.Print("Done")
 	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 7.2 and the current client creation methods will be removed in AeroLab 8.0")
 	return nil
