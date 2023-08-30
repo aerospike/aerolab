@@ -3,11 +3,33 @@ package main
 import (
 	"io"
 	"os"
+	"sync"
 
 	"github.com/containerd/console"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
+
+var restoreTerminalLock = new(sync.Mutex)
+var restoreTerminalState *console.Console
+
+func init() {
+	addShutdownHandler("restore-terminal", backendRestoreHandler)
+}
+
+func backendRestoreHandler(o os.Signal) {
+	backendRestoreTerminal()
+}
+
+func backendRestoreTerminal() {
+	restoreTerminalLock.Lock()
+	defer restoreTerminalLock.Unlock()
+	if restoreTerminalState != nil {
+		st := *restoreTerminalState
+		st.Reset()
+		restoreTerminalState = nil
+	}
+}
 
 func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	ssh_client.session.Stdin = stdin
@@ -38,13 +60,20 @@ func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Write
 			return err
 		}
 	}
-	current := console.Current()
-	defer current.Reset()
+	restoreTerminalLock.Lock()
+	if restoreTerminalState == nil {
+		current := console.Current()
+		defer current.Reset()
 
-	if err := current.SetRaw(); err != nil {
+		if err := current.SetRaw(); err != nil {
+		}
+		ws, err := current.Size()
+		if err != nil {
+		}
+		current.Resize(ws)
+		restoreTerminalState = &current
 	}
-	ws, err := current.Size()
-	current.Resize(ws)
+	restoreTerminalLock.Unlock()
 	err = ssh_client.session.Run(cmd)
 	return err
 }

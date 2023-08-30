@@ -201,6 +201,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 	}
 	a.opts.Attach.Client.ClientName = c.ClientName
 	a.opts.Attach.Client.Machine = c.Machines
+	defer backendRestoreTerminal()
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/install-gw.sh"})
 	if err != nil {
 		return err
@@ -210,6 +211,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to restart rest gateway: %s", err)
 	}
+	backendRestoreTerminal()
 	log.Print("Done")
 	log.Print("Documentation can be found at: https://aerospike.github.io/aerospike-rest-gateway/")
 	log.Print("Rest gateway logs are on the nodes in /var/log/, use 'client attach' command to explore the logs; connect with browser or curl to get the data")

@@ -135,11 +135,13 @@ func (c *clientConfigureToolsCmd) Execute(args []string) error {
 	}
 
 	// (re)start promtail
+	defer backendRestoreTerminal()
 	a.opts.Attach.Client.Detach = true
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/autoload/10-promtail"})
 	if err != nil {
 		return fmt.Errorf("failed to restart promtail: %s", err)
 	}
+	backendRestoreTerminal()
 	log.Print("Done")
 	return nil
 }

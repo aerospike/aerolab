@@ -157,6 +157,7 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 		return err
 	}
 	nargs := append([]string{"/bin/bash", "/install.sh"}, switches...)
+	defer backendRestoreTerminal()
 	err = a.opts.Attach.Client.run(nargs)
 	if err != nil {
 		return err
@@ -174,6 +175,7 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 	if err != nil {
 		return err
 	}
+	backendRestoreTerminal()
 	log.Print("Done")
 	log.Print("Execute `aerolab inventory list` to get access URL.")
 	if a.opts.Config.Backend.Type == "aws" {

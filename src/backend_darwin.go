@@ -3,10 +3,31 @@ package main
 import (
 	"io"
 	"os"
+	"sync"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
+
+var restoreTerminalLock = new(sync.Mutex)
+var restoreTerminalState *term.State
+
+func init() {
+	addShutdownHandler("restore-terminal", backendRestoreHandler)
+}
+
+func backendRestoreHandler(o os.Signal) {
+	backendRestoreTerminal()
+}
+
+func backendRestoreTerminal() {
+	restoreTerminalLock.Lock()
+	defer restoreTerminalLock.Unlock()
+	if restoreTerminalState != nil {
+		term.Restore(int(os.Stdout.Fd()), restoreTerminalState)
+		restoreTerminalState = nil
+	}
+}
 
 func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	ssh_client.session.Stdin = stdin
@@ -20,11 +41,15 @@ func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Write
 		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 	}
 	if term.IsTerminal(fileDescriptor) {
-		originalState, err := term.MakeRaw(fileDescriptor)
-		if err != nil {
-			return err
+		restoreTerminalLock.Lock()
+		if restoreTerminalState == nil {
+			originalState, err := term.MakeRaw(fileDescriptor)
+			if err != nil {
+				return err
+			}
+			restoreTerminalState = originalState
 		}
-		defer func() { _ = term.Restore(fileDescriptor, originalState) }()
+		restoreTerminalLock.Unlock()
 
 		termWidth, termHeight, err := term.GetSize(fileDescriptor)
 		if err != nil {

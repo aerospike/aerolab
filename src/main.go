@@ -108,6 +108,7 @@ To specify a custom configuration file, set the environment variable:
 `
 
 func (a *aerolab) main(name string, args []string) {
+	defer backendRestoreTerminal()
 	a.createDefaults()
 	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
 
