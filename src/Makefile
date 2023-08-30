@@ -297,7 +297,7 @@ official: prep
 
 .PHONY: prerelease
 prerelease: prep
-	printf "-prerelease" > embed_tail.txt
+	printf -- "-prerelease" > embed_tail.txt
 
 .PHONY: build-official
 build-official: official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 compile_darwin compile_windows reset2
