@@ -69,7 +69,7 @@ func Init(config *Config) (*Ingest, error) {
 		patterns: p,
 		progress: new(progress),
 	}
-	err = i.DBConnect()
+	err = i.dbConnect()
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to the database: %s", err)
 	}

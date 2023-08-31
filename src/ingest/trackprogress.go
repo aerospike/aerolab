@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"log"
 	"os"
@@ -41,12 +42,31 @@ func (i *Ingest) saveProgress() error {
 	if !i.progress.changed {
 		return nil
 	}
-	f, err := os.OpenFile(i.config.ProgressFile.OutputFilePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	err := i.saveProgressDo()
+	if err != nil {
+		return err
+	}
+	return os.Rename(i.config.ProgressFile.OutputFilePath+".tmp", i.config.ProgressFile.OutputFilePath)
+}
+func (i *Ingest) saveProgressDo() error {
+	f, err := os.OpenFile(i.config.ProgressFile.OutputFilePath+".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	return json.NewEncoder(f).Encode(i.progress)
+	var enc *json.Encoder
+	if i.config.ProgressFile.Compress {
+		fgz := gzip.NewWriter(f)
+		enc = json.NewEncoder(fgz)
+	} else {
+		enc = json.NewEncoder(f)
+	}
+	err = enc.Encode(i.progress)
+	if err != nil {
+		return err
+	}
+	i.progress.changed = false
+	return nil
 }
 
 func (i *Ingest) printProgressInterval() {
