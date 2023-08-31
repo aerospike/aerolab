@@ -69,6 +69,7 @@ type Config struct {
 		DisableWrite   bool          `yaml:"disableWrite" default:"false"`
 		OutputFilePath string        `yaml:"outputFilePath" default:"ingest/progress.json"`
 		WriteInterval  time.Duration `yaml:"writeInterval" default:"10s"`
+		Compress       bool          `yaml:"compress" default:"true"`
 	} `yaml:"progressFile"`
 	ProgressPrint struct {
 		Enable               bool          `yaml:"enable" default:"true"`

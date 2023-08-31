@@ -12,7 +12,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v6"
 )
 
-func (i *Ingest) DBConnect() error {
+func (i *Ingest) dbConnect() error {
 	connectPolicy := aerospike.NewClientPolicy()
 	connectPolicy.FailIfNotConnected = true
 	connectPolicy.IdleTimeout = i.config.Aerospike.Timeouts.Idle
