@@ -4,8 +4,8 @@
 * Upgrade - check if new version is available in the background, if so, inform user and point at the releases page.
 * Telemetry - if telemetry is enabled, tag instances with telemetry tag so that the expiry system can report it.
 * GCP backend: automatically attempt to enable cloud billing API for pricing lookups.
-* Fix shell recovery after parallel attachment
-* TODO: Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
+* Fix shell recovery after parallel attachment.
+* Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
 
 #### 7.0.1
 * GitHub broke support for `wget` for source files in old repo releases page by producing `403 Forbidden` on `HEAD` requests; this fix implements a new link.
