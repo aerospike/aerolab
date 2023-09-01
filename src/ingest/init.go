@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-func InitWithConfig(setDefaults bool, configFile string, parseEnv bool) (*Ingest, error) {
+func MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, error) {
 	config := new(Config)
 	if setDefaults {
 		if err := defaults.Set(config); err != nil {
@@ -36,7 +36,7 @@ func InitWithConfig(setDefaults bool, configFile string, parseEnv bool) (*Ingest
 			return nil, fmt.Errorf("could not process environment variables: %s", err)
 		}
 	}
-	return Init(config)
+	return config, nil
 }
 
 func Init(config *Config) (*Ingest, error) {
