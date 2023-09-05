@@ -9,9 +9,12 @@ require (
 	github.com/aerospike/aerospike-client-go/v6 v6.14.0
 	github.com/aws/aws-sdk-go v1.44.333
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
+	github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
 	github.com/containerd/console v1.0.3
+	github.com/creasty/defaults v1.7.0
 	github.com/google/uuid v1.3.1
 	github.com/jroimartin/gocui v0.5.0
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
@@ -21,12 +24,12 @@ require (
 	golang.org/x/term v0.11.0
 	google.golang.org/api v0.138.0
 	google.golang.org/protobuf v1.31.0
+	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	github.com/creasty/defaults v1.7.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/s2a-go v0.1.5 // indirect

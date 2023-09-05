@@ -9,6 +9,7 @@ import (
 
 func setupTest() error {
 	os.Remove("cpu.pprof")
+	os.RemoveAll("ingest")
 	os.Setenv("LOGINGEST_CPUPROFILE_FILE", "cpu.pprof")
 	os.Unsetenv("DOCKER_HOST")
 	out, err := exec.Command("aerolab", "config", "backend", "-t", "docker").CombinedOutput()
@@ -38,6 +39,7 @@ func teardownTest() error {
 	return nil
 }
 
+// TODO: convert this into a Run() function as a wrapper for do-it-all
 func TestAll(t *testing.T) {
 	t.Log("Setting up")
 	if err := setupTest(); err != nil {
@@ -51,6 +53,20 @@ func TestAll(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
+	t.Log("Setting up config")
+	os.Setenv("LOGINGEST_LOGLEVEL", "6")
+	os.Setenv("LOGINGEST_S3SOURCE_REGION", "ca-central-1")
+	//os.Setenv("LOGINGEST_S3SOURCE_BUCKET", "") // set outside
+	//os.Setenv("LOGINGEST_S3SOURCE_KEYID", "") // set outside
+	//os.Setenv("LOGINGEST_S3SOURCE_SECRET", "") // set outside
+	os.Setenv("LOGINGEST_S3SOURCE_PATH", "logs/")
+	os.Setenv("LOGINGEST_S3SOURCE_REGEX", "^1_.*")
+	//os.Setenv("LOGINGEST_SFTPSOURCE_HOST", "") // set outside
+	os.Setenv("LOGINGEST_SFTPSOURCE_PORT", "22")
+	//os.Setenv("LOGINGEST_SFTPSOURCE_USER", "") // set outside
+	//os.Setenv("LOGINGEST_SFTPSOURCE_PASSWORD", "") // set outside
+	os.Setenv("LOGINGEST_SFTPSOURCE_PATH", "09999999/somedir")
+	os.Setenv("LOGINGEST_SFTPSOURCE_REGEX", "[a-z]+.*")
 	t.Log("Creating a config")
 	config, err := MakeConfig(true, "", true)
 	if err != nil {

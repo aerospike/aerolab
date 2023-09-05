@@ -20,6 +20,7 @@ type Ingest struct {
 	wp           *aerospike.WritePolicy
 }
 type Config struct {
+	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
 	Aerospike struct {
 		Host               string `yaml:"host" default:"127.0.0.1"`
 		Port               int    `yaml:"port" default:"3100"`
@@ -67,7 +68,7 @@ type Config struct {
 	} `yaml:"preProcessor"`
 	ProgressFile struct {
 		DisableWrite   bool          `yaml:"disableWrite" default:"false"`
-		OutputFilePath string        `yaml:"outputFilePath" default:"ingest/progress.json"`
+		OutputFilePath string        `yaml:"outputFilePath" default:"ingest/progress.json.gz"`
 		WriteInterval  time.Duration `yaml:"writeInterval" default:"10s"`
 		Compress       bool          `yaml:"compress" default:"true"`
 	} `yaml:"progressFile"`
@@ -93,23 +94,31 @@ type Config struct {
 		OtherFiles  string `yaml:"otherFiles" default:"ingest/files/other"`
 	} `yaml:"directories"`
 	Downloader struct {
-		S3Source struct {
-			BucketName  string `yaml:"bucketName" envconfig:"LOGINGEST_S3SOURCE_BUCKET"`
-			KeyID       string `yaml:"keyID" envconfig:"LOGINGEST_S3SOURCE_KEYID"`
-			SecretKey   string `yaml:"secretKey" envconfig:"LOGINGEST_S3SOURCE_SECRET"`
-			PathPrefix  string `yaml:"pathPrefix" envconfig:"LOGINGEST_S3SOURCE_PATH"`
-			SearchRegex string `yaml:"searchRegex" envconfig:"LOGINGEST_S3SOURCE_REGEX"`
-		} `yaml:"s3Source"`
-		SftpSource struct {
-			Host        string `yaml:"host" envconfig:"LOGINGEST_SFTPSOURCE_HOST"`
-			Port        int    `yaml:"port" envconfig:"LOGINGEST_SFTPSOURCE_PORT"`
-			Username    string `yaml:"username" envconfig:"LOGINGEST_SFTPSOURCE_USER"`
-			Password    string `yaml:"password" envconfig:"LOGINGEST_SFTPSOURCE_PASSWORD"`
-			PathPrefix  string `yaml:"pathPrefix" envconfig:"LOGINGEST_SFTPSOURCE_PATH"`
-			SearchRegex string `yaml:"searchRegex" envconfig:"LOGINGEST_SFTPSOURCE_REGEX"`
-		} `yaml:"sftpSource"`
+		S3Source   *S3Source   `yaml:"s3Source"`
+		SftpSource *SftpSource `yaml:"sftpSource"`
 	} `yaml:"downloader"`
 	CPUProfilingOutputFile string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
+}
+
+type S3Source struct {
+	Region      string `yaml:"region" envconfig:"LOGINGEST_S3SOURCE_REGION"`
+	BucketName  string `yaml:"bucketName" envconfig:"LOGINGEST_S3SOURCE_BUCKET"`
+	KeyID       string `yaml:"keyID" envconfig:"LOGINGEST_S3SOURCE_KEYID"`
+	SecretKey   string `yaml:"secretKey" envconfig:"LOGINGEST_S3SOURCE_SECRET"`
+	PathPrefix  string `yaml:"pathPrefix" envconfig:"LOGINGEST_S3SOURCE_PATH"`
+	SearchRegex string `yaml:"searchRegex" envconfig:"LOGINGEST_S3SOURCE_REGEX"`
+	searchRegex *regexp.Regexp
+}
+
+type SftpSource struct {
+	Host        string `yaml:"host" envconfig:"LOGINGEST_SFTPSOURCE_HOST"`
+	Port        int    `yaml:"port" envconfig:"LOGINGEST_SFTPSOURCE_PORT"`
+	Username    string `yaml:"username" envconfig:"LOGINGEST_SFTPSOURCE_USER"`
+	Password    string `yaml:"password" envconfig:"LOGINGEST_SFTPSOURCE_PASSWORD"`
+	KeyFile     string `yaml:"keyFile" envconfig:"LOGINGEST_SFTPSOURCE_KEYFILE"`
+	PathPrefix  string `yaml:"pathPrefix" envconfig:"LOGINGEST_SFTPSOURCE_PATH"`
+	SearchRegex string `yaml:"searchRegex" envconfig:"LOGINGEST_SFTPSOURCE_REGEX"`
+	searchRegex *regexp.Regexp
 }
 
 //go:embed patterns.yml
@@ -160,11 +169,30 @@ type patterns struct {
 }
 
 type progress struct {
-	sync.Mutex
-	changed              bool
-	Downloader           struct{}
+	sync.RWMutex
+	changed    bool
+	Downloader struct {
+		S3Files map[string]*downloaderS3File // map[key]
+	}
 	Unpacker             struct{}
 	PreProcessor         struct{}
 	LogProcessor         struct{}
 	CollectinfoProcessor struct{}
+}
+
+func (p *progress) LockChange(changed bool) {
+	p.Lock()
+	p.changed = changed
+}
+
+func (p *progress) UnlockChange(changed bool) {
+	p.changed = changed
+	p.Unlock()
+}
+
+type downloaderS3File struct {
+	Size         int64
+	LastModified time.Time
+	IsDownloaded bool
+	Error        string
 }

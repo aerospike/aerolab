@@ -5,11 +5,11 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v6"
+	"github.com/bestmethod/logger"
 )
 
 func (i *Ingest) dbConnect() error {
@@ -58,14 +58,16 @@ func (i *Ingest) dbConnect() error {
 	connectPolicy.ConnectionQueueSize = i.config.Aerospike.MaxPutThreads
 
 	err := errors.New("non-null")
+	nerr := ""
 	retries := 0
 	for err != nil {
 		i.db, err = aerospike.NewClientWithPolicy(connectPolicy, i.config.Aerospike.Host, i.config.Aerospike.Port)
 		if err != nil {
-			log.Printf("Failed to connect: %s", err)
+			logger.Debug("Failed to connect: %s", err)
 			retries++
+			nerr = nerr + "\n" + err.Error()
 			if i.config.Aerospike.Retries.Connect > -1 && retries > i.config.Aerospike.Retries.Connect {
-				return errors.New("failed to connect, aborting")
+				return fmt.Errorf("failed to connect, aborting: %s", nerr)
 			}
 			time.Sleep(i.config.Aerospike.Retries.ConnectSleep)
 		}

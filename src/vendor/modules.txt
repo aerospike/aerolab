@@ -50,6 +50,7 @@ github.com/aerospike/aerospike-client-go/v6/utils/buffer
 # github.com/aws/aws-sdk-go v1.44.333
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
+github.com/aws/aws-sdk-go/aws/arn
 github.com/aws/aws-sdk-go/aws/auth/bearer
 github.com/aws/aws-sdk-go/aws/awserr
 github.com/aws/aws-sdk-go/aws/awsutil
@@ -71,6 +72,9 @@ github.com/aws/aws-sdk-go/aws/session
 github.com/aws/aws-sdk-go/aws/signer/v4
 github.com/aws/aws-sdk-go/internal/context
 github.com/aws/aws-sdk-go/internal/ini
+github.com/aws/aws-sdk-go/internal/s3shared
+github.com/aws/aws-sdk-go/internal/s3shared/arn
+github.com/aws/aws-sdk-go/internal/s3shared/s3err
 github.com/aws/aws-sdk-go/internal/sdkio
 github.com/aws/aws-sdk-go/internal/sdkmath
 github.com/aws/aws-sdk-go/internal/sdkrand
@@ -78,6 +82,7 @@ github.com/aws/aws-sdk-go/internal/sdkuri
 github.com/aws/aws-sdk-go/internal/shareddefaults
 github.com/aws/aws-sdk-go/internal/strings
 github.com/aws/aws-sdk-go/internal/sync/singleflight
+github.com/aws/aws-sdk-go/private/checksum
 github.com/aws/aws-sdk-go/private/protocol
 github.com/aws/aws-sdk-go/private/protocol/ec2query
 github.com/aws/aws-sdk-go/private/protocol/eventstream
@@ -88,11 +93,13 @@ github.com/aws/aws-sdk-go/private/protocol/query
 github.com/aws/aws-sdk-go/private/protocol/query/queryutil
 github.com/aws/aws-sdk-go/private/protocol/rest
 github.com/aws/aws-sdk-go/private/protocol/restjson
+github.com/aws/aws-sdk-go/private/protocol/restxml
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/ec2
 github.com/aws/aws-sdk-go/service/iam
 github.com/aws/aws-sdk-go/service/lambda
 github.com/aws/aws-sdk-go/service/pricing
+github.com/aws/aws-sdk-go/service/s3
 github.com/aws/aws-sdk-go/service/scheduler
 github.com/aws/aws-sdk-go/service/sso
 github.com/aws/aws-sdk-go/service/sso/ssoiface
@@ -102,9 +109,15 @@ github.com/aws/aws-sdk-go/service/sts/stsiface
 # github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 ## explicit
 github.com/bestmethod/inslice
+# github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
+## explicit
+github.com/bestmethod/logger
 # github.com/containerd/console v1.0.3
 ## explicit; go 1.13
 github.com/containerd/console
+# github.com/creasty/defaults v1.7.0
+## explicit; go 1.14
+github.com/creasty/defaults
 # github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 ## explicit
 github.com/golang/groupcache/lru
@@ -159,6 +172,9 @@ github.com/jmespath/go-jmespath
 # github.com/jroimartin/gocui v0.5.0
 ## explicit; go 1.16
 github.com/jroimartin/gocui
+# github.com/kelseyhightower/envconfig v1.4.0
+## explicit
+github.com/kelseyhightower/envconfig
 # github.com/kr/pretty v0.3.0
 ## explicit; go 1.12
 # github.com/mattn/go-runewidth v0.0.15
@@ -386,6 +402,9 @@ google.golang.org/protobuf/types/descriptorpb
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
 google.golang.org/protobuf/types/known/timestamppb
+# gopkg.in/yaml.v2 v2.4.0
+## explicit; go 1.15
+gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
