@@ -3,27 +3,40 @@ package ingest
 import (
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/bestmethod/logger"
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
 )
 
 func (i *Ingest) Download() error {
+	i.progress.Lock()
+	i.progress.Downloader.running = true
+	i.progress.Downloader.wasRunning = true
+	i.progress.Unlock()
+	defer func() {
+		i.progress.Lock()
+		i.progress.Downloader.running = false
+		i.progress.Unlock()
+	}()
 	logger.Debug("Downloader start")
-	if i.config.Downloader.S3Source != nil {
+	if i.config.Downloader.S3Source != nil && i.config.Downloader.S3Source.Enabled {
 		logger.Debug("DOWNLOAD: pulling from S3 source")
 		err := i.DownloadS3()
 		if err != nil {
 			return err
 		}
 	}
-	if i.config.Downloader.SftpSource != nil {
+	if i.config.Downloader.SftpSource != nil && i.config.Downloader.SftpSource.Enabled {
 		logger.Debug("DOWNLOAD: pulling from sftp source")
 		err := i.DownloadAsftp()
 		if err != nil {
@@ -54,11 +67,11 @@ func (i *Ingest) DownloadS3() error {
 	if i.config.Downloader.S3Source.PathPrefix != "" {
 		prefix = aws.String(i.config.Downloader.S3Source.PathPrefix)
 	}
-	fileList := make(map[string]*downloaderS3File)
+	fileList := make(map[string]*downloaderFile)
 	i.progress.RLock()
 	for k, v := range i.progress.Downloader.S3Files {
 		if !v.IsDownloaded {
-			fileList[k] = &downloaderS3File{
+			fileList[k] = &downloaderFile{
 				Size:         v.Size,
 				LastModified: v.LastModified,
 				IsDownloaded: false,
@@ -81,7 +94,7 @@ func (i *Ingest) DownloadS3() error {
 						continue
 					}
 				}
-				fileList[*object.Key] = &downloaderS3File{
+				fileList[*object.Key] = &downloaderFile{
 					Size:         *object.Size,
 					LastModified: *object.LastModified,
 					IsDownloaded: false,
@@ -158,5 +171,180 @@ func (i *Ingest) DownloadS3() error {
 }
 
 func (i *Ingest) DownloadAsftp() error {
-	return nil // TODO
+	client := &SSH{
+		Ip:   fmt.Sprintf("%s:%d", i.config.Downloader.SftpSource.Host, i.config.Downloader.SftpSource.Port),
+		User: i.config.Downloader.SftpSource.Username,
+		Cert: i.config.Downloader.SftpSource.KeyFile,
+		Pass: i.config.Downloader.SftpSource.Password,
+	}
+	mode := 2
+	if i.config.Downloader.SftpSource.Password != "" {
+		mode = 1
+	}
+	err := client.Connect(mode)
+	if err != nil {
+		return fmt.Errorf("sftp failed to connect: %s", err)
+	}
+	defer client.Close()
+	sclient, err := sftp.NewClient(client.client)
+	if err != nil {
+		return fmt.Errorf("sftp failed to establish protocol: %s", err)
+	}
+	defer sclient.Close()
+	fileList := make(map[string]*downloaderFile)
+	var prefix *string
+	if i.config.Downloader.SftpSource.PathPrefix != "" {
+		prefix = &i.config.Downloader.SftpSource.PathPrefix
+	}
+	i.progress.RLock()
+	for k, v := range i.progress.Downloader.SftpFiles {
+		if !v.IsDownloaded {
+			fileList[k] = &downloaderFile{
+				Size:         v.Size,
+				LastModified: v.LastModified,
+				IsDownloaded: false,
+			}
+		}
+	}
+	walker := sclient.Walk(i.config.Downloader.SftpSource.PathPrefix)
+	for walker.Step() {
+		if err = walker.Err(); err != nil {
+			i.progress.RUnlock()
+			return fmt.Errorf("sftp failed to walk directories: %s", err)
+		}
+		wstat := walker.Stat()
+		if wstat.IsDir() {
+			continue
+		}
+		lastModTime := wstat.ModTime()
+		size := wstat.Size()
+		object := walker.Path()
+		if ofile, ok := i.progress.Downloader.SftpFiles[object]; !ok || ofile.Size != size || ofile.LastModified != lastModTime {
+			if i.config.Downloader.SftpSource.searchRegex != nil {
+				regexOn := object
+				if prefix != nil {
+					regexOn = strings.TrimPrefix(strings.TrimPrefix(object, *prefix), "/")
+				}
+				if !i.config.Downloader.SftpSource.searchRegex.MatchString(regexOn) {
+					continue
+				}
+			}
+			fileList[object] = &downloaderFile{
+				Size:         size,
+				LastModified: lastModTime,
+				IsDownloaded: false,
+			}
+		}
+	}
+	i.progress.RUnlock()
+
+	for okey, ofile := range fileList {
+		logger.Detail("sftp to-download: %s (size:%d lastModified:%v)", okey, ofile.Size, ofile.LastModified)
+	}
+
+	logger.Debug("sftp Enumeration complete, saving results")
+	i.progress.LockChange(true)
+	for k, v := range fileList {
+		i.progress.Downloader.SftpFiles[k] = v
+	}
+	i.progress.Unlock()
+
+	logger.Debug("sftp Beginning download")
+	for f := range fileList {
+		if err := sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource")); err != nil {
+			logger.Warn("%s (%s)", err, f)
+			i.progress.LockChange(true)
+			i.progress.Downloader.SftpFiles[f].Error = err.Error()
+			i.progress.Unlock()
+		} else {
+			i.progress.LockChange(true)
+			i.progress.Downloader.SftpFiles[f].IsDownloaded = true
+			i.progress.Unlock()
+		}
+	}
+
+	logger.Debug("SftpSource Download Complete")
+	return nil
+}
+
+func sftpDownload(sclient *sftp.Client, f string, dstDir string) error {
+	src, err := sclient.Open(f)
+	if err != nil {
+		return fmt.Errorf("sftp could not open remote file: %s", err)
+	}
+	defer src.Close()
+	fd, _ := path.Split(f)
+	err = os.MkdirAll(path.Join(dstDir, fd), 0755)
+	if err != nil {
+		return fmt.Errorf("sftp failed to create directory: %s", err)
+	}
+	dst, err := os.Create(path.Join(dstDir, f))
+	if err != nil {
+		return fmt.Errorf("sftp Failed to create file: %s", err)
+	}
+	defer dst.Close()
+	_, err = io.Copy(dst, src)
+	if err != nil {
+		return fmt.Errorf("sftp failed to download file: %s", err)
+	}
+	return nil
+}
+
+type SSH struct {
+	Ip     string
+	User   string
+	Cert   string // key file path
+	Pass   string // password
+	client *ssh.Client
+}
+
+func (ssh_client *SSH) readPublicKeyFile(file string) (ssh.AuthMethod, error) {
+	buffer, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := ssh.ParsePrivateKey(buffer)
+	if err != nil {
+		return nil, err
+	}
+	return ssh.PublicKeys(key), nil
+}
+
+func (ssh_client *SSH) Connect(mode int) error {
+
+	var ssh_config *ssh.ClientConfig
+	var auth []ssh.AuthMethod
+	if mode == 1 {
+		auth = []ssh.AuthMethod{ssh.Password(ssh_client.Pass)}
+	} else if mode == 2 {
+		key, err := ssh_client.readPublicKeyFile(ssh_client.Cert)
+		if err != nil {
+			return err
+		}
+		auth = []ssh.AuthMethod{key}
+	} else {
+		return fmt.Errorf("mode not supported: %d", mode)
+	}
+
+	ssh_config = &ssh.ClientConfig{
+		User: ssh_client.User,
+		Auth: auth,
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		},
+		Timeout: time.Second * 5,
+	}
+
+	client, err := ssh.Dial("tcp", ssh_client.Ip, ssh_config)
+	if err != nil {
+		return err
+	}
+
+	ssh_client.client = client
+	return nil
+}
+
+func (ssh_client *SSH) Close() {
+	ssh_client.client.Close()
 }

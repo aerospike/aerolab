@@ -101,6 +101,7 @@ type Config struct {
 }
 
 type S3Source struct {
+	Enabled     bool   `yaml:"enabled" envconfig:"LOGINGEST_S3SOURCE_ENABLED"`
 	Region      string `yaml:"region" envconfig:"LOGINGEST_S3SOURCE_REGION"`
 	BucketName  string `yaml:"bucketName" envconfig:"LOGINGEST_S3SOURCE_BUCKET"`
 	KeyID       string `yaml:"keyID" envconfig:"LOGINGEST_S3SOURCE_KEYID"`
@@ -111,6 +112,7 @@ type S3Source struct {
 }
 
 type SftpSource struct {
+	Enabled     bool   `yaml:"enabled" envconfig:"LOGINGEST_SFTPSOURCE_ENABLED"`
 	Host        string `yaml:"host" envconfig:"LOGINGEST_SFTPSOURCE_HOST"`
 	Port        int    `yaml:"port" envconfig:"LOGINGEST_SFTPSOURCE_PORT"`
 	Username    string `yaml:"username" envconfig:"LOGINGEST_SFTPSOURCE_USER"`
@@ -172,7 +174,10 @@ type progress struct {
 	sync.RWMutex
 	changed    bool
 	Downloader struct {
-		S3Files map[string]*downloaderS3File // map[key]
+		S3Files    map[string]*downloaderFile // map[key]
+		SftpFiles  map[string]*downloaderFile
+		running    bool
+		wasRunning bool
 	}
 	Unpacker             struct{}
 	PreProcessor         struct{}
@@ -190,7 +195,7 @@ func (p *progress) UnlockChange(changed bool) {
 	p.Unlock()
 }
 
-type downloaderS3File struct {
+type downloaderFile struct {
 	Size         int64
 	LastModified time.Time
 	IsDownloaded bool

@@ -3,6 +3,7 @@ package ingest
 import (
 	"compress/gzip"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"time"
@@ -11,7 +12,8 @@ import (
 )
 
 func (i *Ingest) loadProgress() error {
-	i.progress.Downloader.S3Files = make(map[string]*downloaderS3File)
+	i.progress.Downloader.S3Files = make(map[string]*downloaderFile)
+	i.progress.Downloader.SftpFiles = make(map[string]*downloaderFile)
 	dir, _ := path.Split(i.config.ProgressFile.OutputFilePath)
 	os.MkdirAll(dir, 0755)
 	if _, err := os.Stat(i.config.ProgressFile.OutputFilePath); os.IsNotExist(err) {
@@ -104,9 +106,76 @@ func (i *Ingest) printProgressInterval() {
 
 func (i *Ingest) printProgress() error {
 	i.progress.RLock()
-	defer i.progress.RUnlock()
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	return enc.Encode(i.progress)
-	// TODO: make it pretty
+	if i.progress.Downloader.wasRunning {
+		s3total := 0
+		s3done := 0
+		sftptotal := 0
+		sftpdone := 0
+		s3sizeTotal := int64(0)
+		s3sizeDown := int64(0)
+		sftpSizeTotal := int64(0)
+		sftpSizeDown := int64(0)
+		for k, o := range i.progress.Downloader.S3Files {
+			s3total++
+			s3sizeTotal += o.Size
+			downloadedSize := o.Size
+			if o.IsDownloaded {
+				s3done++
+				s3sizeDown += o.Size
+			} else {
+				fs, err := os.Stat(path.Join(i.config.Directories.DirtyTmp, "s3source", k))
+				if err == nil {
+					s3sizeDown += fs.Size()
+					downloadedSize = fs.Size()
+				} else {
+					downloadedSize = 0
+				}
+			}
+			if i.config.ProgressPrint.PrintDetailProgress {
+				logger.Info("downloader detail source:s3 file:%s size:%s downloadedSize=%s modified:%v isDownloaded:%t error:'%s'", k, convSize(o.Size), convSize(downloadedSize), o.LastModified, o.IsDownloaded, o.Error)
+			}
+		}
+		for k, o := range i.progress.Downloader.SftpFiles {
+			sftptotal++
+			sftpSizeTotal += o.Size
+			downloadedSize := o.Size
+			if o.IsDownloaded {
+				sftpdone++
+				sftpSizeDown += o.Size
+			} else {
+				fs, err := os.Stat(path.Join(i.config.Directories.DirtyTmp, "sftpsource", k))
+				if err == nil {
+					sftpSizeDown += fs.Size()
+					downloadedSize = fs.Size()
+				} else {
+					downloadedSize = 0
+				}
+			}
+			if i.config.ProgressPrint.PrintDetailProgress {
+				logger.Info("downloader detail source:sftp file:%s size:%s downloadedSize:%s modified:%v isDownloaded:%t error:'%s'", k, convSize(o.Size), convSize(downloadedSize), o.LastModified, o.IsDownloaded, o.Error)
+			}
+		}
+		if i.config.ProgressPrint.PrintOverallProgress {
+			logger.Info("downloader progress source:s3   totalFiles:%d downloadedFiles:%d totalSize:%s downloadedSize:%s", s3total, s3done, convSize(s3sizeTotal), convSize(s3sizeDown))
+			logger.Info("downloader progress source:sftp totalFiles:%d downloadedFiles:%d totalSize:%s downloadedSize:%s", sftptotal, sftpdone, convSize(sftpSizeTotal), convSize(sftpSizeDown))
+		}
+		i.progress.Downloader.wasRunning = i.progress.Downloader.running
+	}
+	// TODO: progress of other steps
+	i.progress.RUnlock()
+	return nil
+}
+
+func convSize(size int64) string {
+	var sizeString string
+	if size > 1023 && size < 1024*1024 {
+		sizeString = fmt.Sprintf("%.2f KiB", float64(size)/1024)
+	} else if size < 1024 {
+		sizeString = fmt.Sprintf("%v B", size)
+	} else if size >= 1024*1024 && size < 1024*1024*1024 {
+		sizeString = fmt.Sprintf("%.2f MiB", float64(size)/1024/1024)
+	} else if size >= 1024*1024*1024 {
+		sizeString = fmt.Sprintf("%.2f GiB", float64(size)/1024/1024/1024)
+	}
+	return sizeString
 }
