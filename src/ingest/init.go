@@ -45,6 +45,10 @@ func Init(config *Config) (*Ingest, error) {
 		return nil, errors.New("config is required")
 	}
 	logger.SetLogLevel(config.LogLevel)
+	if config.LogLevel >= 5 {
+		logger.Debug("==== CONFIG ====")
+		yaml.NewEncoder(os.Stdout).Encode(config)
+	}
 	p := new(patterns)
 	if config.PatternsFile == "" {
 		logger.Debug("INIT: Loading embedded patterns")
