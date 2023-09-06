@@ -77,6 +77,7 @@ func (i *Ingest) Unpack() error {
 	i.progress.Lock()
 	i.progress.Unpacker.running = true
 	i.progress.Unpacker.wasRunning = true
+	i.progress.Unpacker.Finished = false
 	i.progress.Unlock()
 	defer func() {
 		i.progress.Lock()
@@ -141,8 +142,10 @@ func (i *Ingest) Unpack() error {
 			files[fn].Errors = []string{errs}
 		}
 	}
-	i.progress.LockChange(true)
+	i.progress.Lock()
+	i.progress.Unpacker.changed = true
 	i.progress.Unpacker.Files = files
+	i.progress.Unpacker.Finished = true
 	i.progress.Unlock()
 	logger.Debug("Unpack finished")
 	return nil

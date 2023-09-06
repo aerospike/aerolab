@@ -69,7 +69,7 @@ type Config struct {
 	} `yaml:"preProcessor"`
 	ProgressFile struct {
 		DisableWrite   bool          `yaml:"disableWrite" default:"false"`
-		OutputFilePath string        `yaml:"outputFilePath" default:"ingest/progress.json.gz"`
+		OutputFilePath string        `yaml:"outputFilePath" default:"ingest/progress/"`
 		WriteInterval  time.Duration `yaml:"writeInterval" default:"10s"`
 		Compress       bool          `yaml:"compress" default:"true"`
 	} `yaml:"progressFile"`
@@ -176,31 +176,40 @@ type patterns struct {
 
 type progress struct {
 	sync.RWMutex
+	Downloader           *progressDownloader
+	Unpacker             *progressUnpacker
+	PreProcessor         *progressPreProcessor
+	LogProcessor         *progressLogProcessor
+	CollectinfoProcessor *progressCollectProcessor
+}
+
+type progressDownloader struct {
+	S3Files    map[string]*downloaderFile // map[key]*details
+	SftpFiles  map[string]*downloaderFile // map[path]*details
+	Finished   bool
+	running    bool
+	wasRunning bool
 	changed    bool
-	Downloader struct {
-		S3Files    map[string]*downloaderFile // map[key]*details
-		SftpFiles  map[string]*downloaderFile // map[path]*details
-		running    bool
-		wasRunning bool
-	}
-	Unpacker struct {
-		Files      map[string]*enumFile // map[path]*details
-		running    bool
-		wasRunning bool
-	}
-	PreProcessor         struct{}
-	LogProcessor         struct{}
-	CollectinfoProcessor struct{}
 }
 
-func (p *progress) LockChange(changed bool) {
-	p.Lock()
-	p.changed = changed
+type progressUnpacker struct {
+	Files      map[string]*enumFile // map[path]*details
+	Finished   bool
+	running    bool
+	wasRunning bool
+	changed    bool
 }
 
-func (p *progress) UnlockChange(changed bool) {
-	p.changed = changed
-	p.Unlock()
+type progressPreProcessor struct {
+	changed bool
+}
+
+type progressLogProcessor struct {
+	changed bool
+}
+
+type progressCollectProcessor struct {
+	changed bool
 }
 
 type downloaderFile struct {

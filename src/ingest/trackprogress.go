@@ -12,29 +12,67 @@ import (
 )
 
 func (i *Ingest) loadProgress() error {
+	i.progress.Downloader = new(progressDownloader)
+	i.progress.CollectinfoProcessor = new(progressCollectProcessor)
+	i.progress.LogProcessor = new(progressLogProcessor)
+	i.progress.PreProcessor = new(progressPreProcessor)
+	i.progress.Unpacker = new(progressUnpacker)
 	i.progress.Downloader.S3Files = make(map[string]*downloaderFile)
 	i.progress.Downloader.SftpFiles = make(map[string]*downloaderFile)
-	dir, _ := path.Split(i.config.ProgressFile.OutputFilePath)
-	os.MkdirAll(dir, 0755)
-	if _, err := os.Stat(i.config.ProgressFile.OutputFilePath); os.IsNotExist(err) {
-		logger.Debug("INIT: Not loading progress - file not found")
-		return nil
-	}
+	os.MkdirAll(i.config.ProgressFile.OutputFilePath, 0755)
+	fileList := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
 	logger.Debug("INIT: Loading progress")
-	f, err := os.Open(i.config.ProgressFile.OutputFilePath)
+	for _, file := range fileList {
+		filex := file
+		if i.config.ProgressFile.Compress {
+			filex = file + ".gz"
+		}
+		fpath := path.Join(i.config.ProgressFile.OutputFilePath, filex)
+		if _, err := os.Stat(fpath); os.IsNotExist(err) {
+			logger.Debug("INIT: Not loading %s progress - file not found", fpath)
+			continue
+		}
+		logger.Debug("INIT: Loading %s", fpath)
+		err := i.loadProgressFile(file)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *Ingest) loadProgressFile(fname string) error {
+	var item interface{}
+	switch fname {
+	case "downloader.json":
+		item = i.progress.Downloader
+	case "unpacker.json":
+		item = i.progress.Unpacker
+	case "pre-processor.json":
+		item = i.progress.PreProcessor
+	case "log-processor.json":
+		item = i.progress.LogProcessor
+	case "cf-processor.json":
+		item = i.progress.CollectinfoProcessor
+	}
+	if i.config.ProgressFile.Compress {
+		fname = fname + ".gz"
+	}
+	fname = path.Join(i.config.ProgressFile.OutputFilePath, fname)
+	f, err := os.Open(fname)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 	if !i.config.ProgressFile.Compress {
-		return json.NewDecoder(f).Decode(i.progress)
+		return json.NewDecoder(f).Decode(item)
 	}
 	fgz, err := gzip.NewReader(f)
 	if err != nil {
 		return err
 	}
 	defer fgz.Close()
-	return json.NewDecoder(fgz).Decode(i.progress)
+	return json.NewDecoder(fgz).Decode(item)
 }
 
 func (i *Ingest) saveProgressInterval() {
@@ -55,20 +93,68 @@ func (i *Ingest) saveProgressInterval() {
 func (i *Ingest) saveProgress() error {
 	i.progress.Lock()
 	defer i.progress.Unlock()
-	if !i.progress.changed {
+	if !i.progress.Downloader.changed && !i.progress.CollectinfoProcessor.changed && !i.progress.LogProcessor.changed && !i.progress.PreProcessor.changed && !i.progress.Unpacker.changed {
 		logger.Detail("SAVE-PROGRESS Not changed, not saving")
 		return nil
 	}
 	logger.Detail("SAVE-PROGRESS Saving")
-	err := i.saveProgressDo()
-	if err != nil {
-		return err
+	fileList := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
+	for _, file := range fileList {
+		switch file {
+		case "downloader.json":
+			if !i.progress.Downloader.changed {
+				continue
+			}
+		case "unpacker.json":
+			if !i.progress.Unpacker.changed {
+				continue
+			}
+		case "pre-processor.json":
+			if !i.progress.PreProcessor.changed {
+				continue
+			}
+		case "log-processor.json":
+			if !i.progress.LogProcessor.changed {
+				continue
+			}
+		case "cf-processor.json":
+			if !i.progress.CollectinfoProcessor.changed {
+				continue
+			}
+		}
+		err := i.saveProgressDo(file)
+		if err != nil {
+			return err
+		}
+		if i.config.ProgressFile.Compress {
+			file = file + ".gz"
+		}
+		err = os.Rename(path.Join(i.config.ProgressFile.OutputFilePath, file+".tmp"), path.Join(i.config.ProgressFile.OutputFilePath, file))
+		if err != nil {
+			return err
+		}
 	}
 	logger.Detail("SAVE-PROGRESS Saved, rename and return")
-	return os.Rename(i.config.ProgressFile.OutputFilePath+".tmp", i.config.ProgressFile.OutputFilePath)
+	return nil
 }
-func (i *Ingest) saveProgressDo() error {
-	f, err := os.OpenFile(i.config.ProgressFile.OutputFilePath+".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+func (i *Ingest) saveProgressDo(file string) error {
+	var item interface{}
+	switch file {
+	case "downloader.json":
+		item = i.progress.Downloader
+	case "unpacker.json":
+		item = i.progress.Unpacker
+	case "pre-processor.json":
+		item = i.progress.PreProcessor
+	case "log-processor.json":
+		item = i.progress.LogProcessor
+	case "cf-processor.json":
+		item = i.progress.CollectinfoProcessor
+	}
+	if i.config.ProgressFile.Compress {
+		file = file + ".gz"
+	}
+	f, err := os.OpenFile(path.Join(i.config.ProgressFile.OutputFilePath, file+".tmp"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -81,11 +167,22 @@ func (i *Ingest) saveProgressDo() error {
 	} else {
 		enc = json.NewEncoder(f)
 	}
-	err = enc.Encode(i.progress)
+	err = enc.Encode(item)
 	if err != nil {
 		return err
 	}
-	i.progress.changed = false
+	switch file {
+	case "downloader.json":
+		i.progress.Downloader.changed = false
+	case "unpacker.json":
+		i.progress.Unpacker.changed = false
+	case "pre-processor.json":
+		i.progress.PreProcessor.changed = false
+	case "log-processor.json":
+		i.progress.LogProcessor.changed = false
+	case "cf-processor.json":
+		i.progress.CollectinfoProcessor.changed = false
+	}
 	return nil
 }
 

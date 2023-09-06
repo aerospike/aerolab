@@ -38,6 +38,7 @@ func (e *safeError) Get() error {
 
 func (i *Ingest) Download() error {
 	i.progress.Lock()
+	i.progress.Downloader.Finished = false
 	i.progress.Downloader.running = true
 	i.progress.Downloader.wasRunning = true
 	i.progress.Unlock()
@@ -81,6 +82,9 @@ func (i *Ingest) Download() error {
 	if err := errs.Get(); err != nil {
 		return err
 	}
+	i.progress.Lock()
+	i.progress.Downloader.Finished = true
+	i.progress.Unlock()
 	logger.Debug("Downloader exit")
 	return nil
 }
@@ -151,7 +155,8 @@ func (i *Ingest) DownloadS3() error {
 	}
 
 	logger.Debug("S3 Enumeration complete, saving results")
-	i.progress.LockChange(true)
+	i.progress.Lock()
+	i.progress.Downloader.changed = true
 	for k, v := range fileList {
 		i.progress.Downloader.S3Files[k] = v
 	}
@@ -184,7 +189,8 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) error {
 	})
 	if err != nil {
 		logger.Warn("S3 Failed to init download of file %s: %s", f, err)
-		i.progress.LockChange(true)
+		i.progress.Lock()
+		i.progress.Downloader.changed = true
 		i.progress.Downloader.S3Files[f].Error = err.Error()
 		i.progress.Unlock()
 		return err
@@ -193,7 +199,8 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) error {
 	err = os.MkdirAll(path.Join(i.config.Directories.DirtyTmp, "s3source", fd), 0755)
 	if err != nil {
 		logger.Warn("S3 Failed to create directory %s for file %s: %s", fd, f, err)
-		i.progress.LockChange(true)
+		i.progress.Lock()
+		i.progress.Downloader.changed = true
 		i.progress.Downloader.S3Files[f].Error = err.Error()
 		i.progress.Unlock()
 		out.Body.Close()
@@ -202,7 +209,8 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) error {
 	dst, err := os.Create(path.Join(i.config.Directories.DirtyTmp, "s3source", f))
 	if err != nil {
 		logger.Warn("S3 Failed to create file %s: %s", f, err)
-		i.progress.LockChange(true)
+		i.progress.Lock()
+		i.progress.Downloader.changed = true
 		i.progress.Downloader.S3Files[f].Error = err.Error()
 		i.progress.Unlock()
 		out.Body.Close()
@@ -213,12 +221,14 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) error {
 	out.Body.Close()
 	if err != nil {
 		logger.Warn("S3 Failed to download file %s: %s", f, err)
-		i.progress.LockChange(true)
+		i.progress.Lock()
+		i.progress.Downloader.changed = true
 		i.progress.Downloader.S3Files[f].Error = err.Error()
 		i.progress.Unlock()
 		return err
 	}
-	i.progress.LockChange(true)
+	i.progress.Lock()
+	i.progress.Downloader.changed = true
 	i.progress.Downloader.S3Files[f].IsDownloaded = true
 	i.progress.Unlock()
 	return nil
@@ -297,7 +307,8 @@ func (i *Ingest) DownloadAsftp() error {
 	}
 
 	logger.Debug("sftp Enumeration complete, saving results")
-	i.progress.LockChange(true)
+	i.progress.Lock()
+	i.progress.Downloader.changed = true
 	for k, v := range fileList {
 		i.progress.Downloader.SftpFiles[k] = v
 	}
@@ -316,11 +327,13 @@ func (i *Ingest) DownloadAsftp() error {
 			}
 			if err != nil {
 				logger.Warn("%s (%s)", err, f)
-				i.progress.LockChange(true)
+				i.progress.Lock()
+				i.progress.Downloader.changed = true
 				i.progress.Downloader.SftpFiles[f].Error = err.Error()
 				i.progress.Unlock()
 			} else {
-				i.progress.LockChange(true)
+				i.progress.Lock()
+				i.progress.Downloader.changed = true
 				i.progress.Downloader.SftpFiles[f].IsDownloaded = true
 				i.progress.Unlock()
 			}
