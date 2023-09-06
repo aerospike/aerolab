@@ -258,7 +258,7 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
 					suffix = "T"
 				}
-				fsSize = strconv.Itoa(int(float64(fsSizeI)*c.MountsSizeLimitPct)) + suffix
+				fsSize = strconv.Itoa(int(float64(fsSizeI)*c.MountsSizeLimitPct/100)) + suffix
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValue("mounts-size-limit", fsSize)
 		case "si-flash":
@@ -285,7 +285,7 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
 					suffix = "T"
 				}
-				fsSize = strconv.Itoa(int(float64(fsSizeI)*c.MountsSizeLimitPct)) + suffix
+				fsSize = strconv.Itoa(int(float64(fsSizeI)*c.MountsSizeLimitPct/100)) + suffix
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValue("mounts-size-limit", fsSize)
 		}
