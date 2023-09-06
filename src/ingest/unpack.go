@@ -132,10 +132,6 @@ func (i *Ingest) Unpack() error {
 		logger.Detail("unpack: had archives, looping to start")
 	}
 	logger.Detail("unpack: last enumerate, merge and store progress")
-	files, err = i.enum()
-	if err != nil {
-		return fmt.Errorf("failed to enumerate files: %s", err)
-	}
 	for fn, errs := range ignoreFailedErrors.Get() {
 		if _, ok := files[fn]; ok {
 			files[fn].UnpackFailed = true
