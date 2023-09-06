@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -38,8 +39,8 @@ func (c *clusterPartitionConfCmd) Execute(args []string) error {
 	} else if c.FilterType == "persistent" {
 		c.FilterType = "ebs"
 	}
-	if !inslice.HasString([]string{"device", "shadow", "pi-flash", "si-flash"}, c.ConfDest) {
-		return fmt.Errorf("configure options must be one of: device, shadow, pi-flash, si-flash")
+	if !inslice.HasString([]string{"device", "shadow", "pi-flash", "si-flash", "allflash"}, c.ConfDest) {
+		return fmt.Errorf("configure options must be one of: device, shadow, pi-flash, si-flash, allflash")
 	}
 	if c.Namespace == "" {
 		return fmt.Errorf("namespace name is required")
@@ -140,6 +141,8 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		if !inslice.HasString(cc.Stanza("namespace "+c.Namespace).Stanza("storage-engine device").ListKeys(), "device") {
 			return fmt.Errorf("no device configured for given namespace, cannot add shadow devices")
 		}
+	case "allflash":
+		fallthrough
 	case "pi-flash":
 		if cc.Stanza("namespace "+c.Namespace).Type("index-type flash") == aeroconf.ValueStanza {
 			cc.Stanza("namespace " + c.Namespace).Stanza("index-type flash").Delete("mount")
@@ -179,9 +182,9 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			if c.FilterPartitions != "0" && part.partNo == 0 {
 				continue
 			}
-			if part.MountPoint != "" && (c.ConfDest != "pi-flash" && c.ConfDest != "si-flash") {
+			if part.MountPoint != "" && (c.ConfDest != "pi-flash" && c.ConfDest != "si-flash" && c.ConfDest != "allflash") {
 				return fmt.Errorf("partition %d on disk %d on node %d has a filesystem, cannot use for device storage", part.partNo, part.diskNo, part.nodeNo)
-			} else if part.MountPoint == "" && (c.ConfDest == "pi-flash" || c.ConfDest == "si-flash") {
+			} else if part.MountPoint == "" && (c.ConfDest == "pi-flash" || c.ConfDest == "si-flash" || c.ConfDest == "allflash") {
 				return fmt.Errorf("partition %d on disk %d on node %d does not have a filesystem, cannot use for all-flash storage", part.partNo, part.diskNo, part.nodeNo)
 			}
 			useParts = append(useParts, part)
@@ -228,6 +231,8 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 				return errors.New("not enough primary devices for chosen shadow devices")
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("storage-engine device").SetValues("device", vals)
+		case "allflash":
+			fallthrough
 		case "pi-flash":
 			vals, err := cc.Stanza("namespace " + c.Namespace).Stanza("index-type flash").GetValues("mount")
 			if err != nil {
@@ -239,6 +244,22 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			pp := p.MountPoint
 			vals = append(vals, &pp)
 			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValues("mount", vals)
+			fsSizeI, err := strconv.Atoi(strings.TrimRight(p.FsSize, "GMBTgmbti"))
+			fsSize := p.FsSize
+			if err == nil {
+				suffix := ""
+				if strings.HasSuffix(strings.ToUpper(p.FsSize), "G") {
+					suffix = "G"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "M") {
+					suffix = "M"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "K") {
+					suffix = "K"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
+					suffix = "T"
+				}
+				fsSize = strconv.Itoa(int(float64(fsSizeI)*0.9)) + suffix
+			}
+			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValue("mounts-size-limit", fsSize)
 		case "si-flash":
 			vals, err := cc.Stanza("namespace " + c.Namespace).Stanza("sindex-type flash").GetValues("mount")
 			if err != nil {
@@ -250,6 +271,22 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			pp := p.MountPoint
 			vals = append(vals, &pp)
 			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValues("mount", vals)
+			fsSizeI, err := strconv.Atoi(strings.TrimRight(p.FsSize, "GMBTgmbti"))
+			fsSize := p.FsSize
+			if err == nil {
+				suffix := ""
+				if strings.HasSuffix(strings.ToUpper(p.FsSize), "G") {
+					suffix = "G"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "M") {
+					suffix = "M"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "K") {
+					suffix = "K"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
+					suffix = "T"
+				}
+				fsSize = strconv.Itoa(int(float64(fsSizeI)*0.9)) + suffix
+			}
+			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValue("mounts-size-limit", fsSize)
 		}
 	}
 	if c.ConfDest == "shadow" {
