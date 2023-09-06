@@ -160,8 +160,26 @@ func (i *Ingest) printProgress() error {
 			logger.Info("downloader progress source:sftp totalFiles:%d downloadedFiles:%d totalSize:%s downloadedSize:%s", sftptotal, sftpdone, convSize(sftpSizeTotal), convSize(sftpSizeDown))
 		}
 		i.progress.Downloader.wasRunning = i.progress.Downloader.running
+		if !i.progress.Downloader.wasRunning {
+			logger.Info("downloader finished")
+		}
 	}
-	// TODO: progress of other steps
+	if i.progress.Unpacker.wasRunning {
+		if i.progress.Unpacker.running {
+			logger.Info("unpacker running")
+		} else {
+			logger.Info("unpacker finished")
+			i.progress.Unpacker.wasRunning = i.progress.Unpacker.running
+			if i.config.ProgressPrint.PrintDetailProgress {
+				for fn, file := range i.progress.Unpacker.Files {
+					logger.Info("unpacker detail file:%s (size:%s) (isArchive:%t isCollectInfo:%t isTarBz:%t isTarGz:%t isText:%t) (unpackFailed:%t) (contentType:%s)", fn, convSize(file.Size), file.IsArchive, file.IsCollectInfo, file.IsTarBz, file.IsTarGz, file.IsText, file.UnpackFailed, file.ContentType)
+				}
+			}
+		}
+	}
+	// TODO: progress of pre-processor
+	// TODO: progress of processor
+	// TODO: progress of collectInfo rename
 	i.progress.RUnlock()
 	return nil
 }

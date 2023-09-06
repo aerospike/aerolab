@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v6"
+	"github.com/gabriel-vasile/mimetype"
 )
 
 type Ingest struct {
@@ -94,14 +95,16 @@ type Config struct {
 		OtherFiles  string `yaml:"otherFiles" default:"ingest/files/other"`
 	} `yaml:"directories"`
 	Downloader struct {
-		S3Source   *S3Source   `yaml:"s3Source"`
-		SftpSource *SftpSource `yaml:"sftpSource"`
+		ConcurrentSources bool        `yaml:"concurrentSources" default:"true"`
+		S3Source          *S3Source   `yaml:"s3Source"`
+		SftpSource        *SftpSource `yaml:"sftpSource"`
 	} `yaml:"downloader"`
 	CPUProfilingOutputFile string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
 }
 
 type S3Source struct {
 	Enabled     bool   `yaml:"enabled" envconfig:"LOGINGEST_S3SOURCE_ENABLED"`
+	Threads     int    `yaml:"threads" envconfig:"LOGINGEST_S3SOURCE_THREADS" default:"4"`
 	Region      string `yaml:"region" envconfig:"LOGINGEST_S3SOURCE_REGION"`
 	BucketName  string `yaml:"bucketName" envconfig:"LOGINGEST_S3SOURCE_BUCKET"`
 	KeyID       string `yaml:"keyID" envconfig:"LOGINGEST_S3SOURCE_KEYID"`
@@ -113,6 +116,7 @@ type S3Source struct {
 
 type SftpSource struct {
 	Enabled     bool   `yaml:"enabled" envconfig:"LOGINGEST_SFTPSOURCE_ENABLED"`
+	Threads     int    `yaml:"threads" envconfig:"LOGINGEST_SFTPSOURCE_THREADS" default:"4"`
 	Host        string `yaml:"host" envconfig:"LOGINGEST_SFTPSOURCE_HOST"`
 	Port        int    `yaml:"port" envconfig:"LOGINGEST_SFTPSOURCE_PORT"`
 	Username    string `yaml:"username" envconfig:"LOGINGEST_SFTPSOURCE_USER"`
@@ -174,12 +178,16 @@ type progress struct {
 	sync.RWMutex
 	changed    bool
 	Downloader struct {
-		S3Files    map[string]*downloaderFile // map[key]
-		SftpFiles  map[string]*downloaderFile
+		S3Files    map[string]*downloaderFile // map[key]*details
+		SftpFiles  map[string]*downloaderFile // map[path]*details
 		running    bool
 		wasRunning bool
 	}
-	Unpacker             struct{}
+	Unpacker struct {
+		Files      map[string]*enumFile // map[path]*details
+		running    bool
+		wasRunning bool
+	}
 	PreProcessor         struct{}
 	LogProcessor         struct{}
 	CollectinfoProcessor struct{}
@@ -200,4 +208,17 @@ type downloaderFile struct {
 	LastModified time.Time
 	IsDownloaded bool
 	Error        string
+}
+
+type enumFile struct {
+	Size          int64
+	mimeType      *mimetype.MIME
+	ContentType   string
+	IsCollectInfo bool
+	IsArchive     bool
+	IsText        bool
+	IsTarGz       bool
+	IsTarBz       bool
+	UnpackFailed  bool
+	Errors        []string
 }
