@@ -17,6 +17,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/pkg/sftp v1.13.6
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
 	golang.org/x/crypto v0.12.0
@@ -36,6 +37,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.2.5 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
