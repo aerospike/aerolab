@@ -164,7 +164,10 @@ func (i *Ingest) DownloadS3() error {
 	for f := range fileList {
 		threads <- true
 		go func(f string) {
-			i.downloadS3File(client, f)
+			err := i.downloadS3File(client, f)
+			if err != nil {
+				i.downloadS3File(client, f)
+			}
 			<-threads
 			wg.Done()
 		}(f)
@@ -174,7 +177,7 @@ func (i *Ingest) DownloadS3() error {
 	return nil
 }
 
-func (i *Ingest) downloadS3File(client *s3.S3, f string) {
+func (i *Ingest) downloadS3File(client *s3.S3, f string) error {
 	out, err := client.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(i.config.Downloader.S3Source.BucketName),
 		Key:    aws.String(f),
@@ -184,7 +187,7 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) {
 		i.progress.LockChange(true)
 		i.progress.Downloader.S3Files[f].Error = err.Error()
 		i.progress.Unlock()
-		return
+		return err
 	}
 	fd, _ := path.Split(f)
 	err = os.MkdirAll(path.Join(i.config.Directories.DirtyTmp, "s3source", fd), 0755)
@@ -194,7 +197,7 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) {
 		i.progress.Downloader.S3Files[f].Error = err.Error()
 		i.progress.Unlock()
 		out.Body.Close()
-		return
+		return err
 	}
 	dst, err := os.Create(path.Join(i.config.Directories.DirtyTmp, "s3source", f))
 	if err != nil {
@@ -203,7 +206,7 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) {
 		i.progress.Downloader.S3Files[f].Error = err.Error()
 		i.progress.Unlock()
 		out.Body.Close()
-		return
+		return err
 	}
 	_, err = io.Copy(dst, out.Body)
 	dst.Close()
@@ -213,11 +216,12 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) {
 		i.progress.LockChange(true)
 		i.progress.Downloader.S3Files[f].Error = err.Error()
 		i.progress.Unlock()
-		return
+		return err
 	}
 	i.progress.LockChange(true)
 	i.progress.Downloader.S3Files[f].IsDownloaded = true
 	i.progress.Unlock()
+	return nil
 }
 
 func (i *Ingest) DownloadAsftp() error {
@@ -306,7 +310,11 @@ func (i *Ingest) DownloadAsftp() error {
 	for f := range fileList {
 		threads <- true
 		go func(f string) {
-			if err := sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource")); err != nil {
+			err := sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource"))
+			if err != nil {
+				err = sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource"))
+			}
+			if err != nil {
 				logger.Warn("%s (%s)", err, f)
 				i.progress.LockChange(true)
 				i.progress.Downloader.SftpFiles[f].Error = err.Error()
