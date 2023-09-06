@@ -123,7 +123,10 @@ func Init(config *Config) (*Ingest, error) {
 
 func (i *Ingest) Close() {
 	logger.Debug("CLOSE: Saving progress")
-	i.saveProgress()
+	err := i.saveProgress()
+	if err != nil {
+		logger.Error("Could not save progress: %s", err)
+	}
 	if i.pprofRunning {
 		logger.Debug("CLOSE: Stopping CPU profiling")
 		pprof.StopCPUProfile()
