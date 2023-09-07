@@ -63,8 +63,7 @@ type Config struct {
 		LogReadBufferSizeKb int `yaml:"logReadBufferSizeKb" default:"1024"`
 	} `yaml:"processor"`
 	PreProcess struct {
-		ReaderFileThreads   int `yaml:"readerFileThreads" default:"6"`
-		WriterFileThreads   int `yaml:"writerFileThreads" default:"6"`
+		FileThreads         int `yaml:"fileThreads" default:"6"`
 		UnpackerFileThreads int `yaml:"unpackerFileThreads" default:"4"`
 	} `yaml:"preProcessor"`
 	ProgressFile struct {
@@ -201,7 +200,12 @@ type progressUnpacker struct {
 }
 
 type progressPreProcessor struct {
-	changed bool
+	Files                     map[string]*enumFile // map[path]*details
+	CollectInfoUniquePrefixes int
+	Finished                  bool
+	running                   bool
+	wasRunning                bool
+	changed                   bool
 }
 
 type progressLogProcessor struct {
@@ -220,14 +224,16 @@ type downloaderFile struct {
 }
 
 type enumFile struct {
-	Size          int64
-	mimeType      *mimetype.MIME
-	ContentType   string
-	IsCollectInfo bool
-	IsArchive     bool
-	IsText        bool
-	IsTarGz       bool
-	IsTarBz       bool
-	UnpackFailed  bool
-	Errors        []string
+	Size                  int64
+	mimeType              *mimetype.MIME
+	ContentType           string
+	IsCollectInfo         bool
+	IsArchive             bool
+	IsText                bool
+	IsTarGz               bool
+	IsTarBz               bool
+	UnpackFailed          bool
+	Errors                []string
+	PreProcessDuplicateOf []string
+	StartAt               int64 // workaround for log files starting at binary 000s
 }

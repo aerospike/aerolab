@@ -152,12 +152,12 @@ func (a *aerolab) main(name string, args []string) {
 	_, err := a.parseFile()
 	if err != nil {
 		_, fna := path.Split(os.Args[0])
-		fmt.Printf(chooseBackendHelpMsg, fna, fna)
+		fmt.Printf(chooseBackendHelpMsg, fna, fna, fna)
 		os.Exit(1)
 	}
 	if !a.forceFileOptional && a.opts.Config.Backend.Type == "" {
 		_, fna := path.Split(os.Args[0])
-		fmt.Printf(chooseBackendHelpMsg, fna, fna)
+		fmt.Printf(chooseBackendHelpMsg, fna, fna, fna)
 		os.Exit(1)
 	}
 

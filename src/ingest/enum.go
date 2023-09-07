@@ -66,6 +66,7 @@ func (i *Ingest) enum() (map[string]*enumFile, error) {
 					break
 				}
 			}
+			file.StartAt, _ = fd.Seek(0, 1)
 			_, err = fd.Read(buffer)
 			if err != nil && err != io.EOF {
 				logger.Warn("Could not read file, skipping: %s", filePath)
