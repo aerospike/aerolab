@@ -167,6 +167,9 @@ func (i *Ingest) saveProgressDo(file string) error {
 	} else {
 		enc = json.NewEncoder(f)
 	}
+	if i.config.LogLevel > 4 {
+		enc.SetIndent("", "  ")
+	}
 	err = enc.Encode(item)
 	if err != nil {
 		return err

@@ -9,7 +9,7 @@ import (
 
 func setupTest() error {
 	os.Remove("cpu.pprof")
-	//os.RemoveAll("ingest")
+	os.RemoveAll("ingest")
 	os.Setenv("LOGINGEST_CPUPROFILE_FILE", "cpu.pprof")
 	os.Unsetenv("DOCKER_HOST")
 	out, err := exec.Command("aerolab", "config", "backend", "-t", "docker").CombinedOutput()
@@ -55,8 +55,8 @@ func TestAll(t *testing.T) {
 	}()
 	t.Log("Setting up config")
 	os.Setenv("LOGINGEST_LOGLEVEL", "6")
-	//os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "true")
-	//os.Setenv("LOGINGEST_SFTPSOURCE_ENABLED", "true")
+	os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "true")
+	os.Setenv("LOGINGEST_SFTPSOURCE_ENABLED", "true")
 	os.Setenv("LOGINGEST_S3SOURCE_REGION", "ca-central-1")
 	//os.Setenv("LOGINGEST_S3SOURCE_BUCKET", "") // set outside
 	//os.Setenv("LOGINGEST_S3SOURCE_KEYID", "") // set outside
@@ -86,6 +86,11 @@ func TestAll(t *testing.T) {
 	}
 	t.Log("Unpacking")
 	err = i.Unpack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("PreProcess")
+	err = i.PreProcess()
 	if err != nil {
 		t.Fatal(err)
 	}
