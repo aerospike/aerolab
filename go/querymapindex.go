@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/aerospike/aerospike-client-go/v6"
 )
@@ -28,29 +29,31 @@ func main() {
 
 	// create sindex if it doesn't exist - for top-level map search
 	task, err := client.CreateComplexIndex(wp, "test", "testset", "BOBVALX", "testbin", aerospike.STRING, aerospike.ICT_DEFAULT, aerospike.CtxMapKey(aerospike.NewStringValue("bob")))
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "Index already exists") {
 		log.Fatal(err)
-	}
-	err = <-task.OnComplete()
-	if err != nil {
-		log.Fatal(err)
+	} else if err == nil {
+		err = <-task.OnComplete()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	// create sindex if it doesn't exist - for map-in-map search
-	task, err = client.CreateComplexIndex(wp, "test", "testset", "BOBVALXY", "testbin", aerospike.STRING, aerospike.ICT_DEFAULT, aerospike.CtxMapKey(aerospike.NewStringValue("kim")), aerospike.CtxMapKey(aerospike.NewStringValue("wu")))
-	if err != nil {
+	task, err = client.CreateComplexIndex(wp, "test", "testset", "BOBVALXY", "testbin", aerospike.STRING, aerospike.ICT_DEFAULT, aerospike.CtxMapKey(aerospike.NewStringValue("robert")), aerospike.CtxMapKey(aerospike.NewStringValue("depth")))
+	if err != nil && !strings.Contains(err.Error(), "Index already exists") {
 		log.Fatal(err)
-	}
-	err = <-task.OnComplete()
-	if err != nil {
-		log.Fatal(err)
+	} else if err == nil {
+		err = <-task.OnComplete()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 	/*
 		the above indexes can be create using asadm instead:
 		asadm
 		> enable
 		> manage sindex create string BOBVALX ns test set testset bin testbin ctx map_key(bob)
-		> manage sindex create string BOBVALXY ns test set testset bin testbin ctx map_key(kim) map_key(wu)
+		> manage sindex create string BOBVALXY ns test set testset bin testbin ctx map_key(robert) map_key(depth)
 	*/
 
 	// create key
@@ -61,9 +64,9 @@ func main() {
 
 	// create map value variable
 	binValue := make(map[string]interface{})
-	insideValueForKim := make(map[string]interface{})
-	insideValueForKim["wu"] = "boom"
-	binValue["kim"] = insideValueForKim
+	insideValue := make(map[string]interface{})
+	insideValue["depth"] = "boom"
+	binValue["robert"] = insideValue
 	binValue["bob"] = "5"
 
 	// print the map as json
@@ -107,7 +110,7 @@ func main() {
 	// query based on map data - map-in-map
 	qp = aerospike.NewQueryPolicy()
 	statement = aerospike.NewStatement("test", "testset", "testbin")
-	filter = aerospike.NewEqualFilter("testbin", "boom", aerospike.CtxMapKey(aerospike.NewStringValue("kim")), aerospike.CtxMapKey(aerospike.NewStringValue("wu")))
+	filter = aerospike.NewEqualFilter("testbin", "boom", aerospike.CtxMapKey(aerospike.NewStringValue("robert")), aerospike.CtxMapKey(aerospike.NewStringValue("depth")))
 	statement.Filter = filter
 	res, err = client.Query(qp, statement)
 	if err != nil {
