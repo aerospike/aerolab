@@ -1,7 +1,9 @@
 package ingest
 
 import (
+	"bufio"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -18,9 +20,18 @@ import (
 func (i *Ingest) PreProcess() error {
 	logger.Debug("PreProcess running")
 	i.progress.Lock()
+	if i.progress.PreProcessor.Files == nil {
+		i.progress.PreProcessor.Files = make(map[string]*enumFile)
+	}
 	i.progress.PreProcessor.running = true
 	i.progress.PreProcessor.wasRunning = true
 	i.progress.PreProcessor.Finished = false
+	if i.progress.PreProcessor.LastUsedSuffixForPrefix == nil {
+		i.progress.PreProcessor.LastUsedSuffixForPrefix = make(map[int]int)
+	}
+	if i.progress.PreProcessor.NodeToPrefix == nil {
+		i.progress.PreProcessor.NodeToPrefix = make(map[string]int)
+	}
 	i.progress.Unlock()
 	defer func() {
 		i.progress.Lock()
@@ -49,7 +60,7 @@ func (i *Ingest) PreProcess() error {
 	// dedup
 	if i.config.Dedup.Enabled {
 		logger.Debug("Deduplicating")
-		i.Deduplicate(files)
+		i.deduplicate(files)
 		logger.Debug("Deduplication finished")
 	} else {
 		logger.Debug("Deduplication disabled")
@@ -57,8 +68,16 @@ func (i *Ingest) PreProcess() error {
 
 	// process
 	logger.Debug("Pre-processing files")
+	err = os.MkdirAll(i.config.Directories.Logs, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create %s: %s", i.config.Directories.Logs, err)
+	}
 	threads := make(chan bool, i.config.PreProcess.FileThreads)
 	wg := new(sync.WaitGroup)
+	err = os.MkdirAll(i.config.Directories.CollectInfo, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create %s: %s", i.config.Directories.CollectInfo, err)
+	}
 	for fn, file := range files {
 		if !file.IsCollectInfo && !file.IsText {
 			logger.Detail("pre-process %s is not text/collectinfo", fn)
@@ -87,7 +106,7 @@ func (i *Ingest) PreProcess() error {
 		wg.Add(1)
 		threads <- true
 		go func(fn string) {
-			err := i.PreProcessTextFile(fn, files)
+			err := i.preProcessTextFile(fn, files)
 			if err != nil {
 				logger.Warn("Failed go pre-process text file %s: %s", fn, err)
 				i.progress.Lock()
@@ -130,21 +149,139 @@ func (i *Ingest) PreProcess() error {
 	return nil
 }
 
-// TODO: test process on downloads that also have collectinfo and non-aerospike-logfiles and some jpg images
-func (i *Ingest) PreProcessTextFile(fn string, files map[string]*enumFile) error {
-	// TODO find correct format (json/tab,etc), and pre-process according to the format, storing the files in logs/clustername/prefix_nodeid_suffix
-	// TODO: ensure we do not remove if the file was NOT aerospike, just return nil
-	// TODO: process into tmp_prefix_nodeid_suffix first, and then rename all tmp_ files just before removal of original
+func (i *Ingest) preProcessTextFile(fn string, files map[string]*enumFile) error {
+	f, err := i.preProcessOpenSpecialFile(fn)
+	if err != nil {
+		if err == errPreProcessNotAerospike {
+			return nil
+		} else if err == errPreProcessNotSpecial {
+			clusterName, nodeId, err := i.preProcessGetClusterNode(fn)
+			if err != nil {
+				return err
+			}
+			var prefix, suffix int
+			i.progress.Lock()
+			if _, ok := i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId]; !ok {
+				i.progress.PreProcessor.LastUsedPrefix++
+				prefix = i.progress.PreProcessor.LastUsedPrefix
+				i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId] = prefix
+				suffix = 1
+				i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix] = suffix
+			} else {
+				prefix = i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId]
+				i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix]++
+				suffix = i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix]
+			}
+			outpaths := []string{path.Join(i.config.Directories.Logs, clusterName, strconv.Itoa(prefix)+"_"+nodeId+"_"+strconv.Itoa(suffix))}
+			files[fn].PreProcessOutPaths = outpaths
+			i.progress.PreProcessor.Files[fn] = files[fn]
+			i.progress.PreProcessor.changed = true
+			i.progress.Unlock()
+			err = os.MkdirAll(path.Join(i.config.Directories.Logs, clusterName), 0755)
+			if err != nil {
+				return fmt.Errorf("failed to create %s: %s", path.Join(i.config.Directories.Logs, clusterName), err)
+			}
+			err = os.Rename(fn, outpaths[0])
+			return err
+		} else {
+			return err
+		}
+	}
+	defer f.close()
+	tracker := make(map[string]map[string]*os.File) // map[clusterName][nodeId][]{prefix,suffix}
+	for f.scan() {
+		clusterName := f.cluster()
+		nodeId := f.nodeID()
+		if _, ok := tracker[clusterName]; !ok {
+			tracker[clusterName] = make(map[string]*os.File)
+		}
+		var fh *os.File
+		if _, ok := tracker[clusterName][nodeId]; !ok {
+			i.progress.Lock()
+			var prefix, suffix int
+			if _, ok := i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId]; !ok {
+				i.progress.PreProcessor.LastUsedPrefix++
+				prefix = i.progress.PreProcessor.LastUsedPrefix
+				i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix] = 1
+				suffix = 1
+				i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId] = prefix
+			} else {
+				prefix = i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId]
+				i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix]++
+				suffix = i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix]
+			}
+			i.progress.Unlock()
+			err = os.MkdirAll(path.Join(i.config.Directories.Logs, clusterName), 0755)
+			if err != nil {
+				for _, n := range tracker {
+					for _, f := range n {
+						f.Close()
+					}
+				}
+				return err
+			}
+			fh, err = os.Create(path.Join(i.config.Directories.Logs, clusterName, "tmp_"+strconv.Itoa(prefix)+"_"+nodeId+"_"+strconv.Itoa(suffix)))
+			if err != nil {
+				for _, n := range tracker {
+					for _, f := range n {
+						f.Close()
+					}
+				}
+				return err
+			}
+			tracker[clusterName][nodeId] = fh
+		} else {
+			fh = tracker[clusterName][nodeId]
+		}
+		line := f.line()
+		_, err = fh.WriteString(line)
+		if err != nil {
+			for _, n := range tracker {
+				for _, f := range n {
+					f.Close()
+				}
+			}
+			return err
+		}
+	}
+	if err := f.err(); err != nil {
+		for _, n := range tracker {
+			for _, f := range n {
+				f.Close()
+			}
+		}
+		return err
+	}
+
+	outpaths := []string{}
+	var nerr error
+	for clusterName, n := range tracker {
+		for _, f := range n {
+			fname := f.Name()
+			f.Close()
+			err = os.Rename(path.Join(i.config.Directories.Logs, clusterName, fname), path.Join(i.config.Directories.Logs, clusterName, strings.TrimPrefix(fname, "tmp_")))
+			if err != nil {
+				nerr = err
+			}
+			outpaths = append(outpaths, path.Join(i.config.Directories.Logs, clusterName, strings.TrimPrefix(fname, "tmp_")))
+		}
+	}
+	if nerr != nil {
+		return nerr
+	}
 	os.Remove(fn)
 	i.progress.Lock()
-	files[fn].PreProcessOutPaths = []string{} // TODO store the out paths
+	files[fn].PreProcessOutPaths = outpaths
 	i.progress.PreProcessor.Files[fn] = files[fn]
 	i.progress.PreProcessor.changed = true
 	i.progress.Unlock()
 	return nil
 }
 
-func (i *Ingest) Deduplicate(files map[string]*enumFile) {
+var errPreProcessNotAerospike = errors.New("NOT-AEROSPIKE")
+var errPreProcessNotSpecial = errors.New("STANDARD-LOG")
+
+func (i *Ingest) deduplicate(files map[string]*enumFile) {
 	filesBySize := make(map[int64][]string)
 	logger.Detail("Dedplicate: sorting files by size")
 	for fn, file := range files {
@@ -210,4 +347,51 @@ func (i *Ingest) genSha256(fpath string, offset int64) [32]byte {
 		return [32]byte{}
 	}
 	return sha256.Sum256(b)
+}
+
+func (i *Ingest) preProcessGetClusterNode(fn string) (clusterName string, nodeId string, err error) {
+	clusterName = "unset"
+	f, err := os.Open(fn)
+	if err != nil {
+		return "", "", err
+	}
+	defer f.Close()
+	s := bufio.NewScanner(f)
+	r := i.config.findClusterNameNodeIdRegex
+	for s.Scan() {
+		if err = s.Err(); err != nil {
+			return "", "", err
+		}
+		line := s.Text()
+		if !strings.Contains(line, "NODE-ID") {
+			continue
+		}
+		results := r.FindStringSubmatch(line)
+		if len(results) == 0 {
+			continue
+		}
+		resultNames := r.SubexpNames()
+		nRes := make(map[string]string)
+		for rIndex, result := range results {
+			if rIndex == 0 {
+				continue
+			}
+			nKey := resultNames[rIndex]
+			nRes[nKey] = result
+		}
+		if v, ok := nRes["ClusterName"]; ok && v != "" {
+			clusterName = v
+		}
+		if v, ok := nRes["NodeId"]; ok {
+			if v == "" {
+				v = "undefined"
+			}
+			nodeId = v
+			return
+		}
+	}
+	if err = s.Err(); err != nil {
+		return "", "", err
+	}
+	return
 }

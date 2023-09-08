@@ -85,7 +85,6 @@ type Config struct {
 		To      time.Time `yaml:"to" envconfig:"LOGINGEST_TIMERANGE_TO"`
 	} `yaml:"ingestTimeRanges"`
 	CollectInfoAsadmTimeout time.Duration `yaml:"collectInfoCommandTimeout" default:"150s"`
-	CompressLogs            bool          `yaml:"compressLogs" default:"false"`
 	Directories             struct {
 		CollectInfo string `yaml:"collectInfo" default:"ingest/files/collectinfo"`
 		Logs        string `yaml:"logs" default:"ingest/files/logs"`
@@ -98,7 +97,9 @@ type Config struct {
 		S3Source          *S3Source   `yaml:"s3Source"`
 		SftpSource        *SftpSource `yaml:"sftpSource"`
 	} `yaml:"downloader"`
-	CPUProfilingOutputFile string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
+	FindClusterNameNodeIdRegex string `yaml:"findClusterNameNodeIdRegex" default:"NODE-ID (?P<NodeId>[^ ]+) CLUSTER-SIZE (?P<ClusterSize>\\d+)( CLUSTER-NAME (?P<ClusterName>[^$]+))*"`
+	findClusterNameNodeIdRegex *regexp.Regexp
+	CPUProfilingOutputFile     string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
 }
 
 type S3Source struct {
@@ -206,6 +207,9 @@ type progressPreProcessor struct {
 	running                   bool
 	wasRunning                bool
 	changed                   bool
+	LastUsedPrefix            int
+	LastUsedSuffixForPrefix   map[int]int
+	NodeToPrefix              map[string]int
 }
 
 type progressLogProcessor struct {
