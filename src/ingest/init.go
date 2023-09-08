@@ -88,6 +88,11 @@ func Init(config *Config) (*Ingest, error) {
 		}
 		config.Downloader.SftpSource.searchRegex = regex
 	}
+	regex, err := regexp.Compile(config.FindClusterNameNodeIdRegex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile %s: %s", config.FindClusterNameNodeIdRegex, err)
+	}
+	config.findClusterNameNodeIdRegex = regex
 	i := &Ingest{
 		config:   config,
 		patterns: p,
