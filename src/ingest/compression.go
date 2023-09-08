@@ -135,6 +135,7 @@ func unzip(src string, dest string) ([]string, error) {
 
 		rc, err := f.Open()
 		if err != nil {
+			outFile.Close()
 			return filenames, err
 		}
 
@@ -220,6 +221,7 @@ func untar(dst string, r io.Reader) error {
 
 			// copy over contents
 			if _, err := io.Copy(f, tr); err != nil {
+				f.Close()
 				return err
 			}
 
