@@ -3,9 +3,12 @@ package ingest
 import (
 	"crypto/sha256"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +27,20 @@ func (i *Ingest) PreProcess() error {
 		i.progress.PreProcessor.running = false
 		i.progress.Unlock()
 	}()
+
+	// cleanup any tmp_ in logs dir
+	logger.Debug("PreProcess - cleaning tmp_")
+	filepath.Walk(i.config.Directories.Logs, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if strings.HasPrefix(info.Name(), "tmp_") {
+			os.Remove(path)
+		}
+		return nil
+	})
+
+	logger.Debug("Enumerating dirty dir")
 	files, err := i.enum()
 	if err != nil {
 		return fmt.Errorf("failed to enumerate files: %s", err)
@@ -31,40 +48,53 @@ func (i *Ingest) PreProcess() error {
 
 	// dedup
 	if i.config.Dedup.Enabled {
+		logger.Debug("Deduplicating")
 		i.Deduplicate(files)
+		logger.Debug("Deduplication finished")
+	} else {
+		logger.Debug("Deduplication disabled")
 	}
 
 	// process
+	logger.Debug("Pre-processing files")
 	threads := make(chan bool, i.config.PreProcess.FileThreads)
 	wg := new(sync.WaitGroup)
-	filesLock := new(sync.Mutex)
 	for fn, file := range files {
 		if !file.IsCollectInfo && !file.IsText {
+			logger.Detail("pre-process %s is not text/collectinfo", fn)
 			continue
 		}
 		if len(file.PreProcessDuplicateOf) > 0 {
+			logger.Detail("pre-process %s is a duplicate of %s", fn, file.PreProcessDuplicateOf[0])
 			continue
 		}
 		if file.IsCollectInfo {
+			logger.Detail("pre-process %s is collectinfo, moving", fn)
 			// deal with moving collectinfo
-			i.progress.RLock()
+			i.progress.Lock()
 			i.progress.PreProcessor.CollectInfoUniquePrefixes++
 			prefix := "x" + strconv.Itoa(i.progress.PreProcessor.CollectInfoUniquePrefixes) + "_"
-			i.progress.RUnlock()
 			_, fx := path.Split(fn)
+			i.progress.PreProcessor.changed = true
+			files[fn].PreProcessOutPaths = []string{path.Join(i.config.Directories.CollectInfo, prefix+fx)}
+			i.progress.PreProcessor.Files[fn] = files[fn]
+			i.progress.Unlock()
 			os.Rename(fn, path.Join(i.config.Directories.CollectInfo, prefix+fx))
 			continue
 		}
 		// deal with text files (could be aerospike log files)
+		logger.Detail("pre-process %s is a text file, processing", fn)
 		wg.Add(1)
 		threads <- true
 		go func(fn string) {
-			err := i.PreProcessTextFile(fn)
+			err := i.PreProcessTextFile(fn, files)
 			if err != nil {
 				logger.Warn("Failed go pre-process text file %s: %s", fn, err)
-				filesLock.Lock()
+				i.progress.Lock()
 				files[fn].Errors = append(files[fn].Errors, err.Error())
-				filesLock.Unlock()
+				i.progress.PreProcessor.Files[fn] = files[fn]
+				i.progress.PreProcessor.changed = true
+				i.progress.Unlock()
 			}
 			<-threads
 			wg.Done()
@@ -73,6 +103,7 @@ func (i *Ingest) PreProcess() error {
 	wg.Wait()
 
 	// move other files
+	logger.Debug("Pre-process moving anything left over to the 'other' directory")
 	dirtyRun := path.Join(i.config.Directories.OtherFiles, strconv.Itoa(int(time.Now().Unix())))
 	err = os.MkdirAll(dirtyRun, 0755)
 	if err != nil {
@@ -100,19 +131,22 @@ func (i *Ingest) PreProcess() error {
 }
 
 // TODO: test process on downloads that also have collectinfo and non-aerospike-logfiles and some jpg images
-// TODO: store 'files' var in function above more frequently so we can track progress live
-// TODO: more of the logger.Debug and Detail in function above
-
-func (i *Ingest) PreProcessTextFile(fn string) error {
+func (i *Ingest) PreProcessTextFile(fn string, files map[string]*enumFile) error {
 	// TODO find correct format (json/tab,etc), and pre-process according to the format, storing the files in logs/clustername/prefix_nodeid_suffix
 	// TODO: ensure we do not remove if the file was NOT aerospike, just return nil
-	// TODO: store progress frequently so we can track progress of each file live
-	//os.Remove(fn)
+	// TODO: process into tmp_prefix_nodeid_suffix first, and then rename all tmp_ files just before removal of original
+	os.Remove(fn)
+	i.progress.Lock()
+	files[fn].PreProcessOutPaths = []string{} // TODO store the out paths
+	i.progress.PreProcessor.Files[fn] = files[fn]
+	i.progress.PreProcessor.changed = true
+	i.progress.Unlock()
 	return nil
 }
 
 func (i *Ingest) Deduplicate(files map[string]*enumFile) {
 	filesBySize := make(map[int64][]string)
+	logger.Detail("Dedplicate: sorting files by size")
 	for fn, file := range files {
 		if !file.IsText {
 			// deduplicate only text type files
@@ -124,6 +158,7 @@ func (i *Ingest) Deduplicate(files map[string]*enumFile) {
 			filesBySize[file.Size] = append(filesBySize[file.Size], fn)
 		}
 	}
+	logger.Detail("Dedplicate: sorting files where size is equal by shasum of the first %d bytes", i.config.Dedup.ReadBytes)
 	filesBySha := make(map[[32]byte][]string)
 	for _, bysize := range filesBySize {
 		if len(bysize) < 2 {
@@ -138,6 +173,7 @@ func (i *Ingest) Deduplicate(files map[string]*enumFile) {
 			}
 		}
 	}
+	logger.Detail("Deduplicate: marking and removing duplicates")
 	for sha, duplicates := range filesBySha {
 		if sha == [32]byte{} {
 			// could not calculate sha, don't touch this
