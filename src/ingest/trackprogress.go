@@ -228,6 +228,7 @@ func (i *Ingest) printProgress() error {
 					s3sizeDown += fs.Size()
 					downloadedSize = fs.Size()
 				} else {
+					logger.Detail("TrackProcess: stat %s: %s", path.Join(i.config.Directories.DirtyTmp, "sftpsource", k), err)
 					downloadedSize = 0
 				}
 			}
@@ -248,6 +249,7 @@ func (i *Ingest) printProgress() error {
 					sftpSizeDown += fs.Size()
 					downloadedSize = fs.Size()
 				} else {
+					logger.Detail("TrackProcess: stat %s: %s", path.Join(i.config.Directories.DirtyTmp, "sftpsource", k), err)
 					downloadedSize = 0
 				}
 			}
@@ -272,12 +274,36 @@ func (i *Ingest) printProgress() error {
 			i.progress.Unpacker.wasRunning = i.progress.Unpacker.running
 			if i.config.ProgressPrint.PrintDetailProgress {
 				for fn, file := range i.progress.Unpacker.Files {
-					logger.Info("unpacker detail file:%s (size:%s) (isArchive:%t isCollectInfo:%t isTarBz:%t isTarGz:%t isText:%t) (unpackFailed:%t) (contentType:%s)", fn, convSize(file.Size), file.IsArchive, file.IsCollectInfo, file.IsTarBz, file.IsTarGz, file.IsText, file.UnpackFailed, file.ContentType)
+					logger.Info("unpacker detail file:%s (size:%s) (isArchive:%t isCollectInfo:%t isTarBz:%t isTarGz:%t isText:%t) (unpackFailed:%t) (contentType:%s) (errors:%v)", fn, convSize(file.Size), file.IsArchive, file.IsCollectInfo, file.IsTarBz, file.IsTarGz, file.IsText, file.UnpackFailed, file.ContentType, file.Errors)
 				}
 			}
 		}
 	}
-	// TODO: progress of pre-processor
+	if i.progress.PreProcessor.wasRunning {
+		if i.progress.PreProcessor.running {
+			logger.Info("pre-processor running")
+		} else {
+			logger.Info("pre-processor finished")
+			i.progress.PreProcessor.wasRunning = i.progress.PreProcessor.running
+		}
+		if i.config.ProgressPrint.PrintDetailProgress {
+			for fn, file := range i.progress.PreProcessor.Files {
+				if len(file.PreProcessDuplicateOf) > 0 {
+					dup := ""
+					for _, a := range file.PreProcessDuplicateOf {
+						dup = dup + "\n\t" + a
+					}
+					logger.Info("pre-processor detail file:%s (size:%s) (isArchive:%t isCollectInfo:%t isTarBz:%t isTarGz:%t isText:%t) (contentType:%s) (errors:%v) duplicateOf:%v", fn, convSize(file.Size), file.IsArchive, file.IsCollectInfo, file.IsTarBz, file.IsTarGz, file.IsText, file.ContentType, file.Errors, dup)
+				} else {
+					out := ""
+					for _, a := range file.PreProcessOutPaths {
+						out = out + "\n\t" + a
+					}
+					logger.Info("pre-processor detail file:%s (size:%s) (isArchive:%t isCollectInfo:%t isTarBz:%t isTarGz:%t isText:%t) (contentType:%s) (errors:%v) outputFiles:%v", fn, convSize(file.Size), file.IsArchive, file.IsCollectInfo, file.IsTarBz, file.IsTarGz, file.IsText, file.ContentType, file.Errors, out)
+				}
+			}
+		}
+	}
 	// TODO: progress of processor
 	// TODO: progress of collectInfo rename
 	i.progress.RUnlock()

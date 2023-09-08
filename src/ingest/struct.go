@@ -242,3 +242,21 @@ type enumFile struct {
 	StartAt               int64 // workaround for log files starting at binary 000s
 	PreProcessOutPaths    []string
 }
+
+type jsonPayload struct {
+	JsonPayload struct {
+		Log          string `json:"log"`           // type 1: full log line in here
+		Level        string `json:"level"`         // type 2: INFO
+		Module       string `json:"module"`        // type 2: info
+		ModuleDetail string `json:"module_detail"` // type 2: ticker.c:497
+		Message      string `json:"message"`       // type 2: {test} memory-usage: total-bytes 0 index-bytes 0 sindex-bytes 0 data-bytes 0 used-pct 0.00
+	} `json:"jsonPayload"`
+	Timestamp   string   `json:"timestamp"`   // type 2: 2021-06-18T10:00:00Z
+	TextPayload string   `json:"textPayload"` // type 3
+	Resource    struct { // type 3
+		Labels struct { // type 3
+			PodName string `json:"pod_name"` // type 3
+		} `json:"labels"` // type 3
+	} `json:"resource"` // type 3
+	Log string `json:"log"` // type 4
+}
