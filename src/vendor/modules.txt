@@ -47,7 +47,7 @@ github.com/aerospike/aerospike-client-go/v6/types
 github.com/aerospike/aerospike-client-go/v6/types/particle_type
 github.com/aerospike/aerospike-client-go/v6/types/rand
 github.com/aerospike/aerospike-client-go/v6/utils/buffer
-# github.com/aws/aws-sdk-go v1.45.3
+# github.com/aws/aws-sdk-go v1.45.6
 ## explicit; go 1.11
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/arn
@@ -293,7 +293,7 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# google.golang.org/api v0.138.0
+# google.golang.org/api v0.139.0
 ## explicit; go 1.19
 google.golang.org/api/cloudbilling/v1
 google.golang.org/api/googleapi
@@ -333,8 +333,8 @@ google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.57.0
-## explicit; go 1.17
+# google.golang.org/grpc v1.58.0
+## explicit; go 1.19
 google.golang.org/grpc
 google.golang.org/grpc/attributes
 google.golang.org/grpc/backoff
@@ -364,6 +364,7 @@ google.golang.org/grpc/internal/grpclog
 google.golang.org/grpc/internal/grpcrand
 google.golang.org/grpc/internal/grpcsync
 google.golang.org/grpc/internal/grpcutil
+google.golang.org/grpc/internal/idle
 google.golang.org/grpc/internal/metadata
 google.golang.org/grpc/internal/pretty
 google.golang.org/grpc/internal/resolver
