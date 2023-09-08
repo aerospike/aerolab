@@ -5,10 +5,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,18 +36,6 @@ func (i *Ingest) PreProcess() error {
 		i.progress.PreProcessor.running = false
 		i.progress.Unlock()
 	}()
-
-	// cleanup any tmp_ in logs dir
-	logger.Debug("PreProcess - cleaning tmp_")
-	filepath.Walk(i.config.Directories.Logs, func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if strings.HasPrefix(info.Name(), "tmp_") {
-			os.Remove(path)
-		}
-		return nil
-	})
 
 	logger.Debug("Enumerating dirty dir")
 	files, err := i.enum()
