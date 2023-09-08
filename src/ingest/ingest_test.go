@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sync"
 	"testing"
 )
 
@@ -94,6 +95,30 @@ func TestAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	nerr := []error{}
+	wg := new(sync.WaitGroup)
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		err := i.ProcessLogs()
+		if err != nil {
+			nerr = append(nerr, fmt.Errorf("processLogs: %s", err))
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		err := i.ProcessCollectInfo()
+		if err != nil {
+			nerr = append(nerr, fmt.Errorf("processCollectInfo: %s", err))
+		}
+	}()
+	wg.Wait()
 	t.Log("Cleanup")
 	i.Close()
+	if len(nerr) > 0 {
+		for _, e := range nerr {
+			t.Log(e)
+		}
+		t.Fatal("Errors Encountered")
+	}
 }
