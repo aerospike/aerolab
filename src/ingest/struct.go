@@ -236,4 +236,5 @@ type enumFile struct {
 	Errors                []string
 	PreProcessDuplicateOf []string
 	StartAt               int64 // workaround for log files starting at binary 000s
+	PreProcessOutPaths    []string
 }
