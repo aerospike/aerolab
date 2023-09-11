@@ -4,7 +4,7 @@ on:
     workflow_dispatch:
         inputs:
             addCommit:
-                description: 'Pre-release?'
+                description: 'Dev build?'
                 required: false
                 type: boolean
             sendSlackMessage:
