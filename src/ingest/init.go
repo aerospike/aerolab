@@ -143,6 +143,10 @@ func (i *Ingest) Close() {
 	if err != nil {
 		logger.Error("Could not save progress: %s", err)
 	}
+	err = i.printProgress()
+	if err != nil {
+		logger.Error("Could not print progress: %s", err)
+	}
 	if i.pprofRunning {
 		logger.Debug("CLOSE: Stopping CPU profiling")
 		pprof.StopCPUProfile()
