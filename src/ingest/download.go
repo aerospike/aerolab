@@ -319,8 +319,10 @@ func (i *Ingest) DownloadAsftp() error {
 	threads := make(chan bool, i.config.Downloader.SftpSource.Threads)
 	wg.Add(len(fileList))
 	for f := range fileList {
+		logger.Detail("sftp Downloading %s", f)
 		threads <- true
 		go func(f string) {
+			logger.Detail("sftp Thread secured, proceeding to download %s", f)
 			err := sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource"))
 			if err != nil {
 				err = sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource"))
@@ -348,25 +350,30 @@ func (i *Ingest) DownloadAsftp() error {
 }
 
 func sftpDownload(sclient *sftp.Client, f string, dstDir string) error {
+	logger.Detail("sftp open %s", f)
 	src, err := sclient.Open(f)
 	if err != nil {
 		return fmt.Errorf("sftp could not open remote file: %s", err)
 	}
 	defer src.Close()
 	fd, _ := path.Split(f)
+	logger.Detail("sftp mkdir for %s", f)
 	err = os.MkdirAll(path.Join(dstDir, fd), 0755)
 	if err != nil {
 		return fmt.Errorf("sftp failed to create directory: %s", err)
 	}
+	logger.Detail("sftp create local for %s", f)
 	dst, err := os.Create(path.Join(dstDir, f))
 	if err != nil {
 		return fmt.Errorf("sftp Failed to create file: %s", err)
 	}
 	defer dst.Close()
+	logger.Detail("sftp start copy for %s", f)
 	_, err = io.Copy(dst, src)
 	if err != nil {
 		return fmt.Errorf("sftp failed to download file: %s", err)
 	}
+	logger.Detail("sftp end copy for %s", f)
 	return nil
 }
 

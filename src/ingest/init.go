@@ -3,30 +3,28 @@ package ingest
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"runtime/pprof"
 
 	"github.com/bestmethod/logger"
 	"github.com/creasty/defaults"
-	"github.com/kelseyhightower/envconfig"
+	"github.com/rglonek/envconfig"
 	"gopkg.in/yaml.v2"
 )
 
-func MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, error) {
+func MakeConfigReader(setDefaults bool, configYaml io.Reader, parseEnv bool) (*Config, error) {
 	config := new(Config)
+	config.Downloader.S3Source = &S3Source{}
+	config.Downloader.SftpSource = &SftpSource{}
 	if setDefaults {
 		if err := defaults.Set(config); err != nil {
 			return nil, fmt.Errorf("could not set defaults: %s", err)
 		}
 	}
-	if configFile != "" {
-		cf, err := os.Open(configFile)
-		if err != nil {
-			return nil, fmt.Errorf("could not open config file: %s", err)
-		}
-		defer cf.Close()
-		err = yaml.NewDecoder(cf).Decode(config)
+	if configYaml != nil {
+		err := yaml.NewDecoder(configYaml).Decode(config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal config: %s", err)
 		}
@@ -38,6 +36,19 @@ func MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, er
 		}
 	}
 	return config, nil
+}
+
+func MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, error) {
+	var cf *os.File
+	var err error
+	if configFile != "" {
+		cf, err = os.Open(configFile)
+		if err != nil {
+			return nil, fmt.Errorf("could not open config file: %s", err)
+		}
+		defer cf.Close()
+	}
+	return MakeConfigReader(setDefaults, cf, parseEnv)
 }
 
 func Init(config *Config) (*Ingest, error) {

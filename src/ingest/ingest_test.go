@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func setupTest() error {
@@ -42,18 +44,14 @@ func teardownTest() error {
 
 // TODO: convert this into a Run() function as a wrapper for do-it-all
 func TestAll(t *testing.T) {
+	t.Log("Tearing down")
+	teardownTest()
+	t.Log("Sleep 5 sec")
+	time.Sleep(5 * time.Second)
 	t.Log("Setting up")
 	if err := setupTest(); err != nil {
-		t.Log("FAIL: tearing down")
-		teardownTest()
 		t.Fatal(err)
 	}
-	defer func() {
-		t.Log("Tearing down")
-		if err := teardownTest(); err != nil {
-			t.Fatal(err)
-		}
-	}()
 	t.Log("Setting up config")
 	os.Setenv("LOGINGEST_LOGLEVEL", "6")
 	os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "true")
@@ -68,10 +66,11 @@ func TestAll(t *testing.T) {
 	os.Setenv("LOGINGEST_SFTPSOURCE_PORT", "22")
 	//os.Setenv("LOGINGEST_SFTPSOURCE_USER", "") // set outside
 	//os.Setenv("LOGINGEST_SFTPSOURCE_PASSWORD", "") // set outside
-	os.Setenv("LOGINGEST_SFTPSOURCE_PATH", "logs")
-	os.Setenv("LOGINGEST_SFTPSOURCE_REGEX", "^.*\\.tgz")
+	os.Setenv("LOGINGEST_SFTPSOURCE_PATH", "new.tgz")
+	//os.Setenv("LOGINGEST_SFTPSOURCE_REGEX", "^.*\\.tgz")
 	t.Log("Creating a config")
-	config, err := MakeConfig(true, "", true)
+	yamlConfig := "aerospike:\n  namespace: \"test\""
+	config, err := MakeConfigReader(true, strings.NewReader(yamlConfig), true)
 	if err != nil {
 		t.Fatal(err)
 	}
