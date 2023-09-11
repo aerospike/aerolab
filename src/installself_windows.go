@@ -18,12 +18,32 @@ import (
 func installSelf() (isGUI bool) {
 	p, err := ps.FindProcess(os.Getppid())
 	if err != nil {
+		log.Printf("WARNING: Unable to discover parent PID: %s", err)
 		return false
 	}
 	pName := p.Executable()
-	if pName == "pwsh.exe" || pName == "aerolab.exe" {
+	if pName == "pwsh.exe" || pName == "aerolab.exe" || pName == "powershell.exe" || pName == "powershell_ise.exe" {
+		if pName == "powershell.exe" || pName == "powershell_ise.exe" {
+			log.Print("WARNING: AeroLab is being run from an older PowerShell. For full compatibility consider upgrading PowerShell.")
+		}
 		return false
 	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		installSelfDrawErrorWindow(fmt.Errorf("E0:GetUserHomeDir:%s", err))
+		fmt.Println("Press ENTER to exit")
+		var input string
+		fmt.Scanln(&input)
+		return true
+	}
+	aerolabHome := filepath.Join(home, "AppData", "Local", "Aerospike", "AeroLab")
+	binDir := filepath.Join(aerolabHome, "bin")
+	bin := filepath.Join(binDir, "aerolab.exe")
+	if os.Args[0] == bin {
+		log.Printf("WARNING: AeroLab seems to be running from a prompt other than PowerShell (%s). For full compatibility please use PowerShell.", pName)
+		return false
+	}
+
 	defer func() {
 		fmt.Println("Press ENTER to exit")
 		var input string
@@ -36,14 +56,6 @@ func installSelf() (isGUI bool) {
 	}
 	log.Println("Starting installer...")
 	isGUI = true
-	home, err := os.UserHomeDir()
-	if err != nil {
-		installSelfDrawErrorWindow(fmt.Errorf("E0:%s", err))
-		return
-	}
-	aerolabHome := filepath.Join(home, "AppData", "Local", "Aerospike", "AeroLab")
-	binDir := filepath.Join(aerolabHome, "bin")
-	bin := filepath.Join(binDir, "aerolab.exe")
 	if _, err := os.Stat(binDir); os.IsNotExist(err) {
 		log.Printf("Creating %s", binDir)
 		err = os.MkdirAll(binDir, 0755)
