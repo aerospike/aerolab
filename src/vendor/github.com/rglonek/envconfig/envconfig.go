@@ -195,13 +195,8 @@ func Process(prefix string, spec interface{}) error {
 			value, ok = lookupEnv(info.Alt)
 		}
 
-		def := info.Tags.Get("default")
-		if def != "" && !ok {
-			value = def
-		}
-
 		req := info.Tags.Get("required")
-		if !ok && def == "" {
+		if !ok {
 			if isTrue(req) {
 				key := info.Key
 				if info.Alt != "" {
@@ -305,7 +300,7 @@ func processField(value string, field reflect.Value) error {
 		sl := reflect.MakeSlice(typ, 0, 0)
 		if typ.Elem().Kind() == reflect.Uint8 {
 			sl = reflect.ValueOf([]byte(value))
-		} else if len(strings.TrimSpace(value)) != 0 {
+		} else if strings.TrimSpace(value) != "" {
 			vals := strings.Split(value, ",")
 			sl = reflect.MakeSlice(typ, len(vals), len(vals))
 			for i, val := range vals {
@@ -318,7 +313,7 @@ func processField(value string, field reflect.Value) error {
 		field.Set(sl)
 	case reflect.Map:
 		mp := reflect.MakeMap(typ)
-		if len(strings.TrimSpace(value)) != 0 {
+		if strings.TrimSpace(value) != "" {
 			pairs := strings.Split(value, ",")
 			for _, pair := range pairs {
 				kvpair := strings.Split(pair, ":")

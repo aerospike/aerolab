@@ -304,8 +304,27 @@ func (i *Ingest) printProgress() error {
 			}
 		}
 	}
+	if i.progress.CollectinfoProcessor.wasRunning {
+		if i.progress.CollectinfoProcessor.running {
+			logger.Info("CollectinfoProcessor running")
+		} else {
+			logger.Info("CollectinfoProcessor finished")
+			i.progress.CollectinfoProcessor.wasRunning = i.progress.CollectinfoProcessor.running
+		}
+		if i.config.ProgressPrint.PrintDetailProgress {
+			for fn, file := range i.progress.CollectinfoProcessor.Files {
+				dup := ""
+				for _, a := range file.Errors {
+					dup = dup + "\n\t" + a
+				}
+				if dup == "" {
+					dup = "nil"
+				}
+				logger.Info("CollectinfoProcessor detail file:%s (size:%s) (nodeID:%s) (renameAttempt:%t renamed:%t processAttempt:%t processed:%t) (originalName:%s) errors:%s", fn, convSize(file.Size), file.NodeID, file.RenameAttempted, file.Renamed, file.ProcessingAttempted, file.Processed, file.OriginalName, dup)
+			}
+		}
+	}
 	// TODO: progress of processor
-	// TODO: progress of collectInfo rename
 	i.progress.RUnlock()
 	return nil
 }

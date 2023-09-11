@@ -59,8 +59,8 @@ type Config struct {
 		ReadBytes int  `yaml:"readBytesCount" default:"1048576"`
 	} `yaml:"dedup"`
 	Processor struct {
-		MaxConcurrentFiles  int `yaml:"maxConcurrentFiles" default:"4"`
-		LogReadBufferSizeKb int `yaml:"logReadBufferSizeKb" default:"1024"`
+		MaxConcurrentLogFiles int `yaml:"maxConcurrentLogFiles" default:"4"`
+		LogReadBufferSizeKb   int `yaml:"logReadBufferSizeKb" default:"1024"`
 	} `yaml:"processor"`
 	PreProcess struct {
 		FileThreads         int `yaml:"fileThreads" default:"6"`
@@ -85,6 +85,8 @@ type Config struct {
 		To      time.Time `yaml:"to" envconfig:"LOGINGEST_TIMERANGE_TO"`
 	} `yaml:"ingestTimeRanges"`
 	CollectInfoAsadmTimeout time.Duration `yaml:"collectInfoCommandTimeout" default:"150s"`
+	CollectInfoMaxSize      int64         `yaml:"collectInfoMaxSize" default:"20971520"` // files over 20MiB will be considered not collectinfo
+	CollectInfoSetName      string        `yaml:"collectInfoSetName" default:"collectinfos"`
 	Directories             struct {
 		CollectInfo string `yaml:"collectInfo" default:"ingest/files/collectinfo"`
 		Logs        string `yaml:"logs" default:"ingest/files/logs"`
@@ -217,7 +219,22 @@ type progressLogProcessor struct {
 }
 
 type progressCollectProcessor struct {
-	changed bool
+	Files      map[string]*cfFile
+	Finished   bool
+	running    bool
+	wasRunning bool
+	changed    bool
+}
+
+type cfFile struct {
+	Size                int64
+	NodeID              string
+	RenameAttempted     bool
+	Renamed             bool
+	OriginalName        string
+	ProcessingAttempted bool
+	Processed           bool
+	Errors              []string
 }
 
 type downloaderFile struct {

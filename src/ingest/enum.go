@@ -79,7 +79,7 @@ func (i *Ingest) enum() (map[string]*enumFile, error) {
 		file.ContentType = contentType.String()
 
 		// collectinfo further check
-		if contentType.Is("application/gzip") && info.Size() < 10485760 {
+		if contentType.Is("application/gzip") && info.Size() < i.config.CollectInfoMaxSize {
 			isCollect, err := i.enumCollectDeepCheck(fd)
 			if err != nil {
 				logger.Warn("Could not do deep-discovery to determine if file is collectinfo, will treat as normal: %s: %s", filePath, err)
