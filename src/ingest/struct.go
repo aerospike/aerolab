@@ -78,12 +78,8 @@ type Config struct {
 		PrintOverallProgress bool          `yaml:"printOverallProgress" default:"true"`
 		PrintDetailProgress  bool          `yaml:"printDetailProgress" default:"true"`
 	} `yaml:"progressPrint"`
-	PatternsFile     string `yaml:"patternsFile"`
-	IngestTimeRanges struct {
-		Enabled bool      `yaml:"enabled" envconfig:"LOGINGEST_TIMERANGE_ENABLE" default:"false"`
-		From    time.Time `yaml:"from" envconfig:"LOGINGEST_TIMERANGE_FROM"`
-		To      time.Time `yaml:"to" envconfig:"LOGINGEST_TIMERANGE_TO"`
-	} `yaml:"ingestTimeRanges"`
+	PatternsFile            string        `yaml:"patternsFile"`
+	IngestTimeRanges        TimeRanges    `yaml:"ingestTimeRanges"`
 	CollectInfoAsadmTimeout time.Duration `yaml:"collectInfoCommandTimeout" default:"150s"`
 	CollectInfoMaxSize      int64         `yaml:"collectInfoMaxSize" default:"20971520"` // files over 20MiB will be considered not collectinfo
 	CollectInfoSetName      string        `yaml:"collectInfoSetName" default:"collectinfos"`
@@ -102,6 +98,12 @@ type Config struct {
 	FindClusterNameNodeIdRegex string `yaml:"findClusterNameNodeIdRegex" default:"NODE-ID (?P<NodeId>[^ ]+) CLUSTER-SIZE (?P<ClusterSize>\\d+)( CLUSTER-NAME (?P<ClusterName>[^$]+))*"`
 	findClusterNameNodeIdRegex *regexp.Regexp
 	CPUProfilingOutputFile     string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
+}
+
+type TimeRanges struct {
+	Enabled bool      `yaml:"enabled" envconfig:"LOGINGEST_TIMERANGE_ENABLE" default:"false"`
+	From    time.Time `yaml:"from" envconfig:"LOGINGEST_TIMERANGE_FROM"`
+	To      time.Time `yaml:"to" envconfig:"LOGINGEST_TIMERANGE_TO"`
 }
 
 type S3Source struct {
@@ -152,10 +154,11 @@ type patterns struct {
 		Name  string `yaml:"name"`
 		Value string `yaml:"value"`
 	} `yaml:"labelAddStaticValue"`
-	LabelsSetName      string `yaml:"labelsSetName"`
-	NodeIdentBinName   string `yaml:"nodeIdentBinName"`
-	ClusterNameBinName string `yaml:"clusterNameBinName"`
-	LogFileNameBinName string `yaml:"logFileNameBinName"`
+	GlobalLabels       []string `yaml:"labels"`
+	LabelsSetName      string   `yaml:"labelsSetName"`
+	NodeIdentBinName   string   `yaml:"nodeIdentBinName"`
+	ClusterNameBinName string   `yaml:"clusterNameBinName"`
+	LogFileNameBinName string   `yaml:"logFileNameBinName"`
 	Patterns           []*struct {
 		Name    string `yaml:"setName"`
 		Search  string `yaml:"search"`
