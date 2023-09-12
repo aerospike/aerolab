@@ -319,7 +319,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 			timer = time.Now()
 		}
 	}
-	out := stream.Close()
+	out, startTime, endTime := stream.Close()
 	for _, d := range out {
 		resultsChan <- &processResult{
 			FileName: fileName,
@@ -330,6 +330,36 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 			Metadata: d.Metadata,
 		}
 	}
+	// store startTime and endTime of logs
+	logDir, fileNameOnly := path.Split(fileName)
+	_, clusterName := path.Split(strings.Trim(logDir, "/"))
+	for _, point := range []time.Time{startTime, endTime} {
+		if point.IsZero() {
+			continue
+		}
+		nodePrefix, err := strconv.Atoi(strings.Split(fileNameOnly, "_")[0])
+		if err != nil {
+			continue
+		}
+		meta := make(map[string]interface{})
+		for k, v := range labels {
+			meta[k] = v
+		}
+		meta["fileName"] = clusterName + "/" + fileNameOnly
+		resultsChan <- &processResult{
+			FileName: fileName,
+			Data: map[string]interface{}{
+				"nodePrefix":                        nodePrefix,
+				i.config.Aerospike.TimestampBinName: point.UnixMilli(),
+			},
+			Error:    nil,
+			SetName:  i.config.Aerospike.LogFileRagesSetName,
+			LogLine:  fmt.Sprintf("%s:%d", fileName, point.UnixMilli()),
+			Metadata: meta,
+		}
+	}
+
+	// done
 	i.progress.Lock()
 	i.progress.LogProcessor.Files[fileName].Processed = i.progress.LogProcessor.Files[fileName].Size
 	i.progress.LogProcessor.Files[fileName].Finished = true

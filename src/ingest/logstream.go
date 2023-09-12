@@ -19,6 +19,8 @@ type logStream struct {
 	timestampStatName   string
 	multilineItems      map[string]*multilineItem
 	aggregateItems      map[string]*aggregator // where string is the unique string to aggregate against
+	logFileStartTime    time.Time
+	logFileEndTime      time.Time
 }
 
 type logStreamOutput struct {
@@ -48,10 +50,11 @@ func newLogStream(p *patterns, t *TimeRanges, timestampName string) *logStream {
 		multilineItems:    make(map[string]*multilineItem),
 		timestampDefIdx:   -1,
 		timestampStatName: timestampName,
+		aggregateItems:    make(map[string]*aggregator),
 	}
 }
 
-func (s *logStream) Close() []*logStreamOutput {
+func (s *logStream) Close() (outputs []*logStreamOutput, logStartTime time.Time, logEndTime time.Time) {
 	ret := []*logStreamOutput{}
 	for _, a := range s.aggregateItems {
 		ret = append(ret, a.out)
@@ -64,7 +67,7 @@ func (s *logStream) Close() []*logStreamOutput {
 		}
 	}
 	s.multilineItems = make(map[string]*multilineItem)
-	return ret
+	return ret, s.logFileStartTime, s.logFileEndTime
 }
 
 func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
@@ -288,6 +291,12 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamO
 				}
 				aggrToDelete = append(aggrToDelete, aguniq)
 				ret = append(ret, ag.out)
+				if s.logFileStartTime.IsZero() || ag.startTime.Before(s.logFileStartTime) {
+					s.logFileStartTime = ag.startTime
+				}
+				if s.logFileEndTime.IsZero() || ag.endTime.After(s.logFileEndTime) {
+					s.logFileEndTime = ag.endTime
+				}
 			}
 			for _, ag := range aggrToDelete {
 				delete(s.aggregateItems, ag)
@@ -320,6 +329,12 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamO
 				Error:    nil,
 				SetName:  p.Name,
 			})
+			if s.logFileStartTime.IsZero() || timestamp.Before(s.logFileStartTime) {
+				s.logFileStartTime = timestamp
+			}
+			if s.logFileEndTime.IsZero() || timestamp.After(s.logFileEndTime) {
+				s.logFileEndTime = timestamp
+			}
 			return ret, nil
 		}
 	}

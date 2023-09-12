@@ -23,13 +23,14 @@ type Ingest struct {
 type Config struct {
 	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
 	Aerospike struct {
-		Host               string `yaml:"host" default:"127.0.0.1"`
-		Port               int    `yaml:"port" default:"3100"`
-		Namespace          string `yaml:"namespace" default:"agi"`
-		DefaultSetName     string `yaml:"defaultSetName" default:"default"`
-		TimestampBinName   string `yaml:"timestampBinName" default:"timestamp"`
-		TimestampIndexName string `yaml:"timestampIndexName" default:"timestamp_idx"`
-		Timeouts           struct {
+		Host                string `yaml:"host" default:"127.0.0.1"`
+		Port                int    `yaml:"port" default:"3100"`
+		Namespace           string `yaml:"namespace" default:"agi"`
+		DefaultSetName      string `yaml:"defaultSetName" default:"default"`
+		LogFileRagesSetName string `yaml:"logFileRangesSetName" default:"logRanges"`
+		TimestampBinName    string `yaml:"timestampBinName" default:"timestamp"`
+		TimestampIndexName  string `yaml:"timestampIndexName" default:"timestamp_idx"`
+		Timeouts            struct {
 			Connect time.Duration `yaml:"connect" default:"60s"`
 			Idle    time.Duration `yaml:"idle" default:"60s"`
 			Socket  time.Duration `yaml:"socket" default:"10s"`
