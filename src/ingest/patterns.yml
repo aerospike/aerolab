@@ -518,6 +518,9 @@ patterns:
         export:
             - " \\((?P<warnCtx>[^)]+)\\): \\((?P<warnC>[^)]+)\\) \\(repeated:(?P<repeated>\\d+)\\) (?P<warnMessage>.+$)"
             - " \\(norepeat:(?P<repeated>\\d+)\\) \\((?P<warnCtx>[^)]+)\\): \\((?P<warnC>[^)]+)\\) (?P<warnMessage>.+$)"
+        aggregate:
+            every: 10s
+            field: "repeated"
     -
         setName: "errors"
         search: ": ERROR ("
@@ -528,3 +531,6 @@ patterns:
         export:
             - " \\((?P<errCtx>[^)]+)\\): \\((?P<errC>[^)]+)\\) \\(repeated:(?P<repeated>\\d+)\\) (?P<errMessage>.+$)"
             - " \\(norepeat:(?P<repeated>\\d+)\\) \\((?P<errCtx>[^)]+)\\): \\((?P<errC>[^)]+)\\) (?P<errMessage>.+$)"
+        aggregate:
+            every: 10s
+            field: "repeated"

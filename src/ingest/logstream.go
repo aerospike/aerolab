@@ -221,6 +221,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) (*logStreamOut
 					}
 					newHist := strings.Split(histograms[hInd+1:hIndE], ": ")
 					if len(newHist) != 2 {
+						histograms = histograms[hIndE+1:]
 						continue
 					}
 					if inslice.HasString(p.Histogram.Buckets, newHist[0]) {

@@ -176,6 +176,10 @@ type patterns struct {
 			Buckets       []string `yaml:"buckets"`
 			GenCumulative bool     `yaml:"generateCumulative"`
 		} `yaml:"histogram"`
+		Aggregate *struct {
+			Every time.Duration `yaml:"every"`
+			Field string        `yaml:"field"`
+		} `yaml:"aggregate"`
 	} `yaml:"patterns"`
 }
 
