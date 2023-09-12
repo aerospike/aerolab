@@ -11,10 +11,7 @@ multilineJoins: # handle multiline hell
         - re: "( |\\(hist\\.c:\\d+\\))( \\(.*)"
           matchSeq: 2
 
-labelsSetName: "labels"
-nodeIdentBinName: "LogNode" # also becomes a label, added to all statistics
-clusterNameBinName: "LogClusterName" # also becomes a label, added to all statistcs
-logFileNameBinName: "LogFileName" # also becomes a label, only added to statistics where storeLogFileName=true
+labelsSetName: "labels" # where we store labels
 
 labels: # globally defined labels
     - "Namespace"
@@ -64,7 +61,6 @@ patterns:
         export:
             # - "CLUSTER-SIZE (?P<ClusterSize>\\d+) CLUSTER-NAME (?P<ClusterName>[^$]+)"
             - "CLUSTER-SIZE (?P<ClusterSize>\\d+)"
-        storeLogFileName: true
     -
         setName: "nsMigrations"
         search: "migrations: remaining"

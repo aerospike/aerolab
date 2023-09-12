@@ -155,12 +155,9 @@ type patterns struct {
 		Name  string `yaml:"name"`
 		Value string `yaml:"value"`
 	} `yaml:"labelAddStaticValue"`
-	GlobalLabels       []string `yaml:"labels"`
-	LabelsSetName      string   `yaml:"labelsSetName"`
-	NodeIdentBinName   string   `yaml:"nodeIdentBinName"`
-	ClusterNameBinName string   `yaml:"clusterNameBinName"`
-	LogFileNameBinName string   `yaml:"logFileNameBinName"`
-	Patterns           []*struct {
+	GlobalLabels  []string `yaml:"labels"`
+	LabelsSetName string   `yaml:"labelsSetName"`
+	Patterns      []*struct {
 		Name    string `yaml:"setName"`
 		Search  string `yaml:"search"`
 		Replace []*struct {
@@ -171,7 +168,6 @@ type patterns struct {
 		Regex               []string `yaml:"export"`
 		regex               []*regexp.Regexp
 		Labels              []string          `yaml:"labels"` // used to define which regex matches are labels (to be stuck in metadata)
-		StoreLogFileName    bool              `yaml:"storeLogFileName"`
 		DefaultValuePadding map[string]string `yaml:"defaultValuePadding"`
 		Histogram           *struct {
 			Buckets       []string `yaml:"buckets"`
