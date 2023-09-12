@@ -54,7 +54,7 @@ func TestAll(t *testing.T) {
 	}
 	t.Log("Setting up config")
 	os.Setenv("LOGINGEST_LOGLEVEL", "6")
-	os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "true")
+	//os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "true")
 	os.Setenv("LOGINGEST_SFTPSOURCE_ENABLED", "true")
 	os.Setenv("LOGINGEST_S3SOURCE_REGION", "ca-central-1")
 	//os.Setenv("LOGINGEST_S3SOURCE_BUCKET", "") // set outside
@@ -66,7 +66,7 @@ func TestAll(t *testing.T) {
 	os.Setenv("LOGINGEST_SFTPSOURCE_PORT", "22")
 	//os.Setenv("LOGINGEST_SFTPSOURCE_USER", "") // set outside
 	//os.Setenv("LOGINGEST_SFTPSOURCE_PASSWORD", "") // set outside
-	os.Setenv("LOGINGEST_SFTPSOURCE_PATH", "new.tgz")
+	os.Setenv("LOGINGEST_SFTPSOURCE_PATH", "withhist.tgz")
 	//os.Setenv("LOGINGEST_SFTPSOURCE_REGEX", "^.*\\.tgz")
 	t.Log("Creating a config")
 	yamlConfig := "aerospike:\n  namespace: \"test\""
