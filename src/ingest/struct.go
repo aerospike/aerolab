@@ -177,8 +177,9 @@ type patterns struct {
 			GenCumulative bool     `yaml:"generateCumulative"`
 		} `yaml:"histogram"`
 		Aggregate *struct {
-			Every time.Duration `yaml:"every"`
-			Field string        `yaml:"field"`
+			Every time.Duration `yaml:"every"` // aggregation time window
+			Field string        `yaml:"field"` // field to use for aggregation counts
+			On    string        `yaml:"on"`    // aggregate on this result value being the unique value
 		} `yaml:"aggregate"`
 	} `yaml:"patterns"`
 }

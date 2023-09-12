@@ -16,7 +16,9 @@ type logStream struct {
 	TimeRanges          *TimeRanges
 	timestampDefIdx     int
 	timestampNeedsRegex bool
+	timestampStatName   string
 	multilineItems      map[string]*multilineItem
+	aggregateItems      map[string]*aggregator // where string is the unique string to aggregate against
 }
 
 type logStreamOutput struct {
@@ -32,17 +34,37 @@ type multilineItem struct {
 	timestamp time.Time
 }
 
-func newLogStream(p *patterns, t *TimeRanges) *logStream {
+type aggregator struct {
+	stat      int              // the stat that increases
+	startTime time.Time        // time first encountered, resets if we fell outside of the aggregation period
+	endTime   time.Time        //  startTime+Every aggregation window
+	out       *logStreamOutput // this will be set as time goes by to allow for dumping of data, the stat will need to be overridden
+}
+
+func newLogStream(p *patterns, t *TimeRanges, timestampName string) *logStream {
 	return &logStream{
-		patterns:        p,
-		TimeRanges:      t,
-		multilineItems:  make(map[string]*multilineItem),
-		timestampDefIdx: -1,
+		patterns:          p,
+		TimeRanges:        t,
+		multilineItems:    make(map[string]*multilineItem),
+		timestampDefIdx:   -1,
+		timestampStatName: timestampName,
 	}
 }
 
 func (s *logStream) Close() []*logStreamOutput {
-	return nil
+	ret := []*logStreamOutput{}
+	for _, a := range s.aggregateItems {
+		ret = append(ret, a.out)
+	}
+	s.aggregateItems = make(map[string]*aggregator)
+	for _, mit := range s.multilineItems {
+		ra, err := s.lineProcess(mit.line, mit.timestamp)
+		if err == nil {
+			ret = append(ret, ra...)
+		}
+	}
+	s.multilineItems = make(map[string]*multilineItem)
+	return ret
 }
 
 func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
@@ -74,8 +96,8 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 				if err != nil {
 					return nil, err
 				}
-				if outx != nil {
-					out = append(out, outx)
+				if len(outx) > 0 {
+					out = append(out, outx...)
 				}
 				return out, nil
 			}
@@ -116,8 +138,8 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 
 	// non-multiline, just process
 	outx, err := s.lineProcess(line, timestamp)
-	if outx != nil {
-		out = append(out, outx)
+	if len(outx) > 0 {
+		out = append(out, outx...)
 	}
 	return out, err
 }
@@ -174,7 +196,7 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 	return
 }
 
-func (s *logStream) lineProcess(line string, timestamp time.Time) (*logStreamOutput, error) {
+func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamOutput, error) {
 	for _, p := range s.patterns.Patterns {
 		if !strings.Contains(line, p.Search) {
 			continue
@@ -256,14 +278,49 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) (*logStreamOut
 					nRes[n] = val
 				}
 			}
-			// TODO apply special aggregation (like for warning messages)
-			return &logStreamOutput{
+			nRes[s.timestampStatName] = timestamp.UnixMilli()
+			//aggregate
+			ret := []*logStreamOutput{}
+			aggrToDelete := []string{}
+			for aguniq, ag := range s.aggregateItems {
+				if ag.endTime.After(timestamp) {
+					continue
+				}
+				aggrToDelete = append(aggrToDelete, aguniq)
+				ret = append(ret, ag.out)
+			}
+			for _, ag := range aggrToDelete {
+				delete(s.aggregateItems, ag)
+			}
+			if p.Aggregate != nil && p.Aggregate.Field != "" {
+				newVal, _ := strconv.Atoi(nRes[p.Aggregate.Field].(string))
+				if _, ok := s.aggregateItems[p.Aggregate.On]; !ok {
+					s.aggregateItems[p.Aggregate.On] = &aggregator{
+						stat:      newVal,
+						startTime: timestamp,
+						endTime:   timestamp.Add(p.Aggregate.Every),
+						out: &logStreamOutput{
+							Data:     nRes,
+							Metadata: nMeta,
+							Line:     line,
+							Error:    nil,
+							SetName:  p.Name,
+						},
+					}
+				} else {
+					s.aggregateItems[p.Aggregate.On].stat += newVal
+					s.aggregateItems[p.Aggregate.On].out.Data[p.Aggregate.Field] = s.aggregateItems[p.Aggregate.On].stat
+				}
+				return ret, nil
+			}
+			ret = append(ret, &logStreamOutput{
 				Data:     nRes,
 				Metadata: nMeta,
 				Line:     line,
 				Error:    nil,
 				SetName:  p.Name,
-			}, nil
+			})
+			return ret, nil
 		}
 	}
 	return nil, errNotMatched
