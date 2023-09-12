@@ -134,6 +134,12 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*logFile, resultsChan chan
 				return
 			}
 			defer fd.Close()
+			if f.Processed > 0 && f.Processed < f.Size {
+				move := f.Processed - int64(i.config.Processor.LogReadBufferSizeKb*1024*2)
+				if move > 0 {
+					fd.Seek(move, 0)
+				}
+			}
 			i.processLogFile(n, fd, resultsChan, labels)
 		}(n, f)
 	}
