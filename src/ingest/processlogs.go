@@ -246,7 +246,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 	loc := int64(0)
 	timer := time.Now()
 	stepper := i.config.ProgressPrint.UpdateInterval / 2
-	stream := newLogStream(i.patterns, &i.config.IngestTimeRanges)
+	stream := newLogStream(i.patterns, &i.config.IngestTimeRanges, i.config.Aerospike.TimestampBinName)
 	for s.Scan() {
 		if err = s.Err(); err != nil {
 			resultsChan <- &processResult{

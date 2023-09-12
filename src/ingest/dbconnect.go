@@ -77,6 +77,38 @@ func (i *Ingest) dbConnect() error {
 	i.wp.SocketTimeout = i.config.Aerospike.Timeouts.Socket
 	i.wp.TotalTimeout = i.config.Aerospike.Timeouts.Total
 	i.wp.MaxRetries = i.config.Aerospike.Retries.Write
+	logger.Debug("DB: WarmUp")
 	i.db.WarmUp(i.config.Aerospike.MaxPutThreads)
+	logger.Debug("DB: Create indexes")
+	return i.dbSindex()
+}
+
+func (i *Ingest) dbSindex() error {
+	i.createSindex(i.config.Aerospike.DefaultSetName, i.config.Aerospike.TimestampIndexName)
+	//TODO: note time range of each log file: i.createSindex("logTimeRange", fmt.Sprintf("%s_logTimeRange", i.config.Aerospike.TimestampIndexName))
+	for _, pattern := range i.patterns.Patterns {
+		if pattern.Name != "" {
+			i.createSindex(pattern.Name, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, pattern.Name))
+		}
+	}
 	return nil
+}
+
+func (i *Ingest) createSindex(setName string, indexName string) {
+	logger.Detail("Creating sindex")
+	indexCreateTask, err := i.db.CreateIndex(nil, i.config.Aerospike.Namespace, setName, indexName, i.config.Aerospike.TimestampBinName, aerospike.NUMERIC)
+	if err != nil {
+		logger.Warn("index create error: %s", err)
+	} else {
+		for {
+			res, err := indexCreateTask.IsDone()
+			if err != nil {
+				logger.Warn("index create error: %s", err)
+			}
+			if res {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}
 }
