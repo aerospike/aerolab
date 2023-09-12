@@ -85,7 +85,7 @@ func (i *Ingest) dbConnect() error {
 
 func (i *Ingest) dbSindex() error {
 	i.createSindex(i.config.Aerospike.DefaultSetName, i.config.Aerospike.TimestampIndexName)
-	//TODO: note time range of each log file: i.createSindex("logTimeRange", fmt.Sprintf("%s_logTimeRange", i.config.Aerospike.TimestampIndexName))
+	i.createSindex(i.config.Aerospike.LogFileRagesSetName, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, i.config.Aerospike.LogFileRagesSetName))
 	for _, pattern := range i.patterns.Patterns {
 		if pattern.Name != "" {
 			i.createSindex(pattern.Name, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, pattern.Name))
@@ -95,7 +95,7 @@ func (i *Ingest) dbSindex() error {
 }
 
 func (i *Ingest) createSindex(setName string, indexName string) {
-	logger.Detail("Creating sindex")
+	logger.Detail("Creating sindex (set:%s) (idxName:%s)", setName, indexName)
 	indexCreateTask, err := i.db.CreateIndex(nil, i.config.Aerospike.Namespace, setName, indexName, i.config.Aerospike.TimestampBinName, aerospike.NUMERIC)
 	if err != nil {
 		logger.Warn("index create error: %s", err)
