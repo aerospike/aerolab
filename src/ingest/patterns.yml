@@ -59,7 +59,6 @@ patterns:
         setName: "clusterSize"
         search: " CLUSTER-SIZE "
         export:
-            # - "CLUSTER-SIZE (?P<ClusterSize>\\d+) CLUSTER-NAME (?P<ClusterName>[^$]+)"
             - "CLUSTER-SIZE (?P<ClusterSize>\\d+)"
     -
         setName: "nsMigrations"
