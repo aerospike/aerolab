@@ -77,5 +77,6 @@ func (i *Ingest) dbConnect() error {
 	i.wp.SocketTimeout = i.config.Aerospike.Timeouts.Socket
 	i.wp.TotalTimeout = i.config.Aerospike.Timeouts.Total
 	i.wp.MaxRetries = i.config.Aerospike.Retries.Write
+	i.db.WarmUp(i.config.Aerospike.MaxPutThreads)
 	return nil
 }

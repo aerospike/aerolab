@@ -324,7 +324,37 @@ func (i *Ingest) printProgress() error {
 			}
 		}
 	}
-	// TODO: progress of processor
+	if i.progress.LogProcessor.wasRunning {
+		if i.progress.LogProcessor.running {
+			logger.Info("LogProcessor running")
+		} else {
+			logger.Info("LogProcessor finished")
+			i.progress.LogProcessor.wasRunning = i.progress.LogProcessor.running
+		}
+		if i.config.ProgressPrint.PrintDetailProgress {
+			for fn, file := range i.progress.LogProcessor.Files {
+				logger.Info("LogProcessor detail file:%s (size:%s) (processed:%s) (clusterName:%s) (finished:%t) (fullNodeIdent:%s)", fn, convSize(file.Size), convSize(file.Processed), file.ClusterName, file.Finished, file.NodePrefix+"_"+file.NodeID+"_"+file.NodeSuffix)
+			}
+		}
+		if i.config.ProgressPrint.PrintOverallProgress {
+			timePassed := int64(time.Since(i.progress.LogProcessor.StartTime).Seconds())
+			if timePassed < 1 {
+				timePassed = 1
+			}
+			totalSize := int64(0)
+			processedSize := int64(0)
+			for _, file := range i.progress.LogProcessor.Files {
+				totalSize += file.Size
+				processedSize += file.Processed
+			}
+			percentComplete := int64(0)
+			if totalSize > 0 {
+				percentComplete = processedSize * 100 / totalSize
+			}
+			perSecond := processedSize / timePassed
+			logger.Info("LogProcessor summary: (processed:%s) (total:%s) (speed:%s/second) (pct-complete:%d)", convSize(processedSize), convSize(totalSize), convSize(perSecond), percentComplete)
+		}
+	}
 	i.progress.RUnlock()
 	return nil
 }

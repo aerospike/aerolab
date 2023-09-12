@@ -41,7 +41,7 @@ type Config struct {
 			Read         int           `yaml:"read" default:"50"`
 			Write        int           `yaml:"write" default:"50"`
 		} `yaml:"retries"`
-		MaxPutThreads int `yaml:"maxPutThreads" default:"1024"`
+		MaxPutThreads int `yaml:"maxPutThreads" default:"128"`
 		Security      struct {
 			Username         string `yaml:"username" envconfig:"LOGINGEST_AEROSPIKE_USER"`
 			Password         string `yaml:"password" envconfig:"LOGINGEST_AEROSPIKE_PASSWORD"`
@@ -215,7 +215,22 @@ type progressPreProcessor struct {
 }
 
 type progressLogProcessor struct {
-	changed bool
+	Files      map[string]*logFile
+	Finished   bool
+	running    bool
+	wasRunning bool
+	changed    bool
+	StartTime  time.Time
+}
+
+type logFile struct {
+	ClusterName string
+	NodePrefix  string
+	NodeID      string
+	NodeSuffix  string
+	Size        int64
+	Processed   int64
+	Finished    bool
 }
 
 type progressCollectProcessor struct {
