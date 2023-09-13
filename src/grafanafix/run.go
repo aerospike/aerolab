@@ -27,7 +27,7 @@ type GrafanaFix struct {
 		FromDir      string `yaml:"fromDir" envconfig:"GRAFANAFIX_SOURCE_DIR"`
 		LoadEmbedded bool   `yaml:"loadEmbedded" envconfig:"GRAFANAFIX_SOURCE_EMBEDDED" default:"true"`
 	} `yaml:"dashboards"`
-	GrafanaURL     string `yaml:"grafanaURL" envconfig:"GRAFANAFIX_URL" default:"http://127.0.0.1:3000"`
+	GrafanaURL     string `yaml:"grafanaURL" envconfig:"GRAFANAFIX_URL" default:"http://127.0.0.1:8850"`
 	AnnotationFile string `yaml:"annotationFile" envconfig:"GRAFANAFIX_ANNOTATIONS" default:"annotations.json"`
 }
 

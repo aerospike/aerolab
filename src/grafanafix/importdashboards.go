@@ -24,11 +24,11 @@ func (g *GrafanaFix) importDashboards() error {
 	embeddedFiles := []string{}
 	folders := make(map[string]string) // [name]uid
 	if g.Dashboards.LoadEmbedded {
-		err := fs.WalkDir(dashboards, ".", func(p string, d fs.DirEntry, err error) error {
+		err := fs.WalkDir(dashboards, "dashboards", func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-			if p == "." {
+			if p == "dashboards" {
 				return nil
 			}
 			if d.IsDir() {
