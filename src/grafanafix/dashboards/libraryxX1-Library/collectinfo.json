@@ -1,0 +1,434 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_JSON",
+      "label": "JSON",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "simpod-json-datasource",
+      "pluginName": "JSON"
+    }
+  ],
+  "__elements": {
+    "TqZqCxP4z": {
+      "name": "CollectInfo - info network",
+      "uid": "TqZqCxP4z",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "json"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "TqZqCxP4z"
+        },
+        "options": {
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true
+        },
+        "pluginVersion": "9.4.7",
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"type\": \"table\",\n  \"grafanaFilters\": [\n    {\n      \"binName\": \"fileName\",\n      \"binValues\": $fileName\n    }\n  ],\n  \"selectBins\": [\n    {\n      \"name\": \"fileName\",\n      \"friendlyName\": \"FileName\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterName\",\n      \"friendlyName\": \"Cluster Name\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"nodeId\",\n      \"friendlyName\": \"NodeID\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"ip\",\n      \"friendlyName\": \"IP\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"build\",\n      \"friendlyName\": \"Build\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"migrations\",\n      \"friendlyName\": \"Migrations\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterSize\",\n      \"friendlyName\": \"ClusterSize\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterKey\",\n      \"friendlyName\": \"ClusterKey\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"integrity\",\n      \"friendlyName\": \"Integrity\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"principal\",\n      \"friendlyName\": \"Principal\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clientConns\",\n      \"friendlyName\": \"ClientConns\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"uptime\",\n      \"friendlyName\": \"Uptime\",\n      \"type\": \"string\"\n    }\n  ],\n  \"selectGroupBy\": [\"fileName\",\"nodeId\",\"ip\"],\n  \"sortOrder\": [1,2,3]\n}\n",
+            "refId": "A",
+            "target": "collectinfo"
+          }
+        ],
+        "title": "CollectInfo - info network",
+        "type": "table"
+      }
+    },
+    "owfqCxPVk": {
+      "name": "CollectInfo - Summary and Health",
+      "uid": "owfqCxPVk",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "json"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": true
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            }
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "owfqCxPVk"
+        },
+        "options": {
+          "footer": {
+            "countRows": false,
+            "fields": "",
+            "reducer": [
+              "sum"
+            ],
+            "show": false
+          },
+          "showHeader": true
+        },
+        "pluginVersion": "9.4.7",
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"type\": \"table\",\n  \"grafanaFilters\": [\n    {\n      \"binName\": \"fileName\",\n      \"binValues\": $fileName\n    }\n  ],\n  \"selectBins\": [\n    {\n      \"name\": \"fileName\",\n      \"friendlyName\": \"FileName\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"summary\",\n      \"friendlyName\": \"Summary\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"health\",\n      \"friendlyName\": \"Health\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"sysinfo\",\n      \"friendlyName\": \"Sysinfo\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"confFile\",\n      \"friendlyName\": \"Config File\",\n      \"type\": \"string\"\n    }\n  ],\n  \"selectGroupBy\": [\"fileName\"],\n  \"sortOrder\": [1]\n}\n",
+            "refId": "A",
+            "target": "collectall"
+          }
+        ],
+        "title": "CollectInfo - Summary and Health - Hover over Summary of Health field and click the little \"eye\" icon on the right of that field",
+        "type": "table"
+      }
+    }
+  },
+  "__requires": [
+    {
+      "type": "grafana",
+      "id": "grafana",
+      "name": "Grafana",
+      "version": "9.4.7"
+    },
+    {
+      "type": "datasource",
+      "id": "simpod-json-datasource",
+      "name": "JSON",
+      "version": "0.6.2"
+    },
+    {
+      "type": "panel",
+      "id": "text",
+      "name": "Text",
+      "version": ""
+    }
+  ],
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "All Dashboards",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
+    },
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [
+        "library"
+      ],
+      "targetBlank": false,
+      "title": "Library Dashboards",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "simpod-json-datasource",
+        "uid": "${DS_JSON}"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 11,
+        "x": 0,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "<center><h1><font color=green>${caseLabel}</font></h1></center>",
+        "mode": "html"
+      },
+      "pluginVersion": "9.4.7",
+      "targets": [
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "title": "Case Label",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "simpod-json-datasource",
+        "uid": "${DS_JSON}"
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 13,
+        "x": 11,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "<center><h1><font color=orange>${timeRangeCut}</font></h1></center>",
+        "mode": "html"
+      },
+      "pluginVersion": "9.4.7",
+      "targets": [
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "title": "Time Range Cut",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 17,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 2,
+      "libraryPanel": {
+        "uid": "TqZqCxP4z",
+        "name": "CollectInfo - info network"
+      }
+    },
+    {
+      "gridPos": {
+        "h": 17,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "id": 3,
+      "libraryPanel": {
+        "uid": "owfqCxPVk",
+        "name": "CollectInfo - Summary and Health"
+      }
+    }
+  ],
+  "refresh": "",
+  "revision": 1,
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "library"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "meta.collectinfos.collectinfos",
+        "hide": 0,
+        "includeAll": true,
+        "label": "File Name",
+        "multi": true,
+        "name": "fileName",
+        "options": [],
+        "query": {
+          "query": "meta.collectinfos.collectinfos"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 3,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "static:env.json:workerLabel",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "caseLabel",
+        "options": [],
+        "query": {
+          "query": "static:env.json:workerLabel"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "static:env.json:timeRangeCut",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "timeRangeCut",
+        "options": [],
+        "query": {
+          "query": "static:env.json:timeRangeCut"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "static:env.json:retriggerOnStart",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "retriggerOnStart",
+        "options": [],
+        "query": {
+          "query": "static:env.json:retriggerOnStart"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "CollectInfo",
+  "uid": "Cs9G8bEVk",
+  "version": 3,
+  "weekStart": ""
+}
