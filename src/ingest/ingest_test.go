@@ -69,7 +69,7 @@ func TestAll(t *testing.T) {
 	os.Setenv("LOGINGEST_SFTPSOURCE_PATH", "withhist.tgz")
 	//os.Setenv("LOGINGEST_SFTPSOURCE_REGEX", "^.*\\.tgz")
 	t.Log("Creating a config")
-	yamlConfig := "aerospike:\n  namespace: \"test\""
+	yamlConfig := "aerospike:\n  namespace: \"test\"\n  port: 3100"
 	config, err := MakeConfigReader(true, strings.NewReader(yamlConfig), true)
 	if err != nil {
 		t.Fatal(err)
