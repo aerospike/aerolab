@@ -13,7 +13,7 @@ func (p *Plugin) Listen() error {
 	logger.Debug("Listener: setup")
 	p.srv = &http.Server{Addr: p.config.Service.ListenAddress + ":" + strconv.Itoa(p.config.Service.ListenPort)}
 	http.HandleFunc("/shutdown", p.handleShutdown)
-	logger.Debug("Listener: start")
+	logger.Info("Listener: start")
 	if err := p.srv.ListenAndServe(); err != http.ErrServerClosed {
 		return err
 	}
@@ -21,7 +21,7 @@ func (p *Plugin) Listen() error {
 }
 
 func (p *Plugin) handleShutdown(w http.ResponseWriter, r *http.Request) {
-	logger.Debug("Listener: shutdown")
+	logger.Info("Listener: shutdown request from %s", r.RemoteAddr)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Shutting down..."))
 	go func() {
