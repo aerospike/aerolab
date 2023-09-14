@@ -16,10 +16,10 @@ import (
 )
 
 type clientStartCmd struct {
-	ClientName      TypeClientName `short:"n" long:"group-name" description:"Client names, comma separated OR 'all' to affect all clusters" default:"client"`
-	Machines        TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
-	ParallelThreads int            `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	Help            helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClientName TypeClientName `short:"n" long:"group-name" description:"Client names, comma separated OR 'all' to affect all clusters" default:"client"`
+	Machines   TypeMachines   `short:"l" long:"machines" description:"Machine list, comma separated. Empty=ALL" default:""`
+	parallelThreadsCmd
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	clientStartStopDestroyCmd
 }
 

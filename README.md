@@ -20,7 +20,7 @@ Operating System | Package | Notes
 --- | --- | ---
 macOS | `aerolab-macos-*` | Native macOS binary, compiled for x86_64 and M series ARM chips
 Linux | `aerolab-linux-*` | Native package for Linux (all x86_64 and ARM64 distros)
-Windows | `aerolab-linux-*` | Install and start using [WSL2](https://learn.microsoft.com/en-us/windows/wsl/about) on Windows
+Windows | `aerolab-windows-*` | Native Windows executable. Unzip and run from explorer to install.
 
 ## Manual build
 

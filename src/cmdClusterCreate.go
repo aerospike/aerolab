@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -29,18 +30,18 @@ type clusterCreateCmd struct {
 	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
 	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
-	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
-	NoSetHostname         bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
-	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
-	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
-	ParallelThreads       int                    `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	NoVacuumOnFail        bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
-	Aws                   clusterCreateCmdAws    `no-flag:"true"`
-	Gcp                   clusterCreateCmdGcp    `no-flag:"true"`
-	Docker                clusterCreateCmdDocker `no-flag:"true"`
-	Owner                 string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	AutoStartAerospike    TypeYesNo      `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
+	NoOverrideClusterName bool           `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
+	NoSetHostname         bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
+	ScriptEarly           flags.Filename `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
+	ScriptLate            flags.Filename `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
+	parallelThreadsCmd
+	NoVacuumOnFail bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	Aws            clusterCreateCmdAws    `no-flag:"true"`
+	Gcp            clusterCreateCmdGcp    `no-flag:"true"`
+	Docker         clusterCreateCmdDocker `no-flag:"true"`
+	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 }
 
 type osSelectorCmd struct {
@@ -70,7 +71,7 @@ type clusterCreateCmdAws struct {
 	Ebs             string        `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
 	SecurityGroupID string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID        string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
-	PublicIP        bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	PublicIP        bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	IsArm           bool          `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices bool          `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags            []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
@@ -82,7 +83,7 @@ type clusterCreateCmdGcp struct {
 	Image           string        `long:"image" description:"custom source image to use (default debian, ubuntu and centos are supported"`
 	InstanceType    string        `long:"instance" description:"instance type to use" default:""`
 	Disks           []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
-	PublicIP        bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address and alternate-access address to allow public IP connections"`
+	PublicIP        bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone            string        `long:"zone" description:"zone name to deploy to"`
 	IsArm           bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
@@ -125,31 +126,31 @@ func (c *clusterCreateCmd) preChDir() {
 		return
 	}
 
-	if string(c.CustomConfigFilePath) != "" && !strings.HasPrefix(string(c.CustomConfigFilePath), "/") {
+	if string(c.CustomConfigFilePath) != "" && !filepath.IsAbs(string(c.CustomConfigFilePath)) {
 		if _, err := os.Stat(string(c.CustomConfigFilePath)); err == nil {
 			c.CustomConfigFilePath = flags.Filename(path.Join(cur, string(c.CustomConfigFilePath)))
 		}
 	}
 
-	if string(c.CustomToolsFilePath) != "" && !strings.HasPrefix(string(c.CustomToolsFilePath), "/") {
+	if string(c.CustomToolsFilePath) != "" && !filepath.IsAbs(string(c.CustomToolsFilePath)) {
 		if _, err := os.Stat(string(c.CustomToolsFilePath)); err == nil {
 			c.CustomToolsFilePath = flags.Filename(path.Join(cur, string(c.CustomToolsFilePath)))
 		}
 	}
 
-	if string(c.FeaturesFilePath) != "" && !strings.HasPrefix(string(c.FeaturesFilePath), "/") {
+	if string(c.FeaturesFilePath) != "" && !filepath.IsAbs(string(c.FeaturesFilePath)) {
 		if _, err := os.Stat(string(c.FeaturesFilePath)); err == nil {
 			c.FeaturesFilePath = flags.Filename(path.Join(cur, string(c.FeaturesFilePath)))
 		}
 	}
 
-	if string(c.ScriptEarly) != "" && !strings.HasPrefix(string(c.ScriptEarly), "/") {
+	if string(c.ScriptEarly) != "" && !filepath.IsAbs(string(c.ScriptEarly)) {
 		if _, err := os.Stat(string(c.ScriptEarly)); err == nil {
 			c.ScriptEarly = flags.Filename(path.Join(cur, string(c.ScriptEarly)))
 		}
 	}
 
-	if string(c.ScriptLate) != "" && !strings.HasPrefix(string(c.ScriptLate), "/") {
+	if string(c.ScriptLate) != "" && !filepath.IsAbs(string(c.ScriptLate)) {
 		if _, err := os.Stat(string(c.ScriptLate)); err == nil {
 			c.ScriptLate = flags.Filename(path.Join(cur, string(c.ScriptLate)))
 		}
@@ -469,14 +470,16 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if !isCommunity {
 		if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
 			log.Print("WARNING: you are attempting to install version 4.6-6.0 and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-			bufio.NewReader(os.Stdin).ReadBytes('\n')
+			var ignoreMe string
+			fmt.Scanln(&ignoreMe)
 		}
 		if string(featuresFilePath) == "" && ((aver_major == 6 && aver_minor > 0) || aver_major > 6) {
 			if c.NodeCount == 1 {
 				log.Print("WARNING: FeaturesFilePath not configured. Using embedded features files.")
 			} else {
 				log.Print("WARNING: you are attempting to install more than 1 node and did not provide feature.conf file. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			}
 		}
 		if featuresFilePath != "" {
@@ -606,13 +609,15 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			}
 			if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
 				log.Print("WARNING: you are attempting to install version 4.6-6.0 and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			} else if string(featuresFilePath) == "" && aver_major == 6 && aver_minor > 0 {
 				if c.NodeCount == 1 {
 					log.Print("WARNING: FeaturesFilePath does not contain a valid feature file. Using embedded features files.")
 				} else {
 					log.Print("WARNING: you are attempting to install more than 1 node and a valid features file could not be found. This will not work. You can either provide a feature file by using the '-f' switch, or configure it as default by using:\n\n$ aerolab config defaults -k '*.FeaturesFilePath' -v /path/to/features.conf\n\nPress ENTER if you still wish to proceed")
-					bufio.NewReader(os.Stdin).ReadBytes('\n')
+					var ignoreMe string
+					fmt.Scanln(&ignoreMe)
 				}
 			} else if (aver_major == 4 && aver_minor > 5) || aver_major > 4 {
 				log.Printf("Features file: %s", featuresFilePath)

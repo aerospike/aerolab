@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -79,7 +80,10 @@ func (c *attachShellCmd) run(args []string) (err error) {
 				}
 			}
 		}
-		return err
+		if err != nil {
+			return errors.New(err.Error())
+		}
+		return nil
 	}
 
 	wg := new(sync.WaitGroup)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -15,15 +16,16 @@ import (
 )
 
 type clusterPartitionConfCmd struct {
-	ClusterName      TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes            TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	FilterDisks      TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
-	FilterPartitions TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number; 0=use entire disk itself, ex: 1,2,4-8" default:"ALL"`
-	FilterType       string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
-	Namespace        string          `short:"m" long:"namespace" description:"namespace to modify the settings for" default:""`
-	ConfDest         string          `short:"o" long:"configure" description:"what to configure the selections as; options: device|shadow|allflash" default:""`
-	ParallelThreads  int             `short:"T" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName        TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes              TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	FilterDisks        TypeFilterRange `short:"d" long:"filter-disks" description:"Select disks by number, ex: 1,2,4-8" default:"ALL"`
+	FilterPartitions   TypeFilterRange `short:"p" long:"filter-partitions" description:"Select partitions on each disk by number; 0=use entire disk itself, ex: 1,2,4-8" default:"ALL"`
+	FilterType         string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
+	Namespace          string          `short:"m" long:"namespace" description:"namespace to modify the settings for" default:""`
+	ConfDest           string          `short:"o" long:"configure" description:"what to configure the selections as; options: device|shadow|pi-flash|si-flash" default:""`
+	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% for what the mounts-size-limit should be set to for flash configs" default:"90"`
+	parallelThreadsLongCmd
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clusterPartitionConfCmd) Execute(args []string) error {
@@ -38,8 +40,8 @@ func (c *clusterPartitionConfCmd) Execute(args []string) error {
 	} else if c.FilterType == "persistent" {
 		c.FilterType = "ebs"
 	}
-	if !inslice.HasString([]string{"device", "shadow", "allflash"}, c.ConfDest) {
-		return fmt.Errorf("configure options must be one of: device, shadow, allflash")
+	if !inslice.HasString([]string{"device", "shadow", "pi-flash", "si-flash", "allflash"}, c.ConfDest) {
+		return fmt.Errorf("configure options must be one of: device, shadow, pi-flash, si-flash, allflash")
 	}
 	if c.Namespace == "" {
 		return fmt.Errorf("namespace name is required")
@@ -141,6 +143,8 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			return fmt.Errorf("no device configured for given namespace, cannot add shadow devices")
 		}
 	case "allflash":
+		fallthrough
+	case "pi-flash":
 		if cc.Stanza("namespace "+c.Namespace).Type("index-type flash") == aeroconf.ValueStanza {
 			cc.Stanza("namespace " + c.Namespace).Stanza("index-type flash").Delete("mount")
 		}
@@ -151,6 +155,18 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		}
 		if cc.Stanza("namespace "+c.Namespace).Type("index-type flash") == aeroconf.ValueNil {
 			cc.Stanza("namespace " + c.Namespace).NewStanza("index-type flash")
+		}
+	case "si-flash":
+		if cc.Stanza("namespace "+c.Namespace).Type("sindex-type flash") == aeroconf.ValueStanza {
+			cc.Stanza("namespace " + c.Namespace).Stanza("sindex-type flash").Delete("mount")
+		}
+		for _, key := range cc.Stanza("namespace " + c.Namespace).ListKeys() {
+			if strings.HasPrefix(key, "sindex-type") && (!strings.HasSuffix(key, "flash") || cc.Stanza("namespace "+c.Namespace).Type("sindex-type flash") != aeroconf.ValueStanza) {
+				cc.Stanza("namespace " + c.Namespace).Delete(key)
+			}
+		}
+		if cc.Stanza("namespace "+c.Namespace).Type("sindex-type flash") == aeroconf.ValueNil {
+			cc.Stanza("namespace " + c.Namespace).NewStanza("sindex-type flash")
 		}
 	}
 	diskCount := 0
@@ -167,9 +183,9 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			if c.FilterPartitions != "0" && part.partNo == 0 {
 				continue
 			}
-			if part.MountPoint != "" && c.ConfDest != "allflash" {
+			if part.MountPoint != "" && (c.ConfDest != "pi-flash" && c.ConfDest != "si-flash" && c.ConfDest != "allflash") {
 				return fmt.Errorf("partition %d on disk %d on node %d has a filesystem, cannot use for device storage", part.partNo, part.diskNo, part.nodeNo)
-			} else if part.MountPoint == "" && c.ConfDest == "allflash" {
+			} else if part.MountPoint == "" && (c.ConfDest == "pi-flash" || c.ConfDest == "si-flash" || c.ConfDest == "allflash") {
 				return fmt.Errorf("partition %d on disk %d on node %d does not have a filesystem, cannot use for all-flash storage", part.partNo, part.diskNo, part.nodeNo)
 			}
 			useParts = append(useParts, part)
@@ -217,6 +233,8 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("storage-engine device").SetValues("device", vals)
 		case "allflash":
+			fallthrough
+		case "pi-flash":
 			vals, err := cc.Stanza("namespace " + c.Namespace).Stanza("index-type flash").GetValues("mount")
 			if err != nil {
 				return err
@@ -227,6 +245,49 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			pp := p.MountPoint
 			vals = append(vals, &pp)
 			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValues("mount", vals)
+			fsSizeI, err := strconv.Atoi(strings.TrimRight(p.FsSize, "GMBTgmbti"))
+			fsSize := p.FsSize
+			if err == nil {
+				suffix := ""
+				if strings.HasSuffix(strings.ToUpper(p.FsSize), "G") {
+					suffix = "G"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "M") {
+					suffix = "M"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "K") {
+					suffix = "K"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
+					suffix = "T"
+				}
+				fsSize = strconv.Itoa(int(float64(fsSizeI)*c.MountsSizeLimitPct/100)) + suffix
+			}
+			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValue("mounts-size-limit", fsSize)
+		case "si-flash":
+			vals, err := cc.Stanza("namespace " + c.Namespace).Stanza("sindex-type flash").GetValues("mount")
+			if err != nil {
+				return err
+			}
+			if p.MountPoint == "" {
+				return fmt.Errorf("partition %d on disk %d on node %d does not have a mountpoint", p.partNo, p.diskNo, p.nodeNo)
+			}
+			pp := p.MountPoint
+			vals = append(vals, &pp)
+			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValues("mount", vals)
+			fsSizeI, err := strconv.Atoi(strings.TrimRight(p.FsSize, "GMBTgmbti"))
+			fsSize := p.FsSize
+			if err == nil {
+				suffix := ""
+				if strings.HasSuffix(strings.ToUpper(p.FsSize), "G") {
+					suffix = "G"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "M") {
+					suffix = "M"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "K") {
+					suffix = "K"
+				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
+					suffix = "T"
+				}
+				fsSize = strconv.Itoa(int(float64(fsSizeI)*c.MountsSizeLimitPct/100)) + suffix
+			}
+			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValue("mounts-size-limit", fsSize)
 		}
 	}
 	if c.ConfDest == "shadow" {

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
@@ -38,9 +38,9 @@ type clientAddAMSCmd struct {
 	Gcp             clientAddAMSCmdAws  `no-flag:"true"`
 	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
 	Dashboards      flags.Filename      `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
-	ParallelThreads int                 `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	DebugDashboards bool                `long:"debug-dashboards" hidden:"true"`
-	Help            helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
+	parallelThreadsCmd
+	DebugDashboards bool    `long:"debug-dashboards" hidden:"true"`
+	Help            helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type clientAddAMSCmdAws struct {
@@ -60,7 +60,8 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 		if c.Docker.NoAutoExpose {
 			fmt.Println("Docker backend is in use, but AMS access port is not being forwarded. If using Docker Desktop, use '-e 3000:3000' parameter in order to forward port 3000 for grafana. This can only be done for one system. Press ENTER to continue regardless.")
 			if !c.JustDoIt {
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			}
 		} else {
 			c.Docker.ExposePortsToHost = strings.Trim("3000:3000,"+c.Docker.ExposePortsToHost, ",")
@@ -265,6 +266,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		return err
 	}
 
+	defer backendRestoreTerminal()
 	// install:prometheus
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "apt-get update && apt-get -y install prometheus"})
 	if err != nil {
@@ -381,9 +383,19 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			if c.DebugDashboards {
 				log.Printf("WGET: running %v", dashboard)
 			}
-			err = a.opts.Attach.Client.run(dashboard)
-			if err != nil {
-				return fmt.Errorf("failed to configure grafana (%v): %s", dashboard, err)
+			tries := 0
+			for {
+				err = a.opts.Attach.Client.run(dashboard)
+				if err != nil {
+					tries++
+					if tries == 5 {
+						return fmt.Errorf("failed to configure grafana (%v): %s", dashboard, err)
+					} else {
+						time.Sleep(time.Second * 2)
+					}
+				} else {
+					break
+				}
 			}
 			return nil
 		})
@@ -455,9 +467,19 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			if c.DebugDashboards {
 				log.Printf("UPLOAD: custom uploading %v", nFile.filePath)
 			}
-			err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{nFile}, nodes)
-			if err != nil {
-				return err
+			tries := 0
+			for {
+				err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{nFile}, nodes)
+				if err != nil {
+					tries++
+					if tries == 5 {
+						return err
+					} else {
+						time.Sleep(time.Second * 2)
+					}
+				} else {
+					break
+				}
 			}
 			return nil
 		})
@@ -539,6 +561,7 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			return err
 		}
 	}
+	backendRestoreTerminal()
 	log.Printf("Username:Password is admin:admin")
 	log.Print("Done")
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")

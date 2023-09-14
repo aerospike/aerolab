@@ -38,6 +38,7 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
 	nips := "'" + strings.Join(allnodeExp, "','") + "'"
+	defer backendRestoreTerminal()
 	err = a.opts.Attach.Client.run([]string{"sed", "-i.bakX", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed): %s", err)
@@ -51,6 +52,7 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to restart prometheus: %s", err)
 	}
+	backendRestoreTerminal()
 	log.Printf("To access grafana, visit the client IP on port 3000 from your browser. Do `aerolab client list` to get IPs. Username:Password is admin:admin")
 	log.Print("Done")
 	return nil

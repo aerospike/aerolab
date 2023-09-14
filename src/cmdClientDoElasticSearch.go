@@ -1,11 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"encoding/base64"
 	"fmt"
 	"log"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -37,7 +35,8 @@ func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
 		if c.Docker.NoAutoExpose {
 			fmt.Println("Docker backend is in use, but elasticsearch access port is not being forwarded. If using Docker Desktop, use '-e 9200:9200' parameter in order to forward port 9200. This can only be done for one elasticsearch node. Press ENTER to continue regardless.")
 			if !c.JustDoIt {
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			}
 		} else {
 			c.Docker.ExposePortsToHost = strings.Trim("9200,"+c.Docker.ExposePortsToHost, ",")
@@ -130,6 +129,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 		}
 		nodes = append(nodes, nodeInt)
 	}
+	defer backendRestoreTerminal()
 	for _, node := range nodes {
 		if node == masterNode {
 			continue
@@ -165,6 +165,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 			return err
 		}
 	}
+	backendRestoreTerminal()
 	fmt.Print(`
 ES username/password is: elastic/elastic
 

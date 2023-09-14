@@ -14,13 +14,13 @@ import (
 )
 
 type confNamespaceMemoryCmd struct {
-	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	Path            string          `short:"p" long:"path" description:"Path to aerospike.conf on the remote nodes" default:"/etc/aerospike/aerospike.conf"`
-	Namespace       string          `short:"m" long:"namespace" description:"Name of the namespace to adjust" default:"test"`
-	MemPct          int             `short:"r" long:"mem-pct" description:"The percentage of RAM to use for the namespace memory" default:"50"`
-	ParallelThreads int             `long:"threads" description:"Run on this many nodes in parallel" default:"50"`
-	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	Path        string          `short:"p" long:"path" description:"Path to aerospike.conf on the remote nodes" default:"/etc/aerospike/aerospike.conf"`
+	Namespace   string          `short:"m" long:"namespace" description:"Name of the namespace to adjust" default:"test"`
+	MemPct      int             `short:"r" long:"mem-pct" description:"The percentage of RAM to use for the namespace memory" default:"50"`
+	parallelThreadsCmd
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *confNamespaceMemoryCmd) Execute(args []string) error {

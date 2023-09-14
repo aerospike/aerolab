@@ -59,10 +59,12 @@ func (c *clientConfigureRestGatewayCmd) Execute(args []string) error {
 	}
 	a.opts.Attach.Client.Detach = true
 	nargs = []string{"/bin/bash", "/opt/autoload/01-restgw.sh"}
+	defer backendRestoreTerminal()
 	err = a.opts.Attach.Client.run(nargs)
 	if err != nil {
 		return err
 	}
+	backendRestoreTerminal()
 	log.Print("Done")
 	return nil
 }

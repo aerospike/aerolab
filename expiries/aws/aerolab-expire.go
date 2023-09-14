@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
@@ -49,6 +53,7 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 	deleteList := []string{}
 	deleteListForLog := []string{}
 	enumCount := 0
+	defer telemetryLock.Wait()
 	for _, reservation := range instances.Reservations {
 		for _, instance := range reservation.Instances {
 			enumCount++
@@ -70,6 +75,9 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 						node = tags["Aerolab4clientNodeNumber"]
 					}
 					deleteListForLog = append(deleteListForLog, fmt.Sprintf("instanceId=%s clusterName=%s nodeNo=%s", aws.StringValue(instance.InstanceId), name, node))
+					if _, ok := tags["telemetry"]; ok {
+						telemetryShip(tags["telemetry"], aws.StringValue(instance.Placement.AvailabilityZone), aws.StringValue(instance.InstanceId), name, node)
+					}
 				}
 			}
 		}
@@ -100,4 +108,58 @@ func main() {
 
 func makeErrorResponse(prefix string, err error) (MyResponse, error) {
 	return MyResponse{Message: prefix + err.Error(), Status: "ERROR"}, errors.New(prefix + err.Error())
+}
+
+type telemetry struct {
+	UUID          string
+	Job           string
+	Cloud         string
+	Zone          string
+	Instance      string
+	ClusterName   string
+	NodeNo        string
+	ExpiryVersion string
+	CmdLine       []string
+	Time          int64
+}
+
+var telemetryLock = new(sync.WaitGroup)
+
+func telemetryShip(uuid string, zone string, instance string, clusterName string, nodeNo string) {
+	telemetryLock.Add(1)
+	go func() {
+		defer telemetryLock.Done()
+		err := telemetryShipDo(uuid, zone, instance, clusterName, nodeNo)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+}
+
+func telemetryShipDo(uuid string, zone string, instance string, clusterName string, nodeNo string) error {
+	t := &telemetry{
+		UUID:          uuid,
+		Job:           "expire",
+		Cloud:         "AWS",
+		Zone:          zone,
+		Instance:      instance,
+		ClusterName:   clusterName,
+		NodeNo:        nodeNo,
+		ExpiryVersion: "2",
+		Time:          time.Now().Unix(),
+		CmdLine:       []string{"EXPIRY"},
+	}
+	contents, err := json.Marshal(t)
+	if err != nil {
+		return err
+	}
+	url := "https://us-central1-aerospike-gaia.cloudfunctions.net/aerolab-telemetrics"
+	ret, err := http.Post(url, "application/json", bytes.NewReader(contents))
+	if err != nil {
+		return err
+	}
+	if ret.StatusCode < 200 || ret.StatusCode > 299 {
+		return fmt.Errorf("returned ret code: %d:%s", ret.StatusCode, ret.Status)
+	}
+	return nil
 }

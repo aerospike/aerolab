@@ -21,10 +21,10 @@ aerolab cluster create -n clusterName -c 2 -I r5ad.4xlarge -E 20,30,30,30,30
 aerolab cluster create -n clusterName -c 2 --instance c2d-standard-16 --zone us-central1-a --disk=pd-ssd:20 --disk=local-ssd --disk=local-ssd --disk=pd-ssd:30 --disk=pd-ssd:30 --disk=pd-ssd:30 --disk=pd-ssd:30
 ```
 
-2. `blkdiscard` and partition NVME: 20% disk space on each partition.
+2. `blkdiscard` and partition NVME: 16% disk space on each partition.
 
 ```
-aerolab cluster partition create -n clusterName --filter-type=nvme -p 20,20,20,20,20
+aerolab cluster partition create -n clusterName --filter-type=nvme -p 16,16,16,16,16,16
 ```
 
 3. `blkdiscard` and partition ebs: 50% disk space on each partition.
@@ -33,10 +33,10 @@ aerolab cluster partition create -n clusterName --filter-type=nvme -p 20,20,20,2
 aerolab cluster partition create -n clusterName --filter-type=ebs -p 50,50
 ```
 
-4. Configure Aerospike to use devices for `test` namespace, except first partition:
+4. Configure Aerospike to use devices for `test` namespace, except first 2 partitions:
 
 ```
-aerolab cluster partition conf -n clusterName --namespace=test --filter-type=nvme --configure=device --filter-partitions=2-5
+aerolab cluster partition conf -n clusterName --namespace=test --filter-type=nvme --configure=device --filter-partitions=3-6
 ```
 
 5. Configure EBS to be used as shadow devices, all partitions:
@@ -45,16 +45,17 @@ aerolab cluster partition conf -n clusterName --namespace=test --filter-type=nvm
 aerolab cluster partition conf -n clusterName --namespace=test --filter-type=ebs --configure=shadow
 ```
 
-6. Create a filesystem on partition 1 of each NVME disk, for all-flash:
+6. Create a filesystem on partitions 1,2 of each NVME disk, for allflash:
 
 ```
-aerolab cluster partition mkfs -n clusterName --filter-type=nvme --filter-partitions=1
+aerolab cluster partition mkfs -n clusterName --filter-type=nvme --filter-partitions=1,2
 ```
 
-7. Create or update all-flash Aerospike configuration on nodes:
+7. Create or update all-flash Aerospike configuration on nodes (partition1=pi-flash and partition2=si-flash):
 
 ```
-aerolab cluster partition conf -n clusterName --filter-type=nvme --namespace=test --configure=allflash --filter-partitions=1
+aerolab cluster partition conf -n clusterName --filter-type=nvme --namespace=test --configure=pi-flash --filter-partitions=1
+aerolab cluster partition conf -n clusterName --filter-type=nvme --namespace=test --configure=si-flash --filter-partitions=2
 ```
 
 8. Restart Aerospike:

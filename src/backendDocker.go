@@ -336,15 +336,11 @@ func (d *backendDocker) WorkOnServers() {
 }
 
 func (d *backendDocker) Init() error {
-	_, err := exec.Command("/bin/bash", "-c", "command -v docker").CombinedOutput()
-	if err != nil {
-		return errors.New("docker command not found; install docker first")
-	}
 	ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer ctxCancel()
 	out, err := exec.CommandContext(ctx, "docker", "info").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("docker command exists, but docker appears to be unreachable or down: %s", string(out))
+		return fmt.Errorf("docker command not found, or docker appears to be unreachable or down: %s", string(out))
 	}
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.Trim(line, "\r\n\t ")

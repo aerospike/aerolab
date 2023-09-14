@@ -26,6 +26,7 @@ func (c *clientConfigureVSCodeCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	defer backendRestoreTerminal()
 	nargs := append([]string{"/bin/bash", "/install.sh"}, switches...)
 	err = a.opts.Attach.Client.run(nargs)
 	if err != nil {
@@ -43,6 +44,7 @@ func (c *clientConfigureVSCodeCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	backendRestoreTerminal()
 	log.Print("Done, to access vscode, run `aerolab client list` to get the IP, and then visit http://IP:8080 in your browser")
 	return nil
 }
