@@ -35,7 +35,18 @@ type queryScopedVar struct {
 }
 
 type queryPayload struct {
-	// TODO
+	FilterVariables  []string // which grafana filters to filter by, e.g. ClusterName,NodeIdent
+	GroupBy          []string // which bin values to group by, e.g. ClusterName,NodeIdent
+	SortOrder        []int    // by which grouping to sort first, and then second, etc
+	TimestampBinName string   // name of timestamp bin
+	Bins             []*bin   // which bins to plot
+}
+
+type bin struct {
+	Name        string
+	DisplayName string
+	Reverse     bool // reverse/mirror values
+	Required    bool
 }
 
 func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
