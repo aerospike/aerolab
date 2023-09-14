@@ -81,6 +81,8 @@ func (i *Plugin) dbConnect() error {
 	i.rp.SocketTimeout = i.config.Aerospike.Timeouts.RWSocket
 	i.rp.TotalTimeout = i.config.Aerospike.Timeouts.RWTotal
 	i.rp.MaxRetries = i.config.Aerospike.Retries.Write
+	i.ip = aerospike.NewInfoPolicy()
+	i.ip.Timeout = i.config.Aerospike.Timeouts.InfoTimeout
 	logger.Debug("DB: WarmUp")
 	i.db.WarmUp(i.config.Aerospike.ConnectionQueueSize)
 	return nil

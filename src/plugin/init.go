@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"runtime/pprof"
+	"sync"
 
 	"github.com/bestmethod/logger"
 	"github.com/creasty/defaults"
@@ -61,6 +62,8 @@ func Init(config *Config) (*Plugin, error) {
 	p := &Plugin{
 		config: config,
 	}
+	p.cache.lock = new(sync.RWMutex)
+	p.cache.metadata = make(map[string][]interface{})
 	err := p.dbConnect()
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to the database: %s", err)
@@ -79,6 +82,7 @@ func Init(config *Config) (*Plugin, error) {
 		}
 		p.pprofRunning = true
 	}
+	go p.queryAndCache()
 	return p, nil
 }
 
