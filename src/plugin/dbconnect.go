@@ -94,3 +94,10 @@ func (p *Plugin) queryPolicy() *aerospike.QueryPolicy {
 	qp.TotalTimeout = p.config.Aerospike.Timeouts.QueryTotal
 	return qp
 }
+
+func (p *Plugin) scanPolicy() *aerospike.ScanPolicy {
+	qp := aerospike.NewScanPolicy()
+	qp.SocketTimeout = p.config.Aerospike.Timeouts.ScanSocket
+	qp.TotalTimeout = p.config.Aerospike.Timeouts.ScanTotal
+	return qp
+}

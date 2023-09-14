@@ -63,7 +63,7 @@ func Init(config *Config) (*Plugin, error) {
 		config: config,
 	}
 	p.cache.lock = new(sync.RWMutex)
-	p.cache.metadata = make(map[string][]interface{})
+	p.cache.metadata = make(map[string][]*metaEntry)
 	err := p.dbConnect()
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to the database: %s", err)

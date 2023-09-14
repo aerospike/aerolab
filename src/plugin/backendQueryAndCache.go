@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/bestmethod/inslice"
-	"github.com/rglonek/logger"
+	"github.com/bestmethod/logger"
 )
 
 func (p *Plugin) queryAndCache() {
@@ -80,24 +80,29 @@ func (p *Plugin) cacheBinList() error {
 
 }
 
+type metaEntry struct {
+	ClusterName   string
+	Entries       []string
+	StaticEntries []string
+}
+
 func (p *Plugin) cacheMetadataList() error {
-	meta := make(map[string][]interface{})
-	recset, err := p.db.ScanAll(nil, p.config.Aerospike.Namespace, p.config.LabelsSetName)
+	meta := make(map[string][]*metaEntry)
+	recset, err := p.db.ScanAll(p.scanPolicy(), p.config.Aerospike.Namespace, p.config.LabelsSetName)
 	if err != nil {
 		return fmt.Errorf("could not read existing labels: %s", err)
-	} else {
-		for rec := range recset.Results() {
-			if err := rec.Err; err != nil {
-				return fmt.Errorf("error iterating through existing labels: %s", err)
+	}
+	for rec := range recset.Results() {
+		if err := rec.Err; err != nil {
+			return fmt.Errorf("error iterating through existing labels: %s", err)
+		}
+		for k, v := range rec.Record.Bins {
+			metaItem := []*metaEntry{}
+			nerr := json.Unmarshal([]byte(v.(string)), &metaItem)
+			if nerr != nil {
+				logger.Warn("Failed to unmarshal existing label data for %s: %s", k, nerr)
 			}
-			for k, v := range rec.Record.Bins {
-				metaItem := []interface{}{}
-				nerr := json.Unmarshal([]byte(v.(string)), &metaItem)
-				if nerr != nil {
-					logger.Warn("Failed to unmarshal existing label data for %s: %s", k, nerr)
-				}
-				meta[k] = metaItem
-			}
+			meta[k] = metaItem
 		}
 	}
 	p.cache.lock.Lock()

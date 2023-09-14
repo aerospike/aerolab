@@ -22,7 +22,7 @@ type Plugin struct {
 		lock     *sync.RWMutex
 		setNames []string
 		binNames []string
-		metadata map[string][]interface{}
+		metadata map[string][]*metaEntry
 	}
 }
 
@@ -46,6 +46,8 @@ type Config struct {
 			RWTotal     time.Duration `yaml:"rwTimeout" default:"30s"`
 			QuerySocket time.Duration `yaml:"querySocket" default:"30s"`
 			QueryTotal  time.Duration `yaml:"queryTimeout" default:"60s"`
+			ScanSocket  time.Duration `yaml:"scanSocket" default:"30s"`
+			ScanTotal   time.Duration `yaml:"scanTimeout" default:"60s"`
 			InfoTimeout time.Duration `yaml:"infoTimeout" default:"60s"`
 		} `yaml:"timeouts"`
 		Retries struct {
