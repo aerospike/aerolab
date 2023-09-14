@@ -17,7 +17,7 @@ type metricQuery struct {
 type metricResponse struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
-	// TODO payloads
+	// builder payloads not supported at this time
 }
 
 func (p *Plugin) handleMetrics(w http.ResponseWriter, r *http.Request) {
