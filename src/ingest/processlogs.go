@@ -16,6 +16,12 @@ import (
 	"github.com/bestmethod/logger"
 )
 
+type metaEntry struct {
+	ClusterName   string
+	Entries       []interface{}
+	StaticEntries []interface{}
+}
+
 func (i *Ingest) ProcessLogs() error {
 	i.progress.Lock()
 	i.progress.LogProcessor.Finished = false
@@ -67,7 +73,7 @@ func (i *Ingest) ProcessLogs() error {
 		i.progress.LogProcessor.Files[n] = f
 	}
 	i.progress.LogProcessor.changed = true
-	meta := make(map[string][]interface{})
+	meta := make(map[string][]*metaEntry)
 	recset, err := i.db.ScanAll(nil, i.config.Aerospike.Namespace, i.patterns.LabelsSetName)
 	if err != nil {
 		logger.Warn("Could not read existing labels: %s", err)
@@ -77,7 +83,7 @@ func (i *Ingest) ProcessLogs() error {
 				logger.Warn("Error iterating through existing labels: %s", err)
 			}
 			for k, v := range rec.Record.Bins {
-				metaItem := []interface{}{}
+				metaItem := []*metaEntry{}
 				err = json.Unmarshal([]byte(v.(string)), &metaItem)
 				if err != nil {
 					logger.Warn("Failed to unmarshal existing label data: %s", err)
@@ -89,16 +95,22 @@ func (i *Ingest) ProcessLogs() error {
 	metaLock := new(sync.Mutex)
 	for _, static := range i.patterns.LabelAddStaticValue {
 		if _, ok := meta[static.Name]; !ok {
-			meta[static.Name] = []interface{}{static.Value}
+			meta[static.Name] = []*metaEntry{
+				{
+					StaticEntries: []interface{}{static.Value},
+				},
+			}
 		} else {
 			found := false
-			for _, sv := range meta[static.Name] {
-				if sv == static.Value {
-					found = true
+			for _, items := range meta[static.Name] {
+				for _, sv := range items.StaticEntries {
+					if sv == static.Value {
+						found = true
+					}
 				}
 			}
 			if !found {
-				meta[static.Name] = append(meta[static.Name], static.Value)
+				meta[static.Name] = append(meta[static.Name], &metaEntry{StaticEntries: []interface{}{static.Value}})
 			}
 		}
 	}
@@ -123,7 +135,23 @@ func (i *Ingest) ProcessLogs() error {
 					found := false
 					metaIndex := 0
 					metaLock.Lock()
+					if _, ok := meta[k]; !ok {
+						meta[k] = []*metaEntry{}
+					}
+					metaClusterIndex := -1
 					for vi, vv := range meta[k] {
+						if vv.ClusterName == metadata["ClusterName"] {
+							metaClusterIndex = vi
+							break
+						}
+					}
+					if metaClusterIndex < 0 {
+						meta[k] = append(meta[k], &metaEntry{
+							ClusterName: metadata["ClusterName"].(string),
+						})
+						metaClusterIndex = len(meta[k]) - 1
+					}
+					for vi, vv := range meta[k][metaClusterIndex].Entries {
 						if vv == v {
 							found = true
 							metaIndex = vi
@@ -135,8 +163,8 @@ func (i *Ingest) ProcessLogs() error {
 						metaLock.Unlock()
 						continue
 					}
-					data[k] = len(meta[k])
-					meta[k] = append(meta[k], v)
+					data[k] = len(meta[k][metaClusterIndex].Entries)
+					meta[k][metaClusterIndex].Entries = append(meta[k][metaClusterIndex].Entries, v)
 					metajson, err := json.Marshal(meta[k])
 					metaLock.Unlock()
 					if err != nil {
@@ -321,13 +349,17 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 	}
 	out, startTime, endTime := stream.Close()
 	for _, d := range out {
+		meta := d.Metadata
+		for k, v := range labels {
+			meta[k] = v
+		}
 		resultsChan <- &processResult{
 			FileName: fileName,
 			Data:     d.Data,
 			Error:    d.Error,
 			SetName:  d.SetName,
 			LogLine:  d.Line,
-			Metadata: d.Metadata,
+			Metadata: meta,
 		}
 	}
 	// store startTime and endTime of logs
