@@ -15,13 +15,13 @@ import (
 )
 
 type logsGetCmd struct {
-	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	Journal         bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
-	LogLocation     string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
-	Destination     flags.Filename  `short:"d" long:"destination" description:"Destination directory (will be created if doesn't exist)" default:"./logs/"`
-	ParallelThreads int             `short:"t" long:"threads" description:"Download logs from this many nodes in parallel" default:"50"`
-	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	Journal     bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
+	LogLocation string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
+	Destination flags.Filename  `short:"d" long:"destination" description:"Destination directory (will be created if doesn't exist)" default:"./logs/"`
+	parallelThreadsCmd
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *logsGetCmd) Execute(args []string) error {

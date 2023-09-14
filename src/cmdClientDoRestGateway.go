@@ -1,13 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"regexp"
 	"strings"
 
@@ -52,7 +50,8 @@ func (c *clientCreateRestGatewayCmd) Execute(args []string) error {
 		if c.Docker.NoAutoExpose {
 			fmt.Println("Docker backend is in use, but rest-gateway access port is not being forwarded. If using Docker Desktop, use '-e 8081:8081' parameter in order to forward port 8081. This can only be done for one elasticsearch node. Press ENTER to continue regardless.")
 			if !c.JustDoIt {
-				bufio.NewReader(os.Stdin).ReadBytes('\n')
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			}
 		} else {
 			c.Docker.ExposePortsToHost = strings.Trim("8081:8081,"+c.Docker.ExposePortsToHost, ",")
@@ -202,6 +201,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 	}
 	a.opts.Attach.Client.ClientName = c.ClientName
 	a.opts.Attach.Client.Machine = c.Machines
+	defer backendRestoreTerminal()
 	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/install-gw.sh"})
 	if err != nil {
 		return err
@@ -211,6 +211,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to restart rest gateway: %s", err)
 	}
+	backendRestoreTerminal()
 	log.Print("Done")
 	log.Print("Documentation can be found at: https://aerospike.github.io/aerospike-rest-gateway/")
 	log.Print("Rest gateway logs are on the nodes in /var/log/, use 'client attach' command to explore the logs; connect with browser or curl to get the data")

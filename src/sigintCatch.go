@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"syscall"
 )
 
 var shutdownHandlers = make(map[string]func(os.Signal))
@@ -44,6 +43,6 @@ func handleShutdown(c chan os.Signal) {
 		}
 		shutdownWait.Wait()
 		log.Print("Exiting")
-		syscall.Kill(syscall.Getpid(), syscall.SIGTERM)
+		exitNow()
 	}
 }

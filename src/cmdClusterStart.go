@@ -9,9 +9,9 @@ import (
 
 type clusterStartCmd struct {
 	clusterStopCmd
-	NoFixMesh       bool `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh"`
-	NoStart         bool `short:"s" long:"no-start" description:"Set to prevent Aerospike from starting on cluster-start"`
-	ParallelThreads int  `short:"t" long:"threads" description:"Run on this many nodes in parallel" default:"50"`
+	NoFixMesh bool `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh"`
+	NoStart   bool `short:"s" long:"no-start" description:"Set to prevent Aerospike from starting on cluster-start"`
+	parallelThreadsCmd
 	clusterStartStopDestroyCmd
 }
 

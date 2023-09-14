@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,17 +15,17 @@ import (
 )
 
 type tlsGenerateCmd struct {
-	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name/Client group" default:"mydc"`
-	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	IsClient        bool            `short:"C" long:"client" description:"set to indicate the certficates should end up on client groups"`
-	TlsName         string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
-	CaName          string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
-	Bits            int             `short:"b" long:"cert-bits" description:"Bits size for the CA and certs" default:"2048"`
-	NoUpload        bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
-	NoMesh          bool            `short:"m" long:"no-mesh" description:"If set, will not configure mesh-seed-address-port to use TLS"`
-	ChDir           string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
-	ParallelThreads int             `short:"T" long:"threads" description:"Use this many threads in parallel when uploading the certificates to nodes" default:"50"`
-	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name/Client group" default:"mydc"`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	IsClient    bool            `short:"C" long:"client" description:"set to indicate the certficates should end up on client groups"`
+	TlsName     string          `short:"t" long:"tls-name" description:"Common Name (tlsname)" default:"tls1"`
+	CaName      string          `short:"c" long:"ca-name" description:"Name of the CA certificate(file)" default:"cacert"`
+	Bits        int             `short:"b" long:"cert-bits" description:"Bits size for the CA and certs" default:"2048"`
+	NoUpload    bool            `short:"u" long:"no-upload" description:"If set, will generate certificates on the local machine but not ship them to the cluster nodes"`
+	NoMesh      bool            `short:"m" long:"no-mesh" description:"If set, will not configure mesh-seed-address-port to use TLS"`
+	ChDir       string          `short:"W" long:"work-dir" description:"Specify working directory. This is where all installers will download and CA certs will initially generate to."`
+	parallelThreadsLongCmd
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *tlsGenerateCmd) Execute(args []string) error {
@@ -91,18 +92,18 @@ func (c *tlsGenerateCmd) Execute(args []string) error {
 
 	var commands [][]string
 	comm := "openssl"
-	_, errA := os.Stat("CA/private/" + c.CaName + ".key")
-	_, errB := os.Stat("CA/" + c.CaName + ".pem")
+	_, errA := os.Stat(path.Join("CA", "private", c.CaName+".key"))
+	_, errB := os.Stat(path.Join("CA", c.CaName+".pem"))
 	if errA != nil || errB != nil {
-		commands = append(commands, []string{"req", "-new", "-nodes", "-x509", "-extensions", "v3_ca", "-keyout", "private/" + c.CaName + ".key", "-out", c.CaName + ".pem", "-days", "3650", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=CA/L=Cyberspace/O=Aerolab/CN=%s", c.CaName)})
+		commands = append(commands, []string{"req", "-new", "-nodes", "-x509", "-extensions", "v3_ca", "-keyout", path.Join("private", c.CaName+".key"), "-out", c.CaName + ".pem", "-days", "3650", "-config", "openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=CA/L=Cyberspace/O=Aerolab/CN=%s", c.CaName)})
 	}
-	commands = append(commands, []string{"req", "-new", "-nodes", "-extensions", "v3_req", "-out", "req.pem", "-config", "./openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=CA/L=Cyberspace/O=Aerolab/CN=%s", c.TlsName)})
-	commands = append(commands, []string{"ca", "-batch", "-extensions", "v3_req", "-out", "cert.pem", "-config", "./openssl.cnf", "-infiles", "req.pem"})
+	commands = append(commands, []string{"req", "-new", "-nodes", "-extensions", "v3_req", "-out", "req.pem", "-config", "openssl.cnf", "-subj", fmt.Sprintf("/C=US/ST=CA/L=Cyberspace/O=Aerolab/CN=%s", c.TlsName)})
+	commands = append(commands, []string{"ca", "-batch", "-extensions", "v3_req", "-out", "cert.pem", "-config", "openssl.cnf", "-infiles", "req.pem"})
 	//os.RemoveAll("CA")
 	if _, err := os.Stat("CA"); err != nil {
 		os.Mkdir("CA", 0755)
 	}
-	err = os.Chdir("./CA")
+	err = os.Chdir("CA")
 	if err != nil {
 		return err
 	}

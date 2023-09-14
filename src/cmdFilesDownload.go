@@ -20,14 +20,14 @@ type filesRestCmd struct {
 }
 
 type filesDownloadCmd struct {
-	ClusterName     TypeClusterName     `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes           TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
-	IsClient        bool                `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
-	Aws             filesDownloadCmdAws `no-flag:"true"`
-	Gcp             filesDownloadCmdAws `no-flag:"true"`
-	Files           filesRestCmd        `positional-args:"true"`
-	ParallelThreads int                 `short:"t" long:"threads" description:"Download/Upload files from/to this many nodes in parallel" default:"50"`
-	doLegacy        bool                // set to do legacy if non-legacy fails
+	ClusterName TypeClusterName     `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes       TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
+	IsClient    bool                `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
+	Aws         filesDownloadCmdAws `no-flag:"true"`
+	Gcp         filesDownloadCmdAws `no-flag:"true"`
+	Files       filesRestCmd        `positional-args:"true"`
+	parallelThreadsCmd
+	doLegacy bool // set to do legacy if non-legacy fails
 }
 
 type filesDownloadCmdAws struct {
@@ -109,7 +109,7 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 	if c.ParallelThreads == 1 || len(nodes) == 1 {
 		for _, node := range nodes {
 			if len(nodes) > 1 {
-				dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
+				dst = path.Join(string(c.Files.Destination), strconv.Itoa(node))
 				os.MkdirAll(dst, 0755)
 			}
 			err = c.get(node, dst, verbose, legacy)
@@ -124,7 +124,7 @@ func (c *filesDownloadCmd) Execute(args []string) error {
 		for _, node := range nodes {
 			parallel <- 1
 			wait.Add(1)
-			dst = path.Join(string(c.Files.Destination), strconv.Itoa(node)) + "/"
+			dst = path.Join(string(c.Files.Destination), strconv.Itoa(node))
 			os.MkdirAll(dst, 0755)
 			go c.getParallel(node, dst, verbose, legacy, parallel, wait, hasError)
 		}
