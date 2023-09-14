@@ -3,6 +3,7 @@ package plugin
 import (
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v6"
@@ -15,7 +16,14 @@ type Plugin struct {
 	db           *aerospike.Client
 	wp           *aerospike.WritePolicy
 	rp           *aerospike.BasePolicy
+	ip           *aerospike.InfoPolicy
 	srv          *http.Server
+	cache        struct {
+		lock     *sync.RWMutex
+		setNames []string
+		binNames []string
+		metadata map[string][]interface{}
+	}
 }
 
 type Config struct {
@@ -23,8 +31,10 @@ type Config struct {
 		ListenAddress string `yaml:"listenAddress" default:"127.0.0.1" envconfig:"PLUGIN_LISTEN_ADDR"`
 		ListenPort    int    `yaml:"listenPort" default:"8851" envconfig:"PLUGIN_LISTEN_PORT"`
 	} `yaml:"service"`
-	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"PLUGIN_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
-	Aerospike struct {
+	CacheRefreshInterval time.Duration `yaml:"cacheRefreshInterval" default:"30s" envconfig:"PLUGIN_CACHE_REFRESH"`
+	LabelsSetName        string        `yaml:"labelsSetName" default:"labels" envconfig:"PLUGIN_LABELS_SETNAME"`
+	LogLevel             int           `yaml:"logLevel" default:"4" envconfig:"PLUGIN_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
+	Aerospike            struct {
 		Host             string `yaml:"host" default:"127.0.0.1"`
 		Port             int    `yaml:"port" default:"3000"`
 		Namespace        string `yaml:"namespace" default:"agi"`
@@ -36,6 +46,7 @@ type Config struct {
 			RWTotal     time.Duration `yaml:"rwTimeout" default:"30s"`
 			QuerySocket time.Duration `yaml:"querySocket" default:"30s"`
 			QueryTotal  time.Duration `yaml:"queryTimeout" default:"60s"`
+			InfoTimeout time.Duration `yaml:"infoTimeout" default:"60s"`
 		} `yaml:"timeouts"`
 		Retries struct {
 			Connect      int           `yaml:"connect" default:"-1"` // set to -1 to retry forever
