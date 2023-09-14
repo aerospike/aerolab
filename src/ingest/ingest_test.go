@@ -35,6 +35,7 @@ func setupTest() error {
 }
 
 func teardownTest() error {
+	os.Unsetenv("DOCKER_HOST")
 	out, err := exec.Command("aerolab", "cluster", "destroy", "-f", "--name=ingest").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("err: %s out: %s", err, string(out))
