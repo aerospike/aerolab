@@ -60,7 +60,9 @@ func Init(config *Config) (*Plugin, error) {
 	}
 	logger.Debug("INIT: Connect to backend")
 	p := &Plugin{
-		config: config,
+		config:   config,
+		requests: make(chan bool, config.MaxConcurrentRequests),
+		jobs:     make(chan bool, config.MaxConcurrentJobs),
 	}
 	p.cache.lock = new(sync.RWMutex)
 	p.cache.metadata = make(map[string][]*metaEntry)
@@ -82,6 +84,7 @@ func Init(config *Config) (*Plugin, error) {
 		}
 		p.pprofRunning = true
 	}
+	go p.stats()
 	go p.queryAndCache()
 	return p, nil
 }

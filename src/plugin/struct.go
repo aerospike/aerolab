@@ -24,6 +24,8 @@ type Plugin struct {
 		binNames []string
 		metadata map[string][]*metaEntry
 	}
+	requests chan bool
+	jobs     chan bool
 }
 
 type Config struct {
@@ -31,10 +33,12 @@ type Config struct {
 		ListenAddress string `yaml:"listenAddress" default:"127.0.0.1" envconfig:"PLUGIN_LISTEN_ADDR"`
 		ListenPort    int    `yaml:"listenPort" default:"8851" envconfig:"PLUGIN_LISTEN_PORT"`
 	} `yaml:"service"`
-	CacheRefreshInterval time.Duration `yaml:"cacheRefreshInterval" default:"30s" envconfig:"PLUGIN_CACHE_REFRESH"`
-	LabelsSetName        string        `yaml:"labelsSetName" default:"labels" envconfig:"PLUGIN_LABELS_SETNAME"`
-	LogLevel             int           `yaml:"logLevel" default:"4" envconfig:"PLUGIN_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
-	Aerospike            struct {
+	MaxConcurrentRequests int           `json:"maxConcurrentRequests" default:"5" envconfig:"PLUGIN_MAX_REQUESTS"`
+	MaxConcurrentJobs     int           `json:"maxConcurrentJobs" default:"5" envconfig:"PLUGIN_MAX_JOBS"`
+	CacheRefreshInterval  time.Duration `yaml:"cacheRefreshInterval" default:"30s" envconfig:"PLUGIN_CACHE_REFRESH"`
+	LabelsSetName         string        `yaml:"labelsSetName" default:"labels" envconfig:"PLUGIN_LABELS_SETNAME"`
+	LogLevel              int           `yaml:"logLevel" default:"4" envconfig:"PLUGIN_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
+	Aerospike             struct {
 		Host             string `yaml:"host" default:"127.0.0.1"`
 		Port             int    `yaml:"port" default:"3000"`
 		Namespace        string `yaml:"namespace" default:"agi"`

@@ -35,23 +35,48 @@ type queryScopedVar struct {
 }
 
 type queryPayload struct {
-	FilterVariables  []string // which grafana filters to filter by, e.g. ClusterName,NodeIdent
-	GroupBy          []string // which bin values to group by, e.g. ClusterName,NodeIdent
-	SortOrder        []int    // by which grouping to sort first, and then second, etc
-	TimestampBinName string   // name of timestamp bin
-	Bins             []*bin   // which bins to plot
+	Type   string   `json:"type"` // timeseries|table|static(serve json)
+	Static struct { // file destination for static json serve
+		File  string   `json:"file"`
+		Name  string   `json:"name"`
+		Names []string `json:"names"`
+	} `json:"static"`
+	FilterVariables  []*requestFilter `json:"filterBy"`         // which grafana filters to filter by, e.g. ClusterName,NodeIdent
+	GroupBy          []string         `json:"groupBy"`          // which bin values to group by, e.g. ClusterName,NodeIdent
+	SortOrder        []int            `json:"sortOrder"`        // by which grouping to sort first, and then second, etc
+	TimestampBinName string           `json:"timestampBinName"` // name of timestamp bin
+	Bins             []*bin           `json:"bins"`             // which bins to plot
+}
+
+type requestFilter struct {
+	Name      string `json:"name"`
+	MustExist bool   `json:"mustExist"`
 }
 
 type bin struct {
-	Name        string
-	DisplayName string
-	Reverse     bool // reverse/mirror values
-	Required    bool
+	Name                  string          `json:"name"`                  // bin name
+	DisplayName           string          `json:"displayName"`           // display name for legend
+	Reverse               bool            `json:"reverse"`               // reverse/mirror values (*-1 final results)
+	Required              bool            `json:"required"`              // fail if bin not found
+	ProduceDelta          bool            `json:"produceDelta"`          // for translating cumulative values to per/ticker
+	TickerIntervalSeconds int             `json:"tickerIntervalSeconds"` // set to translate per/ticker to per/second, value x=0 disables
+	MaxIntervalSeconds    int             `json:"maxIntervalSeconds"`    // if breached, will insert 'null', value=0 disables
+	Limits                *responseLimits `json:"limits"`                // floor/ceil at limit
+}
+
+type responseLimits struct {
+	MinValue *int `json:"minValue"` // if below, will apply minValue
+	MaxValue *int `json:"maxValue"` // if above, will apply maxValue
 }
 
 func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
-	logger.Info("QUERY START (type:query) (remote:%s)", r.RemoteAddr)
-	defer logger.Info("QUERY END (type:query) (remote:%s)", r.RemoteAddr)
+	logger.Info("QUERY INCOMING (type:query) (remote:%s)", r.RemoteAddr)
+	p.requests <- true
+	defer func() {
+		<-p.requests
+		logger.Info("QUERY END (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s)", len(p.requests), len(p.jobs), r.RemoteAddr)
+	}()
+	logger.Info("QUERY START (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s)", len(p.requests), len(p.jobs), r.RemoteAddr)
 	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -107,6 +132,27 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logger.Detail("(remote:%s) (parsed-payload:%s) (selected-vars:%s)", r.RemoteAddr, string(body), string(bodyx))
+	}
+	logger.Info("QUERY ALLOCATE_JOB (type:query) (runningJobs:%d) (remote:%s)", len(p.jobs), r.RemoteAddr)
+	p.jobs <- true
+	defer func() {
+		<-p.jobs
+	}()
+	logger.Info("QUERY DO_JOB (type:query) (runningJobs:%d) (remote:%s)", len(p.jobs), r.RemoteAddr)
+	for i := range req.Targets {
+		switch req.Targets[i].Payload.Type {
+		case "":
+			fallthrough
+		case "timeseries":
+			// TODO
+		case "table":
+			// TODO
+		case "static":
+			// TODO
+		default:
+			responseError(w, http.StatusBadRequest, "Request payload type %s not supported (remote:%s)", req.Targets[i].Payload.Type, r.RemoteAddr)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("[]"))
