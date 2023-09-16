@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/aerospike/aerospike-client-go/v6"
 )
@@ -45,7 +46,6 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 	resp := &tableResponse{
 		Type: "table",
 	}
-	// TODO: sort by sort order?
 	for rec := range recset.Results() {
 		if rec.Err != nil {
 			return nil, fmt.Errorf("%s", rec.Err)
@@ -65,8 +65,17 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 				case int, int32, int64, float32, float64:
 					nType = "number"
 				}
+				name := k
+				for _, bin := range target.Payload.Bins {
+					if bin.Name == k {
+						if bin.DisplayName != "" {
+							name = bin.DisplayName
+						}
+						break
+					}
+				}
 				resp.Columns = append(resp.Columns, &tableColumn{
-					Text:    "", // TODO: displayName if it's set, otherwise binName
+					Text:    name,
 					binName: k,
 					Type:    nType,
 				})
@@ -85,6 +94,51 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 			}
 		}
 		resp.Rows = append(resp.Rows, row)
+	}
+	// sort
+	if len(target.Payload.SortOrder) > 0 {
+		sort.Slice(resp.Rows, func(i, j int) bool {
+			for _, so := range target.Payload.SortOrder {
+				rev := false
+				if so < 0 {
+					so = so * -1
+					rev = true
+				}
+				so--
+				ni := resp.Rows[i]
+				nj := resp.Rows[j]
+				switch vi := ni[so].(type) {
+				case int:
+					switch vj := nj[so].(type) {
+					case int:
+						if vi < vj {
+							return !rev
+						} else if vi > vj {
+							return rev
+						}
+					}
+				case float64:
+					switch vj := nj[so].(type) {
+					case float64:
+						if vi < vj {
+							return !rev
+						} else if vi > vj {
+							return rev
+						}
+					}
+				case string:
+					switch vj := nj[so].(type) {
+					case string:
+						if vi < vj {
+							return !rev
+						} else if vi > vj {
+							return rev
+						}
+					}
+				}
+			}
+			return false
+		})
 	}
 	return resp, nil
 }
