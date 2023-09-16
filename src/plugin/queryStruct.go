@@ -33,11 +33,11 @@ type queryPayload struct {
 		Name  string   `json:"name"`
 		Names []string `json:"names"`
 	} `json:"static"`
-	FilterVariables  []*requestFilter `json:"filterBy"`         // which grafana filters to filter by, e.g. ClusterName,NodeIdent
-	GroupBy          []string         `json:"groupBy"`          // which bin values to group by, e.g. ClusterName,NodeIdent
-	SortOrder        []int            `json:"sortOrder"`        // by which grouping to sort first, and then second, etc
-	TimestampBinName string           `json:"timestampBinName"` // name of timestamp bin
-	Bins             []*bin           `json:"bins"`             // which bins to plot
+	FilterVariables  []*requestFilter `json:"filterBy"`         // all: which grafana filters to filter by, e.g. ClusterName,NodeIdent
+	SortOrder        []int            `json:"sortOrder"`        // all: by which grouping to sort first, and then second, etc
+	Bins             []*bin           `json:"bins"`             // all: which bins to plot
+	GroupBy          []string         `json:"groupBy"`          // timeseries: which bin values to group by, e.g. ClusterName,NodeIdent
+	TimestampBinName string           `json:"timestampBinName"` // timeseries: name of timestamp bin
 }
 
 type requestFilter struct {
@@ -46,14 +46,14 @@ type requestFilter struct {
 }
 
 type bin struct {
-	Name                  string          `json:"name"`                  // bin name
-	DisplayName           string          `json:"displayName"`           // display name for legend
-	Reverse               bool            `json:"reverse"`               // reverse/mirror values (*-1 final results)
-	Required              bool            `json:"required"`              // fail if bin not found
-	ProduceDelta          bool            `json:"produceDelta"`          // for translating cumulative values to per/ticker
-	TickerIntervalSeconds int             `json:"tickerIntervalSeconds"` // set to translate per/ticker to per/second, value x=0 disables
-	MaxIntervalSeconds    int             `json:"maxIntervalSeconds"`    // if breached, will insert 'null', value=0 disables
-	Limits                *responseLimits `json:"limits"`                // floor/ceil at limit
+	Name                  string          `json:"name"`                  // all: bin name
+	DisplayName           string          `json:"displayName"`           // all: display name for legend
+	Reverse               bool            `json:"reverse"`               // timeseries: reverse/mirror values (*-1 final results)
+	Required              bool            `json:"required"`              // timeseries: fail if bin not found
+	ProduceDelta          bool            `json:"produceDelta"`          // timeseries: for translating cumulative values to per/ticker
+	TickerIntervalSeconds int             `json:"tickerIntervalSeconds"` // timeseries: set to translate per/ticker to per/second, value x=0 disables
+	MaxIntervalSeconds    int             `json:"maxIntervalSeconds"`    // timeseries: if breached, will insert 'null', value=0 disables
+	Limits                *responseLimits `json:"limits"`                // timeseries: floor/ceil at limit
 }
 
 type responseLimits struct {
