@@ -22,7 +22,9 @@ func (p *Plugin) handleQueryStatic(req *queryRequest, i int, remote string) (*st
 	if err != nil {
 		return nil, err
 	}
-	response := &staticResponse{}
+	response := &staticResponse{
+		Type: "table",
+	}
 	var responseRows []interface{}
 	if req.Targets[i].Payload.Static.Name != "" {
 		req.Targets[i].Payload.Static.Names = append(req.Targets[i].Payload.Static.Names, req.Targets[i].Payload.Static.Name)
