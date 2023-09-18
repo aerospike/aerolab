@@ -49,6 +49,9 @@
           },
           "overrides": []
         },
+        "libraryPanel": {
+          "uid": "TqZqCxP4z"
+        },
         "options": {
           "cellHeight": "sm",
           "footer": {
@@ -116,6 +119,9 @@
             }
           },
           "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "owfqCxPVk"
         },
         "options": {
           "cellHeight": "sm",
@@ -229,7 +235,7 @@
         "uid": "${DS_JSON}"
       },
       "gridPos": {
-        "h": 3,
+        "h": 4,
         "w": 11,
         "x": 0,
         "y": 0
@@ -241,7 +247,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "<center><h1><font color=green>${caseLabel}</font></h1></center>",
+        "content": "<center><pre><h2><font color=green>${sources}</font></h2></pre></center>",
         "mode": "html"
       },
       "pluginVersion": "10.1.1",
@@ -255,7 +261,7 @@
           "refId": "A"
         }
       ],
-      "title": "Case Label",
+      "title": "Sources",
       "type": "text"
     },
     {
@@ -264,7 +270,7 @@
         "uid": "${DS_JSON}"
       },
       "gridPos": {
-        "h": 3,
+        "h": 4,
         "w": 13,
         "x": 11,
         "y": 0
@@ -276,7 +282,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "<center><h1><font color=orange>${timeRangeCut}</font></h1></center>",
+        "content": "<center><h2><font color=orange>${timerange}</font></h2></center>",
         "mode": "html"
       },
       "pluginVersion": "10.1.1",
@@ -298,7 +304,7 @@
         "h": 17,
         "w": 24,
         "x": 0,
-        "y": 3
+        "y": 4
       },
       "id": 2,
       "libraryPanel": {
@@ -311,7 +317,7 @@
         "h": 17,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 21
       },
       "id": 3,
       "libraryPanel": {
@@ -358,14 +364,14 @@
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "static:env.json:workerLabel",
+        "definition": "sources",
         "hide": 2,
         "includeAll": false,
         "multi": false,
-        "name": "caseLabel",
+        "name": "sources",
         "options": [],
         "query": {
-          "query": "static:env.json:workerLabel"
+          "query": "sources"
         },
         "refresh": 1,
         "regex": "",
@@ -379,35 +385,14 @@
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "static:env.json:timeRangeCut",
+        "definition": "timerange",
         "hide": 2,
         "includeAll": false,
         "multi": false,
-        "name": "timeRangeCut",
+        "name": "timerange",
         "options": [],
         "query": {
-          "query": "static:env.json:timeRangeCut"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "type": "query"
-      },
-      {
-        "current": {},
-        "datasource": {
-          "type": "simpod-json-datasource",
-          "uid": "${DS_JSON}"
-        },
-        "definition": "static:env.json:retriggerOnStart",
-        "hide": 2,
-        "includeAll": false,
-        "multi": false,
-        "name": "retriggerOnStart",
-        "options": [],
-        "query": {
-          "query": "static:env.json:retriggerOnStart"
+          "query": "timerange"
         },
         "refresh": 1,
         "regex": "",

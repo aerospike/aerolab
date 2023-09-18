@@ -96,6 +96,7 @@ type Config struct {
 		S3Source          *S3Source   `yaml:"s3Source"`
 		SftpSource        *SftpSource `yaml:"sftpSource"`
 	} `yaml:"downloader"`
+	CustomSourceName           string `yaml:"customSourceName" default:"" envconfig:"LOGINGEST_CUSTOM_SRCNAME"`
 	FindClusterNameNodeIdRegex string `yaml:"findClusterNameNodeIdRegex" default:"NODE-ID (?P<NodeId>[^ ]+) CLUSTER-SIZE (?P<ClusterSize>\\d+)( CLUSTER-NAME (?P<ClusterName>[^$]+))*"`
 	findClusterNameNodeIdRegex *regexp.Regexp
 	CPUProfilingOutputFile     string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
