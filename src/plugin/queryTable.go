@@ -151,5 +151,8 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 			return false
 		})
 	}
+	if resp.Rows == nil {
+		resp.Rows = [][]interface{}{}
+	}
 	return resp, nil
 }
