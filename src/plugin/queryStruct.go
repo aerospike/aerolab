@@ -48,6 +48,7 @@ type requestFilter struct {
 type bin struct {
 	Name                  string          `json:"name"`                  // all: bin name
 	DisplayName           string          `json:"displayName"`           // all: display name for legend
+	Type                  string          `json:"type"`                  // all: string/number
 	Reverse               bool            `json:"reverse"`               // timeseries: reverse/mirror values (*-1 final results)
 	Required              bool            `json:"required"`              // timeseries: fail if bin not found
 	ProduceDelta          bool            `json:"produceDelta"`          // timeseries: for translating cumulative values to per/ticker

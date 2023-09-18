@@ -29,13 +29,47 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 		binList = append(binList, filter.Name)
 	}
 	stmt := aerospike.NewStatement(p.config.Aerospike.Namespace, target.Target, binList...)
-	exp := aerospike.ExpBinExists("")
+	var exp *aerospike.Expression
+	var new *aerospike.Expression
+	var vals []*aerospike.Expression
+	var valsOr *aerospike.Expression
 	for _, filter := range target.Payload.FilterVariables {
 		if _, ok := req.selectedVars[filter.Name]; !ok {
 			return nil, fmt.Errorf("variable %s does not exist", filter.Name)
 		}
-		// TODO: fill exp with filter vars, ensure if var value is '[]', we should just set mustExist accordingly, and not worry about the filter matching value
-		// TODO: for filter lists, check if exists is MustExist is set; for binList, check if exists if Required is true
+		new = nil
+		vals = nil
+		for _, v := range req.selectedVars[filter.Name] {
+			vals = append(vals, aerospike.ExpEq(aerospike.ExpStringBin(filter.Name), aerospike.ExpStringVal(v)))
+		}
+		if len(vals) == 0 {
+			continue
+		}
+		valsOr = nil
+		valsOr = vals[0]
+		if len(vals) > 1 {
+			valsOr = aerospike.ExpOr(vals...)
+		}
+		if filter.MustExist {
+			new = aerospike.ExpAnd(aerospike.ExpBinExists(filter.Name), valsOr)
+		} else {
+			new = aerospike.ExpOr(aerospike.ExpNot(aerospike.ExpBinExists(filter.Name)), valsOr)
+		}
+		if exp == nil {
+			exp = new
+		} else {
+			exp = aerospike.ExpAnd(exp, new)
+		}
+	}
+	for _, bin := range target.Payload.Bins {
+		if !bin.Required {
+			continue
+		}
+		if exp == nil {
+			exp = aerospike.ExpBinExists(bin.Name)
+		} else {
+			exp = aerospike.ExpAnd(exp, aerospike.ExpBinExists(bin.Name))
+		}
 	}
 	qp := p.queryPolicy()
 	qp.FilterExpression = exp
@@ -46,52 +80,29 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 	resp := &tableResponse{
 		Type: "table",
 	}
+	for _, sel := range req.Targets[i].Payload.Bins {
+		name := sel.Name
+		if sel.DisplayName != "" {
+			name = sel.DisplayName
+		}
+		resp.Columns = append(resp.Columns, &tableColumn{
+			Text:    name,
+			binName: sel.Name,
+			Type:    sel.Type,
+		})
+	}
 	for rec := range recset.Results() {
 		if rec.Err != nil {
 			return nil, fmt.Errorf("%s", rec.Err)
 		}
 		bins := rec.Record.Bins
-		for k, v := range bins {
-			found := false
-			for _, c := range resp.Columns {
-				if c.binName == k {
-					found = true
-					break
-				}
-			}
-			if !found {
-				nType := "string"
-				switch v.(type) {
-				case int, int32, int64, float32, float64:
-					nType = "number"
-				}
-				name := k
-				for _, bin := range target.Payload.Bins {
-					if bin.Name == k {
-						if bin.DisplayName != "" {
-							name = bin.DisplayName
-						}
-						break
-					}
-				}
-				resp.Columns = append(resp.Columns, &tableColumn{
-					Text:    name,
-					binName: k,
-					Type:    nType,
-				})
-			}
-		}
 		row := []interface{}{}
-		for _, c := range resp.Columns {
-			if v, ok := bins[c.binName]; ok {
+		for _, col := range resp.Columns {
+			if v, ok := bins[col.binName]; ok {
 				row = append(row, v)
-			} else {
-				if c.Type == "string" {
-					row = append(row, "")
-				} else {
-					row = append(row, 0)
-				}
+				continue
 			}
+			row = append(row, "")
 		}
 		resp.Rows = append(resp.Rows, row)
 	}
