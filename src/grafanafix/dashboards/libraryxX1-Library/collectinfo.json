@@ -17,7 +17,7 @@
       "model": {
         "datasource": {
           "type": "simpod-json-datasource",
-          "uid": "json"
+          "uid": "${DS_JSON}"
         },
         "description": "",
         "fieldConfig": {
@@ -49,10 +49,8 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "TqZqCxP4z"
-        },
         "options": {
+          "cellHeight": "sm",
           "footer": {
             "countRows": false,
             "fields": "",
@@ -63,7 +61,7 @@
           },
           "showHeader": true
         },
-        "pluginVersion": "9.4.7",
+        "pluginVersion": "10.1.1",
         "targets": [
           {
             "datasource": {
@@ -71,9 +69,9 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"type\": \"table\",\n  \"grafanaFilters\": [\n    {\n      \"binName\": \"fileName\",\n      \"binValues\": $fileName\n    }\n  ],\n  \"selectBins\": [\n    {\n      \"name\": \"fileName\",\n      \"friendlyName\": \"FileName\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterName\",\n      \"friendlyName\": \"Cluster Name\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"nodeId\",\n      \"friendlyName\": \"NodeID\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"ip\",\n      \"friendlyName\": \"IP\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"build\",\n      \"friendlyName\": \"Build\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"migrations\",\n      \"friendlyName\": \"Migrations\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterSize\",\n      \"friendlyName\": \"ClusterSize\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterKey\",\n      \"friendlyName\": \"ClusterKey\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"integrity\",\n      \"friendlyName\": \"Integrity\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"principal\",\n      \"friendlyName\": \"Principal\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clientConns\",\n      \"friendlyName\": \"ClientConns\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"uptime\",\n      \"friendlyName\": \"Uptime\",\n      \"type\": \"string\"\n    }\n  ],\n  \"selectGroupBy\": [\"fileName\",\"nodeId\",\"ip\"],\n  \"sortOrder\": [1,2,3]\n}\n",
+            "payload": "{\n  \"type\": \"table\",\n  \"filterBy\": [{\n  \t\"name\": \"cfName\",\n  \t\"mustExist\": true\n  }],\n  \"bins\": [\n    {\n      \"name\": \"cfName\",\n      \"displayName\": \"FileName\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterName\",\n      \"displayName\": \"Cluster Name\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"nodeId\",\n      \"displayName\": \"NodeID\",\n      \"type\": \"string\",\n      \"required\": true\n    },\n    {\n      \"name\": \"ip\",\n      \"displayName\": \"IP\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"build\",\n      \"displayName\": \"Build\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"migrations\",\n      \"displayName\": \"Migrations\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterSize\",\n      \"displayName\": \"ClusterSize\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterKey\",\n      \"displayName\": \"ClusterKey\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"integrity\",\n      \"displayName\": \"Integrity\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"principal\",\n      \"displayName\": \"Principal\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clientConns\",\n      \"displayName\": \"ClientConns\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"uptime\",\n      \"displayName\": \"Uptime\",\n      \"type\": \"string\"\n    }\n  ],\n  \"sortOrder\": [1,2,3]\n}\n",
             "refId": "A",
-            "target": "collectinfo"
+            "target": "collectinfos"
           }
         ],
         "title": "CollectInfo - info network",
@@ -87,7 +85,7 @@
       "model": {
         "datasource": {
           "type": "simpod-json-datasource",
-          "uid": "json"
+          "uid": "${DS_JSON}"
         },
         "description": "",
         "fieldConfig": {
@@ -119,10 +117,8 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "owfqCxPVk"
-        },
         "options": {
+          "cellHeight": "sm",
           "footer": {
             "countRows": false,
             "fields": "",
@@ -133,7 +129,7 @@
           },
           "showHeader": true
         },
-        "pluginVersion": "9.4.7",
+        "pluginVersion": "10.1.1",
         "targets": [
           {
             "datasource": {
@@ -141,9 +137,9 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"type\": \"table\",\n  \"grafanaFilters\": [\n    {\n      \"binName\": \"fileName\",\n      \"binValues\": $fileName\n    }\n  ],\n  \"selectBins\": [\n    {\n      \"name\": \"fileName\",\n      \"friendlyName\": \"FileName\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"summary\",\n      \"friendlyName\": \"Summary\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"health\",\n      \"friendlyName\": \"Health\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"sysinfo\",\n      \"friendlyName\": \"Sysinfo\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"confFile\",\n      \"friendlyName\": \"Config File\",\n      \"type\": \"string\"\n    }\n  ],\n  \"selectGroupBy\": [\"fileName\"],\n  \"sortOrder\": [1]\n}\n",
+            "payload": "{\n  \"type\": \"table\",\n  \"filterBy\": [{\n    \"name\": \"cfName\",\n    \"mustExist\": true\n  }],\n  \"sortOrder\": [1],\n  \"bins\": [{\n    \"name\": \"cfName\",\n    \"displayName\": \"File Name\"\n  },{\n    \"name\": \"summary\",\n    \"displayName\": \"Summary\"\n  },{\n    \"name\": \"health\",\n    \"displayName\": \"Health\"\n  },{\n    \"name\": \"sysinfo\",\n    \"displayName\": \"Sysinfo\",\n    \"required\": true\n  },{\n    \"name\": \"conffile\",\n    \"displayName\": \"Config File\"\n  }]\n}\n",
             "refId": "A",
-            "target": "collectall"
+            "target": "collectinfos"
           }
         ],
         "title": "CollectInfo - Summary and Health - Hover over Summary of Health field and click the little \"eye\" icon on the right of that field",
@@ -156,13 +152,13 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "9.4.7"
+      "version": "10.1.1"
     },
     {
       "type": "datasource",
       "id": "simpod-json-datasource",
       "name": "JSON",
-      "version": "0.6.2"
+      "version": "0.6.3"
     },
     {
       "type": "panel",
@@ -248,7 +244,7 @@
         "content": "<center><h1><font color=green>${caseLabel}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -283,7 +279,7 @@
         "content": "<center><h1><font color=orange>${timeRangeCut}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -340,15 +336,15 @@
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "meta.collectinfos.collectinfos",
+        "definition": "cfName",
         "hide": 0,
         "includeAll": true,
         "label": "File Name",
         "multi": true,
-        "name": "fileName",
+        "name": "cfName",
         "options": [],
         "query": {
-          "query": "meta.collectinfos.collectinfos"
+          "query": "cfName"
         },
         "refresh": 1,
         "regex": "",
