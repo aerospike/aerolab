@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"regexp"
 	"runtime/pprof"
 
+	"github.com/aerospike/aerospike-client-go/v6"
 	"github.com/bestmethod/logger"
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
@@ -131,6 +133,51 @@ func Init(config *Config) (*Ingest, error) {
 	err = i.loadProgress()
 	if err != nil {
 		return nil, err
+	}
+	logger.Debug("INIT: Update DB labels")
+	sources := ""
+	if i.config.Downloader.S3Source.Enabled {
+		sources = "s3 " + i.config.Downloader.S3Source.BucketName + ":/" + i.config.Downloader.S3Source.PathPrefix + i.config.Downloader.S3Source.SearchRegex
+	}
+	if i.config.Downloader.SftpSource.Enabled {
+		if sources != "" {
+			sources = sources + "\n"
+		}
+		sources = sources + "sftp " + i.config.Downloader.SftpSource.Host + ":" + i.config.Downloader.SftpSource.PathPrefix + i.config.Downloader.SftpSource.SearchRegex
+	}
+	if i.config.CustomSourceName != "" {
+		if sources != "" {
+			sources = sources + "\n"
+		}
+		sources = sources + "local " + i.config.CustomSourceName
+	}
+	key, _ := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "sources")
+	metajson, _ := json.Marshal([]*metaEntry{
+		{
+			Entries: []interface{}{sources},
+		},
+	})
+	bin := map[string]interface{}{
+		"sources": string(metajson),
+	}
+	aerr := i.db.Put(i.wp, key, bin)
+	if aerr != nil {
+		logger.Error("Could not insert sources label: %s", err)
+	}
+	if i.config.IngestTimeRanges.Enabled {
+		key, _ = aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "timerange")
+		metajson, _ := json.Marshal([]*metaEntry{
+			{
+				Entries: []interface{}{i.config.IngestTimeRanges.From.String() + " - " + i.config.IngestTimeRanges.To.String()},
+			},
+		})
+		bin = map[string]interface{}{
+			"timerange": string(metajson),
+		}
+		aerr := i.db.Put(i.wp, key, bin)
+		if aerr != nil {
+			logger.Error("Could not insert timerange label: %s", err)
+		}
 	}
 	go i.saveProgressInterval()
 	go i.printProgressInterval()

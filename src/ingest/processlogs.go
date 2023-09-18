@@ -63,7 +63,7 @@ func (i *Ingest) ProcessLogs() error {
 		return fmt.Errorf("listing collectinfos: %s", err)
 	}
 	// merge list
-	logger.Debug("ProcessCollectInfo: merging lists")
+	logger.Debug("ProcessLogs: merging lists")
 	i.progress.Lock()
 	for n, f := range i.progress.LogProcessor.Files {
 		foundLogs[n] = f
