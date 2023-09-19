@@ -10,7 +10,10 @@ import (
 	"strings"
 
 	"github.com/bestmethod/inslice"
-	"github.com/olekukonko/tablewriter"
+
+	isatty "github.com/mattn/go-isatty"
+
+	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 type inventoryInstanceTypesCmd struct {
@@ -142,7 +145,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type == "docker" {
 		return errors.New("feature not available on docker")
 	}
-	t, err := b.GetInstanceTypes(c.FilterMinCPU, c.FilterMaxCPU, c.FilterMinRAM, c.FilterMaxRAM, c.EphemeralMin, c.EphemeralMax, c.Arm, c.Gcp.Zone)
+	instanceTypes, err := b.GetInstanceTypes(c.FilterMinCPU, c.FilterMaxCPU, c.FilterMinRAM, c.FilterMaxRAM, c.EphemeralMin, c.EphemeralMax, c.Arm, c.Gcp.Zone)
 	if err != nil {
 		return err
 	}
@@ -156,23 +159,48 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	sorter := inventorySorter{
 		SortOrders: c.SortOrder,
 		currentSo:  0,
-		cmpItem:    &t,
+		cmpItem:    &instanceTypes,
 	}
-	sort.Slice(t, sorter.instanceTypesSort)
+	sort.Slice(instanceTypes, sorter.instanceTypesSort)
 
 	if c.Json {
 		enc := json.NewEncoder(os.Stdout)
 		if c.JsonPretty {
 			enc.SetIndent("", "    ")
 		}
-		err = enc.Encode(t)
+		err = enc.Encode(instanceTypes)
 		return err
 	}
 
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month"})
-	table.SetAutoFormatHeaders(false)
-	for _, v := range t {
+	t := table.NewWriter()
+	// For now, don't set the allowed row lenght, wrapping is better
+	// until we do something more clever...
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		// fmt.Println("Is Terminal")
+		t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+
+		// s, err := tsize.GetSize()
+		if err != nil {
+			fmt.Println("Couldn't get terminal width")
+		}
+		// t.SetAllowedRowLength(s.Width)
+	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+		// fmt.Println("Is Cygwin/MSYS2 Terminal")
+		t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+
+		// s, err := tsize.GetSize()
+		if err != nil {
+			fmt.Println("Couldn't get terminal width")
+		}
+		// t.SetAllowedRowLength(s.Width)
+	} else {
+		fmt.Fprintln(os.Stderr, "aerolab does not have a stable CLI interface. Use with caution in scripts.\nIn scripts, the JSON output should be used for stability.")
+		t.SetStyle(table.StyleDefault)
+	}
+
+	t.SetTitle("INSTANCES")
+	t.AppendHeader(table.Row{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month"})
+	for _, v := range instanceTypes {
 		if c.FilterName != "" && !strings.HasPrefix(v.InstanceName, c.FilterName) {
 			continue
 		}
@@ -196,7 +224,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		if v.PriceUSD <= 0 {
 			pricepm = "unknown"
 		}
-		vv := []string{
+		vv := table.Row{
 			v.InstanceName,
 			strconv.Itoa(v.CPUs),
 			strings.TrimSuffix(strconv.FormatFloat(v.RamGB, 'f', 2, 64), ".00"),
@@ -206,9 +234,9 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 			pricepd,
 			pricepm,
 		}
-		table.Append(vv)
+		t.AppendRow(vv)
 	}
-	table.Render()
+	fmt.Println(t.Render())
 	if a.opts.Config.Backend.Type == "gcp" {
 		fmt.Println("* local ephemeral disks are not automatically allocated to the machines; these need to be requested in the quantity required; each local disk is always 375 GB")
 		fmt.Println("* pricing does not include any disks; disk pricing at https://cloud.google.com/compute/disks-image-pricing#disk")
