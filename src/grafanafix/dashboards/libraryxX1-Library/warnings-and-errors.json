@@ -17,7 +17,7 @@
       "model": {
         "datasource": {
           "type": "simpod-json-datasource",
-          "uid": "json"
+          "uid": "${DS_JSON}"
         },
         "description": "",
         "fieldConfig": {
@@ -39,6 +39,7 @@
                 "tooltip": false,
                 "viz": false
               },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
@@ -73,9 +74,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "hvUUvAE4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -97,7 +95,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"grafanaFilters\":[\n    {\n      \"binName\":\"logFileNode\",\n      \"binValues\": $logNodes,\n      \"method\": \"or\"\n    },\n    {\n      \"binName\":\"logFileCluster\",\n      \"binValues\": $logCluster,\n      \"method\": \"or\"\n    },\n    {\n      \"binName\":\"warnCtx\",\n      \"binValues\": $WarnContext,\n      \"method\": \"or\"\n    },{\n      \"binName\":\"warnC\",\n      \"binValues\": $WarnLogType,\n      \"method\": \"or\"\n    }\n    ],\n    \"timestampBinName\": \"timestamp\",\n    \"respectMaxDataPoints\": \"$RespectMaxDataPoints\",\n    \"selectBins\": [{\n        \"name\": \"repeated\",\n        \"friendlyName\": \"\",\n        \"maxInterval\": {\n          \"seconds\": \"$MaxIntervalSeconds\"\n        },\n        \"math\": [\n            {\n                \"op\": \"+\",\n                \"value\": 1\n            }\n        ]\n    }],\n    \"selectGroupBy\": [\"logFileNode\",\"warnCtx\",\"warnC\",\"warnMessage\"]\n}",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },{\n      \"name\": \"warnC\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true\n    },{\n      \"name\": \"warnC\",\n      \"required\": true\n    },{\n      \"name\": \"warnMessage\",\n      \"required\": true\n    }],\n    \"bins\": [{\n    \t\"name\": \"repeated\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "warnings"
           }
@@ -113,7 +111,7 @@
       "model": {
         "datasource": {
           "type": "simpod-json-datasource",
-          "uid": "json"
+          "uid": "${DS_JSON}"
         },
         "description": "",
         "fieldConfig": {
@@ -208,13 +206,13 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "9.4.7"
+      "version": "10.1.1"
     },
     {
       "type": "datasource",
       "id": "simpod-json-datasource",
       "name": "JSON",
-      "version": "0.6.2"
+      "version": "0.6.3"
     },
     {
       "type": "panel",
@@ -361,7 +359,7 @@
         "content": "<center><h1><font color=yellow>${logCluster}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -396,7 +394,7 @@
         "content": "<center><h1><font color=green>${caseLabel}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -433,7 +431,7 @@
         "content": "<center><h1><font color=orange>${timeRangeCut}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -476,7 +474,7 @@
       }
     }
   ],
-  "refresh": "",
+  "refresh": false,
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",
@@ -6524,35 +6522,8 @@
       {
         "current": {
           "selected": false,
-          "text": "Yes",
-          "value": "Yes"
-        },
-        "hide": 2,
-        "includeAll": false,
-        "label": "Respect MaxDataPoints",
-        "multi": false,
-        "name": "RespectMaxDataPoints",
-        "options": [
-          {
-            "selected": true,
-            "text": "Yes",
-            "value": "Yes"
-          },
-          {
-            "selected": false,
-            "text": "No",
-            "value": "No"
-          }
-        ],
-        "query": "Yes,No",
-        "skipUrlSync": false,
-        "type": "custom"
-      },
-      {
-        "current": {
-          "selected": false,
-          "text": "Yes",
-          "value": "Yes"
+          "text": "true",
+          "value": "true"
         },
         "hide": 0,
         "includeAll": false,
@@ -6562,16 +6533,16 @@
         "options": [
           {
             "selected": true,
-            "text": "Yes",
-            "value": "Yes"
+            "text": "true",
+            "value": "true"
           },
           {
             "selected": false,
-            "text": "No",
-            "value": "No"
+            "text": "false",
+            "value": "false"
           }
         ],
-        "query": "Yes,No",
+        "query": "true,false",
         "skipUrlSync": false,
         "type": "custom"
       },
@@ -6581,15 +6552,15 @@
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "meta.logFileCluster.logFileCluster",
+        "definition": "ClusterName",
         "hide": 0,
         "includeAll": true,
         "label": "Cluster Name",
         "multi": true,
-        "name": "logCluster",
+        "name": "ClusterName",
         "options": [],
         "query": {
-          "query": "meta.logFileCluster.logFileCluster"
+          "query": "ClusterName"
         },
         "refresh": 2,
         "regex": "",
@@ -6604,15 +6575,15 @@
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "meta.logFileNode.logFileNode:$logCluster",
+        "definition": "NodeIdent@${ClusterName:json}",
         "hide": 0,
         "includeAll": true,
         "label": "Nodes",
         "multi": true,
-        "name": "logNodes",
+        "name": "NodeIdent",
         "options": [],
         "query": {
-          "query": "meta.logFileNode.logFileNode:$logCluster"
+          "query": "NodeIdent@${ClusterName:json}"
         },
         "refresh": 2,
         "regex": "",
@@ -6627,15 +6598,15 @@
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "meta.warnCtx.warnCtx",
+        "definition": "warnCtx",
         "hide": 0,
         "includeAll": true,
         "label": "Warn Context",
         "multi": true,
-        "name": "WarnContext",
+        "name": "warnCtx",
         "options": [],
         "query": {
-          "query": "meta.warnCtx.warnCtx"
+          "query": "warnCtx"
         },
         "refresh": 2,
         "regex": "",
@@ -6650,15 +6621,15 @@
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "meta.warnC.warnC",
+        "definition": "warnC",
         "hide": 0,
         "includeAll": true,
         "label": "Warn Log Type",
         "multi": true,
-        "name": "WarnLogType",
+        "name": "warnC",
         "options": [],
         "query": {
-          "query": "meta.warnC.warnC"
+          "query": "warnC"
         },
         "refresh": 2,
         "regex": "",
@@ -6778,8 +6749,8 @@
     ]
   },
   "time": {
-    "from": "now-7d",
-    "to": "now"
+    "from": "2023-09-12T17:16:06.681Z",
+    "to": "2023-09-12T17:21:48.365Z"
   },
   "timepicker": {},
   "timezone": "",

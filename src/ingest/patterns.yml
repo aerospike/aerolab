@@ -60,6 +60,7 @@ patterns:
         search: " CLUSTER-SIZE "
         export:
             - "CLUSTER-SIZE (?P<ClusterSize>\\d+)"
+        storeNodePrefix: "NodePrefix" # store node prefix with the clusterSize stat in NodePrefix bin
     -
         setName: "nsMigrations"
         search: "migrations: remaining"
@@ -420,6 +421,7 @@ patterns:
         search: "applied cluster size"
         export:
             - "applied cluster size (?P<ClusterSize>\\d+)"
+        storeNodePrefix: "NodePrefix" # store node prefix with the clusterSize stat in NodePrefix bin
     -
         setName: "tombraider"
         search: "tombstones"

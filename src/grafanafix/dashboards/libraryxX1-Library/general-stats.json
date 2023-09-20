@@ -39,6 +39,7 @@
                 "tooltip": false,
                 "viz": false
               },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
@@ -60,7 +61,8 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": "green"
+                  "color": "green",
+                  "value": null
                 },
                 {
                   "color": "red",
@@ -70,9 +72,6 @@
             }
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "FuyjJYP4k"
         },
         "options": {
           "legend": {
@@ -93,9 +92,9 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n    \"timestampBinName\": \"timestamp\",\n    \"respectMaxDataPoints\": \"No\",\n    \"selectBins\": [{\n        \"name\": \"nodePrefix\",\n        \"friendlyName\": \"\"\n    }],\n    \"selectGroupBy\": [\"fileName\"]\n}",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"fileName\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n    \t\"name\": \"nodePrefix\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
-            "target": "logTimeRange"
+            "target": "logRanges"
           }
         ],
         "title": "Log File Time Ranges",
@@ -131,6 +130,7 @@
                 "tooltip": false,
                 "viz": false
               },
+              "insertNulls": false,
               "lineInterpolation": "linear",
               "lineWidth": 1,
               "pointSize": 5,
@@ -152,7 +152,8 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": "green"
+                  "color": "green",
+                  "value": null
                 },
                 {
                   "color": "red",
@@ -162,9 +163,6 @@
             }
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "RVwLw9P4k"
         },
         "options": {
           "legend": {
@@ -185,7 +183,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n    \"timestampBinName\": \"timestamp\",\n    \"respectMaxDataPoints\": \"$RespectMaxDataPoints\",\n    \"selectBins\": [{\n        \"name\": \"logFilePrefix\",\n        \"friendlyName\": \"\",\n        \"maxInterval\": {\n          \"seconds\": \"$MaxIntervalSeconds\"\n        }\n    }],\n    \"selectGroupBy\": [\"logFileName\"]\n}",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n    \t\"name\": \"NodePrefix\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "clusterSize"
           }
@@ -259,6 +257,9 @@
             }
           },
           "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "pIdnFZPVk"
         },
         "options": {
           "legend": {
@@ -357,6 +358,9 @@
             "unit": "short"
           },
           "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "vsxnFWE4k"
         },
         "options": {
           "legend": {
@@ -2898,6 +2902,9 @@
           },
           "overrides": []
         },
+        "libraryPanel": {
+          "uid": "1K21FWEVz"
+        },
         "options": {
           "legend": {
             "calcs": [
@@ -3190,6 +3197,9 @@
             "unit": "short"
           },
           "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "6bP1FWEVz"
         },
         "options": {
           "legend": {
@@ -6660,7 +6670,7 @@
     "list": [
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "10",
           "value": "10"
         },
@@ -12696,7 +12706,7 @@
       },
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "true",
           "value": "true"
         },
@@ -12819,6 +12829,6 @@
   "timezone": "",
   "title": "General Stats",
   "uid": "vfXTPgPVk",
-  "version": 6,
+  "version": 2,
   "weekStart": ""
 }

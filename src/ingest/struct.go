@@ -168,6 +168,7 @@ type patterns struct {
 		} `yaml:"replace"`
 		Regex               []string `yaml:"export"`
 		regex               []*regexp.Regexp
+		StoreNodePrefix     string            `yaml:"storeNodePrefix"`
 		Labels              []string          `yaml:"labels"` // used to define which regex matches are labels (to be stuck in metadata)
 		DefaultValuePadding map[string]string `yaml:"defaultValuePadding"`
 		Histogram           *struct {

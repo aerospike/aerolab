@@ -32,8 +32,9 @@ type logStreamOutput struct {
 }
 
 type multilineItem struct {
-	line      string
-	timestamp time.Time
+	line       string
+	timestamp  time.Time
+	nodePrefix int
 }
 
 type aggregator struct {
@@ -61,7 +62,7 @@ func (s *logStream) Close() (outputs []*logStreamOutput, logStartTime time.Time,
 	}
 	s.aggregateItems = make(map[string]*aggregator)
 	for _, mit := range s.multilineItems {
-		ra, err := s.lineProcess(mit.line, mit.timestamp)
+		ra, err := s.lineProcess(mit.line, mit.timestamp, mit.nodePrefix)
 		if err == nil {
 			ret = append(ret, ra...)
 		}
@@ -70,7 +71,7 @@ func (s *logStream) Close() (outputs []*logStreamOutput, logStartTime time.Time,
 	return ret, s.logFileStartTime, s.logFileEndTime
 }
 
-func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
+func (s *logStream) Process(line string, nodePrefix int) ([]*logStreamOutput, error) {
 	timestamp, lineOffset, err := s.lineGetTimestamp(line)
 	if err != nil {
 		return nil, err
@@ -91,10 +92,11 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 		// check and handle new multiline
 		if strings.Contains(line, m.StartLineSearch) {
 			if _, ok := s.multilineItems[m.StartLineSearch]; ok {
-				outx, err := s.lineProcess(s.multilineItems[m.StartLineSearch].line, s.multilineItems[m.StartLineSearch].timestamp)
+				outx, err := s.lineProcess(s.multilineItems[m.StartLineSearch].line, s.multilineItems[m.StartLineSearch].timestamp, s.multilineItems[m.StartLineSearch].nodePrefix)
 				s.multilineItems[m.StartLineSearch] = &multilineItem{
-					line:      line,
-					timestamp: timestamp,
+					line:       line,
+					timestamp:  timestamp,
+					nodePrefix: nodePrefix,
 				}
 				if err != nil {
 					return nil, err
@@ -105,8 +107,9 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 				return out, nil
 			}
 			s.multilineItems[m.StartLineSearch] = &multilineItem{
-				line:      line,
-				timestamp: timestamp,
+				line:       line,
+				timestamp:  timestamp,
+				nodePrefix: nodePrefix,
 			}
 			return out, nil
 		}
@@ -140,7 +143,7 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 	}
 
 	// non-multiline, just process
-	outx, err := s.lineProcess(line, timestamp)
+	outx, err := s.lineProcess(line, timestamp, nodePrefix)
 	if len(outx) > 0 {
 		out = append(out, outx...)
 	}
@@ -199,7 +202,7 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 	return
 }
 
-func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamOutput, error) {
+func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int) ([]*logStreamOutput, error) {
 	for _, p := range s.patterns.Patterns {
 		if !strings.Contains(line, p.Search) {
 			continue
@@ -216,6 +219,9 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamO
 			}
 			resultNames := r.SubexpNames()
 			nRes := make(map[string]interface{})
+			if p.StoreNodePrefix != "" {
+				nRes[p.StoreNodePrefix] = nodePrefix
+			}
 			nMeta := make(map[string]interface{})
 			for rIndex, result := range results {
 				if rIndex == 0 {
