@@ -80,14 +80,14 @@ func (p *Plugin) cacheBinList() error {
 
 }
 
-type metaEntry struct {
-	ClusterName   string
-	Entries       []string
-	StaticEntries []string
+type metaEntries struct {
+	Entries          []string
+	ByCluster        map[string][]int
+	StaticEntriesIdx []int
 }
 
 func (p *Plugin) cacheMetadataList() error {
-	meta := make(map[string][]*metaEntry)
+	meta := make(map[string]*metaEntries)
 	recset, err := p.db.ScanAll(p.scanPolicy(), p.config.Aerospike.Namespace, p.config.LabelsSetName)
 	if err != nil {
 		return fmt.Errorf("could not read existing labels: %s", err)
@@ -97,7 +97,7 @@ func (p *Plugin) cacheMetadataList() error {
 			return fmt.Errorf("error iterating through existing labels: %s", err)
 		}
 		for k, v := range rec.Record.Bins {
-			metaItem := []*metaEntry{}
+			metaItem := &metaEntries{}
 			nerr := json.Unmarshal([]byte(v.(string)), &metaItem)
 			if nerr != nil {
 				logger.Warn("Failed to unmarshal existing label data for %s: %s", k, nerr)

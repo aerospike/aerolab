@@ -55,6 +55,7 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 		err = json.Unmarshal([]byte(cn), &clusterNames)
 		if err != nil {
 			responseError(w, http.StatusBadRequest, "Failed to unmarshal json request cluster names (remote:%s) (error:%s)", r.RemoteAddr, err)
+			p.cache.lock.RUnlock()
 			return
 		}
 	}
@@ -66,35 +67,40 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := []*variableResponse{}
-	for _, item := range p.cache.metadata[target] {
-		if len(clusterNames) == 0 || inslice.HasString(clusterNames, item.ClusterName) {
-			for _, i := range item.Entries {
-				found := false
-				for _, l := range response {
-					if l.Value == i {
-						found = true
-						break
-					}
-				}
-				if !found {
-					response = append(response, &variableResponse{
-						Text:  i,
-						Value: i,
-					})
+	if len(clusterNames) == 0 {
+		for _, entry := range p.cache.metadata[target].Entries {
+			found := false
+			for _, l := range response {
+				if l.Value == entry {
+					found = true
+					break
 				}
 			}
-			for _, i := range item.StaticEntries {
+			if !found {
+				response = append(response, &variableResponse{
+					Text:  entry,
+					Value: entry,
+				})
+			}
+		}
+	} else {
+		for clusterName, entryIdxList := range p.cache.metadata[target].ByCluster {
+			if !inslice.HasString(clusterNames, clusterName) {
+				continue
+			}
+			for _, entryIdx := range entryIdxList {
+				entry := p.cache.metadata[target].Entries[entryIdx]
 				found := false
 				for _, l := range response {
-					if l.Value == i {
+					if l.Value == entry {
 						found = true
 						break
 					}
 				}
 				if !found {
 					response = append(response, &variableResponse{
-						Text:  i,
-						Value: i,
+						Text:  entry,
+						Value: entry,
 					})
 				}
 			}

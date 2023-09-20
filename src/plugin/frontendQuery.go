@@ -5,18 +5,20 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bestmethod/logger"
 )
 
 func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 	logger.Info("QUERY INCOMING (type:query) (remote:%s)", r.RemoteAddr)
+	qtime := time.Now()
 	p.requests <- true
 	defer func() {
 		<-p.requests
-		logger.Info("QUERY END (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s)", len(p.requests), len(p.jobs), r.RemoteAddr)
+		logger.Info("QUERY END (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s) (totalTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
 	}()
-	logger.Info("QUERY START (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s)", len(p.requests), len(p.jobs), r.RemoteAddr)
+	logger.Info("QUERY START (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
 	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -74,11 +76,13 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 		logger.Detail("(remote:%s) (parsed-payload:%s) (selected-vars:%s)", r.RemoteAddr, string(body), string(bodyx))
 	}
 	logger.Info("QUERY ALLOCATE_JOB (type:query) (runningJobs:%d) (remote:%s)", len(p.jobs), r.RemoteAddr)
+	jtime := time.Now()
 	p.jobs <- true
 	defer func() {
 		<-p.jobs
 	}()
-	logger.Info("QUERY DO_JOB (type:query) (runningJobs:%d) (remote:%s)", len(p.jobs), r.RemoteAddr)
+	logger.Info("QUERY DO_JOB (type:query) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.jobs), r.RemoteAddr, time.Since(jtime).String())
+	dtime := time.Now()
 	responses := []interface{}{}
 	for i := range req.Targets {
 		switch req.Targets[i].Payload.Type {
@@ -90,7 +94,9 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 				responseError(w, http.StatusBadRequest, "Request target timeseries %d (%s:%s) (remote:%s) (error:%s)", i, req.Targets[i].RefId, req.Targets[i].Target, r.RemoteAddr, err)
 				return
 			}
-			responses = append(responses, resp)
+			for _, ri := range resp {
+				responses = append(responses, ri)
+			}
 		case "table":
 			resp, err := p.handleQueryTable(req, i, r.RemoteAddr)
 			if err != nil {
@@ -110,6 +116,9 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	logger.Info("QUERY SEND_DATA (type:query) (remote:%s) (db.Get.Time:%s)", r.RemoteAddr, time.Since(dtime).String())
+	stime := time.Now()
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(responses)
+	logger.Info("QUERY SENT (type:query) (remote:%s) (sendTime:%s)", r.RemoteAddr, time.Since(stime).String())
 }

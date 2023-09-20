@@ -33,11 +33,16 @@ type queryPayload struct {
 		Name  string   `json:"name"`
 		Names []string `json:"names"`
 	} `json:"static"`
-	FilterVariables  []*requestFilter `json:"filterBy"`         // all: which grafana filters to filter by, e.g. ClusterName,NodeIdent
-	SortOrder        []int            `json:"sortOrder"`        // all: by which grouping to sort first, and then second, etc
-	Bins             []*bin           `json:"bins"`             // all: which bins to plot
-	GroupBy          []string         `json:"groupBy"`          // timeseries: which bin values to group by, e.g. ClusterName,NodeIdent
-	TimestampBinName string           `json:"timestampBinName"` // timeseries: name of timestamp bin
+	FilterVariables  []*requestFilter  `json:"filterBy"`         // all: which grafana filters to filter by, e.g. ClusterName,NodeIdent
+	SortOrder        []int             `json:"sortOrder"`        // all: by which grouping to sort first, and then second, etc
+	Bins             []*bin            `json:"bins"`             // all: which bins to plot
+	GroupBy          []*requestGroupBy `json:"groupBy"`          // timeseries: which bin values to group by, e.g. ClusterName,NodeIdent
+	TimestampBinName string            `json:"timestampBinName"` // timeseries: name of timestamp bin
+}
+
+type requestGroupBy struct {
+	Name     string `json:"name"`
+	Required bool   `json:"required"`
 }
 
 type requestFilter struct {
