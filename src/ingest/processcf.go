@@ -102,18 +102,12 @@ func (i *Ingest) ProcessCollectInfo() error {
 		if err != nil {
 			logger.Error("CF Processor: could not get CF filename metadata: %s", err)
 		} else {
-			metaItem := []*metaEntry{}
+			metaItem := &metaEntries{}
 			err := json.Unmarshal([]byte(rec.Bins["cfName"].(string)), &metaItem)
 			if err != nil {
 				logger.Warn("CF Processor: failed to unmarshal existing cf filename data: %s", err)
 			}
-			if len(metaItem) == 0 {
-				logger.Warn("CF PRocessor: query returned 0 cf-name items, expected top-level 1 item")
-			} else {
-				for _, c := range metaItem[0].Entries {
-					cfNames = append(cfNames, c.(string))
-				}
-			}
+			cfNames = append(cfNames, metaItem.Entries...)
 		}
 	}
 	// process
@@ -148,12 +142,8 @@ func (i *Ingest) ProcessCollectInfo() error {
 		}
 		logger.Detail("ProcessCollectInfo: result (nodeId:%s) (processAttempt:%t processed:%t renameAttempt:%t renamed:%t) (originalName:%s) (name:%s)", cf.NodeID, cf.ProcessingAttempted, cf.Processed, cf.RenameAttempted, cf.Renamed, cf.OriginalName, newName)
 	}
-	meta := []*metaEntry{
-		{},
-	}
-	for _, cfName := range cfNames {
-		meta[0].Entries = append(meta[0].Entries, cfName)
-	}
+	meta := &metaEntries{}
+	meta.Entries = append(meta.Entries, cfNames...)
 	// store meta entries
 	metajson, err := json.Marshal(meta)
 	if err != nil {

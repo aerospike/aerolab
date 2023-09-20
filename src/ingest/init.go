@@ -152,10 +152,8 @@ func Init(config *Config) (*Ingest, error) {
 		sources = sources + "local " + i.config.CustomSourceName
 	}
 	key, _ := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "sources")
-	metajson, _ := json.Marshal([]*metaEntry{
-		{
-			Entries: []interface{}{sources},
-		},
+	metajson, _ := json.Marshal(&metaEntries{
+		Entries: []string{sources},
 	})
 	bin := map[string]interface{}{
 		"sources": string(metajson),
@@ -166,10 +164,8 @@ func Init(config *Config) (*Ingest, error) {
 	}
 	if i.config.IngestTimeRanges.Enabled {
 		key, _ = aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "timerange")
-		metajson, _ := json.Marshal([]*metaEntry{
-			{
-				Entries: []interface{}{i.config.IngestTimeRanges.From.String() + " - " + i.config.IngestTimeRanges.To.String()},
-			},
+		metajson, _ := json.Marshal(&metaEntries{
+			Entries: []string{i.config.IngestTimeRanges.From.String() + " - " + i.config.IngestTimeRanges.To.String()},
 		})
 		bin = map[string]interface{}{
 			"timerange": string(metajson),

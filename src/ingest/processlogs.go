@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v6"
+	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 )
 
-type metaEntry struct {
-	ClusterName   string
-	Entries       []interface{}
-	StaticEntries []interface{}
+type metaEntries struct {
+	Entries          []string
+	ByCluster        map[string][]int
+	StaticEntriesIdx []int
 }
 
 func (i *Ingest) ProcessLogs() error {
@@ -73,7 +74,7 @@ func (i *Ingest) ProcessLogs() error {
 		i.progress.LogProcessor.Files[n] = f
 	}
 	i.progress.LogProcessor.changed = true
-	meta := make(map[string][]*metaEntry)
+	meta := make(map[string]*metaEntries)
 	recset, err := i.db.ScanAll(nil, i.config.Aerospike.Namespace, i.patterns.LabelsSetName)
 	if err != nil {
 		logger.Warn("Could not read existing labels: %s", err)
@@ -83,7 +84,7 @@ func (i *Ingest) ProcessLogs() error {
 				logger.Warn("Error iterating through existing labels: %s", err)
 			}
 			for k, v := range rec.Record.Bins {
-				metaItem := []*metaEntry{}
+				metaItem := &metaEntries{}
 				err = json.Unmarshal([]byte(v.(string)), &metaItem)
 				if err != nil {
 					logger.Warn("Failed to unmarshal existing label data: %s", err)
@@ -95,22 +96,20 @@ func (i *Ingest) ProcessLogs() error {
 	metaLock := new(sync.Mutex)
 	for _, static := range i.patterns.LabelAddStaticValue {
 		if _, ok := meta[static.Name]; !ok {
-			meta[static.Name] = []*metaEntry{
-				{
-					StaticEntries: []interface{}{static.Value},
-				},
+			meta[static.Name] = &metaEntries{
+				Entries:          []string{static.Value},
+				StaticEntriesIdx: []int{0},
 			}
 		} else {
 			found := false
-			for _, items := range meta[static.Name] {
-				for _, sv := range items.StaticEntries {
-					if sv == static.Value {
-						found = true
-					}
+			for _, item := range meta[static.Name].Entries {
+				if item == static.Value {
+					found = true
 				}
 			}
 			if !found {
-				meta[static.Name] = append(meta[static.Name], &metaEntry{StaticEntries: []interface{}{static.Value}})
+				meta[static.Name].StaticEntriesIdx = append(meta[static.Name].StaticEntriesIdx, len(meta[static.Name].Entries))
+				meta[static.Name].Entries = append(meta[static.Name].Entries, static.Value)
 			}
 		}
 	}
@@ -131,65 +130,58 @@ func (i *Ingest) ProcessLogs() error {
 			wg.Add(1)
 			threads <- true
 			go func(metadata map[string]interface{}, data map[string]interface{}, fn string, logLine string, setName string) {
+				metaLock.Lock()
 				for k, v := range metadata {
-					found := false
-					metaIndex := 0
-					metaLock.Lock()
 					if _, ok := meta[k]; !ok {
-						meta[k] = []*metaEntry{}
-					}
-					metaClusterIndex := -1
-					for vi, vv := range meta[k] {
-						if vv.ClusterName == metadata["ClusterName"] {
-							metaClusterIndex = vi
-							break
+						meta[k] = &metaEntries{
+							ByCluster: make(map[string][]int),
 						}
 					}
-					if metaClusterIndex < 0 {
-						meta[k] = append(meta[k], &metaEntry{
-							ClusterName: metadata["ClusterName"].(string),
-						})
-						metaClusterIndex = len(meta[k]) - 1
+					saveMeta := false
+					idx := inslice.StringMatch(meta[k].Entries, v.(string))
+					if idx == -1 {
+						idx = len(meta[k].Entries)
+						saveMeta = true
+						meta[k].Entries = append(meta[k].Entries, v.(string))
+						if meta[k].ByCluster == nil {
+							meta[k].ByCluster = make(map[string][]int)
+						}
+						meta[k].ByCluster[metadata["ClusterName"].(string)] = append(meta[k].ByCluster[metadata["ClusterName"].(string)], len(meta[k].Entries)-1)
+					} else if !inslice.HasInt(meta[k].ByCluster[metadata["ClusterName"].(string)], idx) {
+						meta[k].ByCluster[metadata["ClusterName"].(string)] = append(meta[k].ByCluster[metadata["ClusterName"].(string)], idx)
+						saveMeta = true
 					}
-					for vi, vv := range meta[k][metaClusterIndex].Entries {
-						if vv == v {
-							found = true
-							metaIndex = vi
-							break
+					if saveMeta {
+						metajson, err := json.Marshal(meta[k])
+						if err != nil {
+							metaLock.Unlock()
+							logger.Error("Log Processor: could not jsonify for metadata for %s: %s", fn, err)
+							wg.Done()
+							<-threads
+							return
+						}
+						// store in aerospike
+						key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, k)
+						if aerr != nil {
+							metaLock.Unlock()
+							logger.Error("Log Processor: could not create key for metadata for %s: %s", fn, aerr)
+							wg.Done()
+							<-threads
+							return
+						}
+						bin := aerospike.NewBin(k, string(metajson))
+						aerr = i.db.PutBins(i.wp, key, bin)
+						if aerr != nil {
+							metaLock.Unlock()
+							logger.Error("Log Processor: could not store metadata for %s: %s", fn, aerr)
+							wg.Done()
+							<-threads
+							return
 						}
 					}
-					if found {
-						data[k] = metaIndex
-						metaLock.Unlock()
-						continue
-					}
-					data[k] = len(meta[k][metaClusterIndex].Entries)
-					meta[k][metaClusterIndex].Entries = append(meta[k][metaClusterIndex].Entries, v)
-					metajson, err := json.Marshal(meta[k])
-					metaLock.Unlock()
-					if err != nil {
-						logger.Error("Log Processor: could not jsonify for metadata for %s: %s", fn, err)
-						wg.Done()
-						<-threads
-						return
-					}
-					// store in aerospike
-					key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, k)
-					if aerr != nil {
-						logger.Error("Log Processor: could not create key for metadata for %s: %s", fn, aerr)
-						wg.Done()
-						<-threads
-						return
-					}
-					bin := aerospike.NewBin(k, string(metajson))
-					aerr = i.db.PutBins(i.wp, key, bin)
-					if aerr != nil {
-						logger.Error("Log Processor: could not store metadata for %s: %s", fn, aerr)
-						wg.Done()
-						<-threads
-						return
-					}
+					data[k] = idx
 				}
+				metaLock.Unlock()
 				key, err := aerospike.NewKey(i.config.Aerospike.Namespace, setName, fn+"::"+logLine)
 				if err != nil {
 					logger.Error("Log Processor: could not create key for %s: %s", fn, err)
