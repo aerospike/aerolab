@@ -22,7 +22,7 @@ type Plugin struct {
 		lock     *sync.RWMutex
 		setNames []string
 		binNames []string
-		metadata map[string][]*metaEntry
+		metadata map[string]*metaEntries
 	}
 	requests chan bool
 	jobs     chan bool

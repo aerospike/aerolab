@@ -65,7 +65,7 @@ func Init(config *Config) (*Plugin, error) {
 		jobs:     make(chan bool, config.MaxConcurrentJobs),
 	}
 	p.cache.lock = new(sync.RWMutex)
-	p.cache.metadata = make(map[string][]*metaEntry)
+	p.cache.metadata = make(map[string]*metaEntries)
 	err := p.dbConnect()
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to the database: %s", err)

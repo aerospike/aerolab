@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/aerospike/aerospike-client-go/v6"
+	"github.com/bestmethod/logger"
 )
 
 type tableResponse struct {
@@ -20,6 +21,7 @@ type tableColumn struct {
 }
 
 func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tableResponse, error) {
+	logger.Detail("Build query (type:table) (remote:%s)", remote)
 	binList := []string{}
 	target := req.Targets[i]
 	for _, bin := range target.Payload.Bins {
@@ -73,6 +75,7 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 	}
 	qp := p.queryPolicy()
 	qp.FilterExpression = exp
+	logger.Detail("Run query (type:table) (remote:%s)", remote)
 	recset, aerr := p.db.Query(qp, stmt)
 	if aerr != nil {
 		return nil, fmt.Errorf("%s", aerr)
@@ -91,6 +94,7 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 			Type:    sel.Type,
 		})
 	}
+	logger.Detail("Enum results (type:table) (remote:%s)", remote)
 	for rec := range recset.Results() {
 		if rec.Err != nil {
 			return nil, fmt.Errorf("%s", rec.Err)
@@ -107,6 +111,7 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 		resp.Rows = append(resp.Rows, row)
 	}
 	// sort
+	logger.Detail("Sort data (type:table) (remote:%s)", remote)
 	if len(target.Payload.SortOrder) > 0 {
 		sort.Slice(resp.Rows, func(i, j int) bool {
 			for _, so := range target.Payload.SortOrder {
@@ -154,5 +159,6 @@ func (p *Plugin) handleQueryTable(req *queryRequest, i int, remote string) (*tab
 	if resp.Rows == nil {
 		resp.Rows = [][]interface{}{}
 	}
+	logger.Detail("Return data (type:table) (remote:%s)", remote)
 	return resp, nil
 }
