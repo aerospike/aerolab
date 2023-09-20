@@ -179,12 +179,15 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 		// convert to resp response type
 		for k, v := range dp.datapoints {
 			dpGroups := []string{}
+			if p.config.TimeseriesDisplayNameFirst && k != "" {
+				dpGroups = append(dpGroups, k)
+			}
 			for _, g := range dp.groups {
 				if g.value != "" {
 					dpGroups = append(dpGroups, g.value)
 				}
 			}
-			if k != "" {
+			if !p.config.TimeseriesDisplayNameFirst && k != "" {
 				dpGroups = append(dpGroups, k)
 			}
 			found := -1
@@ -203,7 +206,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 				resp = append(resp, &timeseriesResponse{
 					Datapoints: [][]*int{},
 					groups:     dpGroups,
-					Target:     strings.Join(dpGroups, "::"),
+					Target:     strings.Join(dpGroups, p.config.TimeseriesLegendSeparator),
 					binIdx:     inslice.StringMatch(binList, v.binName),
 				})
 			}
@@ -268,12 +271,12 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 				if bin.Limits.MinValue != nil && val < *bin.Limits.MinValue {
 					val = *bin.Limits.MinValue
 				}
-				if bin.Limits.MaxValue != nil && val < *bin.Limits.MaxValue {
+				if bin.Limits.MaxValue != nil && val > *bin.Limits.MaxValue {
 					val = *bin.Limits.MaxValue
 				}
 			}
 			// divide by ticker interval (for per/second values)
-			if bin.TickerIntervalSeconds != 0 {
+			if bin.ProduceDelta && bin.TickerIntervalSeconds != 0 {
 				val = val / bin.TickerIntervalSeconds
 			}
 			// store datapoint
