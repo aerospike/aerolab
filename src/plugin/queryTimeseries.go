@@ -13,8 +13,9 @@ import (
 
 type timeseriesResponse struct {
 	Target     string   `json:"target"`
-	Datapoints [][]int  `json:"datapoints"` // list of int tuples, [][data,timestamp]
+	Datapoints [][]*int `json:"datapoints"` // list of int tuples, [][data,timestamp]
 	groups     []string // used for response grouping
+	binIdx     int
 }
 
 // TODO group tracking to make iteration faster (group2timeserieResponseIndex) using some sort of map
@@ -138,7 +139,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 	p.cache.lock.RLock()
 	for rec := range recset.Results() {
 		dp := &datapoint{
-			datapoints: make(map[string]int),
+			datapoints: make(map[string]point),
 			groups:     make([]*timeseriesGroup, 0, len(groupList)),
 		}
 		if rec.Err != nil {
@@ -167,7 +168,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 					break
 				}
 			}
-			dp.datapoints[displayName] = v.(int)
+			dp.datapoints[displayName] = point{
+				value:   v.(int),
+				binName: k,
+			}
 			datapointCount++
 		}
 		// add dp to resp
@@ -207,12 +211,15 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 			if found < 0 {
 				found = len(resp)
 				resp = append(resp, &timeseriesResponse{
-					Datapoints: [][]int{},
+					Datapoints: [][]*int{},
 					groups:     dpGroups,
 					Target:     strings.Join(dpGroups, "::"),
+					binIdx:     inslice.StringMatch(binList, v.binName),
 				})
 			}
-			resp[found].Datapoints = append(resp[found].Datapoints, []int{v, dp.timestampMs})
+			val := v.value
+			ts := dp.timestampMs
+			resp[found].Datapoints = append(resp[found].Datapoints, []*int{&val, &ts})
 		}
 	}
 	p.cache.lock.RUnlock()
@@ -220,7 +227,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 	logger.Detail("Sort by time (type:timeseries) (remote:%s) (datapoints:%d) (enumTime:%s)", remote, datapointCount, time.Since(ntime).String())
 	for ri := range resp {
 		sort.Slice(resp[ri].Datapoints, func(i, j int) bool {
-			return resp[ri].Datapoints[i][1] < resp[ri].Datapoints[j][1]
+			return *resp[ri].Datapoints[i][1] < *resp[ri].Datapoints[j][1]
 		})
 	}
 
@@ -229,15 +236,77 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 	sort.Slice(resp, func(i, j int) bool {
 		return resp[i].Target < resp[j].Target
 	})
-
-	logger.Detail("Return values (type:timeseries) (remote:%s) (legendSortTime:%s)", remote, time.Since(ntime).String())
+	logger.Detail("Post-processing (type:timeseries) (remote:%s) (datapoints:%d) (legendSortTime:%s)", remote, datapointCount, time.Since(ntime).String())
+	ntime = time.Now()
+	reduceIntervalWindow := req.Range.To.Sub(req.Range.From).Milliseconds() / int64(req.MaxDataPoints)
+	if reduceIntervalWindow > int64(req.IntervalMs) {
+		reduceIntervalWindow = int64(req.IntervalMs)
+	}
+	datapointCount = 0
+	nullDatapoints := 0
+	for ri := range resp {
+		datapoints := [][]*int{}
+		lastPointTime := -1
+		lastValue := 0
+		isFirstValue := true
+		for _, point := range resp[ri].Datapoints {
+			bin := target.Payload.Bins[resp[ri].binIdx]
+			// maxIntervalSeconds breached
+			if lastPointTime != -1 && *point[1]-lastPointTime > bin.MaxIntervalSeconds*1000 {
+				ts := *point[1]
+				datapoints = append(datapoints, []*int{nil, &ts})
+				nullDatapoints++
+			}
+			lastPointTime = *point[1]
+			val := *point[0]
+			// produce delta
+			if bin.ProduceDelta {
+				if isFirstValue {
+					isFirstValue = false
+					lastValue = *point[0]
+					continue
+				}
+				val -= lastValue
+				lastValue = *point[0]
+			}
+			// apply reverse
+			if bin.Reverse {
+				val *= -1
+			}
+			// apply limits
+			if bin.Limits != nil {
+				if bin.Limits.MinValue != nil && val < *bin.Limits.MinValue {
+					val = *bin.Limits.MinValue
+				}
+				if bin.Limits.MaxValue != nil && val < *bin.Limits.MaxValue {
+					val = *bin.Limits.MaxValue
+				}
+			}
+			// divide by ticker interval (for per/second values)
+			if bin.TickerIntervalSeconds != 0 {
+				val = val / bin.TickerIntervalSeconds
+			}
+			// store datapoint
+			ts := *point[1]
+			datapoints = append(datapoints, []*int{&val, &ts})
+			datapointCount++
+			// TODO: reduce to reduceIntervalWindow, while ensuring that we do not remove null points
+		}
+		resp[ri].Datapoints = datapoints
+	}
+	logger.Detail("Return values (type:timeseries) (remote:%s) (reduceWindowMs:%d) (datapoints:%d) (nullpoints:%d) (postProcessTime:%s)", remote, reduceIntervalWindow, datapointCount, nullDatapoints, time.Since(ntime).String())
 	return resp, nil
 }
 
 type datapoint struct {
 	groups      []*timeseriesGroup
-	datapoints  map[string]int
+	datapoints  map[string]point
 	timestampMs int
+}
+
+type point struct {
+	value   int
+	binName string
 }
 
 type timeseriesGroup struct {
