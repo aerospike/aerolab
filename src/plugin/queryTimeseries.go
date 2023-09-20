@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -18,25 +19,6 @@ type timeseriesResponse struct {
 	binIdx     int
 }
 
-// TODO group tracking to make iteration faster (group2timeserieResponseIndex) using some sort of map
-// TODO if len([]*timesriesResponse) goes over X max series (configurable, default=1000), bail
-// TODO remember that for metadata bins, only their label index is in the record, the actual label value is in the metadata - look that up
-// TODO since storage is on file, and file-based storage uses page caching, do we need data-in-memory? how much (if) is it slower if we are processing data that will fit in RAM? note: keep indexes in RAM for sanity sake
-/*
-optimisation 1 - avoid sending too many nulls and perform reduction by interval window instead of reducing using datapoint counts:
-for interval:
-  window=interval*3
-  in window:
-    find min datapoint
-    find max datapoint
-    find median datapoint
-    if data missing (maxIntervalSeconds):
-      insert 'null' value in the right place (before/between/after min/max) where missing datapoint is discovered
-        (if missing in multiple places, just insert between min and max?)
-      -> ship min, max and null datapoints
-    if no data is missing (no missed tickers):
-      -> ship min, max, median datapoints
-*/
 func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) ([]*timeseriesResponse, error) {
 	logger.Detail("Build query (type:timeseries) (remote:%s)", remote)
 	ntime := time.Now()
@@ -173,6 +155,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 				binName: k,
 			}
 			datapointCount++
+			if datapointCount > p.config.MaxDataPointsReceived {
+				p.cache.lock.RUnlock()
+				return resp, errors.New("too many datapoints received, limit data by zooming in or selecting dropdown filters")
+			}
 		}
 		// add dp to resp
 		sort.Slice(dp.groups, func(i, j int) bool {
@@ -210,6 +196,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 			}
 			if found < 0 {
 				found = len(resp)
+				if len(resp) == p.config.MaxSeriesPerGraph {
+					p.cache.lock.RUnlock()
+					return resp, errors.New("too many series for graph, reduce series by selecting dropdown filters")
+				}
 				resp = append(resp, &timeseriesResponse{
 					Datapoints: [][]*int{},
 					groups:     dpGroups,
@@ -290,7 +280,22 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 			ts := *point[1]
 			datapoints = append(datapoints, []*int{&val, &ts})
 			datapointCount++
-			// TODO: reduce to reduceIntervalWindow, while ensuring that we do not remove null points
+			// TODO: reduce to reduceIntervalWindow, while ensuring that we do not remove null points, in one swoop in this loop so as to limit RAM usage
+			/*
+			   optimisation - avoid sending too many nulls and perform reduction by interval window instead of reducing using datapoint counts:
+			   for interval:
+			   	window=interval*3
+			   	in window:
+			   	  find min datapoint
+			   	  find max datapoint
+			   	  find median datapoint
+			   	  if data missing (maxIntervalSeconds):
+			   	    insert 'null' value in the right place (before/between/after min/max) where missing datapoint is discovered
+			   	      (if missing in multiple places, just insert between min and max?)
+			   	    -> ship min, max and null datapoints
+			   	  if no data is missing (no missed tickers):
+			   	    -> ship min, max, median datapoints
+			*/
 		}
 		resp[ri].Datapoints = datapoints
 	}

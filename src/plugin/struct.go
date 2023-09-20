@@ -33,8 +33,10 @@ type Config struct {
 		ListenAddress string `yaml:"listenAddress" default:"127.0.0.1" envconfig:"PLUGIN_LISTEN_ADDR"`
 		ListenPort    int    `yaml:"listenPort" default:"8851" envconfig:"PLUGIN_LISTEN_PORT"`
 	} `yaml:"service"`
-	MaxConcurrentRequests int           `json:"maxConcurrentRequests" default:"5" envconfig:"PLUGIN_MAX_REQUESTS"`
-	MaxConcurrentJobs     int           `json:"maxConcurrentJobs" default:"5" envconfig:"PLUGIN_MAX_JOBS"`
+	MaxSeriesPerGraph     int           `json:"maxSeriesPerGraph" default:"1000" envconfig:"PLUGIN_MAX_SERIES"`
+	MaxDataPointsReceived int           `json:"maxDataPointsReceived" default:"34560000" envconfig:"PLUGIN_MAX_DP_RECV"` // 8640000 is about 1 GiB for concurrent 4 graphs, covering 1000 series in each graph, for a day; default max 4 GiB before reduction; TODO: aerolab should adjust this to 2 GiB on docker
+	MaxConcurrentRequests int           `json:"maxConcurrentRequests" default:"4" envconfig:"PLUGIN_MAX_REQUESTS"`
+	MaxConcurrentJobs     int           `json:"maxConcurrentJobs" default:"4" envconfig:"PLUGIN_MAX_JOBS"`
 	CacheRefreshInterval  time.Duration `yaml:"cacheRefreshInterval" default:"30s" envconfig:"PLUGIN_CACHE_REFRESH"`
 	LabelsSetName         string        `yaml:"labelsSetName" default:"labels" envconfig:"PLUGIN_LABELS_SETNAME"`
 	LogLevel              int           `yaml:"logLevel" default:"4" envconfig:"PLUGIN_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
