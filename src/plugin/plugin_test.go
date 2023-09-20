@@ -6,13 +6,10 @@ import (
 	"testing"
 )
 
-// TODO: logFileTimeRanges in general stats dashboard: can we still plot it?
-// TODO: test if warnings dashboard works after all the aggregations
-// TODO: test histograms dashboard
-// TODO: once all work, code datapoint reduction
-// TODO: once datapoint reduction is coded, test again
-// TODO: once tests are complete, redo the dashboards so all work
-// TODO: once dashboards are done, code aerolab glue code
+// TODO: code datapoint reduction
+// TODO: test data accuracy (compare to old internal system)
+// TODO: redo the dashboards so all work
+// TODO: code aerolab commands etc
 
 func TestAll(t *testing.T) {
 	os.Setenv("PLUGIN_LOGLEVEL", "6")

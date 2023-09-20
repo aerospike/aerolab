@@ -240,7 +240,8 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*logFile, resultsChan chan
 					fd.Seek(move, 0)
 				}
 			}
-			i.processLogFile(n, fd, resultsChan, labels)
+			nprefix, _ := strconv.Atoi(f.NodePrefix)
+			i.processLogFile(n, fd, resultsChan, labels, nprefix)
 		}(n, f)
 	}
 	wg.Wait()
@@ -256,7 +257,7 @@ type processResult struct {
 	LogLine  string
 }
 
-func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]interface{}) {
+func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]interface{}, nodePrefix int) {
 	_, fn := path.Split(fileName)
 	var unmatched *os.File
 	var err error
@@ -275,7 +276,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 			return
 		}
 		line := s.Text()
-		out, err := stream.Process(line)
+		out, err := stream.Process(line, nodePrefix)
 		if err != nil && err != errNotMatched {
 			logger.Error("Stream Processor for line: %s", err)
 			continue
