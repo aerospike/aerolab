@@ -235,6 +235,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 	if reduceIntervalWindow > int64(req.IntervalMs) {
 		reduceIntervalWindow = int64(req.IntervalMs)
 	}
+	reduceIntervalWindow *= 2 // 2 real datapoints per window
 	datapointCount = 0
 	nullDatapoints := 0
 	for ri := range resp {
@@ -242,13 +243,16 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 		lastPointTime := -1
 		lastValue := 0
 		isFirstValue := true
+		windowStartTime := 0
+		windowMinPoint := []int{}
+		windowMaxPoint := []int{}
+		windowNullTs := []int{}
 		for _, point := range resp[ri].Datapoints {
 			bin := target.Payload.Bins[resp[ri].binIdx]
 			// maxIntervalSeconds breached
 			if lastPointTime != -1 && *point[1]-lastPointTime > bin.MaxIntervalSeconds*1000 {
-				ts := *point[1]
-				datapoints = append(datapoints, []*int{nil, &ts})
-				nullDatapoints++
+				ts := *point[1] - 1
+				windowNullTs = append(windowNullTs, ts)
 			}
 			lastPointTime = *point[1]
 			val := *point[0]
@@ -279,31 +283,94 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 			if bin.ProduceDelta && bin.TickerIntervalSeconds != 0 {
 				val = val / bin.TickerIntervalSeconds
 			}
-			// store datapoint
+			// reduce and store datapoint
 			ts := *point[1]
-			datapoints = append(datapoints, []*int{&val, &ts})
-			datapointCount++
-			// TODO: reduce to reduceIntervalWindow, while ensuring that we do not remove null points, in one swoop in this loop so as to limit RAM usage
-			/*
-			   optimisation - avoid sending too many nulls and perform reduction by interval window instead of reducing using datapoint counts:
-			   for interval:
-			   	window=interval*3
-			   	in window:
-			   	  find min datapoint
-			   	  find max datapoint
-			   	  find median datapoint
-			   	  if data missing (maxIntervalSeconds):
-			   	    insert 'null' value in the right place (before/between/after min/max) where missing datapoint is discovered
-			   	      (if missing in multiple places, just insert between min and max?)
-			   	    -> ship min, max and null datapoints
-			   	  if no data is missing (no missed tickers):
-			   	    -> ship min, max, median datapoints
-			*/
+			if windowStartTime == 0 {
+				windowStartTime = ts
+			}
+			if ts-windowStartTime > int(reduceIntervalWindow) {
+				dps, dpCount, nullCount := getDatapoints(windowMinPoint, windowMaxPoint, windowNullTs)
+				datapoints = append(datapoints, dps...)
+				nullDatapoints += nullCount
+				datapointCount += dpCount
+				windowStartTime = ts
+				windowNullTs = []int{}
+				windowMinPoint = []int{}
+				windowMaxPoint = []int{}
+			}
+			if len(windowMinPoint) == 0 || val < windowMinPoint[0] {
+				windowMinPoint = []int{val, ts}
+			}
+			if len(windowMaxPoint) == 0 || val > windowMaxPoint[0] {
+				windowMaxPoint = []int{val, ts}
+			}
+		}
+		// store last unstored datapoint
+		if len(windowMinPoint) > 0 {
+			dps, dpCount, nullCount := getDatapoints(windowMinPoint, windowMaxPoint, windowNullTs)
+			datapoints = append(datapoints, dps...)
+			nullDatapoints += nullCount
+			datapointCount += dpCount
 		}
 		resp[ri].Datapoints = datapoints
 	}
 	logger.Detail("Return values (type:timeseries) (remote:%s) (reduceWindowMs:%d) (datapoints:%d) (nullpoints:%d) (postProcessTime:%s)", remote, reduceIntervalWindow, datapointCount, nullDatapoints, time.Since(ntime).String())
 	return resp, nil
+}
+
+func getDatapoints(windowMinPoint []int, windowMaxPoint []int, windowNullTs []int) (datapoints [][]*int, dpCount int, nullCount int) {
+	nullTsBefore := -1
+	nullTsAfter := -1
+	nullTsMid := -1
+	for _, null := range windowNullTs {
+		if null < windowMinPoint[1] && null < windowMaxPoint[1] {
+			nullTsBefore = null
+		}
+		if null > windowMinPoint[1] && null > windowMaxPoint[1] {
+			nullTsAfter = null
+		}
+		if (null > windowMinPoint[1] && null < windowMaxPoint[1]) || (null < windowMinPoint[1] && null > windowMaxPoint[1]) {
+			nullTsMid = null
+		}
+		if nullTsBefore >= 0 && nullTsAfter >= 0 && nullTsMid >= 0 {
+			break
+		}
+	}
+	if nullTsBefore > -1 {
+		datapoints = append(datapoints, []*int{nil, &nullTsBefore})
+		nullCount++
+	}
+	if windowMinPoint[1] < windowMaxPoint[1] {
+		newv := windowMinPoint[0]
+		newt := windowMinPoint[1]
+		datapoints = append(datapoints, []*int{&newv, &newt})
+		dpCount++
+	} else {
+		newv := windowMaxPoint[0]
+		newt := windowMaxPoint[1]
+		datapoints = append(datapoints, []*int{&newv, &newt})
+		dpCount++
+	}
+	if nullTsMid > -1 {
+		datapoints = append(datapoints, []*int{nil, &nullTsMid})
+		nullCount++
+	}
+	if windowMinPoint[1] > windowMaxPoint[1] {
+		newv := windowMinPoint[0]
+		newt := windowMinPoint[1]
+		datapoints = append(datapoints, []*int{&newv, &newt})
+		dpCount++
+	} else if windowMinPoint[1] < windowMaxPoint[1] {
+		newv := windowMaxPoint[0]
+		newt := windowMaxPoint[1]
+		datapoints = append(datapoints, []*int{&newv, &newt})
+		dpCount++
+	}
+	if nullTsAfter > -1 {
+		datapoints = append(datapoints, []*int{nil, &nullTsAfter})
+		nullCount++
+	}
+	return
 }
 
 type datapoint struct {
