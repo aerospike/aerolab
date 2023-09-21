@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -150,9 +151,30 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 					break
 				}
 			}
-			dp.datapoints[displayName] = point{
-				value:   v.(int),
-				binName: k,
+			switch vv := v.(type) {
+			case int64:
+				dp.datapoints[displayName] = point{
+					value:   float64(vv),
+					binName: k,
+				}
+			case int:
+				dp.datapoints[displayName] = point{
+					value:   float64(vv),
+					binName: k,
+				}
+			case float64:
+				dp.datapoints[displayName] = point{
+					value:   vv,
+					binName: k,
+				}
+			case string:
+				vva, err := strconv.ParseFloat(vv, 64)
+				if err == nil {
+					dp.datapoints[displayName] = point{
+						value:   vva,
+						binName: k,
+					}
+				}
 			}
 			datapointCount++
 			if datapointCount > p.config.MaxDataPointsReceived {
@@ -380,7 +402,7 @@ type datapoint struct {
 }
 
 type point struct {
-	value   int
+	value   float64
 	binName string
 }
 
