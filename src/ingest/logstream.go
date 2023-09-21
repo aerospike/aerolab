@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -71,10 +72,12 @@ func (s *logStream) Close() (outputs []*logStreamOutput, logStartTime time.Time,
 	return ret, s.logFileStartTime, s.logFileEndTime
 }
 
+const parseTimeError = "TIME PARSE: %s"
+
 func (s *logStream) Process(line string, nodePrefix int) ([]*logStreamOutput, error) {
 	timestamp, lineOffset, err := s.lineGetTimestamp(line)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(parseTimeError, err)
 	}
 	if s.TimeRanges != nil {
 		if !s.TimeRanges.From.IsZero() && timestamp.Before(s.TimeRanges.From) {
@@ -198,9 +201,11 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 			return
 		}
 	}
-	err = errors.New("timestamp not found")
+	err = errNoTimestamp
 	return
 }
+
+var errNoTimestamp = errors.New("timestamp not found")
 
 func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int) ([]*logStreamOutput, error) {
 	for _, p := range s.patterns.Patterns {

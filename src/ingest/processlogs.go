@@ -277,11 +277,11 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 		}
 		line := s.Text()
 		out, err := stream.Process(line, nodePrefix)
-		if err != nil && err != errNotMatched {
+		if err != nil && err != errNotMatched && err != errNoTimestamp && !strings.HasPrefix(err.Error(), "TIME PARSE:") {
 			logger.Error("Stream Processor for line: %s", err)
 			continue
 		}
-		if len(out) == 0 && err != nil && err == errNotMatched {
+		if len(out) == 0 && err != nil && (err == errNotMatched || err == errNoTimestamp || strings.HasPrefix(err.Error(), "TIME PARSE:")) {
 			if unmatched == nil {
 				os.MkdirAll(path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string)), 0755)
 				unmatched, err = os.Create(path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string), fn))
