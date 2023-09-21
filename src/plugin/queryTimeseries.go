@@ -13,9 +13,9 @@ import (
 )
 
 type timeseriesResponse struct {
-	Target     string   `json:"target"`
-	Datapoints [][]*int `json:"datapoints"` // list of int tuples, [][data,timestamp]
-	groups     []string // used for response grouping
+	Target     string       `json:"target"`
+	Datapoints [][]*float64 `json:"datapoints"` // list of int tuples, [][data,timestamp]
+	groups     []string     // used for response grouping
 	binIdx     int
 }
 
@@ -204,15 +204,15 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 					return resp, errors.New("too many series for graph, reduce series by selecting dropdown filters")
 				}
 				resp = append(resp, &timeseriesResponse{
-					Datapoints: [][]*int{},
+					Datapoints: [][]*float64{},
 					groups:     dpGroups,
 					Target:     strings.Join(dpGroups, p.config.TimeseriesLegendSeparator),
 					binIdx:     inslice.StringMatch(binList, v.binName),
 				})
 			}
-			val := v.value
-			ts := dp.timestampMs
-			resp[found].Datapoints = append(resp[found].Datapoints, []*int{&val, &ts})
+			val := float64(v.value)
+			ts := float64(dp.timestampMs)
+			resp[found].Datapoints = append(resp[found].Datapoints, []*float64{&val, &ts})
 		}
 	}
 	p.cache.lock.RUnlock()
@@ -239,32 +239,32 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 	datapointCount = 0
 	nullDatapoints := 0
 	for ri := range resp {
-		datapoints := [][]*int{}
-		lastPointTime := -1
-		lastValue := 0
+		datapoints := [][]*float64{}
+		lastPointTime := float64(-1)
+		lastValue := float64(0)
 		isFirstValue := true
-		windowStartTime := 0
-		windowMinPoint := []int{}
-		windowMaxPoint := []int{}
-		windowNullTs := []int{}
+		windowStartTime := float64(0)
+		windowMinPoint := []float64{}
+		windowMaxPoint := []float64{}
+		windowNullTs := []float64{}
 		for _, point := range resp[ri].Datapoints {
 			bin := target.Payload.Bins[resp[ri].binIdx]
 			// maxIntervalSeconds breached
-			if lastPointTime != -1 && *point[1]-lastPointTime > bin.MaxIntervalSeconds*1000 {
-				ts := *point[1] - 1
+			if lastPointTime != -1 && float64(*point[1])-lastPointTime > float64(bin.MaxIntervalSeconds*1000) {
+				ts := float64(*point[1] - 1)
 				windowNullTs = append(windowNullTs, ts)
 			}
-			lastPointTime = *point[1]
-			val := *point[0]
+			lastPointTime = float64(*point[1])
+			val := float64(*point[0])
 			// produce delta
 			if bin.ProduceDelta {
 				if isFirstValue {
 					isFirstValue = false
-					lastValue = *point[0]
+					lastValue = float64(*point[0])
 					continue
 				}
 				val -= lastValue
-				lastValue = *point[0]
+				lastValue = float64(*point[0])
 			}
 			// apply reverse
 			if bin.Reverse {
@@ -272,37 +272,37 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 			}
 			// apply limits
 			if bin.Limits != nil {
-				if bin.Limits.MinValue != nil && val < *bin.Limits.MinValue {
-					val = *bin.Limits.MinValue
+				if bin.Limits.MinValue != nil && val < float64(*bin.Limits.MinValue) {
+					val = float64(*bin.Limits.MinValue)
 				}
-				if bin.Limits.MaxValue != nil && val > *bin.Limits.MaxValue {
-					val = *bin.Limits.MaxValue
+				if bin.Limits.MaxValue != nil && val > float64(*bin.Limits.MaxValue) {
+					val = float64(*bin.Limits.MaxValue)
 				}
 			}
 			// divide by ticker interval (for per/second values)
 			if bin.ProduceDelta && bin.TickerIntervalSeconds != 0 {
-				val = val / bin.TickerIntervalSeconds
+				val = val / float64(bin.TickerIntervalSeconds)
 			}
 			// reduce and store datapoint
-			ts := *point[1]
+			ts := float64(*point[1])
 			if windowStartTime == 0 {
 				windowStartTime = ts
 			}
-			if ts-windowStartTime > int(reduceIntervalWindow) {
+			if ts-windowStartTime > float64(reduceIntervalWindow) {
 				dps, dpCount, nullCount := getDatapoints(windowMinPoint, windowMaxPoint, windowNullTs)
 				datapoints = append(datapoints, dps...)
 				nullDatapoints += nullCount
 				datapointCount += dpCount
 				windowStartTime = ts
-				windowNullTs = []int{}
-				windowMinPoint = []int{}
-				windowMaxPoint = []int{}
+				windowNullTs = []float64{}
+				windowMinPoint = []float64{}
+				windowMaxPoint = []float64{}
 			}
 			if len(windowMinPoint) == 0 || val < windowMinPoint[0] {
-				windowMinPoint = []int{val, ts}
+				windowMinPoint = []float64{val, ts}
 			}
 			if len(windowMaxPoint) == 0 || val > windowMaxPoint[0] {
-				windowMaxPoint = []int{val, ts}
+				windowMaxPoint = []float64{val, ts}
 			}
 		}
 		// store last unstored datapoint
@@ -318,10 +318,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 	return resp, nil
 }
 
-func getDatapoints(windowMinPoint []int, windowMaxPoint []int, windowNullTs []int) (datapoints [][]*int, dpCount int, nullCount int) {
-	nullTsBefore := -1
-	nullTsAfter := -1
-	nullTsMid := -1
+func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNullTs []float64) (datapoints [][]*float64, dpCount int, nullCount int) {
+	nullTsBefore := float64(-1)
+	nullTsAfter := float64(-1)
+	nullTsMid := float64(-1)
 	for _, null := range windowNullTs {
 		if null < windowMinPoint[1] && null < windowMaxPoint[1] {
 			nullTsBefore = null
@@ -337,37 +337,37 @@ func getDatapoints(windowMinPoint []int, windowMaxPoint []int, windowNullTs []in
 		}
 	}
 	if nullTsBefore > -1 {
-		datapoints = append(datapoints, []*int{nil, &nullTsBefore})
+		datapoints = append(datapoints, []*float64{nil, &nullTsBefore})
 		nullCount++
 	}
 	if windowMinPoint[1] < windowMaxPoint[1] {
 		newv := windowMinPoint[0]
 		newt := windowMinPoint[1]
-		datapoints = append(datapoints, []*int{&newv, &newt})
+		datapoints = append(datapoints, []*float64{&newv, &newt})
 		dpCount++
 	} else {
 		newv := windowMaxPoint[0]
 		newt := windowMaxPoint[1]
-		datapoints = append(datapoints, []*int{&newv, &newt})
+		datapoints = append(datapoints, []*float64{&newv, &newt})
 		dpCount++
 	}
 	if nullTsMid > -1 {
-		datapoints = append(datapoints, []*int{nil, &nullTsMid})
+		datapoints = append(datapoints, []*float64{nil, &nullTsMid})
 		nullCount++
 	}
 	if windowMinPoint[1] > windowMaxPoint[1] {
 		newv := windowMinPoint[0]
 		newt := windowMinPoint[1]
-		datapoints = append(datapoints, []*int{&newv, &newt})
+		datapoints = append(datapoints, []*float64{&newv, &newt})
 		dpCount++
 	} else if windowMinPoint[1] < windowMaxPoint[1] {
 		newv := windowMaxPoint[0]
 		newt := windowMaxPoint[1]
-		datapoints = append(datapoints, []*int{&newv, &newt})
+		datapoints = append(datapoints, []*float64{&newv, &newt})
 		dpCount++
 	}
 	if nullTsAfter > -1 {
-		datapoints = append(datapoints, []*int{nil, &nullTsAfter})
+		datapoints = append(datapoints, []*float64{nil, &nullTsAfter})
 		nullCount++
 	}
 	return
