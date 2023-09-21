@@ -337,7 +337,8 @@ func (i *Ingest) printProgress() error {
 			}
 		}
 		if i.config.ProgressPrint.PrintOverallProgress {
-			timePassed := int64(time.Since(i.progress.LogProcessor.StartTime).Seconds())
+			timePassedx := time.Since(i.progress.LogProcessor.StartTime)
+			timePassed := int64(timePassedx.Seconds())
 			if timePassed < 1 {
 				timePassed = 1
 			}
@@ -352,7 +353,9 @@ func (i *Ingest) printProgress() error {
 				percentComplete = processedSize * 100 / totalSize
 			}
 			perSecond := processedSize / timePassed
-			logger.Info("LogProcessor summary: (processed:%s) (total:%s) (remaining:%s) (speed:%s/second) (pct-complete:%d) (runTime:%d seconds)", convSize(processedSize), convSize(totalSize), convSize(totalSize-processedSize), convSize(perSecond), percentComplete, timePassed)
+			remainingSize := totalSize - processedSize
+			remainingSeconds := time.Second * time.Duration(remainingSize/perSecond)
+			logger.Info("LogProcessor summary: (processed:%s) (total:%s) (remaining:%s) (speed:%s/second) (pct-complete:%d) (runTime:%s) (remainingTime:%s)", convSize(processedSize), convSize(totalSize), convSize(remainingSize), convSize(perSecond), percentComplete, timePassedx.String(), remainingSeconds.String())
 		}
 	}
 	i.progress.RUnlock()
