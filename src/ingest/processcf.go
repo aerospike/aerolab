@@ -264,7 +264,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *cfFile, logs map[st
 	}
 	i.progress.Unlock()
 	logger.Detail("processCollectInfoFile: starting asadm for %s", new)
-	err = i.processCollectInfoFileAsadm(new, ct)
+	err = i.processCollectInfoFileAsadm(new, ct, logs)
 	if err != nil {
 		i.progress.Lock()
 		cf.ProcessingAttempted = true
@@ -319,7 +319,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *cfFile, logs map[st
 	return newName, nil
 }
 
-func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents) error {
+func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents, logs map[string]map[string]string) error {
 	for _, comm := range []string{"health", "summary"} {
 		logger.Detail("processCollectInfoFileAsadm: run file:%s comm:%s", filePath, comm)
 		ctx, cancelFunc := context.WithTimeout(context.Background(), i.config.CollectInfoAsadmTimeout)
@@ -338,7 +338,7 @@ func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents) er
 		logger.Detail("processCollectInfoFileAsadm: finish file:%s comm:%s", filePath, comm)
 	}
 	// process info network as a json
-	infoNet, err := i.processCollectInfoInfoNetwork(filePath)
+	infoNet, err := i.processCollectInfoInfoNetwork(filePath, logs)
 	if err != nil {
 		logger.Warn("Failed to get 'info network' for %s: %s", filePath, err)
 		return nil
@@ -347,8 +347,9 @@ func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents) er
 	return nil
 }
 
-func (i *Ingest) processCollectInfoInfoNetwork(path string) (infoNet *cfInfoNetwork, err error) {
+func (i *Ingest) processCollectInfoInfoNetwork(path string, logs map[string]map[string]string) (infoNet *cfInfoNetwork, err error) {
 	infoNet = new(cfInfoNetwork)
+	logger.Detail("processCollectInfoFileAsadm: get info network from %s", path)
 	ctx, ctxCancel := context.WithTimeout(context.Background(), i.config.CollectInfoAsadmTimeout)
 	defer ctxCancel()
 	out, err := exec.CommandContext(ctx, "asadm", "-cf", path, "-e", "info network", "-j").CombinedOutput()
@@ -375,7 +376,8 @@ func (i *Ingest) processCollectInfoInfoNetwork(path string) (infoNet *cfInfoNetw
 	if err != nil {
 		return infoNet, fmt.Errorf("failed decompressing %s: %s", path, err)
 	}
-	cname, err := i.processCollectInfoClusterName(path)
+	logger.Detail("processCollectInfoFileAsadm: get info cluster-name from %s", path)
+	cname, ccname, err := i.processCollectInfoClusterName(path, logs)
 	if err != nil {
 		return infoNet, fmt.Errorf("get cluster name %s: %s", path, err)
 	}
@@ -388,18 +390,36 @@ func (i *Ingest) processCollectInfoInfoNetwork(path string) (infoNet *cfInfoNetw
 			}
 		}
 	}
+	if ccname != "" {
+		for x := range infoNet.Groups[0].Records {
+			infoNet.Groups[0].Records[x].ClusterName = ccname
+		}
+	}
 	return infoNet, nil
 }
 
-func (i *Ingest) processCollectInfoClusterName(path string) (infoNet cfClusterName, err error) {
+func (i *Ingest) processCollectInfoClusterName(npath string, logs map[string]map[string]string) (infoNet cfClusterName, clusterName string, err error) {
+	_, nfile := path.Split(npath)
+	if !strings.HasPrefix(nfile, "x") {
+		// we can work out cluster name by checking the node cluster instead of running asadm, do that
+		pref := strings.Split(nfile, "_")[0]
+		for cluster, nodes := range logs {
+			for _, prefix := range nodes {
+				if prefix == pref {
+					// insert cluster name into infoNet
+					return infoNet, cluster, nil
+				}
+			}
+		}
+	}
 	ctx, ctxCancel := context.WithTimeout(context.Background(), i.config.CollectInfoAsadmTimeout)
 	defer ctxCancel()
-	out, err := exec.CommandContext(ctx, "asadm", "-cf", path, "-e", "show config like cluster-name", "-j").CombinedOutput()
+	out, err := exec.CommandContext(ctx, "asadm", "-cf", npath, "-e", "show config like cluster-name", "-j").CombinedOutput()
 	if ctxErr := ctx.Err(); ctxErr != nil {
-		return infoNet, fmt.Errorf("failed processing on ctx %s: %s", path, ctxErr)
+		return infoNet, "", fmt.Errorf("failed processing on ctx %s: %s", npath, ctxErr)
 	}
 	if err != nil {
-		return infoNet, fmt.Errorf("failed processing %s: %s", path, err)
+		return infoNet, "", fmt.Errorf("failed processing %s: %s", npath, err)
 	}
 	jsonString := ""
 	jsonStart := false
@@ -416,9 +436,9 @@ func (i *Ingest) processCollectInfoClusterName(path string) (infoNet cfClusterNa
 	}
 	err = json.Unmarshal([]byte(jsonString), &infoNet)
 	if err != nil {
-		return infoNet, fmt.Errorf("failed decompressing %s: %s", path, err)
+		return infoNet, "", fmt.Errorf("failed decompressing %s: %s", npath, err)
 	}
-	return infoNet, nil
+	return infoNet, "", nil
 }
 
 func (i *Ingest) processCollectInfoFileRead(filePath string, cf *cfFile, ct *cfContents) error {
@@ -619,14 +639,18 @@ type cfInfoNetwork struct {
 }
 
 type cfClusterName struct {
-	Groups []struct {
-		Records []struct {
-			ClusterName struct {
-				Converted string `json:"converted"`
-			} `json:"cluster-name"`
-			IP struct {
-				Converted string `json:"converted"`
-			} `json:"Node"`
-		} `json:"records"`
-	} `json:"groups"`
+	Groups []cfClusterNameGroup `json:"groups"`
+}
+
+type cfClusterNameGroup struct {
+	Records []cfClusterNameRecord `json:"records"`
+}
+
+type cfClusterNameRecord struct {
+	ClusterName struct {
+		Converted string `json:"converted"`
+	} `json:"cluster-name"`
+	IP struct {
+		Converted string `json:"converted"`
+	} `json:"Node"`
 }
