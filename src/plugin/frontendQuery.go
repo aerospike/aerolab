@@ -1,14 +1,46 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerospike-client-go/v6"
 	"github.com/bestmethod/logger"
 )
+
+func isSocketTimeout(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *Plugin) timedCheckSocketTimeout(ctx context.Context, resultSet *aerospike.Recordset, isCancelled chan bool, end chan bool) {
+	for {
+		if len(end) > 0 {
+			<-end
+			return
+		}
+		if isSocketTimeout(ctx) {
+			isCancelled <- true
+			if resultSet.IsActive() {
+				resultSet.Close()
+			}
+			for _, node := range p.db.GetNodes() {
+				node.RequestInfo(p.ip, fmt.Sprintf("jobs:module=query;cmd=kill-job;trid=%d", resultSet.TaskId()))
+			}
+			return
+		}
+		time.Sleep(time.Second)
+	}
+}
 
 func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 	logger.Info("QUERY INCOMING (type:query) (remote:%s)", r.RemoteAddr)
@@ -85,11 +117,20 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 	dtime := time.Now()
 	responses := []interface{}{}
 	for i := range req.Targets {
+		if isSocketTimeout(r.Context()) {
+			err = r.Context().Err()
+			errString := "success"
+			if err != nil {
+				errString = err.Error()
+			}
+			logger.Warn("QUERY GRAFANA SOCKET TIMEOUT (type:query) (remote:%s): client terminated connection: %s", r.RemoteAddr, errString)
+			return
+		}
 		switch req.Targets[i].Payload.Type {
 		case "":
 			fallthrough
 		case "timeseries":
-			resp, err := p.handleQueryTimeseries(req, i, r.RemoteAddr)
+			resp, err := p.handleQueryTimeseries(req, i, r.RemoteAddr, r)
 			if err != nil {
 				responseError(w, http.StatusBadRequest, "Request target timeseries %d (%s:%s) (remote:%s) (error:%s)", i, req.Targets[i].RefId, req.Targets[i].Target, r.RemoteAddr, err)
 				return
