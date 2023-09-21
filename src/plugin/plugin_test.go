@@ -6,11 +6,6 @@ import (
 	"testing"
 )
 
-// TODO: code datapoint reduction
-// TODO: test data accuracy (compare to old internal system)
-// TODO: redo the dashboards so all work
-// TODO: code aerolab commands etc
-
 func TestAll(t *testing.T) {
 	os.Setenv("PLUGIN_LOGLEVEL", "6")
 	os.Remove("cpu.pprof")
