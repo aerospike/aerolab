@@ -518,7 +518,7 @@ patterns:
         aggregate:
             every: 10s
             field: "repeated"
-            on: "warnMessage"
+            on: "warnC"
     -
         setName: "errors"
         search: ": ERROR ("
@@ -532,4 +532,4 @@ patterns:
         aggregate:
             every: 10s
             field: "repeated"
-            on: "errMessage"
+            on: "errC"

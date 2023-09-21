@@ -314,8 +314,9 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 			}
 			if p.Aggregate != nil && p.Aggregate.Field != "" {
 				newVal, _ := strconv.Atoi(nRes[p.Aggregate.Field].(string))
-				if _, ok := s.aggregateItems[p.Aggregate.On]; !ok {
-					s.aggregateItems[p.Aggregate.On] = &aggregator{
+				uniq := nRes[p.Aggregate.On].(string)
+				if _, ok := s.aggregateItems[uniq]; !ok {
+					s.aggregateItems[uniq] = &aggregator{
 						stat:      newVal,
 						startTime: timestamp,
 						endTime:   timestamp.Add(p.Aggregate.Every),
@@ -328,8 +329,8 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 						},
 					}
 				} else {
-					s.aggregateItems[p.Aggregate.On].stat += newVal
-					s.aggregateItems[p.Aggregate.On].out.Data[p.Aggregate.Field] = s.aggregateItems[p.Aggregate.On].stat
+					s.aggregateItems[uniq].stat += newVal
+					s.aggregateItems[uniq].out.Data[p.Aggregate.Field] = s.aggregateItems[uniq].stat
 				}
 				return ret, nil
 			}
