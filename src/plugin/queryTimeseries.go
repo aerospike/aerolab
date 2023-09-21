@@ -61,6 +61,9 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 		p.cache.lock.RLock()
 		for _, v := range req.selectedVars[filter.Name] {
 			idxval := inslice.StringMatch(p.cache.metadata[filter.Name].Entries, v)
+			if idxval == -1 {
+				continue
+			}
 			vals = append(vals, aerospike.ExpEq(aerospike.ExpIntBin(filter.Name), aerospike.ExpIntVal(int64(idxval))))
 		}
 		p.cache.lock.RUnlock()
@@ -135,6 +138,14 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 				continue
 			}
 			if inslice.HasString(groupList, k) {
+				if _, ok := p.cache.metadata[k]; !ok {
+					p.cache.lock.RUnlock()
+					return nil, fmt.Errorf("metadata for item %s not found, metadata corrupt or log ingestion in progress", k)
+				}
+				if len(p.cache.metadata[k].Entries) <= v.(int) {
+					p.cache.lock.RUnlock()
+					return nil, fmt.Errorf("metadata entry at index %v for item %s not found, metadata corrupt or log ingestion in progress", v, k)
+				}
 				dp.groups = append(dp.groups, &timeseriesGroup{
 					name:  k,
 					value: p.cache.metadata[k].Entries[v.(int)],
