@@ -314,7 +314,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 			}
 			if p.Aggregate != nil && p.Aggregate.Field != "" {
 				newVal, _ := strconv.Atoi(nRes[p.Aggregate.Field].(string))
-				uniq := nRes[p.Aggregate.On].(string)
+				uniq := nMeta[p.Aggregate.On].(string)
 				if _, ok := s.aggregateItems[uniq]; !ok {
 					s.aggregateItems[uniq] = &aggregator{
 						stat:      newVal,
