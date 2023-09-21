@@ -3,6 +3,7 @@ package plugin
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,7 +21,7 @@ type timeseriesResponse struct {
 	binIdx     int
 }
 
-func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) ([]*timeseriesResponse, error) {
+func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, r *http.Request) ([]*timeseriesResponse, error) {
 	logger.Detail("Build query (type:timeseries) (remote:%s)", remote)
 	ntime := time.Now()
 	binListA := []string{req.Targets[i].Payload.TimestampBinName}
@@ -118,12 +119,21 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 	if aerr != nil {
 		return nil, fmt.Errorf("%s", aerr)
 	}
+	timedIsCancelled := make(chan bool, 1)
+	timedIsEnd := make(chan bool, 1)
+	defer func() {
+		timedIsEnd <- true
+	}()
+	go p.timedCheckSocketTimeout(r.Context(), recset, timedIsCancelled, timedIsEnd)
 	resp := []*timeseriesResponse{}
 	logger.Detail("Enum results (type:timeseries) (remote:%s) (runQueryTime:%s)", remote, time.Since(ntime).String())
 	ntime = time.Now()
 	datapointCount := 0
 	p.cache.lock.RLock()
 	for rec := range recset.Results() {
+		if len(timedIsCancelled) > 0 {
+			return nil, errors.New("socket closed by client while enumerating")
+		}
 		dp := &datapoint{
 			datapoints: make(map[string]point),
 			groups:     make([]*timeseriesGroup, 0, len(groupList)),
@@ -256,12 +266,19 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 			return *resp[ri].Datapoints[i][1] < *resp[ri].Datapoints[j][1]
 		})
 	}
+	if len(timedIsCancelled) > 0 {
+		return nil, errors.New("socket closed by client after data sort")
+	}
 
 	logger.Detail("Sort legend (type:timeseries) (remote:%s) (datapoints:%d) (timeSortTime:%s)", remote, datapointCount, time.Since(ntime).String())
 	ntime = time.Now()
 	sort.Slice(resp, func(i, j int) bool {
 		return resp[i].Target < resp[j].Target
 	})
+	if len(timedIsCancelled) > 0 {
+		return nil, errors.New("socket closed by client after legend sort")
+	}
+
 	logger.Detail("Post-processing (type:timeseries) (remote:%s) (datapoints:%d) (legendSortTime:%s)", remote, datapointCount, time.Since(ntime).String())
 	ntime = time.Now()
 	reduceIntervalWindow := req.Range.To.Sub(req.Range.From).Milliseconds() / int64(req.MaxDataPoints)
@@ -281,6 +298,9 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string) 
 		windowMaxPoint := []float64{}
 		windowNullTs := []float64{}
 		for _, point := range resp[ri].Datapoints {
+			if len(timedIsCancelled) > 0 {
+				return nil, errors.New("socket closed by client during post-processing")
+			}
 			bin := target.Payload.Bins[resp[ri].binIdx]
 			// maxIntervalSeconds breached
 			if lastPointTime != -1 && float64(*point[1])-lastPointTime > float64(bin.MaxIntervalSeconds*1000) {
