@@ -130,6 +130,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	ntime = time.Now()
 	datapointCount := 0
 	p.cache.lock.RLock()
+	ptime1 := time.Duration(0)
+	ptime2 := time.Duration(0)
+	ptime3 := time.Duration(0)
+	var ptime time.Time
 	for rec := range recset.Results() {
 		if len(timedIsCancelled) > 0 {
 			return nil, errors.New("socket closed by client while enumerating")
@@ -141,6 +145,9 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		if rec.Err != nil {
 			p.cache.lock.RUnlock()
 			return nil, fmt.Errorf("%s", rec.Err)
+		}
+		if p.config.LogLevel > 5 {
+			ptime = time.Now()
 		}
 		for k, v := range rec.Record.Bins {
 			if k == target.Payload.TimestampBinName {
@@ -203,6 +210,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 				return resp, errors.New("too many datapoints received, limit data by zooming in or selecting dropdown filters")
 			}
 		}
+		if p.config.LogLevel > 5 {
+			ptime1 += time.Since(ptime)
+			ptime = time.Now()
+		}
 		// add dp to resp
 		sort.Slice(dp.groups, func(i, j int) bool {
 			idxI := -1
@@ -219,6 +230,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			}
 			return idxI < idxJ
 		})
+		if p.config.LogLevel > 5 {
+			ptime2 += time.Since(ptime)
+			ptime = time.Now()
+		}
 		// convert to resp response type
 		for k, v := range dp.datapoints {
 			dpGroups := []string{}
@@ -257,10 +272,14 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			ts := float64(dp.timestampMs)
 			resp[found].Datapoints = append(resp[found].Datapoints, []*float64{&val, &ts})
 		}
+		if p.config.LogLevel > 5 {
+			ptime3 += time.Since(ptime)
+		}
 	}
 	p.cache.lock.RUnlock()
 
-	logger.Detail("Sort by time (type:timeseries) (remote:%s) (datapoints:%d) (enumTime:%s)", remote, datapointCount, time.Since(ntime).String())
+	logger.Detail("Sort by time (type:timeseries) (remote:%s) (datapoints:%d) (enumTime:%s) (binListTime:%s) (dpSortTime:%s) (dp2respTime:%s) (waitOnAerospikeTime:%s)", remote, datapointCount, time.Since(ntime).String(), ptime1.String(), ptime2.String(), ptime3.String(), time.Duration(time.Since(ntime)-ptime1-ptime2-ptime3).String())
+	ntime = time.Now()
 	for ri := range resp {
 		sort.Slice(resp[ri].Datapoints, func(i, j int) bool {
 			return *resp[ri].Datapoints[i][1] < *resp[ri].Datapoints[j][1]
