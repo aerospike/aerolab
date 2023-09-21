@@ -354,8 +354,8 @@ func (i *Ingest) printProgress() error {
 			}
 			perSecond := processedSize / timePassed
 			remainingSize := totalSize - processedSize
-			remainingSeconds := time.Second * time.Duration(remainingSize/perSecond)
-			logger.Info("LogProcessor summary: (processed:%s) (total:%s) (remaining:%s) (speed:%s/second) (pct-complete:%d) (runTime:%s) (remainingTime:%s)", convSize(processedSize), convSize(totalSize), convSize(remainingSize), convSize(perSecond), percentComplete, timePassedx.String(), remainingSeconds.String())
+			remainingTime := time.Second * time.Duration(remainingSize/perSecond)
+			logger.Info("LogProcessor summary: (processed:%s) (total:%s) (remaining:%s) (speed:%s/second) (pct-complete:%d) (runTime:%s) (remainingTime:%s)", convSize(processedSize), convSize(totalSize), convSize(remainingSize), convSize(perSecond), percentComplete, timePassedx.String(), remainingTime.String())
 		}
 	}
 	i.progress.RUnlock()
