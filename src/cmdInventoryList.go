@@ -26,6 +26,7 @@ func (c *inventoryListCmd) Execute(args []string) error {
 }
 
 const inventoryShowExpirySystem = 1
+const inventoryShowAGI = 2
 
 func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool, showOthers ...int) error {
 	inventoryItems := []int{}
@@ -45,8 +46,13 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		if showOther&inventoryShowExpirySystem > 0 {
 			inventoryItems = append(inventoryItems, InventoryItemExpirySystem)
 		}
+		if showOther&inventoryShowAGI > 0 {
+			inventoryItems = append(inventoryItems, InventoryItemAGI)
+		}
 	}
 
+	// TODO: backend - b.Inventory()
+	// TODO: add AGIs to below
 	inv, err := b.Inventory(c.Owner, inventoryItems)
 	if err != nil {
 		return err
