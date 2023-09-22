@@ -252,7 +252,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 						break
 					}
 					hIndE = strings.Index(histograms, ")")
-					if hInd < 0 {
+					if hIndE < 0 {
 						break
 					}
 					newHist := strings.Split(histograms[hInd+1:hIndE], ": ")
