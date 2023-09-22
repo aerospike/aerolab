@@ -164,6 +164,15 @@ func (a *aerolab) main(name string, args []string) {
 	a.parseArgs(args)
 }
 
+func earlyProcessNoBackend(tail []string) (early bool) {
+	if inslice.HasString(tail, "help") {
+		a.parser.WriteHelp(os.Stderr)
+		//a.parser.WriteManPage(os.Stderr)
+		os.Exit(1)
+	}
+	return a.early
+}
+
 func earlyProcess(tail []string) (early bool) {
 	return earlyProcessV2(tail, true)
 }

@@ -299,3 +299,4 @@ var InventoryItemClients = 2
 var InventoryItemFirewalls = 3
 var InventoryItemTemplates = 4
 var InventoryItemExpirySystem = 5
+var InventoryItemAGI = 6

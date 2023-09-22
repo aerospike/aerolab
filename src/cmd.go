@@ -20,5 +20,6 @@ type commands struct {
 	Version    versionCmd    `command:"version" subcommands-optional:"true" description:"Print AeroLab version"`
 	Completion completionCmd `command:"completion" subcommands-optional:"true" description:"Install shell completion scripts"`
 	Rest       restCmd       `command:"rest-api" subcommands-optional:"true" description:"Launch HTTP rest API"`
+	AGI        agiCmd        `command:"agi" subcommands-optional:"true" description:"Launch or manage AGI troubleshooting instances"`
 	commandsDefaults
 }
