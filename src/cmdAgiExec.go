@@ -1,27 +1,32 @@
 package main
 
 import (
+	"bufio"
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/aerospike/aerolab/grafanafix"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/plugin"
+	"github.com/bestmethod/logger"
 	"gopkg.in/yaml.v3"
 )
 
 // TODO: https listener
-// TODO: proxy to filebrowser
-// TODO: proxy to ttyd
+// TODO: cookie-based authentication
 
 /*
 apt update && apt -y install wget adduser libfontconfig1 musl
@@ -59,6 +64,13 @@ preProcessor:
 processor:
   maxConcurrentLogFiles: 4
 progressFile:
+  disableWrite: false
+  writeInterval: 10s
+  compress: true
+  outputFilePath: "/opt/agi/ingest"
+progressPrint:
+  enable: true
+  updateInterval: 10s
   printOverallProgress: true
   printDetailProgress: true
 patternsFile: ""
@@ -233,7 +245,8 @@ func (c *agiExecIngestCmd) Execute(args []string) error {
 
 type agiExecProxyCmd struct {
 	ListenPort      int           `short:"l" long:"listen-port" default:"80" description:"port to listen on"`
-	MaxInactivity   time.Duration `short:"m" long:"max-inactivity" default:"2h" description:"Max user inactivity period after which the system will be shut down; 0=disable"`
+	EntryDir        string        `short:"d" long:"entry-dir" default:"/opt/agi/files" description:"Entrypoint for ttyd and filebrowser"`
+	MaxInactivity   time.Duration `short:"m" long:"max-inactivity" default:"1h" description:"Max user inactivity period after which the system will be shut down; 0=disable"`
 	MaxUptime       time.Duration `short:"M" long:"max-uptime" default:"24h" description:"Max hard instance uptime; 0=disable"`
 	ShutdownCommand string        `short:"c" long:"shutdown-command" default:"/sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached"`
 	AuthType        string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic"`
@@ -244,6 +257,29 @@ type agiExecProxyCmd struct {
 	lastActivity    *activity
 	grafanaUrl      *url.URL
 	grafanaProxy    *httputil.ReverseProxy
+	ttydUrl         *url.URL
+	ttydProxy       *httputil.ReverseProxy
+	fbUrl           *url.URL
+	fbProxy         *httputil.ReverseProxy
+	gottyConns      *counter
+}
+
+type counter struct {
+	sync.Mutex
+	c string
+}
+
+func (a *counter) Set(t string) {
+	a.Lock()
+	a.c = t
+	a.Unlock()
+}
+
+func (a *counter) Get() (t string) {
+	a.Lock()
+	t = a.c
+	a.Unlock()
+	return
 }
 
 type activity struct {
@@ -268,22 +304,40 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
 	}
+	os.MkdirAll(c.EntryDir, 0755)
+	os.WriteFile("/opt/agi/proxy.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
+	defer os.Remove("/opt/agi/proxy.pid")
 	c.lastActivity = new(activity)
+	c.gottyConns = new(counter)
+	c.gottyConns.Set("0")
 	c.lastActivity.Set(time.Now())
 	gurl, _ := url.Parse("http://127.0.0.1:8850/")
 	gproxy := httputil.NewSingleHostReverseProxy(gurl)
 	c.grafanaUrl = gurl
 	c.grafanaProxy = gproxy
+	turl, _ := url.Parse("http://127.0.0.1:8852/")
+	tproxy := httputil.NewSingleHostReverseProxy(turl)
+	c.ttydUrl = turl
+	c.ttydProxy = tproxy
+	furl, _ := url.Parse("http://127.0.0.1:8853/")
+	fproxy := httputil.NewSingleHostReverseProxy(furl)
+	c.fbUrl = furl
+	c.fbProxy = fproxy
 	if c.AuthType == "basic" {
 		c.isBasicAuth = true
 	}
+	go c.getDeps()
 	if c.MaxInactivity > 0 {
 		go c.activityMonitor()
 	}
 	if c.MaxUptime > 0 {
 		go c.maxUptime()
 	}
-	http.HandleFunc("/", c.proxyHandler)
+	http.HandleFunc("/", c.grafanaHandler)        // grafana
+	http.HandleFunc("/ttyd", c.ttydHandler)       // web console tty
+	http.HandleFunc("/ttyd/", c.ttydHandler)      // web console tty
+	http.HandleFunc("/filebrowser", c.fbHandler)  // file browser
+	http.HandleFunc("/filebrowser/", c.fbHandler) // file browser
 	http.ListenAndServe("0.0.0.0:"+strconv.Itoa(c.ListenPort), nil)
 	return nil
 }
@@ -300,40 +354,218 @@ func (c *agiExecProxyCmd) activityMonitor() {
 			c.lastActivity.Set(time.Now())
 			continue
 		}
+		if c.gottyConns.Get() != "0" {
+			c.lastActivity.Set(time.Now())
+			continue
+		}
 		if time.Since(c.lastActivity.Get()) > c.MaxInactivity {
 			exec.Command(c.ShutdownCommand).CombinedOutput()
 		}
 	}
 }
 
-func (c *agiExecProxyCmd) proxyHandler(w http.ResponseWriter, r *http.Request) {
-	// be strict
+func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Add("Strict-Transport-Security", "max-age=31536000")
-
-	// auth check
 	if c.isBasicAuth {
 		user, pass, ok := r.BasicAuth()
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
+			return false
 		}
 		usermatch := subtle.ConstantTimeCompare([]byte(user), []byte(c.BasicAuthUser))
 		passmatch := subtle.ConstantTimeCompare([]byte(pass), []byte(c.BasicAuthPass))
 		if usermatch == 0 || passmatch == 0 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="restricted", charset="UTF-8"`)
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
+			return false
 		}
 	}
-
 	// note down activity timestamp
 	go c.lastActivity.Set(time.Now())
+	return true
+}
 
+func (c *agiExecProxyCmd) grafanaHandler(w http.ResponseWriter, r *http.Request) {
+	// auth check
+	if !c.checkAuth(w, r) {
+		return
+	}
 	// reverse proxy
 	r.URL.Host = c.grafanaUrl.Host
 	r.URL.Scheme = c.grafanaUrl.Scheme
 	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
 	r.Host = c.grafanaUrl.Host
 	c.grafanaProxy.ServeHTTP(w, r)
+}
+
+func (c *agiExecProxyCmd) ttydHandler(w http.ResponseWriter, r *http.Request) {
+	// auth check
+	if !c.checkAuth(w, r) {
+		return
+	}
+	// reverse proxy
+	r.URL.Host = c.ttydUrl.Host
+	r.URL.Scheme = c.ttydUrl.Scheme
+	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
+	r.Host = c.ttydUrl.Host
+	c.ttydProxy.ServeHTTP(w, r)
+}
+
+func (c *agiExecProxyCmd) fbHandler(w http.ResponseWriter, r *http.Request) {
+	// auth check
+	if !c.checkAuth(w, r) {
+		return
+	}
+	// reverse proxy
+	r.URL.Host = c.fbUrl.Host
+	r.URL.Scheme = c.fbUrl.Scheme
+	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
+	r.Host = c.fbUrl.Host
+	c.fbProxy.ServeHTTP(w, r)
+}
+
+func (c *agiExecProxyCmd) getDeps() {
+	go func() {
+		logger.Info("Getting ttyd...")
+		fd, err := os.OpenFile("/usr/local/bin/ttyd", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
+		if err != nil {
+			logger.Error("ttyd-MAKEFILE: %s", err)
+			return
+		}
+		arch := "x86_64" // .aarch64
+		narch, _ := exec.Command("uname", "-m").CombinedOutput()
+		if strings.Contains(string(narch), "arm") || strings.Contains(string(narch), "aarch") {
+			arch = "aarch64"
+		}
+		resp, err := http.Get("https://github.com/tsl0922/ttyd/releases/download/1.7.3/ttyd." + arch)
+		if err != nil {
+			logger.Error("ttyd-GET: %s", err)
+			fd.Close()
+			return
+		}
+		_, err = io.Copy(fd, resp.Body)
+		resp.Body.Close()
+		fd.Close()
+		if err != nil {
+			logger.Error("ttyd-DOWNLOAD: %s", err)
+			return
+		}
+		logger.Info("Running gotty!")
+		com := exec.Command("/usr/local/bin/ttyd", "-p", "8852", "-i", "lo", "-P", "5", "-b", "/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
+		com.Dir = c.EntryDir
+		sout, err := com.StdoutPipe()
+		if err != nil {
+			logger.Error("gotty cannot start: could not create stdout pipe: %s", err)
+			return
+		}
+		serr, err2 := com.StderrPipe()
+		if err2 != nil {
+			logger.Error("gotty cannot start: could not create stderr pipe: %s", err2)
+			return
+		}
+		err = com.Start()
+		if err != nil {
+			logger.Error("gotty cannot start: %s", err)
+			return
+		}
+		go c.gottyWatcher(sout)
+		go c.gottyWatcher(serr)
+		err = com.Wait()
+		if err != nil {
+			logger.Error("gotty exited with error: %s", err)
+			return
+		}
+	}()
+	go func() {
+		cur, err := filepath.Abs(os.Args[0])
+		if err != nil {
+			logger.Error("failed to get absolute path os self: %s", err)
+			return
+		}
+		if _, err := os.Stat("/usr/local/bin/showconf"); err != nil {
+			err = os.Symlink(cur, "/usr/local/bin/showconf")
+			if err != nil {
+				logger.Error("failed to symlink showconf: %s", err)
+			}
+		}
+		if _, err := os.Stat("/usr/local/bin/showsysinfo"); err != nil {
+			err = os.Symlink(cur, "/usr/local/bin/showsysinfo")
+			if err != nil {
+				logger.Error("failed to symlink showsysinfo: %s", err)
+			}
+		}
+		if _, err := os.Stat("/usr/local/bin/showinterrupts"); err != nil {
+			err = os.Symlink(cur, "/usr/local/bin/showinterrupts")
+			if err != nil {
+				logger.Error("failed to symlink showinterrupts: %s", err)
+			}
+		}
+	}()
+	go func() {
+		logger.Info("Getting filebrowser...")
+		fd, err := os.OpenFile("/opt/filebrowser.tgz", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
+		if err != nil {
+			logger.Error("filebrowser-MAKEFILE: %s", err)
+			return
+		}
+		arch := "amd64"
+		narch, _ := exec.Command("uname", "-m").CombinedOutput()
+		if strings.Contains(string(narch), "arm") || strings.Contains(string(narch), "aarch") {
+			arch = "arm64"
+		}
+		resp, err := http.Get("https://github.com/filebrowser/filebrowser/releases/download/v2.25.0/linux-" + arch + "-filebrowser.tar.gz")
+		if err != nil {
+			logger.Error("filebrowser-GET: %s", err)
+			fd.Close()
+			return
+		}
+		_, err = io.Copy(fd, resp.Body)
+		resp.Body.Close()
+		fd.Close()
+		if err != nil {
+			logger.Error("filebrowser-DOWNLOAD: %s", err)
+			return
+		}
+		logger.Info("Unpack filebrowser")
+		out, err := exec.Command("tar", "-zxvf", "/opt/filebrowser.tgz", "-C", "/usr/local/bin/", "filebrowser").CombinedOutput()
+		if err != nil {
+			logger.Error("filebrowser-unpack: %s (%s)", string(out), err)
+			return
+		}
+		logger.Info("Running filebrowser!")
+		com := exec.Command("/usr/local/bin/filebrowser", "-p", "8853", "-r", c.EntryDir, "--noauth", "-d", "/opt/filebrowser.db", "-b", "/filebrowser/")
+		com.Dir = c.EntryDir
+		out, err = com.CombinedOutput()
+		if err != nil {
+			logger.Error("filebrowser: %s %s", err, string(out))
+		}
+	}()
+}
+
+func (c *agiExecProxyCmd) gottyWatcher(out io.Reader) {
+	//r, _ := regexp.Compile(`connections: [0-9]+($|\n)`)
+	r, _ := regexp.Compile(`clients: [0-9]+($|\n)`)
+	r2, _ := regexp.Compile(`[0-9]+`)
+	scanner := bufio.NewScanner(out)
+	for scanner.Scan() {
+		line := scanner.Text()
+		n := r.FindAllString(line, -1)
+		if len(n) == 0 {
+			continue
+		}
+		n1 := n[len(n)-1]
+		connNew := r2.FindString(n1)
+		if connNew == "" {
+			continue
+		}
+		if connNew != c.gottyConns.Get() {
+			logger.Info("GOTTY CONNS: %s", connNew)
+			c.gottyConns.Set(connNew)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		logger.Error("gottyWatcher scanner error: %s", err)
+	}
+	logger.Info("Exiting gottyWatcher")
 }
