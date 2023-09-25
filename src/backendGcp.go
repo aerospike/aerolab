@@ -2451,7 +2451,7 @@ func (d *backendGcp) createSecurityGroupExternal(namePrefix string) error {
 		Allowed: []*computepb.Allowed{
 			{
 				IPProtocol: proto.String("tcp"),
-				Ports:      []string{"22", "3000", "8080", "8888", "9200"},
+				Ports:      []string{"22", "3000", "443", "80", "8080", "8888", "9200"},
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
@@ -2542,7 +2542,7 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, nam
 		Allowed: []*computepb.Allowed{
 			{
 				IPProtocol: proto.String("tcp"),
-				Ports:      []string{"22", "3000", "8080", "8888", "9200"},
+				Ports:      []string{"22", "3000", "443", "80", "8080", "8888", "9200"},
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),

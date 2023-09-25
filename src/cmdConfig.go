@@ -112,7 +112,7 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 				return err
 			}
 		}
-	} else if c.Type != "docker" {
+	} else if c.Type != "docker" && c.Type != "none" {
 		return errors.New("backend types supported: docker, aws, gcp")
 	}
 	if c.TmpDir == "" {

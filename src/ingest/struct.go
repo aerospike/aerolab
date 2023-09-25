@@ -20,6 +20,7 @@ type Ingest struct {
 	db           *aerospike.Client
 	wp           *aerospike.WritePolicy
 }
+
 type Config struct {
 	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
 	Aerospike struct {
