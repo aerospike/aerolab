@@ -7,6 +7,7 @@
 * Fix shell recovery after parallel attachment.
 * Add AGI (Aerospike-Grafana-Integrated stack) for graphing Aerospike log statistics in Grafana.
 * Add support for sindex flash in the partitioner.
+* The `showcommands` command-set is now a part of aerolab.
 
 #### 7.0.1
 * GitHub broke support for `wget` for source files in old repo releases page by producing `403 Forbidden` on `HEAD` requests; this fix implements a new link.
