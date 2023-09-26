@@ -136,6 +136,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	var ptime time.Time
 	for rec := range recset.Results() {
 		if len(timedIsCancelled) > 0 {
+			p.cache.lock.RUnlock()
 			return nil, errors.New("socket closed by client while enumerating")
 		}
 		dp := &datapoint{
