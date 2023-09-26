@@ -110,7 +110,7 @@ func Init(config *Config) (*Ingest, error) {
 	i := &Ingest{
 		config:   config,
 		patterns: p,
-		progress: new(progress),
+		progress: new(Progress),
 	}
 	logger.Debug("INIT: Connect to backend")
 	err = i.dbConnect()

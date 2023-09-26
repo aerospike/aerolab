@@ -37,7 +37,7 @@ func (i *Ingest) ProcessLogs() error {
 	}()
 	// find node prefix->nodeID from log files
 	logger.Debug("Process Logs: enumerating log files")
-	foundLogs := make(map[string]*logFile) //cluster,nodeid,prefix
+	foundLogs := make(map[string]*LogFile) //cluster,nodeid,prefix
 	err := filepath.Walk(i.config.Directories.Logs, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -51,7 +51,7 @@ func (i *Ingest) ProcessLogs() error {
 		}
 		fdir, _ := path.Split(filePath)
 		_, fcluster := path.Split(strings.TrimSuffix(fdir, "/"))
-		foundLogs[filePath] = &logFile{
+		foundLogs[filePath] = &LogFile{
 			ClusterName: fcluster,
 			NodePrefix:  fn[0],
 			NodeID:      fn[1],
@@ -69,7 +69,7 @@ func (i *Ingest) ProcessLogs() error {
 	for n, f := range i.progress.LogProcessor.Files {
 		foundLogs[n] = f
 	}
-	i.progress.LogProcessor.Files = make(map[string]*logFile)
+	i.progress.LogProcessor.Files = make(map[string]*LogFile)
 	for n, f := range foundLogs {
 		i.progress.LogProcessor.Files[n] = f
 	}
@@ -207,7 +207,7 @@ func (i *Ingest) ProcessLogs() error {
 	return nil
 }
 
-func (i *Ingest) processLogsFeed(foundLogs map[string]*logFile, resultsChan chan *processResult) {
+func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan *processResult) {
 	wg := new(sync.WaitGroup)
 	threads := make(chan bool, i.config.Processor.MaxConcurrentLogFiles)
 	for n, f := range foundLogs {
@@ -216,7 +216,7 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*logFile, resultsChan chan
 		}
 		threads <- true
 		wg.Add(1)
-		go func(n string, f *logFile) {
+		go func(n string, f *LogFile) {
 			defer func() {
 				<-threads
 				defer wg.Done()

@@ -21,6 +21,15 @@ func (c *agiCmd) Execute(args []string) error {
 	return nil
 }
 
+/*
+	TODO:
+	oomChecker? status showing something went really wrong ...
+	write cmdAgi command-set to make all this work; agi is part of 'cluster' command set, but also has EFS volumes
+
+	aerolab agi from desktop create command will be responsible for installing aerospike (cluster create), deploying self on the instance, creating systemd and yaml files, and running all self-* services; that's all that should be required :) ... oh, and EFS mounts
+	... need to handle spot instances, dynamic instance sizing, cycling from spot to on-demand
+*/
+
 type agiListCmd struct {
 	Owner string  `long:"owner" description:"Only show resources tagged with this owner"`
 	Json  bool    `short:"j" long:"json" description:"Provide output in json format"`

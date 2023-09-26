@@ -61,7 +61,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 	}
 	// find files
 	logger.Debug("ProcessCollectInfo: enumerating files")
-	foundFiles := map[string]*cfFile{}
+	foundFiles := map[string]*CfFile{}
 	err = filepath.Walk(i.config.Directories.CollectInfo, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -69,7 +69,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 		if info.IsDir() {
 			return nil
 		}
-		foundFiles[filePath] = &cfFile{
+		foundFiles[filePath] = &CfFile{
 			Size: info.Size(),
 		}
 		return nil
@@ -84,7 +84,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 	for n, f := range i.progress.CollectinfoProcessor.Files {
 		foundFiles[n] = f
 	}
-	i.progress.CollectinfoProcessor.Files = make(map[string]*cfFile)
+	i.progress.CollectinfoProcessor.Files = make(map[string]*CfFile)
 	for n, f := range foundFiles {
 		i.progress.CollectinfoProcessor.Files[n] = f
 	}
@@ -177,7 +177,7 @@ type cfContents struct {
 	ipToNode    map[string][]string
 }
 
-func (i *Ingest) processCollectInfoFile(filePath string, cf *cfFile, logs map[string]map[string]string) (string, error) {
+func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[string]map[string]string) (string, error) {
 	ct := &cfContents{
 		ipToNode: make(map[string][]string),
 	}
@@ -441,7 +441,7 @@ func (i *Ingest) processCollectInfoClusterName(npath string, logs map[string]map
 	return infoNet, "", nil
 }
 
-func (i *Ingest) processCollectInfoFileRead(filePath string, cf *cfFile, ct *cfContents) error {
+func (i *Ingest) processCollectInfoFileRead(filePath string, cf *CfFile, ct *cfContents) error {
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("could not open file: %s", err)

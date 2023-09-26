@@ -19,7 +19,7 @@ func (i *Ingest) PreProcess() error {
 	logger.Debug("PreProcess running")
 	i.progress.Lock()
 	if i.progress.PreProcessor.Files == nil {
-		i.progress.PreProcessor.Files = make(map[string]*enumFile)
+		i.progress.PreProcessor.Files = make(map[string]*EnumFile)
 	}
 	i.progress.PreProcessor.running = true
 	i.progress.PreProcessor.wasRunning = true
@@ -135,7 +135,7 @@ func (i *Ingest) PreProcess() error {
 	return nil
 }
 
-func (i *Ingest) preProcessTextFile(fn string, files map[string]*enumFile) error {
+func (i *Ingest) preProcessTextFile(fn string, files map[string]*EnumFile) error {
 	fnlist, err := i.preProcessSpecial(fn, files[fn].mimeType)
 	if err != nil && err != errPreProcessNotSpecial {
 		return err
@@ -182,7 +182,7 @@ func (i *Ingest) preProcessTextFile(fn string, files map[string]*enumFile) error
 
 var errPreProcessNotSpecial = errors.New("STANDARD-LOG")
 
-func (i *Ingest) deduplicate(files map[string]*enumFile) {
+func (i *Ingest) deduplicate(files map[string]*EnumFile) {
 	filesBySize := make(map[int64][]string)
 	logger.Detail("Dedplicate: sorting files by size")
 	for fn, file := range files {
