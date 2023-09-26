@@ -10,6 +10,104 @@
     }
   ],
   "__elements": {
+    "pIdnFZPVk": {
+      "name": "General Stats->Cluster Size",
+      "uid": "pIdnFZPVk",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max",
+              "min"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Histogram\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    },{\n    \t\"name\": \"Histogram\",\n    \t\"required\": true    \n    },{\n    \t\"name\": \"Namespace\",\n    \t\"required\": false    \n    }],\n    \"bins\": [{\n    \t\"name\": \"total\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n      \"produceDelta\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"tickerIntervalSeconds\": $TickerIntervalSeconds,\n      \"limits\":{\n        \"minValue\": 0\n      }\n    }]\n}\n",
+            "refId": "A",
+            "target": "latencies"
+          }
+        ],
+        "title": "Cluster Size",
+        "type": "timeseries"
+      }
+    },
     "FuyjJYP4k": {
       "name": "General Stats->Log File Time Ranges",
       "uid": "FuyjJYP4k",
@@ -72,6 +170,9 @@
             }
           },
           "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "FuyjJYP4k"
         },
         "options": {
           "legend": {
@@ -164,6 +265,9 @@
           },
           "overrides": []
         },
+        "libraryPanel": {
+          "uid": "RVwLw9P4k"
+        },
         "options": {
           "legend": {
             "calcs": [],
@@ -189,106 +293,6 @@
           }
         ],
         "title": "Log File Time Ranges - Ticker Tracker",
-        "type": "timeseries"
-      }
-    },
-    "pIdnFZPVk": {
-      "name": "General Stats->Cluster Size",
-      "uid": "pIdnFZPVk",
-      "kind": 1,
-      "model": {
-        "datasource": {
-          "type": "simpod-json-datasource",
-          "uid": "${DS_JSON}"
-        },
-        "description": "",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "linear",
-              "lineStyle": {
-                "fill": "solid"
-              },
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "auto",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            }
-          },
-          "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "pIdnFZPVk"
-        },
-        "options": {
-          "legend": {
-            "calcs": [
-              "max",
-              "min"
-            ],
-            "displayMode": "table",
-            "placement": "right",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "asc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "simpod-json-datasource",
-              "uid": "json"
-            },
-            "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n    \t\"name\": \"ClusterSize\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-            "refId": "A",
-            "target": "clusterSize"
-          }
-        ],
-        "title": "Cluster Size",
         "type": "timeseries"
       }
     },
@@ -5493,7 +5497,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "10.1.1"
+      "version": "10.1.2"
     },
     {
       "type": "datasource",
@@ -5646,7 +5650,7 @@
         "content": "<center><h1><font color=yellow>${ClusterName}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.1",
+      "pluginVersion": "10.1.2",
       "targets": [
         {
           "datasource": {
@@ -5681,7 +5685,7 @@
         "content": "<center><pre><h2><font color=green>${Sources}</font></h2></pre></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.1",
+      "pluginVersion": "10.1.2",
       "targets": [
         {
           "datasource": {
@@ -5718,7 +5722,7 @@
         "content": "<center><h1><font color=orange>${TimeRange}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.1",
+      "pluginVersion": "10.1.2",
       "targets": [
         {
           "datasource": {
@@ -5735,12 +5739,25 @@
       "type": "text"
     },
     {
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 84,
+      "libraryPanel": {
+        "uid": "pIdnFZPVk",
+        "name": "General Stats->Cluster Size"
+      }
+    },
+    {
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 4
+        "y": 11
       },
       "id": 77,
       "panels": [
@@ -5782,7 +5799,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 12
       },
       "id": 2,
       "panels": [
@@ -5791,7 +5808,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 6
+            "y": 13
           },
           "id": 4,
           "libraryPanel": {
@@ -5805,7 +5822,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 6
+            "y": 13
           },
           "id": 5,
           "libraryPanel": {
@@ -5819,7 +5836,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 13
+            "y": 20
           },
           "id": 6,
           "libraryPanel": {
@@ -5833,7 +5850,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 13
+            "y": 20
           },
           "id": 8,
           "libraryPanel": {
@@ -5847,7 +5864,7 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 13
+            "y": 20
           },
           "id": 7,
           "libraryPanel": {
@@ -5861,7 +5878,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 20
+            "y": 27
           },
           "id": 9,
           "libraryPanel": {
@@ -5875,7 +5892,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 20
+            "y": 27
           },
           "id": 10,
           "libraryPanel": {
@@ -5894,7 +5911,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 13
       },
       "id": 12,
       "panels": [
@@ -5922,7 +5939,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 7
+        "y": 14
       },
       "id": 15,
       "panels": [
@@ -6118,7 +6135,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 15
       },
       "id": 30,
       "panels": [
@@ -6216,7 +6233,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 16
       },
       "id": 38,
       "panels": [
@@ -6314,7 +6331,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 10
+        "y": 17
       },
       "id": 46,
       "panels": [
@@ -6440,7 +6457,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 11
+        "y": 18
       },
       "id": 56,
       "panels": [
@@ -6552,7 +6569,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 12
+        "y": 19
       },
       "id": 65,
       "panels": [
@@ -6622,7 +6639,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 13
+        "y": 20
       },
       "id": 71,
       "panels": [
@@ -6659,7 +6676,7 @@
       "type": "row"
     }
   ],
-  "refresh": "",
+  "refresh": false,
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",
@@ -9688,7 +9705,7 @@
       },
       {
         "current": {
-          "selected": false,
+          "selected": true,
           "text": "30",
           "value": "30"
         },
@@ -12818,17 +12835,112 @@
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "definition": "Namespace@${ClusterName:json}",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Namespace",
+        "multi": true,
+        "name": "Namespace",
+        "options": [],
+        "query": {
+          "query": "Namespace@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "definition": "Histogram@${ClusterName:json}",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Histograms Ms",
+        "multi": true,
+        "name": "Histogram",
+        "options": [],
+        "query": {
+          "query": "Histogram@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "definition": "HistogramUs@${ClusterName:json}",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Histograms Us",
+        "multi": true,
+        "name": "HistogramUs",
+        "options": [],
+        "query": {
+          "query": "HistogramUs@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "definition": "HistogramCount@${ClusterName:json}",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Histograms Count",
+        "multi": true,
+        "name": "HistogramCount",
+        "options": [],
+        "query": {
+          "query": "HistogramCount@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "definition": "HistogramSize@${ClusterName:json}",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Histograms Size",
+        "multi": true,
+        "name": "HistogramSize",
+        "options": [],
+        "query": {
+          "query": "HistogramSize@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
   "time": {
-    "from": "2023-09-12T17:16:06.681Z",
-    "to": "2023-09-12T17:21:48.365Z"
+    "from": "2023-08-28T03:54:47.499Z",
+    "to": "2023-08-30T02:18:02.285Z"
   },
   "timepicker": {},
   "timezone": "",
   "title": "General Stats",
   "uid": "vfXTPgPVk",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

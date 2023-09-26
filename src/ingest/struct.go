@@ -26,6 +26,7 @@ type Ingest struct {
 type Config struct {
 	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
 	Aerospike struct {
+		WaitForSindexes     bool   `yaml:"waitForSindexes" default:"true"`
 		Host                string `yaml:"host" default:"127.0.0.1"`
 		Port                int    `yaml:"port" default:"3000"`
 		Namespace           string `yaml:"namespace" default:"agi"`
