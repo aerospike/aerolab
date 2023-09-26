@@ -82,6 +82,12 @@ func (i *Ingest) saveProgressInterval() {
 	}
 	logger.Debug("INIT: saving progress will run every %v", i.config.ProgressFile.WriteInterval)
 	for {
+		i.endLock.Lock()
+		if i.end {
+			i.endLock.Unlock()
+			return
+		}
+		i.endLock.Unlock()
 		time.Sleep(i.config.ProgressFile.WriteInterval)
 		err := i.saveProgress()
 		if err != nil {
@@ -196,6 +202,12 @@ func (i *Ingest) printProgressInterval() {
 	}
 	logger.Debug("PRINT-PROGRESS Will print every %v", i.config.ProgressPrint.UpdateInterval)
 	for {
+		i.endLock.Lock()
+		if i.end {
+			i.endLock.Unlock()
+			return
+		}
+		i.endLock.Unlock()
 		time.Sleep(i.config.ProgressPrint.UpdateInterval)
 		err := i.printProgress()
 		if err != nil {
