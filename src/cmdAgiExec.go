@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,11 +23,28 @@ import (
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/plugin"
 	"github.com/bestmethod/logger"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 )
 
+/* TODO
+agiExec:
 // TODO: https listener
 // TODO: cookie-based authentication
+// TODO: oom-checker
+// TODO: dynamic instance sizing(?)
+// TODO: proxy should have a http endpoint for getting overall and detailed progress of ingest and getting instance logs(?)
+// TODO: easily store and explose processing warnings and errors?
+
+test: manually launch against a full set of logs and confirm everything works, get pprof and compare speed (agi exec * on aws)
+
+write cmdAgi command-set to make all this work; agi is part of 'cluster' command set, but also has EFS volumes
+
+aerolab agi from desktop create command will be responsible for installing aerospike (cluster create), deploying self on the instance, creating systemd and yaml files, and running all self-* services; that's all that should be required :) ... oh, and EFS mounts
+... need to handle re-launching from where we finished if instance is shut down/rebooted
+... need to handle spot instances and sizing
+*/
+
+// to restart ingest, rm -f /opt/agi/ingest/steps.json
 
 /*
 apt update && apt -y install wget adduser libfontconfig1 musl
@@ -207,6 +225,14 @@ type agiExecIngestCmd struct {
 	Help     helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
+type ingestSteps struct {
+	Download           bool
+	Unpack             bool
+	PreProcess         bool
+	ProcessLogs        bool
+	ProcessCollectInfo bool
+}
+
 func (c *agiExecIngestCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
@@ -218,29 +244,118 @@ func (c *agiExecIngestCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("MakeConfig: %s", err)
 	}
-	if c.YamlFile != "" {
-		// rewrite, redacting passwords for sources
-		s3Pw := config.Downloader.S3Source.SecretKey
-		sftpPw := config.Downloader.SftpSource.Password
-		if config.Downloader.S3Source.SecretKey != "" {
-			config.Downloader.S3Source.SecretKey = "<redacted>"
-		}
-		if config.Downloader.SftpSource.Password != "" {
-			config.Downloader.SftpSource.Password = "<redacted>"
-		}
-		f, err := os.OpenFile(c.YamlFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-		if err != nil {
-			return err
-		}
-		err = yaml.NewEncoder(f).Encode(config)
-		f.Close()
-		if err != nil {
-			return err
-		}
-		config.Downloader.S3Source.SecretKey = s3Pw
-		config.Downloader.SftpSource.Password = sftpPw
+	steps := new(ingestSteps)
+	f, err := os.ReadFile("/opt/agi/ingest/steps.json")
+	if err == nil {
+		json.Unmarshal(f, steps)
 	}
-	return ingest.RunWithConfig(config)
+	i, err := ingest.Init(config)
+	if err != nil {
+		return fmt.Errorf("Init: %s", err)
+	}
+	if !steps.Download {
+		err = i.Download()
+		if err != nil {
+			return fmt.Errorf("Download: %s", err)
+		}
+		steps.Download = true
+		f, err := json.Marshal(steps)
+		if err == nil {
+			os.WriteFile("/opt/agi/ingest/steps.json", f, 0644)
+		}
+		if c.YamlFile != "" {
+			// rewrite, redacting passwords for sources
+			s3Pw := config.Downloader.S3Source.SecretKey
+			sftpPw := config.Downloader.SftpSource.Password
+			if config.Downloader.S3Source.SecretKey != "" {
+				config.Downloader.S3Source.SecretKey = "<redacted>"
+			}
+			if config.Downloader.SftpSource.Password != "" {
+				config.Downloader.SftpSource.Password = "<redacted>"
+			}
+			f, err := os.OpenFile(c.YamlFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+			if err != nil {
+				return err
+			}
+			err = yaml.NewEncoder(f).Encode(config)
+			f.Close()
+			if err != nil {
+				return err
+			}
+			config.Downloader.S3Source.SecretKey = s3Pw
+			config.Downloader.SftpSource.Password = sftpPw
+		}
+	}
+	if !steps.Unpack {
+		err = i.Unpack()
+		if err != nil {
+			return fmt.Errorf("Unpack: %s", err)
+		}
+		steps.Unpack = true
+		f, err := json.Marshal(steps)
+		if err == nil {
+			os.WriteFile("/opt/agi/ingest/steps.json", f, 0644)
+		}
+	}
+	if !steps.PreProcess {
+		err = i.PreProcess()
+		if err != nil {
+			return fmt.Errorf("PreProcess: %s", err)
+		}
+		steps.PreProcess = true
+		f, err := json.Marshal(steps)
+		if err == nil {
+			os.WriteFile("/opt/agi/ingest/steps.json", f, 0644)
+		}
+	}
+	nerr := []error{}
+	nerrLock := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
+	if !steps.ProcessLogs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := i.ProcessLogs()
+			if err != nil {
+				nerrLock.Lock()
+				nerr = append(nerr, fmt.Errorf("ProcessLogs: %s", err))
+				nerrLock.Unlock()
+			}
+		}()
+	}
+	if !steps.ProcessCollectInfo {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := i.ProcessCollectInfo()
+			if err != nil {
+				nerrLock.Lock()
+				nerr = append(nerr, fmt.Errorf("ProcessCollectInfo: %s", err))
+				nerrLock.Unlock()
+			}
+		}()
+	}
+	wg.Wait()
+	i.Close()
+	if !steps.ProcessLogs || !steps.ProcessCollectInfo {
+		steps.ProcessCollectInfo = true
+		steps.ProcessLogs = true
+		f, err = json.Marshal(steps)
+		if err == nil {
+			os.WriteFile("/opt/agi/ingest/steps.json", f, 0644)
+		}
+	}
+	if len(nerr) > 0 {
+		errstr := ""
+		for _, e := range nerr {
+			if errstr != "" {
+				errstr += "; "
+			}
+			errstr = errstr + e.Error()
+		}
+		return errors.New(errstr)
+	}
+	return nil
 }
 
 type agiExecProxyCmd struct {

@@ -19,6 +19,8 @@ type Ingest struct {
 	progress     *progress
 	db           *aerospike.Client
 	wp           *aerospike.WritePolicy
+	end          bool
+	endLock      *sync.Mutex
 }
 
 type Config struct {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"runtime/pprof"
+	"sync"
 
 	"github.com/aerospike/aerospike-client-go/v6"
 	"github.com/bestmethod/logger"
@@ -175,6 +176,7 @@ func Init(config *Config) (*Ingest, error) {
 			logger.Error("Could not insert timerange label: %s", err)
 		}
 	}
+	i.endLock = new(sync.Mutex)
 	go i.saveProgressInterval()
 	go i.printProgressInterval()
 	return i, nil
@@ -182,6 +184,9 @@ func Init(config *Config) (*Ingest, error) {
 
 func (i *Ingest) Close() {
 	logger.Debug("CLOSE: Saving progress")
+	i.endLock.Lock()
+	i.end = true
+	i.endLock.Unlock()
 	err := i.saveProgress()
 	if err != nil {
 		logger.Error("Could not save progress: %s", err)
