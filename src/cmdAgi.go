@@ -30,6 +30,14 @@ func (c *agiCmd) Execute(args []string) error {
 	... need to handle spot instances, dynamic instance sizing, cycling from spot to on-demand
 */
 
+/*
+apt update && apt -y install wget adduser libfontconfig1 musl
+wget https://dl.grafana.com/oss/release/grafana_10.1.2_amd64.deb
+dpkg -i grafana_10.1.2_amd64.deb
+## copy aerolab to instance
+## aerolab config backend -t none
+*/
+
 type agiListCmd struct {
 	Owner string  `long:"owner" description:"Only show resources tagged with this owner"`
 	Json  bool    `short:"j" long:"json" description:"Provide output in json format"`

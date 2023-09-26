@@ -43,7 +43,6 @@ func teardownTest() error {
 	return nil
 }
 
-// TODO: convert this into a Run() function as a wrapper for do-it-all
 func TestAll(t *testing.T) {
 	t.Log("Tearing down")
 	teardownTest()
