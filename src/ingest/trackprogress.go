@@ -12,13 +12,13 @@ import (
 )
 
 func (i *Ingest) loadProgress() error {
-	i.progress.Downloader = new(progressDownloader)
-	i.progress.CollectinfoProcessor = new(progressCollectProcessor)
-	i.progress.LogProcessor = new(progressLogProcessor)
-	i.progress.PreProcessor = new(progressPreProcessor)
-	i.progress.Unpacker = new(progressUnpacker)
-	i.progress.Downloader.S3Files = make(map[string]*downloaderFile)
-	i.progress.Downloader.SftpFiles = make(map[string]*downloaderFile)
+	i.progress.Downloader = new(ProgressDownloader)
+	i.progress.CollectinfoProcessor = new(ProgressCollectProcessor)
+	i.progress.LogProcessor = new(ProgressLogProcessor)
+	i.progress.PreProcessor = new(ProgressPreProcessor)
+	i.progress.Unpacker = new(ProgressUnpacker)
+	i.progress.Downloader.S3Files = make(map[string]*DownloaderFile)
+	i.progress.Downloader.SftpFiles = make(map[string]*DownloaderFile)
 	os.MkdirAll(i.config.ProgressFile.OutputFilePath, 0755)
 	fileList := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
 	logger.Debug("INIT: Loading progress")

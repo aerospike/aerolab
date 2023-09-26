@@ -16,7 +16,7 @@ type Ingest struct {
 	patterns     *patterns
 	cpuProfile   *os.File
 	pprofRunning bool
-	progress     *progress
+	progress     *Progress
 	db           *aerospike.Client
 	wp           *aerospike.WritePolicy
 	end          bool
@@ -186,34 +186,34 @@ type patterns struct {
 	} `yaml:"patterns"`
 }
 
-type progress struct {
+type Progress struct {
 	sync.RWMutex
-	Downloader           *progressDownloader
-	Unpacker             *progressUnpacker
-	PreProcessor         *progressPreProcessor
-	LogProcessor         *progressLogProcessor
-	CollectinfoProcessor *progressCollectProcessor
+	Downloader           *ProgressDownloader
+	Unpacker             *ProgressUnpacker
+	PreProcessor         *ProgressPreProcessor
+	LogProcessor         *ProgressLogProcessor
+	CollectinfoProcessor *ProgressCollectProcessor
 }
 
-type progressDownloader struct {
-	S3Files    map[string]*downloaderFile // map[key]*details
-	SftpFiles  map[string]*downloaderFile // map[path]*details
+type ProgressDownloader struct {
+	S3Files    map[string]*DownloaderFile // map[key]*details
+	SftpFiles  map[string]*DownloaderFile // map[path]*details
 	Finished   bool
 	running    bool
 	wasRunning bool
 	changed    bool
 }
 
-type progressUnpacker struct {
-	Files      map[string]*enumFile // map[path]*details
+type ProgressUnpacker struct {
+	Files      map[string]*EnumFile // map[path]*details
 	Finished   bool
 	running    bool
 	wasRunning bool
 	changed    bool
 }
 
-type progressPreProcessor struct {
-	Files                     map[string]*enumFile // map[path]*details
+type ProgressPreProcessor struct {
+	Files                     map[string]*EnumFile // map[path]*details
 	CollectInfoUniquePrefixes int
 	Finished                  bool
 	running                   bool
@@ -224,8 +224,8 @@ type progressPreProcessor struct {
 	NodeToPrefix              map[string]int
 }
 
-type progressLogProcessor struct {
-	Files      map[string]*logFile
+type ProgressLogProcessor struct {
+	Files      map[string]*LogFile
 	Finished   bool
 	running    bool
 	wasRunning bool
@@ -233,7 +233,7 @@ type progressLogProcessor struct {
 	StartTime  time.Time
 }
 
-type logFile struct {
+type LogFile struct {
 	ClusterName string
 	NodePrefix  string
 	NodeID      string
@@ -243,15 +243,15 @@ type logFile struct {
 	Finished    bool
 }
 
-type progressCollectProcessor struct {
-	Files      map[string]*cfFile
+type ProgressCollectProcessor struct {
+	Files      map[string]*CfFile
 	Finished   bool
 	running    bool
 	wasRunning bool
 	changed    bool
 }
 
-type cfFile struct {
+type CfFile struct {
 	Size                int64
 	NodeID              string
 	RenameAttempted     bool
@@ -262,14 +262,14 @@ type cfFile struct {
 	Errors              []string
 }
 
-type downloaderFile struct {
+type DownloaderFile struct {
 	Size         int64
 	LastModified time.Time
 	IsDownloaded bool
 	Error        string
 }
 
-type enumFile struct {
+type EnumFile struct {
 	Size                  int64
 	mimeType              *mimetype.MIME
 	ContentType           string
