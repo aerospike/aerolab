@@ -106,6 +106,19 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	if _, err := os.Stat("/opt/agi/label"); err != nil {
 		os.WriteFile("/opt/agi/label", []byte(c.InitialLabel), 0644)
 	}
+	plist, err := ps.Processes()
+	asdRunning := false
+	if err == nil {
+		for _, p := range plist {
+			if strings.HasSuffix(p.Executable(), "asd") {
+				asdRunning = true
+				break
+			}
+		}
+	}
+	if !asdRunning {
+		exec.Command("service", "aerospike", "start").CombinedOutput()
+	}
 	c.lastActivity = new(activity)
 	c.gottyConns = new(counter)
 	c.gottyConns.Set("0")
