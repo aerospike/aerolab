@@ -28,16 +28,6 @@ labels: # globally defined labels
     - "errMessage"
     - "warnMessage"
 
-labelAddStaticValue: # add static values to some labels
-    - name: "Histogram"
-      value: "NONE"
-    - name: "HistogramUs"
-      value: "NONE"
-    - name: "HistogramCount"
-      value: "NONE"
-    - name: "HistogramSize"
-      value: "NONE"
-
 patterns: 
     - 
         setName: "latencies"

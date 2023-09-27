@@ -156,10 +156,6 @@ type patterns struct {
 			MatchSeq int `yaml:"matchSeq"`
 		} `yaml:"reMatchJoin"`
 	} `yaml:"multilineJoins"`
-	LabelAddStaticValue []*struct {
-		Name  string `yaml:"name"`
-		Value string `yaml:"value"`
-	} `yaml:"labelAddStaticValue"`
 	GlobalLabels  []string `yaml:"labels"`
 	LabelsSetName string   `yaml:"labelsSetName"`
 	Patterns      []*struct {

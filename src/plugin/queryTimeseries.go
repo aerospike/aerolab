@@ -33,6 +33,11 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		binListA = append(binListA, bin.Name)
 	}
 	for _, filter := range target.Payload.FilterVariables {
+		if val, ok := req.selectedVars[filter.Name]; ok && inslice.HasString(val, "NONE") {
+			emptyResponse := []*timeseriesResponse{}
+			logger.Detail("Build query abort - NONE selected in filter (type:timeseries) (remote:%s)", remote)
+			return emptyResponse, nil
+		}
 		if inslice.HasString(binListA, filter.Name) {
 			continue
 		}

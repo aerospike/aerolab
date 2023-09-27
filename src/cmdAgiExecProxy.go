@@ -29,8 +29,6 @@ import (
 /*
 	TODO
 	* cookie-based authentication
-	* test: manually launch against a full set of logs and confirm everything works, get pprof and compare speed (agi exec * on aws)
-	* write the systemd system files while testing
 */
 
 type agiExecProxyCmd struct {

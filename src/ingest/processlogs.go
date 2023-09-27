@@ -94,25 +94,6 @@ func (i *Ingest) ProcessLogs() error {
 		}
 	}
 	metaLock := new(sync.Mutex)
-	for _, static := range i.patterns.LabelAddStaticValue {
-		if _, ok := meta[static.Name]; !ok {
-			meta[static.Name] = &metaEntries{
-				Entries:          []string{static.Value},
-				StaticEntriesIdx: []int{0},
-			}
-		} else {
-			found := false
-			for _, item := range meta[static.Name].Entries {
-				if item == static.Value {
-					found = true
-				}
-			}
-			if !found {
-				meta[static.Name].StaticEntriesIdx = append(meta[static.Name].StaticEntriesIdx, len(meta[static.Name].Entries))
-				meta[static.Name].Entries = append(meta[static.Name].Entries, static.Value)
-			}
-		}
-	}
 	i.progress.Unlock()
 
 	// process
