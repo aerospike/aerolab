@@ -510,7 +510,7 @@ func (c *agiExecProxyCmd) activityMonitor() {
 		}
 		if lastActivity.IsZero() || !lastActivity.Equal(newActivity) {
 			lastActivity = newActivity
-			logger.Info("INACTIVITY SHUTDOWN UPDATE: shutdown at %s", lastActivity.Add(c.MaxInactivity))
+			logger.Debug("INACTIVITY SHUTDOWN UPDATE: shutdown at %s", lastActivity.Add(c.MaxInactivity))
 		}
 	}
 }
