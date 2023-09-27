@@ -138,18 +138,19 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	if c.MaxUptime > 0 {
 		go c.maxUptime()
 	}
-	http.HandleFunc("/ttyd", c.ttydHandler)        // web console tty
-	http.HandleFunc("/ttyd/", c.ttydHandler)       // web console tty
-	http.HandleFunc("/filebrowser", c.fbHandler)   // file browser
-	http.HandleFunc("/filebrowser/", c.fbHandler)  // file browser
-	http.HandleFunc("/shutdown", c.handleShutdown) // gracefully shutdown the proxy
-	http.HandleFunc("/poweroff", c.handlePoweroff) // poweroff the instance
-	http.HandleFunc("/reingest", c.handleReingest) // retrigger the logingest service; form: ?serviceName=logingest
-	http.HandleFunc("/status", c.handleStatus)     // high-level agi service status
-	http.HandleFunc("/detail", c.handleDetail)     // detailed logingest progress json; form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
-	http.HandleFunc("/exec", c.handleExec)         // execute command on this machine; form: ?command=...
-	http.HandleFunc("/relabel", c.handleRelabel)   // change the case label static string; form: ?label=...
-	http.HandleFunc("/", c.grafanaHandler)         // grafana
+	http.HandleFunc("/agi/ttyd", c.ttydHandler)        // web console tty
+	http.HandleFunc("/agi/ttyd/", c.ttydHandler)       // web console tty
+	http.HandleFunc("/agi/filebrowser", c.fbHandler)   // file browser
+	http.HandleFunc("/agi/filebrowser/", c.fbHandler)  // file browser
+	http.HandleFunc("/agi/menu", c.handleList)         // simple URL list
+	http.HandleFunc("/agi/shutdown", c.handleShutdown) // gracefully shutdown the proxy
+	http.HandleFunc("/agi/poweroff", c.handlePoweroff) // poweroff the instance
+	http.HandleFunc("/agi/reingest", c.handleReingest) // retrigger the logingest service; form: ?serviceName=logingest
+	http.HandleFunc("/agi/status", c.handleStatus)     // high-level agi service status
+	http.HandleFunc("/agi/detail", c.handleDetail)     // detailed logingest progress json; form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
+	http.HandleFunc("/agi/exec", c.handleExec)         // execute command on this machine; form: ?command=...
+	http.HandleFunc("/agi/relabel", c.handleRelabel)   // change the case label static string; form: ?label=...
+	http.HandleFunc("/", c.grafanaHandler)             // grafana
 	c.srv = &http.Server{Addr: "0.0.0.0:" + strconv.Itoa(c.ListenPort)}
 	if c.HTTPS {
 		if err := c.srv.ListenAndServeTLS(c.CertFile, c.KeyFile); err != http.ErrServerClosed {
@@ -163,6 +164,20 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	} else {
 		return nil
 	}
+}
+
+func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuth(w, r) {
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	out := []byte(`<html><head><title>AGI URLs</title></head><body><center>
+	<a href="/" target="_blank"><h1>Grafana</h1></a>
+	<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
+	<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
+	<a href="/agi/reingest" target="_blank"><h1>Retrigger Ingest</h1></a>
+	</center></body></html>`)
+	w.Write(out)
 }
 
 func (c *agiExecProxyCmd) handleExec(w http.ResponseWriter, r *http.Request) {
