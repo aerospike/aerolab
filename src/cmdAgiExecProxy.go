@@ -487,11 +487,13 @@ func (c *agiExecProxyCmd) handlePoweroff(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *agiExecProxyCmd) maxUptime() {
+	logger.Info("MAX UPTIME: hard shutdown time: %s", time.Now().Add(c.MaxUptime).String())
 	time.Sleep(c.MaxUptime)
 	exec.Command(c.ShutdownCommand).CombinedOutput()
 }
 
 func (c *agiExecProxyCmd) activityMonitor() {
+	var lastActivity time.Time
 	for {
 		time.Sleep(time.Minute)
 		if _, err := os.Stat("/opt/agi/ingest.pid"); err == nil {
@@ -502,8 +504,13 @@ func (c *agiExecProxyCmd) activityMonitor() {
 			c.lastActivity.Set(time.Now())
 			continue
 		}
-		if time.Since(c.lastActivity.Get()) > c.MaxInactivity {
+		newActivity := c.lastActivity.Get()
+		if time.Since(newActivity) > c.MaxInactivity {
 			exec.Command(c.ShutdownCommand).CombinedOutput()
+		}
+		if lastActivity.IsZero() || !lastActivity.Equal(newActivity) {
+			lastActivity = newActivity
+			logger.Info("INACTIVITY SHUTDOWN UPDATE: shutdown at %s", lastActivity.Add(c.MaxInactivity))
 		}
 	}
 }
