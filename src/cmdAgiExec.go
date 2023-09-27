@@ -121,7 +121,9 @@ func (c *agiExecPluginCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	return p.Listen()
+	err = p.Listen()
+	p.Close()
+	return err
 }
 
 type agiExecGrafanaFixCmd struct {
