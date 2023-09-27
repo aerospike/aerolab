@@ -170,7 +170,7 @@ func (c *agiExecProxyCmd) handleExec(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info("Listener: exec request from %s", r.RemoteAddr)
-	comm := r.Form.Get("command")
+	comm := r.FormValue("command")
 	out, err := exec.Command("/bin/bash", "-c", comm).CombinedOutput()
 	if err != nil {
 		out = append(out, '\n')
@@ -187,7 +187,7 @@ func (c *agiExecProxyCmd) handleDetail(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
 	}
-	fname := r.Form.Get("detail")
+	fname := r.FormValue("detail")
 	files := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
 	if !inslice.HasString(files, fname) {
 		http.Error(w, "invalid detail type", http.StatusBadRequest)
@@ -418,7 +418,7 @@ func (c *agiExecProxyCmd) handleRelabel(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	logger.Info("Listener: relabel request from %s", r.RemoteAddr)
-	os.WriteFile("/opt/agi/label", []byte(r.Form.Get("label")), 0644)
+	os.WriteFile("/opt/agi/label", []byte(r.FormValue("label")), 0644)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
@@ -442,7 +442,7 @@ func (c *agiExecProxyCmd) handleReingest(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	os.Remove("/opt/agi/ingest/steps.json")
-	serviceName := r.Form.Get("serviceName")
+	serviceName := r.FormValue("serviceName")
 	if serviceName == "" {
 		serviceName = "logingest"
 	}
