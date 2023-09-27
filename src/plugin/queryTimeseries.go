@@ -1,6 +1,9 @@
 package plugin
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,10 +18,23 @@ import (
 )
 
 type timeseriesResponse struct {
-	Target     string       `json:"target"`
-	Datapoints [][]*float64 `json:"datapoints"` // list of int tuples, [][data,timestamp]
-	groups     []string     // used for response grouping
+	Target     string           `json:"target"`
+	Datapoints []*responsePoint `json:"datapoints"` // list of int tuples, [][data,timestamp]
+	groups     []string         // used for response grouping
+	groupHash  []byte
 	binIdx     int
+}
+
+type responsePoint struct {
+	point      []float64
+	isDataNull bool
+}
+
+func (p *responsePoint) MarshalJSON() ([]byte, error) {
+	if p.isDataNull {
+		return json.Marshal([]*float64{nil, &p.point[1]})
+	}
+	return json.Marshal(p.point)
 }
 
 func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, r *http.Request) ([]*timeseriesResponse, error) {
@@ -220,7 +236,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			ptime1 += time.Since(ptime)
 			ptime = time.Now()
 		}
-		// add dp to resp
+		// sort dp groups
 		sort.Slice(dp.groups, func(i, j int) bool {
 			idxI := -1
 			idxJ := -1
@@ -242,21 +258,26 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		}
 		// convert to resp response type
 		for k, v := range dp.datapoints {
-			dpGroups := []string{}
+			groupHash := sha256.New()
+			dpGroups := make([]string, 0, len(dp.groups)+1)
 			if p.config.TimeseriesDisplayNameFirst && k != "" {
 				dpGroups = append(dpGroups, k)
+				groupHash.Write([]byte(k))
 			}
 			for _, g := range dp.groups {
 				if g.value != "" {
 					dpGroups = append(dpGroups, g.value)
+					groupHash.Write([]byte(g.value))
 				}
 			}
 			if !p.config.TimeseriesDisplayNameFirst && k != "" {
 				dpGroups = append(dpGroups, k)
+				groupHash.Write([]byte(k))
 			}
+			grHash := groupHash.Sum(nil)
 			found := -1
 			for i := range resp {
-				if !stringSlicesEqual(resp[i].groups, dpGroups) {
+				if !bytes.Equal(resp[i].groupHash, grHash) {
 					continue
 				}
 				found = i
@@ -268,15 +289,16 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 					return resp, errors.New("too many series for graph, reduce series by selecting dropdown filters")
 				}
 				resp = append(resp, &timeseriesResponse{
-					Datapoints: [][]*float64{},
+					Datapoints: []*responsePoint{},
 					groups:     dpGroups,
+					groupHash:  grHash,
 					Target:     strings.Join(dpGroups, p.config.TimeseriesLegendSeparator),
 					binIdx:     inslice.StringMatch(binList, v.binName),
 				})
 			}
 			val := float64(v.value)
 			ts := float64(dp.timestampMs)
-			resp[found].Datapoints = append(resp[found].Datapoints, []*float64{&val, &ts})
+			resp[found].Datapoints = append(resp[found].Datapoints, &responsePoint{point: []float64{val, ts}})
 		}
 		if p.config.LogLevel > 5 {
 			ptime3 += time.Since(ptime)
@@ -288,7 +310,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	ntime = time.Now()
 	for ri := range resp {
 		sort.Slice(resp[ri].Datapoints, func(i, j int) bool {
-			return *resp[ri].Datapoints[i][1] < *resp[ri].Datapoints[j][1]
+			return resp[ri].Datapoints[i].point[1] < resp[ri].Datapoints[j].point[1]
 		})
 	}
 	if len(timedIsCancelled) > 0 {
@@ -314,7 +336,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	datapointCount = 0
 	nullDatapoints := 0
 	for ri := range resp {
-		datapoints := [][]*float64{}
+		datapoints := []*responsePoint{}
 		lastPointTime := float64(-1)
 		lastValue := float64(0)
 		isFirstValue := true
@@ -328,21 +350,21 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			}
 			bin := target.Payload.Bins[resp[ri].binIdx]
 			// maxIntervalSeconds breached
-			if lastPointTime != -1 && float64(*point[1])-lastPointTime > float64(bin.MaxIntervalSeconds*1000) {
-				ts := float64(*point[1] - 1)
+			if lastPointTime != -1 && float64(point.point[1])-lastPointTime > float64(bin.MaxIntervalSeconds*1000) {
+				ts := float64(point.point[1] - 1)
 				windowNullTs = append(windowNullTs, ts)
 			}
-			lastPointTime = float64(*point[1])
-			val := float64(*point[0])
+			lastPointTime = float64(point.point[1])
+			val := float64(point.point[0])
 			// produce delta
 			if bin.ProduceDelta {
 				if isFirstValue {
 					isFirstValue = false
-					lastValue = float64(*point[0])
+					lastValue = float64(point.point[0])
 					continue
 				}
 				val -= lastValue
-				lastValue = float64(*point[0])
+				lastValue = float64(point.point[0])
 			}
 			// apply reverse
 			if bin.Reverse {
@@ -362,7 +384,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 				val = val / float64(bin.TickerIntervalSeconds)
 			}
 			// reduce and store datapoint
-			ts := float64(*point[1])
+			ts := float64(point.point[1])
 			if windowStartTime == 0 {
 				windowStartTime = ts
 			}
@@ -396,7 +418,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	return resp, nil
 }
 
-func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNullTs []float64) (datapoints [][]*float64, dpCount int, nullCount int) {
+func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNullTs []float64) (datapoints []*responsePoint, dpCount int, nullCount int) {
 	nullTsBefore := float64(-1)
 	nullTsAfter := float64(-1)
 	nullTsMid := float64(-1)
@@ -415,37 +437,29 @@ func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNul
 		}
 	}
 	if nullTsBefore > -1 {
-		datapoints = append(datapoints, []*float64{nil, &nullTsBefore})
+		datapoints = append(datapoints, &responsePoint{point: []float64{0, nullTsBefore}, isDataNull: true})
 		nullCount++
 	}
 	if windowMinPoint[1] < windowMaxPoint[1] {
-		newv := windowMinPoint[0]
-		newt := windowMinPoint[1]
-		datapoints = append(datapoints, []*float64{&newv, &newt})
+		datapoints = append(datapoints, &responsePoint{point: []float64{windowMinPoint[0], windowMinPoint[1]}})
 		dpCount++
 	} else {
-		newv := windowMaxPoint[0]
-		newt := windowMaxPoint[1]
-		datapoints = append(datapoints, []*float64{&newv, &newt})
+		datapoints = append(datapoints, &responsePoint{point: []float64{windowMaxPoint[0], windowMaxPoint[1]}})
 		dpCount++
 	}
 	if nullTsMid > -1 {
-		datapoints = append(datapoints, []*float64{nil, &nullTsMid})
+		datapoints = append(datapoints, &responsePoint{point: []float64{0, nullTsMid}, isDataNull: true})
 		nullCount++
 	}
 	if windowMinPoint[1] > windowMaxPoint[1] {
-		newv := windowMinPoint[0]
-		newt := windowMinPoint[1]
-		datapoints = append(datapoints, []*float64{&newv, &newt})
+		datapoints = append(datapoints, &responsePoint{point: []float64{windowMinPoint[0], windowMinPoint[1]}})
 		dpCount++
 	} else if windowMinPoint[1] < windowMaxPoint[1] {
-		newv := windowMaxPoint[0]
-		newt := windowMaxPoint[1]
-		datapoints = append(datapoints, []*float64{&newv, &newt})
+		datapoints = append(datapoints, &responsePoint{point: []float64{windowMaxPoint[0], windowMaxPoint[1]}})
 		dpCount++
 	}
 	if nullTsAfter > -1 {
-		datapoints = append(datapoints, []*float64{nil, &nullTsAfter})
+		datapoints = append(datapoints, &responsePoint{point: []float64{0, nullTsAfter}, isDataNull: true})
 		nullCount++
 	}
 	return
@@ -465,16 +479,4 @@ type point struct {
 type timeseriesGroup struct {
 	name  string
 	value string
-}
-
-func stringSlicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
