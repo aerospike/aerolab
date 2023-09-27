@@ -26,11 +26,6 @@ import (
 	ps "github.com/mitchellh/go-ps"
 )
 
-/*
-	TODO
-	* cookie-based authentication
-*/
-
 type agiExecProxyCmd struct {
 	InitialLabel       string        `short:"L" long:"label" description:"freeform label that will appear in the dashboards if set"`
 	IngestProgressPath string        `short:"i" long:"ingest-progress-path" default:"/opt/agi/ingest/" description:"path to where ingest stores it's json progress"`
