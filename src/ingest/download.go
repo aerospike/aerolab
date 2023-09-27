@@ -121,9 +121,9 @@ func (i *Ingest) DownloadS3() error {
 		}
 	}
 	err = client.ListObjectsV2Pages(&s3.ListObjectsV2Input{
-		Bucket:    aws.String(i.config.Downloader.S3Source.BucketName),
-		Delimiter: aws.String("/"),
-		Prefix:    prefix,
+		Bucket: aws.String(i.config.Downloader.S3Source.BucketName),
+		//Delimiter: aws.String("/"), // commented out to allow for partial matches in directory names (like having * at the end of the name, no need to trailing slash)
+		Prefix: prefix,
 	}, func(page *s3.ListObjectsV2Output, lastPage bool) (continueIter bool) {
 		for _, object := range page.Contents {
 			if ofile, ok := i.progress.Downloader.S3Files[*object.Key]; !ok || ofile.Size != *object.Size || ofile.LastModified != *object.LastModified {
