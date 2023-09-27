@@ -67,6 +67,12 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response := []*variableResponse{}
+	if inslice.HasString(p.config.AddNoneToLabels, target) {
+		response = append(response, &variableResponse{
+			Text:  "NONE",
+			Value: "NONE",
+		})
+	}
 	if len(clusterNames) == 0 {
 		for _, entry := range p.cache.metadata[target].Entries {
 			found := false
