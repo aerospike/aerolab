@@ -366,7 +366,10 @@ func (i *Ingest) printProgress() error {
 			}
 			perSecond := processedSize / timePassed
 			remainingSize := totalSize - processedSize
-			remainingTime := time.Second * time.Duration(remainingSize/perSecond)
+			remainingTime := time.Hour * 24
+			if perSecond >= 1 {
+				remainingTime = time.Second * time.Duration(remainingSize/perSecond)
+			}
 			logger.Info("LogProcessor summary: (processed:%s) (total:%s) (remaining:%s) (speed:%s/second) (pct-complete:%d) (runTime:%s) (remainingTime:%s)", convSize(processedSize), convSize(totalSize), convSize(remainingSize), convSize(perSecond), percentComplete, timePassedx.String(), remainingTime.String())
 		}
 	}

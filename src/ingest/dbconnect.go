@@ -90,6 +90,11 @@ func (i *Ingest) dbSindex(wait bool) error {
 		if pattern.Name != "" {
 			i.createSindex(pattern.Name, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, pattern.Name), wait)
 		}
+		for _, adv := range pattern.RegexAdvanced {
+			if adv.SetName != "" {
+				i.createSindex(adv.SetName, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, adv.SetName), wait)
+			}
+		}
 	}
 	return nil
 }

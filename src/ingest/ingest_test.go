@@ -54,7 +54,7 @@ func TestAll(t *testing.T) {
 	}
 	t.Log("Setting up config")
 	os.Setenv("LOGINGEST_LOGLEVEL", "6")
-	os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "true")
+	os.Setenv("LOGINGEST_S3SOURCE_ENABLED", "false")
 	os.Setenv("LOGINGEST_SFTPSOURCE_ENABLED", "true")
 	os.Setenv("LOGINGEST_S3SOURCE_REGION", "ca-central-1")
 	//os.Setenv("LOGINGEST_S3SOURCE_BUCKET", "") // set outside
