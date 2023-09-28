@@ -16,6 +16,7 @@ labelsSetName: "labels" # where we store labels
 labels: # globally defined labels
     - "Namespace"
     - "Histogram"
+    - "HistogramDev"
     - "HistogramUs"
     - "HistogramCount"
     - "HistogramSize"
@@ -37,14 +38,26 @@ patterns:
             buckets: ["00","01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20","21","22","23"]
             generateCumulative: true
         export:
-            - "histogram dump: {(?P<Namespace>[^}]+)}-(?P<Histogram>[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
-            - "histogram dump: (?P<Histogram>[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
-            - "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramCount>[^ ]+) \\((?P<total>\\d+) total\\) count *(?P<histogram>.*)"
-            - "histogram dump: (?P<HistogramCount>[^ ]+) \\((?P<total>\\d+) total\\) count *(?P<histogram>.*)"
-            - "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramUs>[^ ]+) \\((?P<total>\\d+) total\\) usec *(?P<histogram>.*)"
-            - "histogram dump: (?P<HistogramUs>[^ ]+) \\((?P<total>\\d+) total\\) usec *(?P<histogram>.*)"
-            - "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramSize>[^ ]+) \\((?P<total>\\d+) total\\) bytes *(?P<histogram>.*)"
-            - "histogram dump: {(?P<HistogramSize>[^ ]+) \\((?P<total>\\d+) total\\) bytes *(?P<histogram>.*)"
+            - "DROP TO ADVANCED EXPORT"
+        exportAdvanced:
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramDev>/[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
+              setName: "histDevMs"
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<Histogram>[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
+              setName: "histMs"
+            - regex: "histogram dump: (?P<Histogram>[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
+              setName: "histMs"
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramCount>[^ ]+) \\((?P<total>\\d+) total\\) count *(?P<histogram>.*)"
+              setName: "histCount"
+            - regex: "histogram dump: (?P<HistogramCount>[^ ]+) \\((?P<total>\\d+) total\\) count *(?P<histogram>.*)"
+              setName: "histCount"
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramUs>[^ ]+) \\((?P<total>\\d+) total\\) usec *(?P<histogram>.*)"
+              setName: "histUs"
+            - regex: "histogram dump: (?P<HistogramUs>[^ ]+) \\((?P<total>\\d+) total\\) usec *(?P<histogram>.*)"
+              setName: "histUs"
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramSize>[^ ]+) \\((?P<total>\\d+) total\\) bytes *(?P<histogram>.*)"
+              setName: "histBytes"
+            - regex: "histogram dump: {(?P<HistogramSize>[^ ]+) \\((?P<total>\\d+) total\\) bytes *(?P<histogram>.*)"
+              setName: "histBytes"
     - 
         setName: "clusterSize"
         search: " CLUSTER-SIZE "

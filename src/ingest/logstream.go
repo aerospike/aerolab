@@ -218,7 +218,21 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 		}
 		// find string submatch
 		for _, r := range p.regex {
-			results := r.FindStringSubmatch(line)
+			setName := p.Name
+			results := []string{}
+			if p.Regex[0] != "DROP TO ADVANCED EXPORT" {
+				results = r.FindStringSubmatch(line)
+			}
+			if len(results) == 0 {
+				for _, rr := range p.RegexAdvanced {
+					setName = rr.SetName
+					results = rr.regex.FindStringSubmatch(line)
+					if len(results) > 0 {
+						r = rr.regex
+						break
+					}
+				}
+			}
 			if len(results) == 0 {
 				continue
 			}
@@ -325,7 +339,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 							Metadata: nMeta,
 							Line:     line,
 							Error:    nil,
-							SetName:  p.Name,
+							SetName:  setName,
 						},
 					}
 				} else {
@@ -339,7 +353,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 				Metadata: nMeta,
 				Line:     line,
 				Error:    nil,
-				SetName:  p.Name,
+				SetName:  setName,
 			})
 			if s.logFileStartTime.IsZero() || timestamp.Before(s.logFileStartTime) {
 				s.logFileStartTime = timestamp

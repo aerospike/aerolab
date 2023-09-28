@@ -239,6 +239,14 @@ func (p *patterns) compile() error {
 			}
 			p.Patterns[i].regex = append(p.Patterns[i].regex, regex)
 		}
+		for j := range p.Patterns[i].RegexAdvanced {
+			logger.Detail("REGEX: compiling pattern:%s", p.Patterns[i].RegexAdvanced[j].Regex)
+			regex, err := regexp.Compile(p.Patterns[i].RegexAdvanced[j].Regex)
+			if err != nil {
+				return fmt.Errorf("failed to compile %s: %s", p.Patterns[i].RegexAdvanced[j].Regex, err)
+			}
+			p.Patterns[i].RegexAdvanced[j].regex = regex
+		}
 		for j := range p.Patterns[i].Replace {
 			logger.Detail("REGEX: compiling pattern-replace:%s", p.Patterns[i].Replace[j].Regex)
 			regex, err := regexp.Compile(p.Patterns[i].Replace[j].Regex)

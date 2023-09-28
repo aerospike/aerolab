@@ -166,8 +166,13 @@ type patterns struct {
 			regex *regexp.Regexp
 			Sub   string `yaml:"sub"`
 		} `yaml:"replace"`
-		Regex               []string `yaml:"export"`
-		regex               []*regexp.Regexp
+		Regex         []string `yaml:"export"`
+		regex         []*regexp.Regexp
+		RegexAdvanced []struct {
+			Regex   string `yaml:"regex"`
+			regex   *regexp.Regexp
+			SetName string `yaml:"setName"`
+		} `yaml:"exportAdvanced"`
 		StoreNodePrefix     string            `yaml:"storeNodePrefix"`
 		Labels              []string          `yaml:"labels"` // used to define which regex matches are labels (to be stuck in metadata)
 		DefaultValuePadding map[string]string `yaml:"defaultValuePadding"`
