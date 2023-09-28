@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/subtle"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"io/fs"
@@ -233,6 +234,14 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	http.HandleFunc("/", c.grafanaHandler)             // grafana
 	c.srv = &http.Server{Addr: "0.0.0.0:" + strconv.Itoa(c.ListenPort)}
 	if c.HTTPS {
+		tlsConfig := &tls.Config{
+			MinVersion:               tls.VersionTLS12,
+			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+			PreferServerCipherSuites: true,
+			CipherSuites: []uint16{
+				tls.TLS_AES_128_GCM_SHA256, tls.TLS_AES_256_GCM_SHA384, tls.TLS_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},
+		}
+		c.srv.TLSConfig = tlsConfig
 		if err := c.srv.ListenAndServeTLS(c.CertFile, c.KeyFile); err != http.ErrServerClosed {
 			return err
 		} else {
@@ -598,6 +607,15 @@ func (c *agiExecProxyCmd) activityMonitor() {
 		if c.gottyConns.Get() != "0" {
 			c.lastActivity.Set(time.Now())
 			continue
+		}
+		out, err := exec.Command("/usr/bin/who").CombinedOutput()
+		if err == nil {
+			for _, line := range strings.Split(string(out), "\n") {
+				if strings.Trim(line, "\n\t\r ") != "" {
+					c.lastActivity.Set(time.Now())
+					break
+				}
+			}
 		}
 		newActivity := c.lastActivity.Get()
 		if time.Since(newActivity) > c.MaxInactivity {
