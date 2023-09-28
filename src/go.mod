@@ -12,6 +12,7 @@ require (
 	github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
 	github.com/containerd/console v1.0.3
 	github.com/creasty/defaults v1.7.0
+	github.com/fsnotify/fsnotify v1.6.0
 	github.com/gabriel-vasile/mimetype v1.4.2
 	github.com/google/uuid v1.3.1
 	github.com/jroimartin/gocui v0.5.0

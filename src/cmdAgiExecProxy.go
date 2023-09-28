@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -23,6 +24,7 @@ import (
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
+	"github.com/fsnotify/fsnotify"
 	ps "github.com/mitchellh/go-ps"
 )
 
@@ -37,11 +39,14 @@ type agiExecProxyCmd struct {
 	MaxInactivity      time.Duration `short:"m" long:"max-inactivity" default:"1h" description:"Max user inactivity period after which the system will be shut down; 0=disable"`
 	MaxUptime          time.Duration `short:"M" long:"max-uptime" default:"24h" description:"Max hard instance uptime; 0=disable"`
 	ShutdownCommand    string        `short:"c" long:"shutdown-command" default:"/sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached"`
-	AuthType           string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic"`
+	AuthType           string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic|token"`
 	BasicAuthUser      string        `short:"u" long:"basic-auth-user" default:"admin" description:"Basic authentication username"`
 	BasicAuthPass      string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password"`
+	TokenAuthLocation  string        `short:"t" long:"token-path" default:"/opt/agitokens" description:"Directory where tokens are stored for access"`
+	TokenName          string        `short:"T" long:"token-name" default:"AGI_TOKEN" description:"Name of the token variable and cookie to use"`
 	Help               helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 	isBasicAuth        bool
+	isTokenAuth        bool
 	lastActivity       *activity
 	grafanaUrl         *url.URL
 	grafanaProxy       *httputil.ReverseProxy
@@ -51,6 +56,76 @@ type agiExecProxyCmd struct {
 	fbProxy            *httputil.ReverseProxy
 	gottyConns         *counter
 	srv                *http.Server
+	tokens             *tokens
+}
+
+type tokens struct {
+	sync.RWMutex
+	tokens []string
+}
+
+func (c *agiExecProxyCmd) loadTokensDo() {
+	tokens := []string{}
+	err := filepath.Walk(c.TokenAuthLocation, func(fpath string, info fs.FileInfo, err error) error {
+		token, err := os.ReadFile(fpath)
+		if err != nil {
+			logger.Error("could not read token file %s: %s", fpath, err)
+			return nil
+		}
+		if len(token) < 64 {
+			logger.Error("Token file %s contents too short, minimum token length is 64 characters", fpath)
+			return nil
+		}
+		tokens = append(tokens, string(token))
+		return nil
+	})
+	if err != nil {
+		logger.Error("failed to read tokens: %s", err)
+		return
+	}
+	c.tokens.Lock()
+	c.tokens.tokens = tokens
+	c.tokens.Unlock()
+}
+
+func (c *agiExecProxyCmd) loadTokensInterval() {
+	for {
+		c.loadTokensDo()
+		time.Sleep(time.Minute)
+	}
+}
+
+func (c *agiExecProxyCmd) loadTokens() {
+	if c.AuthType != "token" {
+		return
+	}
+	os.MkdirAll(c.TokenAuthLocation, 0755)
+	go c.loadTokensInterval()
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		logger.Error("fsnotify could not be started, tokens will not be dynamically monitored; switching to once-a-minute system: %s", err)
+		return
+	}
+	defer watcher.Close()
+	err = watcher.Add(c.TokenAuthLocation)
+	if err != nil {
+		logger.Error("fsnotify could not add token path, tokens will not be dynamically monitored; switching to once-a-minute system: %s", err)
+		return
+	}
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				logger.Error("fsnotify events error, tokens will not be dynamically monitored; switching to once-a-minute system")
+				return
+			}
+			logger.Detail("fsnotify event:", event)
+			c.loadTokensDo()
+		case err, ok := <-watcher.Errors:
+			logger.Error("fsnotify watcher error, tokens will not be dynamically monitored; switching to once-a-minute system (ok:%t err:%s)", ok, err)
+			return
+		}
+	}
 }
 
 type counter struct {
@@ -128,8 +203,12 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	fproxy := httputil.NewSingleHostReverseProxy(furl)
 	c.fbUrl = furl
 	c.fbProxy = fproxy
+	c.tokens = new(tokens)
 	if c.AuthType == "basic" {
 		c.isBasicAuth = true
+	}
+	if c.AuthType == "token" {
+		c.isTokenAuth = true
 	}
 	go c.getDeps()
 	if c.MaxInactivity > 0 {
@@ -138,6 +217,7 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	if c.MaxUptime > 0 {
 		go c.maxUptime()
 	}
+	go c.loadTokens()
 	http.HandleFunc("/agi/ttyd", c.ttydHandler)        // web console tty
 	http.HandleFunc("/agi/ttyd/", c.ttydHandler)       // web console tty
 	http.HandleFunc("/agi/filebrowser", c.fbHandler)   // file browser
@@ -546,6 +626,34 @@ func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return false
 		}
+	}
+	if c.isTokenAuth {
+		t := r.FormValue(c.TokenName)
+		if t != "" {
+			http.SetCookie(w, &http.Cookie{
+				Name:   c.TokenName,
+				Value:  t,
+				MaxAge: 0,
+				Path:   "/",
+			})
+			http.Redirect(w, r, r.URL.Path, http.StatusFound)
+			return false
+		}
+		tc, err := r.Cookie(c.TokenName)
+		if err == nil {
+			t = tc.Value
+		}
+		if t == "" {
+			http.Error(w, "Unauthorized, no token provided", http.StatusUnauthorized)
+			return false
+		}
+		c.tokens.RLock()
+		if !inslice.HasString(c.tokens.tokens, t) {
+			c.tokens.RUnlock()
+			http.Error(w, "Unauthorized, token not authorized", http.StatusUnauthorized)
+			return false
+		}
+		c.tokens.RUnlock()
 	}
 	// note down activity timestamp
 	go c.lastActivity.Set(time.Now())

@@ -11,6 +11,7 @@ type agiCmd struct {
 	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance"`
 	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)"`
 	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance"`
+	AddToken  agiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add an auth token to AGI Proxy - only valid if token auth type was selected"`
 	Exec      agiExecCmd      `command:"exec" hidden:"true" subcommands-optional:"true" description:"Run an AGI subsystem"`
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -20,23 +21,6 @@ func (c *agiCmd) Execute(args []string) error {
 	os.Exit(1)
 	return nil
 }
-
-/*
-	TODO:
-	oomChecker? status showing something went really wrong ...
-	write cmdAgi command-set to make all this work; agi is part of 'cluster' command set, but also has EFS volumes
-
-	aerolab agi from desktop create command will be responsible for installing aerospike (cluster create), deploying self on the instance, creating systemd and yaml files, and running all self-* services; that's all that should be required :) ... oh, and EFS mounts
-	... need to handle spot instances, dynamic instance sizing, cycling from spot to on-demand
-*/
-
-/*
-apt update && apt -y install wget adduser libfontconfig1 musl
-wget https://dl.grafana.com/oss/release/grafana_10.1.2_amd64.deb
-dpkg -i grafana_10.1.2_amd64.deb
-## copy aerolab to instance
-## aerolab config backend -t none
-*/
 
 type agiListCmd struct {
 	Owner string  `long:"owner" description:"Only show resources tagged with this owner"`
@@ -58,6 +42,18 @@ type agiCreateCmd struct {
 }
 
 func (c *agiCreateCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	return nil
+}
+
+type agiAddTokenCmd struct {
+	Token string  `short:"t" long:"token" description:"A 64+ character long token to use; if not specified, a random token will be generated"`
+	Help  helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiAddTokenCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
