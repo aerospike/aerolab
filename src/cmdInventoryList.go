@@ -7,10 +7,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	isatty "github.com/mattn/go-isatty"
 
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 )
 
 type inventoryListCmd struct {
@@ -252,9 +254,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.ResetRows()
 		t.ResetFooters()
 		if a.opts.Config.Backend.Type == "gcp" {
-			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires In"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires In"})
 		} else {
 			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Exposed Port 1"})
 		}
@@ -277,12 +279,32 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				v.Distribution,
 				strings.ReplaceAll(v.OSVersion, "-", "."),
 				strings.ReplaceAll(v.AerospikeVersion, "-", "."),
-				strings.Join(v.Firewalls, ","),
+				strings.Join(v.Firewalls, "\n"),
 				v.Owner,
 			)
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
-				vv = append(vv, v.Expires)
+				if v.Expires == "" {
+					vv = append(vv, text.Colors{text.BgHiYellow, text.FgBlack}.Sprint("WARN: no expiry is set"))
+				} else {
+					// Parse the expiration time string
+					expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+					if err != nil {
+						fmt.Println("Error parsing expiration time:", err)
+						return err
+					}
+					// Get the current time in the same timezone as the expiration time
+					currentTime := time.Now().In(expirationTime.Location())
+
+					// Calculate the duration between the current time and the expiration time
+					expiresIn := expirationTime.Sub(currentTime)
+
+					if expiresIn < 6*time.Hour {
+						vv = append(vv, text.Colors{text.BgHiRed, text.FgWhite}.Sprintf("%s", expiresIn.Round(time.Minute)))
+					} else {
+						vv = append(vv, expiresIn.Round(time.Minute))
+					}
+				}
 			} else {
 				vv = append(vv, v.DockerExposePorts)
 			}
@@ -306,9 +328,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.ResetRows()
 		t.ResetFooters()
 		if a.opts.Config.Backend.Type == "gcp" {
-			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires In"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires In"})
 		} else {
 			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Exposed Port 1"})
 		}
@@ -330,7 +352,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				v.State,
 				v.Distribution,
 				strings.ReplaceAll(v.OSVersion, "-", "."),
-				strings.Join(v.Firewalls, ","),
+				strings.Join(v.Firewalls, "\n"),
 				v.Owner,
 				v.ClientType,
 				v.AccessUrl,
@@ -338,12 +360,33 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			)
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
-				vv = append(vv, v.Expires)
+				if v.Expires == "" {
+					vv = append(vv, text.Colors{text.BgHiYellow, text.FgBlack}.Sprint("WARN: no expiry is set"))
+				} else {
+					// Parse the expiration time string
+					expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+					if err != nil {
+						fmt.Println("Error parsing expiration time:", err)
+						return err
+					}
+					// Get the current time in the same timezone as the expiration time
+					currentTime := time.Now().In(expirationTime.Location())
+
+					// Calculate the duration between the current time and the expiration time
+					expiresIn := expirationTime.Sub(currentTime)
+
+					if expiresIn < 6*time.Hour {
+						vv = append(vv, text.Colors{text.BgHiRed, text.FgWhite}.Sprintf("%s", expiresIn.Round(time.Minute)))
+					} else {
+						vv = append(vv, expiresIn.Round(time.Minute))
+					}
+				}
 			} else {
 				vv = append(vv, v.DockerExposePorts)
 			}
 			t.AppendRow(vv)
 		}
+
 		fmt.Println(t.Render())
 		if a.opts.Config.Backend.Type == "docker" {
 			fmt.Println("* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL")
@@ -365,11 +408,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			for _, v := range inv.FirewallRules {
 				vv := table.Row{
 					v.GCP.FirewallName,
-					strings.Join(v.GCP.TargetTags, " "),
-					strings.Join(v.GCP.SourceTags, " "),
-					strings.Join(v.GCP.SourceRanges, " "),
-					strings.Join(v.GCP.AllowPorts, " "),
-					strings.Join(v.GCP.DenyPorts, " "),
+					strings.Join(v.GCP.TargetTags, "\n"),
+					strings.Join(v.GCP.SourceTags, "\n"),
+					strings.Join(v.GCP.SourceRanges, "\n"),
+					strings.Join(v.GCP.AllowPorts, "\n"),
+					strings.Join(v.GCP.DenyPorts, "\n"),
 				}
 				t.AppendRow(vv)
 			}
@@ -381,7 +424,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					v.AWS.VPC,
 					v.AWS.SecurityGroupName,
 					v.AWS.SecurityGroupID,
-					strings.Join(v.AWS.IPs, ","),
+					strings.Join(v.AWS.IPs, "\n"),
 				}
 				t.AppendRow(vv)
 			}
