@@ -2740,6 +2740,7 @@ type gcpDisk struct {
 }
 
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
+	name = strings.Trim(name, "\r\n\t ")
 	if extra.zone == "" {
 		return errors.New("zone must be specified")
 	}

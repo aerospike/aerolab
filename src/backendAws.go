@@ -2129,6 +2129,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 }
 
 func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
+	name = strings.Trim(name, "\r\n\t ")
 	var extraTags []*ec2.Tag
 	badNames := []string{awsTagOperatingSystem, awsTagOSVersion, awsTagAerospikeVersion, awsTagUsedBy, awsTagClusterName, awsTagNodeNumber, "Arch", "Name"}
 	for _, extraTag := range extra.tags {
