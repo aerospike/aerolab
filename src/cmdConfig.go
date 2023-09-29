@@ -107,7 +107,7 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 			c.SshKeyPath = flags.Filename(strings.ReplaceAll(string(c.SshKeyPath), "${HOME}", ch))
 		}
 		if _, err := os.Stat(string(c.SshKeyPath)); err != nil {
-			err = os.MkdirAll(string(c.SshKeyPath), 0755)
+			err = os.MkdirAll(string(c.SshKeyPath), 0700)
 			if err != nil {
 				return err
 			}
