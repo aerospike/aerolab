@@ -173,6 +173,21 @@ patterns:
             - "{(?P<Namespace>[^}]+)} objects: all (?P<ObjectsAll>\\d+) master (?P<ObjectsMaster>\\d+) prole (?P<ObjectsProle>\\d+) non-replica (?P<ObjectsNonProle>\\d+)"
             - "{(?P<Namespace>[^}]+)} objects: all (?P<ObjectsAll>\\d+) master (?P<ObjectsMaster>\\d+) prole (?P<ObjectsProle>\\d+)"
     -
+        setName: "nsUsageSIdx" #v7
+        search: "sindex-usage: used-bytes"
+        export:
+            - "{(?P<Namespace>[^}]+)} sindex-usage: used-bytes (?P<sidxUsedBytes>\\d+)"
+    -
+        setName: "nsUsageIdx" #v7
+        search: "index-usage: used-bytes"
+        export:
+            - "{(?P<Namespace>[^}]+)} index-usage: used-bytes (?P<idxUsedBytes>\\d+)"
+    -
+        setName: "nsUsageData" #v7
+        search: "data-usage: used-bytes"
+        export:
+            - "{(?P<Namespace>[^}]+)} data-usage: used-bytes (?P<dataUsedBytes>\\d+) avail-pct (?P<dataAvailPct>\\d+)"
+    -
         setName: "nsMemory"
         search: "memory-usage: total-bytes"
         export:
