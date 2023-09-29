@@ -15,6 +15,7 @@ func (i *Ingest) loadProgress() error {
 	i.progress.Downloader = new(ProgressDownloader)
 	i.progress.CollectinfoProcessor = new(ProgressCollectProcessor)
 	i.progress.LogProcessor = new(ProgressLogProcessor)
+	i.progress.LogProcessor.LineErrors = new(lineErrors)
 	i.progress.PreProcessor = new(ProgressPreProcessor)
 	i.progress.Unpacker = new(ProgressUnpacker)
 	i.progress.Downloader.S3Files = make(map[string]*DownloaderFile)
@@ -99,6 +100,9 @@ func (i *Ingest) saveProgressInterval() {
 func (i *Ingest) saveProgress() error {
 	i.progress.Lock()
 	defer i.progress.Unlock()
+	if i.progress.LogProcessor.LineErrors.isChanged() {
+		i.progress.LogProcessor.changed = true
+	}
 	if !i.progress.Downloader.changed && !i.progress.CollectinfoProcessor.changed && !i.progress.LogProcessor.changed && !i.progress.PreProcessor.changed && !i.progress.Unpacker.changed {
 		logger.Detail("SAVE-PROGRESS Not changed, not saving")
 		return nil

@@ -2,6 +2,7 @@ package ingest
 
 import (
 	_ "embed"
+	"encoding/json"
 	"os"
 	"regexp"
 	"sync"
@@ -21,6 +22,38 @@ type Ingest struct {
 	wp           *aerospike.WritePolicy
 	end          bool
 	endLock      *sync.Mutex
+}
+
+type lineErrors struct {
+	sync.Mutex
+	errors  map[int]map[string]int
+	changed bool
+}
+
+func (l *lineErrors) add(nodeIdent int, err string) {
+	l.Lock()
+	l.changed = true
+	if _, ok := l.errors[nodeIdent]; !ok {
+		l.errors[nodeIdent] = make(map[string]int)
+		l.errors[nodeIdent][err] = 1
+		l.Unlock()
+		return
+	}
+	l.errors[nodeIdent][err]++
+	l.Unlock()
+}
+
+func (l *lineErrors) isChanged() bool {
+	l.Lock()
+	c := l.changed
+	l.Unlock()
+	return c
+}
+
+func (l *lineErrors) MarshalJSON() ([]byte, error) {
+	l.Lock()
+	defer l.Unlock()
+	return json.Marshal(l.errors)
 }
 
 type Config struct {
@@ -233,6 +266,7 @@ type ProgressLogProcessor struct {
 	wasRunning bool
 	changed    bool
 	StartTime  time.Time
+	LineErrors *lineErrors
 }
 
 type LogFile struct {
