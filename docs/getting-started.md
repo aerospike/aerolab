@@ -7,7 +7,10 @@ You can use both backends at once, and use AeroLab commands on either one.
 
 ### Docker instructions
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on your machine.
+1. Docker on your machine. Below are some of the example methods to obtain docker:
+  * Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on your machine.
+  * Install [Docker Laptop](https://github.com/aerospike-community/docker-laptop/blob/docker-laptop/README.md) on your MacOS machine.
+  * Install Docker on Linux for your linux distribution.
 
 2. Start Docker. To make sure it's running, run `docker version` at the command line.
 
@@ -15,9 +18,11 @@ You can use both backends at once, and use AeroLab commands on either one.
 
 ### AWS
 
-Follow [this manual](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) to install the AWS CLI.
+See [aws-setup.md](aws-setup.md)
 
-Run `aws configure` to configure basic access to AWS.
+### GCP
+
+See [gcp-setup.md](gcp-setup.md)
 
 ### Download AeroLab from the releases page
 
@@ -59,7 +64,7 @@ Create a config file and select a backend first using one of:
 
 $ aerolab config backend -t docker [-d /path/to/tmpdir/for-aerolab/to/use]
 $ aerolab config backend -t aws [-r region] [-p /custom/path/to/store/ssh/keys/in/] [-d /path/to/tmpdir/for-aerolab/to/use]
-$ aerolab config backend -t aws -o project-name [-d /path/to/tmpdir/for-aerolab/to/use] [-p /custom/path/to/store/ssh/keys/in/]
+$ aerolab config backend -t gcp -o project-name [-d /path/to/tmpdir/for-aerolab/to/use] [-p /custom/path/to/store/ssh/keys/in/]
 
 Default file path is ${HOME}/.aerolab.conf
 
