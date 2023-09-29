@@ -411,11 +411,11 @@ func (d *backendAws) saveInstanceTypesToCache(it []instanceType) error {
 	cacheDir = path.Join(cacheDir, "cache")
 	cacheFile := path.Join(cacheDir, "aws.instance-types."+a.opts.Config.Backend.Region+".json")
 	if _, err := os.Stat(cacheDir); err != nil {
-		if err = os.Mkdir(cacheDir, 0755); err != nil {
+		if err = os.Mkdir(cacheDir, 0700); err != nil {
 			return err
 		}
 	}
-	f, err := os.OpenFile(cacheFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(cacheFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}

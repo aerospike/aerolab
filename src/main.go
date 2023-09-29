@@ -342,7 +342,7 @@ func (a *aerolab) telemetry() error {
 
 	// create telemetry dir
 	if _, err := os.Stat(telemetryDir); err != nil {
-		err = os.MkdirAll(telemetryDir, 0755)
+		err = os.MkdirAll(telemetryDir, 0700)
 		if err != nil {
 			return err
 		}
@@ -353,7 +353,7 @@ func (a *aerolab) telemetry() error {
 	uuidFile := path.Join(telemetryDir, "uuid")
 	if _, err := os.Stat(uuidFile); err != nil {
 		uuidx = []byte(uuid.New().String())
-		err = os.WriteFile(uuidFile, uuidx, 0644)
+		err = os.WriteFile(uuidFile, uuidx, 0600)
 		if err != nil {
 			return err
 		}
@@ -450,7 +450,7 @@ func telemetrySaveCurrent(returnError error) error {
 		return err
 	}
 	newFile := path.Join(telemetryDir, "item-"+strconv.Itoa(int(currentTelemetry.StartTime)))
-	err = os.WriteFile(newFile, telemetryString, 0644)
+	err = os.WriteFile(newFile, telemetryString, 0600)
 	if err != nil {
 		return err
 	}
@@ -596,7 +596,7 @@ func (a *aerolab) createDefaults() {
 		return
 	}
 	if _, err := os.Stat(ahome); err != nil {
-		err = os.MkdirAll(ahome, 0755)
+		err = os.MkdirAll(ahome, 0700)
 		if err != nil {
 			log.Printf("WARN could not create %s, configuration files may not be available: %s", ahome, err)
 			return
