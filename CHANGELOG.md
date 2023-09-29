@@ -10,6 +10,7 @@
 * The `showcommands` command-set is now a part of aerolab.
 * Recover the terminal from attach commands on error, not just on success.
 * Make `.aerolab` directory only acessible by the user.
+* Trim spaces and carriage returns from `deploy cluster` backend commands.
 
 #### 7.0.1
 * GitHub broke support for `wget` for source files in old repo releases page by producing `403 Forbidden` on `HEAD` requests; this fix implements a new link.

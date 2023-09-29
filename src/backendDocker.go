@@ -488,6 +488,7 @@ func (d *backendDocker) TemplateDestroy(v backendVersion) error {
 }
 
 func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
+	name = strings.Trim(name, "\r\n\t ")
 	if extra.network != "" {
 		b := new(bytes.Buffer)
 		err := d.ListNetworks(true, b)
