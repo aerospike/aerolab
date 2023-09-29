@@ -88,6 +88,18 @@ var a = &aerolab{
 	opts: new(commands),
 }
 
+type Exit struct{ Code int }
+
+// exit code handler
+func handleExit() {
+	if e := recover(); e != nil {
+		if exit, ok := e.(Exit); ok {
+			os.Exit(exit.Code)
+		}
+		panic(e)
+	}
+}
+
 func main() {
 	if installSelf() {
 		return
@@ -98,7 +110,11 @@ func main() {
 	case "showsysinfo", "showconf", "showinterrupts":
 		showcommands()
 	default:
-		a.main(os.Args[0], os.Args[1:])
+		err := a.main(os.Args[0], os.Args[1:])
+		if err != nil {
+			defer handleExit()
+			panic(Exit{1})
+		}
 	}
 }
 
@@ -116,7 +132,7 @@ To specify a custom configuration file, set the environment variable:
 
 `
 
-func (a *aerolab) main(name string, args []string) {
+func (a *aerolab) main(name string, args []string) error {
 	defer backendRestoreTerminal()
 	a.createDefaults()
 	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
@@ -167,7 +183,8 @@ func (a *aerolab) main(name string, args []string) {
 		os.Exit(1)
 	}
 
-	a.parseArgs(args)
+	err = a.parseArgs(args)
+	return err
 }
 
 func earlyProcessNoBackend(tail []string) (early bool) {
@@ -493,14 +510,14 @@ func writeConfigFile() error {
 	return nil
 }
 
-func (a *aerolab) parseArgs(args []string) {
+func (a *aerolab) parseArgs(args []string) error {
 	a.opts.Config.Defaults.Reset = false
 	a.opts.Config.Defaults.OnlyChanged = false
 	a.opts.Config.Defaults.Key = ""
 	a.opts.Config.Defaults.Value = ""
 	_, err := a.parser.ParseArgs(args)
 	if a.early {
-		return
+		return nil
 	}
 	if err != nil {
 		if reflect.TypeOf(err).Elem().String() == "flags.Error" {
@@ -514,9 +531,10 @@ func (a *aerolab) parseArgs(args []string) {
 			log.Println(err)
 		}
 		telemetrySaveCurrent(err)
-		os.Exit(1)
+		return err
 	}
 	telemetrySaveCurrent(err)
+	return nil
 }
 
 func (a *aerolab) parseFile() (cfgFile string, err error) {
