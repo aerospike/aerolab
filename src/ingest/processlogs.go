@@ -260,6 +260,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 		out, err := stream.Process(line, nodePrefix)
 		if err != nil && err != errNotMatched && err != errNoTimestamp && !strings.HasPrefix(err.Error(), "TIME PARSE:") {
 			logger.Error("Stream Processor for line: %s", err)
+			i.progress.LogProcessor.LineErrors.add(nodePrefix, err.Error())
 			continue
 		}
 		if len(out) == 0 && err != nil && (err == errNotMatched || err == errNoTimestamp || strings.HasPrefix(err.Error(), "TIME PARSE:")) {
