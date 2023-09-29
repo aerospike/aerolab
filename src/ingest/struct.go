@@ -33,6 +33,9 @@ type lineErrors struct {
 func (l *lineErrors) add(nodeIdent int, err string) {
 	l.Lock()
 	l.changed = true
+	if l.errors == nil {
+		l.errors = make(map[int]map[string]int)
+	}
 	if _, ok := l.errors[nodeIdent]; !ok {
 		l.errors[nodeIdent] = make(map[string]int)
 		l.errors[nodeIdent][err] = 1
