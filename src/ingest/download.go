@@ -127,6 +127,9 @@ func (i *Ingest) DownloadS3() error {
 	}, func(page *s3.ListObjectsV2Output, lastPage bool) (continueIter bool) {
 		for _, object := range page.Contents {
 			if ofile, ok := i.progress.Downloader.S3Files[*object.Key]; !ok || ofile.Size != *object.Size || ofile.LastModified != *object.LastModified {
+				if strings.HasSuffix(*object.Key, "/") {
+					continue
+				}
 				if i.config.Downloader.S3Source.searchRegex != nil {
 					regexOn := *object.Key
 					if prefix != nil {
