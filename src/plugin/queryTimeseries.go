@@ -40,6 +40,7 @@ func (p *responsePoint) MarshalJSON() ([]byte, error) {
 func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, r *http.Request) ([]*timeseriesResponse, error) {
 	logger.Detail("Build query (type:timeseries) (remote:%s)", remote)
 	ntime := time.Now()
+	// fill bin list for the statement
 	binListA := []string{req.Targets[i].Payload.TimestampBinName}
 	target := req.Targets[i]
 	for _, bin := range target.Payload.Bins {
@@ -65,15 +66,18 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		}
 		binListA = append(binListA, g.Name)
 	}
+	// statement and timestamp filter
 	stmt := aerospike.NewStatement(p.config.Aerospike.Namespace, target.Target, binListA...)
 	aerr := stmt.SetFilter(aerospike.NewRangeFilter(target.Payload.TimestampBinName, req.Range.From.UnixMilli(), req.Range.To.UnixMilli()))
 	if aerr != nil {
 		return nil, fmt.Errorf("error creating aerospike filter: %s", aerr)
 	}
-	var exp *aerospike.Expression
+	// build expression
+	var exp []*aerospike.Expression
 	var new *aerospike.Expression
 	var vals []*aerospike.Expression
 	var valsOr *aerospike.Expression
+	// expression: filter variables
 	for _, filter := range target.Payload.FilterVariables {
 		if _, ok := req.selectedVars[filter.Name]; !ok {
 			return nil, fmt.Errorf("variable %s does not exist", filter.Name)
@@ -102,38 +106,44 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		} else {
 			new = aerospike.ExpOr(aerospike.ExpNot(aerospike.ExpBinExists(filter.Name)), valsOr)
 		}
-		if exp == nil {
-			exp = new
-		} else {
-			exp = aerospike.ExpAnd(exp, new)
-		}
+		exp = append(exp, new)
 	}
+	// data bin list and expression bin selection
 	binList := []string{}
 	for _, bin := range target.Payload.Bins {
 		binList = append(binList, bin.Name)
 		if !bin.Required {
 			continue
 		}
-		if exp == nil {
-			exp = aerospike.ExpBinExists(bin.Name)
-		} else {
-			exp = aerospike.ExpAnd(exp, aerospike.ExpBinExists(bin.Name))
+		// for bin selections, check if it exists, or otherwise error that stat is not found
+		p.cache.lock.RLock()
+		if !inslice.HasString(p.cache.binNames, bin.Name) {
+			p.cache.lock.RUnlock()
+			if bin.DisplayName == "" {
+				bin.DisplayName = bin.Name
+			}
+			return nil, fmt.Errorf("statistic bin %s (%s) not found", bin.DisplayName, bin.Name)
 		}
+		p.cache.lock.RUnlock()
+		// expression fill
+		exp = append(exp, aerospike.ExpBinExists(bin.Name))
 	}
+	// group list and expression group by
 	groupList := []string{}
 	for _, bin := range target.Payload.GroupBy {
 		groupList = append(groupList, bin.Name)
 		if !bin.Required {
 			continue
 		}
-		if exp == nil {
-			exp = aerospike.ExpBinExists(bin.Name)
-		} else {
-			exp = aerospike.ExpAnd(exp, aerospike.ExpBinExists(bin.Name))
-		}
+		exp = append(exp, aerospike.ExpBinExists(bin.Name))
 	}
+	// query
 	qp := p.queryPolicy()
-	qp.FilterExpression = exp
+	if len(exp) == 1 {
+		qp.FilterExpression = exp[0]
+	} else {
+		qp.FilterExpression = aerospike.ExpAnd(exp...)
+	}
 	logger.Detail("Query start (type:timeseries) (remote:%s) (buildTime:%s)", remote, time.Since(ntime).String())
 	ntime = time.Now()
 	recset, aerr := p.db.Query(qp, stmt)
