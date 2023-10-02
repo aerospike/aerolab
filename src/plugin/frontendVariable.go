@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -44,6 +45,21 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 	}
 	if query.Payload.Target == "" {
 		responseError(w, http.StatusBadRequest, "Query does not contain target variable name (remote:%s)", r.RemoteAddr)
+		return
+	}
+	if strings.HasPrefix(query.Payload.Target, "file::") {
+		fname := strings.TrimPrefix(query.Payload.Target, "file::")
+		fc, err := os.ReadFile(fname)
+		if err != nil {
+			responseError(w, http.StatusBadRequest, "File read error (remote:%s) (error:%s)", r.RemoteAddr, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		json.NewEncoder(w).Encode([]*variableResponse{{
+			Text:  string(fc),
+			Value: string(fc),
+		}})
 		return
 	}
 	p.cache.lock.RLock()
