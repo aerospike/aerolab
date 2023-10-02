@@ -51,18 +51,19 @@ type requestFilter struct {
 }
 
 type bin struct {
-	Name                  string          `json:"name"`                  // all: bin name
-	DisplayName           string          `json:"displayName"`           // all: display name for legend
-	Type                  string          `json:"type"`                  // all: string/number
-	Reverse               bool            `json:"reverse"`               // timeseries: reverse/mirror values (*-1 final results)
-	Required              bool            `json:"required"`              // timeseries: fail if bin not found
-	ProduceDelta          bool            `json:"produceDelta"`          // timeseries: for translating cumulative values to per/ticker
-	TickerIntervalSeconds int             `json:"tickerIntervalSeconds"` // timeseries: set to translate per/ticker to per/second, value x=0 disables
-	MaxIntervalSeconds    int             `json:"maxIntervalSeconds"`    // timeseries: if breached, will insert 'null', value=0 disables
-	Limits                *responseLimits `json:"limits"`                // timeseries: floor/ceil at limit
+	Name               string          `json:"name"`               // all: bin name
+	DisplayName        string          `json:"displayName"`        // all: display name for legend
+	Type               string          `json:"type"`               // all: string/number
+	Reverse            bool            `json:"reverse"`            // timeseries: reverse/mirror values (*-1 final results)
+	Required           bool            `json:"required"`           // timeseries: fail if bin not found
+	ProduceDelta       bool            `json:"produceDelta"`       // timeseries: for translating cumulative values to per/ticker
+	DeltaToPerSecond   bool            `json:"convertToPerSecond"` // timeseries: divide stat by timeX-timeY to get per-second values
+	MaxIntervalSeconds int             `json:"maxIntervalSeconds"` // timeseries: if breached, will insert 'null', value=0 disables
+	Limits             *responseLimits `json:"limits"`             // timeseries: floor/ceil at limit
 }
 
 type responseLimits struct {
-	MinValue *int `json:"minValue"` // if below, will apply minValue
-	MaxValue *int `json:"maxValue"` // if above, will apply maxValue
+	MinValue            *int `json:"minValue"`            // if below, will apply minValue
+	MaxValue            *int `json:"maxValue"`            // if above, will apply maxValue
+	ReplaceWithOriginal bool `json:"replaceWithOriginal"` // if set to true, replace with original value, if set to false, replace with min/max value itself
 }

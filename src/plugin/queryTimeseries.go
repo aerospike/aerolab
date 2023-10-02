@@ -373,15 +373,23 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			// apply limits
 			if bin.Limits != nil {
 				if bin.Limits.MinValue != nil && val < float64(*bin.Limits.MinValue) {
-					val = float64(*bin.Limits.MinValue)
+					if bin.Limits.ReplaceWithOriginal {
+						val = float64(point.point[0])
+					} else {
+						val = float64(*bin.Limits.MinValue)
+					}
 				}
 				if bin.Limits.MaxValue != nil && val > float64(*bin.Limits.MaxValue) {
-					val = float64(*bin.Limits.MaxValue)
+					if bin.Limits.ReplaceWithOriginal {
+						val = float64(point.point[0])
+					} else {
+						val = float64(*bin.Limits.MaxValue)
+					}
 				}
 			}
-			// divide by ticker interval (for per/second values)
-			if bin.ProduceDelta && bin.TickerIntervalSeconds != 0 {
-				val = val / float64(bin.TickerIntervalSeconds)
+			// convert delta values from per-ticker-interval to per-second
+			if bin.DeltaToPerSecond {
+				val = val / ((float64(point.point[1]) - lastPointTime) / 1000)
 			}
 			// reduce and store datapoint
 			ts := float64(point.point[1])
