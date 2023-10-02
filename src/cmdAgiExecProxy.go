@@ -68,6 +68,10 @@ type tokens struct {
 func (c *agiExecProxyCmd) loadTokensDo() {
 	tokens := []string{}
 	err := filepath.Walk(c.TokenAuthLocation, func(fpath string, info fs.FileInfo, err error) error {
+		if err != nil {
+			logger.Error("error on walk %s: %s", fpath, err)
+			return nil
+		}
 		token, err := os.ReadFile(fpath)
 		if err != nil {
 			logger.Error("could not read token file %s: %s", fpath, err)

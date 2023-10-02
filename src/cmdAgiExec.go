@@ -224,7 +224,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	if !steps.Unpack {
 		err = i.Unpack()
 		if err != nil {
-			return fmt.Errorf("Unpack: %s", err)
+			return fmt.Errorf("unpack: %s", err)
 		}
 		steps.Unpack = true
 		f, err := json.Marshal(steps)
