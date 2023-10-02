@@ -350,10 +350,11 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			}
 			bin := target.Payload.Bins[resp[ri].binIdx]
 			// maxIntervalSeconds breached
-			if lastPointTime != -1 && float64(point.point[1])-lastPointTime > float64(bin.MaxIntervalSeconds*1000) {
+			if lastPointTime != -1 && bin.MaxIntervalSeconds != 0 && float64(point.point[1])-lastPointTime > float64(bin.MaxIntervalSeconds*1000) {
 				ts := float64(point.point[1] - 1)
 				windowNullTs = append(windowNullTs, ts)
 			}
+			prevPointTime := lastPointTime
 			lastPointTime = float64(point.point[1])
 			val := float64(point.point[0])
 			// produce delta
@@ -389,7 +390,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			}
 			// convert delta values from per-ticker-interval to per-second
 			if bin.DeltaToPerSecond {
-				val = val / ((float64(point.point[1]) - lastPointTime) / 1000)
+				tr := (float64(lastPointTime) - prevPointTime) / 1000
+				if tr > 0 {
+					val = val / tr
+				}
 			}
 			// reduce and store datapoint
 			ts := float64(point.point[1])
