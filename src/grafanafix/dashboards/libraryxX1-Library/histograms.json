@@ -74,6 +74,9 @@
           },
           "overrides": []
         },
+        "libraryPanel": {
+          "uid": "olg226P4z"
+        },
         "options": {
           "legend": {
             "calcs": [
@@ -211,6 +214,9 @@
             "unit": "short"
           },
           "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "J2bhheP4k"
         },
         "options": {
           "legend": {
@@ -8074,7 +8080,7 @@
       "type": "row"
     }
   ],
-  "refresh": false,
+  "refresh": "",
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",
@@ -8531,6 +8537,6 @@
   "timezone": "",
   "title": "Histograms",
   "uid": "latTPgPVks",
-  "version": 10,
+  "version": 2,
   "weekStart": ""
 }
