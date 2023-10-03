@@ -7,8 +7,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/olekukonko/tablewriter"
+	isatty "github.com/mattn/go-isatty"
+
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 )
 
 type inventoryListCmd struct {
@@ -205,36 +209,65 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 	})
 
+	t := table.NewWriter()
+	// For now, don't set the allowed row lenght, wrapping is better
+	// until we do something more clever...
+	if isatty.IsTerminal(os.Stdout.Fd()) {
+		// fmt.Println("Is Terminal")
+		t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+
+		// s, err := tsize.GetSize()
+		if err != nil {
+			fmt.Println("Couldn't get terminal width")
+		}
+		// t.SetAllowedRowLength(s.Width)
+	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+		// fmt.Println("Is Cygwin/MSYS2 Terminal")
+		t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+
+		// s, err := tsize.GetSize()
+		if err != nil {
+			fmt.Println("Couldn't get terminal width")
+		}
+		// t.SetAllowedRowLength(s.Width)
+	} else {
+		fmt.Fprintln(os.Stderr, "aerolab does not have a stable CLI interface. Use with caution in scripts.\nIn scripts, the JSON output should be used for stability.")
+		t.SetStyle(table.StyleDefault)
+	}
+
 	if showTemplates {
-		fmt.Println("\nTEMPLATES:")
-		table := tablewriter.NewWriter(os.Stdout)
-		table.SetHeader([]string{"Aerospike Version", "Arch", "Distribution", "OS Version"})
-		table.SetAutoFormatHeaders(false)
+		t.SetTitle("TEMPLATES")
+		t.ResetHeaders()
+		t.ResetRows()
+		t.ResetFooters()
+		t.AppendHeader(table.Row{"Aerospike Version", "Arch", "Distribution", "OS Version"})
 		for _, v := range inv.Templates {
-			vv := []string{
+			vv := table.Row{
 				v.AerospikeVersion,
 				v.Arch,
 				v.Distribution,
 				v.OSVersion,
 			}
-			table.Append(vv)
+			t.AppendRow(vv)
 		}
-		table.Render()
+		fmt.Println(t.Render())
+		fmt.Println()
 	}
 
 	if showClusters {
-		fmt.Println("\nCLUSTERS:")
-		table := tablewriter.NewWriter(os.Stdout)
+		t.SetTitle("CLUSTERS")
+		t.ResetHeaders()
+		t.ResetRows()
+		t.ResetFooters()
 		if a.opts.Config.Backend.Type == "gcp" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires In"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires In"})
 		} else {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Exposed Port 1"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Exposed Port 1"})
 		}
-		table.SetAutoFormatHeaders(false)
 		for _, v := range inv.Clusters {
-			vv := []string{
+			vv := table.Row{
 				v.ClusterName,
 				v.NodeNo,
 				v.InstanceId,
@@ -252,39 +285,63 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				v.Distribution,
 				strings.ReplaceAll(v.OSVersion, "-", "."),
 				strings.ReplaceAll(v.AerospikeVersion, "-", "."),
-				strings.Join(v.Firewalls, ","),
+				strings.Join(v.Firewalls, "\n"),
 				v.Owner,
 			)
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
-				vv = append(vv, v.Expires)
+				if v.Expires == "" {
+					vv = append(vv, text.Colors{text.BgHiYellow, text.FgBlack}.Sprint("WARN: no expiry is set"))
+				} else {
+					// Parse the expiration time string
+					expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+					if err != nil {
+						fmt.Println("Error parsing expiration time:", err)
+						return err
+					}
+					// Get the current time in the same timezone as the expiration time
+					currentTime := time.Now().In(expirationTime.Location())
+
+					// Calculate the duration between the current time and the expiration time
+					expiresIn := expirationTime.Sub(currentTime)
+
+					if expiresIn < 6*time.Hour {
+						vv = append(vv, text.Colors{text.BgHiRed, text.FgWhite}.Sprintf("%s", expiresIn.Round(time.Minute)))
+					} else {
+						vv = append(vv, expiresIn.Round(time.Minute))
+					}
+				}
 			} else {
 				vv = append(vv, v.DockerExposePorts)
 			}
-			table.Append(vv)
+			t.AppendRow(vv)
 		}
-		table.Render()
+
+		fmt.Println(t.Render())
 		if a.opts.Config.Backend.Type != "docker" {
 			fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
+			fmt.Println()
 		} else {
 			fmt.Println("* to connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP on the given exposed port (or configured aerospike services port - default 3000)")
 			fmt.Println("* to connect to the cluster when using Docker Desktop, execute 'aerolab cluster list` and connect to IP 127.0.0.1:EXPOSED_PORT with a connect policy of `--services-alternate`")
+			fmt.Println()
 		}
 	}
 
 	if showClients {
-		fmt.Println("\nCLIENTS:")
-		table := tablewriter.NewWriter(os.Stdout)
+		t.SetTitle("CLIENTS")
+		t.ResetHeaders()
+		t.ResetRows()
+		t.ResetFooters()
 		if a.opts.Config.Backend.Type == "gcp" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires In"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires In"})
 		} else {
-			table.SetHeader([]string{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Exposed Port 1"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Exposed Port 1"})
 		}
-		table.SetAutoFormatHeaders(false)
 		for _, v := range inv.Clients {
-			vv := []string{
+			vv := table.Row{
 				v.ClientName,
 				v.NodeNo,
 				v.InstanceId,
@@ -301,7 +358,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				v.State,
 				v.Distribution,
 				strings.ReplaceAll(v.OSVersion, "-", "."),
-				strings.Join(v.Firewalls, ","),
+				strings.Join(v.Firewalls, "\n"),
 				v.Owner,
 				v.ClientType,
 				v.AccessUrl,
@@ -309,81 +366,107 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			)
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
-				vv = append(vv, v.Expires)
+				if v.Expires == "" {
+					vv = append(vv, text.Colors{text.BgHiYellow, text.FgBlack}.Sprint("WARN: no expiry is set"))
+				} else {
+					// Parse the expiration time string
+					expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+					if err != nil {
+						fmt.Println("Error parsing expiration time:", err)
+						return err
+					}
+					// Get the current time in the same timezone as the expiration time
+					currentTime := time.Now().In(expirationTime.Location())
+
+					// Calculate the duration between the current time and the expiration time
+					expiresIn := expirationTime.Sub(currentTime)
+
+					if expiresIn < 6*time.Hour {
+						vv = append(vv, text.Colors{text.BgHiRed, text.FgWhite}.Sprintf("%s", expiresIn.Round(time.Minute)))
+					} else {
+						vv = append(vv, expiresIn.Round(time.Minute))
+					}
+				}
 			} else {
 				vv = append(vv, v.DockerExposePorts)
 			}
-			table.Append(vv)
+			t.AppendRow(vv)
 		}
-		table.Render()
+
+		fmt.Println(t.Render())
 		if a.opts.Config.Backend.Type == "docker" {
 			fmt.Println("* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL")
+			fmt.Println()
 		} else {
 			fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
+			fmt.Println()
 		}
 	}
 
 	if showFirewalls {
-		table := tablewriter.NewWriter(os.Stdout)
-		table.SetAutoFormatHeaders(false)
+		t.ResetHeaders()
+		t.ResetRows()
+		t.ResetFooters()
 		switch a.opts.Config.Backend.Type {
 		case "gcp":
-			fmt.Println("\nFIREWALL RULES:")
-			table.SetHeader([]string{"Firewall Name", "Target Tags", "Source Tags", "Source Ranges", "Allow Ports", "Deny Ports"})
+			t.SetTitle("FIREWALL RULES")
+			t.AppendHeader(table.Row{"Firewall Name", "Target Tags", "Source Tags", "Source Ranges", "Allow Ports", "Deny Ports"})
 			for _, v := range inv.FirewallRules {
-				vv := []string{
+				vv := table.Row{
 					v.GCP.FirewallName,
-					strings.Join(v.GCP.TargetTags, " "),
-					strings.Join(v.GCP.SourceTags, " "),
-					strings.Join(v.GCP.SourceRanges, " "),
-					strings.Join(v.GCP.AllowPorts, " "),
-					strings.Join(v.GCP.DenyPorts, " "),
+					strings.Join(v.GCP.TargetTags, "\n"),
+					strings.Join(v.GCP.SourceTags, "\n"),
+					strings.Join(v.GCP.SourceRanges, "\n"),
+					strings.Join(v.GCP.AllowPorts, "\n"),
+					strings.Join(v.GCP.DenyPorts, "\n"),
 				}
-				table.Append(vv)
+				t.AppendRow(vv)
 			}
-			table.Render()
 		case "aws":
-			fmt.Println("\nSECURITY GROUPS:")
-			table.SetHeader([]string{"VPC", "Security Group Name", "Security Group ID", "IPs"})
+			t.SetTitle("SECURITY GROUPS")
+			t.AppendHeader(table.Row{"VPC", "Security Group Name", "Security Group ID", "IPs"})
 			for _, v := range inv.FirewallRules {
-				vv := []string{
+				vv := table.Row{
 					v.AWS.VPC,
 					v.AWS.SecurityGroupName,
 					v.AWS.SecurityGroupID,
-					strings.Join(v.AWS.IPs, ","),
+					strings.Join(v.AWS.IPs, "\n"),
 				}
-				table.Append(vv)
+				t.AppendRow(vv)
 			}
-			table.Render()
 		case "docker":
-			fmt.Println("\nNETWORKS:")
-			table.SetHeader([]string{"Network Name", "Network Driver", "Subnets", "MTU"})
+			t.SetTitle("NETWORKS")
+			t.AppendHeader(table.Row{"Network Name", "Network Driver", "Subnets", "MTU"})
 			for _, v := range inv.FirewallRules {
-				vv := []string{
+				vv := table.Row{
 					v.Docker.NetworkName,
 					v.Docker.NetworkDriver,
 					v.Docker.Subnets,
 					v.Docker.MTU,
 				}
-				table.Append(vv)
+				t.AppendRow(vv)
 			}
-			table.Render()
+
 		}
+
+		fmt.Println(t.Render())
+		fmt.Println()
 	}
 
 	if showSubnets {
-		table := tablewriter.NewWriter(os.Stdout)
-		table.SetAutoFormatHeaders(false)
+		t.ResetHeaders()
+		t.ResetRows()
+		t.ResetFooters()
 		switch a.opts.Config.Backend.Type {
 		case "aws":
 			fmt.Println("\nSUBNETS:")
-			table.SetHeader([]string{"VPC ID", "VPC Name", "VPC Cidr", "Avail. Zone", "Subnet ID", "Subnet Cidr", "AZ Default", "Subnet Name", "Auto-Assign IP"})
+			t.AppendHeader(table.Row{"VPC ID", "VPC Name", "VPC Cidr", "Avail. Zone", "Subnet ID", "Subnet Cidr", "AZ Default", "Subnet Name", "Auto-Assign IP"})
 			for _, v := range inv.Subnets {
 				autoIP := "no (enable to use with aerolab)"
 				if v.AWS.AutoPublicIP {
 					autoIP = "yes (ok)"
 				}
-				vv := []string{
+				vv := table.Row{
 					v.AWS.VpcId,
 					v.AWS.VpcName,
 					v.AWS.VpcCidr,
@@ -394,46 +477,43 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					v.AWS.SubnetName,
 					autoIP,
 				}
-				table.Append(vv)
+				t.AppendRow(vv)
 			}
-			table.Render()
+			fmt.Println(t.Render())
+			fmt.Println()
 		}
 	}
 
 	for _, showOther := range showOthers {
 		if showOther&inventoryShowExpirySystem > 0 {
-			table := tablewriter.NewWriter(os.Stdout)
-			table.SetAutoFormatHeaders(false)
+			t.ResetHeaders()
+			t.ResetRows()
+			t.ResetFooters()
+			t.AppendHeader(table.Row{"#", "Subsystem", "Details"})
 			switch a.opts.Config.Backend.Type {
 			case "aws":
-				fmt.Println("\nEXPIRY_SYSTEM:")
-				table.SetHeader([]string{"IAM Function Rule", "IAM Scheduler Rule", "Function", "Scheduler", "Schedule"})
-				for _, v := range inv.ExpirySystem {
-					vv := []string{
-						v.IAMFunction,
-						v.IAMScheduler,
-						v.Function,
-						v.Scheduler,
-						v.Schedule,
-					}
-					table.Append(vv)
+				t.SetTitle("EXPIRY_SYSTEM")
+				for i, v := range inv.ExpirySystem {
+					t.AppendRow(table.Row{i, "IAM Function Rule", v.IAMFunction})
+					t.AppendRow(table.Row{i, "IAM Scheduler Rule", v.IAMScheduler})
+					t.AppendRow(table.Row{i, "Function", v.Function})
+					t.AppendRow(table.Row{i, "Scheduler", v.Scheduler})
+					t.AppendRow(table.Row{i, "Schedule", v.Schedule})
 				}
-				table.Render()
+				fmt.Println(t.Render())
 			case "gcp":
-				fmt.Println("\nEXPIRY_SYSTEM:")
-				table.SetHeader([]string{"Function", "Source Bucket", "Scheduler", "Schedule"})
-				for _, v := range inv.ExpirySystem {
-					vv := []string{
-						v.Function,
-						v.SourceBucket,
-						v.Scheduler,
-						v.Schedule,
-					}
-					table.Append(vv)
+				t.SetTitle("EXPIRY_SYSTEM")
+				for i, v := range inv.ExpirySystem {
+					t.AppendRow(table.Row{i, "Function", v.Function})
+					t.AppendRow(table.Row{i, "Source Bucket", v.SourceBucket})
+					t.AppendRow(table.Row{i, "Scheduler", v.Scheduler})
+					t.AppendRow(table.Row{i, "Schedule", v.Schedule})
 				}
-				table.Render()
+				fmt.Println(t.Render())
+				fmt.Println()
 			}
 		}
 	}
+
 	return nil
 }

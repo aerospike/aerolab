@@ -15,10 +15,11 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/gabriel-vasile/mimetype v1.4.2
 	github.com/google/uuid v1.3.1
+	github.com/jedib0t/go-pretty/v6 v6.4.7
 	github.com/jroimartin/gocui v0.5.0
+	github.com/mattn/go-isatty v0.0.19
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/nwaples/rardecode v1.1.3
-	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/sftp v1.13.6
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
