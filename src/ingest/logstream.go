@@ -121,8 +121,9 @@ func (s *logStream) Process(line string, nodePrefix int) ([]*logStreamOutput, er
 			if m.StartLineSearch == mStart {
 				results := m.reMatchLines.FindStringSubmatch(line)
 				if len(results) > 0 {
-					if s.multilineItems[mStart].timestamp != timestamp {
-						return nil, errors.New("timestamp mismatch between multiple lines of multiline statistic")
+					if timestamp.Before(s.multilineItems[mStart].timestamp) {
+						//if s.multilineItems[mStart].timestamp != timestamp { // turns out this can happen
+						return nil, errors.New("multiline statistic had timestamps move backwards in time")
 					}
 					// append multiline string
 					for mpi, mp := range m.ReMatchJoin {
