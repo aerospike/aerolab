@@ -525,6 +525,10 @@
     "list": [
       {
         "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
         "definition": "file::/opt/agi/label",
         "hide": 2,
         "includeAll": false,
@@ -543,6 +547,10 @@
       },
       {
         "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
         "definition": "sources",
         "hide": 2,
         "includeAll": false,
@@ -561,6 +569,10 @@
       },
       {
         "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
         "definition": "timerange",
         "hide": 2,
         "includeAll": false,
@@ -579,7 +591,7 @@
       },
       {
         "current": {
-          "selected": false,
+          "selected": true,
           "text": "30",
           "value": "30"
         },
@@ -957,6 +969,6 @@
   "timezone": "",
   "title": "Warnings and Errors",
   "uid": "vfXTPgPVka",
-  "version": 3,
+  "version": 2,
   "weekStart": ""
 }
