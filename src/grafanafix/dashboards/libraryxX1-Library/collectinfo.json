@@ -17,7 +17,7 @@
       "model": {
         "datasource": {
           "type": "simpod-json-datasource",
-          "uid": "json"
+          "uid": "${DS_JSON}"
         },
         "description": "",
         "fieldConfig": {
@@ -53,6 +53,7 @@
           "uid": "TqZqCxP4z"
         },
         "options": {
+          "cellHeight": "sm",
           "footer": {
             "countRows": false,
             "fields": "",
@@ -63,7 +64,7 @@
           },
           "showHeader": true
         },
-        "pluginVersion": "9.4.7",
+        "pluginVersion": "10.1.1",
         "targets": [
           {
             "datasource": {
@@ -71,9 +72,9 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"type\": \"table\",\n  \"grafanaFilters\": [\n    {\n      \"binName\": \"fileName\",\n      \"binValues\": $fileName\n    }\n  ],\n  \"selectBins\": [\n    {\n      \"name\": \"fileName\",\n      \"friendlyName\": \"FileName\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterName\",\n      \"friendlyName\": \"Cluster Name\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"nodeId\",\n      \"friendlyName\": \"NodeID\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"ip\",\n      \"friendlyName\": \"IP\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"build\",\n      \"friendlyName\": \"Build\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"migrations\",\n      \"friendlyName\": \"Migrations\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterSize\",\n      \"friendlyName\": \"ClusterSize\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterKey\",\n      \"friendlyName\": \"ClusterKey\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"integrity\",\n      \"friendlyName\": \"Integrity\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"principal\",\n      \"friendlyName\": \"Principal\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clientConns\",\n      \"friendlyName\": \"ClientConns\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"uptime\",\n      \"friendlyName\": \"Uptime\",\n      \"type\": \"string\"\n    }\n  ],\n  \"selectGroupBy\": [\"fileName\",\"nodeId\",\"ip\"],\n  \"sortOrder\": [1,2,3]\n}\n",
+            "payload": "{\n  \"type\": \"table\",\n  \"filterBy\": [{\n  \t\"name\": \"cfName\",\n  \t\"mustExist\": true\n  }],\n  \"bins\": [\n    {\n      \"name\": \"cfName\",\n      \"displayName\": \"FileName\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterName\",\n      \"displayName\": \"Cluster Name\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"nodeId\",\n      \"displayName\": \"NodeID\",\n      \"type\": \"string\",\n      \"required\": true\n    },\n    {\n      \"name\": \"ip\",\n      \"displayName\": \"IP\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"build\",\n      \"displayName\": \"Build\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"migrations\",\n      \"displayName\": \"Migrations\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterSize\",\n      \"displayName\": \"ClusterSize\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clusterKey\",\n      \"displayName\": \"ClusterKey\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"integrity\",\n      \"displayName\": \"Integrity\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"principal\",\n      \"displayName\": \"Principal\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"clientConns\",\n      \"displayName\": \"ClientConns\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"uptime\",\n      \"displayName\": \"Uptime\",\n      \"type\": \"string\"\n    }\n  ],\n  \"sortOrder\": [1,2,3]\n}\n",
             "refId": "A",
-            "target": "collectinfo"
+            "target": "collectinfos"
           }
         ],
         "title": "CollectInfo - info network",
@@ -87,7 +88,7 @@
       "model": {
         "datasource": {
           "type": "simpod-json-datasource",
-          "uid": "json"
+          "uid": "${DS_JSON}"
         },
         "description": "",
         "fieldConfig": {
@@ -123,6 +124,7 @@
           "uid": "owfqCxPVk"
         },
         "options": {
+          "cellHeight": "sm",
           "footer": {
             "countRows": false,
             "fields": "",
@@ -133,7 +135,7 @@
           },
           "showHeader": true
         },
-        "pluginVersion": "9.4.7",
+        "pluginVersion": "10.1.1",
         "targets": [
           {
             "datasource": {
@@ -141,9 +143,9 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"type\": \"table\",\n  \"grafanaFilters\": [\n    {\n      \"binName\": \"fileName\",\n      \"binValues\": $fileName\n    }\n  ],\n  \"selectBins\": [\n    {\n      \"name\": \"fileName\",\n      \"friendlyName\": \"FileName\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"summary\",\n      \"friendlyName\": \"Summary\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"health\",\n      \"friendlyName\": \"Health\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"sysinfo\",\n      \"friendlyName\": \"Sysinfo\",\n      \"type\": \"string\"\n    },\n    {\n      \"name\": \"confFile\",\n      \"friendlyName\": \"Config File\",\n      \"type\": \"string\"\n    }\n  ],\n  \"selectGroupBy\": [\"fileName\"],\n  \"sortOrder\": [1]\n}\n",
+            "payload": "{\n  \"type\": \"table\",\n  \"filterBy\": [{\n    \"name\": \"cfName\",\n    \"mustExist\": true\n  }],\n  \"sortOrder\": [1],\n  \"bins\": [{\n    \"name\": \"cfName\",\n    \"displayName\": \"File Name\"\n  },{\n    \"name\": \"summary\",\n    \"displayName\": \"Summary\"\n  },{\n    \"name\": \"health\",\n    \"displayName\": \"Health\"\n  },{\n    \"name\": \"sysinfo\",\n    \"displayName\": \"Sysinfo\",\n    \"required\": true\n  },{\n    \"name\": \"conffile\",\n    \"displayName\": \"Config File\"\n  }]\n}\n",
             "refId": "A",
-            "target": "collectall"
+            "target": "collectinfos"
           }
         ],
         "title": "CollectInfo - Summary and Health - Hover over Summary of Health field and click the little \"eye\" icon on the right of that field",
@@ -156,13 +158,13 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "9.4.7"
+      "version": "10.1.2"
     },
     {
       "type": "datasource",
       "id": "simpod-json-datasource",
       "name": "JSON",
-      "version": "0.6.2"
+      "version": "0.6.3"
     },
     {
       "type": "panel",
@@ -233,22 +235,22 @@
         "uid": "${DS_JSON}"
       },
       "gridPos": {
-        "h": 3,
-        "w": 11,
+        "h": 4,
+        "w": 8,
         "x": 0,
         "y": 0
       },
-      "id": 5,
+      "id": 8,
       "options": {
         "code": {
           "language": "plaintext",
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "<center><h1><font color=green>${caseLabel}</font></h1></center>",
+        "content": "<center><h1><font color=green>${Label}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.1.2",
       "targets": [
         {
           "datasource": {
@@ -259,7 +261,7 @@
           "refId": "A"
         }
       ],
-      "title": "Case Label",
+      "title": "Label",
       "type": "text"
     },
     {
@@ -268,9 +270,44 @@
         "uid": "${DS_JSON}"
       },
       "gridPos": {
-        "h": 3,
-        "w": 13,
-        "x": 11,
+        "h": 4,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "<center><pre><h2><font color=green>${sources}</font></h2></pre></center>",
+        "mode": "html"
+      },
+      "pluginVersion": "10.1.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "editorMode": "code",
+          "refId": "A"
+        }
+      ],
+      "title": "Sources",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "simpod-json-datasource",
+        "uid": "${DS_JSON}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 8,
+        "x": 16,
         "y": 0
       },
       "id": 7,
@@ -280,10 +317,10 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "<center><h1><font color=orange>${timeRangeCut}</font></h1></center>",
+        "content": "<center><h2><font color=orange>${timerange}</font></h2></center>",
         "mode": "html"
       },
-      "pluginVersion": "9.4.7",
+      "pluginVersion": "10.1.2",
       "targets": [
         {
           "datasource": {
@@ -302,7 +339,7 @@
         "h": 17,
         "w": 24,
         "x": 0,
-        "y": 3
+        "y": 4
       },
       "id": 2,
       "libraryPanel": {
@@ -315,7 +352,7 @@
         "h": 17,
         "w": 24,
         "x": 0,
-        "y": 20
+        "y": 21
       },
       "id": 3,
       "libraryPanel": {
@@ -334,86 +371,440 @@
   "templating": {
     "list": [
       {
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "sources",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "sources",
+        "options": [],
+        "query": {
+          "query": "sources"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "timerange",
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "timerange",
+        "options": [],
+        "query": {
+          "query": "timerange"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "file::/opt/agi/label",
+        "hide": 2,
+        "includeAll": false,
+        "label": "Label",
+        "multi": false,
+        "name": "Label",
+        "options": [],
+        "query": {
+          "query": "file::/opt/agi/label"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
         "allValue": "[]",
         "current": {},
         "datasource": {
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "meta.collectinfos.collectinfos",
+        "definition": "cfName",
         "hide": 0,
         "includeAll": true,
         "label": "File Name",
         "multi": true,
-        "name": "fileName",
+        "name": "cfName",
         "options": [],
         "query": {
-          "query": "meta.collectinfos.collectinfos"
+          "query": "cfName"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 3,
         "type": "query"
       },
       {
+        "current": {
+          "selected": true,
+          "text": "30",
+          "value": "30"
+        },
+        "hide": 2,
+        "name": "MaxIntervalSeconds",
+        "options": [
+          {
+            "selected": true,
+            "text": "30",
+            "value": "30"
+          }
+        ],
+        "query": "30",
+        "skipUrlSync": false,
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "true",
+          "value": "true"
+        },
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "name": "ProduceDelta",
+        "options": [
+          {
+            "selected": true,
+            "text": "true",
+            "value": "true"
+          },
+          {
+            "selected": false,
+            "text": "false",
+            "value": "false"
+          }
+        ],
+        "query": "true, false",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "allValue": "[]",
         "current": {},
         "datasource": {
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "static:env.json:workerLabel",
+        "definition": "ClusterName",
         "hide": 2,
-        "includeAll": false,
-        "multi": false,
-        "name": "caseLabel",
+        "includeAll": true,
+        "multi": true,
+        "name": "ClusterName",
         "options": [],
         "query": {
-          "query": "static:env.json:workerLabel"
+          "query": "ClusterName"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
       },
       {
+        "allValue": "[]",
         "current": {},
         "datasource": {
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "static:env.json:timeRangeCut",
+        "definition": "NodeIdent@${ClusterName:json}",
         "hide": 2,
-        "includeAll": false,
-        "multi": false,
-        "name": "timeRangeCut",
+        "includeAll": true,
+        "multi": true,
+        "name": "NodeIdent",
         "options": [],
         "query": {
-          "query": "static:env.json:timeRangeCut"
+          "query": "NodeIdent@${ClusterName:json}"
         },
-        "refresh": 1,
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
         "type": "query"
       },
       {
+        "allValue": "[]",
         "current": {},
         "datasource": {
           "type": "simpod-json-datasource",
           "uid": "${DS_JSON}"
         },
-        "definition": "static:env.json:retriggerOnStart",
+        "definition": "Namespace@${ClusterName:json}",
         "hide": 2,
-        "includeAll": false,
-        "multi": false,
-        "name": "retriggerOnStart",
+        "includeAll": true,
+        "multi": true,
+        "name": "Namespace",
         "options": [],
         "query": {
-          "query": "static:env.json:retriggerOnStart"
+          "query": "Namespace@${ClusterName:json}"
         },
-        "refresh": 1,
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "Histogram@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "Histogram",
+        "options": [],
+        "query": {
+          "query": "Histogram@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "HistogramDev@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "HistogramDev",
+        "options": [],
+        "query": {
+          "query": "HistogramDev@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "HistogramUs@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "HistogramUs",
+        "options": [],
+        "query": {
+          "query": "HistogramUs@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "HistogramSize@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "HistogramSize",
+        "options": [],
+        "query": {
+          "query": "HistogramSize@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "HistogramCount@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "HistogramCount",
+        "options": [],
+        "query": {
+          "query": "HistogramCount@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "XdrDcName@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "XdrDcName",
+        "options": [],
+        "query": {
+          "query": "XdrDcName@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "xdr5dc@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "xdr5dc",
+        "options": [],
+        "query": {
+          "query": "xdr5dc@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "warnC@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "warnC",
+        "options": [],
+        "query": {
+          "query": "warnC@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "warnCtx@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "warnCtx",
+        "options": [],
+        "query": {
+          "query": "warnCtx@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "errC@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "errC",
+        "options": [],
+        "query": {
+          "query": "errC@${ClusterName:json}"
+        },
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      },
+      {
+        "allValue": "[]",
+        "current": {},
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "definition": "errCtx@${ClusterName:json}",
+        "hide": 2,
+        "includeAll": true,
+        "multi": true,
+        "name": "errCtx",
+        "options": [],
+        "query": {
+          "query": "errCtx@${ClusterName:json}"
+        },
+        "refresh": 2,
         "regex": "",
         "skipUrlSync": false,
         "sort": 0,
@@ -429,6 +820,6 @@
   "timezone": "",
   "title": "CollectInfo",
   "uid": "Cs9G8bEVk",
-  "version": 3,
+  "version": 2,
   "weekStart": ""
 }

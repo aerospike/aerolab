@@ -12,13 +12,14 @@ import (
 )
 
 func (i *Ingest) loadProgress() error {
-	i.progress.Downloader = new(progressDownloader)
-	i.progress.CollectinfoProcessor = new(progressCollectProcessor)
-	i.progress.LogProcessor = new(progressLogProcessor)
-	i.progress.PreProcessor = new(progressPreProcessor)
-	i.progress.Unpacker = new(progressUnpacker)
-	i.progress.Downloader.S3Files = make(map[string]*downloaderFile)
-	i.progress.Downloader.SftpFiles = make(map[string]*downloaderFile)
+	i.progress.Downloader = new(ProgressDownloader)
+	i.progress.CollectinfoProcessor = new(ProgressCollectProcessor)
+	i.progress.LogProcessor = new(ProgressLogProcessor)
+	i.progress.LogProcessor.LineErrors = new(lineErrors)
+	i.progress.PreProcessor = new(ProgressPreProcessor)
+	i.progress.Unpacker = new(ProgressUnpacker)
+	i.progress.Downloader.S3Files = make(map[string]*DownloaderFile)
+	i.progress.Downloader.SftpFiles = make(map[string]*DownloaderFile)
 	os.MkdirAll(i.config.ProgressFile.OutputFilePath, 0755)
 	fileList := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
 	logger.Debug("INIT: Loading progress")
@@ -82,6 +83,12 @@ func (i *Ingest) saveProgressInterval() {
 	}
 	logger.Debug("INIT: saving progress will run every %v", i.config.ProgressFile.WriteInterval)
 	for {
+		i.endLock.Lock()
+		if i.end {
+			i.endLock.Unlock()
+			return
+		}
+		i.endLock.Unlock()
 		time.Sleep(i.config.ProgressFile.WriteInterval)
 		err := i.saveProgress()
 		if err != nil {
@@ -93,6 +100,9 @@ func (i *Ingest) saveProgressInterval() {
 func (i *Ingest) saveProgress() error {
 	i.progress.Lock()
 	defer i.progress.Unlock()
+	if i.progress.LogProcessor.LineErrors.isChanged() {
+		i.progress.LogProcessor.changed = true
+	}
 	if !i.progress.Downloader.changed && !i.progress.CollectinfoProcessor.changed && !i.progress.LogProcessor.changed && !i.progress.PreProcessor.changed && !i.progress.Unpacker.changed {
 		logger.Detail("SAVE-PROGRESS Not changed, not saving")
 		return nil
@@ -196,6 +206,12 @@ func (i *Ingest) printProgressInterval() {
 	}
 	logger.Debug("PRINT-PROGRESS Will print every %v", i.config.ProgressPrint.UpdateInterval)
 	for {
+		i.endLock.Lock()
+		if i.end {
+			i.endLock.Unlock()
+			return
+		}
+		i.endLock.Unlock()
 		time.Sleep(i.config.ProgressPrint.UpdateInterval)
 		err := i.printProgress()
 		if err != nil {
@@ -337,7 +353,8 @@ func (i *Ingest) printProgress() error {
 			}
 		}
 		if i.config.ProgressPrint.PrintOverallProgress {
-			timePassed := int64(time.Since(i.progress.LogProcessor.StartTime).Seconds())
+			timePassedx := time.Since(i.progress.LogProcessor.StartTime)
+			timePassed := int64(timePassedx.Seconds())
 			if timePassed < 1 {
 				timePassed = 1
 			}
@@ -352,7 +369,12 @@ func (i *Ingest) printProgress() error {
 				percentComplete = processedSize * 100 / totalSize
 			}
 			perSecond := processedSize / timePassed
-			logger.Info("LogProcessor summary: (processed:%s) (total:%s) (remaining:%s) (speed:%s/second) (pct-complete:%d) (runTime:%d seconds)", convSize(processedSize), convSize(totalSize), convSize(totalSize-processedSize), convSize(perSecond), percentComplete, timePassed)
+			remainingSize := totalSize - processedSize
+			remainingTime := time.Hour * 24
+			if perSecond >= 1 {
+				remainingTime = time.Second * time.Duration(remainingSize/perSecond)
+			}
+			logger.Info("LogProcessor summary: (processed:%s) (total:%s) (remaining:%s) (speed:%s/second) (pct-complete:%d) (runTime:%s) (remainingTime:%s)", convSize(processedSize), convSize(totalSize), convSize(remainingSize), convSize(perSecond), percentComplete, timePassedx.String(), remainingTime.String())
 		}
 	}
 	i.progress.RUnlock()

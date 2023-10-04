@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"github.com/aerospike/aerospike-client-go/v6"
+	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 	"github.com/gabriel-vasile/mimetype"
 )
@@ -60,7 +61,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 	}
 	// find files
 	logger.Debug("ProcessCollectInfo: enumerating files")
-	foundFiles := map[string]*cfFile{}
+	foundFiles := map[string]*CfFile{}
 	err = filepath.Walk(i.config.Directories.CollectInfo, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -68,7 +69,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 		if info.IsDir() {
 			return nil
 		}
-		foundFiles[filePath] = &cfFile{
+		foundFiles[filePath] = &CfFile{
 			Size: info.Size(),
 		}
 		return nil
@@ -83,13 +84,32 @@ func (i *Ingest) ProcessCollectInfo() error {
 	for n, f := range i.progress.CollectinfoProcessor.Files {
 		foundFiles[n] = f
 	}
-	i.progress.CollectinfoProcessor.Files = make(map[string]*cfFile)
+	i.progress.CollectinfoProcessor.Files = make(map[string]*CfFile)
 	for n, f := range foundFiles {
 		i.progress.CollectinfoProcessor.Files[n] = f
 	}
 	i.progress.CollectinfoProcessor.changed = true
 	i.progress.Unlock()
 
+	// preload meta entries for collectinfo files
+	logger.Debug("ProcessCollectInfo: db.Get existing CF filename metadata")
+	cfNames := []string{}
+	key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "cfName")
+	if aerr != nil {
+		logger.Error("CF Processor: could not create key for metadata fetch: %s", aerr)
+	} else {
+		rec, err := i.db.Get(nil, key)
+		if err != nil {
+			logger.Error("CF Processor: could not get CF filename metadata: %s", err)
+		} else {
+			metaItem := &metaEntries{}
+			err := json.Unmarshal([]byte(rec.Bins["cfName"].(string)), &metaItem)
+			if err != nil {
+				logger.Warn("CF Processor: failed to unmarshal existing cf filename data: %s", err)
+			}
+			cfNames = append(cfNames, metaItem.Entries...)
+		}
+	}
 	// process
 	logger.Debug("ProcessCollectInfo: processing new files")
 	for filePath, cf := range foundFiles {
@@ -104,6 +124,15 @@ func (i *Ingest) ProcessCollectInfo() error {
 			i.progress.Lock()
 			cf.Errors = append(cf.Errors, err.Error())
 			i.progress.Unlock()
+		} else {
+			fnamex := filePath
+			if newName != "" && newName != filePath {
+				fnamex = newName
+			}
+			_, fname := path.Split(fnamex)
+			if !inslice.HasString(cfNames, fname) {
+				cfNames = append(cfNames, fname)
+			}
 		}
 		if newName != "" && newName != filePath {
 			i.progress.Lock()
@@ -112,6 +141,24 @@ func (i *Ingest) ProcessCollectInfo() error {
 			i.progress.Unlock()
 		}
 		logger.Detail("ProcessCollectInfo: result (nodeId:%s) (processAttempt:%t processed:%t renameAttempt:%t renamed:%t) (originalName:%s) (name:%s)", cf.NodeID, cf.ProcessingAttempted, cf.Processed, cf.RenameAttempted, cf.Renamed, cf.OriginalName, newName)
+	}
+	meta := &metaEntries{}
+	meta.Entries = append(meta.Entries, cfNames...)
+	// store meta entries
+	metajson, err := json.Marshal(meta)
+	if err != nil {
+		logger.Error("CF Processor: could not jsonify for metadata: %s", err)
+	} else {
+		key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "cfName")
+		if aerr != nil {
+			logger.Error("CF Processor: could not create key for metadata: %s", aerr)
+		} else {
+			bin := aerospike.NewBin("cfName", string(metajson))
+			aerr = i.db.PutBins(i.wp, key, bin)
+			if aerr != nil {
+				logger.Error("CF Processor: could not store metadata: %s", aerr)
+			}
+		}
 	}
 	i.progress.Lock()
 	i.progress.CollectinfoProcessor.changed = true
@@ -122,15 +169,15 @@ func (i *Ingest) ProcessCollectInfo() error {
 }
 
 type cfContents struct {
-	sysinfo  []byte
-	confFile []byte
-	health   string
-	summary  string
-	infoNet  string
-	ipToNode map[string][]string
+	sysinfo     []byte
+	confFile    []byte
+	health      string
+	summary     string
+	infoNetJson *cfInfoNetwork
+	ipToNode    map[string][]string
 }
 
-func (i *Ingest) processCollectInfoFile(filePath string, cf *cfFile, logs map[string]map[string]string) (string, error) {
+func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[string]map[string]string) (string, error) {
 	ct := &cfContents{
 		ipToNode: make(map[string][]string),
 	}
@@ -217,7 +264,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *cfFile, logs map[st
 	}
 	i.progress.Unlock()
 	logger.Detail("processCollectInfoFile: starting asadm for %s", new)
-	err = i.processCollectInfoFileAsadm(new, ct)
+	err = i.processCollectInfoFileAsadm(new, ct, logs)
 	if err != nil {
 		i.progress.Lock()
 		cf.ProcessingAttempted = true
@@ -236,12 +283,33 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *cfFile, logs map[st
 	binConfFile := aerospike.NewBin("conffile", string(ct.confFile))
 	binHealth := aerospike.NewBin("health", ct.health)
 	binSummary := aerospike.NewBin("summary", ct.summary)
-	binInfoNet := aerospike.NewBin("infonet", ct.infoNet)
-	binFname := aerospike.NewBin("filename", fname)
-	err = i.db.PutBins(i.wp, key, binSysinfo, binConfFile, binHealth, binSummary, binInfoNet, binFname)
+	binFname := aerospike.NewBin("cfName", fname)
+	err = i.db.PutBins(i.wp, key, binSysinfo, binConfFile, binHealth, binSummary, binFname)
 	if err != nil {
 		logger.Detail("ProcessCollectInfo: could not insert record for %s: %s", new, err)
 		return newName, fmt.Errorf("aerospike.PutBins: %s", err)
+	}
+	if len(ct.infoNetJson.Groups) > 0 {
+		for _, record := range ct.infoNetJson.Groups[0].Records {
+			bins := make(map[string]interface{})
+			bins["cfName"] = fname
+			bins["build"] = record.Build.Converted
+			bins["clientConns"] = record.ClientConns.Converted
+			bins["ip"] = record.IP.Converted
+			bins["migrations"] = record.Migrations.Converted
+			bins["nodeId"] = strings.Trim(record.NodeID.Converted, "*")
+			bins["uptime"] = record.Uptime.Converted
+			bins["integrity"] = record.Cluster.Integrity.Converted
+			bins["clusterKey"] = record.Cluster.Key.Converted
+			bins["principal"] = record.Cluster.Principal.Converted
+			bins["clusterSize"] = record.Cluster.Size.Converted
+			bins["clusterName"] = record.ClusterName
+			pk, _ := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, fmt.Sprintf("%s::%s::%s", new, record.IP.Converted, record.NodeID.Converted))
+			aerr := i.db.Put(i.wp, pk, bins)
+			if aerr != nil {
+				logger.Warn("Failed to store item in aerospike: %s", aerr.Error())
+			}
+		}
 	}
 	logger.Detail("processCollectInfoFile: done %s", new)
 	i.progress.Lock()
@@ -251,8 +319,8 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *cfFile, logs map[st
 	return newName, nil
 }
 
-func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents) error {
-	for _, comm := range []string{"health", "summary", "info network"} {
+func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents, logs map[string]map[string]string) error {
+	for _, comm := range []string{"health", "summary"} {
 		logger.Detail("processCollectInfoFileAsadm: run file:%s comm:%s", filePath, comm)
 		ctx, cancelFunc := context.WithTimeout(context.Background(), i.config.CollectInfoAsadmTimeout)
 		out, err := exec.CommandContext(ctx, "asadm", "-cf", filePath, "-e", comm).CombinedOutput()
@@ -265,16 +333,115 @@ func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents) er
 			ct.health = nstr
 		case "summary":
 			ct.summary = nstr
-		case "info network":
-			ct.infoNet = nstr
 		}
 		cancelFunc()
 		logger.Detail("processCollectInfoFileAsadm: finish file:%s comm:%s", filePath, comm)
 	}
+	// process info network as a json
+	infoNet, err := i.processCollectInfoInfoNetwork(filePath, logs)
+	if err != nil {
+		logger.Warn("Failed to get 'info network' for %s: %s", filePath, err)
+		return nil
+	}
+	ct.infoNetJson = infoNet
 	return nil
 }
 
-func (i *Ingest) processCollectInfoFileRead(filePath string, cf *cfFile, ct *cfContents) error {
+func (i *Ingest) processCollectInfoInfoNetwork(path string, logs map[string]map[string]string) (infoNet *cfInfoNetwork, err error) {
+	infoNet = new(cfInfoNetwork)
+	logger.Detail("processCollectInfoFileAsadm: get info network from %s", path)
+	ctx, ctxCancel := context.WithTimeout(context.Background(), i.config.CollectInfoAsadmTimeout)
+	defer ctxCancel()
+	out, err := exec.CommandContext(ctx, "asadm", "-cf", path, "-e", "info network", "-j").CombinedOutput()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return infoNet, fmt.Errorf("failed processing on ctx %s: %s", path, ctxErr)
+	}
+	if err != nil {
+		return infoNet, fmt.Errorf("failed processing %s: %s", path, err)
+	}
+	jsonString := ""
+	jsonStart := false
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.Trim(line, "\n\r")
+		if jsonStart {
+			jsonString = jsonString + "\n" + line
+			continue
+		}
+		if strings.Trim(line, "\t ") == "{" {
+			jsonStart = true
+			jsonString = line
+		}
+	}
+	err = json.Unmarshal([]byte(jsonString), infoNet)
+	if err != nil {
+		return infoNet, fmt.Errorf("failed decompressing %s: %s", path, err)
+	}
+	logger.Detail("processCollectInfoFileAsadm: get info cluster-name from %s", path)
+	cname, ccname, err := i.processCollectInfoClusterName(path, logs)
+	if err != nil {
+		return infoNet, fmt.Errorf("get cluster name %s: %s", path, err)
+	}
+	if len(infoNet.Groups) > 0 && len(cname.Groups) > 0 {
+		for x, n := range infoNet.Groups[0].Records {
+			for _, c := range cname.Groups[0].Records {
+				if n.IP.Converted == c.IP.Converted {
+					infoNet.Groups[0].Records[x].ClusterName = c.ClusterName.Converted
+				}
+			}
+		}
+	}
+	if ccname != "" {
+		for x := range infoNet.Groups[0].Records {
+			infoNet.Groups[0].Records[x].ClusterName = ccname
+		}
+	}
+	return infoNet, nil
+}
+
+func (i *Ingest) processCollectInfoClusterName(npath string, logs map[string]map[string]string) (infoNet cfClusterName, clusterName string, err error) {
+	_, nfile := path.Split(npath)
+	if !strings.HasPrefix(nfile, "x") {
+		// we can work out cluster name by checking the node cluster instead of running asadm, do that
+		pref := strings.Split(nfile, "_")[0]
+		for cluster, nodes := range logs {
+			for _, prefix := range nodes {
+				if prefix == pref {
+					// insert cluster name into infoNet
+					return infoNet, cluster, nil
+				}
+			}
+		}
+	}
+	ctx, ctxCancel := context.WithTimeout(context.Background(), i.config.CollectInfoAsadmTimeout)
+	defer ctxCancel()
+	out, err := exec.CommandContext(ctx, "asadm", "-cf", npath, "-e", "show config like cluster-name", "-j").CombinedOutput()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return infoNet, "", fmt.Errorf("failed processing on ctx %s: %s", npath, ctxErr)
+	}
+	if err != nil {
+		return infoNet, "", fmt.Errorf("failed processing %s: %s", npath, err)
+	}
+	jsonString := ""
+	jsonStart := false
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.Trim(line, "\n\r")
+		if jsonStart {
+			jsonString = jsonString + "\n" + line
+			continue
+		}
+		if strings.Trim(line, "\t ") == "{" {
+			jsonStart = true
+			jsonString = line
+		}
+	}
+	err = json.Unmarshal([]byte(jsonString), &infoNet)
+	if err != nil {
+		return infoNet, "", fmt.Errorf("failed decompressing %s: %s", npath, err)
+	}
+	return infoNet, "", nil
+}
+
+func (i *Ingest) processCollectInfoFileRead(filePath string, cf *CfFile, ct *cfContents) error {
 	fd, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("could not open file: %s", err)
@@ -429,4 +596,61 @@ func (z *zipnozip) Close() error {
 		return z.c.Close()
 	}
 	return nil
+}
+
+type cfInfoNetwork struct {
+	Groups []struct {
+		Records []struct {
+			IP struct {
+				Converted string `json:"converted"`
+			} `json:"IP"`
+			NodeID struct {
+				Converted string `json:"converted"`
+			} `json:"Node ID"`
+			Build struct {
+				Converted string `json:"converted"`
+			} `json:"Build"`
+			Migrations struct {
+				Converted string `json:"converted"`
+			} `json:"Migrations"`
+			ClientConns struct {
+				Converted string `json:"converted"`
+			} `json:"Client Conns"`
+			Uptime struct {
+				Converted string `json:"converted"`
+			} `json:"Uptime"`
+			Cluster struct {
+				Size struct {
+					Converted string `json:"converted"`
+				} `json:"Size"`
+				Key struct {
+					Converted string `json:"converted"`
+				} `json:"Key"`
+				Integrity struct {
+					Converted string `json:"converted"`
+				} `json:"Integrity"`
+				Principal struct {
+					Converted string `json:"converted"`
+				} `json:"Principal"`
+			} `json:"Cluster"`
+			ClusterName string
+		} `json:"records"`
+	} `json:"groups"`
+}
+
+type cfClusterName struct {
+	Groups []cfClusterNameGroup `json:"groups"`
+}
+
+type cfClusterNameGroup struct {
+	Records []cfClusterNameRecord `json:"records"`
+}
+
+type cfClusterNameRecord struct {
+	ClusterName struct {
+		Converted string `json:"converted"`
+	} `json:"cluster-name"`
+	IP struct {
+		Converted string `json:"converted"`
+	} `json:"Node"`
 }

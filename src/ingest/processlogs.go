@@ -13,8 +13,15 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v6"
+	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 )
+
+type metaEntries struct {
+	Entries          []string
+	ByCluster        map[string][]int
+	StaticEntriesIdx []int
+}
 
 func (i *Ingest) ProcessLogs() error {
 	i.progress.Lock()
@@ -30,7 +37,7 @@ func (i *Ingest) ProcessLogs() error {
 	}()
 	// find node prefix->nodeID from log files
 	logger.Debug("Process Logs: enumerating log files")
-	foundLogs := make(map[string]*logFile) //cluster,nodeid,prefix
+	foundLogs := make(map[string]*LogFile) //cluster,nodeid,prefix
 	err := filepath.Walk(i.config.Directories.Logs, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -44,7 +51,7 @@ func (i *Ingest) ProcessLogs() error {
 		}
 		fdir, _ := path.Split(filePath)
 		_, fcluster := path.Split(strings.TrimSuffix(fdir, "/"))
-		foundLogs[filePath] = &logFile{
+		foundLogs[filePath] = &LogFile{
 			ClusterName: fcluster,
 			NodePrefix:  fn[0],
 			NodeID:      fn[1],
@@ -57,17 +64,17 @@ func (i *Ingest) ProcessLogs() error {
 		return fmt.Errorf("listing collectinfos: %s", err)
 	}
 	// merge list
-	logger.Debug("ProcessCollectInfo: merging lists")
+	logger.Debug("ProcessLogs: merging lists")
 	i.progress.Lock()
 	for n, f := range i.progress.LogProcessor.Files {
 		foundLogs[n] = f
 	}
-	i.progress.LogProcessor.Files = make(map[string]*logFile)
+	i.progress.LogProcessor.Files = make(map[string]*LogFile)
 	for n, f := range foundLogs {
 		i.progress.LogProcessor.Files[n] = f
 	}
 	i.progress.LogProcessor.changed = true
-	meta := make(map[string][]interface{})
+	meta := make(map[string]*metaEntries)
 	recset, err := i.db.ScanAll(nil, i.config.Aerospike.Namespace, i.patterns.LabelsSetName)
 	if err != nil {
 		logger.Warn("Could not read existing labels: %s", err)
@@ -77,7 +84,7 @@ func (i *Ingest) ProcessLogs() error {
 				logger.Warn("Error iterating through existing labels: %s", err)
 			}
 			for k, v := range rec.Record.Bins {
-				metaItem := []interface{}{}
+				metaItem := &metaEntries{}
 				err = json.Unmarshal([]byte(v.(string)), &metaItem)
 				if err != nil {
 					logger.Warn("Failed to unmarshal existing label data: %s", err)
@@ -87,21 +94,6 @@ func (i *Ingest) ProcessLogs() error {
 		}
 	}
 	metaLock := new(sync.Mutex)
-	for _, static := range i.patterns.LabelAddStaticValue {
-		if _, ok := meta[static.Name]; !ok {
-			meta[static.Name] = []interface{}{static.Value}
-		} else {
-			found := false
-			for _, sv := range meta[static.Name] {
-				if sv == static.Value {
-					found = true
-				}
-			}
-			if !found {
-				meta[static.Name] = append(meta[static.Name], static.Value)
-			}
-		}
-	}
 	i.progress.Unlock()
 
 	// process
@@ -119,49 +111,58 @@ func (i *Ingest) ProcessLogs() error {
 			wg.Add(1)
 			threads <- true
 			go func(metadata map[string]interface{}, data map[string]interface{}, fn string, logLine string, setName string) {
+				metaLock.Lock()
 				for k, v := range metadata {
-					found := false
-					metaIndex := 0
-					metaLock.Lock()
-					for vi, vv := range meta[k] {
-						if vv == v {
-							found = true
-							metaIndex = vi
-							break
+					if _, ok := meta[k]; !ok {
+						meta[k] = &metaEntries{
+							ByCluster: make(map[string][]int),
 						}
 					}
-					if found {
-						data[k] = metaIndex
-						metaLock.Unlock()
-						continue
+					saveMeta := false
+					idx := inslice.StringMatch(meta[k].Entries, v.(string))
+					if idx == -1 {
+						idx = len(meta[k].Entries)
+						saveMeta = true
+						meta[k].Entries = append(meta[k].Entries, v.(string))
+						if meta[k].ByCluster == nil {
+							meta[k].ByCluster = make(map[string][]int)
+						}
+						meta[k].ByCluster[metadata["ClusterName"].(string)] = append(meta[k].ByCluster[metadata["ClusterName"].(string)], len(meta[k].Entries)-1)
+					} else if !inslice.HasInt(meta[k].ByCluster[metadata["ClusterName"].(string)], idx) {
+						meta[k].ByCluster[metadata["ClusterName"].(string)] = append(meta[k].ByCluster[metadata["ClusterName"].(string)], idx)
+						saveMeta = true
 					}
-					data[k] = len(meta[k])
-					meta[k] = append(meta[k], v)
-					metajson, err := json.Marshal(meta[k])
-					metaLock.Unlock()
-					if err != nil {
-						logger.Error("Log Processor: could not jsonify for metadata for %s: %s", fn, err)
-						wg.Done()
-						<-threads
-						return
+					if saveMeta {
+						metajson, err := json.Marshal(meta[k])
+						if err != nil {
+							metaLock.Unlock()
+							logger.Error("Log Processor: could not jsonify for metadata for %s: %s", fn, err)
+							wg.Done()
+							<-threads
+							return
+						}
+						// store in aerospike
+						key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, k)
+						if aerr != nil {
+							metaLock.Unlock()
+							logger.Error("Log Processor: could not create key for metadata for %s: %s", fn, aerr)
+							wg.Done()
+							<-threads
+							return
+						}
+						bin := aerospike.NewBin(k, string(metajson))
+						aerr = i.db.PutBins(i.wp, key, bin)
+						if aerr != nil {
+							metaLock.Unlock()
+							logger.Error("Log Processor: could not store metadata for %s: %s", fn, aerr)
+							wg.Done()
+							<-threads
+							return
+						}
 					}
-					// store in aerospike
-					key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, k)
-					if aerr != nil {
-						logger.Error("Log Processor: could not create key for metadata for %s: %s", fn, aerr)
-						wg.Done()
-						<-threads
-						return
-					}
-					bin := aerospike.NewBin(k, string(metajson))
-					aerr = i.db.PutBins(i.wp, key, bin)
-					if aerr != nil {
-						logger.Error("Log Processor: could not store metadata for %s: %s", fn, aerr)
-						wg.Done()
-						<-threads
-						return
-					}
+					data[k] = idx
 				}
+				metaLock.Unlock()
 				key, err := aerospike.NewKey(i.config.Aerospike.Namespace, setName, fn+"::"+logLine)
 				if err != nil {
 					logger.Error("Log Processor: could not create key for %s: %s", fn, err)
@@ -187,7 +188,7 @@ func (i *Ingest) ProcessLogs() error {
 	return nil
 }
 
-func (i *Ingest) processLogsFeed(foundLogs map[string]*logFile, resultsChan chan *processResult) {
+func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan *processResult) {
 	wg := new(sync.WaitGroup)
 	threads := make(chan bool, i.config.Processor.MaxConcurrentLogFiles)
 	for n, f := range foundLogs {
@@ -196,7 +197,7 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*logFile, resultsChan chan
 		}
 		threads <- true
 		wg.Add(1)
-		go func(n string, f *logFile) {
+		go func(n string, f *LogFile) {
 			defer func() {
 				<-threads
 				defer wg.Done()
@@ -220,7 +221,8 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*logFile, resultsChan chan
 					fd.Seek(move, 0)
 				}
 			}
-			i.processLogFile(n, fd, resultsChan, labels)
+			nprefix, _ := strconv.Atoi(f.NodePrefix)
+			i.processLogFile(n, fd, resultsChan, labels, nprefix)
 		}(n, f)
 	}
 	wg.Wait()
@@ -236,7 +238,7 @@ type processResult struct {
 	LogLine  string
 }
 
-func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]interface{}) {
+func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]interface{}, nodePrefix int) {
 	_, fn := path.Split(fileName)
 	var unmatched *os.File
 	var err error
@@ -255,12 +257,13 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 			return
 		}
 		line := s.Text()
-		out, err := stream.Process(line)
-		if err != nil && err != errNotMatched {
+		out, err := stream.Process(line, nodePrefix)
+		if err != nil && err != errNotMatched && err != errNoTimestamp && !strings.HasPrefix(err.Error(), "TIME PARSE:") {
 			logger.Error("Stream Processor for line: %s", err)
+			i.progress.LogProcessor.LineErrors.add(nodePrefix, err.Error())
 			continue
 		}
-		if len(out) == 0 && err != nil && err == errNotMatched {
+		if len(out) == 0 && err != nil && (err == errNotMatched || err == errNoTimestamp || strings.HasPrefix(err.Error(), "TIME PARSE:")) {
 			if unmatched == nil {
 				os.MkdirAll(path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string)), 0755)
 				unmatched, err = os.Create(path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string), fn))
@@ -321,13 +324,17 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 	}
 	out, startTime, endTime := stream.Close()
 	for _, d := range out {
+		meta := d.Metadata
+		for k, v := range labels {
+			meta[k] = v
+		}
 		resultsChan <- &processResult{
 			FileName: fileName,
 			Data:     d.Data,
 			Error:    d.Error,
 			SetName:  d.SetName,
 			LogLine:  d.Line,
-			Metadata: d.Metadata,
+			Metadata: meta,
 		}
 	}
 	// store startTime and endTime of logs

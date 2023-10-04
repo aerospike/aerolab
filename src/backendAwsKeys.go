@@ -41,7 +41,7 @@ func (d *backendAws) makeKey(clusterName string) (keyName string, keyPath string
 	}
 	// check keypath exists, if not, make
 	if _, err := os.Stat(string(a.opts.Config.Backend.SshKeyPath)); os.IsNotExist(err) {
-		os.MkdirAll(string(a.opts.Config.Backend.SshKeyPath), 0755)
+		os.MkdirAll(string(a.opts.Config.Backend.SshKeyPath), 0700)
 	}
 	// generate keypair
 	filter := ec2.CreateKeyPairInput{}

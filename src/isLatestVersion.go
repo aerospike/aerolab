@@ -77,6 +77,6 @@ func (a *aerolab) isLatestVersionQuery(v *GitHubRelease, versionFile string) err
 	if err != nil {
 		return nil
 	}
-	os.WriteFile(versionFile, data, 0644)
+	os.WriteFile(versionFile, data, 0600)
 	return nil
 }
