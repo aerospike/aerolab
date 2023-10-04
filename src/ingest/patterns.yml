@@ -28,6 +28,7 @@ labels: # globally defined labels
     - "errCtx"
     - "errMessage"
     - "warnMessage"
+    - "Device"
 
 patterns: 
     - 
