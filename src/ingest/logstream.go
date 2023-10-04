@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -32,8 +33,9 @@ type logStreamOutput struct {
 }
 
 type multilineItem struct {
-	line      string
-	timestamp time.Time
+	line       string
+	timestamp  time.Time
+	nodePrefix int
 }
 
 type aggregator struct {
@@ -61,7 +63,7 @@ func (s *logStream) Close() (outputs []*logStreamOutput, logStartTime time.Time,
 	}
 	s.aggregateItems = make(map[string]*aggregator)
 	for _, mit := range s.multilineItems {
-		ra, err := s.lineProcess(mit.line, mit.timestamp)
+		ra, err := s.lineProcess(mit.line, mit.timestamp, mit.nodePrefix)
 		if err == nil {
 			ret = append(ret, ra...)
 		}
@@ -70,10 +72,12 @@ func (s *logStream) Close() (outputs []*logStreamOutput, logStartTime time.Time,
 	return ret, s.logFileStartTime, s.logFileEndTime
 }
 
-func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
+const parseTimeError = "TIME PARSE: %s"
+
+func (s *logStream) Process(line string, nodePrefix int) ([]*logStreamOutput, error) {
 	timestamp, lineOffset, err := s.lineGetTimestamp(line)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(parseTimeError, err)
 	}
 	if s.TimeRanges != nil {
 		if !s.TimeRanges.From.IsZero() && timestamp.Before(s.TimeRanges.From) {
@@ -91,10 +95,11 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 		// check and handle new multiline
 		if strings.Contains(line, m.StartLineSearch) {
 			if _, ok := s.multilineItems[m.StartLineSearch]; ok {
-				outx, err := s.lineProcess(s.multilineItems[m.StartLineSearch].line, s.multilineItems[m.StartLineSearch].timestamp)
+				outx, err := s.lineProcess(s.multilineItems[m.StartLineSearch].line, s.multilineItems[m.StartLineSearch].timestamp, s.multilineItems[m.StartLineSearch].nodePrefix)
 				s.multilineItems[m.StartLineSearch] = &multilineItem{
-					line:      line,
-					timestamp: timestamp,
+					line:       line,
+					timestamp:  timestamp,
+					nodePrefix: nodePrefix,
 				}
 				if err != nil {
 					return nil, err
@@ -105,8 +110,9 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 				return out, nil
 			}
 			s.multilineItems[m.StartLineSearch] = &multilineItem{
-				line:      line,
-				timestamp: timestamp,
+				line:       line,
+				timestamp:  timestamp,
+				nodePrefix: nodePrefix,
 			}
 			return out, nil
 		}
@@ -115,8 +121,9 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 			if m.StartLineSearch == mStart {
 				results := m.reMatchLines.FindStringSubmatch(line)
 				if len(results) > 0 {
-					if s.multilineItems[mStart].timestamp != timestamp {
-						return nil, errors.New("timestamp mismatch between multiple lines of multiline statistic")
+					if timestamp.Before(s.multilineItems[mStart].timestamp) {
+						//if s.multilineItems[mStart].timestamp != timestamp { // turns out this can happen
+						return nil, errors.New("multiline statistic had timestamps move backwards in time")
 					}
 					// append multiline string
 					for mpi, mp := range m.ReMatchJoin {
@@ -140,7 +147,7 @@ func (s *logStream) Process(line string) ([]*logStreamOutput, error) {
 	}
 
 	// non-multiline, just process
-	outx, err := s.lineProcess(line, timestamp)
+	outx, err := s.lineProcess(line, timestamp, nodePrefix)
 	if len(outx) > 0 {
 		out = append(out, outx...)
 	}
@@ -195,11 +202,13 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 			return
 		}
 	}
-	err = errors.New("timestamp not found")
+	err = errNoTimestamp
 	return
 }
 
-func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamOutput, error) {
+var errNoTimestamp = errors.New("timestamp not found")
+
+func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int) ([]*logStreamOutput, error) {
 	for _, p := range s.patterns.Patterns {
 		if !strings.Contains(line, p.Search) {
 			continue
@@ -210,12 +219,29 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamO
 		}
 		// find string submatch
 		for _, r := range p.regex {
-			results := r.FindStringSubmatch(line)
+			setName := p.Name
+			results := []string{}
+			if p.Regex[0] != "DROP TO ADVANCED EXPORT" {
+				results = r.FindStringSubmatch(line)
+			}
+			if len(results) == 0 {
+				for _, rr := range p.RegexAdvanced {
+					setName = rr.SetName
+					results = rr.regex.FindStringSubmatch(line)
+					if len(results) > 0 {
+						r = rr.regex
+						break
+					}
+				}
+			}
 			if len(results) == 0 {
 				continue
 			}
 			resultNames := r.SubexpNames()
 			nRes := make(map[string]interface{})
+			if p.StoreNodePrefix != "" {
+				nRes[p.StoreNodePrefix] = nodePrefix
+			}
 			nMeta := make(map[string]interface{})
 			for rIndex, result := range results {
 				if rIndex == 0 {
@@ -241,7 +267,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamO
 						break
 					}
 					hIndE = strings.Index(histograms, ")")
-					if hInd < 0 {
+					if hIndE < 0 {
 						break
 					}
 					newHist := strings.Split(histograms[hInd+1:hIndE], ": ")
@@ -303,8 +329,9 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamO
 			}
 			if p.Aggregate != nil && p.Aggregate.Field != "" {
 				newVal, _ := strconv.Atoi(nRes[p.Aggregate.Field].(string))
-				if _, ok := s.aggregateItems[p.Aggregate.On]; !ok {
-					s.aggregateItems[p.Aggregate.On] = &aggregator{
+				uniq := nMeta[p.Aggregate.On].(string)
+				if _, ok := s.aggregateItems[uniq]; !ok {
+					s.aggregateItems[uniq] = &aggregator{
 						stat:      newVal,
 						startTime: timestamp,
 						endTime:   timestamp.Add(p.Aggregate.Every),
@@ -313,12 +340,12 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamO
 							Metadata: nMeta,
 							Line:     line,
 							Error:    nil,
-							SetName:  p.Name,
+							SetName:  setName,
 						},
 					}
 				} else {
-					s.aggregateItems[p.Aggregate.On].stat += newVal
-					s.aggregateItems[p.Aggregate.On].out.Data[p.Aggregate.Field] = s.aggregateItems[p.Aggregate.On].stat
+					s.aggregateItems[uniq].stat += newVal
+					s.aggregateItems[uniq].out.Data[p.Aggregate.Field] = s.aggregateItems[uniq].stat
 				}
 				return ret, nil
 			}
@@ -327,7 +354,7 @@ func (s *logStream) lineProcess(line string, timestamp time.Time) ([]*logStreamO
 				Metadata: nMeta,
 				Line:     line,
 				Error:    nil,
-				SetName:  p.Name,
+				SetName:  setName,
 			})
 			if s.logFileStartTime.IsZero() || timestamp.Before(s.logFileStartTime) {
 				s.logFileStartTime = timestamp

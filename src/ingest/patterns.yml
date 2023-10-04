@@ -16,6 +16,7 @@ labelsSetName: "labels" # where we store labels
 labels: # globally defined labels
     - "Namespace"
     - "Histogram"
+    - "HistogramDev"
     - "HistogramUs"
     - "HistogramCount"
     - "HistogramSize"
@@ -28,16 +29,6 @@ labels: # globally defined labels
     - "errMessage"
     - "warnMessage"
 
-labelAddStaticValue: # add static values to some labels
-    - name: "Histogram"
-      value: "NONE"
-    - name: "HistogramUs"
-      value: "NONE"
-    - name: "HistogramCount"
-      value: "NONE"
-    - name: "HistogramSize"
-      value: "NONE"
-
 patterns: 
     - 
         setName: "latencies"
@@ -47,19 +38,32 @@ patterns:
             buckets: ["00","01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20","21","22","23"]
             generateCumulative: true
         export:
-            - "histogram dump: {(?P<Namespace>[^}]+)}-(?P<Histogram>[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
-            - "histogram dump: (?P<Histogram>[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
-            - "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramCount>[^ ]+) \\((?P<total>\\d+) total\\) count *(?P<histogram>.*)"
-            - "histogram dump: (?P<HistogramCount>[^ ]+) \\((?P<total>\\d+) total\\) count *(?P<histogram>.*)"
-            - "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramUs>[^ ]+) \\((?P<total>\\d+) total\\) usec *(?P<histogram>.*)"
-            - "histogram dump: (?P<HistogramUs>[^ ]+) \\((?P<total>\\d+) total\\) usec *(?P<histogram>.*)"
-            - "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramSize>[^ ]+) \\((?P<total>\\d+) total\\) bytes *(?P<histogram>.*)"
-            - "histogram dump: {(?P<HistogramSize>[^ ]+) \\((?P<total>\\d+) total\\) bytes *(?P<histogram>.*)"
+            - "DROP TO ADVANCED EXPORT"
+        exportAdvanced:
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramDev>/[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
+              setName: "histDevMs"
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<Histogram>[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
+              setName: "histMs"
+            - regex: "histogram dump: (?P<Histogram>[^ ]+) \\((?P<total>\\d+) total\\) msec *(?P<histogram>.*)"
+              setName: "histMs"
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramCount>[^ ]+) \\((?P<total>\\d+) total\\) count *(?P<histogram>.*)"
+              setName: "histCount"
+            - regex: "histogram dump: (?P<HistogramCount>[^ ]+) \\((?P<total>\\d+) total\\) count *(?P<histogram>.*)"
+              setName: "histCount"
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramUs>[^ ]+) \\((?P<total>\\d+) total\\) usec *(?P<histogram>.*)"
+              setName: "histUs"
+            - regex: "histogram dump: (?P<HistogramUs>[^ ]+) \\((?P<total>\\d+) total\\) usec *(?P<histogram>.*)"
+              setName: "histUs"
+            - regex: "histogram dump: {(?P<Namespace>[^}]+)}-(?P<HistogramSize>[^ ]+) \\((?P<total>\\d+) total\\) bytes *(?P<histogram>.*)"
+              setName: "histBytes"
+            - regex: "histogram dump: {(?P<HistogramSize>[^ ]+) \\((?P<total>\\d+) total\\) bytes *(?P<histogram>.*)"
+              setName: "histBytes"
     - 
         setName: "clusterSize"
         search: " CLUSTER-SIZE "
         export:
             - "CLUSTER-SIZE (?P<ClusterSize>\\d+)"
+        storeNodePrefix: "NodePrefix" # store node prefix with the clusterSize stat in NodePrefix bin
     -
         setName: "nsMigrations"
         search: "migrations: remaining"
@@ -168,6 +172,21 @@ patterns:
         export:
             - "{(?P<Namespace>[^}]+)} objects: all (?P<ObjectsAll>\\d+) master (?P<ObjectsMaster>\\d+) prole (?P<ObjectsProle>\\d+) non-replica (?P<ObjectsNonProle>\\d+)"
             - "{(?P<Namespace>[^}]+)} objects: all (?P<ObjectsAll>\\d+) master (?P<ObjectsMaster>\\d+) prole (?P<ObjectsProle>\\d+)"
+    -
+        setName: "nsUsageSIdx" #v7
+        search: "sindex-usage: used-bytes"
+        export:
+            - "{(?P<Namespace>[^}]+)} sindex-usage: used-bytes (?P<sidxUsedBytes>\\d+)"
+    -
+        setName: "nsUsageIdx" #v7
+        search: "index-usage: used-bytes"
+        export:
+            - "{(?P<Namespace>[^}]+)} index-usage: used-bytes (?P<idxUsedBytes>\\d+)"
+    -
+        setName: "nsUsageData" #v7
+        search: "data-usage: used-bytes"
+        export:
+            - "{(?P<Namespace>[^}]+)} data-usage: used-bytes (?P<dataUsedBytes>\\d+) avail-pct (?P<dataAvailPct>\\d+)"
     -
         setName: "nsMemory"
         search: "memory-usage: total-bytes"
@@ -420,6 +439,7 @@ patterns:
         search: "applied cluster size"
         export:
             - "applied cluster size (?P<ClusterSize>\\d+)"
+        storeNodePrefix: "NodePrefix" # store node prefix with the clusterSize stat in NodePrefix bin
     -
         setName: "tombraider"
         search: "tombstones"
@@ -516,7 +536,7 @@ patterns:
         aggregate:
             every: 10s
             field: "repeated"
-            on: "warnMessage"
+            on: "warnC"
     -
         setName: "errors"
         search: ": ERROR ("
@@ -530,4 +550,4 @@ patterns:
         aggregate:
             every: 10s
             field: "repeated"
-            on: "errMessage"
+            on: "errC"

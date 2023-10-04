@@ -2,6 +2,7 @@ package ingest
 
 import (
 	_ "embed"
+	"encoding/json"
 	"os"
 	"regexp"
 	"sync"
@@ -16,15 +17,54 @@ type Ingest struct {
 	patterns     *patterns
 	cpuProfile   *os.File
 	pprofRunning bool
-	progress     *progress
+	progress     *Progress
 	db           *aerospike.Client
 	wp           *aerospike.WritePolicy
+	end          bool
+	endLock      *sync.Mutex
 }
+
+type lineErrors struct {
+	sync.Mutex
+	errors  map[int]map[string]int
+	changed bool
+}
+
+func (l *lineErrors) add(nodeIdent int, err string) {
+	l.Lock()
+	l.changed = true
+	if l.errors == nil {
+		l.errors = make(map[int]map[string]int)
+	}
+	if _, ok := l.errors[nodeIdent]; !ok {
+		l.errors[nodeIdent] = make(map[string]int)
+		l.errors[nodeIdent][err] = 1
+		l.Unlock()
+		return
+	}
+	l.errors[nodeIdent][err]++
+	l.Unlock()
+}
+
+func (l *lineErrors) isChanged() bool {
+	l.Lock()
+	c := l.changed
+	l.Unlock()
+	return c
+}
+
+func (l *lineErrors) MarshalJSON() ([]byte, error) {
+	l.Lock()
+	defer l.Unlock()
+	return json.Marshal(l.errors)
+}
+
 type Config struct {
 	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
 	Aerospike struct {
+		WaitForSindexes     bool   `yaml:"waitForSindexes" default:"true"`
 		Host                string `yaml:"host" default:"127.0.0.1"`
-		Port                int    `yaml:"port" default:"3100"`
+		Port                int    `yaml:"port" default:"3000"`
 		Namespace           string `yaml:"namespace" default:"agi"`
 		DefaultSetName      string `yaml:"defaultSetName" default:"default"`
 		LogFileRagesSetName string `yaml:"logFileRangesSetName" default:"logRanges"`
@@ -96,6 +136,7 @@ type Config struct {
 		S3Source          *S3Source   `yaml:"s3Source"`
 		SftpSource        *SftpSource `yaml:"sftpSource"`
 	} `yaml:"downloader"`
+	CustomSourceName           string `yaml:"customSourceName" default:"" envconfig:"LOGINGEST_CUSTOM_SRCNAME"`
 	FindClusterNameNodeIdRegex string `yaml:"findClusterNameNodeIdRegex" default:"NODE-ID (?P<NodeId>[^ ]+) CLUSTER-SIZE (?P<ClusterSize>\\d+)( CLUSTER-NAME (?P<ClusterName>[^$]+))*"`
 	findClusterNameNodeIdRegex *regexp.Regexp
 	CPUProfilingOutputFile     string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
@@ -151,10 +192,6 @@ type patterns struct {
 			MatchSeq int `yaml:"matchSeq"`
 		} `yaml:"reMatchJoin"`
 	} `yaml:"multilineJoins"`
-	LabelAddStaticValue []*struct {
-		Name  string `yaml:"name"`
-		Value string `yaml:"value"`
-	} `yaml:"labelAddStaticValue"`
 	GlobalLabels  []string `yaml:"labels"`
 	LabelsSetName string   `yaml:"labelsSetName"`
 	Patterns      []*struct {
@@ -165,8 +202,14 @@ type patterns struct {
 			regex *regexp.Regexp
 			Sub   string `yaml:"sub"`
 		} `yaml:"replace"`
-		Regex               []string `yaml:"export"`
-		regex               []*regexp.Regexp
+		Regex         []string `yaml:"export"`
+		regex         []*regexp.Regexp
+		RegexAdvanced []struct {
+			Regex   string `yaml:"regex"`
+			regex   *regexp.Regexp
+			SetName string `yaml:"setName"`
+		} `yaml:"exportAdvanced"`
+		StoreNodePrefix     string            `yaml:"storeNodePrefix"`
 		Labels              []string          `yaml:"labels"` // used to define which regex matches are labels (to be stuck in metadata)
 		DefaultValuePadding map[string]string `yaml:"defaultValuePadding"`
 		Histogram           *struct {
@@ -181,34 +224,34 @@ type patterns struct {
 	} `yaml:"patterns"`
 }
 
-type progress struct {
+type Progress struct {
 	sync.RWMutex
-	Downloader           *progressDownloader
-	Unpacker             *progressUnpacker
-	PreProcessor         *progressPreProcessor
-	LogProcessor         *progressLogProcessor
-	CollectinfoProcessor *progressCollectProcessor
+	Downloader           *ProgressDownloader
+	Unpacker             *ProgressUnpacker
+	PreProcessor         *ProgressPreProcessor
+	LogProcessor         *ProgressLogProcessor
+	CollectinfoProcessor *ProgressCollectProcessor
 }
 
-type progressDownloader struct {
-	S3Files    map[string]*downloaderFile // map[key]*details
-	SftpFiles  map[string]*downloaderFile // map[path]*details
+type ProgressDownloader struct {
+	S3Files    map[string]*DownloaderFile // map[key]*details
+	SftpFiles  map[string]*DownloaderFile // map[path]*details
 	Finished   bool
 	running    bool
 	wasRunning bool
 	changed    bool
 }
 
-type progressUnpacker struct {
-	Files      map[string]*enumFile // map[path]*details
+type ProgressUnpacker struct {
+	Files      map[string]*EnumFile // map[path]*details
 	Finished   bool
 	running    bool
 	wasRunning bool
 	changed    bool
 }
 
-type progressPreProcessor struct {
-	Files                     map[string]*enumFile // map[path]*details
+type ProgressPreProcessor struct {
+	Files                     map[string]*EnumFile // map[path]*details
 	CollectInfoUniquePrefixes int
 	Finished                  bool
 	running                   bool
@@ -219,16 +262,17 @@ type progressPreProcessor struct {
 	NodeToPrefix              map[string]int
 }
 
-type progressLogProcessor struct {
-	Files      map[string]*logFile
+type ProgressLogProcessor struct {
+	Files      map[string]*LogFile
 	Finished   bool
 	running    bool
 	wasRunning bool
 	changed    bool
 	StartTime  time.Time
+	LineErrors *lineErrors
 }
 
-type logFile struct {
+type LogFile struct {
 	ClusterName string
 	NodePrefix  string
 	NodeID      string
@@ -238,15 +282,15 @@ type logFile struct {
 	Finished    bool
 }
 
-type progressCollectProcessor struct {
-	Files      map[string]*cfFile
+type ProgressCollectProcessor struct {
+	Files      map[string]*CfFile
 	Finished   bool
 	running    bool
 	wasRunning bool
 	changed    bool
 }
 
-type cfFile struct {
+type CfFile struct {
 	Size                int64
 	NodeID              string
 	RenameAttempted     bool
@@ -257,14 +301,14 @@ type cfFile struct {
 	Errors              []string
 }
 
-type downloaderFile struct {
+type DownloaderFile struct {
 	Size         int64
 	LastModified time.Time
 	IsDownloaded bool
 	Error        string
 }
 
-type enumFile struct {
+type EnumFile struct {
 	Size                  int64
 	mimeType              *mimetype.MIME
 	ContentType           string

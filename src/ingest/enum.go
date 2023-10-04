@@ -14,8 +14,8 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 )
 
-func (i *Ingest) enum() (map[string]*enumFile, error) {
-	files := make(map[string]*enumFile)
+func (i *Ingest) enum() (map[string]*EnumFile, error) {
+	files := make(map[string]*EnumFile)
 	err := filepath.Walk(i.config.Directories.DirtyTmp, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			logger.Detail("enum: got error on walk: %s", err)
@@ -25,7 +25,7 @@ func (i *Ingest) enum() (map[string]*enumFile, error) {
 			logger.Detail("enum: isDir: %s", filePath)
 			return nil
 		}
-		file := &enumFile{
+		file := &EnumFile{
 			Size: info.Size(),
 		}
 		if file.Size == 0 {

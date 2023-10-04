@@ -109,11 +109,11 @@ func (i *Ingest) DownloadS3() error {
 	if i.config.Downloader.S3Source.PathPrefix != "" {
 		prefix = aws.String(i.config.Downloader.S3Source.PathPrefix)
 	}
-	fileList := make(map[string]*downloaderFile)
+	fileList := make(map[string]*DownloaderFile)
 	i.progress.RLock()
 	for k, v := range i.progress.Downloader.S3Files {
 		if !v.IsDownloaded {
-			fileList[k] = &downloaderFile{
+			fileList[k] = &DownloaderFile{
 				Size:         v.Size,
 				LastModified: v.LastModified,
 				IsDownloaded: false,
@@ -121,12 +121,15 @@ func (i *Ingest) DownloadS3() error {
 		}
 	}
 	err = client.ListObjectsV2Pages(&s3.ListObjectsV2Input{
-		Bucket:    aws.String(i.config.Downloader.S3Source.BucketName),
-		Delimiter: aws.String("/"),
-		Prefix:    prefix,
+		Bucket: aws.String(i.config.Downloader.S3Source.BucketName),
+		//Delimiter: aws.String("/"), // commented out to allow for partial matches in directory names (like having * at the end of the name, no need to trailing slash)
+		Prefix: prefix,
 	}, func(page *s3.ListObjectsV2Output, lastPage bool) (continueIter bool) {
 		for _, object := range page.Contents {
 			if ofile, ok := i.progress.Downloader.S3Files[*object.Key]; !ok || ofile.Size != *object.Size || ofile.LastModified != *object.LastModified {
+				if strings.HasSuffix(*object.Key, "/") {
+					continue
+				}
 				if i.config.Downloader.S3Source.searchRegex != nil {
 					regexOn := *object.Key
 					if prefix != nil {
@@ -136,7 +139,7 @@ func (i *Ingest) DownloadS3() error {
 						continue
 					}
 				}
-				fileList[*object.Key] = &downloaderFile{
+				fileList[*object.Key] = &DownloaderFile{
 					Size:         *object.Size,
 					LastModified: *object.LastModified,
 					IsDownloaded: false,
@@ -255,7 +258,7 @@ func (i *Ingest) DownloadAsftp() error {
 		return fmt.Errorf("sftp failed to establish protocol: %s", err)
 	}
 	defer sclient.Close()
-	fileList := make(map[string]*downloaderFile)
+	fileList := make(map[string]*DownloaderFile)
 	var prefix *string
 	if i.config.Downloader.SftpSource.PathPrefix != "" {
 		prefix = &i.config.Downloader.SftpSource.PathPrefix
@@ -263,7 +266,7 @@ func (i *Ingest) DownloadAsftp() error {
 	i.progress.RLock()
 	for k, v := range i.progress.Downloader.SftpFiles {
 		if !v.IsDownloaded {
-			fileList[k] = &downloaderFile{
+			fileList[k] = &DownloaderFile{
 				Size:         v.Size,
 				LastModified: v.LastModified,
 				IsDownloaded: false,
@@ -293,7 +296,7 @@ func (i *Ingest) DownloadAsftp() error {
 					continue
 				}
 			}
-			fileList[object] = &downloaderFile{
+			fileList[object] = &DownloaderFile{
 				Size:         size,
 				LastModified: lastModTime,
 				IsDownloaded: false,

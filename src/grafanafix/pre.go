@@ -62,7 +62,7 @@ func EarlySetup(iniPath string, provisioningDir string, pluginsDir string, plugi
 			return err
 		}
 		if d.IsDir() {
-			return os.Mkdir(path.Join(pluginsDir, p), 0755)
+			return os.MkdirAll(path.Join(pluginsDir, p), 0755)
 		}
 		w, err := os.Create(path.Join(pluginsDir, p))
 		if err != nil {

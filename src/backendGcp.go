@@ -202,7 +202,7 @@ func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	log.Println("Expiries: cleaning up old jobs")
 	d.expiriesSystemRemove(false) // cleanup
 
-	err = os.WriteFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project), []byte(deployRegion), 0644)
+	err = os.WriteFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project), []byte(deployRegion), 0600)
 	if err != nil {
 		return fmt.Errorf("could not note the region where scheduler got deployed: %s", err)
 	}
@@ -622,11 +622,11 @@ func (d *backendGcp) saveInstanceTypesToCache(it []instanceType, zone string) er
 	cacheDir = path.Join(cacheDir, "cache")
 	cacheFile := path.Join(cacheDir, "gcp.instance-types."+zone+".json")
 	if _, err := os.Stat(cacheDir); err != nil {
-		if err = os.Mkdir(cacheDir, 0755); err != nil {
+		if err = os.Mkdir(cacheDir, 0700); err != nil {
 			return err
 		}
 	}
-	f, err := os.OpenFile(cacheFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(cacheFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -1957,7 +1957,7 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 	}
 	// check keypath exists, if not, make
 	if _, err := os.Stat(string(a.opts.Config.Backend.SshKeyPath)); os.IsNotExist(err) {
-		os.MkdirAll(string(a.opts.Config.Backend.SshKeyPath), 0755)
+		os.MkdirAll(string(a.opts.Config.Backend.SshKeyPath), 0700)
 	}
 
 	// generate keypair
@@ -2451,7 +2451,7 @@ func (d *backendGcp) createSecurityGroupExternal(namePrefix string) error {
 		Allowed: []*computepb.Allowed{
 			{
 				IPProtocol: proto.String("tcp"),
-				Ports:      []string{"22", "3000", "8080", "8888", "9200"},
+				Ports:      []string{"22", "3000", "443", "80", "8080", "8888", "9200"},
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
@@ -2542,7 +2542,7 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, nam
 		Allowed: []*computepb.Allowed{
 			{
 				IPProtocol: proto.String("tcp"),
-				Ports:      []string{"22", "3000", "8080", "8888", "9200"},
+				Ports:      []string{"22", "3000", "443", "80", "8080", "8888", "9200"},
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
@@ -2740,6 +2740,7 @@ type gcpDisk struct {
 }
 
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
+	name = strings.Trim(name, "\r\n\t ")
 	if extra.zone == "" {
 		return errors.New("zone must be specified")
 	}

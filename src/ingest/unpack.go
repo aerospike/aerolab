@@ -84,7 +84,7 @@ func (i *Ingest) Unpack() error {
 		i.progress.Unpacker.running = false
 		i.progress.Unlock()
 	}()
-	var files map[string]*enumFile
+	var files map[string]*EnumFile
 	var err error
 	ignoreFailedUnpacks := new(safeStringSlice)
 	ignoreFailedErrors := new(safeStringMap)
@@ -110,7 +110,7 @@ func (i *Ingest) Unpack() error {
 			wg.Add(1)
 			threads <- true
 			logger.Detail("unpack %s starting, threads:%d", fn, len(threads))
-			go func(fn string, file *enumFile) {
+			go func(fn string, file *EnumFile) {
 				err = i.unpackFile(fn, file)
 				if err != nil {
 					logger.Warn("Unpack of %s failed with %s", fn, err)
@@ -147,7 +147,7 @@ func (i *Ingest) Unpack() error {
 	return nil
 }
 
-func (i *Ingest) unpackFile(fileName string, fileInfo *enumFile) error {
+func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
 	contentType := fileInfo.mimeType
 	var err error
 	if fileInfo.IsTarGz {

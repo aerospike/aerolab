@@ -2,6 +2,7 @@ package main
 
 import (
 	"io"
+	"log"
 	"os"
 	"sync"
 
@@ -24,7 +25,10 @@ func backendRestoreTerminal() {
 	restoreTerminalLock.Lock()
 	defer restoreTerminalLock.Unlock()
 	if restoreTerminalState != nil {
-		term.Restore(int(os.Stdout.Fd()), restoreTerminalState)
+		err := term.Restore(int(os.Stdout.Fd()), restoreTerminalState)
+		if err != nil {
+			log.Printf("FAILED to restore terminal state, run 'reset': %s", err)
+		}
 		restoreTerminalState = nil
 	}
 }

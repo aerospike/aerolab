@@ -30,11 +30,15 @@ import (
 //LOGINGEST_SFTPSOURCE_KEYFILE: /loc.f.pem
 //LOGINGEST_SFTPSOURCE_THREADS: 4
 
-func Run() error {
-	config, err := MakeConfig(true, "", true)
+func Run(yamlFile string) error {
+	config, err := MakeConfig(true, yamlFile, true)
 	if err != nil {
 		return fmt.Errorf("MakeConfig: %s", err)
 	}
+	return RunWithConfig(config)
+}
+
+func RunWithConfig(config *Config) error {
 	i, err := Init(config)
 	if err != nil {
 		return fmt.Errorf("Init: %s", err)
