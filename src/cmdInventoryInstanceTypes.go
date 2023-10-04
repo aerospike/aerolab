@@ -177,7 +177,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	// until we do something more clever...
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		// fmt.Println("Is Terminal")
-		t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 
 		// s, err := tsize.GetSize()
 		if err != nil {
@@ -186,7 +186,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		// t.SetAllowedRowLength(s.Width)
 	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
 		// fmt.Println("Is Cygwin/MSYS2 Terminal")
-		t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 
 		// s, err := tsize.GetSize()
 		if err != nil {
@@ -198,7 +198,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		t.SetStyle(table.StyleDefault)
 	}
 
-	t.SetTitle("INSTANCES")
+	//t.SetTitle("INSTANCES")
 	t.AppendHeader(table.Row{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month"})
 	for _, v := range instanceTypes {
 		if c.FilterName != "" && !strings.HasPrefix(v.InstanceName, c.FilterName) {

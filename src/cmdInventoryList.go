@@ -214,8 +214,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	// until we do something more clever...
 	if isatty.IsTerminal(os.Stdout.Fd()) {
 		// fmt.Println("Is Terminal")
-		t.SetStyle(table.StyleColoredBlackOnBlueWhite)
-
+		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 		// s, err := tsize.GetSize()
 		if err != nil {
 			fmt.Println("Couldn't get terminal width")
@@ -223,7 +222,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		// t.SetAllowedRowLength(s.Width)
 	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
 		// fmt.Println("Is Cygwin/MSYS2 Terminal")
-		t.SetStyle(table.StyleColoredBlackOnBlueWhite)
+		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 
 		// s, err := tsize.GetSize()
 		if err != nil {
@@ -235,8 +234,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.SetStyle(table.StyleDefault)
 	}
 
+	colorHiWhite := text.Colors{text.FgHiWhite}
 	if showTemplates {
-		t.SetTitle("TEMPLATES")
+		t.SetTitle(colorHiWhite.Sprint("TEMPLATES"))
 		t.ResetHeaders()
 		t.ResetRows()
 		t.ResetFooters()
@@ -255,7 +255,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	}
 
 	if showClusters {
-		t.SetTitle("CLUSTERS")
+		t.SetTitle(colorHiWhite.Sprint("CLUSTERS"))
 		t.ResetHeaders()
 		t.ResetRows()
 		t.ResetFooters()
@@ -329,7 +329,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	}
 
 	if showClients {
-		t.SetTitle("CLIENTS")
+		t.SetTitle(colorHiWhite.Sprint("CLIENTS"))
 		t.ResetHeaders()
 		t.ResetRows()
 		t.ResetFooters()
@@ -409,7 +409,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.ResetFooters()
 		switch a.opts.Config.Backend.Type {
 		case "gcp":
-			t.SetTitle("FIREWALL RULES")
+			t.SetTitle(colorHiWhite.Sprint("FIREWALL RULES"))
 			t.AppendHeader(table.Row{"Firewall Name", "Target Tags", "Source Tags", "Source Ranges", "Allow Ports", "Deny Ports"})
 			for _, v := range inv.FirewallRules {
 				vv := table.Row{
@@ -423,7 +423,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				t.AppendRow(vv)
 			}
 		case "aws":
-			t.SetTitle("SECURITY GROUPS")
+			t.SetTitle(colorHiWhite.Sprint("SECURITY GROUPS"))
 			t.AppendHeader(table.Row{"VPC", "Security Group Name", "Security Group ID", "IPs"})
 			for _, v := range inv.FirewallRules {
 				vv := table.Row{
@@ -435,7 +435,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				t.AppendRow(vv)
 			}
 		case "docker":
-			t.SetTitle("NETWORKS")
+			t.SetTitle(colorHiWhite.Sprint("NETWORKS"))
 			t.AppendHeader(table.Row{"Network Name", "Network Driver", "Subnets", "MTU"})
 			for _, v := range inv.FirewallRules {
 				vv := table.Row{
@@ -459,7 +459,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.ResetFooters()
 		switch a.opts.Config.Backend.Type {
 		case "aws":
-			fmt.Println("\nSUBNETS:")
+			t.SetTitle(colorHiWhite.Sprint("SUBNETS"))
 			t.AppendHeader(table.Row{"VPC ID", "VPC Name", "VPC Cidr", "Avail. Zone", "Subnet ID", "Subnet Cidr", "AZ Default", "Subnet Name", "Auto-Assign IP"})
 			for _, v := range inv.Subnets {
 				autoIP := "no (enable to use with aerolab)"
@@ -492,7 +492,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.AppendHeader(table.Row{"#", "Subsystem", "Details"})
 			switch a.opts.Config.Backend.Type {
 			case "aws":
-				t.SetTitle("EXPIRY_SYSTEM")
+				t.SetTitle(colorHiWhite.Sprint("EXPIRY_SYSTEM"))
 				for i, v := range inv.ExpirySystem {
 					t.AppendRow(table.Row{i, "IAM Function Rule", v.IAMFunction})
 					t.AppendRow(table.Row{i, "IAM Scheduler Rule", v.IAMScheduler})
@@ -502,7 +502,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				}
 				fmt.Println(t.Render())
 			case "gcp":
-				t.SetTitle("EXPIRY_SYSTEM")
+				t.SetTitle(colorHiWhite.Sprint("EXPIRY_SYSTEM"))
 				for i, v := range inv.ExpirySystem {
 					t.AppendRow(table.Row{i, "Function", v.Function})
 					t.AppendRow(table.Row{i, "Source Bucket", v.SourceBucket})
