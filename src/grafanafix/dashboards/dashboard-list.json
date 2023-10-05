@@ -188,9 +188,9 @@
       "id": 2,
       "options": {
         "folderId": 1,
-        "includeVars": false,
-        "keepTime": false,
-        "maxItems": 10,
+        "includeVars": true,
+        "keepTime": true,
+        "maxItems": 30,
         "query": "",
         "showHeadings": false,
         "showRecentlyViewed": false,
@@ -225,9 +225,9 @@
       },
       "id": 3,
       "options": {
-        "includeVars": false,
-        "keepTime": false,
-        "maxItems": 10,
+        "includeVars": true,
+        "keepTime": true,
+        "maxItems": 30,
         "query": "",
         "showHeadings": false,
         "showRecentlyViewed": false,
@@ -262,9 +262,9 @@
       },
       "id": 4,
       "options": {
-        "includeVars": false,
-        "keepTime": false,
-        "maxItems": 10,
+        "includeVars": true,
+        "keepTime": true,
+        "maxItems": 30,
         "query": "",
         "showHeadings": false,
         "showRecentlyViewed": true,
@@ -720,6 +720,6 @@
   "timezone": "",
   "title": "Dashboard List",
   "uid": "dashList",
-  "version": 3,
+  "version": 2,
   "weekStart": ""
 }
