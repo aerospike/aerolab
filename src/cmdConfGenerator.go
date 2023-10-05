@@ -8,8 +8,8 @@ import (
 
 type confGeneratorCmd struct {
 	Path          flags.Filename `short:"f" long:"filename" description:"file name to read/write/generate" default:"aerospike.conf"`
-	Pre7          bool           `short:"6" long:"--pre-7" description:"set to to generator for pre-version-7 aerospike"`
-	DisableColors bool           `short:"c" long:"--no-colors" description:"set to operate in no-color mode"`
+	Pre7          bool           `short:"6" long:"pre-7" description:"set to to generator for pre-version-7 aerospike"`
+	DisableColors bool           `short:"c" long:"no-colors" description:"set to operate in no-color mode"`
 	Help          helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
