@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +19,7 @@ import (
 
 type inventoryListCmd struct {
 	Owner      string  `long:"owner" description:"Only show resources tagged with this owner"`
+	NoPaginate bool    `long:"no-paginate" description:"set to disable vertical and horizontal pagination"`
 	Json       bool    `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool    `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -25,6 +28,9 @@ type inventoryListCmd struct {
 func (c *inventoryListCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if c.JsonPretty {
+		c.Json = true
 	}
 	return c.run(true, true, true, true, true, inventoryShowExpirySystem)
 }
@@ -209,10 +215,19 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 	})
 
+	colorHiWhite := colorPrint{c: text.Colors{text.FgHiWhite}, enable: true}
+	warnExp := colorPrint{c: text.Colors{text.BgHiYellow, text.FgBlack}, enable: true}
+	errExp := colorPrint{c: text.Colors{text.BgHiRed, text.FgWhite}, enable: true}
+	isColor := true
+	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
+		isColor = false
+	}
+	pipeLess := !c.NoPaginate
+
 	t := table.NewWriter()
 	// For now, don't set the allowed row lenght, wrapping is better
 	// until we do something more clever...
-	if isatty.IsTerminal(os.Stdout.Fd()) {
+	if isatty.IsTerminal(os.Stdout.Fd()) && isColor {
 		// fmt.Println("Is Terminal")
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 		// s, err := tsize.GetSize()
@@ -220,7 +235,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			fmt.Println("Couldn't get terminal width")
 		}
 		// t.SetAllowedRowLength(s.Width)
-	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) && isColor {
 		// fmt.Println("Is Cygwin/MSYS2 Terminal")
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 
@@ -230,11 +245,47 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 		// t.SetAllowedRowLength(s.Width)
 	} else {
+		pipeLess = false
 		fmt.Fprintln(os.Stderr, "aerolab does not have a stable CLI interface. Use with caution in scripts.\nIn scripts, the JSON output should be used for stability.")
 		t.SetStyle(table.StyleDefault)
+		colorHiWhite.enable = false
+		warnExp.enable = false
+		errExp.enable = false
 	}
 
-	colorHiWhite := text.Colors{text.FgHiWhite}
+	lessCmd := ""
+	lessParams := []string{}
+	if pipeLess {
+		lessCmd, lessParams = getPaginationCommand()
+	}
+
+	if lessCmd != "" {
+		origStdout := os.Stdout // store original
+		origStderr := os.Stderr // store original
+		defer func() {          // on exit, last thing we do, we recover stdout/stderr
+			os.Stdout = origStdout
+			os.Stderr = origStderr
+		}()
+		less := exec.Command(lessCmd, lessParams...)
+		less.Stdout = origStdout // less will write
+		less.Stderr = origStderr // less will write
+		r, w, err := os.Pipe()   // writer writes, reader reads
+		if err == nil {
+			os.Stdout = w      // we will write to os.Pipe
+			os.Stderr = w      // we will write to os.Pipe
+			less.Stdin = r     // less will read from os.Pipe
+			err = less.Start() // start less so it can do it's magic
+			if err != nil {    // on pagination failure, revert to non-paginated output
+				os.Stdout = origStdout
+				os.Stderr = origStderr
+				log.Printf("Pagination failed, %s returned: %s", lessCmd, err)
+			} else {
+				defer less.Wait() // after closing w, we should wait for less to finish before exiting
+				defer w.Close()   // must close or less will wait for more input
+			}
+		}
+	}
+
 	if showTemplates {
 		t.SetTitle(colorHiWhite.Sprint("TEMPLATES"))
 		t.ResetHeaders()
@@ -291,7 +342,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 				if v.Expires == "" {
-					vv = append(vv, text.Colors{text.BgHiYellow, text.FgBlack}.Sprint("WARN: no expiry is set"))
+					vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
 				} else {
 					// Parse the expiration time string
 					expirationTime, err := time.Parse(time.RFC3339, v.Expires)
@@ -306,7 +357,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					expiresIn := expirationTime.Sub(currentTime)
 
 					if expiresIn < 6*time.Hour {
-						vv = append(vv, text.Colors{text.BgHiRed, text.FgWhite}.Sprintf("%s", expiresIn.Round(time.Minute)))
+						vv = append(vv, errExp.Sprintf("%s", expiresIn.Round(time.Minute)))
 					} else {
 						vv = append(vv, expiresIn.Round(time.Minute))
 					}
@@ -316,7 +367,6 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-
 		fmt.Println(t.Render())
 		if a.opts.Config.Backend.Type != "docker" {
 			fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
@@ -367,7 +417,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 				if v.Expires == "" {
-					vv = append(vv, text.Colors{text.BgHiYellow, text.FgBlack}.Sprint("WARN: no expiry is set"))
+					vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
 				} else {
 					// Parse the expiration time string
 					expirationTime, err := time.Parse(time.RFC3339, v.Expires)
@@ -382,7 +432,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					expiresIn := expirationTime.Sub(currentTime)
 
 					if expiresIn < 6*time.Hour {
-						vv = append(vv, text.Colors{text.BgHiRed, text.FgWhite}.Sprintf("%s", expiresIn.Round(time.Minute)))
+						vv = append(vv, errExp.Sprintf("%s", expiresIn.Round(time.Minute)))
 					} else {
 						vv = append(vv, expiresIn.Round(time.Minute))
 					}
@@ -392,7 +442,6 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-
 		fmt.Println(t.Render())
 		if a.opts.Config.Backend.Type == "docker" {
 			fmt.Println("* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL")
@@ -516,4 +565,23 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	}
 
 	return nil
+}
+
+type colorPrint struct {
+	c      text.Colors
+	enable bool
+}
+
+func (c *colorPrint) Sprint(a ...interface{}) string {
+	if c.enable {
+		return c.c.Sprint(a...)
+	}
+	return fmt.Sprint(a...)
+}
+
+func (c *colorPrint) Sprintf(format string, a ...interface{}) string {
+	if c.enable {
+		return c.c.Sprintf(format, a...)
+	}
+	return fmt.Sprintf(format, a...)
 }
