@@ -209,6 +209,10 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 	})
 
+	colorHiWhite := colorPrint{c: text.Colors{text.FgHiWhite}, enable: true}
+	warnExp := colorPrint{c: text.Colors{text.BgHiYellow, text.FgBlack}, enable: true}
+	errExp := colorPrint{c: text.Colors{text.BgHiRed, text.FgWhite}, enable: true}
+
 	t := table.NewWriter()
 	// For now, don't set the allowed row lenght, wrapping is better
 	// until we do something more clever...
@@ -232,9 +236,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	} else {
 		fmt.Fprintln(os.Stderr, "aerolab does not have a stable CLI interface. Use with caution in scripts.\nIn scripts, the JSON output should be used for stability.")
 		t.SetStyle(table.StyleDefault)
+		colorHiWhite.enable = false
+		warnExp.enable = false
+		errExp.enable = false
 	}
 
-	colorHiWhite := text.Colors{text.FgHiWhite}
 	if showTemplates {
 		t.SetTitle(colorHiWhite.Sprint("TEMPLATES"))
 		t.ResetHeaders()
@@ -291,7 +297,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 				if v.Expires == "" {
-					vv = append(vv, text.Colors{text.BgHiYellow, text.FgBlack}.Sprint("WARN: no expiry is set"))
+					vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
 				} else {
 					// Parse the expiration time string
 					expirationTime, err := time.Parse(time.RFC3339, v.Expires)
@@ -306,7 +312,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					expiresIn := expirationTime.Sub(currentTime)
 
 					if expiresIn < 6*time.Hour {
-						vv = append(vv, text.Colors{text.BgHiRed, text.FgWhite}.Sprintf("%s", expiresIn.Round(time.Minute)))
+						vv = append(vv, errExp.Sprintf("%s", expiresIn.Round(time.Minute)))
 					} else {
 						vv = append(vv, expiresIn.Round(time.Minute))
 					}
@@ -316,7 +322,6 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-
 		fmt.Println(t.Render())
 		if a.opts.Config.Backend.Type != "docker" {
 			fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
@@ -367,7 +372,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 				if v.Expires == "" {
-					vv = append(vv, text.Colors{text.BgHiYellow, text.FgBlack}.Sprint("WARN: no expiry is set"))
+					vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
 				} else {
 					// Parse the expiration time string
 					expirationTime, err := time.Parse(time.RFC3339, v.Expires)
@@ -382,7 +387,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					expiresIn := expirationTime.Sub(currentTime)
 
 					if expiresIn < 6*time.Hour {
-						vv = append(vv, text.Colors{text.BgHiRed, text.FgWhite}.Sprintf("%s", expiresIn.Round(time.Minute)))
+						vv = append(vv, errExp.Sprintf("%s", expiresIn.Round(time.Minute)))
 					} else {
 						vv = append(vv, expiresIn.Round(time.Minute))
 					}
@@ -392,7 +397,6 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-
 		fmt.Println(t.Render())
 		if a.opts.Config.Backend.Type == "docker" {
 			fmt.Println("* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL")
@@ -516,4 +520,23 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	}
 
 	return nil
+}
+
+type colorPrint struct {
+	c      text.Colors
+	enable bool
+}
+
+func (c *colorPrint) Sprint(a ...interface{}) string {
+	if c.enable {
+		return c.c.Sprint(a...)
+	}
+	return fmt.Sprint(a...)
+}
+
+func (c *colorPrint) Sprintf(format string, a ...interface{}) string {
+	if c.enable {
+		return c.c.Sprintf(format, a...)
+	}
+	return fmt.Sprintf(format, a...)
 }
