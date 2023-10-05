@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -212,11 +214,16 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	colorHiWhite := colorPrint{c: text.Colors{text.FgHiWhite}, enable: true}
 	warnExp := colorPrint{c: text.Colors{text.BgHiYellow, text.FgBlack}, enable: true}
 	errExp := colorPrint{c: text.Colors{text.BgHiRed, text.FgWhite}, enable: true}
+	isColor := true
+	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
+		isColor = false
+	}
+	pipeLess := true
 
 	t := table.NewWriter()
 	// For now, don't set the allowed row lenght, wrapping is better
 	// until we do something more clever...
-	if isatty.IsTerminal(os.Stdout.Fd()) {
+	if isatty.IsTerminal(os.Stdout.Fd()) && isColor {
 		// fmt.Println("Is Terminal")
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 		// s, err := tsize.GetSize()
@@ -224,7 +231,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			fmt.Println("Couldn't get terminal width")
 		}
 		// t.SetAllowedRowLength(s.Width)
-	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) && isColor {
 		// fmt.Println("Is Cygwin/MSYS2 Terminal")
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 
@@ -234,11 +241,45 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 		// t.SetAllowedRowLength(s.Width)
 	} else {
+		pipeLess = false
 		fmt.Fprintln(os.Stderr, "aerolab does not have a stable CLI interface. Use with caution in scripts.\nIn scripts, the JSON output should be used for stability.")
 		t.SetStyle(table.StyleDefault)
 		colorHiWhite.enable = false
 		warnExp.enable = false
 		errExp.enable = false
+	}
+
+	lessCmd := ""
+	lessParams := []string{}
+	if pipeLess {
+		lessCmd, lessParams = getPaginationCommand()
+	}
+
+	if lessCmd != "" {
+		origStdout := os.Stdout // store original
+		origStderr := os.Stderr // store original
+		defer func() {          // on exit, last thing we do, we recover stdout/stderr
+			os.Stdout = origStdout
+			os.Stderr = origStderr
+		}()
+		less := exec.Command(lessCmd, lessParams...)
+		less.Stdout = origStdout // less will write
+		less.Stderr = origStderr // less will write
+		r, w, err := os.Pipe()   // writer writes, reader reads
+		if err == nil {
+			os.Stdout = w      // we will write to os.Pipe
+			os.Stderr = w      // we will write to os.Pipe
+			less.Stdin = r     // less will read from os.Pipe
+			err = less.Start() // start less so it can do it's magic
+			if err != nil {    // on pagination failure, revert to non-paginated output
+				os.Stdout = origStdout
+				os.Stderr = origStderr
+				log.Printf("Pagination failed, %s returned: %s", lessCmd, err)
+			} else {
+				defer less.Wait() // after closing w, we should wait for less to finish before exiting
+				defer w.Close()   // must close or less will wait for more input
+			}
+		}
 	}
 
 	if showTemplates {
