@@ -1704,6 +1704,2026 @@
         "type": "timeseries"
       }
     },
+    "aaf0f530-47c6-44aa-a774-eba4b5c64ac1": {
+      "name": "Namespace->index-usage - used-bytes",
+      "uid": "aaf0f530-47c6-44aa-a774-eba4b5c64ac1",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->index-usage - used-bytes",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"idxUsedBytes\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsUsageIdx"
+          }
+        ],
+        "title": "index-usage - used-bytes",
+        "type": "timeseries"
+      }
+    },
+    "ca7fd270-dc8c-4e65-8a0b-456ab8fa0147": {
+      "name": "Namespace->set-index-usage - used-bytes",
+      "uid": "ca7fd270-dc8c-4e65-8a0b-456ab8fa0147",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->set-index-usage - used-bytes",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"setidxUsedBytes\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsUsageSetIdx"
+          }
+        ],
+        "title": "set-index-usage - used-bytes",
+        "type": "timeseries"
+      }
+    },
+    "d7d3e12d-377f-40ef-a622-175280f84dfb": {
+      "name": "Namespace->Sindex-Usage - used-bytes",
+      "uid": "d7d3e12d-377f-40ef-a622-175280f84dfb",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->Sindex-Usage - used-bytes",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"sidxUsedBytes\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsUsageSIdx"
+          }
+        ],
+        "title": "Sindex-Usage - used-bytes",
+        "type": "timeseries"
+      }
+    },
+    "c6c665fd-ec6d-4ce0-9960-e87fb861da9b": {
+      "name": "Namespace->data-usage - used-bytes",
+      "uid": "c6c665fd-ec6d-4ce0-9960-e87fb861da9b",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->data-usage - used-bytes",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"dataUsedBytes\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsUsageData"
+          }
+        ],
+        "title": "data-usage - used-bytes",
+        "type": "timeseries"
+      }
+    },
+    "bdcbe067-a6bd-44d9-8cfb-30eef4f2bc25": {
+      "name": "Namespace->data-usage - avail-pct",
+      "uid": "bdcbe067-a6bd-44d9-8cfb-30eef4f2bc25",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->data-usage - avail-pct",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"dataAvailPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsUsageData"
+          }
+        ],
+        "title": "data-usage - avail-pct",
+        "type": "timeseries"
+      }
+    },
+    "ae8eb53c-7758-4496-b604-26618b193cf0": {
+      "name": "Namespace->stop-writes - sys-memory-pct",
+      "uid": "ae8eb53c-7758-4496-b604-26618b193cf0",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->stop-writes - sys-memory-pct",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrSysMemPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsStopWrites"
+          }
+        ],
+        "title": "stop-writes - sys-memory-pct",
+        "type": "timeseries"
+      }
+    },
+    "dd76ba95-4154-48ec-8f0b-c0ffbd78c310": {
+      "name": "Namespace->stop-writes - data avail-pct",
+      "uid": "dd76ba95-4154-48ec-8f0b-c0ffbd78c310",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->stop-writes - data avail-pct",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrDatAvail\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsStopWrites"
+          }
+        ],
+        "title": "stop-writes - data avail-pct",
+        "type": "timeseries"
+      }
+    },
+    "f5ba945f-375d-4c87-8be7-bec951443770": {
+      "name": "Namespace->stop-writes - used-pct",
+      "uid": "f5ba945f-375d-4c87-8be7-bec951443770",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->stop-writes - used-pct",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrUsed\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsStopWrites"
+          }
+        ],
+        "title": "stop-writes - used-pct",
+        "type": "timeseries"
+      }
+    },
+    "fda6a22b-5ae4-4156-a377-bd9b7e2d1839": {
+      "name": "Namespace->stop-writes - all-indexes-memory",
+      "uid": "fda6a22b-5ae4-4156-a377-bd9b7e2d1839",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->stop-writes - all-indexes-memory",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrIdxMemSz\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsStopWrites"
+          }
+        ],
+        "title": "stop-writes - all-indexes-memory",
+        "type": "timeseries"
+      }
+    },
+    "e21622d7-482c-4820-921c-3749f7f54cfe": {
+      "name": "Namespace->stop-writes - index-memory",
+      "uid": "e21622d7-482c-4820-921c-3749f7f54cfe",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->stop-writes - index-memory",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsStopWrites"
+          }
+        ],
+        "title": "stop-writes - index-memory",
+        "type": "timeseries"
+      }
+    },
+    "cd637967-d121-480e-b25e-d47ee2ecf956": {
+      "name": "Namespace->stop-writes - set-index-memory",
+      "uid": "cd637967-d121-480e-b25e-d47ee2ecf956",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->stop-writes - set-index-memory",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrSetIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsStopWrites"
+          }
+        ],
+        "title": "stop-writes - set-index-memory",
+        "type": "timeseries"
+      }
+    },
+    "ea8c108f-ee3f-4c81-b16c-e7c2a76d540d": {
+      "name": "Namespace->stop-writes - sindex-memory",
+      "uid": "ea8c108f-ee3f-4c81-b16c-e7c2a76d540d",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->stop-writes - sindex-memory",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrSetSIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsStopWrites"
+          }
+        ],
+        "title": "stop-writes - sindex-memory",
+        "type": "timeseries"
+      }
+    },
+    "c4110adc-8adf-4362-9370-ad44bf002b6f": {
+      "name": "Namespace->eviction - sys-memory-pct",
+      "uid": "c4110adc-8adf-4362-9370-ad44bf002b6f",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->eviction - sys-memory-pct",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictSysMemPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsEvict"
+          }
+        ],
+        "title": "eviction - sys-memory-pct",
+        "type": "timeseries"
+      }
+    },
+    "f54675d5-570c-432d-889c-bae790264da8": {
+      "name": "Namespace->eviction - index-device",
+      "uid": "f54675d5-570c-432d-889c-bae790264da8",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->eviction - index-device",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictIdxDev\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsEvict"
+          }
+        ],
+        "title": "eviction - index-device",
+        "type": "timeseries"
+      }
+    },
+    "ed39611e-252a-45bb-82cc-3596e3969380": {
+      "name": "Namespace->eviction - used-pct",
+      "uid": "ed39611e-252a-45bb-82cc-3596e3969380",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->eviction - used-pct",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictUsedPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsEvict"
+          }
+        ],
+        "title": "eviction - used-pct",
+        "type": "timeseries"
+      }
+    },
+    "b41093f6-461a-4537-aa56-da41892eb860": {
+      "name": "Namespace->eviction - data-used-pct",
+      "uid": "b41093f6-461a-4537-aa56-da41892eb860",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->eviction - data-used-pct",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictDataUsed\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsEvict"
+          }
+        ],
+        "title": "eviction - data-used-pct",
+        "type": "timeseries"
+      }
+    },
+    "c9bfe61b-4466-42ed-a91c-f16acf378299": {
+      "name": "Namespace->eviction - all-indexes-memory",
+      "uid": "c9bfe61b-4466-42ed-a91c-f16acf378299",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->eviction - all-indexes-memory",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictIdxMemSz\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsEvict"
+          }
+        ],
+        "title": "eviction - all-indexes-memory",
+        "type": "timeseries"
+      }
+    },
+    "a560ae36-0668-4131-b225-bb6f3805b572": {
+      "name": "Namespace->eviction - index-memory",
+      "uid": "a560ae36-0668-4131-b225-bb6f3805b572",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->eviction - index-memory",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsEvict"
+          }
+        ],
+        "title": "eviction - index-memory",
+        "type": "timeseries"
+      }
+    },
+    "bc522506-741f-4b63-a1a3-af9cfabdc7fc": {
+      "name": "Namespace->eviction - set-index-memory",
+      "uid": "bc522506-741f-4b63-a1a3-af9cfabdc7fc",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->eviction - set-index-memory",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictSetIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsEvict"
+          }
+        ],
+        "title": "eviction - set-index-memory",
+        "type": "timeseries"
+      }
+    },
+    "edcca7d6-e5ef-4fe6-8b50-bfcc6b0cebe9": {
+      "name": "Namespace->eviction - sindex-memory",
+      "uid": "edcca7d6-e5ef-4fe6-8b50-bfcc6b0cebe9",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->eviction - sindex-memory",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictSetSIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsEvict"
+          }
+        ],
+        "title": "eviction - sindex-memory",
+        "type": "timeseries"
+      }
+    },
     "OpswkKE4z": {
       "name": "Namespace->Memory Usage: Total",
       "uid": "OpswkKE4z",
@@ -11227,12 +13247,6 @@
       "id": "text",
       "name": "Text",
       "version": ""
-    },
-    {
-      "type": "panel",
-      "id": "timeseries",
-      "name": "Time series",
-      "version": ""
     }
   ],
   "annotations": {
@@ -11801,68 +13815,6 @@
       "id": 156,
       "panels": [
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -11870,98 +13822,13 @@
             "y": 9
           },
           "id": 160,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->index-usage - used-bytes",
+            "uid": "aaf0f530-47c6-44aa-a774-eba4b5c64ac1"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"idxUsedBytes\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsUsageIdx"
-            }
-          ],
-          "title": "index-usage - used-bytes",
-          "type": "timeseries"
+          "title": "index-usage - used-bytes"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -11969,98 +13836,13 @@
             "y": 9
           },
           "id": 159,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->set-index-usage - used-bytes",
+            "uid": "ca7fd270-dc8c-4e65-8a0b-456ab8fa0147"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"setidxUsedBytes\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsUsageSetIdx"
-            }
-          ],
-          "title": "set-index-usage - used-bytes",
-          "type": "timeseries"
+          "title": "set-index-usage - used-bytes"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12068,98 +13850,13 @@
             "y": 9
           },
           "id": 158,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->Sindex-Usage - used-bytes",
+            "uid": "d7d3e12d-377f-40ef-a622-175280f84dfb"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"sidxUsedBytes\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsUsageSIdx"
-            }
-          ],
-          "title": "Sindex-Usage - used-bytes",
-          "type": "timeseries"
+          "title": "Sindex-Usage - used-bytes"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12167,98 +13864,13 @@
             "y": 16
           },
           "id": 161,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->data-usage - used-bytes",
+            "uid": "c6c665fd-ec6d-4ce0-9960-e87fb861da9b"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"dataUsedBytes\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsUsageData"
-            }
-          ],
-          "title": "data-usage - used-bytes",
-          "type": "timeseries"
+          "title": "data-usage - used-bytes"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "percent"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12266,34 +13878,11 @@
             "y": 16
           },
           "id": 162,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->data-usage - avail-pct",
+            "uid": "bdcbe067-a6bd-44d9-8cfb-30eef4f2bc25"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"dataAvailPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsUsageData"
-            }
-          ],
-          "title": "data-usage - avail-pct",
-          "type": "timeseries"
+          "title": "data-usage - avail-pct"
         }
       ],
       "title": "Index, Sindex, Set-Index, Data Usage (asd v7+)",
@@ -12310,68 +13899,6 @@
       "id": 157,
       "panels": [
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "percent"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12379,98 +13906,13 @@
             "y": 10
           },
           "id": 163,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->stop-writes - sys-memory-pct",
+            "uid": "ae8eb53c-7758-4496-b604-26618b193cf0"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrSysMemPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsStopWrites"
-            }
-          ],
-          "title": "stop-writes - sys-memory-pct",
-          "type": "timeseries"
+          "title": "stop-writes - sys-memory-pct"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "percent"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12478,98 +13920,13 @@
             "y": 10
           },
           "id": 172,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->stop-writes - data avail-pct",
+            "uid": "dd76ba95-4154-48ec-8f0b-c0ffbd78c310"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrDatAvail\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsStopWrites"
-            }
-          ],
-          "title": "stop-writes - data avail-pct",
-          "type": "timeseries"
+          "title": "stop-writes - data avail-pct"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "percent"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12577,98 +13934,13 @@
             "y": 10
           },
           "id": 165,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->stop-writes - used-pct",
+            "uid": "f5ba945f-375d-4c87-8be7-bec951443770"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrUsed\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsStopWrites"
-            }
-          ],
-          "title": "stop-writes - used-pct",
-          "type": "timeseries"
+          "title": "stop-writes - used-pct"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12676,98 +13948,13 @@
             "y": 17
           },
           "id": 166,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->stop-writes - all-indexes-memory",
+            "uid": "fda6a22b-5ae4-4156-a377-bd9b7e2d1839"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrIdxMemSz\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsStopWrites"
-            }
-          ],
-          "title": "stop-writes - all-indexes-memory",
-          "type": "timeseries"
+          "title": "stop-writes - all-indexes-memory"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12775,98 +13962,13 @@
             "y": 17
           },
           "id": 167,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->stop-writes - index-memory",
+            "uid": "e21622d7-482c-4820-921c-3749f7f54cfe"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsStopWrites"
-            }
-          ],
-          "title": "stop-writes - index-memory",
-          "type": "timeseries"
+          "title": "stop-writes - index-memory"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12874,98 +13976,13 @@
             "y": 17
           },
           "id": 168,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->stop-writes - set-index-memory",
+            "uid": "cd637967-d121-480e-b25e-d47ee2ecf956"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrSetIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsStopWrites"
-            }
-          ],
-          "title": "stop-writes - set-index-memory",
-          "type": "timeseries"
+          "title": "stop-writes - set-index-memory"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
@@ -12973,34 +13990,11 @@
             "y": 24
           },
           "id": 169,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->stop-writes - sindex-memory",
+            "uid": "ea8c108f-ee3f-4c81-b16c-e7c2a76d540d"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"stopWrReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"stopWrSetSIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsStopWrites"
-            }
-          ],
-          "title": "stop-writes - sindex-memory",
-          "type": "timeseries"
+          "title": "stop-writes - sindex-memory"
         }
       ],
       "title": "Stop Writes Breaches (asd v7+)",
@@ -13017,796 +14011,116 @@
       "id": 170,
       "panels": [
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "percent"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 32
+            "y": 11
           },
           "id": 171,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->eviction - sys-memory-pct",
+            "uid": "c4110adc-8adf-4362-9370-ad44bf002b6f"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictSysMemPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsEvict"
-            }
-          ],
-          "title": "eviction - sys-memory-pct",
-          "type": "timeseries"
+          "title": "eviction - sys-memory-pct"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 32
+            "y": 11
           },
           "id": 173,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->eviction - index-device",
+            "uid": "f54675d5-570c-432d-889c-bae790264da8"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictIdxDev\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsEvict"
-            }
-          ],
-          "title": "eviction - index-device",
-          "type": "timeseries"
+          "title": "eviction - index-device"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "percent"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 32
+            "y": 11
           },
           "id": 174,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->eviction - used-pct",
+            "uid": "ed39611e-252a-45bb-82cc-3596e3969380"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictUsedPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsEvict"
-            }
-          ],
-          "title": "eviction - used-pct",
-          "type": "timeseries"
+          "title": "eviction - used-pct"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "percent"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 39
+            "y": 18
           },
           "id": 175,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->eviction - data-used-pct",
+            "uid": "b41093f6-461a-4537-aa56-da41892eb860"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictDataUsed\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsEvict"
-            }
-          ],
-          "title": "eviction - data-used-pct",
-          "type": "timeseries"
+          "title": "eviction - data-used-pct"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 39
+            "y": 18
           },
           "id": 176,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->eviction - all-indexes-memory",
+            "uid": "c9bfe61b-4466-42ed-a91c-f16acf378299"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictIdxMemSz\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsEvict"
-            }
-          ],
-          "title": "eviction - all-indexes-memory",
-          "type": "timeseries"
+          "title": "eviction - all-indexes-memory"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 39
+            "y": 18
           },
           "id": 177,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->eviction - index-memory",
+            "uid": "a560ae36-0668-4131-b225-bb6f3805b572"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsEvict"
-            }
-          ],
-          "title": "eviction - index-memory",
-          "type": "timeseries"
+          "title": "eviction - index-memory"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 46
+            "y": 25
           },
           "id": 178,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->eviction - set-index-memory",
+            "uid": "bc522506-741f-4b63-a1a3-af9cfabdc7fc"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictSetIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsEvict"
-            }
-          ],
-          "title": "eviction - set-index-memory",
-          "type": "timeseries"
+          "title": "eviction - set-index-memory"
         },
         {
-          "datasource": {
-            "type": "simpod-json-datasource",
-            "uid": "${DS_JSON}"
-          },
-          "description": "",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 10,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineStyle": {
-                  "fill": "solid"
-                },
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "bytes"
-            },
-            "overrides": []
-          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 46
+            "y": 25
           },
           "id": 179,
-          "options": {
-            "legend": {
-              "calcs": [
-                "max"
-              ],
-              "displayMode": "table",
-              "placement": "right",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "multi",
-              "sort": "desc"
-            }
+          "libraryPanel": {
+            "name": "Namespace->eviction - sindex-memory",
+            "uid": "edcca7d6-e5ef-4fe6-8b50-bfcc6b0cebe9"
           },
-          "targets": [
-            {
-              "datasource": {
-                "type": "simpod-json-datasource",
-                "uid": "${DS_JSON}"
-              },
-              "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictSetSIdx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
-              "refId": "A",
-              "target": "nsEvict"
-            }
-          ],
-          "title": "eviction - sindex-memory",
-          "type": "timeseries"
+          "title": "eviction - sindex-memory"
         }
       ],
       "title": "Eviction Breaches (asd v7+)",
@@ -15311,7 +15625,7 @@
       "type": "row"
     }
   ],
-  "refresh": "",
+  "refresh": false,
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",
@@ -15767,6 +16081,6 @@
   "timezone": "",
   "title": "Namespace",
   "uid": "zgXTPgPVka",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }
