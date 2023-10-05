@@ -19,6 +19,7 @@ import (
 
 type inventoryListCmd struct {
 	Owner      string  `long:"owner" description:"Only show resources tagged with this owner"`
+	NoPaginate bool    `long:"no-paginate" description:"set to disable vertical and horizontal pagination"`
 	Json       bool    `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool    `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -27,6 +28,9 @@ type inventoryListCmd struct {
 func (c *inventoryListCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if c.JsonPretty {
+		c.Json = true
 	}
 	return c.run(true, true, true, true, true, inventoryShowExpirySystem)
 }
@@ -218,7 +222,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
 		isColor = false
 	}
-	pipeLess := true
+	pipeLess := !c.NoPaginate
 
 	t := table.NewWriter()
 	// For now, don't set the allowed row lenght, wrapping is better
