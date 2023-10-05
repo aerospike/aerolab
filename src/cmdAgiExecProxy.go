@@ -265,7 +265,7 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	out := []byte(`<html><head><title>AGI URLs</title></head><body><center>
-	<a href="/" target="_blank"><h1>Grafana</h1></a>
+	<a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
 	<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
 	<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
 	<a href="/agi/reingest" target="_blank"><h1>Retrigger Ingest</h1></a>

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +19,7 @@ import (
 )
 
 type inventoryInstanceTypesCmd struct {
+	NoPaginate   bool                         `long:"no-paginate" description:"set to disable vertical and horizontal pagination"`
 	Json         bool                         `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty   bool                         `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Arm          bool                         `short:"a" long:"arm" description:"Set to look for ARM instances instead of amd64"`
@@ -142,6 +145,9 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.JsonPretty {
+		c.Json = true
+	}
 	if a.opts.Config.Backend.Type == "docker" {
 		return errors.New("feature not available on docker")
 	}
@@ -172,10 +178,16 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		return err
 	}
 
+	isColor := true
+	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
+		isColor = false
+	}
+	pipeLess := !c.NoPaginate
+
 	t := table.NewWriter()
 	// For now, don't set the allowed row lenght, wrapping is better
 	// until we do something more clever...
-	if isatty.IsTerminal(os.Stdout.Fd()) {
+	if isatty.IsTerminal(os.Stdout.Fd()) && isColor {
 		// fmt.Println("Is Terminal")
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 
@@ -184,7 +196,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 			fmt.Println("Couldn't get terminal width")
 		}
 		// t.SetAllowedRowLength(s.Width)
-	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) && isColor {
 		// fmt.Println("Is Cygwin/MSYS2 Terminal")
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 
@@ -194,8 +206,42 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		}
 		// t.SetAllowedRowLength(s.Width)
 	} else {
+		pipeLess = false
 		fmt.Fprintln(os.Stderr, "aerolab does not have a stable CLI interface. Use with caution in scripts.\nIn scripts, the JSON output should be used for stability.")
 		t.SetStyle(table.StyleDefault)
+	}
+
+	lessCmd := ""
+	lessParams := []string{}
+	if pipeLess {
+		lessCmd, lessParams = getPaginationCommand()
+	}
+
+	if lessCmd != "" {
+		origStdout := os.Stdout // store original
+		origStderr := os.Stderr // store original
+		defer func() {          // on exit, last thing we do, we recover stdout/stderr
+			os.Stdout = origStdout
+			os.Stderr = origStderr
+		}()
+		less := exec.Command(lessCmd, lessParams...)
+		less.Stdout = origStdout // less will write
+		less.Stderr = origStderr // less will write
+		r, w, err := os.Pipe()   // writer writes, reader reads
+		if err == nil {
+			os.Stdout = w      // we will write to os.Pipe
+			os.Stderr = w      // we will write to os.Pipe
+			less.Stdin = r     // less will read from os.Pipe
+			err = less.Start() // start less so it can do it's magic
+			if err != nil {    // on pagination failure, revert to non-paginated output
+				os.Stdout = origStdout
+				os.Stderr = origStderr
+				log.Printf("Pagination failed, %s returned: %s", lessCmd, err)
+			} else {
+				defer less.Wait() // after closing w, we should wait for less to finish before exiting
+				defer w.Close()   // must close or less will wait for more input
+			}
+		}
 	}
 
 	//t.SetTitle("INSTANCES")
