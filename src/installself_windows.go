@@ -22,7 +22,8 @@ func installSelf() (isGUI bool) {
 		return false
 	}
 	pName := p.Executable()
-	if pName == "pwsh.exe" || pName == "aerolab.exe" || pName == "powershell.exe" || pName == "powershell_ise.exe" {
+	_, curName := filepath.Split(os.Args[0])
+	if pName == "pwsh.exe" || pName == "aerolab.exe" || pName == "powershell.exe" || pName == "powershell_ise.exe" || pName == curName {
 		if pName == "powershell.exe" || pName == "powershell_ise.exe" {
 			log.Print("WARNING: AeroLab is being run from an older PowerShell. For full compatibility consider upgrading PowerShell.")
 		}
