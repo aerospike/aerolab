@@ -256,7 +256,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	lessCmd := ""
 	lessParams := []string{}
 	if pipeLess {
-		lessCmd, lessParams = getPaginationCommand()
+		lessCmd, lessParams = getPagerCommand()
 	}
 
 	if lessCmd != "" {
@@ -311,9 +311,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.ResetRows()
 		t.ResetFooters()
 		if a.opts.Config.Backend.Type == "gcp" {
-			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires In"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost", "Expires In"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Instance Running Cost"})
 		} else {
 			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Exposed Port 1"})
 		}
@@ -323,24 +323,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				v.NodeNo,
 				v.InstanceId,
 			}
-			if a.opts.Config.Backend.Type == "gcp" {
-				vv = append(vv, v.Zone)
-			} else {
-				vv = append(vv, v.ImageId)
-			}
-			vv = append(vv,
-				v.Arch,
-				v.PrivateIp,
-				v.PublicIp,
-				v.State,
-				v.Distribution,
-				strings.ReplaceAll(v.OSVersion, "-", "."),
-				strings.ReplaceAll(v.AerospikeVersion, "-", "."),
-				strings.Join(v.Firewalls, "\n"),
-				v.Owner,
-			)
 			if a.opts.Config.Backend.Type != "docker" {
-				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 				if v.Expires == "" {
 					vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
 				} else {
@@ -362,8 +345,27 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						vv = append(vv, expiresIn.Round(time.Minute))
 					}
 				}
+			}
+			if a.opts.Config.Backend.Type == "gcp" {
+				vv = append(vv, v.Zone)
 			} else {
+				vv = append(vv, v.ImageId)
+			}
+			vv = append(vv,
+				v.Arch,
+				v.PrivateIp,
+				v.PublicIp,
+				v.State,
+				v.Distribution,
+				strings.ReplaceAll(v.OSVersion, "-", "."),
+				strings.ReplaceAll(v.AerospikeVersion, "-", "."),
+				strings.Join(v.Firewalls, "\n"),
+				v.Owner,
+			)
+			if a.opts.Config.Backend.Type == "docker" {
 				vv = append(vv, v.DockerExposePorts)
+			} else {
+				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 			}
 			t.AppendRow(vv)
 		}
@@ -384,9 +386,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.ResetRows()
 		t.ResetFooters()
 		if a.opts.Config.Backend.Type == "gcp" {
-			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires In"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost", "Expires In"})
+			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Instance Running Cost"})
 		} else {
 			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Firewalls", "Owner", "Client Type", "Access URL", "Access Port", "Exposed Port 1"})
 		}
@@ -396,26 +398,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				v.NodeNo,
 				v.InstanceId,
 			}
-			if a.opts.Config.Backend.Type == "gcp" {
-				vv = append(vv, v.Zone)
-			} else {
-				vv = append(vv, v.ImageId)
-			}
-			vv = append(vv,
-				v.Arch,
-				v.PrivateIp,
-				v.PublicIp,
-				v.State,
-				v.Distribution,
-				strings.ReplaceAll(v.OSVersion, "-", "."),
-				strings.Join(v.Firewalls, "\n"),
-				v.Owner,
-				v.ClientType,
-				v.AccessUrl,
-				v.AccessPort,
-			)
 			if a.opts.Config.Backend.Type != "docker" {
-				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 				if v.Expires == "" {
 					vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
 				} else {
@@ -437,8 +420,29 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						vv = append(vv, expiresIn.Round(time.Minute))
 					}
 				}
+			}
+			if a.opts.Config.Backend.Type == "gcp" {
+				vv = append(vv, v.Zone)
 			} else {
+				vv = append(vv, v.ImageId)
+			}
+			vv = append(vv,
+				v.Arch,
+				v.PrivateIp,
+				v.PublicIp,
+				v.State,
+				v.Distribution,
+				strings.ReplaceAll(v.OSVersion, "-", "."),
+				strings.Join(v.Firewalls, "\n"),
+				v.Owner,
+				v.ClientType,
+				v.AccessUrl,
+				v.AccessPort,
+			)
+			if a.opts.Config.Backend.Type == "docker" {
 				vv = append(vv, v.DockerExposePorts)
+			} else {
+				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 			}
 			t.AppendRow(vv)
 		}

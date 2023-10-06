@@ -366,6 +366,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			}
 			prevPointTime := lastPointTime
 			lastPointTime = float64(point.point[1])
+			if prevPointTime == lastPointTime {
+				logger.Detail("(type:timeseries) (remote:%s) duplicate datapoint detected, skipping: PointTime=%0.1f", remote, lastPointTime)
+				continue
+			}
 			val := float64(point.point[0])
 			// produce delta
 			if bin.ProduceDelta {

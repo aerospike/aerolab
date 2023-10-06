@@ -214,7 +214,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	lessCmd := ""
 	lessParams := []string{}
 	if pipeLess {
-		lessCmd, lessParams = getPaginationCommand()
+		lessCmd, lessParams = getPagerCommand()
 	}
 
 	if lessCmd != "" {

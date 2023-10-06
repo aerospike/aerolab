@@ -3,10 +3,10 @@ package main
 import "os"
 
 type agiCmd struct {
-	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI volumes and instances"`
+	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances"`
 	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance"`
 	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance"`
-	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete AGI volume"`
+	Delete    agiDeleteCmd    `command:"delete" hidden:"true" subcommands-optional:"true" description:"Delete AGI volume"`
 	Relabel   agiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change instance name label"`
 	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance"`
 	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)"`
