@@ -24,10 +24,11 @@ jobs:
               run: |
                 /usr/local/bin/brew install --overwrite python@3.11 || echo "Ignore errors on this 1"
                 /usr/local/bin/brew link --overwrite python@3.11 || echo "Ignore errors on this 2"
-                /usr/local/bin/brew install --overwrite dpkg rpm upx zip make wget jq || echo "Ignore errors on this 3"
+                /usr/local/bin/brew install --overwrite dpkg upx zip make wget jq || echo "Ignore errors on this 3"
                 /usr/local/bin/brew link --overwrite python@3.11 || echo "Ignore errors on this 4"
                 /usr/local/bin/brew install python-gdbm@3.11 || echo "Ignore errors on this 5"
                 /usr/local/bin/brew install python-tk@3.11 || echo "Ignore errors on this 6"
+                cd ~/work/aerolab/aerolab/Formula && /usr/local/bin/brew install ./rpm.rb
             - name: "Install golang"
               run: |
                 wget https://go.dev/dl/go1.21.0.darwin-amd64.pkg
