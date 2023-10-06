@@ -18,6 +18,8 @@ jobs:
     build-and-release:
         runs-on: macos-13
         steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
             - name: "Install Homebrew"
               run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             - name: "Install Dependencies"
@@ -35,8 +37,6 @@ jobs:
                 sudo installer -store -pkg go1.21.0.darwin-amd64.pkg -target /
             - name: "Install Packages.pkg for making macos PKG files"
               run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target /
-            - name: "Git checkout"
-              uses: actions/checkout@v3
             - name: "Compile"
               env:
                   ADDCOMMIT: ${{ inputs.addCommit }}
