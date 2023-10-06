@@ -273,7 +273,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		}
 	}
 	log.Print("Done")
-	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 7.2 and the current client creation methods will be removed in AeroLab 8.0")
+	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new design will be explored during AeroLab's version 7's lifecycle and the current client creation methods will be removed in AeroLab 8.0")
 	return nil
 }
 
