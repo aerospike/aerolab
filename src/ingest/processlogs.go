@@ -110,7 +110,7 @@ func (i *Ingest) ProcessLogs() error {
 		if data.Data != nil && data.SetName != "" && data.LogLine != "" {
 			wg.Add(1)
 			threads <- true
-			go func(metadata map[string]interface{}, data map[string]interface{}, fn string, logLine string, setName string) {
+			go func(metadata map[string]interface{}, data map[string]interface{}, fn string, logLine string, setName string, nodeIdentifier string) {
 				metaLock.Lock()
 				for k, v := range metadata {
 					if _, ok := meta[k]; !ok {
@@ -163,7 +163,7 @@ func (i *Ingest) ProcessLogs() error {
 					data[k] = idx
 				}
 				metaLock.Unlock()
-				key, err := aerospike.NewKey(i.config.Aerospike.Namespace, setName, fn+"::"+logLine)
+				key, err := aerospike.NewKey(i.config.Aerospike.Namespace, setName, nodeIdentifier+"::/::"+logLine)
 				if err != nil {
 					logger.Error("Log Processor: could not create key for %s: %s", fn, err)
 					wg.Done()
@@ -176,7 +176,7 @@ func (i *Ingest) ProcessLogs() error {
 				}
 				wg.Done()
 				<-threads
-			}(data.Metadata, data.Data, data.FileName, data.LogLine, data.SetName)
+			}(data.Metadata, data.Data, data.FileName, data.LogLine, data.SetName, data.UniqNodeString)
 		}
 	}
 	wg.Wait()
@@ -222,7 +222,7 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 				}
 			}
 			nprefix, _ := strconv.Atoi(f.NodePrefix)
-			i.processLogFile(n, fd, resultsChan, labels, nprefix)
+			i.processLogFile(n, fd, resultsChan, labels, nprefix, f.ClusterName+"::/::"+f.NodePrefix+"_"+f.NodeID)
 		}(n, f)
 	}
 	wg.Wait()
@@ -230,15 +230,16 @@ func (i *Ingest) processLogsFeed(foundLogs map[string]*LogFile, resultsChan chan
 }
 
 type processResult struct {
-	FileName string
-	Data     map[string]interface{}
-	Metadata map[string]interface{}
-	Error    error
-	SetName  string
-	LogLine  string
+	FileName       string
+	Data           map[string]interface{}
+	Metadata       map[string]interface{}
+	Error          error
+	SetName        string
+	LogLine        string
+	UniqNodeString string
 }
 
-func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]interface{}, nodePrefix int) {
+func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]interface{}, nodePrefix int, uniqNodeString string) {
 	_, fn := path.Split(fileName)
 	var unmatched *os.File
 	var err error
@@ -301,12 +302,13 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 				meta[k] = v
 			}
 			resultsChan <- &processResult{
-				FileName: fileName,
-				Data:     results,
-				Error:    d.Error,
-				SetName:  d.SetName,
-				LogLine:  d.Line,
-				Metadata: meta,
+				FileName:       fileName,
+				Data:           results,
+				Error:          d.Error,
+				SetName:        d.SetName,
+				LogLine:        d.Line,
+				Metadata:       meta,
+				UniqNodeString: uniqNodeString,
 			}
 		}
 		// tracker of how many lines we processed already
@@ -329,12 +331,13 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 			meta[k] = v
 		}
 		resultsChan <- &processResult{
-			FileName: fileName,
-			Data:     d.Data,
-			Error:    d.Error,
-			SetName:  d.SetName,
-			LogLine:  d.Line,
-			Metadata: meta,
+			FileName:       fileName,
+			Data:           d.Data,
+			Error:          d.Error,
+			SetName:        d.SetName,
+			LogLine:        d.Line,
+			Metadata:       meta,
+			UniqNodeString: uniqNodeString,
 		}
 	}
 	// store startTime and endTime of logs
@@ -359,10 +362,11 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 				"nodePrefix":                        nodePrefix,
 				i.config.Aerospike.TimestampBinName: point.UnixMilli(),
 			},
-			Error:    nil,
-			SetName:  i.config.Aerospike.LogFileRagesSetName,
-			LogLine:  fmt.Sprintf("%s:%d", fileName, point.UnixMilli()),
-			Metadata: meta,
+			Error:          nil,
+			SetName:        i.config.Aerospike.LogFileRagesSetName,
+			LogLine:        fmt.Sprintf("%s:%d", fileName, point.UnixMilli()),
+			Metadata:       meta,
+			UniqNodeString: uniqNodeString,
 		}
 	}
 
