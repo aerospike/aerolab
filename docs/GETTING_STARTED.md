@@ -176,3 +176,9 @@ AeroLab can generate a basic `aerospike.conf` file by running:
 ````
 aerolab conf generate
 ````
+
+To generate `aerospike.conf` for Aerospike version prior to `7.0.0`, run as follows:
+
+```
+aerolab conf generate --pre-7
+```

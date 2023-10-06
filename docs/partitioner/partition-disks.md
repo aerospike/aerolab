@@ -36,6 +36,7 @@ Filter | Description
 
 * [Use all disks for a namespace](all-disks.md)
 * [Use all NVME disks for a namespace](all-nvme-disks.md)
+* [Use all NVME disks for a namespace with also data in memory(aerospike 7.0.0+)](all-nvme-disks-memory.md)
 * [Partition each NVME into 4 partitions and use 2 for each of the two namespaces](two-namespaces-nvme.md)
 * [Partition NVME and EBS and configure shadow devices for a namespace](with-shadow.md)
 * [Partition NVME and EBS, use all partitions for namespace, with first nvme partition of each nvme disk for all-flash](with-allflash.md)
