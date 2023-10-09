@@ -170,6 +170,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 				}
 			}
 			if i == 1 {
+				features, _ := strconv.Atoi(clientType)
 				ij.Clusters = append(ij.Clusters, inventoryCluster{
 					ClusterName:       nameNo[0],
 					NodeNo:            nameNo[1],
@@ -183,6 +184,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					OSVersion:         i3[0],
 					AerospikeVersion:  asdVer,
 					DockerExposePorts: exposePorts,
+					Features:          FeatureSystem(features),
 				})
 			} else {
 				ij.Clients = append(ij.Clients, inventoryClient{
@@ -633,6 +635,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		exposeList := []string{"run"}
 		if extra.clientType != "" {
 			exposeList = append(exposeList, "--label", "aerolab.client.type="+extra.clientType)
+		}
+		for _, newlabel := range extra.labels {
+			exposeList = append(exposeList, "--label", newlabel)
 		}
 		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
 		if d.client {

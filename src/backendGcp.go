@@ -977,6 +977,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						if expires == "0001-01-01T00:00:00Z" {
 							expires = ""
 						}
+						features, _ := strconv.Atoi(instance.Labels["aerolab4features"])
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
 								ClusterName:         instance.Labels[gcpTagClusterName],
@@ -997,6 +998,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								gcpLabelFingerprint: *instance.LabelFingerprint,
 								Expires:             expires,
 								gcpLabels:           instance.Labels,
+								Features:            FeatureSystem(features),
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{

@@ -101,6 +101,7 @@ type clusterCreateCmdDocker struct {
 	SwapLimit         string `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
 	Privileged        bool   `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
 	NetworkName       string `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
+	ClientType        string `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
 }
 
 type featureFile struct {
@@ -184,6 +185,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if earlyProcessV2(nil, true) {
 		return nil
 	}
+	return c.realExecute2(args, isGrow)
+}
+
+func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	if inslice.HasString(args, "help") {
 		if a.opts.Config.Backend.Type == "docker" {
 			printHelp("The aerolab command can be optionally followed by '--' and then extra switches that will be passed directory to Docker. Ex: aerolab cluster create -c 2 -n bob -- -v local:remote --device-read-bps=...\n\n")
@@ -647,6 +652,9 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		} else {
 			extra.expiresTime = time.Now().Add(c.Gcp.Expires)
 		}
+	}
+	if c.Docker.ClientType != "" {
+		extra.labels = append(extra.labels, "aerolab.client.type="+c.Docker.ClientType)
 	}
 	expirySet := false
 	for _, aaa := range os.Args {

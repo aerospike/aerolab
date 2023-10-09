@@ -16,7 +16,7 @@ type agiCmd struct {
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-// TODO: create, addToken, relabel, retrigger, details, delete
+// TODO: addToken, relabel, retrigger, details, delete
 
 func (c *agiCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
@@ -39,18 +39,6 @@ func (c *agiListCmd) Execute(args []string) error {
 	a.opts.Inventory.List.Owner = c.Owner
 	a.opts.Inventory.List.NoPager = c.NoPager
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowAGI)
-}
-
-type agiCreateCmd struct {
-	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
-	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-
-func (c *agiCreateCmd) Execute(args []string) error {
-	if earlyProcess(args) {
-		return nil
-	}
-	return nil
 }
 
 type agiAddTokenCmd struct {
