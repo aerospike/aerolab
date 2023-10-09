@@ -19,7 +19,7 @@ import (
 
 type inventoryListCmd struct {
 	Owner      string  `long:"owner" description:"Only show resources tagged with this owner"`
-	NoPaginate bool    `long:"no-paginate" description:"set to disable vertical and horizontal pagination"`
+	NoPager    bool    `long:"no-pager" description:"set to disable vertical and horizontal pager"`
 	Json       bool    `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool    `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -32,7 +32,7 @@ func (c *inventoryListCmd) Execute(args []string) error {
 	if c.JsonPretty {
 		c.Json = true
 	}
-	return c.run(true, true, true, true, true, inventoryShowExpirySystem)
+	return c.run(true, true, true, true, true, inventoryShowExpirySystem|inventoryShowAGI)
 }
 
 const inventoryShowExpirySystem = 1
@@ -61,11 +61,27 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 	}
 
-	// TODO: backend - b.Inventory()
-	// TODO: add AGIs to below
 	inv, err := b.Inventory(c.Owner, inventoryItems)
 	if err != nil {
 		return err
+	}
+
+	for vi, v := range inv.Clusters {
+		nip := v.PublicIp
+		if nip == "" {
+			nip = v.PrivateIp
+		}
+		port := ""
+		if a.opts.Config.Backend.Type == "docker" && inv.Clients[vi].DockerExposePorts != "" {
+			nip = "127.0.0.1"
+			port = ":" + inv.Clients[vi].DockerExposePorts
+		}
+		if v.Features&ClusterFeatureAGI > 0 {
+			if port == "" {
+				port = ":8850"
+			}
+			inv.Clusters[vi].AccessUrl = "http://" + nip + port
+		}
 	}
 
 	for vi, v := range inv.Clients {
@@ -222,7 +238,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
 		isColor = false
 	}
-	pipeLess := !c.NoPaginate
+	pipeLess := !c.NoPager
 
 	t := table.NewWriter()
 	// For now, don't set the allowed row lenght, wrapping is better
@@ -318,6 +334,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.AppendHeader(table.Row{"Cluster Name", "Node No", "Instance ID", "Image ID", "Arch", "Private IP", "Public IP", "State", "Distribution", "OS Version", "Aerospike Version", "Firewalls", "Owner", "Exposed Port 1"})
 		}
 		for _, v := range inv.Clusters {
+			if v.Features > ClusterFeatureAerospike {
+				continue
+			}
 			vv := table.Row{
 				v.ClusterName,
 				v.NodeNo,
@@ -453,6 +472,83 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		} else {
 			fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
 			fmt.Println()
+		}
+	}
+
+	for _, showOther := range showOthers {
+		if showOther&inventoryShowAGI > 0 {
+			t.SetTitle(colorHiWhite.Sprint("AGI"))
+			t.ResetHeaders()
+			t.ResetRows()
+			t.ResetFooters()
+			if a.opts.Config.Backend.Type == "gcp" {
+				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost"})
+			} else if a.opts.Config.Backend.Type == "aws" {
+				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost"})
+			} else {
+				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Exposed Port 1"})
+			}
+			for _, v := range inv.Clusters {
+				if v.Features&ClusterFeatureAGI <= 0 {
+					continue
+				}
+				vv := table.Row{
+					v.ClusterName,
+					v.InstanceId,
+					v.AccessUrl,
+				}
+				if a.opts.Config.Backend.Type != "docker" {
+					if v.Expires == "" {
+						vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
+					} else {
+						// Parse the expiration time string
+						expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+						if err != nil {
+							fmt.Println("Error parsing expiration time:", err)
+							return err
+						}
+						// Get the current time in the same timezone as the expiration time
+						currentTime := time.Now().In(expirationTime.Location())
+
+						// Calculate the duration between the current time and the expiration time
+						expiresIn := expirationTime.Sub(currentTime)
+
+						if expiresIn < 6*time.Hour {
+							vv = append(vv, errExp.Sprintf("%s", expiresIn.Round(time.Minute)))
+						} else {
+							vv = append(vv, expiresIn.Round(time.Minute))
+						}
+					}
+				}
+				if a.opts.Config.Backend.Type == "gcp" {
+					vv = append(vv, v.Zone)
+				} else {
+					vv = append(vv, v.ImageId)
+				}
+				vv = append(vv,
+					v.Arch,
+					v.PrivateIp,
+					v.PublicIp,
+					v.State,
+					strings.Join(v.Firewalls, "\n"),
+					v.Owner,
+				)
+				if a.opts.Config.Backend.Type == "docker" {
+					vv = append(vv, v.DockerExposePorts)
+				} else {
+					vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+				}
+				t.AppendRow(vv)
+			}
+			fmt.Println(t.Render())
+			if a.opts.Config.Backend.Type != "docker" {
+				fmt.Println("* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.")
+				fmt.Println()
+			} else {
+				fmt.Println("* to connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP on the given exposed port (or configured aerospike services port - default 3000)")
+				fmt.Println("* to connect to the cluster when using Docker Desktop, execute 'aerolab cluster list` and connect to IP 127.0.0.1:EXPOSED_PORT with a connect policy of `--services-alternate`")
+				fmt.Println()
+			}
 		}
 	}
 
