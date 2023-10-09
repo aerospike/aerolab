@@ -57,6 +57,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			inventoryItems = append(inventoryItems, InventoryItemExpirySystem)
 		}
 		if showOther&inventoryShowAGI > 0 {
+			inventoryItems = append(inventoryItems, InventoryItemClusters)
 			inventoryItems = append(inventoryItems, InventoryItemAGI)
 		}
 	}
@@ -72,13 +73,13 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			nip = v.PrivateIp
 		}
 		port := ""
-		if a.opts.Config.Backend.Type == "docker" && inv.Clients[vi].DockerExposePorts != "" {
+		if a.opts.Config.Backend.Type == "docker" && inv.Clusters[vi].DockerExposePorts != "" {
 			nip = "127.0.0.1"
-			port = ":" + inv.Clients[vi].DockerExposePorts
+			port = ":" + inv.Clusters[vi].DockerExposePorts
 		}
 		if v.Features&ClusterFeatureAGI > 0 {
 			if port == "" {
-				port = ":8850"
+				port = ":443"
 			}
 			inv.Clusters[vi].AccessUrl = "http://" + nip + port
 		}
@@ -486,7 +487,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			} else if a.opts.Config.Backend.Type == "aws" {
 				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost"})
 			} else {
-				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Exposed Port 1"})
+				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner"})
 			}
 			for _, v := range inv.Clusters {
 				if v.Features&ClusterFeatureAGI <= 0 {
@@ -533,9 +534,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					strings.Join(v.Firewalls, "\n"),
 					v.Owner,
 				)
-				if a.opts.Config.Backend.Type == "docker" {
-					vv = append(vv, v.DockerExposePorts)
-				} else {
+				if a.opts.Config.Backend.Type != "docker" {
 					vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
 				}
 				t.AppendRow(vv)

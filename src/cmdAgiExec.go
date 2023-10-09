@@ -220,6 +220,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			config.Downloader.S3Source.SecretKey = s3Pw
 			config.Downloader.SftpSource.Password = sftpPw
 		}
+		os.Remove("/opt/agi/sftp.key")
 	}
 	if !steps.Unpack {
 		err = i.Unpack()
