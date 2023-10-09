@@ -16,6 +16,8 @@ type agiCmd struct {
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
+// TODO: create, destroy, addToken, relabel, retrigger, details, delete
+
 func (c *agiCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
 	os.Exit(1)
@@ -23,9 +25,10 @@ func (c *agiCmd) Execute(args []string) error {
 }
 
 type agiListCmd struct {
-	Owner string  `long:"owner" description:"Only show resources tagged with this owner"`
-	Json  bool    `short:"j" long:"json" description:"Provide output in json format"`
-	Help  helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Owner   string  `long:"owner" description:"Only show resources tagged with this owner"`
+	Json    bool    `short:"j" long:"json" description:"Provide output in json format"`
+	NoPager bool    `long:"no-pager" description:"set to disable vertical and horizontal pager"`
+	Help    helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiListCmd) Execute(args []string) error {
@@ -34,6 +37,7 @@ func (c *agiListCmd) Execute(args []string) error {
 	}
 	a.opts.Inventory.List.Json = c.Json
 	a.opts.Inventory.List.Owner = c.Owner
+	a.opts.Inventory.List.NoPager = c.NoPager
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowAGI)
 }
 
@@ -116,12 +120,16 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 }
 
 type agiAttachCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	Detach      bool            `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C"`
+	Tail        []string        `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]"`
+	Help        attachCmdHelp   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiAttachCmd) Execute(args []string) error {
-	if earlyProcess(args) {
-		return nil
-	}
-	return nil
+	a.opts.Attach.Shell.Node = "1"
+	a.opts.Attach.Shell.ClusterName = c.ClusterName
+	a.opts.Attach.Shell.Detach = c.Detach
+	a.opts.Attach.Shell.Tail = c.Tail
+	return a.opts.Attach.Shell.run(args)
 }

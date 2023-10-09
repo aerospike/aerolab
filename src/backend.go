@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"os/exec"
 	"syscall"
@@ -119,9 +120,9 @@ type backend interface {
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
-	ClusterListFull(json bool, owner string) (string, error)
+	ClusterListFull(json bool, owner string, noPager bool) (string, error)
 	// return formatted for printing template list
-	TemplateListFull(json bool) (string, error)
+	TemplateListFull(json bool, noPager bool) (string, error)
 	// upload files to node
 	Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error
 	// download files from node
@@ -201,9 +202,33 @@ type inventoryCluster struct {
 	Owner               string
 	DockerExposePorts   string
 	Expires             string
+	AccessUrl           string
+	Features            FeatureSystem
 	gcpLabelFingerprint string
 	gcpLabels           map[string]string
 }
+
+type FeatureSystem int64
+
+func (f *FeatureSystem) MarshalJSON() ([]byte, error) {
+	resp := []string{}
+	if *f&ClusterFeatureAerospike > 0 {
+		resp = append(resp, "Aerospike")
+	}
+	if *f&ClusterFeatureAerospikeTools > 0 {
+		resp = append(resp, "AerospikeTools")
+	}
+	if *f&ClusterFeatureAGI > 0 {
+		resp = append(resp, "AGI")
+	}
+	return json.Marshal(resp)
+}
+
+const (
+	ClusterFeatureAerospike      = FeatureSystem(1)
+	ClusterFeatureAerospikeTools = FeatureSystem(2)
+	ClusterFeatureAGI            = FeatureSystem(4)
+)
 
 type inventoryClient struct {
 	ClientName          string

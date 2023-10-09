@@ -1756,14 +1756,16 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-func (d *backendAws) ClusterListFull(isJson bool, owner string) (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool, owner string, noPager bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
+	a.opts.Inventory.List.NoPager = noPager
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
-func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
+func (d *backendAws) TemplateListFull(isJson bool, noPager bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
+	a.opts.Inventory.List.NoPager = noPager
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
