@@ -16,7 +16,7 @@ type agiCmd struct {
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-// TODO: create, destroy, addToken, relabel, retrigger, details, delete
+// TODO: create, addToken, relabel, retrigger, details, delete
 
 func (c *agiCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
@@ -42,7 +42,8 @@ func (c *agiListCmd) Execute(args []string) error {
 }
 
 type agiCreateCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiCreateCmd) Execute(args []string) error {
@@ -65,14 +66,20 @@ func (c *agiAddTokenCmd) Execute(args []string) error {
 }
 
 type agiDestroyCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	Force       bool            `short:"f" long:"force" description:"force stop before destroy"`
+	Parallel    bool            `short:"p" long:"parallel" description:"if destroying many AGI at once, set this to destroy in parallel"`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiDestroyCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	return nil
+	a.opts.Cluster.Destroy.ClusterName = c.ClusterName
+	a.opts.Cluster.Destroy.Force = c.Force
+	a.opts.Cluster.Destroy.Parallel = c.Parallel
+	return a.opts.Cluster.Destroy.doDestroy("agi", args)
 }
 
 type agiDeleteCmd struct {
