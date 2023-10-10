@@ -301,6 +301,12 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				defer w.Close()   // must close or less will wait for more input
 			}
 		}
+		// close pipes on less exit to actually exit if less is terminated prior to reaching EOF
+		go func() {
+			less.Wait()
+			w.Close()
+			r.Close()
+		}()
 	}
 
 	if showTemplates {
