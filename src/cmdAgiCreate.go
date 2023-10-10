@@ -37,22 +37,22 @@ type agiCreateCmd struct {
 	S3Secret                string          `long:"source-s3-secret-key" description:"(optional) secret key"`
 	S3path                  string          `long:"source-s3-path" description:"path on s3 to download logs from"`
 	S3Regex                 string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^"`
-	ProxyEnableSSL          bool
-	ProxyMaxInactive        time.Duration
-	ProxyMaxUptime          time.Duration
-	ProxyCert               flags.Filename
-	ProxyKey                flags.Filename
-	TimeRanges              bool           `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs"`
-	TimeRangesFrom          time.Time      `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00"`
-	TimeRangesTo            time.Time      `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00"`
-	CustomSourceName        string         `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana"`
-	PatternsFile            flags.Filename `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
-	IngestLogLevel          int            `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
-	IngestCpuProfile        bool           `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling"`
-	PluginCpuProfile        bool           `long:"plugin-cpu-profiling" description:"enable CPU profiling for the grafana plugin"`
-	PluginLogLevel          int            `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
-	FeaturesFilePath        flags.Filename `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
-	FeaturesFilePrintDetail bool           `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
+	ProxyEnableSSL          bool            `long:"proxy-ssl-enable" description:"switch to enable TLS on the proxy"`
+	ProxyCert               flags.Filename  `long:"proxy-ssl-cert" description:"required for ssl - provide the certificate that will be served"`
+	ProxyKey                flags.Filename  `long:"proxy-ssl-key" description:"required for ssl - provide the certificate key file"`
+	ProxyMaxInactive        time.Duration   `long:"proxy-max-inactive" description:"maximum duration of inactivity by the user over which the server will poweroff" default:"1h"`
+	ProxyMaxUptime          time.Duration   `long:"proxy-max-uptime" description:"maximum uptime of the instance, after which the server will poweroff" default:"24h"`
+	TimeRanges              bool            `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs"`
+	TimeRangesFrom          time.Time       `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00"`
+	TimeRangesTo            time.Time       `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00"`
+	CustomSourceName        string          `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana"`
+	PatternsFile            flags.Filename  `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
+	IngestLogLevel          int             `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
+	IngestCpuProfile        bool            `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling"`
+	PluginCpuProfile        bool            `long:"plugin-cpu-profiling" description:"enable CPU profiling for the grafana plugin"`
+	PluginLogLevel          int             `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
+	FeaturesFilePath        flags.Filename  `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
+	FeaturesFilePrintDetail bool            `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
 	chDirCmd
 	NoVacuumOnFail bool               `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
 	Aws            agiCreateCmdAws    `no-flag:"true"`
