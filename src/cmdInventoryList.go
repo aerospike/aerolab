@@ -78,10 +78,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			port = ":" + inv.Clusters[vi].DockerExposePorts
 		}
 		if v.Features&ClusterFeatureAGI > 0 {
-			if port == "" {
-				port = ":443"
-			}
-			inv.Clusters[vi].AccessUrl = "http://" + nip + port
+			inv.Clusters[vi].AccessUrl = nip + port + "/agi/menu"
 		}
 	}
 
