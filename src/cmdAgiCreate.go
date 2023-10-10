@@ -450,10 +450,10 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		a.opts.Cluster.Start.Execute(nil)
 	}
 	log.Println("Done")
-	log.Println("* `aerolab agi help` - list of available AGI commands")
-	log.Println("* `aerolab agi list` - get web URL")
-	log.Printf("* `aerolab agi add-auth-token -n %s` - generate an authentication token", c.ClusterName.String())
-	log.Printf("* `aerolab agi attach -n %s` - attach to the shell; log files are at /opt/agi/files/", c.ClusterName.String())
+	log.Println("* aerolab agi help                 - list of available AGI commands")
+	log.Println("* aerolab agi list                 - get web URL")
+	log.Printf("* aerolab agi add-auth-token -n %s - generate an authentication token", c.ClusterName.String())
+	log.Printf("* aerolab agi attach -n %s         - attach to the shell; log files are at /opt/agi/files/", c.ClusterName.String())
 	return nil
 }
 
