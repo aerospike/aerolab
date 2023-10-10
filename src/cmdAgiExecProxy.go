@@ -72,6 +72,9 @@ func (c *agiExecProxyCmd) loadTokensDo() {
 			logger.Error("error on walk %s: %s", fpath, err)
 			return nil
 		}
+		if info.IsDir() {
+			return nil
+		}
 		token, err := os.ReadFile(fpath)
 		if err != nil {
 			logger.Error("could not read token file %s: %s", fpath, err)
@@ -666,13 +669,13 @@ func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool
 			t = tc.Value
 		}
 		if t == "" {
-			http.Error(w, "Unauthorized, no token provided", http.StatusUnauthorized)
+			c.displayAuthTokenRequest(w, r)
 			return false
 		}
 		c.tokens.RLock()
 		if !inslice.HasString(c.tokens.tokens, t) {
 			c.tokens.RUnlock()
-			http.Error(w, "Unauthorized, token not authorized", http.StatusUnauthorized)
+			c.displayAuthTokenRequest(w, r)
 			return false
 		}
 		c.tokens.RUnlock()
@@ -680,6 +683,10 @@ func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool
 	// note down activity timestamp
 	go c.lastActivity.Set(time.Now())
 	return true
+}
+
+func (c *agiExecProxyCmd) displayAuthTokenRequest(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte(`<html><head><title>authenticate</title></head><body><form>Authentication Token: <input type=text name="` + c.TokenName + `"><input type=Submit name="Login" value="Login"></form></body></html>`))
 }
 
 func (c *agiExecProxyCmd) grafanaHandler(w http.ResponseWriter, r *http.Request) {
