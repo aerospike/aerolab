@@ -242,6 +242,12 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 				defer w.Close()   // must close or less will wait for more input
 			}
 		}
+		// close pipes on less exit to actually exit if less is terminated prior to reaching EOF
+		go func() {
+			less.Wait()
+			w.Close()
+			r.Close()
+		}()
 	}
 
 	//t.SetTitle("INSTANCES")
