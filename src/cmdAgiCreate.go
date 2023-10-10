@@ -72,7 +72,7 @@ type agiCreateCmdAws struct {
 }
 
 type agiCreateCmdGcp struct {
-	InstanceType string        `long:"instance" description:"instance type to use" default:""`
+	InstanceType string        `long:"instance" description:"instance type to use" default:"e2-highmem-4"`
 	Disks        []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
 	Zone         string        `long:"zone" description:"zone name to deploy to"`
 	Tags         []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
