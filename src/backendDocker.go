@@ -160,6 +160,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 				clientType = tt[4]
 			}
 			exposePorts := ""
+			intPorts := ""
 			if len(tt) > 5 {
 				ep1 := strings.Split(tt[5], "->")
 				if len(ep1) > 1 {
@@ -167,40 +168,44 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					if len(ep2) > 1 {
 						exposePorts = ep2[1]
 					}
+					ep2 = strings.Split(ep1[1], "/")
+					intPorts = ep2[0]
 				}
 			}
 			if i == 1 {
 				features, _ := strconv.Atoi(clientType)
 				ij.Clusters = append(ij.Clusters, inventoryCluster{
-					ClusterName:       nameNo[0],
-					NodeNo:            nameNo[1],
-					PublicIp:          "",
-					PrivateIp:         strings.ReplaceAll(ip, " ", ","),
-					InstanceId:        tt[0],
-					ImageId:           tt[3],
-					State:             tt[2],
-					Arch:              arch,
-					Distribution:      i2[0],
-					OSVersion:         i3[0],
-					AerospikeVersion:  asdVer,
-					DockerExposePorts: exposePorts,
-					Features:          FeatureSystem(features),
+					ClusterName:        nameNo[0],
+					NodeNo:             nameNo[1],
+					PublicIp:           "",
+					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
+					InstanceId:         tt[0],
+					ImageId:            tt[3],
+					State:              tt[2],
+					Arch:               arch,
+					Distribution:       i2[0],
+					OSVersion:          i3[0],
+					AerospikeVersion:   asdVer,
+					DockerExposePorts:  exposePorts,
+					DockerInternalPort: intPorts,
+					Features:           FeatureSystem(features),
 				})
 			} else {
 				ij.Clients = append(ij.Clients, inventoryClient{
-					ClientName:        nameNo[0],
-					NodeNo:            nameNo[1],
-					PublicIp:          "",
-					PrivateIp:         strings.ReplaceAll(ip, " ", ","),
-					InstanceId:        tt[0],
-					ImageId:           tt[3],
-					State:             tt[2],
-					Arch:              arch,
-					Distribution:      i2[0],
-					OSVersion:         i3[0],
-					AerospikeVersion:  asdVer,
-					ClientType:        clientType,
-					DockerExposePorts: exposePorts,
+					ClientName:         nameNo[0],
+					NodeNo:             nameNo[1],
+					PublicIp:           "",
+					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
+					InstanceId:         tt[0],
+					ImageId:            tt[3],
+					State:              tt[2],
+					Arch:               arch,
+					Distribution:       i2[0],
+					OSVersion:          i3[0],
+					AerospikeVersion:   asdVer,
+					ClientType:         clientType,
+					DockerExposePorts:  exposePorts,
+					DockerInternalPort: intPorts,
 				})
 			}
 		}

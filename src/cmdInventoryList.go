@@ -77,8 +77,12 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			nip = "127.0.0.1"
 			port = ":" + inv.Clusters[vi].DockerExposePorts
 		}
+		prot := "http://"
+		if v.gcpLabels["aerolab4ssl"] == "true" || v.awsTags["aerolab4ssl"] == "true" || v.DockerInternalPort == "443" {
+			prot = "https://"
+		}
 		if v.Features&ClusterFeatureAGI > 0 {
-			inv.Clusters[vi].AccessUrl = nip + port + "/agi/menu"
+			inv.Clusters[vi].AccessUrl = prot + nip + port + "/agi/menu"
 		}
 	}
 
