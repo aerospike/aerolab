@@ -38,8 +38,8 @@ type agiCreateCmd struct {
 	S3path                  string          `long:"source-s3-path" description:"path on s3 to download logs from"`
 	S3Regex                 string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^"`
 	ProxyEnableSSL          bool            `long:"proxy-ssl-enable" description:"switch to enable TLS on the proxy"`
-	ProxyCert               flags.Filename  `long:"proxy-ssl-cert" description:"required for ssl - provide the certificate that will be served"`
-	ProxyKey                flags.Filename  `long:"proxy-ssl-key" description:"required for ssl - provide the certificate key file"`
+	ProxyCert               flags.Filename  `long:"proxy-ssl-cert" description:"if not provided snakeoil will be used"`
+	ProxyKey                flags.Filename  `long:"proxy-ssl-key" description:"if not provided snakeoil will be used"`
 	ProxyMaxInactive        time.Duration   `long:"proxy-max-inactive" description:"maximum duration of inactivity by the user over which the server will poweroff" default:"1h"`
 	ProxyMaxUptime          time.Duration   `long:"proxy-max-uptime" description:"maximum uptime of the instance, after which the server will poweroff" default:"24h"`
 	TimeRanges              bool            `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs"`
@@ -144,7 +144,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.Ebs = c.Aws.Ebs
 	a.opts.Cluster.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 	a.opts.Cluster.Create.Aws.SubnetID = c.Aws.SubnetID
-	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)))
+	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", c.ProxyEnableSSL))
 	a.opts.Cluster.Create.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Cluster.Create.Aws.Expires = c.Aws.Expires
 	a.opts.Cluster.Create.Aws.PublicIP = false
@@ -158,7 +158,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Gcp.IsArm = false
 	a.opts.Cluster.Create.Gcp.NoBestPractices = false
 	a.opts.Cluster.Create.Gcp.Tags = c.Gcp.Tags
-	a.opts.Cluster.Create.Gcp.Labels = append(c.Gcp.Labels, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)))
+	a.opts.Cluster.Create.Gcp.Labels = append(c.Gcp.Labels, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", c.ProxyEnableSSL))
 	a.opts.Cluster.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
 	a.opts.Cluster.Create.Gcp.Expires = c.Gcp.Expires
 	if c.ProxyEnableSSL {
@@ -413,9 +413,13 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	proxyKey := proxyCert
 	if c.ProxyCert != "" {
 		proxyCert = "/opt/agi/proxy.cert"
+	} else if c.ProxyCert == "" && c.ProxyEnableSSL {
+		proxyCert = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
 	}
 	if c.ProxyKey != "" {
 		proxyKey = "/opt/agi/proxy.key"
+	} else if c.ProxyKey == "" && c.ProxyEnableSSL {
+		proxyKey = "/etc/ssl/private/ssl-cert-snakeoil.key"
 	}
 	proxyMaxInactive := c.ProxyMaxInactive.String()
 	proxyMaxUptime := c.ProxyMaxUptime.String()

@@ -786,6 +786,10 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					owner := ""
 					expires := ""
 					features := 0
+					allTags := make(map[string]string)
+					for _, tag := range instance.Tags {
+						allTags[*tag.Key] = *tag.Value
+					}
 					for _, tag := range instance.Tags {
 						if *tag.Key == awsTagClusterName {
 							clusterName = *tag.Value
@@ -860,6 +864,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Owner:               owner,
 							Expires:             expires,
 							Features:            FeatureSystem(features),
+							awsTags:             allTags,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -880,6 +885,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							InstanceRunningCost: currentCost,
 							Owner:               owner,
 							Expires:             expires,
+							awsTags:             allTags,
 						})
 					}
 				}

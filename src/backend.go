@@ -201,11 +201,13 @@ type inventoryCluster struct {
 	InstanceRunningCost float64
 	Owner               string
 	DockerExposePorts   string
+	DockerInternalPort  string
 	Expires             string
 	AccessUrl           string
 	Features            FeatureSystem
 	gcpLabelFingerprint string
 	gcpLabels           map[string]string
+	awsTags             map[string]string
 }
 
 type FeatureSystem int64
@@ -250,9 +252,11 @@ type inventoryClient struct {
 	InstanceRunningCost float64
 	Owner               string
 	DockerExposePorts   string
+	DockerInternalPort  string
 	Expires             string
 	gcpLabelFingerprint string
 	gcpLabels           map[string]string
+	awsTags             map[string]string
 }
 
 type inventoryTemplate struct {
