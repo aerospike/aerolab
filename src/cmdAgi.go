@@ -1,6 +1,14 @@
 package main
 
-import "os"
+import (
+	"fmt"
+	"math/rand"
+	"os"
+	"path"
+	"strconv"
+	"strings"
+	"time"
+)
 
 type agiCmd struct {
 	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances"`
@@ -15,8 +23,6 @@ type agiCmd struct {
 	Exec      agiExecCmd      `command:"exec" hidden:"true" subcommands-optional:"true" description:"Run an AGI subsystem"`
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
-
-// TODO: addToken, relabel, retrigger, details, delete
 
 func (c *agiCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
@@ -42,15 +48,61 @@ func (c *agiListCmd) Execute(args []string) error {
 }
 
 type agiAddTokenCmd struct {
-	Token string  `short:"t" long:"token" description:"A 64+ character long token to use; if not specified, a random token will be generated"`
-	Help  helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	TokenName   string          `short:"u" long:"token-name" description:"a unique token name; default:auto-generate"`
+	TokenSize   int             `short:"s" long:"size" description:"size of the new token to be generated" default:"128"`
+	Token       string          `short:"t" long:"token" description:"A 64+ character long token to use; if not specified, a random token will be generated"`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiAddTokenCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.TokenSize < 64 {
+		return fmt.Errorf("minimum token size is 64")
+	}
+	loc := "/opt/agitokens"
+	if c.TokenName == "" {
+		c.TokenName = strconv.Itoa(int(time.Now().UnixNano()))
+	}
+	newToken := randToken(c.TokenSize, rand.NewSource(int64(time.Now().UnixNano())))
+	loc = path.Join(loc, c.TokenName)
+	err := b.CopyFilesToClusterReader(c.ClusterName.String(), []fileListReader{{
+		filePath:     loc,
+		fileContents: strings.NewReader(newToken),
+		fileSize:     c.TokenSize,
+	}}, []int{1})
+	if err != nil {
+		return err
+	}
+	fmt.Println(newToken)
 	return nil
+}
+
+func randToken(n int, src rand.Source) string {
+	const letterBytes = "abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	const (
+		letterIdxBits = 6                    // 6 bits to represent a letter index
+		letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+		letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+	)
+	sb := strings.Builder{}
+	sb.Grow(n)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = src.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			sb.WriteByte(letterBytes[idx])
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
+	}
+
+	return sb.String()
 }
 
 type agiDestroyCmd struct {
