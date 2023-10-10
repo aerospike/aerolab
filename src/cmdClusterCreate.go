@@ -653,7 +653,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			extra.expiresTime = time.Now().Add(c.Gcp.Expires)
 		}
 	}
-	if c.Docker.ClientType != "" {
+	if c.Docker.ClientType != "" && a.opts.Config.Backend.Type == "docker" {
 		extra.labels = append(extra.labels, "aerolab.client.type="+c.Docker.ClientType)
 	}
 	expirySet := false

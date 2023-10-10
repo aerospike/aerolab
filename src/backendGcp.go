@@ -2074,7 +2074,7 @@ func (d *backendGcp) makeLabels(extra []string, isArm string, v backendVersion) 
 		}
 		for _, char := range key {
 			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
-				return nil, fmt.Errorf("invalid tag name for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
+				return nil, fmt.Errorf("invalid tag name for `%s`, only the following are allowed: [a-zA-Z0-9_-]", key)
 			}
 		}
 		labels[key] = val
