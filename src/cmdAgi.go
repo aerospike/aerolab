@@ -219,7 +219,7 @@ type agiRetriggerCmd struct {
 	PatternsFile     *flags.Filename `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
 	IngestLogLevel   *int            `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL"`
 	IngestCpuProfile *bool           `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling"`
-	Force            bool            `short:"f" long:"force" description:"do not ask for confirmation, just continue"`
+	Force            bool            `long:"force" description:"do not ask for confirmation, just continue"`
 	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -229,7 +229,7 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	}
 	// if sftp key, local source or patterns file are specified, ensure they exist
 	for _, k := range []*string{(*string)(c.SftpKey), (*string)(c.PatternsFile), (*string)(c.LocalSource)} {
-		if k != nil {
+		if k != nil && *k != "" {
 			if _, err := os.Stat(*k); err != nil {
 				return fmt.Errorf("could not access %s: %s", *k, err)
 			}
@@ -239,13 +239,13 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	// process time ranges from/to to time.Time
 	var tfrom, tto time.Time
 	var err error
-	if c.TimeRangesFrom != nil {
+	if c.TimeRangesFrom != nil && *c.TimeRangesFrom != "" {
 		tfrom, err = time.Parse("2006-01-02T15:04:05Z07:00", *c.TimeRangesFrom)
 		if err != nil {
 			return fmt.Errorf("from time range invalid: %s", err)
 		}
 	}
-	if c.TimeRangesTo != nil {
+	if c.TimeRangesTo != nil && *c.TimeRangesTo != "" {
 		tto, err = time.Parse("2006-01-02T15:04:05Z07:00", *c.TimeRangesTo)
 		if err != nil {
 			return fmt.Errorf("to time range invalid: %s", err)
@@ -398,7 +398,7 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 
 	// copy new config struct to cluster together with sftpkey if specified and patterns file if specified
 	flist := []fileListReader{}
-	if c.PatternsFile != nil {
+	if c.PatternsFile != nil && *c.PatternsFile != "" {
 		stat, err := os.Stat(string(*c.PatternsFile))
 		if err != nil {
 			return fmt.Errorf("could not access patterns file: %s", err)
@@ -414,7 +414,7 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 			fileSize:     int(stat.Size()),
 		})
 	}
-	if c.SftpKey != nil {
+	if c.SftpKey != nil && *c.SftpKey != "" {
 		stat, err := os.Stat(string(*c.SftpKey))
 		if err != nil {
 			return fmt.Errorf("could not access sftp key file: %s", err)
@@ -441,7 +441,7 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	}
 
 	// if local source is specified, upload logs to remote
-	if c.LocalSource != nil {
+	if c.LocalSource != nil && *c.LocalSource != "" {
 		a.opts.Files.Upload.ClusterName = c.ClusterName
 		a.opts.Files.Upload.Nodes = "1"
 		a.opts.Files.Upload.IsClient = false

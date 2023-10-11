@@ -229,7 +229,7 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 			if def == "" {
 				value = "false"
 			}
-		case reflect.Int, reflect.String, reflect.Float64:
+		case reflect.Int, reflect.String, reflect.Float64, reflect.Ptr:
 		default:
 			fmt.Println("ERROR: Key is not a parameter")
 			os.Exit(1)
@@ -268,6 +268,33 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 			os.Exit(1)
 		}
 		keyField.SetFloat(v)
+	case reflect.Ptr:
+		switch keyField.Type().Elem().String() {
+		case "flags.Filename":
+			strVal := flags.Filename(value)
+			keyField.Set(reflect.ValueOf(&strVal))
+		case "string":
+			keyField.Set(reflect.ValueOf(&value))
+		case "bool":
+			boolVal := false
+			switch strings.ToLower(value) {
+			case "true", "yes", "t", "y":
+				boolVal = true
+			case "false", "no", "f", "n":
+				boolVal = false
+			default:
+				fmt.Println("ERROR: value must be one of: true|false")
+				os.Exit(1)
+			}
+			keyField.Set(reflect.ValueOf(&boolVal))
+		case "int":
+			v, err := strconv.Atoi(value)
+			if err != nil {
+				fmt.Println("ERROR: value must be an integer")
+				os.Exit(1)
+			}
+			keyField.Set(reflect.ValueOf(&v))
+		}
 	default:
 		fmt.Println("ERROR: Key is not a parameter")
 		os.Exit(1)
@@ -318,7 +345,10 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 			if keyField.Type().String() != "time.Duration" {
 				ret <- configValueCmd{start, fmt.Sprintf("%d", keyField.Int())}
 			} else {
-				ret <- configValueCmd{start, fmt.Sprintf("%v", time.Duration(keyField.Int()))}
+				defDuration, err := time.ParseDuration(tagDefault)
+				if !c.OnlyChanged || err != nil || defDuration != time.Duration(keyField.Int()) {
+					ret <- configValueCmd{start, fmt.Sprintf("%v", time.Duration(keyField.Int()))}
+				}
 			}
 		}
 	case reflect.String:
@@ -356,6 +386,14 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 			c.getValuesNext(keyField.Field(i), fieldName, ret, fieldTag)
 		}
 	case reflect.Slice:
+	case reflect.Ptr:
+		if !keyField.IsNil() {
+			c.getValuesNext(reflect.Indirect(keyField), start, ret, tags)
+		} else {
+			if !c.OnlyChanged {
+				ret <- configValueCmd{start, tagDefault}
+			}
+		}
 	default:
 		fmt.Printf("Invalid function type: %v: %v\n", keyField.Type().Kind(), start)
 	}
