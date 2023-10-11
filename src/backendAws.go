@@ -864,6 +864,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Owner:               owner,
 							Expires:             expires,
 							Features:            FeatureSystem(features),
+							AGILabel:            allTags["agiLabel"],
 							awsTags:             allTags,
 						})
 					} else {

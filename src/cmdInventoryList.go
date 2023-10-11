@@ -490,11 +490,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetRows()
 			t.ResetFooters()
 			if a.opts.Config.Backend.Type == "gcp" {
-				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost"})
+				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
 			} else if a.opts.Config.Backend.Type == "aws" {
-				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost"})
+				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
 			} else {
-				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner"})
+				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
 			}
 			for _, v := range inv.Clusters {
 				if v.Features&ClusterFeatureAGI <= 0 {
@@ -543,6 +543,13 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				)
 				if a.opts.Config.Backend.Type != "docker" {
 					vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+				}
+				if a.opts.Config.Backend.Type == "aws" {
+					vv = append(vv, v.awsTags["agiLabel"])
+				} else if a.opts.Config.Backend.Type == "gcp" {
+					vv = append(vv, v.gcpMeta["agiLabel"])
+				} else {
+					vv = append(vv, v.dockerLabels["agiLabel"])
 				}
 				t.AppendRow(vv)
 			}
