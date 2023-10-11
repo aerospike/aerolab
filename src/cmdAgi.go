@@ -123,23 +123,47 @@ func (c *agiDestroyCmd) Execute(args []string) error {
 }
 
 type agiDeleteCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	agiDestroyCmd
 }
 
 func (c *agiDeleteCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	return nil
+	a.opts.Cluster.Destroy.ClusterName = c.ClusterName
+	a.opts.Cluster.Destroy.Force = c.Force
+	a.opts.Cluster.Destroy.Parallel = c.Parallel
+	return a.opts.Cluster.Destroy.doDestroy("agi", args)
 }
 
 type agiRelabelCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	NewLabel    string          `short:"l" long:"label" description:"new label"`
+	Gcpzone     string          `short:"z" long:"zone" description:"GCP only: zone where the instance is"`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiRelabelCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	err := b.SetLabel(c.ClusterName.String(), "agiLabel", c.NewLabel, c.Gcpzone)
+	if err != nil {
+		return err
+	}
+	ips, err := b.GetNodeIpMap(c.ClusterName.String(), false)
+	if err != nil {
+		return err
+	}
+	if ip, ok := ips[1]; ok && ip != "" {
+		err = b.CopyFilesToClusterReader(c.ClusterName.String(), []fileListReader{{
+			filePath:     "/opt/agi/label",
+			fileContents: strings.NewReader(c.NewLabel),
+			fileSize:     len(c.NewLabel),
+		}}, []int{1})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -149,6 +149,8 @@ type backend interface {
 	ListNetworks(csv bool, writer io.Writer) error
 	Inventory(owner string, inventoryItems []int) (inventoryJson, error)
 	GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error)
+	// docker: label, aws: tag, gcp: metadata
+	SetLabel(clusterName string, key string, value string, gcpZone string) error
 }
 
 type inventoryJson struct {
@@ -186,32 +188,33 @@ type inventorySubnetAWS struct {
 }
 
 type inventoryCluster struct {
-	ClusterName         string
-	NodeNo              string
-	PrivateIp           string
-	PublicIp            string
-	InstanceId          string
-	ImageId             string
-	State               string
-	Arch                string
-	Distribution        string
-	OSVersion           string
-	AerospikeVersion    string
-	Firewalls           []string
-	Zone                string
-	InstanceRunningCost float64
-	Owner               string
-	DockerExposePorts   string
-	DockerInternalPort  string
-	Expires             string
-	AccessUrl           string
-	Features            FeatureSystem
-	AGILabel            string
-	gcpLabelFingerprint string
-	gcpLabels           map[string]string
-	gcpMeta             map[string]string
-	awsTags             map[string]string
-	dockerLabels        map[string]string
+	ClusterName            string
+	NodeNo                 string
+	PrivateIp              string
+	PublicIp               string
+	InstanceId             string
+	ImageId                string
+	State                  string
+	Arch                   string
+	Distribution           string
+	OSVersion              string
+	AerospikeVersion       string
+	Firewalls              []string
+	Zone                   string
+	InstanceRunningCost    float64
+	Owner                  string
+	DockerExposePorts      string
+	DockerInternalPort     string
+	Expires                string
+	AccessUrl              string
+	Features               FeatureSystem
+	AGILabel               string
+	gcpLabelFingerprint    string
+	gcpLabels              map[string]string
+	gcpMetadataFingerprint string
+	gcpMeta                map[string]string
+	awsTags                map[string]string
+	dockerLabels           map[string]string
 }
 
 type FeatureSystem int64
@@ -237,32 +240,33 @@ const (
 )
 
 type inventoryClient struct {
-	ClientName          string
-	NodeNo              string
-	PrivateIp           string
-	PublicIp            string
-	InstanceId          string
-	ImageId             string
-	State               string
-	Arch                string
-	Distribution        string
-	OSVersion           string
-	AerospikeVersion    string
-	ClientType          string
-	AccessUrl           string
-	AccessPort          string
-	Firewalls           []string
-	Zone                string
-	InstanceRunningCost float64
-	Owner               string
-	DockerExposePorts   string
-	DockerInternalPort  string
-	Expires             string
-	gcpLabelFingerprint string
-	gcpLabels           map[string]string
-	gcpMeta             map[string]string
-	awsTags             map[string]string
-	dockerLabels        map[string]string
+	ClientName             string
+	NodeNo                 string
+	PrivateIp              string
+	PublicIp               string
+	InstanceId             string
+	ImageId                string
+	State                  string
+	Arch                   string
+	Distribution           string
+	OSVersion              string
+	AerospikeVersion       string
+	ClientType             string
+	AccessUrl              string
+	AccessPort             string
+	Firewalls              []string
+	Zone                   string
+	InstanceRunningCost    float64
+	Owner                  string
+	DockerExposePorts      string
+	DockerInternalPort     string
+	Expires                string
+	gcpLabelFingerprint    string
+	gcpLabels              map[string]string
+	gcpMeta                map[string]string
+	gcpMetadataFingerprint string
+	awsTags                map[string]string
+	dockerLabels           map[string]string
 }
 
 type inventoryTemplate struct {
