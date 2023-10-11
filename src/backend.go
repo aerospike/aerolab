@@ -41,6 +41,7 @@ type backendExtra struct {
 	disks              []string  // gcp only
 	zone               string    // gcp only
 	labels             []string  // gcp only
+	gcpMeta            map[string]string
 }
 
 type backendVersion struct {
@@ -205,9 +206,12 @@ type inventoryCluster struct {
 	Expires             string
 	AccessUrl           string
 	Features            FeatureSystem
+	AGILabel            string
 	gcpLabelFingerprint string
 	gcpLabels           map[string]string
+	gcpMeta             map[string]string
 	awsTags             map[string]string
+	dockerLabels        map[string]string
 }
 
 type FeatureSystem int64
@@ -256,7 +260,9 @@ type inventoryClient struct {
 	Expires             string
 	gcpLabelFingerprint string
 	gcpLabels           map[string]string
+	gcpMeta             map[string]string
 	awsTags             map[string]string
+	dockerLabels        map[string]string
 }
 
 type inventoryTemplate struct {

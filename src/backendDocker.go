@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -128,6 +129,15 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 			if len(nameNo) != 2 {
 				continue
 			}
+			outl, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.Labels}}", tt[1]).CombinedOutput()
+			if err != nil {
+				return ij, err
+			}
+			allLabels := make(map[string]string)
+			err = json.Unmarshal(outl, &allLabels)
+			if err != nil {
+				return ij, err
+			}
 			out2, err := exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
 			if err != nil {
 				return ij, err
@@ -189,6 +199,8 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					DockerExposePorts:  exposePorts,
 					DockerInternalPort: intPorts,
 					Features:           FeatureSystem(features),
+					AGILabel:           allLabels["agiLabel"],
+					dockerLabels:       allLabels,
 				})
 			} else {
 				ij.Clients = append(ij.Clients, inventoryClient{
@@ -206,6 +218,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					ClientType:         clientType,
 					DockerExposePorts:  exposePorts,
 					DockerInternalPort: intPorts,
+					dockerLabels:       allLabels,
 				})
 			}
 		}

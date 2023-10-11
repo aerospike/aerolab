@@ -978,6 +978,12 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 							expires = ""
 						}
 						features, _ := strconv.Atoi(instance.Labels["aerolab4features"])
+						meta := make(map[string]string)
+						if instance.Metadata != nil {
+							for _, metaItem := range instance.Metadata.Items {
+								meta[metaItem.GetKey()] = metaItem.GetValue()
+							}
+						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
 								ClusterName:         instance.Labels[gcpTagClusterName],
@@ -997,7 +1003,9 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								Owner:               instance.Labels["owner"],
 								gcpLabelFingerprint: *instance.LabelFingerprint,
 								Expires:             expires,
+								AGILabel:            meta["agiLabel"],
 								gcpLabels:           instance.Labels,
+								gcpMeta:             meta,
 								Features:            FeatureSystem(features),
 							})
 						} else {
@@ -1021,6 +1029,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								gcpLabelFingerprint: *instance.LabelFingerprint,
 								Expires:             expires,
 								gcpLabels:           instance.Labels,
+								gcpMeta:             meta,
 							})
 						}
 					}
@@ -2959,21 +2968,28 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		instanceType := extra.instanceType
 		fnp := append(extra.firewallNamePrefix, "aerolab-server")
 		tags := append(extra.tags, fnp...)
+		metaItems := []*computepb.Items{
+			{
+				Key:   proto.String("ssh-keys"),
+				Value: proto.String("root:" + string(sshKey)),
+			},
+			{
+				Key:   proto.String("startup-script"),
+				Value: proto.String(d.startupScriptEnableRootLogin()),
+			},
+		}
+		for mk, mv := range extra.gcpMeta {
+			metaItems = append(metaItems, &computepb.Items{
+				Key:   proto.String(mk),
+				Value: proto.String(mv),
+			})
+		}
 		req := &computepb.InsertInstanceRequest{
 			Project: a.opts.Config.Backend.Project,
 			Zone:    extra.zone,
 			InstanceResource: &computepb.Instance{
 				Metadata: &computepb.Metadata{
-					Items: []*computepb.Items{
-						{
-							Key:   proto.String("ssh-keys"),
-							Value: proto.String("root:" + string(sshKey)),
-						},
-						{
-							Key:   proto.String("startup-script"),
-							Value: proto.String(d.startupScriptEnableRootLogin()),
-						},
-					},
+					Items: metaItems,
 				},
 				Labels:      labels,
 				Name:        proto.String(fmt.Sprintf("aerolab4-%s-%d", name, i)),

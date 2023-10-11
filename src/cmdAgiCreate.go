@@ -144,7 +144,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.Ebs = c.Aws.Ebs
 	a.opts.Cluster.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 	a.opts.Cluster.Create.Aws.SubnetID = c.Aws.SubnetID
-	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", c.ProxyEnableSSL))
+	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", c.ProxyEnableSSL), fmt.Sprintf("agiLabel=%s", c.AGILabel))
 	a.opts.Cluster.Create.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Cluster.Create.Aws.Expires = c.Aws.Expires
 	a.opts.Cluster.Create.Aws.PublicIP = false
@@ -159,6 +159,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Gcp.NoBestPractices = false
 	a.opts.Cluster.Create.Gcp.Tags = c.Gcp.Tags
 	a.opts.Cluster.Create.Gcp.Labels = append(c.Gcp.Labels, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", c.ProxyEnableSSL))
+	a.opts.Cluster.Create.gcpMeta = map[string]string{
+		"agiLabel": c.AGILabel,
+	}
 	a.opts.Cluster.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
 	a.opts.Cluster.Create.Gcp.Expires = c.Gcp.Expires
 	if c.ProxyEnableSSL {
@@ -174,6 +177,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Docker.Privileged = c.Docker.Privileged
 	a.opts.Cluster.Create.Docker.NetworkName = c.Docker.NetworkName
 	a.opts.Cluster.Create.Docker.ClientType = strconv.Itoa(int(ClusterFeatureAGI))
+	a.opts.Cluster.Create.Docker.Labels = []string{"agiLabel=" + c.AGILabel}
 	err := a.opts.Cluster.Create.realExecute2(args, false)
 	if err != nil {
 		return err
