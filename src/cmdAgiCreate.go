@@ -43,8 +43,8 @@ type agiCreateCmd struct {
 	ProxyMaxInactive        time.Duration   `long:"proxy-max-inactive" description:"maximum duration of inactivity by the user over which the server will poweroff" default:"1h"`
 	ProxyMaxUptime          time.Duration   `long:"proxy-max-uptime" description:"maximum uptime of the instance, after which the server will poweroff" default:"24h"`
 	TimeRanges              bool            `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs"`
-	TimeRangesFrom          time.Time       `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00"`
-	TimeRangesTo            time.Time       `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00"`
+	TimeRangesFrom          string          `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00"`
+	TimeRangesTo            string          `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00"`
 	CustomSourceName        string          `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana"`
 	PatternsFile            flags.Filename  `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
 	IngestLogLevel          int             `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
@@ -99,6 +99,20 @@ func init() {
 func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	var tfrom, tto time.Time
+	var err error
+	if c.TimeRangesFrom != "" {
+		tfrom, err = time.Parse("2006-01-02T15:04:05Z07:00", c.TimeRangesFrom)
+		if err != nil {
+			return fmt.Errorf("from time range invalid: %s", err)
+		}
+	}
+	if c.TimeRangesTo != "" {
+		tto, err = time.Parse("2006-01-02T15:04:05Z07:00", c.TimeRangesTo)
+		if err != nil {
+			return fmt.Errorf("to time range invalid: %s", err)
+		}
 	}
 	// if files specified do not exist, bail early
 	for _, fn := range []string{
@@ -178,7 +192,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Docker.NetworkName = c.Docker.NetworkName
 	a.opts.Cluster.Create.Docker.ClientType = strconv.Itoa(int(ClusterFeatureAGI))
 	a.opts.Cluster.Create.Docker.Labels = []string{"agiLabel=" + c.AGILabel}
-	err := a.opts.Cluster.Create.realExecute2(args, false)
+	err = a.opts.Cluster.Create.realExecute2(args, false)
 	if err != nil {
 		return err
 	}
@@ -358,8 +372,8 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	config.CustomSourceName = c.CustomSourceName
 	config.IngestTimeRanges.Enabled = c.TimeRanges
 	if c.TimeRanges {
-		config.IngestTimeRanges.From = c.TimeRangesFrom
-		config.IngestTimeRanges.To = c.TimeRangesTo
+		config.IngestTimeRanges.From = tfrom
+		config.IngestTimeRanges.To = tto
 	}
 	// sources - sftp
 	config.Downloader.SftpSource = new(ingest.SftpSource)
