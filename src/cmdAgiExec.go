@@ -13,7 +13,7 @@ import (
 	"github.com/aerospike/aerolab/grafanafix"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/plugin"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type agiExecCmd struct {
@@ -202,23 +202,30 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			// rewrite, redacting passwords for sources
 			s3Pw := config.Downloader.S3Source.SecretKey
 			sftpPw := config.Downloader.SftpSource.Password
+			keyFile := config.Downloader.SftpSource.KeyFile
 			if config.Downloader.S3Source.SecretKey != "" {
 				config.Downloader.S3Source.SecretKey = "<redacted>"
 			}
 			if config.Downloader.SftpSource.Password != "" {
 				config.Downloader.SftpSource.Password = "<redacted>"
 			}
+			if config.Downloader.SftpSource.KeyFile != "" {
+				config.Downloader.SftpSource.KeyFile = "<redacted>"
+			}
 			f, err := os.OpenFile(c.YamlFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 			if err != nil {
 				return err
 			}
-			err = yaml.NewEncoder(f).Encode(config)
+			enc := yaml.NewEncoder(f)
+			enc.SetIndent(2)
+			err = enc.Encode(config)
 			f.Close()
 			if err != nil {
 				return err
 			}
 			config.Downloader.S3Source.SecretKey = s3Pw
 			config.Downloader.SftpSource.Password = sftpPw
+			config.Downloader.SftpSource.KeyFile = keyFile
 		}
 		os.Remove("/opt/agi/sftp.key")
 	}

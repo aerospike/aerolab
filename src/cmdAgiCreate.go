@@ -13,7 +13,7 @@ import (
 
 	"github.com/aerospike/aerolab/ingest"
 	flags "github.com/rglonek/jeddevdk-goflags"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type agiCreateCmd struct {
@@ -282,7 +282,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		})
 	}
 
-	// upload sftp key
+	// upload proxy key
 	if c.ProxyKey != "" {
 		stat, err := os.Stat(string(c.ProxyKey))
 		if err != nil {
@@ -318,7 +318,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		})
 	}
 
-	// upload proxy key
+	// upload sftp key
 	if c.SftpKey != "" {
 		stat, err := os.Stat(string(c.SftpKey))
 		if err != nil {
@@ -398,10 +398,14 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	config.Downloader.S3Source.SecretKey = c.S3Secret
 	config.Downloader.S3Source.PathPrefix = c.S3path
 	config.Downloader.S3Source.SearchRegex = c.S3Regex
-	conf, err := yaml.Marshal(config)
+	var encBuf bytes.Buffer
+	enc := yaml.NewEncoder(&encBuf)
+	enc.SetIndent(2)
+	err = enc.Encode(config)
 	if err != nil {
 		return fmt.Errorf("could not marshal ingest configuration to yaml: %s", err)
 	}
+	conf := encBuf.Bytes()
 	flist = append(flist, fileListReader{
 		filePath:     "/opt/agi/ingest.yaml",
 		fileContents: bytes.NewReader(conf),

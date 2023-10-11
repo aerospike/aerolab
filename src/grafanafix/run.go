@@ -9,7 +9,7 @@ import (
 
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
