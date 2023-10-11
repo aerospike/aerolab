@@ -118,6 +118,62 @@ type gcpClusterExpiryInstances struct {
 	labels           map[string]string
 }
 
+func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZone string) error {
+	instances := make(map[string]gcpClusterExpiryInstances)
+	if d.server {
+		j, err := d.Inventory("", []int{InventoryItemClusters})
+		d.WorkOnServers()
+		if err != nil {
+			return err
+		}
+		for _, jj := range j.Clusters {
+			if jj.ClusterName == clusterName {
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpMetadataFingerprint, jj.gcpMeta}
+			}
+		}
+	} else {
+		j, err := d.Inventory("", []int{InventoryItemClients})
+		d.WorkOnClients()
+		if err != nil {
+			return err
+		}
+		for _, jj := range j.Clients {
+			if jj.ClientName == clusterName {
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpMetadataFingerprint, jj.gcpMeta}
+			}
+		}
+	}
+	if len(instances) == 0 {
+		return errors.New("not found any instances for the given name")
+	}
+	ctx := context.Background()
+	instancesClient, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer instancesClient.Close()
+	for iName, iMeta := range instances {
+		iMeta.labels[key] = value
+		items := []*computepb.Items{}
+		for k, v := range iMeta.labels {
+			items = append(items, &computepb.Items{Key: proto.String(k), Value: proto.String(v)})
+		}
+		_, err = instancesClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
+			Instance: iName,
+			Project:  a.opts.Config.Backend.Project,
+			Zone:     gcpZone,
+			MetadataResource: &computepb.Metadata{
+				Fingerprint: proto.String(iMeta.labelFingerprint),
+				Items:       items,
+			},
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.Duration, nodes []int) error {
 	instances := make(map[string]gcpClusterExpiryInstances)
 	if d.server {
@@ -986,50 +1042,52 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
-								ClusterName:         instance.Labels[gcpTagClusterName],
-								NodeNo:              instance.Labels[gcpTagNodeNumber],
-								InstanceId:          *instance.Name,
-								ImageId:             instance.GetSourceMachineImage(),
-								State:               *instance.Status,
-								Arch:                sysArch,
-								Distribution:        instance.Labels[gcpTagOperatingSystem],
-								OSVersion:           instance.Labels[gcpTagOSVersion],
-								AerospikeVersion:    instance.Labels[gcpTagAerospikeVersion],
-								PrivateIp:           privIp,
-								PublicIp:            pubIp,
-								Firewalls:           instance.Tags.Items,
-								Zone:                zone,
-								InstanceRunningCost: currentCost,
-								Owner:               instance.Labels["owner"],
-								gcpLabelFingerprint: *instance.LabelFingerprint,
-								Expires:             expires,
-								AGILabel:            meta["agiLabel"],
-								gcpLabels:           instance.Labels,
-								gcpMeta:             meta,
-								Features:            FeatureSystem(features),
+								ClusterName:            instance.Labels[gcpTagClusterName],
+								NodeNo:                 instance.Labels[gcpTagNodeNumber],
+								InstanceId:             *instance.Name,
+								ImageId:                instance.GetSourceMachineImage(),
+								State:                  *instance.Status,
+								Arch:                   sysArch,
+								Distribution:           instance.Labels[gcpTagOperatingSystem],
+								OSVersion:              instance.Labels[gcpTagOSVersion],
+								AerospikeVersion:       instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:              privIp,
+								PublicIp:               pubIp,
+								Firewalls:              instance.Tags.Items,
+								Zone:                   zone,
+								InstanceRunningCost:    currentCost,
+								Owner:                  instance.Labels["owner"],
+								gcpLabelFingerprint:    *instance.LabelFingerprint,
+								Expires:                expires,
+								AGILabel:               meta["agiLabel"],
+								gcpLabels:              instance.Labels,
+								gcpMeta:                meta,
+								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
+								Features:               FeatureSystem(features),
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
-								ClientName:          instance.Labels[gcpTagClusterName],
-								NodeNo:              instance.Labels[gcpTagNodeNumber],
-								InstanceId:          *instance.Name,
-								ImageId:             instance.GetSourceMachineImage(),
-								State:               *instance.Status,
-								Arch:                sysArch,
-								Distribution:        instance.Labels[gcpTagOperatingSystem],
-								OSVersion:           instance.Labels[gcpTagOSVersion],
-								AerospikeVersion:    instance.Labels[gcpTagAerospikeVersion],
-								PrivateIp:           privIp,
-								PublicIp:            pubIp,
-								ClientType:          instance.Labels[gcpClientTagClientType],
-								Firewalls:           instance.Tags.Items,
-								Zone:                zone,
-								InstanceRunningCost: currentCost,
-								Owner:               instance.Labels["owner"],
-								gcpLabelFingerprint: *instance.LabelFingerprint,
-								Expires:             expires,
-								gcpLabels:           instance.Labels,
-								gcpMeta:             meta,
+								ClientName:             instance.Labels[gcpTagClusterName],
+								NodeNo:                 instance.Labels[gcpTagNodeNumber],
+								InstanceId:             *instance.Name,
+								ImageId:                instance.GetSourceMachineImage(),
+								State:                  *instance.Status,
+								Arch:                   sysArch,
+								Distribution:           instance.Labels[gcpTagOperatingSystem],
+								OSVersion:              instance.Labels[gcpTagOSVersion],
+								AerospikeVersion:       instance.Labels[gcpTagAerospikeVersion],
+								PrivateIp:              privIp,
+								PublicIp:               pubIp,
+								ClientType:             instance.Labels[gcpClientTagClientType],
+								Firewalls:              instance.Tags.Items,
+								Zone:                   zone,
+								InstanceRunningCost:    currentCost,
+								Owner:                  instance.Labels["owner"],
+								gcpLabelFingerprint:    *instance.LabelFingerprint,
+								Expires:                expires,
+								gcpLabels:              instance.Labels,
+								gcpMeta:                meta,
+								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
 							})
 						}
 					}

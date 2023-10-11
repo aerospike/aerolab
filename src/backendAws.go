@@ -102,6 +102,41 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
+func (d *backendAws) SetLabel(clusterName string, key string, value string, gzpZone string) error {
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagClusterName),
+				Values: []*string{aws.String(clusterName)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code == int64(48) {
+				continue
+			}
+			_, err := d.ec2svc.CreateTags(&ec2.CreateTagsInput{
+				Resources: aws.StringSlice([]string{*instance.InstanceId}),
+				Tags: []*ec2.Tag{
+					{
+						Key:   aws.String(key),
+						Value: aws.String(value),
+					},
+				},
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
 	// if a scheduler already exists, return EXISTS as it's all been already made
 	q, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{

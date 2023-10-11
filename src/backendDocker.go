@@ -29,6 +29,10 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) SetLabel(clusterName string, key string, value string, gcpZone string) error {
+	return errors.New("docker does not support changing of container labels")
+}
+
 func (d *backendDocker) EnableServices() error {
 	return nil
 }
