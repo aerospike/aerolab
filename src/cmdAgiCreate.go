@@ -465,11 +465,17 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type == "docker" {
 		a.opts.Cluster.Stop.ClusterName = c.ClusterName
 		a.opts.Cluster.Stop.Nodes = "1"
-		a.opts.Cluster.Stop.Execute(nil)
+		err = a.opts.Cluster.Stop.Execute(nil)
+		if err != nil {
+			return err
+		}
 		a.opts.Cluster.Start.ClusterName = c.ClusterName
 		a.opts.Cluster.Start.Nodes = "1"
 		a.opts.Cluster.Start.NoStart = true
-		a.opts.Cluster.Start.Execute(nil)
+		err = a.opts.Cluster.Start.Execute(nil)
+		if err != nil {
+			return err
+		}
 	}
 	log.Println("Done")
 	log.Println("* aerolab agi help                 - list of available AGI commands")
