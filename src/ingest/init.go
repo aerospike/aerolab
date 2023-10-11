@@ -14,7 +14,7 @@ import (
 	"github.com/bestmethod/logger"
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func MakeConfigReader(setDefaults bool, configYaml io.Reader, parseEnv bool) (*Config, error) {

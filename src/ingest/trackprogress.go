@@ -39,6 +39,7 @@ func (i *Ingest) loadProgress() error {
 			return err
 		}
 	}
+	i.progress.LogProcessor.LineErrors = new(lineErrors)
 	return nil
 }
 

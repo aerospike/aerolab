@@ -1,13 +1,22 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/aerospike/aerolab/diff"
+	"github.com/aerospike/aerolab/ingest"
+	flags "github.com/rglonek/jeddevdk-goflags"
+	"gopkg.in/yaml.v3"
 )
 
 type agiCmd struct {
@@ -168,28 +177,6 @@ func (c *agiRelabelCmd) Execute(args []string) error {
 	return nil
 }
 
-type agiDetailsCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-
-func (c *agiDetailsCmd) Execute(args []string) error {
-	if earlyProcess(args) {
-		return nil
-	}
-	return nil
-}
-
-type agiRetriggerCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-
-func (c *agiRetriggerCmd) Execute(args []string) error {
-	if earlyProcess(args) {
-		return nil
-	}
-	return nil
-}
-
 type agiAttachCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
 	Detach      bool            `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C"`
@@ -203,4 +190,295 @@ func (c *agiAttachCmd) Execute(args []string) error {
 	a.opts.Attach.Shell.Detach = c.Detach
 	a.opts.Attach.Shell.Tail = c.Tail
 	return a.opts.Attach.Shell.run(args)
+}
+
+type agiRetriggerCmd struct {
+	ClusterName      TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	LocalSource      *flags.Filename `long:"source-local" description:"get logs from a local directory"`
+	SftpEnable       *bool           `long:"source-sftp-enable" description:"enable sftp source"`
+	SftpThreads      *int            `long:"source-sftp-threads" description:"number of concurrent downloader threads"`
+	SftpHost         *string         `long:"source-sftp-host" description:"sftp host"`
+	SftpPort         *int            `long:"source-sftp-port" description:"sftp port"`
+	SftpUser         *string         `long:"source-sftp-user" description:"sftp user"`
+	SftpPass         *string         `long:"source-sftp-pass" description:"sftp password"`
+	SftpKey          *flags.Filename `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password"`
+	SftpPath         *string         `long:"source-sftp-path" description:"path on sftp to download logs from"`
+	SftpRegex        *string         `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^"`
+	S3Enable         *bool           `long:"source-s3-enable" description:"enable s3 source"`
+	S3Threads        *int            `long:"source-s3-threads" description:"number of concurrent downloader threads"`
+	S3Region         *string         `long:"source-s3-region" description:"aws region where the s3 bucket is located"`
+	S3Bucket         *string         `long:"source-s3-bucket" description:"s3 bucket name"`
+	S3KeyID          *string         `long:"source-s3-key-id" description:"(optional) access key ID"`
+	S3Secret         *string         `long:"source-s3-secret-key" description:"(optional) secret key"`
+	S3path           *string         `long:"source-s3-path" description:"path on s3 to download logs from"`
+	S3Regex          *string         `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^"`
+	TimeRanges       *bool           `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs"`
+	TimeRangesFrom   *string         `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00"`
+	TimeRangesTo     *string         `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00"`
+	CustomSourceName *string         `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana"`
+	PatternsFile     *flags.Filename `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
+	IngestLogLevel   *int            `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL"`
+	IngestCpuProfile *bool           `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling"`
+	Force            bool            `short:"f" long:"force" description:"do not ask for confirmation, just continue"`
+	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiRetriggerCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	// if sftp key, local source or patterns file are specified, ensure they exist
+	for _, k := range []*string{(*string)(c.SftpKey), (*string)(c.PatternsFile), (*string)(c.LocalSource)} {
+		if k != nil {
+			if _, err := os.Stat(*k); err != nil {
+				return fmt.Errorf("could not access %s: %s", *k, err)
+			}
+		}
+	}
+
+	// process time ranges from/to to time.Time
+	var tfrom, tto time.Time
+	var err error
+	if c.TimeRangesFrom != nil {
+		tfrom, err = time.Parse("2006-01-02T15:04:05Z07:00", *c.TimeRangesFrom)
+		if err != nil {
+			return fmt.Errorf("from time range invalid: %s", err)
+		}
+	}
+	if c.TimeRangesTo != nil {
+		tto, err = time.Parse("2006-01-02T15:04:05Z07:00", *c.TimeRangesTo)
+		if err != nil {
+			return fmt.Errorf("to time range invalid: %s", err)
+		}
+	}
+
+	// check if ingest is already running
+	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "cat /opt/agi/ingest.pid"}}, []int{1})
+	if err == nil {
+		_, err = b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "ls /proc |egrep '^" + strings.Trim(string(out[0]), "\r\n\t ") + "$'"}}, []int{1})
+		if err == nil {
+			return errors.New("ingest already running")
+		}
+	}
+
+	// read current config into the config struct
+	out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"cat", "/opt/agi/ingest.yaml"}}, []int{1})
+	if err != nil {
+		return fmt.Errorf("could not get current config: %s: %s", err, string(out[0]))
+	}
+	oldConfig := string(out[0])
+	conf, err := ingest.MakeConfigReader(true, strings.NewReader(oldConfig), true)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal current config: %s", err)
+	}
+
+	// update any relevant parameters
+	if c.SftpEnable != nil {
+		conf.Downloader.SftpSource.Enabled = *c.SftpEnable
+	}
+	if c.SftpThreads != nil {
+		conf.Downloader.SftpSource.Threads = *c.SftpThreads
+	}
+	if c.SftpHost != nil {
+		conf.Downloader.SftpSource.Host = *c.SftpHost
+	}
+	if c.SftpPort != nil {
+		conf.Downloader.SftpSource.Port = *c.SftpPort
+	}
+	if c.SftpUser != nil {
+		conf.Downloader.SftpSource.Username = *c.SftpUser
+	}
+	if c.SftpPass != nil {
+		conf.Downloader.SftpSource.Password = *c.SftpPass
+	}
+	if c.SftpKey != nil {
+		conf.Downloader.SftpSource.KeyFile = "/opt/agi/sftp.key"
+	}
+	if c.SftpPath != nil {
+		conf.Downloader.SftpSource.PathPrefix = *c.SftpPath
+	}
+	if c.SftpRegex != nil {
+		conf.Downloader.SftpSource.SearchRegex = *c.SftpRegex
+	}
+	if c.S3Enable != nil {
+		conf.Downloader.S3Source.Enabled = *c.S3Enable
+	}
+	if c.S3Threads != nil {
+		conf.Downloader.S3Source.Threads = *c.S3Threads
+	}
+	if c.S3Region != nil {
+		conf.Downloader.S3Source.Region = *c.S3Region
+	}
+	if c.S3Bucket != nil {
+		conf.Downloader.S3Source.BucketName = *c.S3Bucket
+	}
+	if c.S3KeyID != nil {
+		conf.Downloader.S3Source.KeyID = *c.S3KeyID
+	}
+	if c.S3Secret != nil {
+		conf.Downloader.S3Source.SecretKey = *c.S3Secret
+	}
+	if c.S3path != nil {
+		conf.Downloader.S3Source.PathPrefix = *c.S3path
+	}
+	if c.S3Regex != nil {
+		conf.Downloader.S3Source.SearchRegex = *c.S3Regex
+	}
+	if c.TimeRanges != nil {
+		conf.IngestTimeRanges.Enabled = *c.TimeRanges
+	}
+	if c.TimeRangesFrom != nil {
+		conf.IngestTimeRanges.From = tfrom
+	}
+	if c.TimeRangesTo != nil {
+		conf.IngestTimeRanges.To = tto
+	}
+	if c.CustomSourceName != nil {
+		conf.CustomSourceName = *c.CustomSourceName
+	}
+	if c.PatternsFile != nil {
+		conf.PatternsFile = "/opt/agi/patterns.yaml"
+	}
+	if c.IngestLogLevel != nil {
+		conf.LogLevel = *c.IngestLogLevel
+	}
+	if c.IngestCpuProfile != nil {
+		if *c.IngestCpuProfile {
+			conf.CPUProfilingOutputFile = "/opt/agi/cpu.ingest.pprof"
+		} else {
+			conf.CPUProfilingOutputFile = ""
+		}
+	}
+
+	// check if s3 is enabled but pass is "<redacted>"
+	if conf.Downloader.S3Source.Enabled && conf.Downloader.S3Source.SecretKey == "<redacted>" {
+		return errors.New("S3 source is enabled, but SecretKey has been redacted by the previous run; update the secret key value")
+	}
+
+	// check if sftp is enabled but no pass/key present, key does not exist, or pass=="<redacted>"
+	if conf.Downloader.SftpSource.Enabled && (conf.Downloader.SftpSource.KeyFile == "<redacted>" || conf.Downloader.SftpSource.Password == "<redacted>") {
+		return errors.New("sftp source is enabled, but the password ot keyFile is in <redacted> state, provide one and set the other to an empty string")
+	}
+	if conf.Downloader.SftpSource.Enabled && conf.Downloader.SftpSource.KeyFile == "" && conf.Downloader.SftpSource.Password == "" {
+		return errors.New("sftp source is enabled, but no authentication method has been provided")
+	}
+
+	// marshal new config
+	var encBuf bytes.Buffer
+	enc := yaml.NewEncoder(&encBuf)
+	enc.SetIndent(2)
+	err = enc.Encode(conf)
+	if err != nil {
+		return fmt.Errorf("could not marshal new config to yaml: %s", err)
+	}
+	newConfig := encBuf.Bytes()
+
+	// diff old and new config and show diff, ask if sure to continue
+	fmt.Println(string(diff.Diff("old", []byte(oldConfig), "new", newConfig)))
+	if !c.Force {
+		for {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Print("Are you sure you want to continue (y/n)? ")
+
+			yesno, err := reader.ReadString('\n')
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			yesno = strings.ToLower(strings.TrimSpace(yesno))
+
+			if yesno == "y" || yesno == "yes" {
+				break
+			} else if yesno == "n" || yesno == "no" {
+				fmt.Println("Aborting")
+				return nil
+			}
+		}
+	}
+
+	// copy new config struct to cluster together with sftpkey if specified and patterns file if specified
+	flist := []fileListReader{}
+	if c.PatternsFile != nil {
+		stat, err := os.Stat(string(*c.PatternsFile))
+		if err != nil {
+			return fmt.Errorf("could not access patterns file: %s", err)
+		}
+		f, err := os.Open(string(*c.PatternsFile))
+		if err != nil {
+			return fmt.Errorf("failed to open patterns file: %s", err)
+		}
+		defer f.Close()
+		flist = append(flist, fileListReader{
+			filePath:     "/opt/agi/patterns.yaml",
+			fileContents: f,
+			fileSize:     int(stat.Size()),
+		})
+	}
+	if c.SftpKey != nil {
+		stat, err := os.Stat(string(*c.SftpKey))
+		if err != nil {
+			return fmt.Errorf("could not access sftp key file: %s", err)
+		}
+		f, err := os.Open(string(*c.SftpKey))
+		if err != nil {
+			return fmt.Errorf("failed to open sftp key file: %s", err)
+		}
+		defer f.Close()
+		flist = append(flist, fileListReader{
+			filePath:     "/opt/agi/sftp.key",
+			fileContents: f,
+			fileSize:     int(stat.Size()),
+		})
+	}
+	flist = append(flist, fileListReader{
+		filePath:     "/opt/agi/ingest.yaml",
+		fileContents: bytes.NewReader(newConfig),
+		fileSize:     len(newConfig),
+	})
+	err = b.CopyFilesToClusterReader(c.ClusterName.String(), flist, []int{1})
+	if err != nil {
+		return fmt.Errorf("could not upload configuration to instance: %s", err)
+	}
+
+	// if local source is specified, upload logs to remote
+	if c.LocalSource != nil {
+		a.opts.Files.Upload.ClusterName = c.ClusterName
+		a.opts.Files.Upload.Nodes = "1"
+		a.opts.Files.Upload.IsClient = false
+		a.opts.Files.Upload.Files.Source = *c.LocalSource
+		a.opts.Files.Upload.Files.Destination = "/opt/agi/files/input/"
+		err = a.opts.Files.Upload.runUpload(nil)
+		if err != nil {
+			return fmt.Errorf("failed to upload local source to remote: %s", err)
+		}
+	}
+	// remove /opt/agi/ingest/steps.json on remote and restart agi-ingest
+	if a.opts.Config.Backend.Type != "docker" {
+		out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "rm -f /opt/agi/ingest/steps.json; service agi-ingest start"}}, []int{1})
+		if err != nil {
+			return fmt.Errorf("could not start ingest system: %s: %s", err, string(out[0]))
+		}
+	} else {
+		out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "rm -f /opt/agi/ingest/steps.json; /opt/autoload/ingest.sh"}}, []int{1})
+		if err != nil {
+			return fmt.Errorf("could not start ingest system: %s: %s", err, string(out[0]))
+		}
+	}
+	log.Println("Done")
+	return nil
+}
+
+type agiDetailsCmd struct {
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiDetailsCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	// TODO for `inventory list` do not do that, but for `agi list` also query nodes that are up; provide ingest status
+	// TODO have a way for aerolab to query the node without having a token - eg. with an ssh key as token? oooooh
+	// TODO status - showing where we are as summary (as json or pretty)
+	// TODO ingest-detail - actually dumping the json outputs of progress to the user
+	return nil
 }
