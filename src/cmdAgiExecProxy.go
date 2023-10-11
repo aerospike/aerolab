@@ -226,19 +226,16 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		go c.maxUptime()
 	}
 	go c.loadTokens()
-	http.HandleFunc("/agi/ttyd", c.ttydHandler)        // web console tty
-	http.HandleFunc("/agi/ttyd/", c.ttydHandler)       // web console tty
-	http.HandleFunc("/agi/filebrowser", c.fbHandler)   // file browser
-	http.HandleFunc("/agi/filebrowser/", c.fbHandler)  // file browser
-	http.HandleFunc("/agi/menu", c.handleList)         // simple URL list
-	http.HandleFunc("/agi/shutdown", c.handleShutdown) // gracefully shutdown the proxy
-	http.HandleFunc("/agi/poweroff", c.handlePoweroff) // poweroff the instance
-	http.HandleFunc("/agi/reingest", c.handleReingest) // retrigger the logingest service; form: ?serviceName=logingest
-	http.HandleFunc("/agi/status", c.handleStatus)     // high-level agi service status
-	http.HandleFunc("/agi/detail", c.handleDetail)     // detailed logingest progress json; form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
-	http.HandleFunc("/agi/exec", c.handleExec)         // execute command on this machine; form: ?command=...
-	http.HandleFunc("/agi/relabel", c.handleRelabel)   // change the case label static string; form: ?label=...
-	http.HandleFunc("/", c.grafanaHandler)             // grafana
+	http.HandleFunc("/agi/ttyd", c.ttydHandler)                 // web console tty
+	http.HandleFunc("/agi/ttyd/", c.ttydHandler)                // web console tty
+	http.HandleFunc("/agi/filebrowser", c.fbHandler)            // file browser
+	http.HandleFunc("/agi/filebrowser/", c.fbHandler)           // file browser
+	http.HandleFunc("/agi/menu", c.handleList)                  // simple URL list
+	http.HandleFunc("/agi/shutdown", c.handleShutdown)          // gracefully shutdown the proxy
+	http.HandleFunc("/agi/poweroff", c.handlePoweroff)          // poweroff the instance
+	http.HandleFunc("/agi/status", c.handleStatus)              // high-level agi service status
+	http.HandleFunc("/agi/ingest/detail", c.handleIngestDetail) // detailed logingest progress json; form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
+	http.HandleFunc("/", c.grafanaHandler)                      // grafana
 	c.srv = &http.Server{Addr: "0.0.0.0:" + strconv.Itoa(c.ListenPort)}
 	if c.HTTPS {
 		tlsConfig := &tls.Config{
@@ -271,40 +268,25 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	<a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
 	<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
 	<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
-	<a href="/agi/reingest" target="_blank"><h1>Retrigger Ingest</h1></a>
 	</center></body></html>`)
 	w.Write(out)
 }
 
-func (c *agiExecProxyCmd) handleExec(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
-		return
-	}
-	logger.Info("Listener: exec request from %s", r.RemoteAddr)
-	comm := r.FormValue("command")
-	out, err := exec.Command("/bin/bash", "-c", comm).CombinedOutput()
-	if err != nil {
-		out = append(out, '\n')
-		out = append(out, []byte(err.Error())...)
-		w.WriteHeader(http.StatusBadRequest)
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
-	w.Write(out)
-}
-
-// form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
-func (c *agiExecProxyCmd) handleDetail(w http.ResponseWriter, r *http.Request) {
+// form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
+func (c *agiExecProxyCmd) handleIngestDetail(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
 	}
 	fname := r.FormValue("detail")
-	files := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
+	files := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
 	if !inslice.HasString(files, fname) {
 		http.Error(w, "invalid detail type", http.StatusBadRequest)
 		return
 	}
 	npath := path.Join(c.IngestProgressPath, fname)
+	if fname == "steps.json" {
+		npath = "/opt/agi/ingest/steps.json"
+	}
 	gz := false
 	if _, err := os.Stat(npath); err != nil {
 		npath = npath + ".gz"
@@ -521,50 +503,6 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(status)
-}
-
-// form: ?label=...
-func (c *agiExecProxyCmd) handleRelabel(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
-		return
-	}
-	logger.Info("Listener: relabel request from %s", r.RemoteAddr)
-	os.WriteFile("/opt/agi/label", []byte(r.FormValue("label")), 0644)
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
-}
-
-// form: ?serviceName=logingest
-func (c *agiExecProxyCmd) handleReingest(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
-		return
-	}
-	logger.Info("Listener: reingest request from %s", r.RemoteAddr)
-	pidf, err := os.ReadFile("/opt/agi/ingest.pid")
-	if err == nil {
-		pid, err := strconv.Atoi(string(pidf))
-		if err == nil {
-			_, err := os.FindProcess(pid)
-			if err == nil {
-				w.WriteHeader(http.StatusConflict)
-				w.Write([]byte("Ingest already running"))
-				return
-			}
-		}
-	}
-	os.Remove("/opt/agi/ingest/steps.json")
-	serviceName := r.FormValue("serviceName")
-	if serviceName == "" {
-		serviceName = "logingest"
-	}
-	out, err := exec.Command("service", serviceName, "start").CombinedOutput()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(out)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
 }
 
 func (c *agiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request) {
