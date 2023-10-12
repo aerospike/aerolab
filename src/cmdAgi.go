@@ -513,8 +513,36 @@ func (c *agiStatusCmd) Execute(args []string) error {
 	processStr := ""
 	if !clusterStatus.Ingest.CompleteSteps.Download {
 		downloadStr = fmt.Sprintf(" (%s/%s complete %d%%)", convSize(clusterStatus.Ingest.DownloaderCompleteSize), convSize(clusterStatus.Ingest.DownloaderTotalSize), clusterStatus.Ingest.DownloaderCompletePct)
+		if clusterStatus.Ingest.DownloaderCompletePct != 100 || clusterStatus.Ingest.DownloaderCompleteSize < clusterStatus.Ingest.DownloaderTotalSize {
+			elapsed := time.Since(clusterStatus.Ingest.CompleteSteps.DownloadStartTime)
+			bytesPerSec := int64(0)
+			if int64(elapsed.Seconds()) > 0 {
+				bytesPerSec = clusterStatus.Ingest.DownloaderCompleteSize / int64(elapsed.Seconds())
+			}
+			remainBytes := clusterStatus.Ingest.DownloaderTotalSize - clusterStatus.Ingest.DownloaderCompleteSize
+			remain := time.Duration(0)
+			if bytesPerSec > 0 {
+				remain = time.Duration(remainBytes/bytesPerSec) * time.Second
+			}
+			endTime := time.Now().Add(remain)
+			downloadStr = downloadStr + fmt.Sprintf(" (speed:%s/s) (elapsed:%s remaining:%s total:%s) (endTime:%s)", convSize(bytesPerSec), elapsed.String(), remain.String(), time.Duration(elapsed+remain).String(), endTime.Format("2006-01-02_15:04:05_MST"))
+		}
 	} else if clusterStatus.Ingest.CompleteSteps.PreProcess {
 		processStr = fmt.Sprintf(" (%s/%s complete %d%%)", convSize(clusterStatus.Ingest.LogProcessorCompleteSize), convSize(clusterStatus.Ingest.LogProcessorTotalSize), clusterStatus.Ingest.LogProcessorCompletePct)
+		if clusterStatus.Ingest.LogProcessorCompletePct != 100 || clusterStatus.Ingest.LogProcessorCompleteSize < clusterStatus.Ingest.LogProcessorTotalSize {
+			elapsed := time.Since(clusterStatus.Ingest.CompleteSteps.ProcessLogsStartTime)
+			bytesPerSec := int64(0)
+			if int64(elapsed.Seconds()) > 0 {
+				bytesPerSec = clusterStatus.Ingest.LogProcessorCompleteSize / int64(elapsed.Seconds())
+			}
+			remainBytes := clusterStatus.Ingest.LogProcessorTotalSize - clusterStatus.Ingest.LogProcessorCompleteSize
+			remain := time.Duration(0)
+			if bytesPerSec > 0 {
+				remain = time.Duration(remainBytes/bytesPerSec) * time.Second
+			}
+			endTime := time.Now().Add(remain)
+			processStr = processStr + fmt.Sprintf(" (speed:%s/s) (elapsed:%s remaining:%s total:%s) (endTime:%s)", convSize(bytesPerSec), elapsed.String(), remain.String(), time.Duration(elapsed+remain).String(), endTime.Format("2006-01-02_15:04:05_MST"))
+		}
 	}
 	fmt.Println("\nINGEST STEPS:")
 	fmt.Printf("* INIT         : %s\n", c.boolToProgress(clusterStatus.Ingest.CompleteSteps.Init, "DONE", "IN-PROGRESS", "IN-PROGRESS", true))
@@ -553,6 +581,7 @@ func (c *agiStatusCmd) boolToProgress(a bool, t string, f1 string, f2 string, b 
 
 type agiDetailsCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	DetailType  []string        `short:"t" long:"type" description:"downloader|unpacker|pre-processor|log-processor|cf-processor|steps ; can be specified multiple times, default: ALL"`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -560,6 +589,17 @@ func (c *agiDetailsCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	// TODO dump the json outputs of progress to the user (or pretty-print?)
+	if len(c.DetailType) == 0 {
+		c.DetailType = []string{"downloader", "unpacker", "pre-processor", "log-processor", "cf-processor", "steps"}
+	}
+	cmdline := []string{"aerolab", "agi", "exec", "ingest-detail"}
+	for _, detail := range c.DetailType {
+		cmdline = append(cmdline, "-t", detail+".json")
+	}
+	out, err := b.RunCommands(c.ClusterName.String(), [][]string{cmdline}, []int{1})
+	if err != nil {
+		return fmt.Errorf("%s\n%s", err, string(out[0]))
+	}
+	fmt.Println(string(out[0]))
 	return nil
 }

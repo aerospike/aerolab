@@ -448,7 +448,7 @@ func getAgiStatus(ingestProgressPath string) ([]byte, error) {
 			if f.IsDownloaded {
 				dlSize += f.Size
 			} else {
-				if nstat, err := os.Stat(fn); err == nil {
+				if nstat, err := os.Stat(path.Join("/opt/agi/files/input/s3source", fn)); err == nil {
 					dlSize += nstat.Size()
 				}
 			}
@@ -461,7 +461,7 @@ func getAgiStatus(ingestProgressPath string) ([]byte, error) {
 			if f.IsDownloaded {
 				dlSize += f.Size
 			} else {
-				if nstat, err := os.Stat(fn); err == nil {
+				if nstat, err := os.Stat(path.Join("/opt/agi/files/input/sftpsource", fn)); err == nil {
 					dlSize += nstat.Size()
 				}
 			}
