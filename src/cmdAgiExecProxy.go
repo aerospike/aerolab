@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -318,33 +319,44 @@ func (c *agiExecProxyCmd) handleIngestDetail(w http.ResponseWriter, r *http.Requ
 	io.Copy(w, reader)
 }
 
+type IngestStatusStruct struct {
+	Ingest struct {
+		Running                  bool
+		CompleteSteps            *ingestSteps
+		DownloaderCompletePct    int
+		DownloaderTotalSize      int64
+		DownloaderCompleteSize   int64
+		LogProcessorCompletePct  int
+		LogProcessorTotalSize    int64
+		LogProcessorCompleteSize int64
+		Errors                   []string
+	}
+	AerospikeRunning     bool
+	PluginRunning        bool
+	GrafanaHelperRunning bool
+}
+
 func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
 	}
 	logger.Info("Listener: status request from %s", r.RemoteAddr)
-	type s struct {
-		Ingest struct {
-			Running                  bool
-			CompleteSteps            *ingestSteps
-			DownloaderCompletePct    int
-			DownloaderTotalSize      int64
-			DownloaderCompleteSize   int64
-			LogProcessorCompletePct  int
-			LogProcessorTotalSize    int64
-			LogProcessorCompleteSize int64
-			Errors                   []string
-		}
-		AerospikeRunning     bool
-		PluginRunning        bool
-		GrafanaHelperRunning bool
-	}
-	status := new(s)
-	plist, err := ps.Processes()
+	resp, err := getAgiStatus(c.IngestProgressPath)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
+}
+
+func getAgiStatus(ingestProgressPath string) ([]byte, error) {
+	status := new(IngestStatusStruct)
+	plist, err := ps.Processes()
+	if err != nil {
+		return []byte{}, err
 	}
 	for _, p := range plist {
 		if strings.HasSuffix(p.Executable(), "asd") {
@@ -399,20 +411,18 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	} else if steps.PreProcess {
 		fname = "log-processor.json"
 	}
-	npath := path.Join(c.IngestProgressPath, fname)
+	npath := path.Join(ingestProgressPath, fname)
 	gz := false
 	if _, err := os.Stat(npath); err != nil {
 		npath = npath + ".gz"
 		if _, err := os.Stat(npath); err != nil {
-			http.Error(w, "file not found", http.StatusNotFound)
-			return
+			return []byte{}, fmt.Errorf("file not found: %s", npath)
 		}
 		gz = true
 	}
 	fa, err := os.Open(npath)
 	if err != nil {
-		http.Error(w, "could not open file: "+err.Error(), http.StatusInternalServerError)
-		return
+		return []byte{}, fmt.Errorf("file open error: %s: %s", npath, err)
 	}
 	defer fa.Close()
 	var reader io.Reader
@@ -420,8 +430,7 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if gz {
 		fx, err := gzip.NewReader(fa)
 		if err != nil {
-			http.Error(w, "could not open gz for reading: "+err.Error(), http.StatusInternalServerError)
-			return
+			return []byte{}, fmt.Errorf("could not open gz for reading: %s: %s", npath, err)
 		}
 		defer fx.Close()
 		reader = fx
@@ -500,9 +509,7 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 			status.Ingest.LogProcessorCompletePct = int((100 * dlSize) / totalSize)
 		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(status)
+	return json.Marshal(status)
 }
 
 func (c *agiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request) {

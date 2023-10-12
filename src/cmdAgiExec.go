@@ -1,11 +1,14 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"sync"
 	"time"
@@ -13,20 +16,86 @@ import (
 	"github.com/aerospike/aerolab/grafanafix"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/plugin"
+	"github.com/bestmethod/inslice"
 	"gopkg.in/yaml.v3"
 )
 
 type agiExecCmd struct {
-	Plugin     agiExecPluginCmd     `command:"plugin" subcommands-optional:"true" description:"Aerospike-Grafana plugin"`
-	GrafanaFix agiExecGrafanaFixCmd `command:"grafanafix" subcommands-optional:"true" description:"Deploy dashboards, configure grafana and load/save annotations"`
-	Ingest     agiExecIngestCmd     `command:"ingest" subcommands-optional:"true" description:"Ingest logs into aerospike"`
-	Proxy      agiExecProxyCmd      `command:"proxy" subcommands-optional:"true" description:"Proxy from aerolab to AGI services"`
-	Help       helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
+	Plugin       agiExecPluginCmd       `command:"plugin" subcommands-optional:"true" description:"Aerospike-Grafana plugin"`
+	GrafanaFix   agiExecGrafanaFixCmd   `command:"grafanafix" subcommands-optional:"true" description:"Deploy dashboards, configure grafana and load/save annotations"`
+	Ingest       agiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Ingest logs into aerospike"`
+	Proxy        agiExecProxyCmd        `command:"proxy" subcommands-optional:"true" description:"Proxy from aerolab to AGI services"`
+	IngestStatus agiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Ingest logs into aerospike"`
+	IngestDetail agiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Ingest logs into aerospike"`
+	Help         helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiExecCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
 	os.Exit(1)
+	return nil
+}
+
+type agiExecIngestStatusCmd struct {
+	IngestPath string  `long:"ingest-stat-path" default:"/opt/agi/ingest/"`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiExecIngestStatusCmd) Execute(args []string) error {
+	if earlyProcessNoBackend(args) {
+		return nil
+	}
+	resp, err := getAgiStatus(c.IngestPath)
+	if err != nil {
+		return err
+	}
+	fmt.Print(string(resp))
+	return nil
+}
+
+type agiExecIngestDetailCmd struct {
+	IngestPath string  `long:"ingest-stat-path" default:"/opt/agi/ingest/"`
+	DetailType string  `long:"detail-type" description:"file name of the progress detail"`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiExecIngestDetailCmd) Execute(args []string) error {
+	if earlyProcessNoBackend(args) {
+		return nil
+	}
+	fname := c.DetailType
+	files := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
+	if !inslice.HasString(files, fname) {
+		return errors.New("invalid detail type")
+	}
+	npath := path.Join(c.IngestPath, fname)
+	if fname == "steps.json" {
+		npath = "/opt/agi/ingest/steps.json"
+	}
+	gz := false
+	if _, err := os.Stat(npath); err != nil {
+		npath = npath + ".gz"
+		if _, err := os.Stat(npath); err != nil {
+			return errors.New("file not found")
+		}
+		gz = true
+	}
+	f, err := os.Open(npath)
+	if err != nil {
+		return fmt.Errorf("could not open file: %s", err)
+	}
+	defer f.Close()
+	var reader io.Reader
+	reader = f
+	if gz {
+		fx, err := gzip.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("could not open gz for reading: %s", err)
+		}
+		defer fx.Close()
+		reader = fx
+	}
+	io.Copy(os.Stdout, reader)
 	return nil
 }
 
