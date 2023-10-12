@@ -23,6 +23,8 @@ import (
 type agiCmd struct {
 	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances"`
 	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance"`
+	Start     agiStartCmd     `command:"start" subcommands-optional:"true" description:"Start AGI instance"`
+	Stop      agiStopCmd      `command:"stop" subcommands-optional:"true" description:"Stop AGI instance"`
 	Status    agiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show status of an AGI instance"`
 	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance"`
 	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance"`
@@ -56,6 +58,29 @@ func (c *agiListCmd) Execute(args []string) error {
 	a.opts.Inventory.List.Owner = c.Owner
 	a.opts.Inventory.List.NoPager = c.NoPager
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowAGI|inventoryShowAGIStatus)
+}
+
+type agiStartCmd struct {
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiStartCmd) Execute(args []string) error {
+	a.opts.Cluster.Start.ClusterName = c.ClusterName
+	a.opts.Cluster.Start.Nodes = "1"
+	a.opts.Cluster.Start.NoStart = true
+	return a.opts.Cluster.Start.Execute(args)
+}
+
+type agiStopCmd struct {
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiStopCmd) Execute(args []string) error {
+	a.opts.Cluster.Stop.ClusterName = c.ClusterName
+	a.opts.Cluster.Stop.Nodes = "1"
+	return a.opts.Cluster.Stop.Execute(args)
 }
 
 type agiAddTokenCmd struct {
