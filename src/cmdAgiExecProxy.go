@@ -564,7 +564,7 @@ func (c *agiExecProxyCmd) activityMonitor() {
 		if err == nil {
 			for _, line := range strings.Split(string(out), "\n") {
 				if strings.Trim(line, "\n\t\r ") != "" {
-					c.lastActivity.Set(time.Now())
+					c.lastActivity.Set(time.Now()) // TODO `aerolab agi list` should not trigger this // TODO: we also need to check if someone is attached in docker, `who` doesn't show it
 					break
 				}
 			}
