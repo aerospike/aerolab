@@ -46,6 +46,7 @@ type agiExecProxyCmd struct {
 	BasicAuthPass      string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password"`
 	TokenAuthLocation  string        `short:"t" long:"token-path" default:"/opt/agitokens" description:"Directory where tokens are stored for access"`
 	TokenName          string        `short:"T" long:"token-name" default:"AGI_TOKEN" description:"Name of the token variable and cookie to use"`
+	DockerMode         bool          `short:"D" long:"docker-mode" description:"set to enable docker mode checks in activity monitor"`
 	Help               helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 	isBasicAuth        bool
 	isTokenAuth        bool
@@ -566,12 +567,27 @@ func (c *agiExecProxyCmd) activityMonitor() {
 			c.lastActivity.Set(time.Now())
 			continue
 		}
-		out, err := exec.Command("/usr/bin/who").CombinedOutput()
-		if err == nil {
-			for _, line := range strings.Split(string(out), "\n") {
-				if strings.Trim(line, "\n\t\r ") != "" {
-					c.lastActivity.Set(time.Now()) // TODO `aerolab agi list` should not trigger this // TODO: we also need to check if someone is attached in docker, `who` doesn't show it
-					break
+		if c.DockerMode {
+			pids, err := ps.Processes()
+			if err == nil {
+				for _, pid := range pids {
+					if pid.Pid() == 1 {
+						continue
+					}
+					if pid.Executable() == "bash" {
+						c.lastActivity.Set(time.Now())
+						break
+					}
+				}
+			}
+		} else {
+			out, err := exec.Command("/usr/bin/who").CombinedOutput()
+			if err == nil {
+				for _, line := range strings.Split(string(out), "\n") {
+					if strings.Trim(line, "\n\t\r ") != "" {
+						c.lastActivity.Set(time.Now()) // TODO `aerolab agi list` should not trigger this
+						break
+					}
 				}
 			}
 		}
