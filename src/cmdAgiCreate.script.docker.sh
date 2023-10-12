@@ -52,7 +52,7 @@ cat <<'EOF' > /opt/autoload/ingest.sh
 nohup /usr/local/bin/aerolab agi exec ingest -y /opt/agi/ingest.yaml >>/var/log/agi-ingest.log 2>&1 &
 EOF
 cat <<'EOF' > /opt/autoload/proxy.sh
-nohup /usr/local/bin/aerolab agi exec proxy -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s >>/var/log/agi-proxy.log 2>&1 &
+nohup /usr/local/bin/aerolab agi exec proxy -D -c "/usr/bin/touch /tmp/poweroff.now" -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s >>/var/log/agi-proxy.log 2>&1 &
 EOF
 cat <<'EOF' > /opt/agi/grafanafix.yaml
 dashboards:
