@@ -846,7 +846,7 @@ func (d *backendAws) listSubnets(stdout bool) ([]inventorySubnetAWS, error) {
 	foundVPCs := []string{}
 	var w *tabwriter.Writer
 	if stdout {
-		w := tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
+		w = tabwriter.NewWriter(os.Stdout, 1, 1, 4, ' ', 0)
 		fmt.Fprintln(w, "VPC_ID\tVPC_Name\tVPC_Cidr\tAvailZone\tSubnet_ID\tSubnet_CIDR\tAZ-Default\tSubnet_Name\tAutoPublicIP")
 		fmt.Fprintln(w, "------\t--------\t--------\t---------\t---------\t-----------\t----------\t-----------\t------------")
 	}

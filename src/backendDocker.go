@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +28,10 @@ func init() {
 }
 
 var dockerNameHeader = "aerolab-"
+
+func (d *backendDocker) SetLabel(clusterName string, key string, value string, gcpZone string) error {
+	return errors.New("docker does not support changing of container labels")
+}
 
 func (d *backendDocker) EnableServices() error {
 	return nil
@@ -128,6 +133,15 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 			if len(nameNo) != 2 {
 				continue
 			}
+			outl, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.Labels}}", tt[1]).CombinedOutput()
+			if err != nil {
+				return ij, err
+			}
+			allLabels := make(map[string]string)
+			err = json.Unmarshal(outl, &allLabels)
+			if err != nil {
+				return ij, err
+			}
 			out2, err := exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
 			if err != nil {
 				return ij, err
@@ -160,6 +174,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 				clientType = tt[4]
 			}
 			exposePorts := ""
+			intPorts := ""
 			if len(tt) > 5 {
 				ep1 := strings.Split(tt[5], "->")
 				if len(ep1) > 1 {
@@ -167,38 +182,47 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					if len(ep2) > 1 {
 						exposePorts = ep2[1]
 					}
+					ep2 = strings.Split(ep1[1], "/")
+					intPorts = ep2[0]
 				}
 			}
 			if i == 1 {
+				features, _ := strconv.Atoi(clientType)
 				ij.Clusters = append(ij.Clusters, inventoryCluster{
-					ClusterName:       nameNo[0],
-					NodeNo:            nameNo[1],
-					PublicIp:          "",
-					PrivateIp:         strings.ReplaceAll(ip, " ", ","),
-					InstanceId:        tt[0],
-					ImageId:           tt[3],
-					State:             tt[2],
-					Arch:              arch,
-					Distribution:      i2[0],
-					OSVersion:         i3[0],
-					AerospikeVersion:  asdVer,
-					DockerExposePorts: exposePorts,
+					ClusterName:        nameNo[0],
+					NodeNo:             nameNo[1],
+					PublicIp:           "",
+					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
+					InstanceId:         tt[0],
+					ImageId:            tt[3],
+					State:              tt[2],
+					Arch:               arch,
+					Distribution:       i2[0],
+					OSVersion:          i3[0],
+					AerospikeVersion:   asdVer,
+					DockerExposePorts:  exposePorts,
+					DockerInternalPort: intPorts,
+					Features:           FeatureSystem(features),
+					AGILabel:           allLabels["agiLabel"],
+					dockerLabels:       allLabels,
 				})
 			} else {
 				ij.Clients = append(ij.Clients, inventoryClient{
-					ClientName:        nameNo[0],
-					NodeNo:            nameNo[1],
-					PublicIp:          "",
-					PrivateIp:         strings.ReplaceAll(ip, " ", ","),
-					InstanceId:        tt[0],
-					ImageId:           tt[3],
-					State:             tt[2],
-					Arch:              arch,
-					Distribution:      i2[0],
-					OSVersion:         i3[0],
-					AerospikeVersion:  asdVer,
-					ClientType:        clientType,
-					DockerExposePorts: exposePorts,
+					ClientName:         nameNo[0],
+					NodeNo:             nameNo[1],
+					PublicIp:           "",
+					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
+					InstanceId:         tt[0],
+					ImageId:            tt[3],
+					State:              tt[2],
+					Arch:               arch,
+					Distribution:       i2[0],
+					OSVersion:          i3[0],
+					AerospikeVersion:   asdVer,
+					ClientType:         clientType,
+					DockerExposePorts:  exposePorts,
+					DockerInternalPort: intPorts,
+					dockerLabels:       allLabels,
 				})
 			}
 		}
@@ -634,6 +658,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		if extra.clientType != "" {
 			exposeList = append(exposeList, "--label", "aerolab.client.type="+extra.clientType)
 		}
+		for _, newlabel := range extra.labels {
+			exposeList = append(exposeList, "--label", newlabel)
+		}
 		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
 		if d.client {
 			tmplName = d.centosNaming(v)
@@ -665,9 +692,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		}
 		if extra.privileged {
 			fmt.Println("WARNING: privileged container")
-			exposeList = append(exposeList, "--device-cgroup-rule=b 7:* rmw", "--privileged=true", "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf(dockerNameHeader+"%s_%d", name, node), tmplName)
+			exposeList = append(exposeList, "--device-cgroup-rule=b 7:* rmw", "--privileged=true", "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf(dockerNameHeader+"%s_%d", name, node), tmplName, "/bin/bash", "-c", "while true; do [ -f /tmp/poweroff.now ] && rm -f /tmp/poweroff.now && exit; sleep 1; done")
 		} else {
-			exposeList = append(exposeList, "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf(dockerNameHeader+"%s_%d", name, node), tmplName)
+			exposeList = append(exposeList, "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf(dockerNameHeader+"%s_%d", name, node), tmplName, "/bin/bash", "-c", "while true; do [ -f /tmp/poweroff.now ] && rm -f /tmp/poweroff.now && exit; sleep 1; done")
 		}
 		out, err = exec.Command("docker", exposeList...).CombinedOutput()
 		if err != nil {
@@ -959,13 +986,15 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) ClusterListFull(isJson bool, owner string) (string, error) {
+func (d *backendDocker) ClusterListFull(isJson bool, owner string, noPager bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
+	a.opts.Inventory.List.NoPager = noPager
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) TemplateListFull(isJson bool) (string, error) {
+func (d *backendDocker) TemplateListFull(isJson bool, noPager bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
+	a.opts.Inventory.List.NoPager = noPager
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }

@@ -7,7 +7,7 @@ require (
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
 	github.com/aerospike/aerospike-client-go/v6 v6.14.0
-	github.com/aws/aws-sdk-go v1.45.19
+	github.com/aws/aws-sdk-go v1.45.24
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
 	github.com/containerd/console v1.0.3
@@ -15,7 +15,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/gabriel-vasile/mimetype v1.4.2
 	github.com/google/uuid v1.3.1
-	github.com/jedib0t/go-pretty/v6 v6.4.7
+	github.com/jedib0t/go-pretty/v6 v6.4.8
 	github.com/jroimartin/gocui v0.5.0
 	github.com/mattn/go-isatty v0.0.19
 	github.com/mitchellh/go-ps v1.0.0
@@ -23,13 +23,12 @@ require (
 	github.com/pkg/sftp v1.13.6
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
-	github.com/rglonek/jeddevdk-goflags v0.0.0-20221012221225-0a7df0798e9f
-	golang.org/x/crypto v0.13.0
-	golang.org/x/sys v0.12.0
-	golang.org/x/term v0.12.0
-	google.golang.org/api v0.143.0
+	github.com/rglonek/jeddevdk-goflags v0.0.0-20231011211429-8df8cc77b9f4
+	golang.org/x/crypto v0.14.0
+	golang.org/x/sys v0.13.0
+	golang.org/x/term v0.13.0
+	google.golang.org/api v0.146.0
 	google.golang.org/protobuf v1.31.0
-	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -48,13 +47,13 @@ require (
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/yuin/gopher-lua v1.1.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/net v0.15.0 // indirect
-	golang.org/x/oauth2 v0.12.0 // indirect
-	golang.org/x/sync v0.3.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/oauth2 v0.13.0 // indirect
+	golang.org/x/sync v0.4.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20230920204549-e6e6cdab5c13 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20230920204549-e6e6cdab5c13 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230920204549-e6e6cdab5c13 // indirect
-	google.golang.org/grpc v1.58.2 // indirect
+	google.golang.org/genproto v0.0.0-20231009173412-8bfb1ae86b6c // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20231009173412-8bfb1ae86b6c // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231009173412-8bfb1ae86b6c // indirect
+	google.golang.org/grpc v1.58.3 // indirect
 )

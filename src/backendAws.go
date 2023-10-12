@@ -102,6 +102,41 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
+func (d *backendAws) SetLabel(clusterName string, key string, value string, gzpZone string) error {
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagClusterName),
+				Values: []*string{aws.String(clusterName)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code == int64(48) {
+				continue
+			}
+			_, err := d.ec2svc.CreateTags(&ec2.CreateTagsInput{
+				Resources: aws.StringSlice([]string{*instance.InstanceId}),
+				Tags: []*ec2.Tag{
+					{
+						Key:   aws.String(key),
+						Value: aws.String(value),
+					},
+				},
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
 	// if a scheduler already exists, return EXISTS as it's all been already made
 	q, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
@@ -785,6 +820,11 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					}
 					owner := ""
 					expires := ""
+					features := 0
+					allTags := make(map[string]string)
+					for _, tag := range instance.Tags {
+						allTags[*tag.Key] = *tag.Value
+					}
 					for _, tag := range instance.Tags {
 						if *tag.Key == awsTagClusterName {
 							clusterName = *tag.Value
@@ -802,6 +842,8 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							clientType = *tag.Value
 						} else if *tag.Key == "aerolab4expires" {
 							expires = *tag.Value
+						} else if *tag.Key == "aerolab4features" {
+							features, _ = strconv.Atoi(*tag.Value)
 						} else if *tag.Key == awsTagCostLastRun {
 							lastRunCost, err = strconv.ParseFloat(*tag.Value, 64)
 							if err != nil {
@@ -856,6 +898,9 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							InstanceRunningCost: currentCost,
 							Owner:               owner,
 							Expires:             expires,
+							Features:            FeatureSystem(features),
+							AGILabel:            allTags["agiLabel"],
+							awsTags:             allTags,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -876,6 +921,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							InstanceRunningCost: currentCost,
 							Owner:               owner,
 							Expires:             expires,
+							awsTags:             allTags,
 						})
 					}
 				}
@@ -1756,14 +1802,16 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-func (d *backendAws) ClusterListFull(isJson bool, owner string) (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool, owner string, noPager bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
+	a.opts.Inventory.List.NoPager = noPager
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
-func (d *backendAws) TemplateListFull(isJson bool) (string, error) {
+func (d *backendAws) TemplateListFull(isJson bool, noPager bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
+	a.opts.Inventory.List.NoPager = noPager
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 

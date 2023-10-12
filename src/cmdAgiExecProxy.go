@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -45,6 +46,7 @@ type agiExecProxyCmd struct {
 	BasicAuthPass      string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password"`
 	TokenAuthLocation  string        `short:"t" long:"token-path" default:"/opt/agitokens" description:"Directory where tokens are stored for access"`
 	TokenName          string        `short:"T" long:"token-name" default:"AGI_TOKEN" description:"Name of the token variable and cookie to use"`
+	DockerMode         bool          `short:"D" long:"docker-mode" description:"set to enable docker mode checks in activity monitor"`
 	Help               helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 	isBasicAuth        bool
 	isTokenAuth        bool
@@ -70,6 +72,9 @@ func (c *agiExecProxyCmd) loadTokensDo() {
 	err := filepath.Walk(c.TokenAuthLocation, func(fpath string, info fs.FileInfo, err error) error {
 		if err != nil {
 			logger.Error("error on walk %s: %s", fpath, err)
+			return nil
+		}
+		if info.IsDir() {
 			return nil
 		}
 		token, err := os.ReadFile(fpath)
@@ -223,19 +228,16 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		go c.maxUptime()
 	}
 	go c.loadTokens()
-	http.HandleFunc("/agi/ttyd", c.ttydHandler)        // web console tty
-	http.HandleFunc("/agi/ttyd/", c.ttydHandler)       // web console tty
-	http.HandleFunc("/agi/filebrowser", c.fbHandler)   // file browser
-	http.HandleFunc("/agi/filebrowser/", c.fbHandler)  // file browser
-	http.HandleFunc("/agi/menu", c.handleList)         // simple URL list
-	http.HandleFunc("/agi/shutdown", c.handleShutdown) // gracefully shutdown the proxy
-	http.HandleFunc("/agi/poweroff", c.handlePoweroff) // poweroff the instance
-	http.HandleFunc("/agi/reingest", c.handleReingest) // retrigger the logingest service; form: ?serviceName=logingest
-	http.HandleFunc("/agi/status", c.handleStatus)     // high-level agi service status
-	http.HandleFunc("/agi/detail", c.handleDetail)     // detailed logingest progress json; form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
-	http.HandleFunc("/agi/exec", c.handleExec)         // execute command on this machine; form: ?command=...
-	http.HandleFunc("/agi/relabel", c.handleRelabel)   // change the case label static string; form: ?label=...
-	http.HandleFunc("/", c.grafanaHandler)             // grafana
+	http.HandleFunc("/agi/ttyd", c.ttydHandler)                 // web console tty
+	http.HandleFunc("/agi/ttyd/", c.ttydHandler)                // web console tty
+	http.HandleFunc("/agi/filebrowser", c.fbHandler)            // file browser
+	http.HandleFunc("/agi/filebrowser/", c.fbHandler)           // file browser
+	http.HandleFunc("/agi/menu", c.handleList)                  // simple URL list
+	http.HandleFunc("/agi/shutdown", c.handleShutdown)          // gracefully shutdown the proxy
+	http.HandleFunc("/agi/poweroff", c.handlePoweroff)          // poweroff the instance
+	http.HandleFunc("/agi/status", c.handleStatus)              // high-level agi service status
+	http.HandleFunc("/agi/ingest/detail", c.handleIngestDetail) // detailed logingest progress json; form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
+	http.HandleFunc("/", c.grafanaHandler)                      // grafana
 	c.srv = &http.Server{Addr: "0.0.0.0:" + strconv.Itoa(c.ListenPort)}
 	if c.HTTPS {
 		tlsConfig := &tls.Config{
@@ -268,40 +270,25 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	<a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
 	<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
 	<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
-	<a href="/agi/reingest" target="_blank"><h1>Retrigger Ingest</h1></a>
 	</center></body></html>`)
 	w.Write(out)
 }
 
-func (c *agiExecProxyCmd) handleExec(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
-		return
-	}
-	logger.Info("Listener: exec request from %s", r.RemoteAddr)
-	comm := r.FormValue("command")
-	out, err := exec.Command("/bin/bash", "-c", comm).CombinedOutput()
-	if err != nil {
-		out = append(out, '\n')
-		out = append(out, []byte(err.Error())...)
-		w.WriteHeader(http.StatusBadRequest)
-	} else {
-		w.WriteHeader(http.StatusOK)
-	}
-	w.Write(out)
-}
-
-// form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
-func (c *agiExecProxyCmd) handleDetail(w http.ResponseWriter, r *http.Request) {
+// form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
+func (c *agiExecProxyCmd) handleIngestDetail(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
 	}
 	fname := r.FormValue("detail")
-	files := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
+	files := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
 	if !inslice.HasString(files, fname) {
 		http.Error(w, "invalid detail type", http.StatusBadRequest)
 		return
 	}
 	npath := path.Join(c.IngestProgressPath, fname)
+	if fname == "steps.json" {
+		npath = "/opt/agi/ingest/steps.json"
+	}
 	gz := false
 	if _, err := os.Stat(npath); err != nil {
 		npath = npath + ".gz"
@@ -333,33 +320,44 @@ func (c *agiExecProxyCmd) handleDetail(w http.ResponseWriter, r *http.Request) {
 	io.Copy(w, reader)
 }
 
+type IngestStatusStruct struct {
+	Ingest struct {
+		Running                  bool
+		CompleteSteps            *ingestSteps
+		DownloaderCompletePct    int
+		DownloaderTotalSize      int64
+		DownloaderCompleteSize   int64
+		LogProcessorCompletePct  int
+		LogProcessorTotalSize    int64
+		LogProcessorCompleteSize int64
+		Errors                   []string
+	}
+	AerospikeRunning     bool
+	PluginRunning        bool
+	GrafanaHelperRunning bool
+}
+
 func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
 	}
 	logger.Info("Listener: status request from %s", r.RemoteAddr)
-	type s struct {
-		Ingest struct {
-			Running                  bool
-			CompleteSteps            *ingestSteps
-			DownloaderCompletePct    int
-			DownloaderTotalSize      int64
-			DownloaderCompleteSize   int64
-			LogProcessorCompletePct  int
-			LogProcessorTotalSize    int64
-			LogProcessorCompleteSize int64
-			Errors                   []string
-		}
-		AerospikeRunning     bool
-		PluginRunning        bool
-		GrafanaHelperRunning bool
-	}
-	status := new(s)
-	plist, err := ps.Processes()
+	resp, err := getAgiStatus(c.IngestProgressPath)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
+}
+
+func getAgiStatus(ingestProgressPath string) ([]byte, error) {
+	status := new(IngestStatusStruct)
+	plist, err := ps.Processes()
+	if err != nil {
+		return []byte{}, err
 	}
 	for _, p := range plist {
 		if strings.HasSuffix(p.Executable(), "asd") {
@@ -414,32 +412,35 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	} else if steps.PreProcess {
 		fname = "log-processor.json"
 	}
-	npath := path.Join(c.IngestProgressPath, fname)
+	npath := path.Join(ingestProgressPath, fname)
 	gz := false
+	isEmptyResponse := false
 	if _, err := os.Stat(npath); err != nil {
 		npath = npath + ".gz"
 		if _, err := os.Stat(npath); err != nil {
-			http.Error(w, "file not found", http.StatusNotFound)
-			return
+			//return []byte{}, fmt.Errorf("file not found: %s", npath)
+			isEmptyResponse = true
 		}
 		gz = true
 	}
-	fa, err := os.Open(npath)
-	if err != nil {
-		http.Error(w, "could not open file: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer fa.Close()
 	var reader io.Reader
-	reader = fa
-	if gz {
-		fx, err := gzip.NewReader(fa)
+	if !isEmptyResponse {
+		fa, err := os.Open(npath)
 		if err != nil {
-			http.Error(w, "could not open gz for reading: "+err.Error(), http.StatusInternalServerError)
-			return
+			return []byte{}, fmt.Errorf("file open error: %s: %s", npath, err)
 		}
-		defer fx.Close()
-		reader = fx
+		defer fa.Close()
+		reader = fa
+		if gz {
+			fx, err := gzip.NewReader(fa)
+			if err != nil {
+				return []byte{}, fmt.Errorf("could not open gz for reading: %s: %s", npath, err)
+			}
+			defer fx.Close()
+			reader = fx
+		}
+	} else {
+		reader = strings.NewReader("{}")
 	}
 	if steps.Init && !steps.Download {
 		p := new(ingest.ProgressDownloader)
@@ -454,7 +455,7 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 			if f.IsDownloaded {
 				dlSize += f.Size
 			} else {
-				if nstat, err := os.Stat(fn); err == nil {
+				if nstat, err := os.Stat(path.Join("/opt/agi/files/input/s3source", fn)); err == nil {
 					dlSize += nstat.Size()
 				}
 			}
@@ -467,7 +468,7 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 			if f.IsDownloaded {
 				dlSize += f.Size
 			} else {
-				if nstat, err := os.Stat(fn); err == nil {
+				if nstat, err := os.Stat(path.Join("/opt/agi/files/input/sftpsource", fn)); err == nil {
 					dlSize += nstat.Size()
 				}
 			}
@@ -515,53 +516,7 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 			status.Ingest.LogProcessorCompletePct = int((100 * dlSize) / totalSize)
 		}
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(status)
-}
-
-// form: ?label=...
-func (c *agiExecProxyCmd) handleRelabel(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
-		return
-	}
-	logger.Info("Listener: relabel request from %s", r.RemoteAddr)
-	os.WriteFile("/opt/agi/label", []byte(r.FormValue("label")), 0644)
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
-}
-
-// form: ?serviceName=logingest
-func (c *agiExecProxyCmd) handleReingest(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
-		return
-	}
-	logger.Info("Listener: reingest request from %s", r.RemoteAddr)
-	pidf, err := os.ReadFile("/opt/agi/ingest.pid")
-	if err == nil {
-		pid, err := strconv.Atoi(string(pidf))
-		if err == nil {
-			_, err := os.FindProcess(pid)
-			if err == nil {
-				w.WriteHeader(http.StatusConflict)
-				w.Write([]byte("Ingest already running"))
-				return
-			}
-		}
-	}
-	os.Remove("/opt/agi/ingest/steps.json")
-	serviceName := r.FormValue("serviceName")
-	if serviceName == "" {
-		serviceName = "logingest"
-	}
-	out, err := exec.Command("service", serviceName, "start").CombinedOutput()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write(out)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	return json.Marshal(status)
 }
 
 func (c *agiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request) {
@@ -612,12 +567,27 @@ func (c *agiExecProxyCmd) activityMonitor() {
 			c.lastActivity.Set(time.Now())
 			continue
 		}
-		out, err := exec.Command("/usr/bin/who").CombinedOutput()
-		if err == nil {
-			for _, line := range strings.Split(string(out), "\n") {
-				if strings.Trim(line, "\n\t\r ") != "" {
-					c.lastActivity.Set(time.Now())
-					break
+		if c.DockerMode {
+			pids, err := ps.Processes()
+			if err == nil {
+				for _, pid := range pids {
+					if pid.Pid() == 1 {
+						continue
+					}
+					if pid.Executable() == "bash" {
+						c.lastActivity.Set(time.Now())
+						break
+					}
+				}
+			}
+		} else {
+			out, err := exec.Command("/usr/bin/who").CombinedOutput()
+			if err == nil {
+				for _, line := range strings.Split(string(out), "\n") {
+					if strings.Trim(line, "\n\t\r ") != "" {
+						c.lastActivity.Set(time.Now())
+						break
+					}
 				}
 			}
 		}
@@ -666,13 +636,13 @@ func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool
 			t = tc.Value
 		}
 		if t == "" {
-			http.Error(w, "Unauthorized, no token provided", http.StatusUnauthorized)
+			c.displayAuthTokenRequest(w, r)
 			return false
 		}
 		c.tokens.RLock()
 		if !inslice.HasString(c.tokens.tokens, t) {
 			c.tokens.RUnlock()
-			http.Error(w, "Unauthorized, token not authorized", http.StatusUnauthorized)
+			c.displayAuthTokenRequest(w, r)
 			return false
 		}
 		c.tokens.RUnlock()
@@ -680,6 +650,10 @@ func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool
 	// note down activity timestamp
 	go c.lastActivity.Set(time.Now())
 	return true
+}
+
+func (c *agiExecProxyCmd) displayAuthTokenRequest(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte(`<html><head><title>authenticate</title></head><body><form>Authentication Token: <input type=text name="` + c.TokenName + `"><input type=Submit name="Login" value="Login"></form></body></html>`))
 }
 
 func (c *agiExecProxyCmd) grafanaHandler(w http.ResponseWriter, r *http.Request) {
