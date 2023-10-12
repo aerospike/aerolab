@@ -483,7 +483,7 @@ func (c *agiStatusCmd) Execute(args []string) error {
 	}
 	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
 	if err != nil {
-		return err
+		return fmt.Errorf("%s : %s", err, string(out[0]))
 	}
 	if c.Json && !c.JsonPretty {
 		fmt.Println(string(out[0]))

@@ -413,27 +413,33 @@ func getAgiStatus(ingestProgressPath string) ([]byte, error) {
 	}
 	npath := path.Join(ingestProgressPath, fname)
 	gz := false
+	isEmptyResponse := false
 	if _, err := os.Stat(npath); err != nil {
 		npath = npath + ".gz"
 		if _, err := os.Stat(npath); err != nil {
-			return []byte{}, fmt.Errorf("file not found: %s", npath)
+			//return []byte{}, fmt.Errorf("file not found: %s", npath)
+			isEmptyResponse = true
 		}
 		gz = true
 	}
-	fa, err := os.Open(npath)
-	if err != nil {
-		return []byte{}, fmt.Errorf("file open error: %s: %s", npath, err)
-	}
-	defer fa.Close()
 	var reader io.Reader
-	reader = fa
-	if gz {
-		fx, err := gzip.NewReader(fa)
+	if !isEmptyResponse {
+		fa, err := os.Open(npath)
 		if err != nil {
-			return []byte{}, fmt.Errorf("could not open gz for reading: %s: %s", npath, err)
+			return []byte{}, fmt.Errorf("file open error: %s: %s", npath, err)
 		}
-		defer fx.Close()
-		reader = fx
+		defer fa.Close()
+		reader = fa
+		if gz {
+			fx, err := gzip.NewReader(fa)
+			if err != nil {
+				return []byte{}, fmt.Errorf("could not open gz for reading: %s: %s", npath, err)
+			}
+			defer fx.Close()
+			reader = fx
+		}
+	} else {
+		reader = strings.NewReader("{}")
 	}
 	if steps.Init && !steps.Download {
 		p := new(ingest.ProgressDownloader)
