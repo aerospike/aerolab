@@ -585,7 +585,7 @@ func (c *agiExecProxyCmd) activityMonitor() {
 			if err == nil {
 				for _, line := range strings.Split(string(out), "\n") {
 					if strings.Trim(line, "\n\t\r ") != "" {
-						c.lastActivity.Set(time.Now()) // TODO `aerolab agi list` should not trigger this
+						c.lastActivity.Set(time.Now())
 						break
 					}
 				}
