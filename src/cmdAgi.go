@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -22,10 +23,11 @@ import (
 type agiCmd struct {
 	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances"`
 	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance"`
+	Status    agiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show status of an AGI instance"`
+	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance"`
 	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance"`
 	Delete    agiDeleteCmd    `command:"delete" hidden:"true" subcommands-optional:"true" description:"Delete AGI volume"`
 	Relabel   agiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change instance name label"`
-	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance"`
 	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)"`
 	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance"`
 	AddToken  agiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add an auth token to AGI Proxy - only valid if token auth type was selected"`
@@ -53,7 +55,7 @@ func (c *agiListCmd) Execute(args []string) error {
 	a.opts.Inventory.List.Json = c.Json
 	a.opts.Inventory.List.Owner = c.Owner
 	a.opts.Inventory.List.NoPager = c.NoPager
-	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowAGI)
+	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowAGI|inventoryShowAGIStatus)
 }
 
 type agiAddTokenCmd struct {
@@ -468,17 +470,96 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	return nil
 }
 
+type agiStatusCmd struct {
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	Json        bool            `short:"j" long:"json" description:"Provide output in json format"`
+	JsonPretty  bool            `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiStatusCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
+	if err != nil {
+		return err
+	}
+	if c.Json && !c.JsonPretty {
+		fmt.Println(string(out[0]))
+		return nil
+	}
+	clusterStatus := &IngestStatusStruct{}
+	err = json.Unmarshal(out[0], clusterStatus)
+	if err != nil {
+		return err
+	}
+	if c.JsonPretty {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "    ")
+		return enc.Encode(clusterStatus)
+	}
+	fmt.Println("SERVICE STATUS:")
+	fmt.Printf("* Aerospike       : %s\n", c.boolToUp(clusterStatus.AerospikeRunning, "UP", "DOWN"))
+	fmt.Printf("* Plugin          : %s\n", c.boolToUp(clusterStatus.PluginRunning, "UP", "DOWN"))
+	fmt.Printf("* Grafana-Helper  : %s\n", c.boolToUp(clusterStatus.GrafanaHelperRunning, "UP", "DOWN"))
+	ingestStr := ""
+	if clusterStatus.Ingest.CompleteSteps.CriticalError != "" {
+		ingestStr = " CRITICAL_ERROR: " + clusterStatus.Ingest.CompleteSteps.CriticalError
+	}
+	fmt.Printf("* Ingest          : %s%s\n", c.boolToUp(clusterStatus.Ingest.Running, "UP", "DOWN"), ingestStr)
+
+	downloadStr := ""
+	processStr := ""
+	if !clusterStatus.Ingest.CompleteSteps.Download {
+		downloadStr = fmt.Sprintf(" (%s/%s complete %d%%)", convSize(clusterStatus.Ingest.DownloaderCompleteSize), convSize(clusterStatus.Ingest.DownloaderTotalSize), clusterStatus.Ingest.DownloaderCompletePct)
+	} else if clusterStatus.Ingest.CompleteSteps.PreProcess {
+		processStr = fmt.Sprintf(" (%s/%s complete %d%%)", convSize(clusterStatus.Ingest.LogProcessorCompleteSize), convSize(clusterStatus.Ingest.LogProcessorTotalSize), clusterStatus.Ingest.LogProcessorCompletePct)
+	}
+	fmt.Println("\nINGEST STEPS:")
+	fmt.Printf("* INIT         : %s\n", c.boolToProgress(clusterStatus.Ingest.CompleteSteps.Init, "DONE", "IN-PROGRESS", "IN-PROGRESS", true))
+	fmt.Printf("* DOWNLOAD     : %s%s\n", c.boolToProgress(clusterStatus.Ingest.CompleteSteps.Download, "DONE", "PENDING", "IN-PROGRESS", clusterStatus.Ingest.CompleteSteps.Init), downloadStr)
+	fmt.Printf("* UNPACK       : %s\n", c.boolToProgress(clusterStatus.Ingest.CompleteSteps.Unpack, "DONE", "PENDING", "IN-PROGRESS", clusterStatus.Ingest.CompleteSteps.Download))
+	fmt.Printf("* PRE-PROCESS  : %s\n", c.boolToProgress(clusterStatus.Ingest.CompleteSteps.PreProcess, "DONE", "PENDING", "IN-PROGRESS", clusterStatus.Ingest.CompleteSteps.Unpack))
+	fmt.Printf("* PROCESS-LOGS : %s%s\n", c.boolToProgress(clusterStatus.Ingest.CompleteSteps.ProcessLogs, "DONE", "PENDING", "IN-PROGRESS", clusterStatus.Ingest.CompleteSteps.PreProcess), processStr)
+	fmt.Printf("* COLLECTINFO  : %s\n", c.boolToProgress(clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo, "DONE", "PENDING", "IN-PROGRESS", clusterStatus.Ingest.CompleteSteps.PreProcess))
+
+	if len(clusterStatus.Ingest.Errors) > 0 {
+		fmt.Println("\nINGEST ERRORS:")
+		for _, e := range clusterStatus.Ingest.Errors {
+			fmt.Printf("* %s\n", strings.ReplaceAll(e, "\n", " \\n "))
+		}
+	}
+	return nil
+}
+
+func (c *agiStatusCmd) boolToUp(a bool, t string, f string) string {
+	if a {
+		return t
+	} else {
+		return f
+	}
+}
+
+func (c *agiStatusCmd) boolToProgress(a bool, t string, f1 string, f2 string, b bool) string {
+	if a {
+		return t
+	} else if b {
+		return f2
+	} else {
+		return f1
+	}
+}
+
 type agiDetailsCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiDetailsCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	// TODO for `inventory list` do not do that, but for `agi list` also query nodes that are up; provide ingest status
-	// TODO have a way for aerolab to query the node without having a token - eg. with an ssh key as token? oooooh
-	// TODO status - showing where we are as summary (as json or pretty)
-	// TODO ingest-detail - actually dumping the json outputs of progress to the user
+	// TODO dump the json outputs of progress to the user (or pretty-print?)
 	return nil
 }

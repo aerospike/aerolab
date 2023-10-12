@@ -37,6 +37,7 @@ func (c *inventoryListCmd) Execute(args []string) error {
 
 const inventoryShowExpirySystem = 1
 const inventoryShowAGI = 2
+const inventoryShowAGIStatus = 4
 
 func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool, showOthers ...int) error {
 	inventoryItems := []int{}
@@ -489,22 +490,66 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetHeaders()
 			t.ResetRows()
 			t.ResetFooters()
-			if a.opts.Config.Backend.Type == "gcp" {
-				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
-			} else if a.opts.Config.Backend.Type == "aws" {
-				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+			if showOther&inventoryShowAGIStatus > 0 {
+				if a.opts.Config.Backend.Type == "gcp" {
+					t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+				} else if a.opts.Config.Backend.Type == "aws" {
+					t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+				} else {
+					t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
+				}
 			} else {
-				t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
+				if a.opts.Config.Backend.Type == "gcp" {
+					t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+				} else if a.opts.Config.Backend.Type == "aws" {
+					t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+				} else {
+					t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
+				}
 			}
 			for _, v := range inv.Clusters {
 				if v.Features&ClusterFeatureAGI <= 0 {
 					continue
 				}
-				vv := table.Row{
-					v.ClusterName,
-					v.InstanceId,
-					v.AccessUrl,
+				vv := table.Row{v.ClusterName}
+				if showOther&inventoryShowAGIStatus > 0 {
+					statusMsg := "unknown"
+					if (v.PublicIp != "") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIp != "") {
+						out, err := b.RunCommands(v.ClusterName, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
+						if err == nil {
+							clusterStatus := &IngestStatusStruct{}
+							err = json.Unmarshal(out[0], clusterStatus)
+							if err == nil {
+								if !clusterStatus.AerospikeRunning {
+									statusMsg = errExp.Sprintf("ERR: ASD DOWN")
+								} else if !clusterStatus.GrafanaHelperRunning {
+									statusMsg = errExp.Sprintf("ERR: GRAFANAFIX DOWN")
+								} else if !clusterStatus.PluginRunning {
+									statusMsg = errExp.Sprintf("ERR: PLUGIN DOWN")
+								} else if !clusterStatus.Ingest.CompleteSteps.Init {
+									statusMsg = "(1/6) INIT"
+								} else if !clusterStatus.Ingest.CompleteSteps.Download {
+									statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
+								} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
+									statusMsg = "(3/6) UNPACK"
+								} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
+									statusMsg = "(4/6) PRE-PROCESS"
+								} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
+									statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
+								} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
+									statusMsg = "(6/6) COLLECTINFO"
+								} else {
+									statusMsg = "READY"
+								}
+								if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+									statusMsg = errExp.Sprintf("ERR: INGEST DOWN")
+								}
+							}
+						}
+					}
+					vv = append(vv, statusMsg)
 				}
+				vv = append(vv, v.InstanceId, v.AccessUrl)
 				if a.opts.Config.Backend.Type != "docker" {
 					if v.Expires == "" {
 						vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
