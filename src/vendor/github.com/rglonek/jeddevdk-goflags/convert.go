@@ -150,7 +150,9 @@ func convertToString(val reflect.Value, options multiTag) (string, error) {
 
 		return ret + "}", nil
 	case reflect.Ptr:
-		return convertToString(reflect.Indirect(val), options)
+		if !val.IsNil() {
+			return convertToString(reflect.Indirect(val), options)
+		}
 	case reflect.Interface:
 		if !val.IsNil() {
 			return convertToString(val.Elem(), options)

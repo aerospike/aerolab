@@ -42,6 +42,7 @@ type clusterCreateCmd struct {
 	Docker         clusterCreateCmdDocker `no-flag:"true"`
 	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	gcpMeta        map[string]string
 }
 
 type osSelectorCmd struct {
@@ -94,13 +95,15 @@ type clusterCreateCmdGcp struct {
 }
 
 type clusterCreateCmdDocker struct {
-	ExposePortsToHost string `short:"e" long:"expose-ports" description:"If a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
-	NoAutoExpose      bool   `long:"no-autoexpose" description:"The easiest way to create multi-node clusters on docker desktop is to expose custom ports; this switch disables the functionality and leaves the listen/advertised IP:PORT in aerospike.conf untouched"`
-	CpuLimit          string `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
-	RamLimit          string `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
-	SwapLimit         string `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
-	Privileged        bool   `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
-	NetworkName       string `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
+	ExposePortsToHost string   `short:"e" long:"expose-ports" description:"If a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
+	NoAutoExpose      bool     `long:"no-autoexpose" description:"The easiest way to create multi-node clusters on docker desktop is to expose custom ports; this switch disables the functionality and leaves the listen/advertised IP:PORT in aerospike.conf untouched"`
+	CpuLimit          string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
+	RamLimit          string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
+	SwapLimit         string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
+	Privileged        bool     `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
+	NetworkName       string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
+	ClientType        string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
+	Labels            []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 }
 
 type featureFile struct {
@@ -184,6 +187,10 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	if earlyProcessV2(nil, true) {
 		return nil
 	}
+	return c.realExecute2(args, isGrow)
+}
+
+func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	if inslice.HasString(args, "help") {
 		if a.opts.Config.Backend.Type == "docker" {
 			printHelp("The aerolab command can be optionally followed by '--' and then extra switches that will be passed directory to Docker. Ex: aerolab cluster create -c 2 -n bob -- -v local:remote --device-read-bps=...\n\n")
@@ -368,6 +375,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 		swapLimit:       c.Docker.SwapLimit,
 		privileged:      c.Docker.Privileged,
 		network:         c.Docker.NetworkName,
+		labels:          c.Docker.Labels,
 		exposePorts:     ep,
 		switches:        args,
 		dockerHostname:  !c.NoSetHostname,
@@ -648,6 +656,9 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 			extra.expiresTime = time.Now().Add(c.Gcp.Expires)
 		}
 	}
+	if c.Docker.ClientType != "" && a.opts.Config.Backend.Type == "docker" {
+		extra.labels = append(extra.labels, "aerolab.client.type="+c.Docker.ClientType)
+	}
 	expirySet := false
 	for _, aaa := range os.Args {
 		if strings.HasPrefix(aaa, "--aws-expire") || strings.HasPrefix(aaa, "--gcp-expire") {
@@ -677,6 +688,7 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	} else if isGrow && expirySet {
 		log.Println("WARNING: you are setting a different expiry to these nodes than the existing ones. To change expiry for all nodes, use: aerolab cluster add expiry")
 	}
+	extra.gcpMeta = c.gcpMeta
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err

@@ -14,7 +14,7 @@ import (
 	"github.com/bestmethod/logger"
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 func MakeConfigReader(setDefaults bool, configYaml io.Reader, parseEnv bool) (*Config, error) {
@@ -42,16 +42,15 @@ func MakeConfigReader(setDefaults bool, configYaml io.Reader, parseEnv bool) (*C
 }
 
 func MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, error) {
-	var cf *os.File
-	var err error
 	if configFile != "" {
-		cf, err = os.Open(configFile)
+		cf, err := os.Open(configFile)
 		if err != nil {
 			return nil, fmt.Errorf("could not open config file: %s", err)
 		}
 		defer cf.Close()
+		return MakeConfigReader(setDefaults, cf, parseEnv)
 	}
-	return MakeConfigReader(setDefaults, cf, parseEnv)
+	return MakeConfigReader(setDefaults, nil, parseEnv)
 }
 
 func Init(config *Config) (*Ingest, error) {

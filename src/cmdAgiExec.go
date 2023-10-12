@@ -1,11 +1,14 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"sync"
 	"time"
@@ -13,20 +16,97 @@ import (
 	"github.com/aerospike/aerolab/grafanafix"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/plugin"
-	"gopkg.in/yaml.v2"
+	"github.com/bestmethod/inslice"
+	"gopkg.in/yaml.v3"
 )
 
 type agiExecCmd struct {
-	Plugin     agiExecPluginCmd     `command:"plugin" subcommands-optional:"true" description:"Aerospike-Grafana plugin"`
-	GrafanaFix agiExecGrafanaFixCmd `command:"grafanafix" subcommands-optional:"true" description:"Deploy dashboards, configure grafana and load/save annotations"`
-	Ingest     agiExecIngestCmd     `command:"ingest" subcommands-optional:"true" description:"Ingest logs into aerospike"`
-	Proxy      agiExecProxyCmd      `command:"proxy" subcommands-optional:"true" description:"Proxy from aerolab to AGI services"`
-	Help       helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
+	Plugin       agiExecPluginCmd       `command:"plugin" subcommands-optional:"true" description:"Aerospike-Grafana plugin"`
+	GrafanaFix   agiExecGrafanaFixCmd   `command:"grafanafix" subcommands-optional:"true" description:"Deploy dashboards, configure grafana and load/save annotations"`
+	Ingest       agiExecIngestCmd       `command:"ingest" subcommands-optional:"true" description:"Ingest logs into aerospike"`
+	Proxy        agiExecProxyCmd        `command:"proxy" subcommands-optional:"true" description:"Proxy from aerolab to AGI services"`
+	IngestStatus agiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Ingest logs into aerospike"`
+	IngestDetail agiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Ingest logs into aerospike"`
+	Help         helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiExecCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
 	os.Exit(1)
+	return nil
+}
+
+type agiExecIngestStatusCmd struct {
+	IngestPath string  `long:"ingest-stat-path" default:"/opt/agi/ingest/"`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiExecIngestStatusCmd) Execute(args []string) error {
+	if earlyProcessNoBackend(args) {
+		return nil
+	}
+	resp, err := getAgiStatus(c.IngestPath)
+	if err != nil {
+		return err
+	}
+	fmt.Print(string(resp))
+	return nil
+}
+
+type agiExecIngestDetailCmd struct {
+	IngestPath string   `long:"ingest-stat-path" default:"/opt/agi/ingest/"`
+	DetailType []string `short:"t" long:"detail-type" description:"file name of the progress detail"`
+	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiExecIngestDetailCmd) Execute(args []string) error {
+	if earlyProcessNoBackend(args) {
+		return nil
+	}
+	files := []string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
+	if len(c.DetailType) > 1 {
+		fmt.Fprint(os.Stdout, "[\n")
+	}
+	for fi, fname := range c.DetailType {
+		if !inslice.HasString(files, fname) {
+			return errors.New("invalid detail type")
+		}
+		npath := path.Join(c.IngestPath, fname)
+		if fname == "steps.json" {
+			npath = "/opt/agi/ingest/steps.json"
+		}
+		gz := false
+		if _, err := os.Stat(npath); err != nil {
+			npath = npath + ".gz"
+			if _, err := os.Stat(npath); err != nil {
+				return errors.New("file not found")
+			}
+			gz = true
+		}
+		f, err := os.Open(npath)
+		if err != nil {
+			return fmt.Errorf("could not open file: %s", err)
+		}
+		defer f.Close()
+		var reader io.Reader
+		reader = f
+		if gz {
+			fx, err := gzip.NewReader(f)
+			if err != nil {
+				return fmt.Errorf("could not open gz for reading: %s", err)
+			}
+			defer fx.Close()
+			reader = fx
+		}
+		io.Copy(os.Stdout, reader)
+		if len(c.DetailType) > 1 {
+			if fi+1 == len(c.DetailType) {
+				fmt.Fprint(os.Stdout, "\n]\n")
+			} else {
+				fmt.Fprint(os.Stdout, ",\n")
+			}
+		}
+	}
 	return nil
 }
 
@@ -119,13 +199,17 @@ type agiExecIngestCmd struct {
 }
 
 type ingestSteps struct {
-	Init               bool
-	Download           bool
-	Unpack             bool
-	PreProcess         bool
-	ProcessLogs        bool
-	ProcessCollectInfo bool
-	CriticalError      string
+	Init                 bool
+	Download             bool
+	Unpack               bool
+	PreProcess           bool
+	ProcessLogs          bool
+	ProcessCollectInfo   bool
+	CriticalError        string
+	DownloadStartTime    time.Time
+	DownloadEndTime      time.Time
+	ProcessLogsStartTime time.Time
+	ProcessLogsEndTime   time.Time
 }
 
 func (c *agiExecIngestCmd) Execute(args []string) error {
@@ -178,6 +262,9 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		return fmt.Errorf("Init: %s", err)
 	}
 	steps.Init = true
+	if !steps.Download {
+		steps.DownloadStartTime = time.Now().UTC()
+	}
 	f, err = json.Marshal(steps)
 	if err == nil {
 		err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
@@ -191,6 +278,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			return fmt.Errorf("Download: %s", err)
 		}
 		steps.Download = true
+		steps.DownloadEndTime = time.Now().UTC()
 		f, err := json.Marshal(steps)
 		if err == nil {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
@@ -202,24 +290,32 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			// rewrite, redacting passwords for sources
 			s3Pw := config.Downloader.S3Source.SecretKey
 			sftpPw := config.Downloader.SftpSource.Password
+			keyFile := config.Downloader.SftpSource.KeyFile
 			if config.Downloader.S3Source.SecretKey != "" {
 				config.Downloader.S3Source.SecretKey = "<redacted>"
 			}
 			if config.Downloader.SftpSource.Password != "" {
 				config.Downloader.SftpSource.Password = "<redacted>"
 			}
+			if config.Downloader.SftpSource.KeyFile != "" {
+				config.Downloader.SftpSource.KeyFile = "<redacted>"
+			}
 			f, err := os.OpenFile(c.YamlFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 			if err != nil {
 				return err
 			}
-			err = yaml.NewEncoder(f).Encode(config)
+			enc := yaml.NewEncoder(f)
+			enc.SetIndent(2)
+			err = enc.Encode(config)
 			f.Close()
 			if err != nil {
 				return err
 			}
 			config.Downloader.S3Source.SecretKey = s3Pw
 			config.Downloader.SftpSource.Password = sftpPw
+			config.Downloader.SftpSource.KeyFile = keyFile
 		}
+		os.Remove("/opt/agi/sftp.key")
 	}
 	if !steps.Unpack {
 		err = i.Unpack()
@@ -241,6 +337,9 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			return fmt.Errorf("PreProcess: %s", err)
 		}
 		steps.PreProcess = true
+		if !steps.ProcessLogs {
+			steps.ProcessLogsStartTime = time.Now().UTC()
+		}
 		f, err := json.Marshal(steps)
 		if err == nil {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
@@ -257,6 +356,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		go func() {
 			defer wg.Done()
 			err := i.ProcessLogs()
+			steps.ProcessLogsEndTime = time.Now().UTC()
 			if err != nil {
 				nerrLock.Lock()
 				nerr = append(nerr, fmt.Errorf("ProcessLogs: %s", err))
