@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -31,35 +32,35 @@ import (
 )
 
 type agiExecProxyCmd struct {
-	InitialLabel       string        `short:"L" long:"label" description:"freeform label that will appear in the dashboards if set"`
-	IngestProgressPath string        `short:"i" long:"ingest-progress-path" default:"/opt/agi/ingest/" description:"path to where ingest stores it's json progress"`
-	ListenPort         int           `short:"l" long:"listen-port" default:"80" description:"port to listen on"`
-	HTTPS              bool          `short:"S" long:"https" description:"set to enable https listener"`
-	CertFile           string        `short:"C" long:"cert-file" description:"required path to server cert file for tls"`
-	KeyFile            string        `short:"K" long:"key-file" description:"required path to server key file for tls"`
-	EntryDir           string        `short:"d" long:"entry-dir" default:"/opt/agi/files" description:"Entrypoint for ttyd and filebrowser"`
-	MaxInactivity      time.Duration `short:"m" long:"max-inactivity" default:"1h" description:"Max user inactivity period after which the system will be shut down; 0=disable"`
-	MaxUptime          time.Duration `short:"M" long:"max-uptime" default:"24h" description:"Max hard instance uptime; 0=disable"`
-	ShutdownCommand    string        `short:"c" long:"shutdown-command" default:"/sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached"`
-	AuthType           string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic|token"`
-	BasicAuthUser      string        `short:"u" long:"basic-auth-user" default:"admin" description:"Basic authentication username"`
-	BasicAuthPass      string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password"`
-	TokenAuthLocation  string        `short:"t" long:"token-path" default:"/opt/agitokens" description:"Directory where tokens are stored for access"`
-	TokenName          string        `short:"T" long:"token-name" default:"AGI_TOKEN" description:"Name of the token variable and cookie to use"`
-	DockerMode         bool          `short:"D" long:"docker-mode" description:"set to enable docker mode checks in activity monitor"`
-	Help               helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
-	isBasicAuth        bool
-	isTokenAuth        bool
-	lastActivity       *activity
-	grafanaUrl         *url.URL
-	grafanaProxy       *httputil.ReverseProxy
-	ttydUrl            *url.URL
-	ttydProxy          *httputil.ReverseProxy
-	fbUrl              *url.URL
-	fbProxy            *httputil.ReverseProxy
-	gottyConns         *counter
-	srv                *http.Server
-	tokens             *tokens
+	InitialLabel         string        `short:"L" long:"label" description:"freeform label that will appear in the dashboards if set"`
+	IngestProgressPath   string        `short:"i" long:"ingest-progress-path" default:"/opt/agi/ingest/" description:"path to where ingest stores it's json progress"`
+	ListenPort           int           `short:"l" long:"listen-port" default:"80" description:"port to listen on"`
+	HTTPS                bool          `short:"S" long:"https" description:"set to enable https listener"`
+	CertFile             string        `short:"C" long:"cert-file" description:"required path to server cert file for tls"`
+	KeyFile              string        `short:"K" long:"key-file" description:"required path to server key file for tls"`
+	EntryDir             string        `short:"d" long:"entry-dir" default:"/opt/agi/files" description:"Entrypoint for ttyd and filebrowser"`
+	MaxInactivity        time.Duration `short:"m" long:"max-inactivity" default:"1h" description:"Max user inactivity period after which the system will be shut down; 0=disable"`
+	MaxUptime            time.Duration `short:"M" long:"max-uptime" default:"24h" description:"Max hard instance uptime; 0=disable"`
+	ShutdownCommand      string        `short:"c" long:"shutdown-command" default:"/sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached"`
+	AuthType             string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic|token"`
+	BasicAuthUser        string        `short:"u" long:"basic-auth-user" default:"admin" description:"Basic authentication username"`
+	BasicAuthPass        string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password"`
+	TokenAuthLocation    string        `short:"t" long:"token-path" default:"/opt/agitokens" description:"Directory where tokens are stored for access"`
+	TokenName            string        `short:"T" long:"token-name" default:"AGI_TOKEN" description:"Name of the token variable and cookie to use"`
+	DebugActivityMonitor bool          `short:"D" long:"debug-mode" description:"set to log activity monitor for debugging"`
+	Help                 helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	isBasicAuth          bool
+	isTokenAuth          bool
+	lastActivity         *activity
+	grafanaUrl           *url.URL
+	grafanaProxy         *httputil.ReverseProxy
+	ttydUrl              *url.URL
+	ttydProxy            *httputil.ReverseProxy
+	fbUrl                *url.URL
+	fbProxy              *httputil.ReverseProxy
+	gottyConns           *counter
+	srv                  *http.Server
+	tokens               *tokens
 }
 
 type tokens struct {
@@ -545,14 +546,34 @@ func (c *agiExecProxyCmd) handlePoweroff(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Poweroff..."))
 	go func() {
-		exec.Command(c.ShutdownCommand).CombinedOutput()
+		shcomm := strings.Split(c.ShutdownCommand, " ")
+		shparams := []string{}
+		if len(shcomm) > 1 {
+			shparams = shcomm[1:]
+		}
+		out, err := exec.Command(shcomm[0], shparams...).CombinedOutput()
+		if err != nil {
+			log.Printf("ERROR: INACTIVITY MONITOR: could not poweroff the instance: %s : %s", err, string(out))
+		} else {
+			log.Printf("ACTIVITY MONITOR: poweroff command issued: %s, result: %s", c.ShutdownCommand, string(out))
+		}
 	}()
 }
 
 func (c *agiExecProxyCmd) maxUptime() {
 	logger.Info("MAX UPTIME: hard shutdown time: %s", time.Now().Add(c.MaxUptime).String())
 	time.Sleep(c.MaxUptime)
-	exec.Command(c.ShutdownCommand).CombinedOutput()
+	shcomm := strings.Split(c.ShutdownCommand, " ")
+	shparams := []string{}
+	if len(shcomm) > 1 {
+		shparams = shcomm[1:]
+	}
+	out, err := exec.Command(shcomm[0], shparams...).CombinedOutput()
+	if err != nil {
+		log.Printf("ERROR: INACTIVITY MONITOR: could not poweroff the instance: %s : %s", err, string(out))
+	} else {
+		log.Printf("ACTIVITY MONITOR: poweroff command issued: %s, result: %s", c.ShutdownCommand, string(out))
+	}
 }
 
 func (c *agiExecProxyCmd) activityMonitor() {
@@ -561,39 +582,49 @@ func (c *agiExecProxyCmd) activityMonitor() {
 		time.Sleep(time.Minute)
 		if _, err := os.Stat("/opt/agi/ingest.pid"); err == nil {
 			c.lastActivity.Set(time.Now())
+			if c.DebugActivityMonitor {
+				log.Printf("ingest.pid found at %s", c.lastActivity.Get())
+			}
 			continue
 		}
 		if c.gottyConns.Get() != "0" {
 			c.lastActivity.Set(time.Now())
+			if c.DebugActivityMonitor {
+				log.Printf("gottyConns '%s != 0' found at %s", c.gottyConns.Get(), c.lastActivity.Get())
+			}
 			continue
 		}
-		if c.DockerMode {
-			pids, err := ps.Processes()
-			if err == nil {
-				for _, pid := range pids {
-					if pid.Pid() == 1 {
-						continue
-					}
-					if pid.Executable() == "bash" {
-						c.lastActivity.Set(time.Now())
-						break
-					}
+		pids, err := ps.Processes()
+		if err == nil {
+			for _, pid := range pids {
+				if pid.Pid() == 1 {
+					continue
 				}
-			}
-		} else {
-			out, err := exec.Command("/usr/bin/who").CombinedOutput()
-			if err == nil {
-				for _, line := range strings.Split(string(out), "\n") {
-					if strings.Trim(line, "\n\t\r ") != "" {
-						c.lastActivity.Set(time.Now())
-						break
+				if pid.Executable() == "bash" {
+					c.lastActivity.Set(time.Now())
+					if c.DebugActivityMonitor {
+						log.Printf("bash (pid=%d ppid=%d) found at %s", pid.Pid(), pid.PPid(), c.lastActivity.Get())
 					}
+					break
 				}
 			}
 		}
 		newActivity := c.lastActivity.Get()
+		if c.DebugActivityMonitor {
+			log.Printf("lastActivity at %s newActivity at %s maxInactivity %s currentInactivity %s", lastActivity, newActivity, c.MaxInactivity, time.Since(newActivity))
+		}
 		if time.Since(newActivity) > c.MaxInactivity {
-			exec.Command(c.ShutdownCommand).CombinedOutput()
+			shcomm := strings.Split(c.ShutdownCommand, " ")
+			shparams := []string{}
+			if len(shcomm) > 1 {
+				shparams = shcomm[1:]
+			}
+			out, err := exec.Command(shcomm[0], shparams...).CombinedOutput()
+			if err != nil {
+				log.Printf("ERROR: INACTIVITY MONITOR: could not poweroff the instance: %s : %s", err, string(out))
+			} else {
+				log.Printf("ACTIVITY MONITOR: poweroff command issued: %s, result: %s", c.ShutdownCommand, string(out))
+			}
 		}
 		if lastActivity.IsZero() || !lastActivity.Equal(newActivity) {
 			lastActivity = newActivity
