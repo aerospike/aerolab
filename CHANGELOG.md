@@ -13,6 +13,7 @@
 * Trim spaces and carriage returns from `deploy cluster` backend commands.
 * The `list` commands now output in color by default, with pretty formatting and pagination.
 * Aerospike version 7+ support added to `conf generate` and `cluster partition conf` commands.
+* Added `lnav` tool for log exploring and parsing.
 
 #### 7.0.1
 * GitHub broke support for `wget` for source files in old repo releases page by producing `403 Forbidden` on `HEAD` requests; this fix implements a new link.

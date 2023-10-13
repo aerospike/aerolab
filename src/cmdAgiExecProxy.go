@@ -753,7 +753,7 @@ func (c *agiExecProxyCmd) getDeps() {
 			return
 		}
 		logger.Info("Running gotty!")
-		com := exec.Command("/usr/local/bin/ttyd", "-p", "8852", "-i", "lo", "-P", "5", "-b", "/agi/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
+		com := exec.Command("/usr/local/bin/ttyd", "-p", "8852", "-i", "lo", "-P", "5", "-b", "/agi/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* lnav tool is installed for log analysis' && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
 		com.Dir = c.EntryDir
 		sout, err := com.StdoutPipe()
 		if err != nil {
