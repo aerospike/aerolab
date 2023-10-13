@@ -3,9 +3,9 @@ module aerolabexpiry.com/gcf
 go 1.21
 
 require (
-	cloud.google.com/go/compute v1.23.0
+	cloud.google.com/go/compute v1.23.1
 	github.com/GoogleCloudPlatform/functions-framework-go v1.8.0
-	google.golang.org/api v0.146.0
+	google.golang.org/api v0.147.0
 	google.golang.org/protobuf v1.31.0
 )
 
@@ -30,8 +30,8 @@ require (
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20231009173412-8bfb1ae86b6c // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20231009173412-8bfb1ae86b6c // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20231009173412-8bfb1ae86b6c // indirect
+	google.golang.org/genproto v0.0.0-20231012201019-e917dd12ba7a // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20231012201019-e917dd12ba7a // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231012201019-e917dd12ba7a // indirect
 	google.golang.org/grpc v1.58.3 // indirect
 )
