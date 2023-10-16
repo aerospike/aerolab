@@ -404,7 +404,7 @@ func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
 }
 
 func (d *backendGcp) EnableServices() error {
-	gcloudServices := []string{"logging.googleapis.com", "cloudfunctions.googleapis.com", "cloudbuild.googleapis.com", "pubsub.googleapis.com", "cloudscheduler.googleapis.com", "compute.googleapis.com", "run.googleapis.com"}
+	gcloudServices := []string{"logging.googleapis.com", "cloudfunctions.googleapis.com", "cloudbuild.googleapis.com", "pubsub.googleapis.com", "cloudscheduler.googleapis.com", "compute.googleapis.com", "run.googleapis.com", "artifactregistry.googleapis.com"}
 	for _, gs := range gcloudServices {
 		log.Printf("===== Running: gcloud services enable --project %s %s =====", a.opts.Config.Backend.Project, gs)
 		out, err := exec.Command("gcloud", "services", "enable", "--project", a.opts.Config.Backend.Project, gs).CombinedOutput()
