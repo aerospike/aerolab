@@ -208,7 +208,7 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 	if expiry != 0 {
 		expiresTime = time.Now().Add(expiry)
 	}
-	newExpiry := strings.ToLower(strings.ReplaceAll(expiresTime.Format(time.RFC3339), ":", "_"))
+	newExpiry := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(expiresTime.Format(time.RFC3339), ":", "_"), "+", "-"))
 	ctx := context.Background()
 	instancesClient, err := compute.NewInstancesRESTClient(ctx)
 	if err != nil {
@@ -1030,7 +1030,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 							currentCost = lastRunCost + (pricePerHour * deltaH)
 						}
 						expires := strings.ToUpper(strings.ReplaceAll(instance.Labels["aerolab4expires"], "_", ":"))
-						if expires == "0001-01-01T00:00:00Z" {
+						if strings.HasPrefix(expires, "0001-01-01") {
 							expires = ""
 						}
 						features, _ := strconv.Atoi(instance.Labels["aerolab4features"])
@@ -2958,7 +2958,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 		expWg.Add(1)
 		go d.expiriesSystemInstall(10, strings.Join(deployRegion, "-"), expWg)
-		labels["aerolab4expires"] = strings.ToLower(strings.ReplaceAll(extra.expiresTime.Format(time.RFC3339), ":", "_"))
+		labels["aerolab4expires"] = strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(extra.expiresTime.Format(time.RFC3339), ":", "_"), "+", "-"))
 	}
 	expiryTelemetryLock.Lock()
 	if expiryTelemetryUUID != "" {
