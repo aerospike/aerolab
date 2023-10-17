@@ -1537,9 +1537,10 @@ func (d *backendGcp) ClusterStop(name string, nodes []int) error {
 		}
 		defer instancesClient.Close()
 		req := &computepb.StopInstanceRequest{
-			Project:  a.opts.Config.Backend.Project,
-			Zone:     zones[node].instanceZone,
-			Instance: zones[node].instanceName,
+			Project:         a.opts.Config.Backend.Project,
+			Zone:            zones[node].instanceZone,
+			Instance:        zones[node].instanceName,
+			DiscardLocalSsd: proto.Bool(false),
 		}
 		op, err := instancesClient.Stop(ctx, req)
 		if err != nil {
