@@ -1540,7 +1540,7 @@ func (d *backendGcp) ClusterStop(name string, nodes []int) error {
 			Project:         a.opts.Config.Backend.Project,
 			Zone:            zones[node].instanceZone,
 			Instance:        zones[node].instanceName,
-			DiscardLocalSsd: proto.Bool(false),
+			DiscardLocalSsd: proto.Bool(true),
 		}
 		op, err := instancesClient.Stop(ctx, req)
 		if err != nil {
