@@ -1,3 +1,6 @@
+#### 7.1.1
+* GCP just made `DiscardLocalSsd` non-optional when stopping instances. Adjusting accordingly.
+
 #### 7.1.0
 * Update expiry system dependencies.
 * Create a windows release.
