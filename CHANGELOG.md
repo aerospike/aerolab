@@ -1,6 +1,5 @@
 #### 7.2.0
-* TODO: Consider adding non-posix `-?` to show help on linux (already works on windows).
-* TODO: Allow specifying aerospike version number for agi.
+* Allow specifying aerospike version number for agi.
 * TODO: Add EFS option to AGI and all.
 * TODO: Add spot instances option.
 * TODO: Expiries - if expiry happens on the weekend, roll to the first week day (see if we can work out, based on time zone, which days are weekend).
