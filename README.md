@@ -63,6 +63,7 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
   * [Basic](docs/usage/basic/index.md)
   * [Advanced](docs/usage/advanced/index.md)
   * [Full Stack](docs/usage/full-stack/index.md)
+* [DirEnv - different aerolab configuration per directory](docs/direnv.md)
 * [AGI - graphing aerospike statistics from logs](docs/agi/README.md)
 * [Deploying clients](docs/deploy_clients/index.md)
   * [Elastic Search](docs/deploy_clients/elasticsearch.md)
