@@ -9,7 +9,7 @@
 * TODO: Add support for slack notifications for AGI instances.
 * TODO: Add spot instances option.
 * TODO: Add EFS option to AGI and all.
-* TODO: Documentation.
+* TODO: Documentation (aws profile names, EFS support, spot instance support, notification support in agi).
 
 #### 7.1.1
 * GCP just made `DiscardLocalSsd` non-optional when stopping instances. Adjusting accordingly.
