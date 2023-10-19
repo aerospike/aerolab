@@ -949,6 +949,7 @@ func (d *backendAws) Init() error {
 
 	d.sess, err = session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
+		Profile:           a.opts.Config.Backend.AWSProfile,
 	})
 
 	if err != nil {
