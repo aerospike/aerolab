@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type attachClientCmd struct {
@@ -78,6 +79,23 @@ func (c *attachClientCmd) run(args []string) (err error) {
 		return err
 	}
 
+	if len(args) == 0 {
+		b.WorkOnClients()
+		inv, _ := b.Inventory("", []int{InventoryItemClients})
+		b.WorkOnClients()
+		expiry := time.Time{}
+		for _, v := range inv.Clusters {
+			if v.ClusterName == c.ClientName.String() {
+				expires, err := time.Parse(time.RFC3339, v.Expires)
+				if err == nil && (expiry.IsZero() || expires.Before(expiry)) {
+					expiry = expires
+				}
+			}
+		}
+		if !expiry.IsZero() && time.Now().Add(24*time.Hour).After(expiry) {
+			log.Printf("WARNING: client expires in %s (%s)", time.Until(expiry), expiry.Format(time.RFC850))
+		}
+	}
 	wg := new(sync.WaitGroup)
 	for _, node := range nodes {
 		wg.Add(1)

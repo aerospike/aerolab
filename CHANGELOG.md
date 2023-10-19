@@ -3,8 +3,8 @@
 * Check if locked security group / firewall rule does not include current IP. In this case, attempt to fix the rule.
 * Add to aerolab config backend support for AWS profile names.
 * New: `aerolab cluster share` - add a user’s public key option to instance (wrapper around `ssh-copy-id`).
-* TODO: Expiries - if expiry happens on the weekend, roll to the first week day (see if we can work out, based on time zone, which days are weekend).
-* TODO: If expiry < 24h and attach is executed, print warning message (only on interactive shell, if `--` args are provided, do not print).
+* Expiries - add expiry information print during cluster creation.
+* If expiry < 24h and attach is executed, print warning message (only on interactive shell, if `--` args are provided, do not print).
 * TODO: Add notification support via https calls for status changes of AGI instances (finished ingest, sizing, logs too large, etc); with optional "fail on response error".
 * TODO: Add support for slack notifications for AGI instances.
 * TODO: Add spot instances option.
