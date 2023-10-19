@@ -2008,6 +2008,11 @@ func (d *backendGcp) TemplateListFull(isJson bool, noPager bool) (string, error)
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
+func (d *backendGcp) GetKeyPath(clusterName string) (keyPath string, err error) {
+	_, p, e := d.getKey(clusterName)
+	return p, e
+}
+
 // get KeyPair
 func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string, err error) {
 	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
