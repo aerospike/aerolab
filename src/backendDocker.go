@@ -33,6 +33,10 @@ func (d *backendDocker) SetLabel(clusterName string, key string, value string, g
 	return errors.New("docker does not support changing of container labels")
 }
 
+func (d *backendDocker) GetKeyPath(clusterName string) (keyPath string, err error) {
+	return "", fmt.Errorf("feature not supported on docker")
+}
+
 func (d *backendDocker) EnableServices() error {
 	return nil
 }

@@ -183,26 +183,28 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 				secGroup = strings.Join(secGroupList, ",")
 				log.Printf("Using security group IDs %s", secGroup)
 			} else {
-				fwfound := false
-				myIp := getip2()
-				parsedIp := net.ParseIP(myIp)
-				for _, perms := range out.SecurityGroups[0].IpPermissions {
-					for _, permRange := range perms.IpRanges {
-						_, cidr, _ := net.ParseCIDR(*permRange.CidrIp)
-						if cidr.Contains(parsedIp) {
-							fwfound = true
+				if groupPrefix != "AeroLabServer" && groupPrefix != "AeroLabClient" {
+					fwfound := false
+					myIp := getip2()
+					parsedIp := net.ParseIP(myIp)
+					for _, perms := range out.SecurityGroups[0].IpPermissions {
+						for _, permRange := range perms.IpRanges {
+							_, cidr, _ := net.ParseCIDR(*permRange.CidrIp)
+							if cidr.Contains(parsedIp) {
+								fwfound = true
+								break
+							}
+						}
+						if fwfound {
 							break
 						}
 					}
-					if fwfound {
-						break
-					}
-				}
-				if !fwfound {
-					log.Println("Security group CIDR doesn't allow this command to complete, re-locking security groups with the caller's IP")
-					err = d.LockSecurityGroups(myIp, true, vpc, groupPrefix)
-					if err != nil {
-						return secGroup, subnet, err
+					if !fwfound {
+						log.Println("Security group CIDR doesn't allow this command to complete, re-locking security groups with the caller's IP")
+						err = d.LockSecurityGroups(myIp, true, vpc, groupPrefix)
+						if err != nil {
+							return secGroup, subnet, err
+						}
 					}
 				}
 				secGroupA := aws.StringValue(out.SecurityGroups[0].GroupId)
