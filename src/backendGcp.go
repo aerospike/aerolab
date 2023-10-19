@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -2767,6 +2768,7 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
 	it := firewallsClient.List(ctx, req)
 	existInternal := false
 	existExternal := false
+	needsLock := true
 	for {
 		firewallRule, err := it.Next()
 		if err == iterator.Done {
@@ -2780,6 +2782,15 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
 		}
 		if *firewallRule.Name == namePrefix {
 			existExternal = true
+			myIp := getip2()
+			parsedIp := net.ParseIP(myIp)
+			for _, iprange := range firewallRule.SourceRanges {
+				_, cidr, _ := net.ParseCIDR(iprange)
+				if cidr.Contains(parsedIp) {
+					needsLock = false
+					break
+				}
+			}
 		}
 	}
 	if !existInternal {
@@ -2793,6 +2804,12 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
 		if err != nil {
 			return err
 		}
+		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix)
+		if err != nil {
+			return err
+		}
+	} else if needsLock {
+		log.Println("Security group CIDR doesn't allow this command to complete, re-locking security groups with the caller's IP")
 		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix)
 		if err != nil {
 			return err
