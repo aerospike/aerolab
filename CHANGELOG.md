@@ -1,15 +1,14 @@
 #### 7.2.0
 * Allow specifying aerospike version number for agi.
+* Check if locked security group / firewall rule does not include current IP. In this case, attempt to fix the rule.
 * TODO: Add EFS option to AGI and all.
 * TODO: Add spot instances option.
 * TODO: Expiries - if expiry happens on the weekend, roll to the first week day (see if we can work out, based on time zone, which days are weekend).
 * TODO: If expiry < 24h and attach is executed, print warning message.
   * TODO: Only on interactive shell, do NOT print on `aerolab attach shell -- .... command ...`.
-* TODO: Checking if `locked security group != current IP`, and prompt user.
 * TODO: Add option to add a user’s public key option to instance (wrapper around `ssh-copy-id`).
   * TODO: Aerolab cluster share .
 * TODO: Add to aerolab config backend support for AWS profile names.
-* TODO: Document for GCP a way to set default zone `aerolab config defaults -k '*.Zone' -v 'us-central1-a'`.
 * TODO: Add notification support via https calls for status changes of AGI instances (finished ingest, sizing, logs too large, etc); with optional "fail on response error".
 * TODO: Add support for slack notifications for AGI instances.
 * TODO: Documentation.
