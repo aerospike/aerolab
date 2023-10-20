@@ -72,5 +72,8 @@ addNoneToLabels:
   - HistogramCount
 %s
 EOF
+cat <<'EOF' > /opt/agi/notifier.yaml
+%s
+EOF
 chmod 755 /opt/autoload/*
 rm -rf /root/agiinstaller.sh && exit 0 || exit 0
