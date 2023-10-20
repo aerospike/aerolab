@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+
+	"github.com/aerospike/aerolab/ingest"
 )
 
 func main() {
@@ -17,6 +20,14 @@ func main() {
 			w.Write([]byte(err.Error()))
 			return
 		}
+		b := &ingest.IngestStatusStruct{}
+		err = json.Unmarshal(body, b)
+		if err != nil {
+			w.WriteHeader(500)
+			w.Write([]byte(err.Error()))
+			return
+		}
+		body, _ = json.MarshalIndent(b, "", "    ")
 		log.Printf("%s: %s\n", r.RemoteAddr, string(body))
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))

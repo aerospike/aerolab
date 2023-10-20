@@ -200,24 +200,10 @@ type agiExecIngestCmd struct {
 	Help     helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-type ingestSteps struct {
-	Init                 bool
-	Download             bool
-	Unpack               bool
-	PreProcess           bool
-	ProcessLogs          bool
-	ProcessCollectInfo   bool
-	CriticalError        string
-	DownloadStartTime    time.Time
-	DownloadEndTime      time.Time
-	ProcessLogsStartTime time.Time
-	ProcessLogsEndTime   time.Time
-}
-
 func (c *agiExecIngestCmd) Execute(args []string) error {
 	aerr := c.run(args)
 	if aerr != nil {
-		steps := new(ingestSteps)
+		steps := new(ingest.IngestSteps)
 		f, err := os.ReadFile("/opt/agi/ingest/steps.json")
 		if err == nil {
 			json.Unmarshal(f, steps)
@@ -245,7 +231,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("MakeConfig: %s", err)
 	}
-	steps := new(ingestSteps)
+	steps := new(ingest.IngestSteps)
 	f, err := os.ReadFile("/opt/agi/ingest/steps.json")
 	if err == nil {
 		json.Unmarshal(f, steps)

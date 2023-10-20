@@ -341,3 +341,34 @@ type jsonPayload struct {
 	} `json:"resource"` // type 3
 	Log string `json:"log"` // type 4
 }
+
+type IngestStatusStruct struct {
+	Ingest struct {
+		Running                  bool
+		CompleteSteps            *IngestSteps
+		DownloaderCompletePct    int
+		DownloaderTotalSize      int64
+		DownloaderCompleteSize   int64
+		LogProcessorCompletePct  int
+		LogProcessorTotalSize    int64
+		LogProcessorCompleteSize int64
+		Errors                   []string
+	}
+	AerospikeRunning     bool
+	PluginRunning        bool
+	GrafanaHelperRunning bool
+}
+
+type IngestSteps struct {
+	Init                 bool
+	Download             bool
+	Unpack               bool
+	PreProcess           bool
+	ProcessLogs          bool
+	ProcessCollectInfo   bool
+	CriticalError        string
+	DownloadStartTime    time.Time
+	DownloadEndTime      time.Time
+	ProcessLogsStartTime time.Time
+	ProcessLogsEndTime   time.Time
+}
