@@ -115,6 +115,25 @@ func main() {
 	case "showsysinfo", "showconf", "showinterrupts":
 		showcommands()
 	default:
+		if beepenv := os.Getenv("AEROLAB_BEEP"); beepenv != "" {
+			bp, err := strconv.Atoi(beepenv)
+			if err != nil {
+				log.Printf("ERROR: AEROLAB_BEEP must be an integer")
+			} else if bp > 0 {
+				beepCount += bp
+				defer func() {
+					fmt.Printf("\a")
+				}()
+			}
+		}
+		if beepenv := os.Getenv("AEROLAB_BEEPF"); beepenv != "" {
+			bp, err := strconv.Atoi(beepenv)
+			if err != nil {
+				log.Printf("ERROR: AEROLAB_BEEPF must be an integer")
+			} else if bp > 0 {
+				beepCount += bp
+			}
+		}
 		args := []string{}
 		for _, arg := range os.Args[1:] {
 			if arg == "--beep" {
