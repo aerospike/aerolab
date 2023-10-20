@@ -124,6 +124,8 @@ func main() {
 					}()
 				}
 				beepCount++
+			} else if arg == "--beepf" {
+				beepCount++
 			} else {
 				args = append(args, arg)
 			}

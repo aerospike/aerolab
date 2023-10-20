@@ -215,7 +215,7 @@ github.com/rglonek/aerospike-config-file-parser
 # github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
 ## explicit
 github.com/rglonek/envconfig
-# github.com/rglonek/jeddevdk-goflags v0.0.0-20231020185325-3feb2b2621fc
+# github.com/rglonek/jeddevdk-goflags v0.0.0-20231020200640-b190287ca9c3
 ## explicit
 github.com/rglonek/jeddevdk-goflags
 # github.com/rivo/uniseg v0.4.4
