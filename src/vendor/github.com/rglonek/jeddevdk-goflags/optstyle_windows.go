@@ -101,6 +101,7 @@ func (c *Command) addHelpGroup(showHelp func() error) *Group {
 
 	var globals struct {
 		Beep bool `long:"beep" description:"cause the terminal to beep on exit; if specificied multiple times, will be once on success and >1 on failure"`
+		Beepf bool `long:"beepf" description:"like beep, but does not trigger beep on success, only failures"`
 	}
 
 	help.ShowHelpWindows = showHelp
