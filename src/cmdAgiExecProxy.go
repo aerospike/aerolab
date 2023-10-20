@@ -321,23 +321,6 @@ func (c *agiExecProxyCmd) handleIngestDetail(w http.ResponseWriter, r *http.Requ
 	io.Copy(w, reader)
 }
 
-type IngestStatusStruct struct {
-	Ingest struct {
-		Running                  bool
-		CompleteSteps            *ingestSteps
-		DownloaderCompletePct    int
-		DownloaderTotalSize      int64
-		DownloaderCompleteSize   int64
-		LogProcessorCompletePct  int
-		LogProcessorTotalSize    int64
-		LogProcessorCompleteSize int64
-		Errors                   []string
-	}
-	AerospikeRunning     bool
-	PluginRunning        bool
-	GrafanaHelperRunning bool
-}
-
 func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
@@ -355,7 +338,7 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func getAgiStatus(ingestProgressPath string) ([]byte, error) {
-	status := new(IngestStatusStruct)
+	status := new(ingest.IngestStatusStruct)
 	plist, err := ps.Processes()
 	if err != nil {
 		return []byte{}, err
@@ -396,7 +379,7 @@ func getAgiStatus(ingestProgressPath string) ([]byte, error) {
 			}
 		}
 	}
-	steps := new(ingestSteps)
+	steps := new(ingest.IngestSteps)
 	f, err := os.ReadFile("/opt/agi/ingest/steps.json")
 	if err == nil {
 		json.Unmarshal(f, steps)

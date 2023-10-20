@@ -14,6 +14,7 @@
   * [Advanced](usage/advanced/index.md)
   * [Full Stack](usage/full-stack/index.md)
 * [AGI - graphing aerospike statistics from logs](agi/README.md)
+* [DirEnv - different aerolab configuration per directory](direnv.md)
 * [Deploying clients](deploy_clients/index.md)
   * [Elastic Search](deploy_clients/elasticsearch.md)
   * [Rest Gateway](deploy_clients/restgw.md)

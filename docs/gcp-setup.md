@@ -38,6 +38,14 @@ To specify a custom location where SSH keys are stored and set the project confi
 aerolab config backend -t gcp -o project-name -p /PATH/TO/KEYS [-d /path/to/tmpdir/for-aerolab/to/use]
 ```
 
+### Set the default GCP Zone to deploy to
+
+A default zone can be set, so that it doesn't have to be specified as a parameter every time.
+
+```bash
+aerolab config defaults -k '*.Zone' -v 'us-central1-a'
+```
+
 ### Enable services on AeroLab using gcloud command automatically
 
 Google Cloud has all services and APIs disabled until requested to enable those. AeroLab has a feature for enabling any services it needs if they are disabled.

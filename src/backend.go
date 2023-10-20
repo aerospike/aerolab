@@ -151,6 +151,8 @@ type backend interface {
 	GetInstanceTypes(minCpu int, maxCpu int, minRam float64, maxRam float64, minDisks int, maxDisks int, findArm bool, gcpZone string) ([]instanceType, error)
 	// docker: label, aws: tag, gcp: metadata
 	SetLabel(clusterName string, key string, value string, gcpZone string) error
+	// aws, gcp
+	GetKeyPath(clusterName string) (keyPath string, err error)
 }
 
 type inventoryJson struct {

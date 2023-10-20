@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type attachCmdTrino struct {
@@ -44,6 +46,23 @@ func (c *attachCmdTrino) run(args []string) (err error) {
 	}
 	if len(nodes) > 1 && len(args) == 0 {
 		return fmt.Errorf("%s", "When using more than 1 node in node-attach, you must specify the command to run. For example: 'node-attach -l 1,2,3 -- /command/to/run'")
+	}
+	if len(args) == 0 {
+		b.WorkOnClients()
+		inv, _ := b.Inventory("", []int{InventoryItemClients})
+		b.WorkOnClients()
+		expiry := time.Time{}
+		for _, v := range inv.Clusters {
+			if v.ClusterName == c.ClientName.String() {
+				expires, err := time.Parse(time.RFC3339, v.Expires)
+				if err == nil && (expiry.IsZero() || expires.Before(expiry)) {
+					expiry = expires
+				}
+			}
+		}
+		if !expiry.IsZero() && time.Now().Add(24*time.Hour).After(expiry) {
+			log.Printf("WARNING: client expires in %s (%s)", time.Until(expiry), expiry.Format(time.RFC850))
+		}
 	}
 	for _, node := range nodes {
 		if len(nodes) > 1 {

@@ -15,6 +15,7 @@ import (
 
 	"github.com/aerospike/aerolab/grafanafix"
 	"github.com/aerospike/aerolab/ingest"
+	"github.com/aerospike/aerolab/notifier"
 	"github.com/aerospike/aerolab/plugin"
 	"github.com/bestmethod/inslice"
 	"gopkg.in/yaml.v3"
@@ -194,28 +195,15 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 }
 
 type agiExecIngestCmd struct {
-	YamlFile string  `short:"y" long:"yaml" description:"Yaml config file"`
+	YamlFile string `short:"y" long:"yaml" description:"Yaml config file"`
+	notify   notifier.HTTPSNotify
 	Help     helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-
-type ingestSteps struct {
-	Init                 bool
-	Download             bool
-	Unpack               bool
-	PreProcess           bool
-	ProcessLogs          bool
-	ProcessCollectInfo   bool
-	CriticalError        string
-	DownloadStartTime    time.Time
-	DownloadEndTime      time.Time
-	ProcessLogsStartTime time.Time
-	ProcessLogsEndTime   time.Time
 }
 
 func (c *agiExecIngestCmd) Execute(args []string) error {
 	aerr := c.run(args)
 	if aerr != nil {
-		steps := new(ingestSteps)
+		steps := new(ingest.IngestSteps)
 		f, err := os.ReadFile("/opt/agi/ingest/steps.json")
 		if err == nil {
 			json.Unmarshal(f, steps)
@@ -243,7 +231,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("MakeConfig: %s", err)
 	}
-	steps := new(ingestSteps)
+	steps := new(ingest.IngestSteps)
 	f, err := os.ReadFile("/opt/agi/ingest/steps.json")
 	if err == nil {
 		json.Unmarshal(f, steps)
@@ -257,6 +245,14 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 		}
 	}
+	// notifier load start
+	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
+	if err == nil {
+		yaml.Unmarshal(nstring, &c.notify)
+		c.notify.Init()
+		defer c.notify.Close()
+	}
+	// notifier load end
 	i, err := ingest.Init(config)
 	if err != nil {
 		return fmt.Errorf("Init: %s", err)
@@ -272,6 +268,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 		}
 	}
+	notifyData, err := getAgiStatus("/opt/agi/ingest/")
+	if err == nil {
+		err = c.notify.NotifyData(notifyData)
+		if err != nil {
+			return fmt.Errorf("notify: %s", err)
+		}
+	}
 	if !steps.Download {
 		err = i.Download()
 		if err != nil {
@@ -284,6 +287,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 			if err == nil {
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
+			}
+		}
+		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		if err == nil {
+			err = c.notify.NotifyData(notifyData)
+			if err != nil {
+				return fmt.Errorf("notify: %s", err)
 			}
 		}
 		if c.YamlFile != "" {
@@ -330,6 +340,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
+		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		if err == nil {
+			err = c.notify.NotifyData(notifyData)
+			if err != nil {
+				return fmt.Errorf("notify: %s", err)
+			}
+		}
 	}
 	if !steps.PreProcess {
 		err = i.PreProcess()
@@ -345,6 +362,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
 			if err == nil {
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
+			}
+		}
+		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		if err == nil {
+			err = c.notify.NotifyData(notifyData)
+			if err != nil {
+				return fmt.Errorf("notify: %s", err)
 			}
 		}
 	}
@@ -388,6 +412,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
+		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		if err == nil {
+			err = c.notify.NotifyData(notifyData)
+			if err != nil {
+				return fmt.Errorf("notify: %s", err)
+			}
+		}
 	}
 	if len(nerr) > 0 {
 		errstr := ""
@@ -398,6 +429,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			errstr = errstr + e.Error()
 		}
 		return errors.New(errstr)
+	}
+	notifyData, err = getAgiStatus("/opt/agi/ingest/")
+	if err == nil {
+		err = c.notify.NotifyData(notifyData)
+		if err != nil {
+			return fmt.Errorf("notify: %s", err)
+		}
 	}
 	return nil
 }

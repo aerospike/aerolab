@@ -165,14 +165,16 @@ func (op *Operation) grpc() *kvs.Operation {
 // cache uses the encoder and caches the packed operation for further use.
 func (op *Operation) cache() Error {
 	packer := newPacker()
-
+	if op.encoder == nil {
+		return nil
+	}
 	if _, err := op.encoder(op, packer); err != nil {
 		return err
 	}
 
-	op.binValue = BytesValue(packer.Bytes())
 	op.encoder = nil // do not encode anymore; just use the cache
-	op.used = false  // do not encode anymore; just use the cache
+	op.binValue = BytesValue(packer.Bytes())
+	op.used = false // do not encode anymore; just use the cache
 	return nil
 }
 
