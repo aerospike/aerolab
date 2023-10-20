@@ -60,10 +60,15 @@ func (c *Command) addHelpGroup(showHelp func() error) *Group {
 		ShowHelp func() error `hidden:"true" short:"h" long:"help" description:"Show this help message"`
 	}
 
+	var globals struct {
+		Beep bool `long:"beep" description:"cause the terminal to beep on exit; if specificied multiple times, will be once on success and >1 on failure"`
+	}
+
 	help.ShowHelp = showHelp
 	ret, _ := c.AddGroup("Help Options", "", &help)
 	ret.isBuiltinHelp = true
 	ret.Hidden = true
+	c.AddGroup("Global Options", "", &globals)
 
 	return ret
 }

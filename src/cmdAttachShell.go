@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type attachShellCmd struct {
@@ -86,6 +87,21 @@ func (c *attachShellCmd) run(args []string) (err error) {
 		return nil
 	}
 
+	if len(args) == 0 {
+		inv, _ := b.Inventory("", []int{InventoryItemClusters, InventoryItemAGI})
+		expiry := time.Time{}
+		for _, v := range inv.Clusters {
+			if v.ClusterName == c.ClusterName.String() {
+				expires, err := time.Parse(time.RFC3339, v.Expires)
+				if err == nil && (expiry.IsZero() || expires.Before(expiry)) {
+					expiry = expires
+				}
+			}
+		}
+		if !expiry.IsZero() && time.Now().Add(24*time.Hour).After(expiry) {
+			log.Printf("WARNING: cluster expires in %s (%s)", time.Until(expiry), expiry.Format(time.RFC850))
+		}
+	}
 	wg := new(sync.WaitGroup)
 	for _, node := range nodes {
 		wg.Add(1)

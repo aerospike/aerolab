@@ -12,47 +12,50 @@ import (
 	_ "embed"
 
 	"github.com/aerospike/aerolab/ingest"
+	"github.com/aerospike/aerolab/notifier"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"gopkg.in/yaml.v3"
 )
 
 type agiCreateCmd struct {
-	ClusterName             TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
-	AGILabel                string          `long:"agi-label" description:"friendly label"`
-	LocalSource             flags.Filename  `long:"source-local" description:"get logs from a local directory"`
-	SftpEnable              bool            `long:"source-sftp-enable" description:"enable sftp source"`
-	SftpThreads             int             `long:"source-sftp-threads" description:"number of concurrent downloader threads" default:"6"`
-	SftpHost                string          `long:"source-sftp-host" description:"sftp host"`
-	SftpPort                int             `long:"source-sftp-port" description:"sftp port" default:"22"`
-	SftpUser                string          `long:"source-sftp-user" description:"sftp user"`
-	SftpPass                string          `long:"source-sftp-pass" description:"sftp password"`
-	SftpKey                 flags.Filename  `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password"`
-	SftpPath                string          `long:"source-sftp-path" description:"path on sftp to download logs from"`
-	SftpRegex               string          `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^"`
-	S3Enable                bool            `long:"source-s3-enable" description:"enable s3 source"`
-	S3Threads               int             `long:"source-s3-threads" description:"number of concurrent downloader threads" default:"6"`
-	S3Region                string          `long:"source-s3-region" description:"aws region where the s3 bucket is located"`
-	S3Bucket                string          `long:"source-s3-bucket" description:"s3 bucket name"`
-	S3KeyID                 string          `long:"source-s3-key-id" description:"(optional) access key ID"`
-	S3Secret                string          `long:"source-s3-secret-key" description:"(optional) secret key"`
-	S3path                  string          `long:"source-s3-path" description:"path on s3 to download logs from"`
-	S3Regex                 string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^"`
-	ProxyEnableSSL          bool            `long:"proxy-ssl-enable" description:"switch to enable TLS on the proxy"`
-	ProxyCert               flags.Filename  `long:"proxy-ssl-cert" description:"if not provided snakeoil will be used"`
-	ProxyKey                flags.Filename  `long:"proxy-ssl-key" description:"if not provided snakeoil will be used"`
-	ProxyMaxInactive        time.Duration   `long:"proxy-max-inactive" description:"maximum duration of inactivity by the user over which the server will poweroff" default:"1h"`
-	ProxyMaxUptime          time.Duration   `long:"proxy-max-uptime" description:"maximum uptime of the instance, after which the server will poweroff" default:"24h"`
-	TimeRanges              bool            `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs"`
-	TimeRangesFrom          string          `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00"`
-	TimeRangesTo            string          `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00"`
-	CustomSourceName        string          `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana"`
-	PatternsFile            flags.Filename  `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
-	IngestLogLevel          int             `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
-	IngestCpuProfile        bool            `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling"`
-	PluginCpuProfile        bool            `long:"plugin-cpu-profiling" description:"enable CPU profiling for the grafana plugin"`
-	PluginLogLevel          int             `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
-	FeaturesFilePath        flags.Filename  `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
-	FeaturesFilePrintDetail bool            `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
+	ClusterName      TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
+	AGILabel         string          `long:"agi-label" description:"friendly label"`
+	LocalSource      flags.Filename  `long:"source-local" description:"get logs from a local directory"`
+	SftpEnable       bool            `long:"source-sftp-enable" description:"enable sftp source"`
+	SftpThreads      int             `long:"source-sftp-threads" description:"number of concurrent downloader threads" default:"6"`
+	SftpHost         string          `long:"source-sftp-host" description:"sftp host"`
+	SftpPort         int             `long:"source-sftp-port" description:"sftp port" default:"22"`
+	SftpUser         string          `long:"source-sftp-user" description:"sftp user"`
+	SftpPass         string          `long:"source-sftp-pass" description:"sftp password"`
+	SftpKey          flags.Filename  `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password"`
+	SftpPath         string          `long:"source-sftp-path" description:"path on sftp to download logs from"`
+	SftpRegex        string          `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^"`
+	S3Enable         bool            `long:"source-s3-enable" description:"enable s3 source"`
+	S3Threads        int             `long:"source-s3-threads" description:"number of concurrent downloader threads" default:"6"`
+	S3Region         string          `long:"source-s3-region" description:"aws region where the s3 bucket is located"`
+	S3Bucket         string          `long:"source-s3-bucket" description:"s3 bucket name"`
+	S3KeyID          string          `long:"source-s3-key-id" description:"(optional) access key ID"`
+	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key"`
+	S3path           string          `long:"source-s3-path" description:"path on s3 to download logs from"`
+	S3Regex          string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^"`
+	ProxyEnableSSL   bool            `long:"proxy-ssl-enable" description:"switch to enable TLS on the proxy"`
+	ProxyCert        flags.Filename  `long:"proxy-ssl-cert" description:"if not provided snakeoil will be used"`
+	ProxyKey         flags.Filename  `long:"proxy-ssl-key" description:"if not provided snakeoil will be used"`
+	ProxyMaxInactive time.Duration   `long:"proxy-max-inactive" description:"maximum duration of inactivity by the user over which the server will poweroff" default:"1h"`
+	ProxyMaxUptime   time.Duration   `long:"proxy-max-uptime" description:"maximum uptime of the instance, after which the server will poweroff" default:"24h"`
+	TimeRanges       bool            `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs"`
+	TimeRangesFrom   string          `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00"`
+	TimeRangesTo     string          `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00"`
+	CustomSourceName string          `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana"`
+	PatternsFile     flags.Filename  `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
+	IngestLogLevel   int             `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
+	IngestCpuProfile bool            `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling"`
+	PluginCpuProfile bool            `long:"plugin-cpu-profiling" description:"enable CPU profiling for the grafana plugin"`
+	PluginLogLevel   int             `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
+	notifier.HTTPSNotify
+	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
+	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
+	FeaturesFilePrintDetail bool                 `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
 	chDirCmd
 	NoVacuumOnFail bool               `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
 	Aws            agiCreateCmdAws    `no-flag:"true"`
@@ -150,7 +153,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.ChDir = c.ChDir
 	a.opts.Cluster.Create.DistroName = "ubuntu"
 	a.opts.Cluster.Create.DistroVersion = "22.04"
-	a.opts.Cluster.Create.AerospikeVersion = "6.4.0.*"
+	a.opts.Cluster.Create.AerospikeVersion = c.AerospikeVersion
 	a.opts.Cluster.Create.Username = ""
 	a.opts.Cluster.Create.Password = ""
 	a.opts.Cluster.Create.Aws.AMI = ""
@@ -446,10 +449,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	proxyMaxInactive := c.ProxyMaxInactive.String()
 	proxyMaxUptime := c.ProxyMaxUptime.String()
 	installScript := ""
+	notifierYaml, _ := yaml.Marshal(c.HTTPSNotify)
 	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling)
+		installScript = fmt.Sprintf(agiCreateScriptDocker, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	} else {
-		installScript = fmt.Sprintf(agiCreateScript, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling)
+		installScript = fmt.Sprintf(agiCreateScript, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 

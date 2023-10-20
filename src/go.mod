@@ -7,7 +7,7 @@ require (
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
 	github.com/aerospike/aerospike-client-go/v6 v6.14.0
-	github.com/aws/aws-sdk-go v1.45.25
+	github.com/aws/aws-sdk-go v1.46.0
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
 	github.com/containerd/console v1.0.3
@@ -17,17 +17,17 @@ require (
 	github.com/google/uuid v1.3.1
 	github.com/jedib0t/go-pretty/v6 v6.4.8
 	github.com/jroimartin/gocui v0.5.0
-	github.com/mattn/go-isatty v0.0.19
+	github.com/mattn/go-isatty v0.0.20
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/nwaples/rardecode v1.1.3
 	github.com/pkg/sftp v1.13.6
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
-	github.com/rglonek/jeddevdk-goflags v0.0.0-20231011211429-8df8cc77b9f4
+	github.com/rglonek/jeddevdk-goflags v0.0.0-20231020185325-3feb2b2621fc
 	golang.org/x/crypto v0.14.0
 	golang.org/x/sys v0.13.0
 	golang.org/x/term v0.13.0
-	google.golang.org/api v0.147.0
+	google.golang.org/api v0.148.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -52,8 +52,8 @@ require (
 	golang.org/x/sync v0.4.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20231012201019-e917dd12ba7a // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20231012201019-e917dd12ba7a // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20231012201019-e917dd12ba7a // indirect
-	google.golang.org/grpc v1.58.3 // indirect
+	google.golang.org/genproto v0.0.0-20231016165738-49dd2c1f3d0b // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20231016165738-49dd2c1f3d0b // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20231016165738-49dd2c1f3d0b // indirect
+	google.golang.org/grpc v1.59.0 // indirect
 )

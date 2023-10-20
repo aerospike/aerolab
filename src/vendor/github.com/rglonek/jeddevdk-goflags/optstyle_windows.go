@@ -1,3 +1,4 @@
+//go:build !forceposix
 // +build !forceposix
 
 package flags
@@ -98,11 +99,17 @@ func (c *Command) addHelpGroup(showHelp func() error) *Group {
 		ShowHelpPosix   func() error `short:"h" long:"help" description:"Show this help message"`
 	}
 
+	var globals struct {
+		Beep bool `long:"beep" description:"cause the terminal to beep on exit; if specificied multiple times, will be once on success and >1 on failure"`
+	}
+
 	help.ShowHelpWindows = showHelp
 	help.ShowHelpPosix = showHelp
 
 	ret, _ := c.AddGroup("Help Options", "", &help)
 	ret.isBuiltinHelp = true
+	ret.Hidden = true
+	c.AddGroup("Global Options", "", &globals)
 
 	return ret
 }

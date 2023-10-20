@@ -9,6 +9,11 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
+func (d *backendAws) GetKeyPath(clusterName string) (keyPath string, err error) {
+	_, p, e := d.getKey(clusterName)
+	return p, e
+}
+
 // get KeyPair
 func (d *backendAws) getKey(clusterName string) (keyName string, keyPath string, err error) {
 	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)

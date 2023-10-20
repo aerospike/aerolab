@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerolab/ingest"
 	isatty "github.com/mattn/go-isatty"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -517,7 +518,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					if (v.PublicIp != "") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIp != "") {
 						out, err := b.RunCommands(v.ClusterName, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
 						if err == nil {
-							clusterStatus := &IngestStatusStruct{}
+							clusterStatus := &ingest.IngestStatusStruct{}
 							err = json.Unmarshal(out[0], clusterStatus)
 							if err == nil {
 								if !clusterStatus.AerospikeRunning {
