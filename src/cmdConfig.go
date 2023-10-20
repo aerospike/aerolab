@@ -92,18 +92,18 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 		for backend, switches := range switchList {
 			_, err := nCmd.AddGroup(string(backend), string(backend), switches)
 			if err != nil {
-				log.Fatal(err)
+				logExit(err)
 			}
 		}
 	}
 	if c.Type == "aws" || c.Type == "gcp" {
 		if c.Type == "gcp" && c.Project == "" {
-			log.Fatal("ERROR: When using GCP backend, project name must be defined. Use: aerolab config backend -t gcp -o project-name-here")
+			logExit("ERROR: When using GCP backend, project name must be defined. Use: aerolab config backend -t gcp -o project-name-here")
 		}
 		if strings.Contains(string(c.SshKeyPath), "${HOME}") {
 			ch, err := os.UserHomeDir()
 			if err != nil {
-				log.Fatal(err)
+				logExit(err)
 			}
 			c.SshKeyPath = flags.Filename(strings.ReplaceAll(string(c.SshKeyPath), "${HOME}", ch))
 		}
@@ -124,11 +124,11 @@ func (c *configBackendCmd) ExecTypeSet(args []string) error {
 			if strings.Contains(string(out), "-WSL2") && strings.Contains(string(out), "microsoft") {
 				ch, err := os.UserHomeDir()
 				if err != nil {
-					log.Fatal(err)
+					logExit(err)
 				}
 				err = os.MkdirAll(path.Join(ch, ".aerolab.tmp"), 0755)
 				if err != nil {
-					log.Fatal(err)
+					logExit(err)
 				}
 				c.TmpDir = flags.Filename(path.Join(ch, ".aerolab.tmp"))
 			}
@@ -233,7 +233,7 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 		case reflect.Int, reflect.String, reflect.Float64, reflect.Ptr:
 		default:
 			fmt.Println("ERROR: Key is not a parameter")
-			os.Exit(1)
+			beepExit(1)
 		}
 	}
 
@@ -247,7 +247,7 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 		v, err := strconv.Atoi(value)
 		if err != nil {
 			fmt.Println("ERROR: value must be an integer")
-			os.Exit(1)
+			beepExit(1)
 		}
 		keyField.SetInt(int64(v))
 	case reflect.String:
@@ -260,13 +260,13 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 			keyField.SetBool(false)
 		default:
 			fmt.Println("ERROR: value must be one of: true|false")
-			os.Exit(1)
+			beepExit(1)
 		}
 	case reflect.Float64:
 		v, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			fmt.Println("ERROR: value must be a number")
-			os.Exit(1)
+			beepExit(1)
 		}
 		keyField.SetFloat(v)
 	case reflect.Ptr:
@@ -285,25 +285,25 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 				boolVal = false
 			default:
 				fmt.Println("ERROR: value must be one of: true|false")
-				os.Exit(1)
+				beepExit(1)
 			}
 			keyField.Set(reflect.ValueOf(&boolVal))
 		case "int":
 			v, err := strconv.Atoi(value)
 			if err != nil {
 				fmt.Println("ERROR: value must be an integer")
-				os.Exit(1)
+				beepExit(1)
 			}
 			keyField.Set(reflect.ValueOf(&v))
 		}
 	default:
 		fmt.Println("ERROR: Key is not a parameter")
-		os.Exit(1)
+		beepExit(1)
 	}
 	err := writeConfigFile()
 	if err != nil {
 		fmt.Printf("ERROR writing configuration file: %s\n", err)
-		os.Exit(1)
+		beepExit(1)
 	}
 	fmt.Print("OK: ")
 	c.displayValues(keyField, strings.Join(keys, "."), "")
