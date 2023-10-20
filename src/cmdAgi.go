@@ -514,7 +514,7 @@ func (c *agiStatusCmd) Execute(args []string) error {
 		fmt.Println(string(out[0]))
 		return nil
 	}
-	clusterStatus := &IngestStatusStruct{}
+	clusterStatus := &ingest.IngestStatusStruct{}
 	err = json.Unmarshal(out[0], clusterStatus)
 	if err != nil {
 		return err
