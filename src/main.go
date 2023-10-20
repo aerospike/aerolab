@@ -90,10 +90,15 @@ var a = &aerolab{
 
 type Exit struct{ Code int }
 
+var beepCount = 0
+
 // exit code handler
 func handleExit() {
 	if e := recover(); e != nil {
 		if exit, ok := e.(Exit); ok {
+			for i := 0; i < beepCount; i++ {
+				fmt.Printf("\a")
+			}
 			os.Exit(exit.Code)
 		}
 		panic(e)
@@ -111,24 +116,20 @@ func main() {
 		showcommands()
 	default:
 		args := []string{}
-		isbeep := 0
 		for _, arg := range os.Args[1:] {
 			if arg == "--beep" {
-				if isbeep == 0 {
+				if beepCount == 0 {
 					defer func() {
 						fmt.Printf("\a")
 					}()
 				}
-				isbeep++
+				beepCount++
 			} else {
 				args = append(args, arg)
 			}
 		}
 		err := a.main(os.Args[0], args)
 		if err != nil {
-			for i := 0; i < isbeep; i++ {
-				fmt.Printf("\a")
-			}
 			defer handleExit()
 			panic(Exit{1})
 		}
@@ -175,7 +176,7 @@ func (a *aerolab) main(name string, args []string) error {
 		for backend, switches := range switchList {
 			grp, err := nCmd.AddGroup(string(backend), string(backend), switches)
 			if err != nil {
-				log.Fatal(err)
+				logExit(err)
 			}
 			if string(backend) != a.opts.Config.Backend.Type {
 				grp.Hidden = true
@@ -229,7 +230,7 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	if a.opts.MakeConfig {
 		err := writeConfigFile()
 		if err != nil {
-			log.Fatalf("Failed to write config file: %s", err)
+			logExit("Failed to write config file: %s", err)
 		}
 	}
 	if a.opts.DryRun {
@@ -239,15 +240,15 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	var err error
 	b, err = getBackend()
 	if err != nil {
-		log.Fatalf("Could not get backend: %s", err)
+		logExit("Could not get backend: %s", err)
 	}
 	if initBackend {
 		if b == nil {
-			log.Fatalf("Invalid backend")
+			logExit("Invalid backend")
 		}
 		err = b.Init()
 		if err != nil {
-			log.Fatalf("Could not init backend: %s", err)
+			logExit("Could not init backend: %s", err)
 		}
 	}
 	if b != nil {
