@@ -6,6 +6,8 @@
 * Expiries - add expiry information print during cluster creation.
 * If expiry < 24h and attach is executed, print warning message (only on interactive shell, if `--` args are provided, do not print).
 * AGI: Add notification support via https calls for status changes of AGI instances (finished ingest, sizing, logs too large, etc); with optional "fail on response error".
+* Add global option `--beep` which will cause the terminal to issue a beep on aerolab exiting (finished/error task) - implements `CTRL+G` or `int(7)` terminal print.
+  * The parameter can be specified multiple times. In this case, only one beep will be present on success, multiple beeps will be present on failure.
 * TODO: Add spot instances option.
 * TODO: Add EFS option to AGI and all.
 * TODO: Documentation (aws profile names, EFS support, spot instance support, notification support in agi).

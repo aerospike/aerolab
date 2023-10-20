@@ -110,8 +110,25 @@ func main() {
 	case "showsysinfo", "showconf", "showinterrupts":
 		showcommands()
 	default:
-		err := a.main(os.Args[0], os.Args[1:])
+		args := []string{}
+		isbeep := 0
+		for _, arg := range os.Args[1:] {
+			if arg == "--beep" {
+				if isbeep == 0 {
+					defer func() {
+						fmt.Printf("\a")
+					}()
+				}
+				isbeep++
+			} else {
+				args = append(args, arg)
+			}
+		}
+		err := a.main(os.Args[0], args)
 		if err != nil {
+			for i := 0; i < isbeep; i++ {
+				fmt.Printf("\a")
+			}
 			defer handleExit()
 			panic(Exit{1})
 		}
