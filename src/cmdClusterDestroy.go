@@ -49,7 +49,7 @@ func (c *clusterDestroyCmd) doDestroy(typeName string, args []string) error {
 
 			yesno, err := reader.ReadString('\n')
 			if err != nil {
-				log.Fatal(err)
+				logExit(err)
 			}
 
 			yesno = strings.ToLower(strings.TrimSpace(yesno))
