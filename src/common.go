@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -80,4 +81,19 @@ func logFatal(format interface{}, values ...interface{}) error {
 		return errors.New("ERROR " + fmt.Sprint(format))
 	}
 	return fmt.Errorf("ERROR "+fmt.Sprint(format), values...)
+}
+
+func logExit(format interface{}, values ...interface{}) {
+	if len(values) == 0 {
+		log.Print(format)
+	} else {
+		log.Printf(format.(string), values...)
+	}
+	defer handleExit()
+	panic(Exit{1})
+}
+
+func beepExit(code int) {
+	defer handleExit()
+	panic(Exit{code})
 }
