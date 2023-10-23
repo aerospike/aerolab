@@ -810,6 +810,7 @@ func (d *backendAws) listSecurityGroups(stdout bool) ([]inventoryFirewallRule, e
 				SecurityGroupName: aws.StringValue(sg.GroupName),
 				SecurityGroupID:   aws.StringValue(sg.GroupId),
 				IPs:               nIps,
+				Region:            a.opts.Config.Backend.Region,
 			},
 		})
 	}

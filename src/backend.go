@@ -162,6 +162,39 @@ type inventoryJson struct {
 	FirewallRules []inventoryFirewallRule
 	Subnets       []inventorySubnet
 	ExpirySystem  []inventoryExpiry
+	Volumes       []inventoryVolume
+}
+
+type inventoryVolume struct {
+	AvailabilityZoneId   string
+	AvailabilityZoneName string
+	CreationTime         time.Time
+	CreationToken        string
+	Encrypted            bool
+	FileSystemArn        string
+	FileSystemId         string
+	LifeCycleState       string
+	Name                 string
+	NumberOfMountTargets int
+	AWSOwnerId           string
+	PerformanceMode      string
+	ThroughputMode       string
+	SizeBytes            int
+	Tags                 map[string]string
+	MountTargets         []inventoryMountTarget
+}
+
+type inventoryMountTarget struct {
+	AvailabilityZoneId   string
+	AvailabilityZoneName string
+	FileSystemId         string
+	IpAddress            string
+	LifeCycleState       string
+	MountTargetId        string
+	NetworkInterfaceId   string
+	AWSOwnerId           string
+	SubnetId             string
+	VpcId                string
 }
 
 type inventoryExpiry struct {
@@ -276,6 +309,7 @@ type inventoryTemplate struct {
 	OSVersion        string
 	AerospikeVersion string
 	Arch             string
+	Region           string
 }
 
 type inventoryFirewallRule struct {
@@ -298,6 +332,7 @@ type inventoryFirewallRuleAWS struct {
 	SecurityGroupName string
 	SecurityGroupID   string
 	IPs               []string
+	Region            string
 }
 
 type inventoryFirewallRuleDocker struct {
@@ -341,3 +376,5 @@ var InventoryItemFirewalls = 3
 var InventoryItemTemplates = 4
 var InventoryItemExpirySystem = 5
 var InventoryItemAGI = 6
+var InventoryItemAWSAllRegions = 7
+var InventoryItemVolumes = 8

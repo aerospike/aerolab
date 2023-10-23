@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/efs"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/pricing"
@@ -36,6 +37,7 @@ type backendAws struct {
 	scheduler *scheduler.Scheduler
 	iam       *iam.IAM
 	sts       *sts.STS
+	efs       *efs.EFS
 	server    bool
 	client    bool
 }
@@ -76,6 +78,8 @@ var (
 	awsTagCostPerHour      = "Aerolab4CostPerHour"
 	awsTagCostLastRun      = "Aerolab4CostSoFar"
 	awsTagCostStartTime    = "Aerolab4CostStartTime"
+	awsTagEFSKey           = "UsedBy"
+	awsTagEFSValue         = "aerolab7"
 )
 
 func (d *backendAws) WorkOnClients() {
@@ -688,7 +692,48 @@ func (d *backendAws) getInstancePricesPerHour() (map[string]float64, error) {
 	return prices, nil
 }
 
+func (d *backendAws) InventoryAllRegions(filterOwner string, inventoryItems []int) (inventoryJson, error) {
+	ij := inventoryJson{}
+	regions, err := d.ec2svc.DescribeRegions(nil)
+	if err != nil {
+		return ij, fmt.Errorf("could not establish a session to aws, make sure your ~/.aws/credentials file is correct\n%s", err)
+	}
+	setRegion := a.opts.Config.Backend.Region
+	defer func() {
+		a.opts.Config.Backend.Region = setRegion
+	}()
+	regionCount := len(regions.Regions)
+	for i, region := range regions.Regions {
+		log.Printf("Pulling from %s (%d/%d)", *region.RegionName, i+1, regionCount)
+		a.opts.Config.Backend.Region = *region.RegionName
+		err = d.Init()
+		if err != nil {
+			return ij, fmt.Errorf("could not connect to region %s: %s", *region.RegionName, err)
+		}
+		inv, err := d.Inventory(filterOwner, inventoryItems)
+		if err != nil {
+			return ij, err
+		}
+		ij.Clients = append(ij.Clients, inv.Clients...)
+		ij.Clusters = append(ij.Clusters, inv.Clusters...)
+		ij.ExpirySystem = append(ij.ExpirySystem, inv.ExpirySystem...)
+		ij.FirewallRules = append(ij.FirewallRules, inv.FirewallRules...)
+		ij.Subnets = append(ij.Subnets, inv.Subnets...)
+		ij.Templates = append(ij.Templates, inv.Templates...)
+	}
+	return ij, nil
+}
+
 func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (inventoryJson, error) {
+	if inslice.HasInt(inventoryItems, InventoryItemAWSAllRegions) {
+		items := []int{}
+		for _, item := range inventoryItems {
+			if item != InventoryItemAWSAllRegions {
+				items = append(items, item)
+			}
+		}
+		return d.InventoryAllRegions(filterOwner, items)
+	}
 	ij := inventoryJson{}
 
 	if inslice.HasInt(inventoryItems, InventoryItemExpirySystem) {
@@ -735,6 +780,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 				Distribution:     d.distroName,
 				OSVersion:        d.distroVersion,
 				Arch:             arch,
+				Region:           a.opts.Config.Backend.Region,
 			})
 		}
 	}
@@ -928,6 +974,65 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 			}
 		}
 	}
+	if inslice.HasInt(inventoryItems, InventoryItemVolumes) {
+		err := d.efs.DescribeFileSystemsPages(&efs.DescribeFileSystemsInput{}, func(e *efs.DescribeFileSystemsOutput, t bool) bool {
+			for _, volume := range e.FileSystems {
+				tags := make(map[string]string)
+				for _, tag := range volume.Tags {
+					tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+				}
+				if tag, ok := tags[awsTagEFSKey]; !ok || tag != awsTagEFSValue {
+					continue
+				}
+				vol := inventoryVolume{
+					AvailabilityZoneId:   aws.StringValue(volume.AvailabilityZoneId),
+					AvailabilityZoneName: aws.StringValue(volume.AvailabilityZoneName),
+					CreationTime:         aws.TimeValue(volume.CreationTime),
+					CreationToken:        aws.StringValue(volume.CreationToken),
+					Encrypted:            aws.BoolValue(volume.Encrypted),
+					FileSystemArn:        aws.StringValue(volume.FileSystemArn),
+					FileSystemId:         aws.StringValue(volume.FileSystemId),
+					LifeCycleState:       aws.StringValue(volume.LifeCycleState),
+					Name:                 aws.StringValue(volume.Name),
+					NumberOfMountTargets: int(aws.Int64Value(volume.NumberOfMountTargets)),
+					AWSOwnerId:           aws.StringValue(volume.OwnerId),
+					PerformanceMode:      aws.StringValue(volume.PerformanceMode),
+					ThroughputMode:       aws.StringValue(volume.ThroughputMode),
+					SizeBytes:            int(aws.Int64Value(volume.SizeInBytes.Value)),
+					Tags:                 tags,
+				}
+				if vol.NumberOfMountTargets > 0 {
+					mt, err := d.efs.DescribeMountTargets(&efs.DescribeMountTargetsInput{
+						FileSystemId: aws.String(vol.FileSystemId),
+					})
+					if err != nil {
+						log.Printf("WARNING: Failed to get mount targets for %s: %s", vol.FileSystemId, err)
+						ij.Volumes = append(ij.Volumes, vol)
+						continue
+					}
+					for _, target := range mt.MountTargets {
+						vol.MountTargets = append(vol.MountTargets, inventoryMountTarget{
+							AvailabilityZoneId:   aws.StringValue(target.AvailabilityZoneId),
+							AvailabilityZoneName: aws.StringValue(target.AvailabilityZoneName),
+							FileSystemId:         aws.StringValue(target.FileSystemId),
+							IpAddress:            aws.StringValue(target.IpAddress),
+							LifeCycleState:       aws.StringValue(target.LifeCycleState),
+							MountTargetId:        aws.StringValue(target.MountTargetId),
+							NetworkInterfaceId:   aws.StringValue(target.NetworkInterfaceId),
+							AWSOwnerId:           aws.StringValue(target.OwnerId),
+							SubnetId:             aws.StringValue(target.SubnetId),
+							VpcId:                aws.StringValue(target.VpcId),
+						})
+					}
+				}
+				ij.Volumes = append(ij.Volumes, vol)
+			}
+			return true
+		})
+		if err != nil {
+			return ij, err
+		}
+	}
 	return ij, nil
 }
 
@@ -999,11 +1104,19 @@ func (d *backendAws) Init() error {
 		stsSvc = sts.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
 	}
 
+	var efsSvc *efs.EFS
+	if a.opts.Config.Backend.Region == "" {
+		efsSvc = efs.New(d.sess)
+	} else {
+		efsSvc = efs.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
+	}
+
 	d.scheduler = schedulerSvc
 	d.lambda = lambdaSvc
 	d.ec2svc = svc
 	d.iam = iamSvc
 	d.sts = stsSvc
+	d.efs = efsSvc
 	d.WorkOnServers()
 	return nil
 }
