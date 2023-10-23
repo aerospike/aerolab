@@ -6,9 +6,9 @@ import (
 
 type volumeCmd struct {
 	Create volumeCreateCmd `command:"create" subcommands-optional:"true" description:"Create a volume"`
-	List   volumeListCmd   `command:"create" subcommands-optional:"true" description:"List volumes"`
-	Mount  volumeMountCmd  `command:"create" subcommands-optional:"true" description:"Mount a volume on a node"`
-	Delete volumeDeleteCmd `command:"create" subcommands-optional:"true" description:"Delete a volume"`
+	List   volumeListCmd   `command:"list" subcommands-optional:"true" description:"List volumes"`
+	Mount  volumeMountCmd  `command:"mount" subcommands-optional:"true" description:"Mount a volume on a node"`
+	Delete volumeDeleteCmd `command:"delete" subcommands-optional:"true" description:"Delete a volume"`
 	Help   helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
