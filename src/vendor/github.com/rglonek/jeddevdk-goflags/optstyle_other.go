@@ -54,6 +54,8 @@ func splitOption(prefix string, option string, islong bool) (string, string, *st
 	return option, "", nil
 }
 
+var globalsAdded = false
+
 // addHelpGroup adds a new group that contains default help parameters.
 func (c *Command) addHelpGroup(showHelp func() error) *Group {
 	var help struct {
@@ -61,7 +63,7 @@ func (c *Command) addHelpGroup(showHelp func() error) *Group {
 	}
 
 	var globals struct {
-		Beep bool `long:"beep" description:"cause the terminal to beep on exit; if specificied multiple times, will be once on success and >1 on failure"`
+		Beep  bool `long:"beep" description:"cause the terminal to beep on exit; if specificied multiple times, will be once on success and >1 on failure"`
 		Beepf bool `long:"beepf" description:"like beep, but does not trigger beep on success, only failures"`
 	}
 
@@ -69,7 +71,9 @@ func (c *Command) addHelpGroup(showHelp func() error) *Group {
 	ret, _ := c.AddGroup("Help Options", "", &help)
 	ret.isBuiltinHelp = true
 	ret.Hidden = true
-	c.AddGroup("Global Options", "", &globals)
-
+	if !globalsAdded {
+		globalsAdded = true
+		c.AddGroup("Global Options", "", &globals)
+	}
 	return ret
 }

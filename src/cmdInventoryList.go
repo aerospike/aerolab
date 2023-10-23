@@ -552,6 +552,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				}
 			}
 			fmt.Println(t.Render())
+			fmt.Println()
 		}
 		if showOther&inventoryShowAGI > 0 {
 			t.SetTitle(colorHiWhite.Sprint("AGI"))
