@@ -106,6 +106,87 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
+func (d *backendAws) DeleteVolume(name string) error {
+	vols, err := b.Inventory("", []int{InventoryItemVolumes})
+	if err != nil {
+		return fmt.Errorf("could not enumerate through volumes: %s", err)
+	}
+	for _, vol := range vols.Volumes {
+		if vol.Name != name {
+			continue
+		}
+		if vol.NumberOfMountTargets > 0 {
+			log.Println("Deleting mount targets")
+			for _, mt := range vol.MountTargets {
+				_, err = d.efs.DeleteMountTarget(&efs.DeleteMountTargetInput{
+					MountTargetId: aws.String(mt.MountTargetId),
+				})
+				if err != nil {
+					return fmt.Errorf("failed to remove mount target: %s", err)
+				}
+			}
+			log.Println("Waiting for mount targets to be deleted by AWS")
+			for {
+				time.Sleep(5 * time.Second)
+				targets, err := d.efs.DescribeMountTargets(&efs.DescribeMountTargetsInput{
+					FileSystemId: aws.String(vol.FileSystemId),
+				})
+				if err != nil {
+					return fmt.Errorf("error waiting on mount targets to be deleted: %s", err)
+				}
+				if len(targets.MountTargets) == 0 {
+					break
+				}
+			}
+		}
+		log.Println("Deleting volume")
+		_, err = d.efs.DeleteFileSystem(&efs.DeleteFileSystemInput{
+			FileSystemId: aws.String(vol.FileSystemId),
+		})
+		if err != nil {
+			return err
+		}
+		log.Println("Delete sent successfully to AWS, volume should disappear shortly.")
+	}
+	return nil
+}
+
+func (d *backendAws) CreateVolume(name string, zone string, tags []string) error {
+	var az *string
+	if zone != "" {
+		az = &zone
+	}
+	tag := []*efs.Tag{
+		{
+			Key:   aws.String("Name"),
+			Value: aws.String(name),
+		}, {
+			Key:   aws.String(awsTagEFSKey),
+			Value: aws.String(awsTagEFSValue),
+		},
+	}
+	for _, t := range tags {
+		kv := strings.Split(t, "=")
+		if len(kv) < 2 {
+			return errors.New("tag format incorrect")
+		}
+		tag = append(tag, &efs.Tag{
+			Key:   aws.String(kv[0]),
+			Value: aws.String(strings.Join(kv[1:], "=")),
+		})
+	}
+	_, err := d.efs.CreateFileSystem(&efs.CreateFileSystemInput{
+		AvailabilityZoneName: az,
+		Backup:               aws.Bool(false),
+		CreationToken:        aws.String(name),
+		Encrypted:            aws.Bool(true),
+		PerformanceMode:      aws.String(efs.PerformanceModeGeneralPurpose),
+		ThroughputMode:       aws.String(efs.ThroughputModeElastic),
+		Tags:                 tag,
+	})
+	return err
+}
+
 func (d *backendAws) SetLabel(clusterName string, key string, value string, gzpZone string) error {
 	filter := ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{

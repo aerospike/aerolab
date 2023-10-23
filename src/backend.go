@@ -70,6 +70,8 @@ var TypeArchArm = TypeArch(1)
 var TypeArchAmd = TypeArch(2)
 
 type backend interface {
+	CreateVolume(name string, zone string, tags []string) error
+	DeleteVolume(name string) error
 	// cause gcp
 	EnableServices() error
 	// expiries calls
