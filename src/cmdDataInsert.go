@@ -185,15 +185,15 @@ func (c *dataInsertSelectorCmd) unpack(args []string, extraArgs []string) error 
 			return fmt.Errorf("insert-data: cfgFile backend.CopyFilesToCluster: %s", err)
 		}
 	}
-	err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/aerolab.run", contents, pfilelen}}, []int{c.Node.Int()})
+	err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/usr/local/bin/aerolab", contents, pfilelen}}, []int{c.Node.Int()})
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.CopyFilesToCluster: %s", err)
 	}
-	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), []string{"chmod", "755", "/aerolab.run"})
+	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), []string{"chmod", "755", "/usr/local/bin/aerolab"})
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(1): %s", err)
 	}
-	runCommand := []string{"/aerolab.run"}
+	runCommand := []string{"/usr/local/bin/aerolab"}
 	runCommand = append(runCommand, os.Args[1:]...)
 	runCommand = append(runCommand, "-d", "1")
 	runCommand = append(runCommand, extraArgs...)

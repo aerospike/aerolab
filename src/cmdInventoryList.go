@@ -180,6 +180,18 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					return err
 				}
 			}
+			if showOther&inventoryShowVolumes > 0 {
+				err = enc.Encode(inv.Volumes)
+				if err != nil {
+					return err
+				}
+			}
+			if showOther&inventoryShowAGI > 0 {
+				err = enc.Encode(inv.Clusters)
+				if err != nil {
+					return err
+				}
+			}
 		}
 		return nil
 	}

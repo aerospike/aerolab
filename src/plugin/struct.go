@@ -49,8 +49,8 @@ type Config struct {
 		Namespace        string `yaml:"namespace" default:"agi"`
 		TimestampBinName string `yaml:"timestampBinName" default:"timestamp"`
 		Timeouts         struct {
-			Connect     time.Duration `yaml:"connect" default:"60s"`
-			Idle        time.Duration `yaml:"idle" default:"60s"`
+			Connect     time.Duration `yaml:"connect" default:"10s"`
+			Idle        time.Duration `yaml:"idle" default:"0"`
 			RWSocket    time.Duration `yaml:"rwSocket" default:"10s"`
 			RWTotal     time.Duration `yaml:"rwTimeout" default:"30s"`
 			QuerySocket time.Duration `yaml:"querySocket" default:"30s"`

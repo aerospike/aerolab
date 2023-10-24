@@ -65,13 +65,18 @@ type agiCreateCmd struct {
 }
 
 type agiCreateCmdAws struct {
-	InstanceType    string        `short:"I" long:"instance-type" description:"instance type to use" default:"r5a.xlarge"`
-	Ebs             string        `short:"E" long:"ebs" description:"EBS volume size GB" default:"40"`
-	SecurityGroupID string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
-	SubnetID        string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
-	Tags            []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix      []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
-	Expires         time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:"r5a.xlarge"`
+	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume size GB" default:"40"`
+	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
+	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
+	Tags                []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix          []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+	WithEFS             bool          `long:"aws-with-efs" description:"set to enable EFS as the storage medium for the AGI stack"`
+	EFSName             string        `long:"aws-efs-name" description:"set to change the default name of the EFS volume" default:"{AGI_NAME}"`
+	EFSPath             string        `long:"aws-efs-path" description:"set to change the default path of the EFS directory to be mounted" default:"/"`
+	EFSMultiZone        bool          `long:"aws-efs-multizone" description:"by default the EFS volume will be one-zone to save on costs; set this to enable multi-AZ support"`
+	TerminateOnPoweroff bool          `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself (or it reaches max inactive/uptime), it will be stopped AND terminated"`
+	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 }
 
 type agiCreateCmdGcp struct {
@@ -167,6 +172,13 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.PublicIP = false
 	a.opts.Cluster.Create.Aws.IsArm = false
 	a.opts.Cluster.Create.Aws.NoBestPractices = false
+	if c.Aws.WithEFS {
+		c.Aws.EFSName = strings.ReplaceAll(c.Aws.EFSName, "{AGI_NAME}", string(c.ClusterName))
+		a.opts.Cluster.Create.Aws.EFSCreate = true
+		a.opts.Cluster.Create.Aws.EFSOneZone = !c.Aws.EFSMultiZone
+		a.opts.Cluster.Create.Aws.EFSMount = c.Aws.EFSName + ":" + c.Aws.EFSPath + ":" + "/opt/agi"
+	}
+	a.opts.Cluster.Create.Aws.TerminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	a.opts.Cluster.Create.Gcp.Image = ""
 	a.opts.Cluster.Create.Gcp.InstanceType = c.Gcp.InstanceType
 	a.opts.Cluster.Create.Gcp.Disks = c.Gcp.Disks
@@ -255,22 +267,26 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 
 	// upload aerolab to remote
-	nLinuxBinary := nLinuxBinaryX64
-	if isArm {
-		nLinuxBinary = nLinuxBinaryArm64
-	}
-	if len(nLinuxBinary) == 0 {
-		nLinuxBinary, err = os.ReadFile(os.Args[0])
-		if err != nil {
-			return err
+	flist := []fileListReader{}
+	_, err = b.RunCommands(string(c.ClusterName), [][]string{{"ls", "/usr/local/bin/aerolab"}}, []int{1})
+	if err != nil {
+		nLinuxBinary := nLinuxBinaryX64
+		if isArm {
+			nLinuxBinary = nLinuxBinaryArm64
 		}
-	}
-	flist := []fileListReader{
-		{
-			filePath:     "/usr/local/bin/aerolab",
-			fileContents: bytes.NewReader(nLinuxBinary),
-			fileSize:     len(nLinuxBinary),
-		},
+		if len(nLinuxBinary) == 0 {
+			nLinuxBinary, err = os.ReadFile(os.Args[0])
+			if err != nil {
+				return err
+			}
+		}
+		flist = []fileListReader{
+			{
+				filePath:     "/usr/local/bin/aerolab",
+				fileContents: bytes.NewReader(nLinuxBinary),
+				fileSize:     len(nLinuxBinary),
+			},
+		}
 	}
 
 	// upload custom patterns file

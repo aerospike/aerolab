@@ -29,6 +29,18 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) GetAZName(subnetId string) (string, error) {
+	return "", nil
+}
+
+func (d *backendDocker) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
+	return inventoryMountTarget{}, nil
+}
+
+func (d *backendDocker) MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error {
+	return nil
+}
+
 func (d *backendDocker) DeleteVolume(name string) error {
 	return nil
 }
