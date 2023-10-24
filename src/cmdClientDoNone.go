@@ -128,6 +128,50 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		c.DistroVersion = TypeDistroVersion(getLatestVersionForDistro(c.DistroName.String()))
 	}
 
+	// efs mounts
+	var foundVol *inventoryVolume
+	var efsName, efsLocalPath, efsPath string
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.EFSMount != "" {
+		if len(strings.Split(c.Aws.EFSMount, ":")) < 2 {
+			return nil, logFatal("EFS Mount format incorrect")
+		}
+		mountDetail := strings.Split(c.Aws.EFSMount, ":")
+		efsName = mountDetail[0]
+		efsLocalPath = mountDetail[1]
+		efsPath = "/"
+		if len(mountDetail) > 2 {
+			efsPath = mountDetail[1]
+			efsLocalPath = mountDetail[2]
+		}
+		inv, err := b.Inventory("", []int{InventoryItemVolumes})
+		if err != nil {
+			return nil, err
+		}
+		for _, vol := range inv.Volumes {
+			if vol.Name != efsName {
+				continue
+			}
+			foundVol = &vol
+			break
+		}
+		if foundVol == nil && !c.Aws.EFSCreate {
+			return nil, logFatal("EFS Volume not found, and is not set to be created")
+		} else if foundVol == nil {
+			a.opts.Volume.Create.Name = efsName
+			if c.Aws.EFSOneZone {
+				a.opts.Volume.Create.Zone, err = b.GetAZName(c.Aws.SubnetID)
+				if err != nil {
+					return nil, err
+				}
+			}
+			err = a.opts.Volume.Create.Execute(nil)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	b.WorkOnClients()
+
 	// build extra
 	var ep []string
 	if c.Docker.ExposePortsToHost != "" {
@@ -321,6 +365,21 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	if isError {
 		return nil, errors.New("some nodes returned errors")
 	}
+
+	// efs mounts
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.EFSMount != "" {
+		a.opts.Volume.Mount.ClusterName = string(c.ClientName)
+		a.opts.Volume.Mount.EfsPath = efsPath
+		a.opts.Volume.Mount.IsClient = true
+		a.opts.Volume.Mount.LocalPath = efsLocalPath
+		a.opts.Volume.Mount.Name = efsName
+		a.opts.Volume.Mount.ParallelThreads = c.ParallelThreads
+		err = a.opts.Volume.Mount.Execute(nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+	b.WorkOnClients()
 
 	if a.opts.Config.Backend.Type != "docker" && !extra.expiresTime.IsZero() {
 		log.Printf("CLUSTER EXPIRES: %s (in: %s); to extend, use: aerolab client configure expiry", extra.expiresTime.Format(time.RFC850), time.Until(extra.expiresTime).String())
