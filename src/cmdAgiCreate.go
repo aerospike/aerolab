@@ -259,6 +259,12 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if isArm {
 		nLinuxBinary = nLinuxBinaryArm64
 	}
+	if len(nLinuxBinary) == 0 {
+		nLinuxBinary, err = os.ReadFile(os.Args[0])
+		if err != nil {
+			return err
+		}
+	}
 	flist := []fileListReader{
 		{
 			filePath:     "/usr/local/bin/aerolab",
