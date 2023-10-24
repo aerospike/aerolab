@@ -82,7 +82,6 @@ type clusterCreateCmdAws struct {
 	EFSOneZone          bool          `long:"aws-efs-onezone" description:"set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments"`
 	TerminateOnPoweroff bool          `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
 	SpotInstance        bool          `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
-	SpotFleet           bool          `long:"aws-spot-fleet" description:"set to request a spot instance using a fleet option - with auto-rotating to on-demand if capacity is not available; implies aws-spot-instance"`
 	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 }
 
@@ -740,7 +739,6 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	extra.gcpMeta = c.gcpMeta
 	extra.terminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	extra.spotInstance = c.Aws.SpotInstance
-	extra.useFleet = c.Aws.SpotFleet
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err
