@@ -28,6 +28,7 @@ type commands struct {
 	Completion   completionCmd   `command:"completion" subcommands-optional:"true" description:"Install shell completion scripts"`
 	Rest         restCmd         `command:"rest-api" subcommands-optional:"true" description:"Launch HTTP rest API"`
 	AGI          agiCmd          `command:"agi" subcommands-optional:"true" description:"Launch or manage AGI troubleshooting instances"`
+	Volume       volumeCmd       `command:"volume" subcommands-optional:"true" description:"Volume management (AWS EFS only)"`
 	ShowCommands showcommandsCmd `command:"showcommands" subcommands-optional:"true" description:"Install showsysinfo,showconf,showinterrupts on the current system"`
 	commandsDefaults
 }

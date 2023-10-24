@@ -8,8 +8,13 @@
 * AGI: Add notification support via https calls for status changes of AGI instances (finished ingest, sizing, logs too large, etc); with optional "fail on response error".
 * Add global option `--beep` which will cause the terminal to issue a beep on aerolab exiting (finished/error task) - implements `CTRL+G` or `int(7)` terminal print.
   * The parameter can be specified multiple times. In this case, only one beep will be present on success, multiple beeps will be present on failure.
+  * A `--beepf` is also added, which will only trigger beep on failures.
+  * Useful for example in: `aerolab cluster destoy -f --beepf --beepf && aerolab cluster create --beep --beep` - beep twice on any failure, or once on successful completion of last command.
+  * Beeps are globally configurable with environment variables `AEROLAB_BEEP=x` and `AEROLAB_BEEPF=x` where `x` is the number of beeps to apply.
+* Inventory listing support `--aws-full` to print inventory in all AWS regions.
+* AWS EFS volumes are supported (large cost saving and predictable IOPS on AWS platform, useful for AGI).
+* Command `agi create` could experience issues if aerolab was run from linux; fixed
 * TODO: Add spot instances option.
-* TODO: Add EFS option to AGI and all.
 * TODO: Documentation (aws profile names, EFS support, spot instance support, notification support in agi).
 
 #### 7.1.1

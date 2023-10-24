@@ -119,6 +119,26 @@ type gcpClusterExpiryInstances struct {
 	labels           map[string]string
 }
 
+func (d *backendGcp) GetAZName(subnetId string) (string, error) {
+	return "", nil
+}
+
+func (d *backendGcp) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
+	return inventoryMountTarget{}, nil
+}
+
+func (d *backendGcp) MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error {
+	return nil
+}
+
+func (d *backendGcp) DeleteVolume(name string) error {
+	return nil
+}
+
+func (d *backendGcp) CreateVolume(name string, zone string, tags []string) error {
+	return nil
+}
+
 func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZone string) error {
 	instances := make(map[string]gcpClusterExpiryInstances)
 	if d.server {

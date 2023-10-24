@@ -20,6 +20,60 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
+func (d *backendAws) GetAZName(subnetID string) (string, error) {
+	if strings.HasPrefix(subnetID, "subnet-") {
+		snets, err := d.ec2svc.DescribeSubnets(&ec2.DescribeSubnetsInput{
+			SubnetIds: aws.StringSlice([]string{subnetID}),
+		})
+		if err != nil {
+			return "", fmt.Errorf("could not find subnet: %s", err)
+		}
+		if len(snets.Subnets) == 0 {
+			return "", fmt.Errorf("could not find subnet")
+		}
+		return *snets.Subnets[0].AvailabilityZone, nil
+	}
+
+	out, err := d.resolveVPC()
+	if err != nil {
+		return "", fmt.Errorf("could not resolve default VPC: %s", err)
+	}
+	if len(out.Vpcs) == 0 {
+		return "", fmt.Errorf("could not find default VPC, does not exist in AWS account; use the appropriate command switch to specify the security group and subnet ID to use")
+	}
+	vpc := aws.StringValue(out.Vpcs[0].VpcId)
+	if len(out.Vpcs) > 1 {
+		log.Printf("WARN: more than 1 default VPC found, choosing first one in list: %s", vpc)
+	}
+
+	filters := []*ec2.Filter{
+		{
+			Name:   aws.String("default-for-az"),
+			Values: aws.StringSlice([]string{"true"}),
+		},
+		{
+			Name:   aws.String("vpc-id"),
+			Values: aws.StringSlice([]string{vpc}),
+		},
+	}
+	if subnetID != "" {
+		filters = append(filters, &ec2.Filter{
+			Name:   aws.String("availability-zone"),
+			Values: aws.StringSlice([]string{subnetID}),
+		})
+	}
+	sout, err := d.ec2svc.DescribeSubnets(&ec2.DescribeSubnetsInput{
+		Filters: filters,
+	})
+	if err != nil {
+		return "", fmt.Errorf("could not resolve default subnet: %s", err)
+	}
+	if len(sout.Subnets) == 0 {
+		return "", fmt.Errorf("could not find default subnet, does not exist in AWS account; use the appropriate command switch to specify the subnet ID to use")
+	}
+	return *sout.Subnets[0].AvailabilityZone, nil
+}
+
 func (d *backendAws) resolveVPC() (*ec2.DescribeVpcsOutput, error) {
 	return d.resolveVPCdo(true)
 }
@@ -810,6 +864,7 @@ func (d *backendAws) listSecurityGroups(stdout bool) ([]inventoryFirewallRule, e
 				SecurityGroupName: aws.StringValue(sg.GroupName),
 				SecurityGroupID:   aws.StringValue(sg.GroupId),
 				IPs:               nIps,
+				Region:            a.opts.Config.Backend.Region,
 			},
 		})
 	}
