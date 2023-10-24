@@ -14,7 +14,10 @@
 * Inventory listing support `--aws-full` to print inventory in all AWS regions.
 * AWS EFS volumes are supported (large cost saving and predictable IOPS on AWS platform, useful for AGI).
 * Command `agi create` could experience issues if aerolab was run from linux; fixed
-* TODO: Add spot instances option.
+* Add spot instances option.
+  * TODO: implement AWS spot fleet option
+  * TODO: estimated running cost - on-demand vs spot ? how would we know if the spot fleet switched it around ? can we query ?
+  * TODO: inventory/cluster/client/agi lists should somehow mention it's a spot and not on-demand
 * TODO: Documentation (aws profile names, EFS support, spot instance support, notification support in agi).
 
 #### 7.1.1

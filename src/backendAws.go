@@ -1645,7 +1645,7 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 							DryRun: aws.Bool(false),
 						}
 						result, err := d.ec2svc.StartInstances(input)
-						if err != nil {
+						if err != nil && !strings.Contains(err.Error(), "UnsupportedOperation") {
 							return fmt.Errorf("error starting instance %s\n%s\n%s", *instance.InstanceId, result, err)
 						}
 					}
@@ -2687,8 +2687,21 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		input.MaxCount = &one
 		input.MinCount = &one
 		input.TagSpecifications = tsa
+		if extra.spotInstance {
+			input.InstanceMarketOptions = &ec2.InstanceMarketOptionsRequest{
+				MarketType: aws.String(ec2.MarketTypeSpot),
+				SpotOptions: &ec2.SpotMarketOptions{
+					InstanceInterruptionBehavior: aws.String(ec2.InstanceInterruptionBehaviorStop),
+					SpotInstanceType:             aws.String(ec2.SpotInstanceTypePersistent),
+				},
+			}
+		}
 		input.InstanceInitiatedShutdownBehavior = aws.String(ec2.ShutdownBehaviorStop)
 		if extra.terminateOnPoweroff {
+			if extra.spotInstance {
+				input.InstanceMarketOptions.SpotOptions.InstanceInterruptionBehavior = aws.String(ec2.InstanceInterruptionBehaviorTerminate)
+				input.InstanceMarketOptions.SpotOptions.SpotInstanceType = aws.String(ec2.SpotInstanceTypeOneTime)
+			}
 			input.InstanceInitiatedShutdownBehavior = aws.String(ec2.ShutdownBehaviorTerminate)
 		}
 		reservationsX, err := d.ec2svc.RunInstances(&input)

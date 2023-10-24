@@ -278,6 +278,8 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	} else if c.isGrow() && expirySet {
 		log.Println("WARNING: you are setting a different expiry to these nodes than the existing ones. To change expiry for all nodes, use: aerolab client configure expiry")
 	}
+	extra.spotInstance = c.Aws.SpotInstance
+	extra.useFleet = c.Aws.SpotFleet
 	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {
 		return nil, err

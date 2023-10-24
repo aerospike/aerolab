@@ -33,6 +33,8 @@ type backendExtra struct {
 	subnetID            string    // aws only
 	ebs                 string    // aws only
 	terminateOnPoweroff bool      // aws only
+	spotInstance        bool      // aws only
+	useFleet            bool      // aws only
 	instanceType        string    // aws/gcp only
 	ami                 string    // aws/gcp only
 	publicIP            bool      // aws/gcp only
