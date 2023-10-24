@@ -106,6 +106,38 @@ func (d *backendAws) WorkOnServers() {
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
 }
 
+func (d *backendAws) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
+	out, err := d.efs.CreateMountTarget(&efs.CreateMountTargetInput{
+		FileSystemId:   aws.String(volume.FileSystemId),
+		SecurityGroups: aws.StringSlice(secGroups),
+		SubnetId:       aws.String(subnet),
+	})
+	if err != nil {
+		return inventoryMountTarget{}, err
+	}
+	return inventoryMountTarget{
+		AvailabilityZoneId:   aws.StringValue(out.AvailabilityZoneId),
+		AvailabilityZoneName: aws.StringValue(out.AvailabilityZoneName),
+		FileSystemId:         aws.StringValue(out.FileSystemId),
+		IpAddress:            aws.StringValue(out.IpAddress),
+		LifeCycleState:       aws.StringValue(out.LifeCycleState),
+		MountTargetId:        aws.StringValue(out.MountTargetId),
+		NetworkInterfaceId:   aws.StringValue(out.NetworkInterfaceId),
+		AWSOwnerId:           aws.StringValue(out.OwnerId),
+		SubnetId:             aws.StringValue(out.SubnetId),
+		VpcId:                aws.StringValue(out.VpcId),
+		SecurityGroups:       secGroups,
+	}, nil
+}
+
+func (d *backendAws) MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error {
+	_, err := d.efs.ModifyMountTargetSecurityGroups(&efs.ModifyMountTargetSecurityGroupsInput{
+		MountTargetId:  aws.String(mountTarget.MountTargetId),
+		SecurityGroups: aws.StringSlice(addGroups),
+	})
+	return err
+}
+
 func (d *backendAws) DeleteVolume(name string) error {
 	vols, err := b.Inventory("", []int{InventoryItemVolumes})
 	if err != nil {
@@ -1007,6 +1039,10 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					if expires == "0001-01-01T00:00:00Z" {
 						expires = ""
 					}
+					secGroups := []string{}
+					for _, secGroup := range instance.SecurityGroups {
+						secGroups = append(secGroups, aws.StringValue(secGroup.GroupId))
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
 							ClusterName:         clusterName,
@@ -1028,6 +1064,8 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Features:            FeatureSystem(features),
 							AGILabel:            allTags["agiLabel"],
 							awsTags:             allTags,
+							awsSubnet:           aws.StringValue(instance.SubnetId),
+							awsSecGroups:        secGroups,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -1049,6 +1087,8 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Owner:               owner,
 							Expires:             expires,
 							awsTags:             allTags,
+							awsSubnet:           aws.StringValue(instance.SubnetId),
+							awsSecGroups:        secGroups,
 						})
 					}
 				}
@@ -1092,6 +1132,14 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 						continue
 					}
 					for _, target := range mt.MountTargets {
+						secGroups, err := d.efs.DescribeMountTargetSecurityGroups(&efs.DescribeMountTargetSecurityGroupsInput{
+							MountTargetId: target.MountTargetId,
+						})
+						var sg []string
+						if err != nil {
+							log.Printf("Could not get security groups for mount target: %s", err)
+						}
+						sg = aws.StringValueSlice(secGroups.SecurityGroups)
 						vol.MountTargets = append(vol.MountTargets, inventoryMountTarget{
 							AvailabilityZoneId:   aws.StringValue(target.AvailabilityZoneId),
 							AvailabilityZoneName: aws.StringValue(target.AvailabilityZoneName),
@@ -1103,6 +1151,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							AWSOwnerId:           aws.StringValue(target.OwnerId),
 							SubnetId:             aws.StringValue(target.SubnetId),
 							VpcId:                aws.StringValue(target.VpcId),
+							SecurityGroups:       sg,
 						})
 					}
 				}
@@ -2638,6 +2687,10 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		input.MaxCount = &one
 		input.MinCount = &one
 		input.TagSpecifications = tsa
+		input.InstanceInitiatedShutdownBehavior = aws.String(ec2.ShutdownBehaviorStop)
+		if extra.terminateOnPoweroff {
+			input.InstanceInitiatedShutdownBehavior = aws.String(ec2.ShutdownBehaviorTerminate)
+		}
 		reservationsX, err := d.ec2svc.RunInstances(&input)
 		if err != nil {
 			return fmt.Errorf("could not run RunInstances\n%s", err)
