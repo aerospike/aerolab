@@ -67,17 +67,21 @@ type aerospikeVersionSelectorCmd struct {
 }
 
 type clusterCreateCmdAws struct {
-	AMI             string        `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
-	InstanceType    string        `short:"I" long:"instance-type" description:"instance type to use" default:""`
-	Ebs             string        `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
-	SecurityGroupID string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
-	SubnetID        string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
-	PublicIP        bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
-	IsArm           bool          `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices bool          `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
-	Tags            []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix      []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
-	Expires         time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	AMI                 string        `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
+	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:""`
+	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
+	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
+	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
+	PublicIP            bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
+	IsArm               bool          `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices     bool          `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags                []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix          []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+	EFSMount            string        `long:"aws-efs-mount" description:"mount EFS volume; format: NAME:EfsPath:MountPath OR use NAME:MountPath to mount the EFS root"`
+	EFSCreate           bool          `long:"aws-efs-create" description:"set to create the EFS volume if it doesn't exist"`
+	EFSOneZone          bool          `long:"aws-efs-onezone" description:"set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments"`
+	TerminateOnPoweroff bool          `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
+	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 }
 
 type clusterCreateCmdGcp struct {
@@ -205,12 +209,55 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		log.Println("Running cluster.grow")
 	}
 
+	var foundVol *inventoryVolume
+	var efsName, efsLocalPath, efsPath string
 	isArm := false
 	if a.opts.Config.Backend.Type == "aws" {
+		if c.Aws.EFSMount != "" && len(strings.Split(c.Aws.EFSMount, ":")) < 2 {
+			return logFatal("EFS Mount format incorrect")
+		}
 		isArm = c.Aws.IsArm
 		if c.Aws.InstanceType == "" {
 			return logFatal("AWS backend requires InstanceType to be specified")
 		}
+		// efs mounts
+		if c.Aws.EFSMount != "" {
+			mountDetail := strings.Split(c.Aws.EFSMount, ":")
+			efsName = mountDetail[0]
+			efsLocalPath = mountDetail[1]
+			efsPath = "/"
+			if len(mountDetail) > 2 {
+				efsPath = mountDetail[1]
+				efsLocalPath = mountDetail[2]
+			}
+			inv, err := b.Inventory("", []int{InventoryItemVolumes})
+			if err != nil {
+				return err
+			}
+			for _, vol := range inv.Volumes {
+				if vol.Name != efsName {
+					continue
+				}
+				foundVol = &vol
+				break
+			}
+			if foundVol == nil && !c.Aws.EFSCreate {
+				return logFatal("EFS Volume not found, and is not set to be created")
+			} else if foundVol == nil {
+				a.opts.Volume.Create.Name = efsName
+				if c.Aws.EFSOneZone {
+					a.opts.Volume.Create.Zone, err = b.GetAZName(c.Aws.SubnetID)
+					if err != nil {
+						return err
+					}
+				}
+				err = a.opts.Volume.Create.Execute(nil)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		b.WorkOnServers()
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
 		isArm = c.Gcp.IsArm
@@ -689,6 +736,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		log.Println("WARNING: you are setting a different expiry to these nodes than the existing ones. To change expiry for all nodes, use: aerolab cluster add expiry")
 	}
 	extra.gcpMeta = c.gcpMeta
+	extra.terminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err
@@ -1143,6 +1191,21 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 	if isError {
 		return errors.New("some nodes returned errors")
 	}
+
+	// efs mounts
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.EFSMount != "" {
+		a.opts.Volume.Mount.ClusterName = c.ClusterName.String()
+		a.opts.Volume.Mount.EfsPath = efsPath
+		a.opts.Volume.Mount.IsClient = false
+		a.opts.Volume.Mount.LocalPath = efsLocalPath
+		a.opts.Volume.Mount.Name = efsName
+		a.opts.Volume.Mount.ParallelThreads = c.ParallelThreads
+		err = a.opts.Volume.Mount.Execute(nil)
+		if err != nil {
+			return err
+		}
+	}
+	b.WorkOnServers()
 
 	// start cluster
 	if c.AutoStartAerospike == "y" {

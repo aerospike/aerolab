@@ -141,8 +141,8 @@ github.com/rglonek/aerospike-config-file-parser v1.0.3 h1:KMkyHToAhFfNph/BUx3a8F
 github.com/rglonek/aerospike-config-file-parser v1.0.3/go.mod h1:MDD2s/4HAhTn8OcXUNcrppGBHpaW81INfNYeFHkS/eg=
 github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744 h1:HyBW093bA2fLY2ZnoYf2mYaC9ATDBX90kj++W5I3mTs=
 github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744/go.mod h1:CS128EIeoFCR4HBOwZDqzicTdDDcwzAWSqPUof2r8vI=
-github.com/rglonek/jeddevdk-goflags v0.0.0-20231020185325-3feb2b2621fc h1:AXzZJn8PR+alkfIpbrAURxW+OK94Eqn5RfiDdbEQWVE=
-github.com/rglonek/jeddevdk-goflags v0.0.0-20231020185325-3feb2b2621fc/go.mod h1:yWO03+fWZps+sVPozmNXFoq1v+V3xIGOd8m2WU9Vm70=
+github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible h1:YetOOw5mSL6xmwbF5GMcmvMbpthp03tmGLx3U/ke/YA=
+github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible/go.mod h1:yWO03+fWZps+sVPozmNXFoq1v+V3xIGOd8m2WU9Vm70=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.4 h1:8TfxU8dW6PdqD27gjM8MVNuicgxIjxpm4K7x4jp8sis=
 github.com/rivo/uniseg v0.4.4/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=

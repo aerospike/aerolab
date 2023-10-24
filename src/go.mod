@@ -23,7 +23,7 @@ require (
 	github.com/pkg/sftp v1.13.6
 	github.com/rglonek/aerospike-config-file-parser v1.0.3
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
-	github.com/rglonek/jeddevdk-goflags v0.0.0-20231020185325-3feb2b2621fc
+	github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
 	golang.org/x/crypto v0.14.0
 	golang.org/x/sys v0.13.0
 	golang.org/x/term v0.13.0

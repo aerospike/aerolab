@@ -241,3 +241,11 @@ aerolab logs get -n myCluster -d ./myCluster-logs/ -p /var/log/aerospike.log
 ```
 aerolab agi create --name myAgi --agi-label "myCluster" --source-local ./myCluster-logs
 ```
+
+## Sizing
+
+The below if average data size for logs. This may vary.
+
+```
+10GB logs requires 14GB on disk and 17.3GB RAM (using data-in-memory)
+```

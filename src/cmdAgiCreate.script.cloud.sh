@@ -6,6 +6,7 @@ aerolab config backend -t none
 cat <<'EOF' > /etc/aerospike/aerospike.conf
 service {
     proto-fd-max 15000
+    work-directory /opt/agi/aerospike
 }
 logging {
     console {

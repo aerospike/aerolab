@@ -29,6 +29,26 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) GetAZName(subnetId string) (string, error) {
+	return "", nil
+}
+
+func (d *backendDocker) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
+	return inventoryMountTarget{}, nil
+}
+
+func (d *backendDocker) MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error {
+	return nil
+}
+
+func (d *backendDocker) DeleteVolume(name string) error {
+	return nil
+}
+
+func (d *backendDocker) CreateVolume(name string, zone string, tags []string) error {
+	return nil
+}
+
 func (d *backendDocker) SetLabel(clusterName string, key string, value string, gcpZone string) error {
 	return errors.New("docker does not support changing of container labels")
 }

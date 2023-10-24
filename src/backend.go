@@ -19,29 +19,30 @@ func getBackend() (backend, error) {
 }
 
 type backendExtra struct {
-	clientType         string    // all: ams|elasticsearch|rest-gateway|VSCode|...
-	cpuLimit           string    // docker only
-	ramLimit           string    // docker only
-	swapLimit          string    // docker only
-	privileged         bool      // docker only
-	exposePorts        []string  // docker only
-	switches           []string  // docker only
-	dockerHostname     bool      // docker only
-	network            string    // docker only
-	autoExpose         bool      // docker only
-	securityGroupID    string    // aws only
-	subnetID           string    // aws only
-	ebs                string    // aws only
-	instanceType       string    // aws/gcp only
-	ami                string    // aws/gcp only
-	publicIP           bool      // aws/gcp only
-	tags               []string  // aws/gcp only
-	firewallNamePrefix []string  // aws/gcp only
-	expiresTime        time.Time // aws/gcp only
-	disks              []string  // gcp only
-	zone               string    // gcp only
-	labels             []string  // gcp only
-	gcpMeta            map[string]string
+	clientType          string    // all: ams|elasticsearch|rest-gateway|VSCode|...
+	cpuLimit            string    // docker only
+	ramLimit            string    // docker only
+	swapLimit           string    // docker only
+	privileged          bool      // docker only
+	exposePorts         []string  // docker only
+	switches            []string  // docker only
+	dockerHostname      bool      // docker only
+	network             string    // docker only
+	autoExpose          bool      // docker only
+	securityGroupID     string    // aws only
+	subnetID            string    // aws only
+	ebs                 string    // aws only
+	terminateOnPoweroff bool      // aws only
+	instanceType        string    // aws/gcp only
+	ami                 string    // aws/gcp only
+	publicIP            bool      // aws/gcp only
+	tags                []string  // aws/gcp only
+	firewallNamePrefix  []string  // aws/gcp only
+	expiresTime         time.Time // aws/gcp only
+	disks               []string  // gcp only
+	zone                string    // gcp only
+	labels              []string  // gcp only
+	gcpMeta             map[string]string
 }
 
 type backendVersion struct {
@@ -70,6 +71,12 @@ var TypeArchArm = TypeArch(1)
 var TypeArchAmd = TypeArch(2)
 
 type backend interface {
+	// aws efs volumes
+	CreateVolume(name string, zone string, tags []string) error
+	DeleteVolume(name string) error
+	CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error)
+	MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error
+	GetAZName(subnetId string) (string, error)
 	// cause gcp
 	EnableServices() error
 	// expiries calls
@@ -162,6 +169,40 @@ type inventoryJson struct {
 	FirewallRules []inventoryFirewallRule
 	Subnets       []inventorySubnet
 	ExpirySystem  []inventoryExpiry
+	Volumes       []inventoryVolume
+}
+
+type inventoryVolume struct {
+	AvailabilityZoneId   string
+	AvailabilityZoneName string
+	CreationTime         time.Time
+	CreationToken        string
+	Encrypted            bool
+	FileSystemArn        string
+	FileSystemId         string
+	LifeCycleState       string
+	Name                 string
+	NumberOfMountTargets int
+	AWSOwnerId           string
+	PerformanceMode      string
+	ThroughputMode       string
+	SizeBytes            int
+	Tags                 map[string]string
+	MountTargets         []inventoryMountTarget
+}
+
+type inventoryMountTarget struct {
+	AvailabilityZoneId   string
+	AvailabilityZoneName string
+	FileSystemId         string
+	IpAddress            string
+	LifeCycleState       string
+	MountTargetId        string
+	NetworkInterfaceId   string
+	AWSOwnerId           string
+	SubnetId             string
+	VpcId                string
+	SecurityGroups       []string
 }
 
 type inventoryExpiry struct {
@@ -217,6 +258,8 @@ type inventoryCluster struct {
 	gcpMeta                map[string]string
 	awsTags                map[string]string
 	dockerLabels           map[string]string
+	awsSubnet              string
+	awsSecGroups           []string
 }
 
 type FeatureSystem int64
@@ -269,6 +312,8 @@ type inventoryClient struct {
 	gcpMetadataFingerprint string
 	awsTags                map[string]string
 	dockerLabels           map[string]string
+	awsSubnet              string
+	awsSecGroups           []string
 }
 
 type inventoryTemplate struct {
@@ -276,6 +321,7 @@ type inventoryTemplate struct {
 	OSVersion        string
 	AerospikeVersion string
 	Arch             string
+	Region           string
 }
 
 type inventoryFirewallRule struct {
@@ -298,6 +344,7 @@ type inventoryFirewallRuleAWS struct {
 	SecurityGroupName string
 	SecurityGroupID   string
 	IPs               []string
+	Region            string
 }
 
 type inventoryFirewallRuleDocker struct {
@@ -341,3 +388,5 @@ var InventoryItemFirewalls = 3
 var InventoryItemTemplates = 4
 var InventoryItemExpirySystem = 5
 var InventoryItemAGI = 6
+var InventoryItemAWSAllRegions = 7
+var InventoryItemVolumes = 8

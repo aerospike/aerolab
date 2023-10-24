@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/efs"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/pricing"
@@ -36,6 +37,7 @@ type backendAws struct {
 	scheduler *scheduler.Scheduler
 	iam       *iam.IAM
 	sts       *sts.STS
+	efs       *efs.EFS
 	server    bool
 	client    bool
 }
@@ -76,6 +78,8 @@ var (
 	awsTagCostPerHour      = "Aerolab4CostPerHour"
 	awsTagCostLastRun      = "Aerolab4CostSoFar"
 	awsTagCostStartTime    = "Aerolab4CostStartTime"
+	awsTagEFSKey           = "UsedBy"
+	awsTagEFSValue         = "aerolab7"
 )
 
 func (d *backendAws) WorkOnClients() {
@@ -100,6 +104,119 @@ func (d *backendAws) WorkOnServers() {
 	awsTagOperatingSystem = awsServerTagOperatingSystem
 	awsTagOSVersion = awsServerTagOSVersion
 	awsTagAerospikeVersion = awsServerTagAerospikeVersion
+}
+
+func (d *backendAws) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
+	out, err := d.efs.CreateMountTarget(&efs.CreateMountTargetInput{
+		FileSystemId:   aws.String(volume.FileSystemId),
+		SecurityGroups: aws.StringSlice(secGroups),
+		SubnetId:       aws.String(subnet),
+	})
+	if err != nil {
+		return inventoryMountTarget{}, err
+	}
+	return inventoryMountTarget{
+		AvailabilityZoneId:   aws.StringValue(out.AvailabilityZoneId),
+		AvailabilityZoneName: aws.StringValue(out.AvailabilityZoneName),
+		FileSystemId:         aws.StringValue(out.FileSystemId),
+		IpAddress:            aws.StringValue(out.IpAddress),
+		LifeCycleState:       aws.StringValue(out.LifeCycleState),
+		MountTargetId:        aws.StringValue(out.MountTargetId),
+		NetworkInterfaceId:   aws.StringValue(out.NetworkInterfaceId),
+		AWSOwnerId:           aws.StringValue(out.OwnerId),
+		SubnetId:             aws.StringValue(out.SubnetId),
+		VpcId:                aws.StringValue(out.VpcId),
+		SecurityGroups:       secGroups,
+	}, nil
+}
+
+func (d *backendAws) MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error {
+	_, err := d.efs.ModifyMountTargetSecurityGroups(&efs.ModifyMountTargetSecurityGroupsInput{
+		MountTargetId:  aws.String(mountTarget.MountTargetId),
+		SecurityGroups: aws.StringSlice(addGroups),
+	})
+	return err
+}
+
+func (d *backendAws) DeleteVolume(name string) error {
+	vols, err := b.Inventory("", []int{InventoryItemVolumes})
+	if err != nil {
+		return fmt.Errorf("could not enumerate through volumes: %s", err)
+	}
+	for _, vol := range vols.Volumes {
+		if vol.Name != name {
+			continue
+		}
+		if vol.NumberOfMountTargets > 0 {
+			log.Println("Deleting mount targets")
+			for _, mt := range vol.MountTargets {
+				_, err = d.efs.DeleteMountTarget(&efs.DeleteMountTargetInput{
+					MountTargetId: aws.String(mt.MountTargetId),
+				})
+				if err != nil {
+					return fmt.Errorf("failed to remove mount target: %s", err)
+				}
+			}
+			log.Println("Waiting for mount targets to be deleted by AWS")
+			for {
+				time.Sleep(5 * time.Second)
+				targets, err := d.efs.DescribeMountTargets(&efs.DescribeMountTargetsInput{
+					FileSystemId: aws.String(vol.FileSystemId),
+				})
+				if err != nil {
+					return fmt.Errorf("error waiting on mount targets to be deleted: %s", err)
+				}
+				if len(targets.MountTargets) == 0 {
+					break
+				}
+			}
+		}
+		log.Println("Deleting volume")
+		_, err = d.efs.DeleteFileSystem(&efs.DeleteFileSystemInput{
+			FileSystemId: aws.String(vol.FileSystemId),
+		})
+		if err != nil {
+			return err
+		}
+		log.Println("Delete sent successfully to AWS, volume should disappear shortly.")
+	}
+	return nil
+}
+
+func (d *backendAws) CreateVolume(name string, zone string, tags []string) error {
+	var az *string
+	if zone != "" {
+		az = &zone
+	}
+	tag := []*efs.Tag{
+		{
+			Key:   aws.String("Name"),
+			Value: aws.String(name),
+		}, {
+			Key:   aws.String(awsTagEFSKey),
+			Value: aws.String(awsTagEFSValue),
+		},
+	}
+	for _, t := range tags {
+		kv := strings.Split(t, "=")
+		if len(kv) < 2 {
+			return errors.New("tag format incorrect")
+		}
+		tag = append(tag, &efs.Tag{
+			Key:   aws.String(kv[0]),
+			Value: aws.String(strings.Join(kv[1:], "=")),
+		})
+	}
+	_, err := d.efs.CreateFileSystem(&efs.CreateFileSystemInput{
+		AvailabilityZoneName: az,
+		Backup:               aws.Bool(false),
+		CreationToken:        aws.String(name),
+		Encrypted:            aws.Bool(true),
+		PerformanceMode:      aws.String(efs.PerformanceModeGeneralPurpose),
+		ThroughputMode:       aws.String(efs.ThroughputModeElastic),
+		Tags:                 tag,
+	})
+	return err
 }
 
 func (d *backendAws) SetLabel(clusterName string, key string, value string, gzpZone string) error {
@@ -688,7 +805,48 @@ func (d *backendAws) getInstancePricesPerHour() (map[string]float64, error) {
 	return prices, nil
 }
 
+func (d *backendAws) InventoryAllRegions(filterOwner string, inventoryItems []int) (inventoryJson, error) {
+	ij := inventoryJson{}
+	regions, err := d.ec2svc.DescribeRegions(nil)
+	if err != nil {
+		return ij, fmt.Errorf("could not establish a session to aws, make sure your ~/.aws/credentials file is correct\n%s", err)
+	}
+	setRegion := a.opts.Config.Backend.Region
+	defer func() {
+		a.opts.Config.Backend.Region = setRegion
+	}()
+	regionCount := len(regions.Regions)
+	for i, region := range regions.Regions {
+		log.Printf("Pulling from %s (%d/%d)", *region.RegionName, i+1, regionCount)
+		a.opts.Config.Backend.Region = *region.RegionName
+		err = d.Init()
+		if err != nil {
+			return ij, fmt.Errorf("could not connect to region %s: %s", *region.RegionName, err)
+		}
+		inv, err := d.Inventory(filterOwner, inventoryItems)
+		if err != nil {
+			return ij, err
+		}
+		ij.Clients = append(ij.Clients, inv.Clients...)
+		ij.Clusters = append(ij.Clusters, inv.Clusters...)
+		ij.ExpirySystem = append(ij.ExpirySystem, inv.ExpirySystem...)
+		ij.FirewallRules = append(ij.FirewallRules, inv.FirewallRules...)
+		ij.Subnets = append(ij.Subnets, inv.Subnets...)
+		ij.Templates = append(ij.Templates, inv.Templates...)
+	}
+	return ij, nil
+}
+
 func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (inventoryJson, error) {
+	if inslice.HasInt(inventoryItems, InventoryItemAWSAllRegions) {
+		items := []int{}
+		for _, item := range inventoryItems {
+			if item != InventoryItemAWSAllRegions {
+				items = append(items, item)
+			}
+		}
+		return d.InventoryAllRegions(filterOwner, items)
+	}
 	ij := inventoryJson{}
 
 	if inslice.HasInt(inventoryItems, InventoryItemExpirySystem) {
@@ -735,6 +893,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 				Distribution:     d.distroName,
 				OSVersion:        d.distroVersion,
 				Arch:             arch,
+				Region:           a.opts.Config.Backend.Region,
 			})
 		}
 	}
@@ -880,6 +1039,10 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					if expires == "0001-01-01T00:00:00Z" {
 						expires = ""
 					}
+					secGroups := []string{}
+					for _, secGroup := range instance.SecurityGroups {
+						secGroups = append(secGroups, aws.StringValue(secGroup.GroupId))
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
 							ClusterName:         clusterName,
@@ -901,6 +1064,8 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Features:            FeatureSystem(features),
 							AGILabel:            allTags["agiLabel"],
 							awsTags:             allTags,
+							awsSubnet:           aws.StringValue(instance.SubnetId),
+							awsSecGroups:        secGroups,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -922,10 +1087,80 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Owner:               owner,
 							Expires:             expires,
 							awsTags:             allTags,
+							awsSubnet:           aws.StringValue(instance.SubnetId),
+							awsSecGroups:        secGroups,
 						})
 					}
 				}
 			}
+		}
+	}
+	if inslice.HasInt(inventoryItems, InventoryItemVolumes) {
+		err := d.efs.DescribeFileSystemsPages(&efs.DescribeFileSystemsInput{}, func(e *efs.DescribeFileSystemsOutput, t bool) bool {
+			for _, volume := range e.FileSystems {
+				tags := make(map[string]string)
+				for _, tag := range volume.Tags {
+					tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+				}
+				if tag, ok := tags[awsTagEFSKey]; !ok || tag != awsTagEFSValue {
+					continue
+				}
+				vol := inventoryVolume{
+					AvailabilityZoneId:   aws.StringValue(volume.AvailabilityZoneId),
+					AvailabilityZoneName: aws.StringValue(volume.AvailabilityZoneName),
+					CreationTime:         aws.TimeValue(volume.CreationTime),
+					CreationToken:        aws.StringValue(volume.CreationToken),
+					Encrypted:            aws.BoolValue(volume.Encrypted),
+					FileSystemArn:        aws.StringValue(volume.FileSystemArn),
+					FileSystemId:         aws.StringValue(volume.FileSystemId),
+					LifeCycleState:       aws.StringValue(volume.LifeCycleState),
+					Name:                 aws.StringValue(volume.Name),
+					NumberOfMountTargets: int(aws.Int64Value(volume.NumberOfMountTargets)),
+					AWSOwnerId:           aws.StringValue(volume.OwnerId),
+					PerformanceMode:      aws.StringValue(volume.PerformanceMode),
+					ThroughputMode:       aws.StringValue(volume.ThroughputMode),
+					SizeBytes:            int(aws.Int64Value(volume.SizeInBytes.Value)),
+					Tags:                 tags,
+				}
+				if vol.NumberOfMountTargets > 0 {
+					mt, err := d.efs.DescribeMountTargets(&efs.DescribeMountTargetsInput{
+						FileSystemId: aws.String(vol.FileSystemId),
+					})
+					if err != nil {
+						log.Printf("WARNING: Failed to get mount targets for %s: %s", vol.FileSystemId, err)
+						ij.Volumes = append(ij.Volumes, vol)
+						continue
+					}
+					for _, target := range mt.MountTargets {
+						secGroups, err := d.efs.DescribeMountTargetSecurityGroups(&efs.DescribeMountTargetSecurityGroupsInput{
+							MountTargetId: target.MountTargetId,
+						})
+						var sg []string
+						if err != nil {
+							log.Printf("Could not get security groups for mount target: %s", err)
+						}
+						sg = aws.StringValueSlice(secGroups.SecurityGroups)
+						vol.MountTargets = append(vol.MountTargets, inventoryMountTarget{
+							AvailabilityZoneId:   aws.StringValue(target.AvailabilityZoneId),
+							AvailabilityZoneName: aws.StringValue(target.AvailabilityZoneName),
+							FileSystemId:         aws.StringValue(target.FileSystemId),
+							IpAddress:            aws.StringValue(target.IpAddress),
+							LifeCycleState:       aws.StringValue(target.LifeCycleState),
+							MountTargetId:        aws.StringValue(target.MountTargetId),
+							NetworkInterfaceId:   aws.StringValue(target.NetworkInterfaceId),
+							AWSOwnerId:           aws.StringValue(target.OwnerId),
+							SubnetId:             aws.StringValue(target.SubnetId),
+							VpcId:                aws.StringValue(target.VpcId),
+							SecurityGroups:       sg,
+						})
+					}
+				}
+				ij.Volumes = append(ij.Volumes, vol)
+			}
+			return true
+		})
+		if err != nil {
+			return ij, err
 		}
 	}
 	return ij, nil
@@ -999,11 +1234,19 @@ func (d *backendAws) Init() error {
 		stsSvc = sts.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
 	}
 
+	var efsSvc *efs.EFS
+	if a.opts.Config.Backend.Region == "" {
+		efsSvc = efs.New(d.sess)
+	} else {
+		efsSvc = efs.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
+	}
+
 	d.scheduler = schedulerSvc
 	d.lambda = lambdaSvc
 	d.ec2svc = svc
 	d.iam = iamSvc
 	d.sts = stsSvc
+	d.efs = efsSvc
 	d.WorkOnServers()
 	return nil
 }
@@ -2444,6 +2687,10 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		input.MaxCount = &one
 		input.MinCount = &one
 		input.TagSpecifications = tsa
+		input.InstanceInitiatedShutdownBehavior = aws.String(ec2.ShutdownBehaviorStop)
+		if extra.terminateOnPoweroff {
+			input.InstanceInitiatedShutdownBehavior = aws.String(ec2.ShutdownBehaviorTerminate)
+		}
 		reservationsX, err := d.ec2svc.RunInstances(&input)
 		if err != nil {
 			return fmt.Errorf("could not run RunInstances\n%s", err)

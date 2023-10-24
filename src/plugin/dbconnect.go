@@ -16,7 +16,7 @@ func (i *Plugin) dbConnect() error {
 	connectPolicy := aerospike.NewClientPolicy()
 	connectPolicy.FailIfNotConnected = true
 	connectPolicy.IdleTimeout = i.config.Aerospike.Timeouts.Idle
-	connectPolicy.Timeout = time.Second * i.config.Aerospike.Timeouts.Connect
+	connectPolicy.Timeout = i.config.Aerospike.Timeouts.Connect
 	if i.config.Aerospike.Security.Username != "" || i.config.Aerospike.Security.Password != "" {
 		if i.config.Aerospike.Security.Username != "" {
 			connectPolicy.User = i.config.Aerospike.Security.Username

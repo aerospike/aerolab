@@ -71,8 +71,8 @@ type Config struct {
 		TimestampBinName    string `yaml:"timestampBinName" default:"timestamp"`
 		TimestampIndexName  string `yaml:"timestampIndexName" default:"timestamp_idx"`
 		Timeouts            struct {
-			Connect time.Duration `yaml:"connect" default:"60s"`
-			Idle    time.Duration `yaml:"idle" default:"60s"`
+			Connect time.Duration `yaml:"connect" default:"10s"`
+			Idle    time.Duration `yaml:"idle" default:"0"`
 			Socket  time.Duration `yaml:"socket" default:"10s"`
 			Total   time.Duration `yaml:"timeout" default:"30s"`
 		} `yaml:"timeouts"`
