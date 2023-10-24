@@ -13,6 +13,7 @@
   * Beeps are globally configurable with environment variables `AEROLAB_BEEP=x` and `AEROLAB_BEEPF=x` where `x` is the number of beeps to apply.
 * Inventory listing support `--aws-full` to print inventory in all AWS regions.
 * AWS EFS volumes are supported (large cost saving and predictable IOPS on AWS platform, useful for AGI).
+* Command `agi create` could experience issues if aerolab was run from linux; fixed
 * TODO: Add spot instances option.
 * TODO: Documentation (aws profile names, EFS support, spot instance support, notification support in agi).
 
