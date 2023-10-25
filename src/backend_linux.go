@@ -47,11 +47,11 @@ func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Write
 	if term.IsTerminal(fileDescriptor) {
 		restoreTerminalLock.Lock()
 		if restoreTerminalState == nil {
-			originalState, err := term.MakeRaw(fileDescriptor)
+			//originalState, err := term.MakeRaw(fileDescriptor)
 			if err != nil {
 				return err
 			}
-			restoreTerminalState = originalState
+			//restoreTerminalState = originalState
 		}
 		restoreTerminalLock.Unlock()
 
