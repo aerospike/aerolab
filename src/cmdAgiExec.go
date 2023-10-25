@@ -50,7 +50,8 @@ func (c *agiExecIngestStatusCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Print(string(resp))
+	enc := json.NewEncoder(os.Stdout)
+	enc.Encode(resp)
 	return nil
 }
 
@@ -220,6 +221,20 @@ func (c *agiExecIngestCmd) Execute(args []string) error {
 	return aerr
 }
 
+const (
+	AgiEventInitComplete       = "INGEST_STEP_INIT_COMPLETE"
+	AgiEventDownloadComplete   = "INGEST_STEP_DOWNLOAD_COMPLETE"
+	AgiEventUnpackComplete     = "INGEST_STEP_UNPACK_COMPLETE"
+	AgiEventPreProcessComplete = "INGEST_STEP_PREPROCESS_COMPLETE"
+	AgiEventProcessComplete    = "INGEST_STEP_PROCESS_COMPLETE"
+	AgiEventIngestFinish       = "INGEST_FINISHED"
+	AgiEventServiceDown        = "SERVICE_DOWN"
+	AgiEventServiceUp          = "SERVICE_UP"
+	AgiEventMaxAge             = "MAX_AGE_REACHED"
+	AgiEventMaxInactive        = "MAX_INACTIVITY_REACHED"
+	AgiEventSpotNoCapacity     = "SPOT_INSTANCE_CAPACITY_SHUTDOWN"
+)
+
 func (c *agiExecIngestCmd) run(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
@@ -270,7 +285,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	}
 	notifyData, err := getAgiStatus("/opt/agi/ingest/")
 	if err == nil {
-		err = c.notify.NotifyData(notifyData)
+		notifyItem := &ingest.NotifyEvent{
+			IngestStatus: notifyData,
+			Event:        AgiEventInitComplete,
+		}
+		err = c.notify.NotifyJSON(notifyItem)
 		if err != nil {
 			return fmt.Errorf("notify: %s", err)
 		}
@@ -291,7 +310,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		notifyData, err := getAgiStatus("/opt/agi/ingest/")
 		if err == nil {
-			err = c.notify.NotifyData(notifyData)
+			notifyItem := &ingest.NotifyEvent{
+				IngestStatus: notifyData,
+				Event:        AgiEventDownloadComplete,
+			}
+			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
@@ -342,7 +365,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		notifyData, err := getAgiStatus("/opt/agi/ingest/")
 		if err == nil {
-			err = c.notify.NotifyData(notifyData)
+			notifyItem := &ingest.NotifyEvent{
+				IngestStatus: notifyData,
+				Event:        AgiEventUnpackComplete,
+			}
+			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
@@ -366,7 +393,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		notifyData, err := getAgiStatus("/opt/agi/ingest/")
 		if err == nil {
-			err = c.notify.NotifyData(notifyData)
+			notifyItem := &ingest.NotifyEvent{
+				IngestStatus: notifyData,
+				Event:        AgiEventPreProcessComplete,
+			}
+			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
@@ -414,7 +445,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		notifyData, err := getAgiStatus("/opt/agi/ingest/")
 		if err == nil {
-			err = c.notify.NotifyData(notifyData)
+			notifyItem := &ingest.NotifyEvent{
+				IngestStatus: notifyData,
+				Event:        AgiEventProcessComplete,
+			}
+			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
@@ -432,7 +467,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	}
 	notifyData, err = getAgiStatus("/opt/agi/ingest/")
 	if err == nil {
-		err = c.notify.NotifyData(notifyData)
+		notifyItem := &ingest.NotifyEvent{
+			IngestStatus: notifyData,
+			Event:        AgiEventIngestFinish,
+		}
+		err = c.notify.NotifyJSON(notifyItem)
 		if err != nil {
 			return fmt.Errorf("notify: %s", err)
 		}
