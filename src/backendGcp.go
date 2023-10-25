@@ -1880,9 +1880,9 @@ func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string
 		return fmt.Errorf("could not get key path: %s", err)
 	}
 	var comm string
-	isInteractive := false
+	isInteractive := true
 	if len(command) > 0 {
-		isInteractive = true
+		isInteractive = false
 		comm = command[0]
 		for _, c := range command[1:] {
 			if strings.Contains(c, " ") {
