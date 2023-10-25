@@ -89,7 +89,7 @@ Restart=never
 User=root
 RestartSec=10
 WorkingDirectory=/opt/agi
-ExecStart=/usr/local/bin/aerolab agi exec ingest -y /opt/agi/ingest.yaml
+ExecStart=/usr/local/bin/aerolab agi exec ingest -y /opt/agi/ingest.yaml --agi-name %s
 
 [Install]
 WantedBy=multi-user.target
@@ -106,7 +106,7 @@ Restart=on-failure
 User=root
 RestartSec=10
 WorkingDirectory=/opt/agi
-ExecStart=/usr/local/bin/aerolab agi exec proxy -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s
+ExecStart=/usr/local/bin/aerolab agi exec proxy --agi-name %s -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s
 
 [Install]
 WantedBy=multi-user.target
