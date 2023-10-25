@@ -15,7 +15,7 @@
 * AWS EFS volumes are supported (large cost saving and predictable IOPS on AWS platform, useful for AGI).
 * Command `agi create` could experience issues if aerolab was run from linux; fixed
 * Add spot instances option.
-* TODO: Documentation (aws profile names, EFS support, spot instance support, notification support in agi).
+* Fix: GCP and AWS backends were ignoring the custom image option. This is now enabled.
 
 #### 7.1.1
 * GCP just made `DiscardLocalSsd` non-optional when stopping instances. Adjusting accordingly.

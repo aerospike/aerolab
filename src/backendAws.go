@@ -2697,6 +2697,9 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			input.SubnetId = &subnetId
 		}
 		input.ImageId = aws.String(templateId)
+		if extra.ami != "" {
+			input.ImageId = aws.String(extra.ami)
+		}
 		input.InstanceType = aws.String(hostType)
 		var keyname string
 		keyname, keyPath, err = d.getKey(name)
