@@ -6,6 +6,7 @@
 * Expiries - add expiry information print during cluster creation.
 * If expiry < 24h and attach is executed, print warning message (only on interactive shell, if `--` args are provided, do not print).
 * AGI: Add notification support via https calls for status changes of AGI instances (finished ingest, sizing, logs too large, etc); with optional "fail on response error".
+* AGI: Add notification support via slack for certain/chosen event types.
 * Add global option `--beep` which will cause the terminal to issue a beep on aerolab exiting (finished/error task) - implements `CTRL+G` or `int(7)` terminal print.
   * The parameter can be specified multiple times. In this case, only one beep will be present on success, multiple beeps will be present on failure.
   * A `--beepf` is also added, which will only trigger beep on failures.
@@ -16,6 +17,7 @@
 * Command `agi create` could experience issues if aerolab was run from linux; fixed
 * Add spot instances option.
 * Fix: GCP and AWS backends were ignoring the custom image option. This is now enabled.
+* Fix: Disable setting terminal to RAW mode for ssh, fixing parallelism.
 
 #### 7.1.1
 * GCP just made `DiscardLocalSsd` non-optional when stopping instances. Adjusting accordingly.

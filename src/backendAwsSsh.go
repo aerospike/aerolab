@@ -83,7 +83,7 @@ func (ssh_client *SSH) Connect(mode int) error {
 	return nil
 }
 
-func remoteAttachAndRun(user string, addr string, privateKey string, cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer, node int) error {
+func remoteAttachAndRun(user string, addr string, privateKey string, cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer, node int, isInteractive bool) error {
 	client := &SSH{
 		Ip:   addr,
 		User: user,
@@ -94,7 +94,7 @@ func remoteAttachAndRun(user string, addr string, privateKey string, cmd string,
 		return err
 	}
 	client.session.Setenv("NODE", strconv.Itoa(node))
-	err = client.RunAttachCmd(cmd, stdin, stdout, stderr)
+	err = client.RunAttachCmd(cmd, stdin, stdout, stderr, isInteractive)
 	client.Close()
 	return err
 }

@@ -31,7 +31,7 @@ func backendRestoreTerminal() {
 	}
 }
 
-func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) error {
 	ssh_client.session.Stdin = stdin
 	ssh_client.session.Stdout = stdout
 	ssh_client.session.Stderr = stderr
@@ -61,7 +61,7 @@ func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Write
 		}
 	}
 	restoreTerminalLock.Lock()
-	if restoreTerminalState == nil {
+	if restoreTerminalState == nil && isInteractive {
 		current := console.Current()
 		defer current.Reset()
 

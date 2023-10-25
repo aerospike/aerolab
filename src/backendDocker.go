@@ -963,7 +963,11 @@ func (d *backendDocker) AttachAndRun(clusterName string, node int, command []str
 func (d *backendDocker) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (err error) {
 	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	var cmd *exec.Cmd
-	head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), "-ti", name}
+	termMode := "-t"
+	if len(command) == 0 {
+		termMode = "-ti"
+	}
+	head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), termMode, name}
 	if len(command) == 0 {
 		command = append(head, "/bin/bash")
 	} else {

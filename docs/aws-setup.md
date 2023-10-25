@@ -97,6 +97,12 @@ default AWS region configuration, extra parameters may be supplied:
 aerolab config backend -t aws -p /PATH/TO/KEYS -r AWS_REGION [-d /path/to/tmpdir/for-aerolab/to/use]
 ```
 
+It is possible to specify which AWS profile to use as follows:
+
+```bash
+aerolab config backend -t aws -P aws-profile-name
+```
+
 ## Deploy an Aerospike cluster in AWS
 
 Extra parameters are required when working with the `aws` backend as opposed to the `docker` backend.
