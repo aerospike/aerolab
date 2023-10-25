@@ -25,13 +25,16 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/ingest"
+	"github.com/aerospike/aerolab/notifier"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 	"github.com/fsnotify/fsnotify"
 	ps "github.com/mitchellh/go-ps"
+	"gopkg.in/yaml.v3"
 )
 
 type agiExecProxyCmd struct {
+	AGIName              string        `long:"agi-name"`
 	InitialLabel         string        `short:"L" long:"label" description:"freeform label that will appear in the dashboards if set"`
 	IngestProgressPath   string        `short:"i" long:"ingest-progress-path" default:"/opt/agi/ingest/" description:"path to where ingest stores it's json progress"`
 	ListenPort           int           `short:"l" long:"listen-port" default:"80" description:"port to listen on"`
@@ -61,6 +64,12 @@ type agiExecProxyCmd struct {
 	gottyConns           *counter
 	srv                  *http.Server
 	tokens               *tokens
+	notify               notifier.HTTPSNotify
+	shuttingDown         bool
+	shuttingDownMutex    *sync.Mutex
+	slacks3source        string
+	slacksftpsource      string
+	slackcustomsource    string
 }
 
 type tokens struct {
@@ -198,6 +207,7 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	if !asdRunning {
 		exec.Command("service", "aerospike", "start").CombinedOutput()
 	}
+	c.shuttingDownMutex = new(sync.Mutex)
 	c.lastActivity = new(activity)
 	c.gottyConns = new(counter)
 	c.gottyConns.Set("0")
@@ -222,6 +232,34 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		c.isTokenAuth = true
 	}
 	go c.getDeps()
+	// notifier load start
+	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
+	if err == nil {
+		yaml.Unmarshal(nstring, &c.notify)
+		c.notify.Init()
+		defer c.notify.Close()
+		// for slack notifier
+		if c.notify.SlackToken != "" {
+			ingestConfig, err := ingest.MakeConfig(true, "/opt/agi/ingest.yaml", true)
+			if err != nil {
+				log.Printf("could not load ingest config for slack notifier: %s", err)
+			} else {
+				if ingestConfig.Downloader.S3Source.Enabled {
+					c.slacks3source = fmt.Sprintf("\n> *S3 Source*: %s:%s %s", ingestConfig.Downloader.S3Source.BucketName, ingestConfig.Downloader.S3Source.PathPrefix, ingestConfig.Downloader.S3Source.SearchRegex)
+				}
+				if ingestConfig.Downloader.SftpSource.Enabled {
+					c.slacksftpsource = fmt.Sprintf("\n> *SFTP Source*: %s:%s %s", ingestConfig.Downloader.SftpSource.Host, ingestConfig.Downloader.SftpSource.PathPrefix, ingestConfig.Downloader.SftpSource.SearchRegex)
+				}
+				if ingestConfig.CustomSourceName != "" {
+					c.slackcustomsource = fmt.Sprintf("\n> *Custom Source*: %s", ingestConfig.CustomSourceName)
+				}
+			}
+		}
+		// end for slack
+		go c.serviceMonitor()
+		go c.spotMonitor()
+	}
+	// notifier load end
 	if c.MaxInactivity > 0 {
 		go c.activityMonitor()
 	}
@@ -334,14 +372,15 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	enc := json.NewEncoder(w)
+	enc.Encode(resp)
 }
 
-func getAgiStatus(ingestProgressPath string) ([]byte, error) {
+func getAgiStatus(ingestProgressPath string) (*ingest.IngestStatusStruct, error) {
 	status := new(ingest.IngestStatusStruct)
 	plist, err := ps.Processes()
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 	for _, p := range plist {
 		if strings.HasSuffix(p.Executable(), "asd") {
@@ -411,14 +450,14 @@ func getAgiStatus(ingestProgressPath string) ([]byte, error) {
 	if !isEmptyResponse {
 		fa, err := os.Open(npath)
 		if err != nil {
-			return []byte{}, fmt.Errorf("file open error: %s: %s", npath, err)
+			return nil, fmt.Errorf("file open error: %s: %s", npath, err)
 		}
 		defer fa.Close()
 		reader = fa
 		if gz {
 			fx, err := gzip.NewReader(fa)
 			if err != nil {
-				return []byte{}, fmt.Errorf("could not open gz for reading: %s: %s", npath, err)
+				return nil, fmt.Errorf("could not open gz for reading: %s: %s", npath, err)
 			}
 			defer fx.Close()
 			reader = fx
@@ -500,7 +539,7 @@ func getAgiStatus(ingestProgressPath string) ([]byte, error) {
 			status.Ingest.LogProcessorCompletePct = int((100 * dlSize) / totalSize)
 		}
 	}
-	return json.Marshal(status)
+	return status, nil
 }
 
 func (c *agiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request) {
@@ -508,6 +547,9 @@ func (c *agiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	logger.Info("Listener: shutdown request from %s", r.RemoteAddr)
+	c.shuttingDownMutex.Lock()
+	c.shuttingDown = true
+	c.shuttingDownMutex.Unlock()
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Shutting down..."))
 	go func() {
@@ -526,6 +568,9 @@ func (c *agiExecProxyCmd) handlePoweroff(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	logger.Info("Listener: shutdown request from %s", r.RemoteAddr)
+	c.shuttingDownMutex.Lock()
+	c.shuttingDown = true
+	c.shuttingDownMutex.Unlock()
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Poweroff..."))
 	go func() {
@@ -545,7 +590,24 @@ func (c *agiExecProxyCmd) handlePoweroff(w http.ResponseWriter, r *http.Request)
 
 func (c *agiExecProxyCmd) maxUptime() {
 	logger.Info("MAX UPTIME: hard shutdown time: %s", time.Now().Add(c.MaxUptime).String())
-	time.Sleep(c.MaxUptime)
+	time.Sleep(c.MaxUptime - time.Minute)
+	c.shuttingDownMutex.Lock()
+	c.shuttingDown = true
+	c.shuttingDownMutex.Unlock()
+	go func() {
+		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		if err == nil {
+			notifyItem := &ingest.NotifyEvent{
+				IngestStatus: notifyData,
+				Event:        AgiEventMaxAge,
+				AGIName:      c.AGIName,
+			}
+			c.notify.NotifyJSON(notifyItem)
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+			c.notify.NotifySlack(AgiEventMaxAge, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *Max age reached, shutting down*", AgiEventMaxAge, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+		}
+	}()
+	time.Sleep(time.Minute)
 	shcomm := strings.Split(c.ShutdownCommand, " ")
 	shparams := []string{}
 	if len(shcomm) > 1 {
@@ -556,6 +618,111 @@ func (c *agiExecProxyCmd) maxUptime() {
 		log.Printf("ERROR: INACTIVITY MONITOR: could not poweroff the instance: %s : %s", err, string(out))
 	} else {
 		log.Printf("ACTIVITY MONITOR: poweroff command issued: %s, result: %s", c.ShutdownCommand, string(out))
+	}
+}
+
+func spotGetInstanceAction() (data []byte, retCode int, err error) {
+	req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254/latest/meta-data/spot/instance-action", nil)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   30 * time.Second,
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: tr,
+	}
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		body = append(body, []byte("<ERROR:BODY READ ERROR>")...)
+	}
+	return body, resp.StatusCode, nil
+}
+
+func (c *agiExecProxyCmd) spotMonitor() {
+	for {
+		time.Sleep(30 * time.Second)
+		body, code, err := spotGetInstanceAction()
+		if err != nil || code < 200 || code > 299 {
+			continue
+		}
+		stat, err := getAgiStatus("/opt/agi/ingest/")
+		if err != nil {
+			logger.Warn("spot-monitor: could not get process status")
+			continue
+		}
+		c.shuttingDownMutex.Lock()
+		c.shuttingDown = true
+		c.shuttingDownMutex.Unlock()
+		notifyItem := &ingest.NotifyEvent{
+			IngestStatus: stat,
+			Event:        AgiEventSpotNoCapacity,
+			AGIName:      c.AGIName,
+			EventDetail:  string(body),
+		}
+		c.notify.NotifyJSON(notifyItem)
+		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+		c.notify.NotifySlack(AgiEventSpotNoCapacity, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *AWS Shutting spot instance down due to capacity restrictions*", AgiEventSpotNoCapacity, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+		time.Sleep(2 * time.Minute)
+		c.shuttingDownMutex.Lock()
+		c.shuttingDown = false
+		c.shuttingDownMutex.Unlock()
+	}
+}
+
+func (c *agiExecProxyCmd) serviceMonitor() {
+	servicesRunning := []bool{true, true, true, true}
+	for {
+		time.Sleep(time.Minute)
+		c.shuttingDownMutex.Lock()
+		if c.shuttingDown {
+			c.shuttingDownMutex.Unlock()
+			continue
+		}
+		c.shuttingDownMutex.Unlock()
+		stat, err := getAgiStatus("/opt/agi/ingest/")
+		if err != nil {
+			logger.Warn("service-monitor: could not get process status")
+			continue
+		}
+		notifyDown := false
+		notifyUp := false
+		for i, isStopped := range []bool{!stat.AerospikeRunning, !stat.GrafanaHelperRunning, !stat.PluginRunning, !stat.Ingest.Running && (!stat.Ingest.CompleteSteps.ProcessLogs || !stat.Ingest.CompleteSteps.ProcessCollectInfo)} {
+			if isStopped && servicesRunning[i] {
+				notifyDown = true
+			} else if !isStopped && !servicesRunning[i] {
+				notifyUp = true
+			}
+			servicesRunning[i] = !isStopped
+		}
+		if notifyDown {
+			notifyItem := &ingest.NotifyEvent{
+				IngestStatus: stat,
+				Event:        AgiEventServiceDown,
+				AGIName:      c.AGIName,
+			}
+			c.notify.NotifyJSON(notifyItem)
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+			c.notify.NotifySlack(AgiEventServiceDown, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *A required service has quit unexpectedly, check: aerolab agi status*", AgiEventServiceDown, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+		} else if notifyUp {
+			notifyItem := &ingest.NotifyEvent{
+				IngestStatus: stat,
+				Event:        AgiEventServiceUp,
+				AGIName:      c.AGIName,
+			}
+			c.notify.NotifyJSON(notifyItem)
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+			c.notify.NotifySlack(AgiEventServiceUp, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *A required service has started back up, check: aerolab agi status*", AgiEventServiceUp, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+		}
 	}
 }
 
@@ -597,6 +764,23 @@ func (c *agiExecProxyCmd) activityMonitor() {
 			log.Printf("lastActivity at %s newActivity at %s maxInactivity %s currentInactivity %s", lastActivity, newActivity, c.MaxInactivity, time.Since(newActivity))
 		}
 		if time.Since(newActivity) > c.MaxInactivity {
+			go func() {
+				notifyData, err := getAgiStatus("/opt/agi/ingest/")
+				if err == nil {
+					notifyItem := &ingest.NotifyEvent{
+						IngestStatus: notifyData,
+						Event:        AgiEventMaxInactive,
+						AGIName:      c.AGIName,
+					}
+					c.notify.NotifyJSON(notifyItem)
+					slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+					c.notify.NotifySlack(AgiEventMaxInactive, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *Max inactivity reached, shutting instance down*", AgiEventMaxInactive, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+				}
+			}()
+			time.Sleep(time.Minute)
+			c.shuttingDownMutex.Lock()
+			c.shuttingDown = true
+			c.shuttingDownMutex.Unlock()
 			shcomm := strings.Split(c.ShutdownCommand, " ")
 			shparams := []string{}
 			if len(shcomm) > 1 {

@@ -372,3 +372,10 @@ type IngestSteps struct {
 	ProcessLogsStartTime time.Time
 	ProcessLogsEndTime   time.Time
 }
+
+type NotifyEvent struct {
+	AGIName      string
+	Event        string
+	EventDetail  string
+	IngestStatus *IngestStatusStruct
+}

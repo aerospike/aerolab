@@ -1,5 +1,6 @@
 set -e
 mkdir -p /opt/agi/aerospike/data
+mkdir -p /opt/agi/aerospike/smd
 apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
 chmod 755 /usr/local/bin/aerolab
 aerolab config backend -t none
@@ -88,7 +89,7 @@ Restart=never
 User=root
 RestartSec=10
 WorkingDirectory=/opt/agi
-ExecStart=/usr/local/bin/aerolab agi exec ingest -y /opt/agi/ingest.yaml
+ExecStart=/usr/local/bin/aerolab agi exec ingest -y /opt/agi/ingest.yaml --agi-name %s
 
 [Install]
 WantedBy=multi-user.target
@@ -105,7 +106,7 @@ Restart=on-failure
 User=root
 RestartSec=10
 WorkingDirectory=/opt/agi
-ExecStart=/usr/local/bin/aerolab agi exec proxy -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s
+ExecStart=/usr/local/bin/aerolab agi exec proxy --agi-name %s -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s
 
 [Install]
 WantedBy=multi-user.target

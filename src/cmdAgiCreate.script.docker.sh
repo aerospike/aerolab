@@ -1,5 +1,6 @@
 set -e
 mkdir -p /opt/agi/aerospike/data
+mkdir -p /opt/agi/aerospike/smd
 apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
 chmod 755 /usr/local/bin/aerolab
 mkdir /opt/autoload
@@ -50,10 +51,10 @@ cat <<'EOF' > /opt/autoload/grafanafix.sh
 nohup /usr/local/bin/aerolab agi exec grafanafix -y /opt/agi/grafanafix.yaml >>/var/log/agi-grafanafix.log 2>&1 &
 EOF
 cat <<'EOF' > /opt/autoload/ingest.sh
-nohup /usr/local/bin/aerolab agi exec ingest -y /opt/agi/ingest.yaml >>/var/log/agi-ingest.log 2>&1 &
+nohup /usr/local/bin/aerolab agi exec ingest -y /opt/agi/ingest.yaml --agi-name %s >>/var/log/agi-ingest.log 2>&1 &
 EOF
 cat <<'EOF' > /opt/autoload/proxy.sh
-nohup /usr/local/bin/aerolab agi exec proxy -c "/usr/bin/touch /tmp/poweroff.now" -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s >>/var/log/agi-proxy.log 2>&1 &
+nohup /usr/local/bin/aerolab agi exec proxy -c "/usr/bin/touch /tmp/poweroff.now" --agi-name %s -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s >>/var/log/agi-proxy.log 2>&1 &
 EOF
 cat <<'EOF' > /opt/agi/grafanafix.yaml
 dashboards:

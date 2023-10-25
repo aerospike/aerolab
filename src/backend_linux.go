@@ -33,7 +33,7 @@ func backendRestoreTerminal() {
 	}
 }
 
-func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) error {
 	ssh_client.session.Stdin = stdin
 	ssh_client.session.Stdout = stdout
 	ssh_client.session.Stderr = stderr
@@ -46,7 +46,7 @@ func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Write
 	}
 	if term.IsTerminal(fileDescriptor) {
 		restoreTerminalLock.Lock()
-		if restoreTerminalState == nil {
+		if restoreTerminalState == nil && isInteractive {
 			originalState, err := term.MakeRaw(fileDescriptor)
 			if err != nil {
 				return err

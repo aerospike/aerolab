@@ -20,7 +20,9 @@ func main() {
 			w.Write([]byte(err.Error()))
 			return
 		}
-		b := &ingest.IngestStatusStruct{}
+		b := &ingest.NotifyEvent{
+			IngestStatus: &ingest.IngestStatusStruct{},
+		}
 		err = json.Unmarshal(body, b)
 		if err != nil {
 			w.WriteHeader(500)
