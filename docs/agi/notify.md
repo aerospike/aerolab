@@ -20,6 +20,7 @@ Only the first parameter is required.
 
 ```json
 {
+    "AGIName": "testagi",
     "Event": "SERVICE_DOWN",
     "EventDetail": "",
     "IngestStatus": {
@@ -70,3 +71,21 @@ AgiEventSpotNoCapacity     = "SPOT_INSTANCE_CAPACITY_SHUTDOWN" // AWS shutting i
 ```
 
 Only `AgiEventSpotNoCapacity` fills the `EventDetail` part, with the event details provided by AWS.
+
+## Slack
+
+AeroLab can also snd slack notifications on chosen events.
+
+The following parameters are available for `agi create` to enable this:
+
+Parameter | Description
+--- | ---
+`--notify-slack-token=` | set to enable slack notifications for events
+`--notify-slack-channel=` | set to the channel/user ID to send notifications to
+`--notify-slack-events=` | comma-separated list of events to notify for (default: INGEST_FINISHED,SERVICE_DOWN,SERVICE_UP,MAX_AGE_REACHED,MAX_INACTIVITY_REACHED,SPOT_INSTANCE_CAPACITY_SHUTDOWN)
+
+A valid channel ID or user ID MUST be provided.
+
+A valid slack token MUST be provided with permissions to run the following API calls:
+* [https://api.slack.com/methods/chat.postMessage](https://api.slack.com/methods/chat.postMessage)
+* [https://api.slack.com/methods/conversations.join](https://api.slack.com/methods/conversations.join)

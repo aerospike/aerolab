@@ -196,6 +196,7 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 }
 
 type agiExecIngestCmd struct {
+	AGIName  string `long:"agi-name"`
 	YamlFile string `short:"y" long:"yaml" description:"Yaml config file"`
 	notify   notifier.HTTPSNotify
 	Help     helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -268,6 +269,20 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		defer c.notify.Close()
 	}
 	// notifier load end
+	// slack notifier vars
+	slacks3source := ""
+	if config.Downloader.S3Source.Enabled {
+		slacks3source = fmt.Sprintf("\n> *S3 Source*: %s:%s %s", config.Downloader.S3Source.BucketName, config.Downloader.S3Source.PathPrefix, config.Downloader.S3Source.SearchRegex)
+	}
+	slacksftpsource := ""
+	if config.Downloader.SftpSource.Enabled {
+		slacksftpsource = fmt.Sprintf("\n> *SFTP Source*: %s:%s %s", config.Downloader.SftpSource.Host, config.Downloader.SftpSource.PathPrefix, config.Downloader.SftpSource.SearchRegex)
+	}
+	slackcustomsource := ""
+	if config.CustomSourceName != "" {
+		slackcustomsource = fmt.Sprintf("\n> *Custom Source*: %s", config.CustomSourceName)
+	}
+	// end slack notifier vars
 	i, err := ingest.Init(config)
 	if err != nil {
 		return fmt.Errorf("Init: %s", err)
@@ -288,11 +303,14 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyItem := &ingest.NotifyEvent{
 			IngestStatus: notifyData,
 			Event:        AgiEventInitComplete,
+			AGIName:      c.AGIName,
 		}
 		err = c.notify.NotifyJSON(notifyItem)
 		if err != nil {
 			return fmt.Errorf("notify: %s", err)
 		}
+		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+		c.notify.NotifySlack(AgiEventInitComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventInitComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
 	}
 	if !steps.Download {
 		err = i.Download()
@@ -313,11 +331,14 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			notifyItem := &ingest.NotifyEvent{
 				IngestStatus: notifyData,
 				Event:        AgiEventDownloadComplete,
+				AGIName:      c.AGIName,
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+			c.notify.NotifySlack(AgiEventDownloadComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventDownloadComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
 		}
 		if c.YamlFile != "" {
 			// rewrite, redacting passwords for sources
@@ -368,11 +389,14 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			notifyItem := &ingest.NotifyEvent{
 				IngestStatus: notifyData,
 				Event:        AgiEventUnpackComplete,
+				AGIName:      c.AGIName,
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+			c.notify.NotifySlack(AgiEventUnpackComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventUnpackComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
 		}
 	}
 	if !steps.PreProcess {
@@ -396,11 +420,14 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			notifyItem := &ingest.NotifyEvent{
 				IngestStatus: notifyData,
 				Event:        AgiEventPreProcessComplete,
+				AGIName:      c.AGIName,
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+			c.notify.NotifySlack(AgiEventPreProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventPreProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
 		}
 	}
 	nerr := []error{}
@@ -448,11 +475,14 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			notifyItem := &ingest.NotifyEvent{
 				IngestStatus: notifyData,
 				Event:        AgiEventProcessComplete,
+				AGIName:      c.AGIName,
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+			c.notify.NotifySlack(AgiEventProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
 		}
 	}
 	if len(nerr) > 0 {
@@ -470,11 +500,14 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyItem := &ingest.NotifyEvent{
 			IngestStatus: notifyData,
 			Event:        AgiEventIngestFinish,
+			AGIName:      c.AGIName,
 		}
 		err = c.notify.NotifyJSON(notifyItem)
 		if err != nil {
 			return fmt.Errorf("notify: %s", err)
 		}
+		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+		c.notify.NotifySlack(AgiEventIngestFinish, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventIngestFinish, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
 	}
 	return nil
 }

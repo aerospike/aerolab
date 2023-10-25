@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/aerospike/aerolab/slack"
 	"github.com/bestmethod/inslice"
 )
 
@@ -21,15 +23,48 @@ type HTTPSNotify struct {
 	AbortOnFail       bool     `long:"notify-web-abort-on-fail" description:"if set, ingest will be aborted if the notification system receives an error response" yaml:"abortOnFail"`
 	AbortOnCode       []int    `long:"notify-web-abort-code" description:"set to status codes on which to abort the operation" yaml:"abortStatusCodes"`
 	IgnoreInvalidCert bool     `long:"notify-web-ignore-cert" description:"set to make https calls ignore invalid server certificate"`
+	SlackToken        string   `long:"notify-slack-token" description:"set to enable slack notifications for events"`
+	SlackChannel      string   `long:"notify-slack-channel" description:"set to the channel to notify to"`
+	SlackEvents       string   `long:"notify-slack-events" description:"comma-separated list of events to notify for" default:"INGEST_FINISHED,SERVICE_DOWN,SERVICE_UP,MAX_AGE_REACHED,MAX_INACTIVITY_REACHED,SPOT_INSTANCE_CAPACITY_SHUTDOWN"`
+	slackEvents       []string
+	slack             *slack.Slack
 	wg                *sync.WaitGroup
 }
 
 func (h *HTTPSNotify) Init() {
 	h.wg = new(sync.WaitGroup)
+	if h.SlackToken != "" && h.SlackChannel != "" {
+		h.slackEvents = strings.Split(h.SlackEvents, ",")
+		h.slack = &slack.Slack{
+			Token:   h.SlackToken,
+			Channel: h.SlackChannel,
+		}
+		err := h.slack.Join()
+		if err != nil {
+			log.Printf("Slack Channel Join Failure: %s", err)
+		}
+	}
 }
 
 func (h *HTTPSNotify) Close() {
 	h.wg.Wait()
+}
+
+func (h *HTTPSNotify) NotifySlack(event string, message string) {
+	if h.slack == nil {
+		return
+	}
+	if !inslice.HasString(h.slackEvents, event) {
+		return
+	}
+	h.wg.Add(1)
+	go func() {
+		defer h.wg.Done()
+		err := h.slack.Send(message)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 }
 
 func (h *HTTPSNotify) NotifyJSON(payload interface{}) error {
