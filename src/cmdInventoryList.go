@@ -428,7 +428,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if a.opts.Config.Backend.Type == "docker" {
 				vv = append(vv, v.DockerExposePorts)
 			} else {
-				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+				spot := ""
+				if v.AwsIsSpot {
+					spot = " (spot)"
+				}
+				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
 			}
 			t.AppendRow(vv)
 		}
@@ -512,7 +516,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if a.opts.Config.Backend.Type == "docker" {
 				vv = append(vv, v.DockerExposePorts)
 			} else {
-				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+				spot := ""
+				if v.AwsIsSpot {
+					spot = " (spot)"
+				}
+				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
 			}
 			t.AppendRow(vv)
 		}
@@ -679,7 +687,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					v.Owner,
 				)
 				if a.opts.Config.Backend.Type != "docker" {
-					vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64))
+					spot := ""
+					if v.AwsIsSpot {
+						spot = " (spot)"
+					}
+					vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
 				}
 				if a.opts.Config.Backend.Type == "aws" {
 					vv = append(vv, v.awsTags["agiLabel"])

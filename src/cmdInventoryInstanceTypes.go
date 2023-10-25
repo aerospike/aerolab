@@ -31,7 +31,7 @@ type inventoryInstanceTypesCmd struct {
 	FilterMaxRAM float64                      `short:"R" long:"max-ram" description:"Search for max X RAM GB"`
 	EphemeralMin int                          `short:"e" long:"min-ephemeral" description:"Search only for instances with at least X ephemeral devices"`
 	EphemeralMax int                          `short:"E" long:"max-ephemeral" description:"Search only for instances with max X ephemeral devices"`
-	SortOrder    []string                     `short:"s" long:"sort" description:"Sort order; can be specified multiple times; values: name, cpu, ram, disks, size, price" default:"name"`
+	SortOrder    []string                     `short:"s" long:"sort" description:"Sort order; can be specified multiple times; values: name, cpu, ram, disks, size, price, spot-price" default:"name"`
 	Gcp          inventoryInstanceTypesCmdGcp `no-flag:"true"`
 	Help         helpCmd                      `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -111,6 +111,19 @@ func (c *inventorySorter) instanceTypesSort(i, j int) bool {
 	case "price":
 		cmpl := (*c.cmpItem)[i].PriceUSD
 		cmpr := (*c.cmpItem)[j].PriceUSD
+		if cmpl < cmpr {
+			c.currentSo = 0
+			return true
+		} else if cmpl > cmpr {
+			c.currentSo = 0
+			return false
+		} else {
+			c.currentSo++
+			return c.instanceTypesSort(i, j)
+		}
+	case "spot-price":
+		cmpl := (*c.cmpItem)[i].SpotPriceUSD
+		cmpr := (*c.cmpItem)[j].SpotPriceUSD
 		if cmpl < cmpr {
 			c.currentSo = 0
 			return true
@@ -251,7 +264,11 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	}
 
 	//t.SetTitle("INSTANCES")
-	t.AppendHeader(table.Row{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month"})
+	if a.opts.Config.Backend.Type == "aws" {
+		t.AppendHeader(table.Row{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month", "Spot $/hour", "Spot $/day", "Spot $/month", "Spot $%"})
+	} else {
+		t.AppendHeader(table.Row{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month"})
+	}
 	for _, v := range instanceTypes {
 		if c.FilterName != "" && !strings.HasPrefix(v.InstanceName, c.FilterName) {
 			continue
@@ -276,6 +293,22 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		if v.PriceUSD <= 0 {
 			pricepm = "unknown"
 		}
+		spotprice := strconv.FormatFloat(v.SpotPriceUSD*float64(c.Nodes), 'f', 4, 64)
+		if v.SpotPriceUSD <= 0 {
+			spotprice = "unknown"
+		}
+		spotpricepd := strconv.FormatFloat(v.SpotPriceUSD*24*float64(c.Nodes), 'f', 2, 64)
+		if v.SpotPriceUSD <= 0 {
+			spotpricepd = "unknown"
+		}
+		spotpricepm := strconv.FormatFloat(v.SpotPriceUSD*24*30.5*float64(c.Nodes), 'f', 2, 64)
+		if v.SpotPriceUSD <= 0 {
+			spotpricepm = "unknown"
+		}
+		spotpct := float64(-1)
+		if v.SpotPriceUSD > 0 && v.PriceUSD > 0 {
+			spotpct = v.SpotPriceUSD * 100 / v.PriceUSD
+		}
 		vv := table.Row{
 			v.InstanceName,
 			strconv.Itoa(v.CPUs),
@@ -285,6 +318,9 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 			price,
 			pricepd,
 			pricepm,
+		}
+		if a.opts.Config.Backend.Type == "aws" {
+			vv = append(vv, spotprice, spotpricepd, spotpricepm, strconv.FormatFloat(spotpct, 'f', 0, 64))
 		}
 		t.AppendRow(vv)
 	}

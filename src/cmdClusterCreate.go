@@ -81,6 +81,7 @@ type clusterCreateCmdAws struct {
 	EFSCreate           bool          `long:"aws-efs-create" description:"set to create the EFS volume if it doesn't exist"`
 	EFSOneZone          bool          `long:"aws-efs-onezone" description:"set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments"`
 	TerminateOnPoweroff bool          `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
+	SpotInstance        bool          `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 }
 
@@ -164,7 +165,7 @@ func (c *clusterCreateCmd) preChDir() {
 	}
 }
 
-func printPrice(isArm bool, zone string, iType string, instances int) {
+func printPrice(isArm bool, zone string, iType string, instances int, spot bool) {
 	price := float64(-1)
 	iTypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, isArm, zone)
 	if err != nil {
@@ -172,7 +173,11 @@ func printPrice(isArm bool, zone string, iType string, instances int) {
 	} else {
 		for _, i := range iTypes {
 			if i.InstanceName == iType {
-				price = i.PriceUSD * float64(instances)
+				if !spot {
+					price = i.PriceUSD * float64(instances)
+				} else {
+					price = i.SpotPriceUSD * float64(instances)
+				}
 			}
 		}
 		priceH := "unknown"
@@ -271,9 +276,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	iType := c.Aws.InstanceType
 	if a.opts.Config.Backend.Type == "gcp" {
 		iType = c.Gcp.InstanceType
-	}
-	if a.opts.Config.Backend.Type != "docker" {
-		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount)
+		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount, false)
+	} else if a.opts.Config.Backend.Type == "aws" {
+		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount, c.Aws.SpotInstance)
 	}
 	if c.PriceOnly {
 		return nil
@@ -737,6 +742,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	}
 	extra.gcpMeta = c.gcpMeta
 	extra.terminateOnPoweroff = c.Aws.TerminateOnPoweroff
+	extra.spotInstance = c.Aws.SpotInstance
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err
