@@ -33,6 +33,7 @@ type backendExtra struct {
 	subnetID            string    // aws only
 	ebs                 string    // aws only
 	terminateOnPoweroff bool      // aws only
+	spotInstance        bool      // aws only
 	instanceType        string    // aws/gcp only
 	ami                 string    // aws/gcp only
 	publicIP            bool      // aws/gcp only
@@ -260,6 +261,7 @@ type inventoryCluster struct {
 	dockerLabels           map[string]string
 	awsSubnet              string
 	awsSecGroups           []string
+	AwsIsSpot              bool
 }
 
 type FeatureSystem int64
@@ -314,6 +316,7 @@ type inventoryClient struct {
 	dockerLabels           map[string]string
 	awsSubnet              string
 	awsSecGroups           []string
+	AwsIsSpot              bool
 }
 
 type inventoryTemplate struct {
@@ -366,6 +369,7 @@ type instanceType struct {
 	EphemeralDisks           int
 	EphemeralDiskTotalSizeGB float64
 	PriceUSD                 float64
+	SpotPriceUSD             float64
 	IsArm                    bool
 	IsX86                    bool
 }
