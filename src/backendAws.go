@@ -596,6 +596,11 @@ func (d *backendAws) getInstanceTypes() ([]instanceType, error) {
 		log.Printf("WARN: pricing error: %s", err)
 		saveCache = false
 	}
+	spotPrices, err := d.getSpotPricesPerHour()
+	if err != nil {
+		log.Printf("WARN: pricing error: %s", err)
+		saveCache = false
+	}
 	it = []instanceType{}
 	err = d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
 		for _, iType := range ec2Types.InstanceTypes {
@@ -629,6 +634,10 @@ func (d *backendAws) getInstanceTypes() ([]instanceType, error) {
 			if price <= 0 {
 				price = -1
 			}
+			spotPrice := spotPrices[*iType.InstanceType]
+			if spotPrice <= 0 {
+				spotPrice = -1
+			}
 			it = append(it, instanceType{
 				InstanceName:             *iType.InstanceType,
 				CPUs:                     int(*iType.VCpuInfo.DefaultVCpus),
@@ -636,6 +645,7 @@ func (d *backendAws) getInstanceTypes() ([]instanceType, error) {
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
 				PriceUSD:                 price,
+				SpotPriceUSD:             spotPrice,
 				IsArm:                    isArm,
 				IsX86:                    isX86,
 			})
@@ -679,6 +689,36 @@ func (d *backendAws) GetInstanceTypes(minCpu int, maxCpu int, minRam float64, ma
 		it = append(it, i)
 	}
 	return it, nil
+}
+
+// map[instanceType]priceUSD
+func (d *backendAws) getSpotPricesPerHour() (map[string]float64, error) {
+	prices := make(map[string]float64)
+	utc, _ := time.LoadLocation("UTC")
+	endTime := time.Now().In(utc)
+	startTime := endTime.Add(-1 * time.Minute) // 1 minute ago
+	input := &ec2.DescribeSpotPriceHistoryInput{
+		StartTime:           &startTime,
+		EndTime:             &endTime,
+		MaxResults:          aws.Int64(100),
+		ProductDescriptions: []*string{aws.String("Linux/UNIX")},
+	}
+	err := d.ec2svc.DescribeSpotPriceHistoryPages(input, func(out *ec2.DescribeSpotPriceHistoryOutput, lastPage bool) bool {
+		for _, hist := range out.SpotPriceHistory {
+			newPrice, err := strconv.ParseFloat(*hist.SpotPrice, 64)
+			if err != nil {
+				continue
+			}
+			if price, ok := prices[*hist.InstanceType]; !ok || price < newPrice {
+				prices[*hist.InstanceType] = newPrice
+			}
+		}
+		return true
+	})
+	if err != nil {
+		return prices, err
+	}
+	return prices, nil
 }
 
 // map[instanceType]priceUSD
@@ -1043,6 +1083,10 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					for _, secGroup := range instance.SecurityGroups {
 						secGroups = append(secGroups, aws.StringValue(secGroup.GroupId))
 					}
+					isSpot := false
+					if spot, ok := allTags["aerolab7spot"]; ok && spot == "true" {
+						isSpot = true
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
 							ClusterName:         clusterName,
@@ -1066,6 +1110,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							awsTags:             allTags,
 							awsSubnet:           aws.StringValue(instance.SubnetId),
 							awsSecGroups:        secGroups,
+							AwsIsSpot:           isSpot,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -1089,6 +1134,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							awsTags:             allTags,
 							awsSubnet:           aws.StringValue(instance.SubnetId),
 							awsSecGroups:        secGroups,
+							AwsIsSpot:           isSpot,
 						})
 					}
 				}
@@ -2543,7 +2589,11 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 	if err == nil {
 		for _, iti := range it {
 			if iti.InstanceName == extra.instanceType {
-				price = iti.PriceUSD
+				if !extra.spotInstance {
+					price = iti.PriceUSD
+				} else {
+					price = iti.SpotPriceUSD
+				}
 			}
 		}
 	}
@@ -2598,6 +2648,12 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 				Key:   aws.String(awsTagCostStartTime),
 				Value: aws.String(strconv.Itoa(int(time.Now().Unix()))),
 			},
+		}
+		if extra.spotInstance {
+			tgs = append(tgs, &ec2.Tag{
+				Key:   aws.String("aerolab7spot"),
+				Value: aws.String("true"),
+			})
 		}
 		tgs = append(tgs, extraTags...)
 		expiryTelemetryLock.Lock()

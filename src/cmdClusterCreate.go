@@ -165,7 +165,7 @@ func (c *clusterCreateCmd) preChDir() {
 	}
 }
 
-func printPrice(isArm bool, zone string, iType string, instances int) {
+func printPrice(isArm bool, zone string, iType string, instances int, spot bool) {
 	price := float64(-1)
 	iTypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, isArm, zone)
 	if err != nil {
@@ -173,7 +173,11 @@ func printPrice(isArm bool, zone string, iType string, instances int) {
 	} else {
 		for _, i := range iTypes {
 			if i.InstanceName == iType {
-				price = i.PriceUSD * float64(instances)
+				if !spot {
+					price = i.PriceUSD * float64(instances)
+				} else {
+					price = i.SpotPriceUSD * float64(instances)
+				}
 			}
 		}
 		priceH := "unknown"
@@ -272,9 +276,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	iType := c.Aws.InstanceType
 	if a.opts.Config.Backend.Type == "gcp" {
 		iType = c.Gcp.InstanceType
-	}
-	if a.opts.Config.Backend.Type != "docker" {
-		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount)
+		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount, false)
+	} else if a.opts.Config.Backend.Type == "aws" {
+		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount, c.Aws.SpotInstance)
 	}
 	if c.PriceOnly {
 		return nil
