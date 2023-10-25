@@ -2208,9 +2208,14 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 		return err
 	}
 	// start VM
-	imageName, err := d.getImage(v)
-	if err != nil {
-		return err
+	var imageName string
+	if extra.ami != "" {
+		imageName = extra.ami
+	} else {
+		imageName, err = d.getImage(v)
+		if err != nil {
+			return err
+		}
 	}
 
 	isArm := "amd"
@@ -2936,9 +2941,13 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 
 	var imageName string
 	if d.client {
-		imageName, err = d.getImage(v)
-		if err != nil {
-			return err
+		if extra.ami != "" {
+			imageName = extra.ami
+		} else {
+			imageName, err = d.getImage(v)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
 		ctx := context.Background()
@@ -3033,9 +3042,6 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 					return errors.New("first (root volume) disk must be of type pd-*")
 				}
 				simage = proto.String(imageName)
-				if extra.ami != "" {
-					simage = proto.String(extra.ami)
-				}
 				boot = true
 			}
 			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", extra.zone, nDisk.diskType)
