@@ -3033,6 +3033,9 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 					return errors.New("first (root volume) disk must be of type pd-*")
 				}
 				simage = proto.String(imageName)
+				if extra.ami != "" {
+					simage = proto.String(extra.ami)
+				}
 				boot = true
 			}
 			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", extra.zone, nDisk.diskType)
