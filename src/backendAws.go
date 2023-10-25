@@ -2141,10 +2141,16 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	}
 	defer d.killKey(genKeyName)
 	// start VM
-	templateId, err := d.getAmi(a.opts.Config.Backend.Region, v)
-	if err != nil {
-		return err
+	var templateId string
+	if extra.ami != "" {
+		templateId = extra.ami
+	} else {
+		templateId, err = d.getAmi(a.opts.Config.Backend.Region, v)
+		if err != nil {
+			return err
+		}
 	}
+
 	var reservations []*ec2.Reservation
 	// tag setup
 	tgClusterName := ec2.Tag{}
@@ -2546,9 +2552,13 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 	} else {
 		var err error
-		templateId, err = d.getAmi(a.opts.Config.Backend.Region, v)
-		if err != nil {
-			return err
+		if extra.ami != "" {
+			templateId = extra.ami
+		} else {
+			templateId, err = d.getAmi(a.opts.Config.Backend.Region, v)
+			if err != nil {
+				return err
+			}
 		}
 		filterA := ec2.DescribeImagesInput{
 			ImageIds: []*string{aws.String(templateId)},
@@ -2697,9 +2707,6 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 			input.SubnetId = &subnetId
 		}
 		input.ImageId = aws.String(templateId)
-		if extra.ami != "" {
-			input.ImageId = aws.String(extra.ami)
-		}
 		input.InstanceType = aws.String(hostType)
 		var keyname string
 		keyname, keyPath, err = d.getKey(name)
