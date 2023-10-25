@@ -55,6 +55,8 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
   * [Partitioner](docs/partitioner/partition-disks.md)
   * [Advanced - GCP Firewall Rules](docs/gcp-firewall.md)
 * [AWS](docs/aws-setup.md)
+  * [Spot instance support](docs/aws-spot.md)
+  * [EFS Support](docs/efs.md)
   * [Expiry system](docs/expiries.md)
   * [Partitioner](docs/partitioner/partition-disks.md)
   * [Advanced - AWS Firewall Rules](docs/aws-firewall.md)
