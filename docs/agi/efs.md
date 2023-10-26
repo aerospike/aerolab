@@ -14,6 +14,7 @@ Parameter | Description
 `--aws-terminate-on-poweroff` | Terminate the instance instead of stopping it when maximum inactivity period or maximum age are reached
 `--aws-efs-multizone` | Enable multi-zone support (if needed) for the volume at creation; this is 2x the price of single zone
 `--aws-efs-name=` | Optionally name the EFS volume a different name than the AGI name
+`--no-config-override` | Optionally specify this parameter to ensure existing configuration doesn't get overriden if it already exists on the EFS volume; this is useful when restarting AGI with an existing EFS volume with data and prior configuration; if a particular (or any) configuration doesn't exist, it will be created
 
 If a volume already exists, it simply gets reattached.
 
