@@ -210,9 +210,17 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Docker.NetworkName = c.Docker.NetworkName
 	a.opts.Cluster.Create.Docker.ClientType = strconv.Itoa(int(ClusterFeatureAGI))
 	a.opts.Cluster.Create.Docker.Labels = []string{"agiLabel=" + c.AGILabel}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("could not get current working directory: %s", err)
+	}
 	err = a.opts.Cluster.Create.realExecute2(args, false)
 	if err != nil {
 		return err
+	}
+	err = os.Chdir(cwd)
+	if err != nil {
+		return fmt.Errorf("could not recover current working directory: %s", err)
 	}
 
 	log.Println("Cluster Node created, continuing AGI deployment...")
