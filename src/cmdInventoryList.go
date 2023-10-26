@@ -583,7 +583,6 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetFooters()
 			if showOther&inventoryShowAGIStatus > 0 {
 				// TODO: if inventoryShowAGIStatus is set - also show EFS volumes in this listing, only need Name as AGI Name (so same field), FsID, Size, AGI Label (same field)
-				// TODO: relabel code should also change AGI Label on EFS volume if it exists!
 				if a.opts.Config.Backend.Type == "gcp" {
 					t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
 				} else if a.opts.Config.Backend.Type == "aws" {

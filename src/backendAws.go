@@ -220,6 +220,23 @@ func (d *backendAws) CreateVolume(name string, zone string, tags []string) error
 }
 
 func (d *backendAws) SetLabel(clusterName string, key string, value string, gzpZone string) error {
+	vols, err := d.Inventory("", []int{InventoryItemVolumes})
+	if err == nil {
+		for _, vol := range vols.Volumes {
+			if vol.Name != clusterName {
+				continue
+			}
+			d.efs.TagResource(&efs.TagResourceInput{
+				ResourceId: aws.String(vol.FileSystemId),
+				Tags: []*efs.Tag{
+					{
+						Key:   aws.String(key),
+						Value: aws.String(value),
+					},
+				},
+			})
+		}
+	}
 	filter := ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
