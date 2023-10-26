@@ -1,4 +1,5 @@
 set -e
+override=%s
 mkdir -p /opt/agi/aerospike/data
 mkdir -p /opt/agi/aerospike/smd
 apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
@@ -43,6 +44,9 @@ namespace agi {
     }
 }
 EOF
+
+if [ $override -eq 1 -o ! -f /etc/systemd/system/agi-plugin.service ]
+then
 cat <<'EOF' > /etc/systemd/system/agi-plugin.service
 [Unit]
 Description=AGI Plugin
@@ -60,6 +64,10 @@ ExecStart=/usr/local/bin/aerolab agi exec plugin -y /opt/agi/plugin.yaml
 [Install]
 WantedBy=multi-user.target
 EOF
+fi
+
+if [ $override -eq 1 -o ! -f /etc/systemd/system/agi-grafanafix.service ]
+then
 cat <<'EOF' > /etc/systemd/system/agi-grafanafix.service
 [Unit]
 Description=AGI Grafana Helper
@@ -77,6 +85,10 @@ ExecStart=/usr/local/bin/aerolab agi exec grafanafix -y /opt/agi/grafanafix.yaml
 [Install]
 WantedBy=multi-user.target
 EOF
+fi
+
+if [ $override -eq 1 -o ! -f /etc/systemd/system/agi-ingest.service ]
+then
 cat <<'EOF' > /etc/systemd/system/agi-ingest.service
 [Unit]
 Description=AGI Ingest
@@ -94,6 +106,10 @@ ExecStart=/usr/local/bin/aerolab agi exec ingest -y /opt/agi/ingest.yaml --agi-n
 [Install]
 WantedBy=multi-user.target
 EOF
+fi
+
+if [ $override -eq 1 -o ! -f /etc/systemd/system/agi-proxy.service ]
+then
 cat <<'EOF' > /etc/systemd/system/agi-proxy.service
 [Unit]
 Description=AGI Proxy
@@ -111,6 +127,10 @@ ExecStart=/usr/local/bin/aerolab agi exec proxy --agi-name %s -L "%s" -a token -
 [Install]
 WantedBy=multi-user.target
 EOF
+fi
+
+if [ $override -eq 1 -o ! -f /opt/agi/grafanafix.yaml ]
+then
 cat <<'EOF' > /opt/agi/grafanafix.yaml
 dashboards:
   fromDir: ""
@@ -118,6 +138,10 @@ dashboards:
 grafanaURL: "http://127.0.0.1:8850"
 annotationFile: "/opt/agi/annotations.json"
 EOF
+fi
+
+if [ $override -eq 1 -o ! -f /opt/agi/plugin.yaml ]
+then
 cat <<'EOF' > /opt/agi/plugin.yaml
 maxDataPointsReceived: %d
 logLevel: %d
@@ -129,9 +153,15 @@ addNoneToLabels:
   - HistogramCount
 %s
 EOF
+fi
+
+if [ $override -eq 1 -o ! -f /opt/agi/notifier.yaml ]
+then
 cat <<'EOF' > /opt/agi/notifier.yaml
 %s
 EOF
+fi
+
 chmod 755 /etc/systemd/system/agi-plugin.service /etc/systemd/system/agi-proxy.service /etc/systemd/system/agi-grafanafix.service /etc/systemd/system/agi-ingest.service
 systemctl enable agi-plugin && systemctl enable agi-proxy && systemctl enable agi-grafanafix && systemctl enable agi-ingest && systemctl daemon-reload
 systemctl start agi-plugin ; systemctl start agi-proxy ; systemctl start agi-grafanafix ; systemctl start agi-ingest
