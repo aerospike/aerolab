@@ -28,11 +28,12 @@ type agiCmd struct {
 	Status    agiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show status of an AGI instance"`
 	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance"`
 	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance"`
-	Delete    agiDeleteCmd    `command:"delete" hidden:"true" subcommands-optional:"true" description:"Delete AGI volume"`
+	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name"`
 	Relabel   agiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change instance name label"`
 	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)"`
 	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance"`
 	AddToken  agiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add an auth token to AGI Proxy - only valid if token auth type was selected"`
+	Share     clusterShareCmd `command:"share" subcommands-optional:"true" description:"AWS/GCP: share the AGI node by importing a provided ssh public key file"`
 	Exec      agiExecCmd      `command:"exec" hidden:"true" subcommands-optional:"true" description:"Run an AGI subsystem"`
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -169,7 +170,9 @@ func (c *agiDeleteCmd) Execute(args []string) error {
 	a.opts.Cluster.Destroy.ClusterName = c.ClusterName
 	a.opts.Cluster.Destroy.Force = c.Force
 	a.opts.Cluster.Destroy.Parallel = c.Parallel
-	return a.opts.Cluster.Destroy.doDestroy("agi", args)
+	a.opts.Cluster.Destroy.doDestroy("agi", args)
+	a.opts.Volume.Delete.Name = c.ClusterName.String()
+	return a.opts.Volume.Delete.Execute(args)
 }
 
 type agiRelabelCmd struct {
