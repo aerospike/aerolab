@@ -541,8 +541,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetHeaders()
 			t.ResetRows()
 			t.ResetFooters()
-			// TODO: add owner option to listing, creation, etc, including creation at cluster/client/agi create, and manual creation
-			t.AppendHeader(table.Row{"Name", "Volume AZ", "FsID", "Created", "Size", "Mount Targets", "Mount Target Id", "Mount Target AZ", "AGI Label"})
+			t.AppendHeader(table.Row{"Name", "Volume AZ", "FsID", "Created", "Size", "Mount Targets", "Mount Target Id", "Mount Target AZ", "Owner", "AGI Label"})
 			for _, v := range inv.Volumes {
 				for _, m := range v.MountTargets {
 					vv := table.Row{
@@ -554,6 +553,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						strconv.Itoa(v.NumberOfMountTargets),
 						m.MountTargetId,
 						m.AvailabilityZoneId,
+						v.Owner,
 						v.Tags["agiLabel"],
 					}
 					t.AppendRow(vv)
@@ -568,6 +568,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						strconv.Itoa(v.NumberOfMountTargets),
 						"N/A",
 						"N/A",
+						v.Owner,
 						v.Tags["agiLabel"],
 					}
 					t.AppendRow(vv)
@@ -582,7 +583,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetRows()
 			t.ResetFooters()
 			if showOther&inventoryShowAGIStatus > 0 {
-				// TODO: if inventoryShowAGIStatus is set - also show EFS volumes in this listing, only need Name as AGI Name (so same field), FsID, Size, AGI Label (same field)
+				// TODO: if inventoryShowAGIStatus is set - also show EFS volumes in this listing, only need Name as AGI Name (so same field), FsID, Size, AGI Label (same field), EFS owner as well?
 				if a.opts.Config.Backend.Type == "gcp" {
 					t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
 				} else if a.opts.Config.Backend.Type == "aws" {

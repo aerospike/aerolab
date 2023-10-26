@@ -47,10 +47,11 @@ func (c *volumeListCmd) Execute(args []string) error {
 }
 
 type volumeCreateCmd struct {
-	Name string   `short:"n" long:"name" description:"EFS Name" default:"agi"`
-	Zone string   `short:"z" long:"zone" description:"Full Availability Zone name; if provided, will define a one-zone volume; default {REGION}a"`
-	Tags []string `short:"t" long:"tag" description:"tag as key=value; can be specified multiple times"`
-	Help helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Name  string   `short:"n" long:"name" description:"EFS Name" default:"agi"`
+	Zone  string   `short:"z" long:"zone" description:"Full Availability Zone name; if provided, will define a one-zone volume; default {REGION}a"`
+	Tags  []string `short:"t" long:"tag" description:"tag as key=value; can be specified multiple times"`
+	Owner string   `short:"o" long:"owner" description:"set owner tag to the specified value"`
+	Help  helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *volumeCreateCmd) Execute(args []string) error {
@@ -58,6 +59,9 @@ func (c *volumeCreateCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Println("Creating volume")
+	if c.Owner != "" {
+		c.Tags = append(c.Tags, "aerolab7owner="+c.Owner)
+	}
 	err := b.CreateVolume(c.Name, c.Zone, c.Tags)
 	if err != nil {
 		return err
