@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aerospike/aerolab/ingest"
@@ -540,6 +541,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetHeaders()
 			t.ResetRows()
 			t.ResetFooters()
+			// TODO: add owner option to listing, creation, etc, including creation at cluster/client/agi create, and manual creation
 			t.AppendHeader(table.Row{"Name", "Volume AZ", "FsID", "Created", "Size", "Mount Targets", "Mount Target Id", "Mount Target AZ", "AGI Label"})
 			for _, v := range inv.Volumes {
 				for _, m := range v.MountTargets {
@@ -580,6 +582,8 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetRows()
 			t.ResetFooters()
 			if showOther&inventoryShowAGIStatus > 0 {
+				// TODO: if inventoryShowAGIStatus is set - also show EFS volumes in this listing, only need Name as AGI Name (so same field), FsID, Size, AGI Label (same field)
+				// TODO: relabel code should also change AGI Label on EFS volume if it exists!
 				if a.opts.Config.Backend.Type == "gcp" {
 					t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
 				} else if a.opts.Config.Backend.Type == "aws" {
@@ -604,7 +608,64 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
 				}
 			}
-			for _, v := range inv.Clusters {
+			statusWg := new(sync.WaitGroup)
+			clusterStatuses := make(map[int]string)
+			statusMutex := new(sync.Mutex)
+			statusThreads := make(chan int, 5)
+			if showOther&inventoryShowAGIStatus > 0 {
+				for vi, v := range inv.Clusters {
+					if v.Features&ClusterFeatureAGI <= 0 {
+						continue
+					}
+					statusWg.Add(1)
+					statusThreads <- 1
+					go func(vi int, v inventoryCluster) {
+						defer statusWg.Done()
+						defer func() {
+							<-statusThreads
+						}()
+						statusMsg := "unknown"
+						if (v.PublicIp != "") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIp != "") {
+							out, err := b.RunCommands(v.ClusterName, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
+							if err == nil {
+								clusterStatus := &ingest.IngestStatusStruct{}
+								err = json.Unmarshal(out[0], clusterStatus)
+								if err == nil {
+									if !clusterStatus.AerospikeRunning {
+										statusMsg = errExp.Sprintf("ERR: ASD DOWN")
+									} else if !clusterStatus.GrafanaHelperRunning {
+										statusMsg = errExp.Sprintf("ERR: GRAFANAFIX DOWN")
+									} else if !clusterStatus.PluginRunning {
+										statusMsg = errExp.Sprintf("ERR: PLUGIN DOWN")
+									} else if !clusterStatus.Ingest.CompleteSteps.Init {
+										statusMsg = "(1/6) INIT"
+									} else if !clusterStatus.Ingest.CompleteSteps.Download {
+										statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
+									} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
+										statusMsg = "(3/6) UNPACK"
+									} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
+										statusMsg = "(4/6) PRE-PROCESS"
+									} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
+										statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
+									} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
+										statusMsg = "(6/6) COLLECTINFO"
+									} else {
+										statusMsg = "READY"
+									}
+									if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+										statusMsg = errExp.Sprintf("ERR: INGEST DOWN")
+									}
+								}
+							}
+						}
+						statusMutex.Lock()
+						clusterStatuses[vi] = statusMsg
+						statusMutex.Unlock()
+					}(vi, v)
+				}
+				statusWg.Wait()
+			}
+			for vi, v := range inv.Clusters {
 				if v.Features&ClusterFeatureAGI <= 0 {
 					continue
 				}
@@ -613,41 +674,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					vv = append(vv, v.Zone)
 				}
 				if showOther&inventoryShowAGIStatus > 0 {
-					statusMsg := "unknown"
-					if (v.PublicIp != "") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIp != "") {
-						out, err := b.RunCommands(v.ClusterName, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
-						if err == nil {
-							clusterStatus := &ingest.IngestStatusStruct{}
-							err = json.Unmarshal(out[0], clusterStatus)
-							if err == nil {
-								if !clusterStatus.AerospikeRunning {
-									statusMsg = errExp.Sprintf("ERR: ASD DOWN")
-								} else if !clusterStatus.GrafanaHelperRunning {
-									statusMsg = errExp.Sprintf("ERR: GRAFANAFIX DOWN")
-								} else if !clusterStatus.PluginRunning {
-									statusMsg = errExp.Sprintf("ERR: PLUGIN DOWN")
-								} else if !clusterStatus.Ingest.CompleteSteps.Init {
-									statusMsg = "(1/6) INIT"
-								} else if !clusterStatus.Ingest.CompleteSteps.Download {
-									statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
-								} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
-									statusMsg = "(3/6) UNPACK"
-								} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
-									statusMsg = "(4/6) PRE-PROCESS"
-								} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
-									statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
-								} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
-									statusMsg = "(6/6) COLLECTINFO"
-								} else {
-									statusMsg = "READY"
-								}
-								if statusMsg != "READY" && !clusterStatus.Ingest.Running {
-									statusMsg = errExp.Sprintf("ERR: INGEST DOWN")
-								}
-							}
-						}
-					}
-					vv = append(vv, statusMsg)
+					vv = append(vv, clusterStatuses[vi])
 				}
 				vv = append(vv, v.InstanceId, v.AccessUrl)
 				if a.opts.Config.Backend.Type != "docker" {
