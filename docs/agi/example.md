@@ -61,3 +61,13 @@ Command | Description
 `aerolab agi add-auth-token -n myagi` | generate an authentication token needed to access the instance web interfaces
 `aerolab agi destroy -n myagi` | destroy the instance
 `aerolab agi delete -n myagi` | destroy the instance and remove the EFS volume
+
+## Notes
+
+### Instance sizes in cloud instances
+
+In AWS, default instance size is `r5a.xlarge` and in GCP it is `e2-highmem-4`. These can be adjusted to provide more RAM using `--instance-type ...` on AWS and `--instance ...` on GCP. To see a list of available instances and their prices, run `aerolab inventory instance-types`.
+
+### AWS spot instances
+
+When using AWS with EFS, it may be beneficial to run the instances as spot-instances. This reduces the usage prices. An instance can be recreated as on-demand at a later time if required, and it will just continue where it left off, using the EFS-backed storage. To do this, add `--aws-spot-instance`.
