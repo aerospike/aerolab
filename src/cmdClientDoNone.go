@@ -166,6 +166,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 					return nil, err
 				}
 			}
+			a.opts.Volume.Create.Owner = c.Owner
 			err = a.opts.Volume.Create.Execute(nil)
 			if err != nil {
 				return nil, err

@@ -1183,6 +1183,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					PerformanceMode:      aws.StringValue(volume.PerformanceMode),
 					ThroughputMode:       aws.StringValue(volume.ThroughputMode),
 					SizeBytes:            int(aws.Int64Value(volume.SizeInBytes.Value)),
+					Owner:                tags["aerolab7owner"],
 					Tags:                 tags,
 				}
 				if vol.NumberOfMountTargets > 0 {

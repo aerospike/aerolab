@@ -190,6 +190,7 @@ type inventoryVolume struct {
 	SizeBytes            int
 	Tags                 map[string]string
 	MountTargets         []inventoryMountTarget
+	Owner                string
 }
 
 type inventoryMountTarget struct {
