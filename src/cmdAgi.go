@@ -28,7 +28,7 @@ type agiCmd struct {
 	Status    agiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show status of an AGI instance"`
 	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance"`
 	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance"`
-	Delete    agiDeleteCmd    `command:"delete" hidden:"true" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name"`
+	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name"`
 	Relabel   agiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change instance name label"`
 	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)"`
 	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance"`
