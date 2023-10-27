@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/ingest"
+	"github.com/bestmethod/inslice"
 	isatty "github.com/mattn/go-isatty"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -67,6 +68,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		if showOther&inventoryShowAGI > 0 {
 			inventoryItems = append(inventoryItems, InventoryItemClusters)
 			inventoryItems = append(inventoryItems, InventoryItemAGI)
+		}
+		if showOther&inventoryShowAGIStatus > 0 && !inslice.HasInt(inventoryItems, InventoryItemVolumes) {
+			inventoryItems = append(inventoryItems, InventoryItemVolumes)
 		}
 	}
 	if a.opts.Config.Backend.Type == "aws" && c.AWSFull {
@@ -583,36 +587,21 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetRows()
 			t.ResetFooters()
 			if showOther&inventoryShowAGIStatus > 0 {
-				// TODO: if inventoryShowAGIStatus is set - also show EFS volumes in this listing, only need Name as AGI Name (so same field), FsID, Size, AGI Label (same field), EFS owner as well?
 				if a.opts.Config.Backend.Type == "gcp" {
-					t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+					t.AppendHeader(table.Row{"AGI Name", "Status", "Access URL", "Expires In", "Zone", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
 				} else if a.opts.Config.Backend.Type == "aws" {
 					if c.AWSFull {
-						t.AppendHeader(table.Row{"AGI Name", "Region", "Status", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+						t.AppendHeader(table.Row{"AGI Name", "EFS ID", "EFS Size", "Region", "Status", "Access URL", "Expires In", "Private IP", "Public IP", "State", "Firewalls", "EFS Owner", "Owner", "Instance Running Cost", "AGI Label"})
 					} else {
-						t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+						t.AppendHeader(table.Row{"AGI Name", "EFS ID", "EFS Size", "Status", "Access URL", "Expires In", "Private IP", "Public IP", "State", "Firewalls", "EFS Owner", "Owner", "Instance Running Cost", "AGI Label"})
 					}
 				} else {
-					t.AppendHeader(table.Row{"AGI Name", "Status", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
+					t.AppendHeader(table.Row{"AGI Name", "Status", "Access URL", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
 				}
-			} else {
-				if a.opts.Config.Backend.Type == "gcp" {
-					t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
-				} else if a.opts.Config.Backend.Type == "aws" {
-					if c.AWSFull {
-						t.AppendHeader(table.Row{"AGI Name", "Region", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
-					} else {
-						t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
-					}
-				} else {
-					t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
-				}
-			}
-			statusWg := new(sync.WaitGroup)
-			clusterStatuses := make(map[int]string)
-			statusMutex := new(sync.Mutex)
-			statusThreads := make(chan int, 5)
-			if showOther&inventoryShowAGIStatus > 0 {
+				statusWg := new(sync.WaitGroup)
+				clusterStatuses := make(map[int]string)
+				statusMutex := new(sync.Mutex)
+				statusThreads := make(chan int, 5)
 				for vi, v := range inv.Clusters {
 					if v.Features&ClusterFeatureAGI <= 0 {
 						continue
@@ -664,70 +653,167 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					}(vi, v)
 				}
 				statusWg.Wait()
-			}
-			for vi, v := range inv.Clusters {
-				if v.Features&ClusterFeatureAGI <= 0 {
-					continue
-				}
-				vv := table.Row{v.ClusterName}
-				if c.AWSFull {
-					vv = append(vv, v.Zone)
-				}
-				if showOther&inventoryShowAGIStatus > 0 {
+				foundVols := []int{}
+				for vi, v := range inv.Clusters {
+					if v.Features&ClusterFeatureAGI <= 0 {
+						continue
+					}
+					vv := table.Row{v.ClusterName}
+					efsOwner := ""
+					if a.opts.Config.Backend.Type == "aws" {
+						fsId := ""
+						fsSize := ""
+						for voli, vol := range inv.Volumes {
+							if vol.Name == v.ClusterName {
+								foundVols = append(foundVols, voli)
+								fsId = vol.FileSystemId
+								fsSize = convSize(int64(vol.SizeBytes))
+								efsOwner = vol.Owner
+								break
+							}
+						}
+						vv = append(vv, fsId, fsSize)
+					}
+					if c.AWSFull {
+						vv = append(vv, v.Zone)
+					}
 					vv = append(vv, clusterStatuses[vi])
-				}
-				vv = append(vv, v.InstanceId, v.AccessUrl)
-				if a.opts.Config.Backend.Type != "docker" {
-					if v.Expires == "" {
-						vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
-					} else {
-						// Parse the expiration time string
-						expirationTime, err := time.Parse(time.RFC3339, v.Expires)
-						if err != nil {
-							fmt.Println("Error parsing expiration time:", err)
-							return err
-						}
-						// Get the current time in the same timezone as the expiration time
-						currentTime := time.Now().In(expirationTime.Location())
-
-						// Calculate the duration between the current time and the expiration time
-						expiresIn := expirationTime.Sub(currentTime)
-
-						if expiresIn < 6*time.Hour {
-							vv = append(vv, errExp.Sprintf("%s", expiresIn.Round(time.Minute)))
+					vv = append(vv, v.AccessUrl)
+					if a.opts.Config.Backend.Type != "docker" {
+						if v.Expires == "" {
+							vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
 						} else {
-							vv = append(vv, expiresIn.Round(time.Minute))
+							// Parse the expiration time string
+							expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+							if err != nil {
+								fmt.Println("Error parsing expiration time:", err)
+								return err
+							}
+							// Get the current time in the same timezone as the expiration time
+							currentTime := time.Now().In(expirationTime.Location())
+
+							// Calculate the duration between the current time and the expiration time
+							expiresIn := expirationTime.Sub(currentTime)
+
+							if expiresIn < 6*time.Hour {
+								vv = append(vv, errExp.Sprintf("%s", expiresIn.Round(time.Minute)))
+							} else {
+								vv = append(vv, expiresIn.Round(time.Minute))
+							}
 						}
 					}
-				}
-				if a.opts.Config.Backend.Type == "gcp" {
-					vv = append(vv, v.Zone)
-				} else {
-					vv = append(vv, v.ImageId)
-				}
-				vv = append(vv,
-					v.Arch,
-					v.PrivateIp,
-					v.PublicIp,
-					v.State,
-					strings.Join(v.Firewalls, "\n"),
-					v.Owner,
-				)
-				if a.opts.Config.Backend.Type != "docker" {
-					spot := ""
-					if v.AwsIsSpot {
-						spot = " (spot)"
+					if a.opts.Config.Backend.Type == "gcp" {
+						vv = append(vv, v.Zone)
 					}
-					vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
+					vv = append(vv,
+						v.PrivateIp,
+						v.PublicIp,
+						v.State,
+						strings.Join(v.Firewalls, "\n"),
+					)
+					if a.opts.Config.Backend.Type == "aws" {
+						vv = append(vv, efsOwner)
+					}
+					vv = append(vv, v.Owner)
+					if a.opts.Config.Backend.Type != "docker" {
+						spot := ""
+						if v.AwsIsSpot {
+							spot = " (spot)"
+						}
+						vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
+					}
+					if a.opts.Config.Backend.Type == "aws" {
+						vv = append(vv, v.awsTags["agiLabel"])
+					} else if a.opts.Config.Backend.Type == "gcp" {
+						vv = append(vv, v.gcpMeta["agiLabel"])
+					} else {
+						vv = append(vv, v.dockerLabels["agiLabel"])
+					}
+					t.AppendRow(vv)
 				}
-				if a.opts.Config.Backend.Type == "aws" {
-					vv = append(vv, v.awsTags["agiLabel"])
-				} else if a.opts.Config.Backend.Type == "gcp" {
-					vv = append(vv, v.gcpMeta["agiLabel"])
+				for voli, vol := range inv.Volumes {
+					if inslice.HasInt(foundVols, voli) {
+						continue
+					}
+					_ = vol
+					// TODO check if ES volume belongs to AGI somehow(?) need an identifying tag
+					// TODO if so, add to row (just the required fields of Name, FsId, FsSize, EFS Owner, AGI Label?)
+					// TODO need to check if we set AGI Label tag on EFS volumes; if not, we should
+					// TODO: if AGI Label is "", we should set it to AGI Name, so it is ALWAYS set
+				}
+			} else {
+				if a.opts.Config.Backend.Type == "gcp" {
+					t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Zone", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+				} else if a.opts.Config.Backend.Type == "aws" {
+					if c.AWSFull {
+						t.AppendHeader(table.Row{"AGI Name", "Region", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+					} else {
+						t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Expires In", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
+					}
 				} else {
-					vv = append(vv, v.dockerLabels["agiLabel"])
+					t.AppendHeader(table.Row{"AGI Name", "Instance ID", "Access URL", "Image ID", "Arch", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
 				}
-				t.AppendRow(vv)
+				for _, v := range inv.Clusters {
+					if v.Features&ClusterFeatureAGI <= 0 {
+						continue
+					}
+					vv := table.Row{v.ClusterName}
+					if c.AWSFull {
+						vv = append(vv, v.Zone)
+					}
+					vv = append(vv, v.InstanceId, v.AccessUrl)
+					if a.opts.Config.Backend.Type != "docker" {
+						if v.Expires == "" {
+							vv = append(vv, warnExp.Sprint("WARN: no expiry is set"))
+						} else {
+							// Parse the expiration time string
+							expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+							if err != nil {
+								fmt.Println("Error parsing expiration time:", err)
+								return err
+							}
+							// Get the current time in the same timezone as the expiration time
+							currentTime := time.Now().In(expirationTime.Location())
+
+							// Calculate the duration between the current time and the expiration time
+							expiresIn := expirationTime.Sub(currentTime)
+
+							if expiresIn < 6*time.Hour {
+								vv = append(vv, errExp.Sprintf("%s", expiresIn.Round(time.Minute)))
+							} else {
+								vv = append(vv, expiresIn.Round(time.Minute))
+							}
+						}
+					}
+					if a.opts.Config.Backend.Type == "gcp" {
+						vv = append(vv, v.Zone)
+					} else {
+						vv = append(vv, v.ImageId)
+					}
+					vv = append(vv,
+						v.Arch,
+						v.PrivateIp,
+						v.PublicIp,
+						v.State,
+						strings.Join(v.Firewalls, "\n"),
+						v.Owner,
+					)
+					if a.opts.Config.Backend.Type != "docker" {
+						spot := ""
+						if v.AwsIsSpot {
+							spot = " (spot)"
+						}
+						vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
+					}
+					if a.opts.Config.Backend.Type == "aws" {
+						vv = append(vv, v.awsTags["agiLabel"])
+					} else if a.opts.Config.Backend.Type == "gcp" {
+						vv = append(vv, v.gcpMeta["agiLabel"])
+					} else {
+						vv = append(vv, v.dockerLabels["agiLabel"])
+					}
+					t.AppendRow(vv)
+				}
 			}
 			fmt.Println(t.Render())
 			if a.opts.Config.Backend.Type != "docker" {
