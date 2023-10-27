@@ -66,7 +66,7 @@ type agiCreateCmd struct {
 }
 
 type agiCreateCmdAws struct {
-	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:"r5a.xlarge"`
+	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:"r6g.xlarge"`
 	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume size GB" default:"40"`
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`

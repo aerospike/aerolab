@@ -172,7 +172,8 @@ func (c *agiDeleteCmd) Execute(args []string) error {
 	a.opts.Cluster.Destroy.Parallel = c.Parallel
 	a.opts.Cluster.Destroy.doDestroy("agi", args)
 	a.opts.Volume.Delete.Name = c.ClusterName.String()
-	return a.opts.Volume.Delete.Execute(args)
+	a.opts.Volume.Delete.Execute(args)
+	return nil
 }
 
 type agiRelabelCmd struct {
