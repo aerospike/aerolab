@@ -265,10 +265,13 @@ func (c *volumeDeleteCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	log.Println("Deleting volume")
-	err := b.DeleteVolume(c.Name)
-	if err != nil {
-		return err
+	vols := strings.Split(c.Name, ",")
+	for _, vol := range vols {
+		log.Printf("Deleting volume %s", vol)
+		err := b.DeleteVolume(vol)
+		if err != nil {
+			return err
+		}
 	}
 	log.Println("Done")
 	return nil
