@@ -1149,6 +1149,8 @@ func gcpTagEnclose(str string) string {
 }
 
 func (d *backendGcp) IsSystemArm(systemType string) (bool, error) {
+	stypes := strings.Split(systemType, "/")
+	systemType = stypes[len(stypes)-1]
 	return strings.HasPrefix(systemType, "t2a"), nil
 }
 
@@ -1703,7 +1705,7 @@ func (d *backendGcp) ListTemplates() ([]backendVersion, error) {
 		}
 		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 			isArm := false
-			if strings.Contains(*image.Architecture, "arm") || strings.Contains(*image.Architecture, "aarch") {
+			if strings.Contains(strings.ToLower(*image.Architecture), "arm") || strings.Contains(strings.ToLower(*image.Architecture), "aarch") {
 				isArm = true
 			}
 			bv = append(bv, backendVersion{
