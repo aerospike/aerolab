@@ -1149,7 +1149,7 @@ func gcpTagEnclose(str string) string {
 }
 
 func (d *backendGcp) IsSystemArm(systemType string) (bool, error) {
-	return strings.HasPrefix(systemType, "t2"), nil
+	return strings.HasPrefix(systemType, "t2a"), nil
 }
 
 func (d *backendGcp) ClusterList() ([]string, error) {
