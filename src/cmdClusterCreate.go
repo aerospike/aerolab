@@ -256,6 +256,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 						return err
 					}
 				}
+				a.opts.Volume.Create.Tags = c.Aws.Tags
 				a.opts.Volume.Create.Owner = c.Owner
 				err = a.opts.Volume.Create.Execute(nil)
 				if err != nil {

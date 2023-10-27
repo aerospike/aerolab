@@ -140,6 +140,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		}
 	}
 	log.Println("Starting AGI deployment...")
+	if c.AGILabel == "" {
+		c.AGILabel = string(c.ClusterName)
+	}
 	a.opts.Cluster.Create.ClusterName = c.ClusterName
 	a.opts.Cluster.Create.NodeCount = 1
 	a.opts.Cluster.Create.CustomConfigFilePath = ""

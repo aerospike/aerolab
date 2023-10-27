@@ -167,6 +167,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 				}
 			}
 			a.opts.Volume.Create.Owner = c.Owner
+			a.opts.Volume.Create.Tags = c.Aws.Tags
 			err = a.opts.Volume.Create.Execute(nil)
 			if err != nil {
 				return nil, err

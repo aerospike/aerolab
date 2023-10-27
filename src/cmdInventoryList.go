@@ -735,11 +735,18 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					if inslice.HasInt(foundVols, voli) {
 						continue
 					}
-					_ = vol
-					// TODO check if ES volume belongs to AGI somehow(?) need an identifying tag
-					// TODO if so, add to row (just the required fields of Name, FsId, FsSize, EFS Owner, AGI Label?)
-					// TODO need to check if we set AGI Label tag on EFS volumes; if not, we should
-					// TODO: if AGI Label is "", we should set it to AGI Name, so it is ALWAYS set
+					if _, ok := vol.Tags["agiLabel"]; !ok {
+						continue
+					}
+					vv := table.Row{vol.Name, vol.FileSystemId, convSize(int64(vol.SizeBytes))}
+					if c.AWSFull {
+						vv = append(vv, vol.AvailabilityZoneName)
+					}
+					vv = append(vv, "", "", "", "", "", "", "")
+					vv = append(vv, vol.Owner)
+					vv = append(vv, "", "")
+					vv = append(vv, vol.Tags["agiLabel"])
+					t.AppendRow(vv)
 				}
 			} else {
 				if a.opts.Config.Backend.Type == "gcp" {
