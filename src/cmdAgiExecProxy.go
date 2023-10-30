@@ -70,6 +70,7 @@ type agiExecProxyCmd struct {
 	slacks3source        string
 	slacksftpsource      string
 	slackcustomsource    string
+	owner                string
 }
 
 type tokens struct {
@@ -193,6 +194,10 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	defer os.Remove("/opt/agi/proxy.pid")
 	if _, err := os.Stat("/opt/agi/label"); err != nil {
 		os.WriteFile("/opt/agi/label", []byte(c.InitialLabel), 0644)
+	}
+	ownerbyte, err := os.ReadFile("/opt/agi/owner")
+	if err == nil {
+		c.owner = string(ownerbyte)
 	}
 	plist, err := ps.Processes()
 	asdRunning := false
@@ -604,7 +609,7 @@ func (c *agiExecProxyCmd) maxUptime() {
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventMaxAge, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *Max age reached, shutting down*", AgiEventMaxAge, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+			c.notify.NotifySlack(AgiEventMaxAge, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *Max age reached, shutting down*", AgiEventMaxAge, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource))
 		}
 	}()
 	time.Sleep(time.Minute)
@@ -671,7 +676,7 @@ func (c *agiExecProxyCmd) spotMonitor() {
 		}
 		c.notify.NotifyJSON(notifyItem)
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-		c.notify.NotifySlack(AgiEventSpotNoCapacity, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *AWS Shutting spot instance down due to capacity restrictions*", AgiEventSpotNoCapacity, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+		c.notify.NotifySlack(AgiEventSpotNoCapacity, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AWS Shutting spot instance down due to capacity restrictions*", AgiEventSpotNoCapacity, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource))
 		time.Sleep(2 * time.Minute)
 		c.shuttingDownMutex.Lock()
 		c.shuttingDown = false
@@ -712,7 +717,7 @@ func (c *agiExecProxyCmd) serviceMonitor() {
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventServiceDown, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *A required service has quit unexpectedly, check: aerolab agi status*", AgiEventServiceDown, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+			c.notify.NotifySlack(AgiEventServiceDown, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *A required service has quit unexpectedly, check: aerolab agi status*", AgiEventServiceDown, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource))
 		} else if notifyUp {
 			notifyItem := &ingest.NotifyEvent{
 				IngestStatus: stat,
@@ -721,7 +726,7 @@ func (c *agiExecProxyCmd) serviceMonitor() {
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventServiceUp, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *A required service has started back up, check: aerolab agi status*", AgiEventServiceUp, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+			c.notify.NotifySlack(AgiEventServiceUp, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *A required service has started back up, check: aerolab agi status*", AgiEventServiceUp, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource))
 		}
 	}
 }
@@ -774,7 +779,7 @@ func (c *agiExecProxyCmd) activityMonitor() {
 					}
 					c.notify.NotifyJSON(notifyItem)
 					slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-					c.notify.NotifySlack(AgiEventMaxInactive, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s\n> *Max inactivity reached, shutting instance down*", AgiEventMaxInactive, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.slacks3source, c.slacksftpsource, c.slackcustomsource))
+					c.notify.NotifySlack(AgiEventMaxInactive, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *Max inactivity reached, shutting instance down*", AgiEventMaxInactive, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource))
 				}
 			}()
 			time.Sleep(time.Minute)

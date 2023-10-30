@@ -2,6 +2,9 @@ set -e
 override=%s
 mkdir -p /opt/agi/aerospike/data
 mkdir -p /opt/agi/aerospike/smd
+cat <<'EOF' > /opt/agi/owner
+%s
+EOF
 apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
 chmod 755 /usr/local/bin/aerolab
 aerolab config backend -t none
