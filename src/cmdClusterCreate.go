@@ -697,7 +697,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 	}
 	log.Print("Starting deployment")
-	if a.opts.Config.Backend.Type == "gcp" {
+	if a.opts.Config.Backend.Type != "aws" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
 		extra.labels = append(extra.labels, "owner="+c.Owner)
 	} else {
