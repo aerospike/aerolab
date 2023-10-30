@@ -14,7 +14,7 @@ service {
     work-directory /opt/agi/aerospike
 }
 logging {
-    console {
+    file /var/log/agi-aerospike.log {
         context any info
     }
 }

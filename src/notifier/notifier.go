@@ -50,7 +50,7 @@ func (h *HTTPSNotify) Close() {
 	h.wg.Wait()
 }
 
-func (h *HTTPSNotify) NotifySlack(event string, message string) {
+func (h *HTTPSNotify) NotifySlack(event string, message string, threadedMessage string) {
 	if h.slack == nil {
 		return
 	}
@@ -60,9 +60,14 @@ func (h *HTTPSNotify) NotifySlack(event string, message string) {
 	h.wg.Add(1)
 	go func() {
 		defer h.wg.Done()
-		err := h.slack.Send(message)
+		thrId, err := h.slack.Send(nil, message)
 		if err != nil {
 			log.Println(err)
+		} else if threadedMessage != "" {
+			_, err = h.slack.Send(thrId, threadedMessage)
+			if err != nil {
+				log.Println(err)
+			}
 		}
 	}()
 }
