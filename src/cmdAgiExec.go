@@ -262,6 +262,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 	}
 	// notifier load start
+	owner := ""
+	ownerbyte, err := os.ReadFile("/opt/agi/owner")
+	if err == nil {
+		owner = string(ownerbyte)
+	}
 	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
 	if err == nil {
 		yaml.Unmarshal(nstring, &c.notify)
@@ -310,7 +315,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			return fmt.Errorf("notify: %s", err)
 		}
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-		c.notify.NotifySlack(AgiEventInitComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventInitComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+		c.notify.NotifySlack(AgiEventInitComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventInitComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource))
 	}
 	if !steps.Download {
 		err = i.Download()
@@ -338,7 +343,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				return fmt.Errorf("notify: %s", err)
 			}
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventDownloadComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventDownloadComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+			c.notify.NotifySlack(AgiEventDownloadComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventDownloadComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource))
 		}
 		if c.YamlFile != "" {
 			// rewrite, redacting passwords for sources
@@ -396,7 +401,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				return fmt.Errorf("notify: %s", err)
 			}
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventUnpackComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventUnpackComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+			c.notify.NotifySlack(AgiEventUnpackComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventUnpackComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource))
 		}
 	}
 	if !steps.PreProcess {
@@ -427,7 +432,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				return fmt.Errorf("notify: %s", err)
 			}
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventPreProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventPreProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+			c.notify.NotifySlack(AgiEventPreProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventPreProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource))
 		}
 	}
 	nerr := []error{}
@@ -482,7 +487,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				return fmt.Errorf("notify: %s", err)
 			}
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+			c.notify.NotifySlack(AgiEventProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource))
 		}
 	}
 	if len(nerr) > 0 {
@@ -507,7 +512,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			return fmt.Errorf("notify: %s", err)
 		}
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-		c.notify.NotifySlack(AgiEventIngestFinish, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventIngestFinish, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+		c.notify.NotifySlack(AgiEventIngestFinish, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventIngestFinish, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource))
 	}
 	return nil
 }

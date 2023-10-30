@@ -553,9 +553,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		override = "0"
 	}
 	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, override, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	} else {
-		installScript = fmt.Sprintf(agiCreateScript, override, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScript, override, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 
