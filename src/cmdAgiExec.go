@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -262,6 +263,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 	}
 	// notifier load start
+	owner := ""
+	ownerbyte, err := os.ReadFile("/opt/agi/owner")
+	if err == nil {
+		owner = strings.Trim(string(ownerbyte), "\r\n\t ")
+	}
 	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
 	if err == nil {
 		yaml.Unmarshal(nstring, &c.notify)
@@ -282,6 +288,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	if config.CustomSourceName != "" {
 		slackcustomsource = fmt.Sprintf("\n> *Custom Source*: %s", config.CustomSourceName)
 	}
+	slackAccessDetails := fmt.Sprintf("Attach:\n  `aerolab agi attach -n %s`\nGet Web URL:\n  `aerolab agi list`\nGet Detailed Status:\n  `aerolab agi status -n %s`\nGet auth token:\n  `aerolab agi add-auth-token -n %s`\nChange Label:\n  `aerolab agi change-label -n %s -l \"new label\"`\nShow AGI Logs (troubleshoot):\n  `aerolab agi attach -n %s -- bash -c 'tail -f /var/log/agi-*'`\nDestroy:\n  `aerolab agi destroy -f -n %s`\nDestroy and remove volume (AWS EFS only):\n  `aerolab agi delete -f -n %s`", c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName)
 	// end slack notifier vars
 	i, err := ingest.Init(config)
 	if err != nil {
@@ -310,7 +317,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			return fmt.Errorf("notify: %s", err)
 		}
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-		c.notify.NotifySlack(AgiEventInitComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventInitComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+		c.notify.NotifySlack(AgiEventInitComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventInitComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 	}
 	if !steps.Download {
 		err = i.Download()
@@ -338,7 +345,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				return fmt.Errorf("notify: %s", err)
 			}
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventDownloadComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventDownloadComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+			c.notify.NotifySlack(AgiEventDownloadComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventDownloadComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 		if c.YamlFile != "" {
 			// rewrite, redacting passwords for sources
@@ -396,7 +403,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				return fmt.Errorf("notify: %s", err)
 			}
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventUnpackComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventUnpackComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+			c.notify.NotifySlack(AgiEventUnpackComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventUnpackComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 	}
 	if !steps.PreProcess {
@@ -427,7 +434,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				return fmt.Errorf("notify: %s", err)
 			}
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventPreProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventPreProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+			c.notify.NotifySlack(AgiEventPreProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventPreProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 	}
 	nerr := []error{}
@@ -482,7 +489,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				return fmt.Errorf("notify: %s", err)
 			}
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-			c.notify.NotifySlack(AgiEventProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+			c.notify.NotifySlack(AgiEventProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 	}
 	if len(nerr) > 0 {
@@ -507,7 +514,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			return fmt.Errorf("notify: %s", err)
 		}
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
-		c.notify.NotifySlack(AgiEventIngestFinish, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s%s%s%s", AgiEventIngestFinish, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), slacks3source, slacksftpsource, slackcustomsource))
+		c.notify.NotifySlack(AgiEventIngestFinish, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventIngestFinish, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 	}
 	return nil
 }

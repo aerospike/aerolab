@@ -21,17 +21,35 @@ type slackMsg struct {
 	Text    string `json:"text"`
 }
 
-func (s *Slack) Send(message string) error {
-	reqStruct := new(slackMsg)
-	reqStruct.Channel = s.Channel
-	reqStruct.Text = message
-	reqBody, err := json.Marshal(reqStruct)
-	if err != nil {
-		return err
+type slackMsgThreaded struct {
+	Channel  string `json:"channel"`
+	Text     string `json:"text"`
+	ThreadTs string `json:"thread_ts"`
+}
+
+func (s *Slack) Send(threadId *string, message string) (newThreadId *string, err error) {
+	var reqBody []byte
+	if threadId == nil {
+		reqStruct := new(slackMsg)
+		reqStruct.Channel = s.Channel
+		reqStruct.Text = message
+		reqBody, err = json.Marshal(reqStruct)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		reqStruct := new(slackMsgThreaded)
+		reqStruct.Channel = s.Channel
+		reqStruct.Text = message
+		reqStruct.ThreadTs = *threadId
+		reqBody, err = json.Marshal(reqStruct)
+		if err != nil {
+			return nil, err
+		}
 	}
 	req, err := http.NewRequest("POST", "https://slack.com/api/chat.postMessage", bytes.NewReader(reqBody))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.Token))
@@ -41,7 +59,7 @@ func (s *Slack) Send(message string) error {
 	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
@@ -50,9 +68,22 @@ func (s *Slack) Send(message string) error {
 		if err != nil {
 			body = nil
 		}
-		return fmt.Errorf("status code: %d ; message: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("status code: %d ; message: %s", resp.StatusCode, string(body))
 	}
-	return nil
+	r := new(response)
+	var body []byte
+	body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(body, r)
+	if err != nil {
+		return nil, err
+	}
+	if !r.OK {
+		return nil, errors.New(string(body))
+	}
+	return &r.TS, nil
 }
 
 type join struct {
