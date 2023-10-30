@@ -66,7 +66,7 @@ type agiCreateCmd struct {
 }
 
 type agiCreateCmdAws struct {
-	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:"r5a.xlarge"`
+	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use; default in order, as available: edition: g/a/i, family:r7/r6/r5, size:xlarge"`
 	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume size GB" default:"40"`
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
@@ -82,7 +82,7 @@ type agiCreateCmdAws struct {
 }
 
 type agiCreateCmdGcp struct {
-	InstanceType string        `long:"instance" description:"instance type to use" default:"e2-highmem-4"`
+	InstanceType string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
 	Disks        []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
 	Zone         string        `long:"zone" description:"zone name to deploy to"`
 	Tags         []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
@@ -139,7 +139,72 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			return fmt.Errorf("%s is not accessible: %s", fn, err)
 		}
 	}
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.InstanceType == "" {
+		log.Println("Resolving supported Instance Type")
+		sup := make([]bool, 8)
+		itypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, true, "")
+		if err != nil {
+			sup[0] = true
+		} else {
+			for _, itype := range itypes {
+				switch itype.InstanceName {
+				case "r7g.xlarge":
+					sup[0] = true
+				case "r6g.xlarge":
+					sup[1] = true
+				}
+			}
+		}
+		itypes, err = b.GetInstanceTypes(0, 0, 0, 0, 0, 0, false, "")
+		if err != nil {
+			sup[2] = true
+		} else {
+			for _, itype := range itypes {
+				switch itype.InstanceName {
+				case "r7a.xlarge":
+					sup[2] = true
+				case "r7i.xlarge":
+					sup[3] = true
+				case "r6a.xlarge":
+					sup[4] = true
+				case "r6i.xlarge":
+					sup[5] = true
+				case "r5a.xlarge":
+					sup[6] = true
+				case "r5.xlarge":
+					sup[7] = true
+				}
+			}
+		}
+		for i := range sup {
+			if !sup[i] {
+				continue
+			}
+			switch i {
+			case 0:
+				c.Aws.InstanceType = "r7g.xlarge"
+			case 1:
+				c.Aws.InstanceType = "r6g.xlarge"
+			case 2:
+				c.Aws.InstanceType = "r7a.xlarge"
+			case 3:
+				c.Aws.InstanceType = "r7i.xlarge"
+			case 4:
+				c.Aws.InstanceType = "r6a.xlarge"
+			case 5:
+				c.Aws.InstanceType = "r6i.xlarge"
+			case 6:
+				c.Aws.InstanceType = "r5a.xlarge"
+			case 7:
+				c.Aws.InstanceType = "r5.xlarge"
+			}
+			break
+		}
+	}
 	log.Println("Starting AGI deployment...")
+	if c.AGILabel == "" {
+		c.AGILabel = string(c.ClusterName)
+	}
 	a.opts.Cluster.Create.ClusterName = c.ClusterName
 	a.opts.Cluster.Create.NodeCount = 1
 	a.opts.Cluster.Create.CustomConfigFilePath = ""
@@ -210,9 +275,17 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Docker.NetworkName = c.Docker.NetworkName
 	a.opts.Cluster.Create.Docker.ClientType = strconv.Itoa(int(ClusterFeatureAGI))
 	a.opts.Cluster.Create.Docker.Labels = []string{"agiLabel=" + c.AGILabel}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("could not get current working directory: %s", err)
+	}
 	err = a.opts.Cluster.Create.realExecute2(args, false)
 	if err != nil {
 		return err
+	}
+	err = os.Chdir(cwd)
+	if err != nil {
+		return fmt.Errorf("could not recover current working directory: %s", err)
 	}
 
 	log.Println("Cluster Node created, continuing AGI deployment...")
@@ -480,9 +553,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		override = "0"
 	}
 	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, override, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	} else {
-		installScript = fmt.Sprintf(agiCreateScript, override, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScript, override, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 

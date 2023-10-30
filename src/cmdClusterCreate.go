@@ -256,6 +256,8 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 						return err
 					}
 				}
+				a.opts.Volume.Create.Tags = c.Aws.Tags
+				a.opts.Volume.Create.Owner = c.Owner
 				err = a.opts.Volume.Create.Execute(nil)
 				if err != nil {
 					return err
@@ -386,15 +388,23 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	}
 
 	// arm fill
-	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
-	if err != nil {
-		return fmt.Errorf("IsSystemArm check: %s", err)
+	if a.opts.Config.Backend.Type == "aws" {
+		c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+		if err != nil {
+			return fmt.Errorf("IsSystemArm check: %s", err)
+		}
+		isArm = c.Aws.IsArm
 	}
-	c.Gcp.IsArm = c.Aws.IsArm
+	if a.opts.Config.Backend.Type == "gcp" {
+		c.Gcp.IsArm, err = b.IsSystemArm(c.Gcp.InstanceType)
+		if err != nil {
+			return fmt.Errorf("IsSystemArm check: %s", err)
+		}
+		isArm = c.Gcp.IsArm
+	}
 
 	// if we need to lookup version, do it
 	var url string
-	isArm = c.Aws.IsArm
 	if b.Arch() == TypeArchAmd {
 		isArm = false
 	}
@@ -687,7 +697,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 	}
 	log.Print("Starting deployment")
-	if a.opts.Config.Backend.Type == "gcp" {
+	if a.opts.Config.Backend.Type != "aws" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
 		extra.labels = append(extra.labels, "owner="+c.Owner)
 	} else {
