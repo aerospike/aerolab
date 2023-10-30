@@ -234,7 +234,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		isArm:            isArm,
 	}
 	log.Printf("Distro: %s Version: %s", string(c.DistroName), string(c.DistroVersion))
-	if a.opts.Config.Backend.Type == "gcp" {
+	if a.opts.Config.Backend.Type != "aws" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
 		extra.labels = append(extra.labels, "owner="+c.Owner)
 	} else {

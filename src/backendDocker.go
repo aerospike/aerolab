@@ -229,6 +229,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					Features:           FeatureSystem(features),
 					AGILabel:           allLabels["agiLabel"],
 					dockerLabels:       allLabels,
+					Owner:              allLabels["owner"],
 				})
 			} else {
 				ij.Clients = append(ij.Clients, inventoryClient{
@@ -247,6 +248,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					DockerExposePorts:  exposePorts,
 					DockerInternalPort: intPorts,
 					dockerLabels:       allLabels,
+					Owner:              allLabels["owner"],
 				})
 			}
 		}
