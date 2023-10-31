@@ -79,6 +79,7 @@ type agiCreateCmdAws struct {
 	TerminateOnPoweroff bool          `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself (or it reaches max inactive/uptime), it will be stopped AND terminated"`
 	SpotInstance        bool          `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	EFSExpires          time.Duration `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired" default:"96h"`
 }
 
 type agiCreateCmdGcp struct {
@@ -244,6 +245,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		a.opts.Cluster.Create.Aws.EFSCreate = true
 		a.opts.Cluster.Create.Aws.EFSOneZone = !c.Aws.EFSMultiZone
 		a.opts.Cluster.Create.Aws.EFSMount = c.Aws.EFSName + ":" + c.Aws.EFSPath + ":" + "/opt/agi"
+		a.opts.Cluster.Create.Aws.EFSExpires = c.Aws.EFSExpires
 	}
 	a.opts.Cluster.Create.Aws.TerminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	a.opts.Cluster.Create.Aws.SpotInstance = c.Aws.SpotInstance

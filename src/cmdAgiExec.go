@@ -288,7 +288,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	if config.CustomSourceName != "" {
 		slackcustomsource = fmt.Sprintf("\n> *Custom Source*: %s", config.CustomSourceName)
 	}
-	slackAccessDetails := fmt.Sprintf("Attach:\n  `aerolab agi attach -n %s`\nGet Web URL:\n  `aerolab agi list`\nGet Detailed Status:\n  `aerolab agi status -n %s`\nGet auth token:\n  `aerolab agi add-auth-token -n %s`\nChange Label:\n  `aerolab agi change-label -n %s -l \"new label\"`\nShow AGI Logs (troubleshoot):\n  `aerolab agi attach -n %s -- bash -c 'tail -f /var/log/agi-*'`\nDestroy:\n  `aerolab agi destroy -f -n %s`\nDestroy and remove volume (AWS EFS only):\n  `aerolab agi delete -f -n %s`", c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName)
+	slackAccessDetails := fmt.Sprintf("Attach:\n  `aerolab agi attach -n %s`\nGet Web URL:\n  `aerolab agi list`\nGet Detailed Status:\n  `aerolab agi status -n %s`\nGet auth token:\n  `aerolab agi add-auth-token -n %s`\nChange Label:\n  `aerolab agi change-label -n %s -l \"new label\"`\nDestroy:\n  `aerolab agi destroy -f -n %s`\nDestroy and remove volume (AWS EFS only):\n  `aerolab agi delete -f -n %s`", c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName, c.AGIName)
 	// end slack notifier vars
 	i, err := ingest.Init(config)
 	if err != nil {

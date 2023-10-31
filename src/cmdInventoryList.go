@@ -545,8 +545,26 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetHeaders()
 			t.ResetRows()
 			t.ResetFooters()
-			t.AppendHeader(table.Row{"Name", "Volume AZ", "FsID", "Created", "Size", "Mount Targets", "Mount Target Id", "Mount Target AZ", "Owner", "AGI Label"})
+			t.AppendHeader(table.Row{"Name", "Volume AZ", "FsID", "Created", "Size", "Expires In", "Mount Targets", "Mount Target Id", "Mount Target AZ", "Owner", "AGI Label"})
 			for _, v := range inv.Volumes {
+				expiry := ""
+				if lastUsed, ok := v.Tags["lastUsed"]; ok {
+					if expireDuration, ok := v.Tags["expireDuration"]; ok {
+						lu, err := time.Parse(time.RFC3339, lastUsed)
+						if err == nil {
+							ed, err := time.ParseDuration(expireDuration)
+							if err == nil {
+								expiresTime := lu.Add(ed)
+								expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+								if expiresIn < 6*time.Hour {
+									expiry = errExp.Sprintf("%s", expiresIn.Round(time.Minute))
+								} else {
+									expiry = expiresIn.Round(time.Minute).String()
+								}
+							}
+						}
+					}
+				}
 				for _, m := range v.MountTargets {
 					vv := table.Row{
 						v.Name,
@@ -554,6 +572,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						v.FileSystemId,
 						v.CreationTime.Format(time.RFC822),
 						convSize(int64(v.SizeBytes)),
+						expiry,
 						strconv.Itoa(v.NumberOfMountTargets),
 						m.MountTargetId,
 						m.AvailabilityZoneId,
@@ -569,6 +588,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						v.FileSystemId,
 						v.CreationTime.Format(time.RFC822),
 						convSize(int64(v.SizeBytes)),
+						expiry,
 						strconv.Itoa(v.NumberOfMountTargets),
 						"N/A",
 						"N/A",
@@ -591,9 +611,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendHeader(table.Row{"AGI Name", "Status", "Access URL", "Expires In", "Zone", "Private IP", "Public IP", "State", "Firewalls", "Owner", "Instance Running Cost", "AGI Label"})
 				} else if a.opts.Config.Backend.Type == "aws" {
 					if c.AWSFull {
-						t.AppendHeader(table.Row{"AGI Name", "EFS ID", "EFS Size", "Region", "Status", "Access URL", "Expires In", "Private IP", "Public IP", "State", "Firewalls", "EFS Owner", "Owner", "Instance Running Cost", "AGI Label"})
+						t.AppendHeader(table.Row{"AGI Name", "EFS ID", "EFS Size", "EFS Expires", "Region", "Status", "Access URL", "Expires In", "Private IP", "Public IP", "State", "Firewalls", "EFS Owner", "Owner", "Instance Running Cost", "AGI Label"})
 					} else {
-						t.AppendHeader(table.Row{"AGI Name", "EFS ID", "EFS Size", "Status", "Access URL", "Expires In", "Private IP", "Public IP", "State", "Firewalls", "EFS Owner", "Owner", "Instance Running Cost", "AGI Label"})
+						t.AppendHeader(table.Row{"AGI Name", "EFS ID", "EFS Size", "EFS Expires", "Status", "Access URL", "Expires In", "Private IP", "Public IP", "State", "Firewalls", "EFS Owner", "Owner", "Instance Running Cost", "AGI Label"})
 					}
 				} else {
 					t.AppendHeader(table.Row{"AGI Name", "Status", "Access URL", "Private IP", "Public IP", "State", "Firewalls", "Owner", "AGI Label"})
@@ -663,16 +683,34 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					if a.opts.Config.Backend.Type == "aws" {
 						fsId := ""
 						fsSize := ""
+						expiry := ""
 						for voli, vol := range inv.Volumes {
 							if vol.Name == v.ClusterName {
 								foundVols = append(foundVols, voli)
 								fsId = vol.FileSystemId
 								fsSize = convSize(int64(vol.SizeBytes))
 								efsOwner = vol.Owner
+								if lastUsed, ok := vol.Tags["lastUsed"]; ok {
+									if expireDuration, ok := vol.Tags["expireDuration"]; ok {
+										lu, err := time.Parse(time.RFC3339, lastUsed)
+										if err == nil {
+											ed, err := time.ParseDuration(expireDuration)
+											if err == nil {
+												expiresTime := lu.Add(ed)
+												expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+												if expiresIn < 6*time.Hour {
+													expiry = errExp.Sprintf("%s", expiresIn.Round(time.Minute))
+												} else {
+													expiry = expiresIn.Round(time.Minute).String()
+												}
+											}
+										}
+									}
+								}
 								break
 							}
 						}
-						vv = append(vv, fsId, fsSize)
+						vv = append(vv, fsId, fsSize, expiry)
 					}
 					if c.AWSFull {
 						vv = append(vv, v.Zone)
@@ -739,6 +777,25 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						continue
 					}
 					vv := table.Row{vol.Name, vol.FileSystemId, convSize(int64(vol.SizeBytes))}
+					expiry := ""
+					if lastUsed, ok := vol.Tags["lastUsed"]; ok {
+						if expireDuration, ok := vol.Tags["expireDuration"]; ok {
+							lu, err := time.Parse(time.RFC3339, lastUsed)
+							if err == nil {
+								ed, err := time.ParseDuration(expireDuration)
+								if err == nil {
+									expiresTime := lu.Add(ed)
+									expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+									if expiresIn < 6*time.Hour {
+										expiry = errExp.Sprintf("%s", expiresIn.Round(time.Minute))
+									} else {
+										expiry = expiresIn.Round(time.Minute).String()
+									}
+								}
+							}
+						}
+					}
+					vv = append(vv, expiry)
 					if c.AWSFull {
 						vv = append(vv, vol.AvailabilityZoneName)
 					}

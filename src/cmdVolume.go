@@ -47,11 +47,12 @@ func (c *volumeListCmd) Execute(args []string) error {
 }
 
 type volumeCreateCmd struct {
-	Name  string   `short:"n" long:"name" description:"EFS Name" default:"agi"`
-	Zone  string   `short:"z" long:"zone" description:"Full Availability Zone name; if provided, will define a one-zone volume; default {REGION}a"`
-	Tags  []string `short:"t" long:"tag" description:"tag as key=value; can be specified multiple times"`
-	Owner string   `short:"o" long:"owner" description:"set owner tag to the specified value"`
-	Help  helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Name    string        `short:"n" long:"name" description:"EFS Name" default:"agi"`
+	Zone    string        `short:"z" long:"zone" description:"Full Availability Zone name; if provided, will define a one-zone volume; default {REGION}a"`
+	Tags    []string      `short:"t" long:"tag" description:"tag as key=value; can be specified multiple times"`
+	Owner   string        `short:"o" long:"owner" description:"set owner tag to the specified value"`
+	Expires time.Duration `short:"e" long:"expire" description:"expire the volume if 'mount' against the volume has not been executed for this long"`
+	Help    helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *volumeCreateCmd) Execute(args []string) error {
@@ -62,7 +63,7 @@ func (c *volumeCreateCmd) Execute(args []string) error {
 	if c.Owner != "" {
 		c.Tags = append(c.Tags, "aerolab7owner="+c.Owner)
 	}
-	err := b.CreateVolume(c.Name, c.Zone, c.Tags)
+	err := b.CreateVolume(c.Name, c.Zone, c.Tags, c.Expires)
 	if err != nil {
 		return err
 	}
@@ -160,6 +161,10 @@ func (c *volumeMountCmd) Execute(args []string) error {
 				return err
 			}
 		}
+	}
+	err = b.TagVolume(volume.FileSystemId, "lastUsed", time.Now().Format(time.RFC3339))
+	if err != nil {
+		return err
 	}
 	if c.IsClient {
 		b.WorkOnClients()

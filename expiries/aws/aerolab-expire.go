@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/efs"
 )
 
 type MyEvent struct{}
@@ -83,22 +84,102 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 		}
 	}
 
-	// exit if no instances found to delete
+	// expire if found
 	log.Printf("Enumerated through %d instances, shutting down %d instances", enumCount, len(deleteList))
-	if len(deleteList) == 0 {
-		return MyResponse{Message: "Completed", Status: "OK"}, nil
+	if len(deleteList) > 0 {
+		// expire instances
+		for _, del := range deleteListForLog {
+			log.Printf("Removing: %s", del)
+		}
+		_, err = svc.TerminateInstances(&ec2.TerminateInstancesInput{
+			InstanceIds: aws.StringSlice(deleteList),
+		})
+		if err != nil {
+			return makeErrorResponse("Could not terminate instances: ", err)
+		}
 	}
 
-	// expire instances
-	for _, del := range deleteListForLog {
-		log.Printf("Removing: %s", del)
-	}
-	_, err = svc.TerminateInstances(&ec2.TerminateInstancesInput{
-		InstanceIds: aws.StringSlice(deleteList),
+	//// EXPIRE EFS
+	fsList := []string{}
+	mtList := []string{}
+	fsCount := 0
+	efsSvc := efs.New(sess)
+	err = efsSvc.DescribeFileSystemsPages(&efs.DescribeFileSystemsInput{}, func(vol *efs.DescribeFileSystemsOutput, lastPage bool) bool {
+		for _, fs := range vol.FileSystems {
+			fsCount++
+			allTags := make(map[string]string)
+			for _, tag := range fs.Tags {
+				allTags[*tag.Key] = *tag.Value
+			}
+			if lastUsed, ok := allTags["lastUsed"]; ok {
+				if expireDuration, ok := allTags["expireDuration"]; ok {
+					lu, err := time.Parse(time.RFC3339, lastUsed)
+					if err == nil && !lu.IsZero() {
+						ed, err := time.ParseDuration(expireDuration)
+						if err == nil && ed > 0 {
+							expiresTime := lu.Add(ed)
+							if expiresTime.Before(time.Now()) {
+								fsList = append(fsList, aws.StringValue(fs.FileSystemId))
+								if aws.Int64Value(fs.NumberOfMountTargets) > 0 {
+									mts, err := efsSvc.DescribeMountTargets(&efs.DescribeMountTargetsInput{
+										FileSystemId: aws.String(*fs.FileSystemId),
+									})
+									if err != nil {
+										continue
+									}
+									for _, mt := range mts.MountTargets {
+										mtList = append(mtList, aws.StringValue(mt.MountTargetId))
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return true
 	})
 	if err != nil {
-		return makeErrorResponse("Could not terminate instances: ", err)
+		return makeErrorResponse("Could not list EFS: ", err)
 	}
+
+	log.Printf("Enumerated through %d EFS, shutting down %d EFS", fsCount, len(fsList))
+	if len(fsList) > 0 {
+		// expire volumes
+		for _, del := range mtList {
+			log.Printf("Removing: %s", del)
+			_, err = efsSvc.DeleteMountTarget(&efs.DeleteMountTargetInput{
+				MountTargetId: aws.String(del),
+			})
+			if err != nil {
+				return makeErrorResponse("Could not delete EFS mount target: ", err)
+			}
+		}
+		for _, del := range fsList {
+			for {
+				time.Sleep(5 * time.Second)
+				targets, err := efsSvc.DescribeMountTargets(&efs.DescribeMountTargetsInput{
+					FileSystemId: aws.String(del),
+				})
+				if err != nil {
+					return makeErrorResponse("error waiting on mount targets to be deleted: ", err)
+				}
+				if len(targets.MountTargets) == 0 {
+					break
+				}
+			}
+		}
+		for _, del := range fsList {
+			log.Printf("Removing: %s", del)
+			_, err = efsSvc.DeleteFileSystem(&efs.DeleteFileSystemInput{
+				FileSystemId: aws.String(del),
+			})
+			if err != nil {
+				return makeErrorResponse("Could not delete EFS volume: ", err)
+			}
+		}
+	}
+
 	return MyResponse{Message: "Completed", Status: "OK"}, nil
 }
 
