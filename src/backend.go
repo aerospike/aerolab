@@ -264,7 +264,6 @@ type inventoryCluster struct {
 	awsSubnet              string
 	awsSecGroups           []string
 	AwsIsSpot              bool
-	TerminationProtection  bool
 }
 
 type FeatureSystem int64
@@ -320,7 +319,6 @@ type inventoryClient struct {
 	awsSubnet              string
 	awsSecGroups           []string
 	AwsIsSpot              bool
-	TerminationProtection  bool
 }
 
 type inventoryTemplate struct {
