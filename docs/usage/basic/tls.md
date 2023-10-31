@@ -28,6 +28,8 @@ aerolab aerospike restart -n mytest
 
 ### Connect using AQL
 
+Note: if using Docker Desktop, first run `aerolab cluster list` and grab the `ExposedPort` for node 1. Use that instead of `4333`.
+
 ```bash
 aerolab attach shell -n mytest
 
