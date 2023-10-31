@@ -2060,6 +2060,7 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 		}
 	}
 	if len(instanceIds) > 0 {
+		log.Printf("Terminate command sent to %d instances, waiting for AWS to finish terminating", len(instanceIds))
 		d.ec2svc.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
 			DryRun:      aws.Bool(false),
 			InstanceIds: instanceIds,

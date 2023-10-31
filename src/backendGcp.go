@@ -1672,6 +1672,9 @@ func (d *backendGcp) ClusterDestroy(name string, nodes []int) error {
 			ctx: ctx,
 		})
 	}
+	if len(ops) > 0 {
+		log.Printf("Terminate command sent to %d instances, waiting for GCP to finish terminating", len(ops))
+	}
 	for _, o := range ops {
 		if err = o.op.Wait(o.ctx); err != nil {
 			return fmt.Errorf("unable to wait for the operation: %w", err)
