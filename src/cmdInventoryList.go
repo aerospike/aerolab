@@ -409,7 +409,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		if a.opts.Config.Backend.Type == "gcp" {
 			t.AppendHeader(table.Row{"ClusterName", "NodeNo", "ExpiresIn", "State", "PublicIP", "PrivateIP", "Owner", "AsdVer", "RunningCost", "Firewalls", "Arch", "Distro", "DistroVer", "Zone", "InstanceID"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			t.AppendHeader(table.Row{"ClusterName", "NodeNo", "ExpiresIn", "State", "PublicIP", "PrivateIP", "Owner", "AsdVer", "RunningCost", "Firewalls", "Arch", "Distro", "DistroVer", "Region", "InstanceID"})
+			t.AppendHeader(table.Row{"ClusterName", "NodeNo", "ExpiresIn", "State", "PublicIP", "PrivateIP", "Owner", "AsdVer", "RunningCost", "Firewalls", "Arch", "Distro", "DistroVer", "Region", "InstanceID", "TerminationProtection"})
 		} else {
 			t.AppendHeader(table.Row{"ClusterName", "NodeNo", "State", "PublicIP", "PrivateIP", "ExposedPort", "Owner", "AsdVer", "Arch", "Distro", "DistroVer", "InstanceID", "ImageID"})
 		}
@@ -461,6 +461,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if a.opts.Config.Backend.Type == "docker" {
 				vv = append(vv, v.ImageId)
 			}
+			if a.opts.Config.Backend.Type == "aws" {
+				vv = append(vv, v.TerminationProtection)
+			}
 			t.AppendRow(vv)
 		}
 		fmt.Println(t.Render())
@@ -480,7 +483,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		if a.opts.Config.Backend.Type == "gcp" {
 			t.AppendHeader(table.Row{"ClusterName", "NodeNo", "ExpiresIn", "State", "PublicIP", "PrivateIP", "ClientType", "AccessURL", "AccessPort", "Owner", "AsdVer", "RunningCost", "Firewalls", "Arch", "Distro", "DistroVer", "Zone", "InstanceID"})
 		} else if a.opts.Config.Backend.Type == "aws" {
-			t.AppendHeader(table.Row{"ClusterName", "NodeNo", "ExpiresIn", "State", "PublicIP", "PrivateIP", "ClientType", "AccessURL", "AccessPort", "Owner", "AsdVer", "RunningCost", "Firewalls", "Arch", "Distro", "DistroVer", "Region", "InstanceID"})
+			t.AppendHeader(table.Row{"ClusterName", "NodeNo", "ExpiresIn", "State", "PublicIP", "PrivateIP", "ClientType", "AccessURL", "AccessPort", "Owner", "AsdVer", "RunningCost", "Firewalls", "Arch", "Distro", "DistroVer", "Region", "InstanceID", "TerminationProtection"})
 		} else {
 			t.AppendHeader(table.Row{"ClusterName", "NodeNo", "State", "PublicIP", "PrivateIP", "ClientType", "AccessURL", "AccessPort", "Owner", "AsdVer", "Arch", "Distro", "DistroVer", "InstanceID", "ImageID"})
 		}
@@ -525,6 +528,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			vv = append(vv, v.InstanceId)
 			if a.opts.Config.Backend.Type == "docker" {
 				vv = append(vv, v.ImageId)
+			}
+			if a.opts.Config.Backend.Type == "aws" {
+				vv = append(vv, v.TerminationProtection)
 			}
 			t.AppendRow(vv)
 		}
@@ -607,7 +613,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				if a.opts.Config.Backend.Type == "gcp" {
 					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Zone", "InstanceID", "ExpiryTs"})
 				} else if a.opts.Config.Backend.Type == "aws" {
-					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "VolOwner", "Owner", "Access URL", "AGILabel", "VolSize", "VolExpires", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "VolID", "InstanceID", "ExpiryTs", "VolExpiryTs"})
+					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "VolOwner", "Owner", "Access URL", "AGILabel", "VolSize", "VolExpires", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "VolID", "InstanceID", "ExpiryTs", "VolExpiryTs", "TerminationProtection"})
 				} else {
 					t.AppendHeader(table.Row{"Name", "State", "Status", "Owner", "Access URL", "AGILabel", "PublicIP", "PrivateIP", "InstanceID", "ImageID"})
 				}
@@ -776,6 +782,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					if a.opts.Config.Backend.Type == "aws" {
 						vv = append(vv, volExp.Unix())
 					}
+					if a.opts.Config.Backend.Type == "aws" {
+						vv = append(vv, v.TerminationProtection)
+					}
 					t.AppendRow(vv)
 				}
 				for voli, vol := range inv.Volumes {
@@ -805,14 +814,14 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 							}
 						}
 					}
-					vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags["agiLabel"], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix()}
+					vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags["agiLabel"], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix(), ""}
 					t.AppendRow(vv)
 				}
 			} else {
 				if a.opts.Config.Backend.Type == "gcp" {
 					t.AppendHeader(table.Row{"Name", "State", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Zone", "InstanceID", "ExpiryTs"})
 				} else if a.opts.Config.Backend.Type == "aws" {
-					t.AppendHeader(table.Row{"Name", "State", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "InstanceID", "ExpiryTs"})
+					t.AppendHeader(table.Row{"Name", "State", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "InstanceID", "ExpiryTs", "TerminationProtection"})
 				} else {
 					t.AppendHeader(table.Row{"Name", "State", "Owner", "Access URL", "AGILabel", "PublicIP", "PrivateIP", "InstanceID", "ImageID"})
 				}
@@ -871,6 +880,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					} else {
 						expirationTime, _ := time.Parse(time.RFC3339, v.Expires)
 						vv = append(vv, expirationTime.Unix())
+					}
+					if a.opts.Config.Backend.Type == "aws" {
+						vv = append(vv, v.TerminationProtection)
 					}
 					t.AppendRow(vv)
 				}

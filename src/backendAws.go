@@ -1144,54 +1144,64 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					if spot, ok := allTags["aerolab7spot"]; ok && spot == "true" {
 						isSpot = true
 					}
+					prot := false
+					attr, err := d.ec2svc.DescribeInstanceAttribute(&ec2.DescribeInstanceAttributeInput{
+						Attribute:  aws.String(ec2.InstanceAttributeNameDisableApiTermination),
+						InstanceId: instance.InstanceId,
+					})
+					if err == nil {
+						prot = aws.BoolValue(attr.DisableApiTermination.Value)
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
-							ClusterName:         clusterName,
-							NodeNo:              nodeNo,
-							PublicIp:            publicIp,
-							PrivateIp:           privateIp,
-							InstanceId:          instanceId,
-							ImageId:             imageId,
-							State:               state,
-							Arch:                arch,
-							Distribution:        os,
-							OSVersion:           osVer,
-							AerospikeVersion:    asdVer,
-							Zone:                a.opts.Config.Backend.Region,
-							Firewalls:           sgs,
-							InstanceRunningCost: currentCost,
-							Owner:               owner,
-							Expires:             expires,
-							Features:            FeatureSystem(features),
-							AGILabel:            allTags["agiLabel"],
-							awsTags:             allTags,
-							awsSubnet:           aws.StringValue(instance.SubnetId),
-							awsSecGroups:        secGroups,
-							AwsIsSpot:           isSpot,
+							ClusterName:           clusterName,
+							NodeNo:                nodeNo,
+							PublicIp:              publicIp,
+							PrivateIp:             privateIp,
+							InstanceId:            instanceId,
+							ImageId:               imageId,
+							State:                 state,
+							Arch:                  arch,
+							Distribution:          os,
+							OSVersion:             osVer,
+							AerospikeVersion:      asdVer,
+							Zone:                  a.opts.Config.Backend.Region,
+							Firewalls:             sgs,
+							InstanceRunningCost:   currentCost,
+							Owner:                 owner,
+							Expires:               expires,
+							Features:              FeatureSystem(features),
+							AGILabel:              allTags["agiLabel"],
+							awsTags:               allTags,
+							awsSubnet:             aws.StringValue(instance.SubnetId),
+							awsSecGroups:          secGroups,
+							AwsIsSpot:             isSpot,
+							TerminationProtection: prot,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
-							ClientName:          clusterName,
-							NodeNo:              nodeNo,
-							PublicIp:            publicIp,
-							PrivateIp:           privateIp,
-							InstanceId:          instanceId,
-							ImageId:             imageId,
-							State:               state,
-							Arch:                arch,
-							Distribution:        os,
-							OSVersion:           osVer,
-							AerospikeVersion:    asdVer,
-							ClientType:          clientType,
-							Zone:                a.opts.Config.Backend.Region,
-							Firewalls:           sgs,
-							InstanceRunningCost: currentCost,
-							Owner:               owner,
-							Expires:             expires,
-							awsTags:             allTags,
-							awsSubnet:           aws.StringValue(instance.SubnetId),
-							awsSecGroups:        secGroups,
-							AwsIsSpot:           isSpot,
+							ClientName:            clusterName,
+							NodeNo:                nodeNo,
+							PublicIp:              publicIp,
+							PrivateIp:             privateIp,
+							InstanceId:            instanceId,
+							ImageId:               imageId,
+							State:                 state,
+							Arch:                  arch,
+							Distribution:          os,
+							OSVersion:             osVer,
+							AerospikeVersion:      asdVer,
+							ClientType:            clientType,
+							Zone:                  a.opts.Config.Backend.Region,
+							Firewalls:             sgs,
+							InstanceRunningCost:   currentCost,
+							Owner:                 owner,
+							Expires:               expires,
+							awsTags:               allTags,
+							awsSubnet:             aws.StringValue(instance.SubnetId),
+							awsSecGroups:          secGroups,
+							AwsIsSpot:             isSpot,
+							TerminationProtection: prot,
 						})
 					}
 				}
@@ -2035,6 +2045,15 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 					}
 				}
 				if inslice.HasInt(nodes, nodeNumber) {
+					// test for termination protection
+					attr, err := d.ec2svc.DescribeInstanceAttribute(&ec2.DescribeInstanceAttributeInput{
+						Attribute:  aws.String(ec2.InstanceAttributeNameDisableApiTermination),
+						InstanceId: instance.InstanceId,
+					})
+					if err == nil && aws.BoolValue(attr.DisableApiTermination.Value) {
+						log.Printf("Not terminating %s, ApiTermination protection is enabled", *instance.InstanceId)
+						continue
+					}
 					instanceIds = append(instanceIds, instance.InstanceId)
 					input := &ec2.TerminateInstancesInput{
 						InstanceIds: []*string{
@@ -2044,7 +2063,7 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 					}
 					result, err := d.ec2svc.TerminateInstances(input)
 					if err != nil {
-						return fmt.Errorf("error starting instance %s\n%s\n%s", *instance.InstanceId, result, err)
+						return fmt.Errorf("error terminating instance %s\n%s\n%s", *instance.InstanceId, result, err)
 					}
 				}
 			}
