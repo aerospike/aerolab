@@ -358,10 +358,10 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 		for _, v := range inv.Templates {
 			vv := table.Row{
-				v.AerospikeVersion,
+				strings.ReplaceAll(v.AerospikeVersion, "-", "."),
 				v.Arch,
 				v.Distribution,
-				v.OSVersion,
+				strings.ReplaceAll(v.OSVersion, "-", "."),
 			}
 			if c.AWSFull {
 				vv = append(vv, v.Region)
@@ -415,16 +415,16 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if a.opts.Config.Backend.Type == "docker" {
 				vv = append(vv, v.DockerExposePorts)
 			}
-			vv = append(vv, v.Owner, v.AerospikeVersion)
+			vv = append(vv, v.Owner, strings.ReplaceAll(v.AerospikeVersion, "-", "."))
 			if a.opts.Config.Backend.Type != "docker" {
 				spot := ""
 				if v.AwsIsSpot {
 					spot = " (spot)"
 				}
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
-				vv = append(vv, v.Firewalls)
+				vv = append(vv, strings.Join(v.Firewalls, "\n"))
 			}
-			vv = append(vv, v.Arch, v.Distribution, v.OSVersion)
+			vv = append(vv, v.Arch, v.Distribution, strings.ReplaceAll(v.OSVersion, "-", "."))
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, v.Zone)
 			}
@@ -480,16 +480,16 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			vv = append(vv, v.State)
 			vv = append(vv, v.PublicIp, v.PrivateIp, v.ClientType, v.AccessUrl, v.AccessPort)
-			vv = append(vv, v.Owner, v.AerospikeVersion)
+			vv = append(vv, v.Owner, strings.ReplaceAll(v.AerospikeVersion, "-", "."))
 			if a.opts.Config.Backend.Type != "docker" {
 				spot := ""
 				if v.AwsIsSpot {
 					spot = " (spot)"
 				}
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
-				vv = append(vv, v.Firewalls)
+				vv = append(vv, strings.Join(v.Firewalls, "\n"))
 			}
-			vv = append(vv, v.Arch, v.Distribution, v.OSVersion)
+			vv = append(vv, v.Arch, v.Distribution, strings.ReplaceAll(v.OSVersion, "-", "."))
 			if a.opts.Config.Backend.Type != "docker" {
 				vv = append(vv, v.Zone)
 			}
@@ -730,7 +730,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					}
 					vv = append(vv, v.PublicIp, v.PrivateIp)
 					if a.opts.Config.Backend.Type != "docker" {
-						vv = append(vv, v.Firewalls, v.Zone)
+						vv = append(vv, strings.Join(v.Firewalls, "\n"), v.Zone)
 					}
 					if a.opts.Config.Backend.Type == "aws" {
 						vv = append(vv, fsId)
@@ -824,7 +824,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					}
 					vv = append(vv, v.PublicIp, v.PrivateIp)
 					if a.opts.Config.Backend.Type != "docker" {
-						vv = append(vv, v.Firewalls, v.Zone)
+						vv = append(vv, strings.Join(v.Firewalls, "\n"), v.Zone)
 					}
 					vv = append(vv, v.InstanceId)
 					if a.opts.Config.Backend.Type == "docker" {
