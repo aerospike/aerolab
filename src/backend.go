@@ -73,7 +73,8 @@ var TypeArchAmd = TypeArch(2)
 
 type backend interface {
 	// aws efs volumes
-	CreateVolume(name string, zone string, tags []string) error
+	CreateVolume(name string, zone string, tags []string, expires time.Duration) error
+	TagVolume(fsId string, tagName string, tagValue string) error
 	DeleteVolume(name string) error
 	CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error)
 	MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error
@@ -129,9 +130,9 @@ type backend interface {
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
-	ClusterListFull(json bool, owner string, noPager bool) (string, error)
+	ClusterListFull(json bool, owner string, noPager bool, isPretty bool, sort []string) (string, error)
 	// return formatted for printing template list
-	TemplateListFull(json bool, noPager bool) (string, error)
+	TemplateListFull(json bool, noPager bool, isPretty bool, sort []string) (string, error)
 	// upload files to node
 	Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error
 	// download files from node

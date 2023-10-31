@@ -123,6 +123,10 @@ func (d *backendGcp) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
 
+func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string) error {
+	return nil
+}
+
 func (d *backendGcp) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
 	return inventoryMountTarget{}, nil
 }
@@ -135,7 +139,7 @@ func (d *backendGcp) DeleteVolume(name string) error {
 	return nil
 }
 
-func (d *backendGcp) CreateVolume(name string, zone string, tags []string) error {
+func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
 	return nil
 }
 
@@ -1360,10 +1364,12 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nlist, nil
 }
 
-func (d *backendGcp) ClusterListFull(isJson bool, owner string, noPager bool) (string, error) {
+func (d *backendGcp) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
-	a.opts.Inventory.List.NoPager = noPager
+	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
@@ -2026,9 +2032,11 @@ func (d *backendGcp) VacuumTemplates() error {
 	return d.vacuum(nil)
 }
 
-func (d *backendGcp) TemplateListFull(isJson bool, noPager bool) (string, error) {
+func (d *backendGcp) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	a.opts.Inventory.List.NoPager = noPager
+	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 

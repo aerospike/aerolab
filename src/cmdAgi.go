@@ -45,19 +45,26 @@ func (c *agiCmd) Execute(args []string) error {
 }
 
 type agiListCmd struct {
-	Owner   string  `long:"owner" description:"Only show resources tagged with this owner"`
-	Json    bool    `short:"j" long:"json" description:"Provide output in json format"`
-	NoPager bool    `long:"no-pager" description:"set to disable vertical and horizontal pager"`
-	Help    helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Owner      string   `long:"owner" description:"Only show resources tagged with this owner"`
+	SortBy     []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
+	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
+	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
+	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiListCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if len(c.SortBy) == 0 {
+		c.SortBy = []string{"dscnum:ExpiryTs", "dscnum:VolExpiryTs"}
+	}
 	a.opts.Inventory.List.Json = c.Json
 	a.opts.Inventory.List.Owner = c.Owner
-	a.opts.Inventory.List.NoPager = c.NoPager
+	a.opts.Inventory.List.Pager = c.Pager
+	a.opts.Inventory.List.SortBy = c.SortBy
+	a.opts.Inventory.List.JsonPretty = c.JsonPretty
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowAGI|inventoryShowAGIStatus)
 }
 
