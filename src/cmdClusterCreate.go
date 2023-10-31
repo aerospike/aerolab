@@ -977,7 +977,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 					if err != nil {
 						return err
 					}
-					err = s.Stanza("network").Stanza("service").SetValue("tlsaccess-address", privateIp)
+					err = s.Stanza("network").Stanza("service").SetValue("tls-access-address", privateIp)
 					if err != nil {
 						return err
 					}
