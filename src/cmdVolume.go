@@ -30,10 +30,10 @@ func (c *volumeCmd) Execute(args []string) error {
 }
 
 type volumeListCmd struct {
-	Json    bool    `short:"j" long:"json" description:"Provide output in json format"`
-	Owner   string  `long:"owner" description:"filter by owner tag/label"`
-	NoPager bool    `long:"no-pager" description:"set to disable vertical and horizontal pager"`
-	Help    helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Json  bool    `short:"j" long:"json" description:"Provide output in json format"`
+	Owner string  `long:"owner" description:"filter by owner tag/label"`
+	Pager bool    `long:"pager" description:"set to enable vertical and horizontal pager"`
+	Help  helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *volumeListCmd) Execute(args []string) error {
@@ -42,7 +42,7 @@ func (c *volumeListCmd) Execute(args []string) error {
 	}
 	a.opts.Inventory.List.Json = c.Json
 	a.opts.Inventory.List.Owner = c.Owner
-	a.opts.Inventory.List.NoPager = c.NoPager
+	a.opts.Inventory.List.Pager = c.Pager
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowVolumes)
 }
 

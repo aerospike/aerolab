@@ -223,7 +223,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
 					InstanceId:         tt[0],
 					ImageId:            tt[3],
-					State:              tt[2],
+					State:              strings.ReplaceAll(tt[2], " ", "_"),
 					Arch:               arch,
 					Distribution:       i2[0],
 					OSVersion:          i3[0],
@@ -243,7 +243,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
 					InstanceId:         tt[0],
 					ImageId:            tt[3],
-					State:              tt[2],
+					State:              strings.ReplaceAll(tt[2], " ", "_"),
 					Arch:               arch,
 					Distribution:       i2[0],
 					OSVersion:          i3[0],
@@ -1020,15 +1020,15 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) ClusterListFull(isJson bool, owner string, noPager bool) (string, error) {
+func (d *backendDocker) ClusterListFull(isJson bool, owner string, pager bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	a.opts.Inventory.List.NoPager = noPager
+	a.opts.Inventory.List.Pager = pager
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) TemplateListFull(isJson bool, noPager bool) (string, error) {
+func (d *backendDocker) TemplateListFull(isJson bool, pager bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	a.opts.Inventory.List.NoPager = noPager
+	a.opts.Inventory.List.Pager = pager
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
