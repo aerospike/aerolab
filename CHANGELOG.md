@@ -13,6 +13,7 @@
   * Useful for example in: `aerolab cluster destoy -f --beepf --beepf && aerolab cluster create --beep --beep` - beep twice on any failure, or once on successful completion of last command.
   * Beeps are globally configurable with environment variables `AEROLAB_BEEP=x` and `AEROLAB_BEEPF=x` where `x` is the number of beeps to apply.
 * Inventory listing support `--aws-full` to print inventory in all AWS regions.
+* Inventory listing supports extending to max terminal width; pager is disabled by default and can be enabled with `--pager`.
 * AWS EFS volumes are supported (large cost saving and predictable IOPS on AWS platform, useful for AGI).
 * Command `agi create` could experience issues if aerolab was run from linux; fixed
 * Add spot instances option.
