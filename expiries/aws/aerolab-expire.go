@@ -66,8 +66,18 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 				expiry, err := time.Parse(time.RFC3339, expires)
 				if err != nil {
 					log.Printf("Could not handle expiry for instance %s: %s: %s", aws.StringValue(instance.InstanceId), expires, err)
+					continue
 				}
 				if expiry.Before(now) && expiry.After(time.Date(1985, time.April, 29, 0, 0, 0, 0, time.UTC)) {
+					// test for termination protection
+					attr, err := svc.DescribeInstanceAttribute(&ec2.DescribeInstanceAttributeInput{
+						Attribute:  aws.String(ec2.InstanceAttributeNameDisableApiTermination),
+						InstanceId: instance.InstanceId,
+					})
+					if err == nil && aws.BoolValue(attr.DisableApiTermination.Value) {
+						log.Printf("Not terminating %s, ApiTermination protection is enabled", *instance.InstanceId)
+						continue
+					}
 					deleteList = append(deleteList, aws.StringValue(instance.InstanceId))
 					name := tags["Aerolab4ClusterName"]
 					node := tags["Aerolab4NodeNumber"]
