@@ -6,11 +6,13 @@ import (
 )
 
 type clientListCmd struct {
-	Owner   string  `long:"owner" description:"Only show resources tagged with this owner"`
-	Json    bool    `short:"j" long:"json" description:"Provide output in json format"`
-	NoPager bool    `long:"no-pager" description:"set to disable vertical and horizontal pager"`
-	IP      bool    `short:"i" long:"ip" description:"print only the IP of the client machines (disables JSON output)"`
-	Help    helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Owner      string   `long:"owner" description:"Only show resources tagged with this owner"`
+	SortBy     []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
+	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
+	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
+	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	IP         bool     `short:"i" long:"ip" description:"print only the IP of the client machines (disables JSON output)"`
+	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clientListCmd) Execute(args []string) error {
@@ -58,7 +60,7 @@ func (c *clientListCmd) Execute(args []string) error {
 		}
 		return nil
 	}
-	f, e := b.ClusterListFull(c.Json, c.Owner, c.NoPager)
+	f, e := b.ClusterListFull(c.Json, c.Owner, c.Pager, c.JsonPretty, c.SortBy)
 	if e != nil {
 		return e
 	}

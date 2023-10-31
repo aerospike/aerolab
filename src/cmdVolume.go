@@ -30,10 +30,12 @@ func (c *volumeCmd) Execute(args []string) error {
 }
 
 type volumeListCmd struct {
-	Json    bool    `short:"j" long:"json" description:"Provide output in json format"`
-	Owner   string  `long:"owner" description:"filter by owner tag/label"`
-	NoPager bool    `long:"no-pager" description:"set to disable vertical and horizontal pager"`
-	Help    helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	SortBy     []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
+	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
+	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
+	Owner      string   `long:"owner" description:"filter by owner tag/label"`
+	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *volumeListCmd) Execute(args []string) error {
@@ -42,16 +44,19 @@ func (c *volumeListCmd) Execute(args []string) error {
 	}
 	a.opts.Inventory.List.Json = c.Json
 	a.opts.Inventory.List.Owner = c.Owner
-	a.opts.Inventory.List.NoPager = c.NoPager
+	a.opts.Inventory.List.Pager = c.Pager
+	a.opts.Inventory.List.SortBy = c.SortBy
+	a.opts.Inventory.List.JsonPretty = c.JsonPretty
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowVolumes)
 }
 
 type volumeCreateCmd struct {
-	Name  string   `short:"n" long:"name" description:"EFS Name" default:"agi"`
-	Zone  string   `short:"z" long:"zone" description:"Full Availability Zone name; if provided, will define a one-zone volume; default {REGION}a"`
-	Tags  []string `short:"t" long:"tag" description:"tag as key=value; can be specified multiple times"`
-	Owner string   `short:"o" long:"owner" description:"set owner tag to the specified value"`
-	Help  helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Name    string        `short:"n" long:"name" description:"EFS Name" default:"agi"`
+	Zone    string        `short:"z" long:"zone" description:"Full Availability Zone name; if provided, will define a one-zone volume; default {REGION}a"`
+	Tags    []string      `short:"t" long:"tag" description:"tag as key=value; can be specified multiple times"`
+	Owner   string        `short:"o" long:"owner" description:"set owner tag to the specified value"`
+	Expires time.Duration `short:"e" long:"expire" description:"expire the volume if 'mount' against the volume has not been executed for this long"`
+	Help    helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *volumeCreateCmd) Execute(args []string) error {
@@ -62,7 +67,7 @@ func (c *volumeCreateCmd) Execute(args []string) error {
 	if c.Owner != "" {
 		c.Tags = append(c.Tags, "aerolab7owner="+c.Owner)
 	}
-	err := b.CreateVolume(c.Name, c.Zone, c.Tags)
+	err := b.CreateVolume(c.Name, c.Zone, c.Tags, c.Expires)
 	if err != nil {
 		return err
 	}
@@ -160,6 +165,10 @@ func (c *volumeMountCmd) Execute(args []string) error {
 				return err
 			}
 		}
+	}
+	err = b.TagVolume(volume.FileSystemId, "lastUsed", time.Now().Format(time.RFC3339))
+	if err != nil {
+		return err
 	}
 	if c.IsClient {
 		b.WorkOnClients()

@@ -183,7 +183,20 @@ func (d *backendAws) DeleteVolume(name string) error {
 	return nil
 }
 
-func (d *backendAws) CreateVolume(name string, zone string, tags []string) error {
+func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string) error {
+	_, err := d.efs.TagResource(&efs.TagResourceInput{
+		ResourceId: aws.String(fsId),
+		Tags: []*efs.Tag{
+			{
+				Key:   aws.String(tagName),
+				Value: aws.String(tagValue),
+			},
+		},
+	})
+	return err
+}
+
+func (d *backendAws) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
 	var az *string
 	if zone != "" {
 		az = &zone
@@ -205,6 +218,19 @@ func (d *backendAws) CreateVolume(name string, zone string, tags []string) error
 		tag = append(tag, &efs.Tag{
 			Key:   aws.String(kv[0]),
 			Value: aws.String(strings.Join(kv[1:], "=")),
+		})
+	}
+	if expires != 0 {
+		err := d.ExpiriesSystemInstall(10, "")
+		if err != nil && err.Error() != "EXISTS" {
+			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
+		}
+		tag = append(tag, &efs.Tag{
+			Key:   aws.String("lastUsed"),
+			Value: aws.String(time.Now().Format(time.RFC3339)),
+		}, &efs.Tag{
+			Key:   aws.String("expireDuration"),
+			Value: aws.String(expires.String()),
 		})
 	}
 	_, err := d.efs.CreateFileSystem(&efs.CreateFileSystemInput{
@@ -313,6 +339,13 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	_, err = d.iam.AttachRolePolicy(&iam.AttachRolePolicyInput{
 		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
 		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonEC2FullAccess"),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = d.iam.AttachRolePolicy(&iam.AttachRolePolicyInput{
+		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess"),
 	})
 	if err != nil {
 		return err
@@ -470,6 +503,13 @@ func (d *backendAws) ExpiriesSystemRemove() error {
 		ret = append(ret, err.Error())
 	}
 
+	_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
+		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess"),
+		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+	})
+	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+		ret = append(ret, err.Error())
+	}
 	_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
 		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonEC2FullAccess"),
 		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
@@ -1196,14 +1236,16 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 						continue
 					}
 					for _, target := range mt.MountTargets {
-						secGroups, err := d.efs.DescribeMountTargetSecurityGroups(&efs.DescribeMountTargetSecurityGroupsInput{
-							MountTargetId: target.MountTargetId,
-						})
 						var sg []string
-						if err != nil {
-							log.Printf("Could not get security groups for mount target: %s", err)
+						if aws.StringValue(target.LifeCycleState) != efs.LifeCycleStateDeleting && aws.StringValue(target.LifeCycleState) != efs.LifeCycleStateDeleted {
+							secGroups, err := d.efs.DescribeMountTargetSecurityGroups(&efs.DescribeMountTargetSecurityGroupsInput{
+								MountTargetId: target.MountTargetId,
+							})
+							if err != nil {
+								log.Printf("Could not get security groups for mount target: %s", err)
+							}
+							sg = aws.StringValueSlice(secGroups.SecurityGroups)
 						}
-						sg = aws.StringValueSlice(secGroups.SecurityGroups)
 						vol.MountTargets = append(vol.MountTargets, inventoryMountTarget{
 							AvailabilityZoneId:   aws.StringValue(target.AvailabilityZoneId),
 							AvailabilityZoneName: aws.StringValue(target.AvailabilityZoneName),
@@ -2112,16 +2154,20 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-func (d *backendAws) ClusterListFull(isJson bool, owner string, noPager bool) (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
-	a.opts.Inventory.List.NoPager = noPager
+	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
-func (d *backendAws) TemplateListFull(isJson bool, noPager bool) (string, error) {
+func (d *backendAws) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	a.opts.Inventory.List.NoPager = noPager
+	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 

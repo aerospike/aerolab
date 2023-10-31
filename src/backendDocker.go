@@ -33,6 +33,10 @@ func (d *backendDocker) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
 
+func (d *backendDocker) TagVolume(fsId string, tagName string, tagValue string) error {
+	return nil
+}
+
 func (d *backendDocker) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
 	return inventoryMountTarget{}, nil
 }
@@ -45,7 +49,7 @@ func (d *backendDocker) DeleteVolume(name string) error {
 	return nil
 }
 
-func (d *backendDocker) CreateVolume(name string, zone string, tags []string) error {
+func (d *backendDocker) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
 	return nil
 }
 
@@ -219,7 +223,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
 					InstanceId:         tt[0],
 					ImageId:            tt[3],
-					State:              tt[2],
+					State:              strings.ReplaceAll(tt[2], " ", "_"),
 					Arch:               arch,
 					Distribution:       i2[0],
 					OSVersion:          i3[0],
@@ -239,7 +243,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
 					InstanceId:         tt[0],
 					ImageId:            tt[3],
-					State:              tt[2],
+					State:              strings.ReplaceAll(tt[2], " ", "_"),
 					Arch:               arch,
 					Distribution:       i2[0],
 					OSVersion:          i3[0],
@@ -1016,15 +1020,19 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) ClusterListFull(isJson bool, owner string, noPager bool) (string, error) {
+func (d *backendDocker) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	a.opts.Inventory.List.NoPager = noPager
+	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) TemplateListFull(isJson bool, noPager bool) (string, error) {
+func (d *backendDocker) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
-	a.opts.Inventory.List.NoPager = noPager
+	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
