@@ -84,3 +84,14 @@ See [CHANGELOG.md](CHANGELOG.md) for version changes
 ## Version
 
 See [VERSION.md](VERSION.md) for latest stable version number
+
+## Disabling console colors
+
+Aerolab list commands by default use neutral coloring to compress and present the listing tables of all items. Coloring can be disabled by exporting one of these environment variables:
+* `export NO_COLOR=1`
+* `export CLICOLOR=0`
+
+The following methods work:
+1. just for this command: `CLICOLOR=0 aerolab cluster list`
+2. for this terminal session: `export CLICOLOR=0`
+3. forever: add one of the `export` commands from above your your `.zshrc` or `.bashrc` file
