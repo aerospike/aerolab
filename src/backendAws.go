@@ -2035,6 +2035,15 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 					}
 				}
 				if inslice.HasInt(nodes, nodeNumber) {
+					// test for termination protection
+					attr, err := d.ec2svc.DescribeInstanceAttribute(&ec2.DescribeInstanceAttributeInput{
+						Attribute:  aws.String(ec2.InstanceAttributeNameDisableApiTermination),
+						InstanceId: instance.InstanceId,
+					})
+					if err == nil && aws.BoolValue(attr.DisableApiTermination.Value) {
+						log.Printf("Not terminating %s, ApiTermination protection is enabled", *instance.InstanceId)
+						continue
+					}
 					instanceIds = append(instanceIds, instance.InstanceId)
 					input := &ec2.TerminateInstancesInput{
 						InstanceIds: []*string{
@@ -2044,13 +2053,14 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 					}
 					result, err := d.ec2svc.TerminateInstances(input)
 					if err != nil {
-						return fmt.Errorf("error starting instance %s\n%s\n%s", *instance.InstanceId, result, err)
+						return fmt.Errorf("error terminating instance %s\n%s\n%s", *instance.InstanceId, result, err)
 					}
 				}
 			}
 		}
 	}
 	if len(instanceIds) > 0 {
+		log.Printf("Terminate command sent to %d instances, waiting for AWS to finish terminating", len(instanceIds))
 		d.ec2svc.WaitUntilInstanceTerminated(&ec2.DescribeInstancesInput{
 			DryRun:      aws.Bool(false),
 			InstanceIds: instanceIds,

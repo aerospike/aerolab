@@ -20,6 +20,8 @@
 * Fix: GCP and AWS backends were ignoring the custom image option. This is now enabled.
 * Fix: Disable setting terminal to RAW mode for ssh, fixing parallelism.
 * Fix: GCP arm support.
+* Parallelize docker cluster and client listing for speed.
+* If terminationProtection is on, show in inventory, avoid trying to destroy, and do not expire.
 
 #### 7.1.1
 * GCP just made `DiscardLocalSsd` non-optional when stopping instances. Adjusting accordingly.
