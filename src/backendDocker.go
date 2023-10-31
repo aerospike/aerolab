@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bestmethod/inslice"
@@ -147,114 +148,137 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 			return ij, err
 		}
 		scanner := bufio.NewScanner(strings.NewReader(string(out)))
+		lineWait := new(sync.WaitGroup)
+		var lineError error
+		lineErrorLock := new(sync.Mutex)
+		invLock := new(sync.Mutex)
 		for scanner.Scan() {
 			t := scanner.Text()
-			t = strings.Trim(t, "'\" \t\r\n")
-			tt := strings.Split(t, "\t")
-			if len(tt) < 4 || len(tt) > 6 {
-				continue
-			}
-			if !strings.HasPrefix(tt[1], dockerNameHeader) {
-				continue
-			}
-			nameNo := strings.Split(strings.TrimPrefix(tt[1], dockerNameHeader+""), "_")
-			if len(nameNo) != 2 {
-				continue
-			}
-			outl, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.Labels}}", tt[1]).CombinedOutput()
-			if err != nil {
-				return ij, err
-			}
-			allLabels := make(map[string]string)
-			err = json.Unmarshal(outl, &allLabels)
-			if err != nil {
-				return ij, err
-			}
-			out2, err := exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
-			if err != nil {
-				return ij, err
-			}
-			ip := strings.Trim(string(out2), "'\" \n\r")
-			arch := "amd64"
-			if d.isArm {
-				arch = "arm64"
-			}
-			var i1, asdVer string
-			var i2 []string
-			i3 := []string{""}
-			if i == 1 {
-				i1 = strings.TrimPrefix(tt[3], "aerolab-")
-				i2 = strings.Split(i1, "_")
-				if len(i2) > 1 {
-					i3 = strings.Split(i2[1], ":")
+			lineWait.Add(1)
+			go func(t string) {
+				defer lineWait.Done()
+				t = strings.Trim(t, "'\" \t\r\n")
+				tt := strings.Split(t, "\t")
+				if len(tt) < 4 || len(tt) > 6 {
+					return
 				}
-				if len(i3) > 1 {
-					asdVer = i3[1]
+				if !strings.HasPrefix(tt[1], dockerNameHeader) {
+					return
 				}
-			} else {
-				i2 = strings.Split(tt[3], ":")
-				if len(i2) > 1 {
-					i3[0] = i2[1]
+				nameNo := strings.Split(strings.TrimPrefix(tt[1], dockerNameHeader+""), "_")
+				if len(nameNo) != 2 {
+					return
 				}
-			}
-			clientType := ""
-			if len(tt) > 4 {
-				clientType = tt[4]
-			}
-			exposePorts := ""
-			intPorts := ""
-			if len(tt) > 5 {
-				ep1 := strings.Split(tt[5], "->")
-				if len(ep1) > 1 {
-					ep2 := strings.Split(ep1[0], ":")
-					if len(ep2) > 1 {
-						exposePorts = ep2[1]
+				outl, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.Labels}}", tt[1]).CombinedOutput()
+				if err != nil {
+					lineErrorLock.Lock()
+					lineError = err
+					lineErrorLock.Unlock()
+					return
+				}
+				allLabels := make(map[string]string)
+				err = json.Unmarshal(outl, &allLabels)
+				if err != nil {
+					lineErrorLock.Lock()
+					lineError = err
+					lineErrorLock.Unlock()
+					return
+				}
+				out2, err := exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
+				if err != nil {
+					lineErrorLock.Lock()
+					lineError = err
+					lineErrorLock.Unlock()
+					return
+				}
+				ip := strings.Trim(string(out2), "'\" \n\r")
+				arch := "amd64"
+				if d.isArm {
+					arch = "arm64"
+				}
+				var i1, asdVer string
+				var i2 []string
+				i3 := []string{""}
+				if i == 1 {
+					i1 = strings.TrimPrefix(tt[3], "aerolab-")
+					i2 = strings.Split(i1, "_")
+					if len(i2) > 1 {
+						i3 = strings.Split(i2[1], ":")
 					}
-					ep2 = strings.Split(ep1[1], "/")
-					intPorts = ep2[0]
+					if len(i3) > 1 {
+						asdVer = i3[1]
+					}
+				} else {
+					i2 = strings.Split(tt[3], ":")
+					if len(i2) > 1 {
+						i3[0] = i2[1]
+					}
 				}
-			}
-			if i == 1 {
-				features, _ := strconv.Atoi(clientType)
-				ij.Clusters = append(ij.Clusters, inventoryCluster{
-					ClusterName:        nameNo[0],
-					NodeNo:             nameNo[1],
-					PublicIp:           "",
-					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
-					InstanceId:         tt[0],
-					ImageId:            tt[3],
-					State:              strings.ReplaceAll(tt[2], " ", "_"),
-					Arch:               arch,
-					Distribution:       i2[0],
-					OSVersion:          i3[0],
-					AerospikeVersion:   asdVer,
-					DockerExposePorts:  exposePorts,
-					DockerInternalPort: intPorts,
-					Features:           FeatureSystem(features),
-					AGILabel:           allLabels["agiLabel"],
-					dockerLabels:       allLabels,
-					Owner:              allLabels["owner"],
-				})
-			} else {
-				ij.Clients = append(ij.Clients, inventoryClient{
-					ClientName:         nameNo[0],
-					NodeNo:             nameNo[1],
-					PublicIp:           "",
-					PrivateIp:          strings.ReplaceAll(ip, " ", ","),
-					InstanceId:         tt[0],
-					ImageId:            tt[3],
-					State:              strings.ReplaceAll(tt[2], " ", "_"),
-					Arch:               arch,
-					Distribution:       i2[0],
-					OSVersion:          i3[0],
-					AerospikeVersion:   asdVer,
-					ClientType:         clientType,
-					DockerExposePorts:  exposePorts,
-					DockerInternalPort: intPorts,
-					dockerLabels:       allLabels,
-					Owner:              allLabels["owner"],
-				})
-			}
+				clientType := ""
+				if len(tt) > 4 {
+					clientType = tt[4]
+				}
+				exposePorts := ""
+				intPorts := ""
+				if len(tt) > 5 {
+					ep1 := strings.Split(tt[5], "->")
+					if len(ep1) > 1 {
+						ep2 := strings.Split(ep1[0], ":")
+						if len(ep2) > 1 {
+							exposePorts = ep2[1]
+						}
+						ep2 = strings.Split(ep1[1], "/")
+						intPorts = ep2[0]
+					}
+				}
+				invLock.Lock()
+				defer invLock.Unlock()
+				if i == 1 {
+					features, _ := strconv.Atoi(clientType)
+					ij.Clusters = append(ij.Clusters, inventoryCluster{
+						ClusterName:        nameNo[0],
+						NodeNo:             nameNo[1],
+						PublicIp:           "",
+						PrivateIp:          strings.ReplaceAll(ip, " ", ","),
+						InstanceId:         tt[0],
+						ImageId:            tt[3],
+						State:              strings.ReplaceAll(tt[2], " ", "_"),
+						Arch:               arch,
+						Distribution:       i2[0],
+						OSVersion:          i3[0],
+						AerospikeVersion:   asdVer,
+						DockerExposePorts:  exposePorts,
+						DockerInternalPort: intPorts,
+						Features:           FeatureSystem(features),
+						AGILabel:           allLabels["agiLabel"],
+						dockerLabels:       allLabels,
+						Owner:              allLabels["owner"],
+					})
+				} else {
+					ij.Clients = append(ij.Clients, inventoryClient{
+						ClientName:         nameNo[0],
+						NodeNo:             nameNo[1],
+						PublicIp:           "",
+						PrivateIp:          strings.ReplaceAll(ip, " ", ","),
+						InstanceId:         tt[0],
+						ImageId:            tt[3],
+						State:              strings.ReplaceAll(tt[2], " ", "_"),
+						Arch:               arch,
+						Distribution:       i2[0],
+						OSVersion:          i3[0],
+						AerospikeVersion:   asdVer,
+						ClientType:         clientType,
+						DockerExposePorts:  exposePorts,
+						DockerInternalPort: intPorts,
+						dockerLabels:       allLabels,
+						Owner:              allLabels["owner"],
+					})
+				}
+			}(t)
+		}
+		lineWait.Wait()
+		if lineError != nil {
+			return ij, err
 		}
 	}
 	return ij, nil
