@@ -33,6 +33,10 @@ func (d *backendDocker) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
 
+func (d *backendDocker) TagVolume(fsId string, tagName string, tagValue string) error {
+	return nil
+}
+
 func (d *backendDocker) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
 	return inventoryMountTarget{}, nil
 }
@@ -45,7 +49,7 @@ func (d *backendDocker) DeleteVolume(name string) error {
 	return nil
 }
 
-func (d *backendDocker) CreateVolume(name string, zone string, tags []string) error {
+func (d *backendDocker) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
 	return nil
 }
 

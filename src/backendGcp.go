@@ -123,6 +123,10 @@ func (d *backendGcp) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
 
+func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string) error {
+	return nil
+}
+
 func (d *backendGcp) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
 	return inventoryMountTarget{}, nil
 }
@@ -135,7 +139,7 @@ func (d *backendGcp) DeleteVolume(name string) error {
 	return nil
 }
 
-func (d *backendGcp) CreateVolume(name string, zone string, tags []string) error {
+func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
 	return nil
 }
 

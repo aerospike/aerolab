@@ -83,6 +83,7 @@ type clusterCreateCmdAws struct {
 	TerminateOnPoweroff bool          `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
 	SpotInstance        bool          `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	EFSExpires          time.Duration `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired"`
 }
 
 type clusterCreateCmdGcp struct {
@@ -258,7 +259,13 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				}
 				a.opts.Volume.Create.Tags = c.Aws.Tags
 				a.opts.Volume.Create.Owner = c.Owner
+				a.opts.Volume.Create.Expires = c.Aws.EFSExpires
 				err = a.opts.Volume.Create.Execute(nil)
+				if err != nil {
+					return err
+				}
+			} else if foundVol != nil {
+				err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String())
 				if err != nil {
 					return err
 				}
