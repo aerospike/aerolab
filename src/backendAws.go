@@ -2154,16 +2154,20 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-func (d *backendAws) ClusterListFull(isJson bool, owner string, pager bool) (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
 	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
-func (d *backendAws) TemplateListFull(isJson bool, pager bool) (string, error) {
+func (d *backendAws) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 

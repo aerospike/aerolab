@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -22,20 +23,18 @@ import (
 )
 
 type inventoryListCmd struct {
-	Owner      string  `long:"owner" description:"Only show resources tagged with this owner"`
-	Pager      bool    `long:"pager" description:"set to enable vertical and horizontal pager"`
-	Json       bool    `short:"j" long:"json" description:"Provide output in json format"`
-	JsonPretty bool    `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
-	AWSFull    bool    `long:"aws-full" description:"set to iterate through all regions and provide full output"`
-	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Owner      string   `long:"owner" description:"Only show resources tagged with this owner"`
+	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	SortBy     []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
+	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
+	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
+	AWSFull    bool     `long:"aws-full" description:"set to iterate through all regions and provide full output"`
+	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *inventoryListCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
-	}
-	if c.JsonPretty {
-		c.Json = true
 	}
 	return c.run(true, true, true, true, true, inventoryShowExpirySystem|inventoryShowAGI|inventoryShowVolumes)
 }
@@ -46,6 +45,33 @@ const inventoryShowAGIStatus = 4
 const inventoryShowVolumes = 8
 
 func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool, showOthers ...int) error {
+	if c.JsonPretty {
+		c.Json = true
+	}
+	sortBy := []table.SortBy{}
+	for _, sortItem := range c.SortBy {
+		sortSplit := strings.Split(sortItem, ":")
+		if len(sortSplit) != 2 {
+			return errors.New("sort item wrong format")
+		}
+		mmode := table.Asc
+		switch sortSplit[0] {
+		case "asc":
+			mmode = table.Asc
+		case "dsc":
+			mmode = table.Dsc
+		case "ascnum":
+			mmode = table.AscNumeric
+		case "dscnum":
+			mmode = table.DscNumeric
+		default:
+			return errors.New("sort item incorrect modifier")
+		}
+		sortBy = append(sortBy, table.SortBy{
+			Name: sortSplit[1],
+			Mode: mmode,
+		})
+	}
 	inventoryItems := []int{}
 	if showClusters {
 		inventoryItems = append(inventoryItems, InventoryItemClusters)
@@ -278,6 +304,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	if !isTerminal {
 		pipeLess = false
 		isColor = false
+	}
+	if len(c.SortBy) > 0 {
+		t.SortBy(sortBy)
 	}
 
 	if !isColor {
@@ -576,9 +605,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetFooters()
 			if showOther&inventoryShowAGIStatus > 0 {
 				if a.opts.Config.Backend.Type == "gcp" {
-					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Zone", "InstanceID"})
+					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Zone", "InstanceID", "ExpiryTs"})
 				} else if a.opts.Config.Backend.Type == "aws" {
-					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "VolOwner", "Owner", "Access URL", "AGILabel", "VolSize", "VolExpires", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "VolID", "InstanceID"})
+					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "VolOwner", "Owner", "Access URL", "AGILabel", "VolSize", "VolExpires", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "VolID", "InstanceID", "ExpiryTs", "VolExpiryTs"})
 				} else {
 					t.AppendHeader(table.Row{"Name", "State", "Status", "Owner", "Access URL", "AGILabel", "PublicIP", "PrivateIP", "InstanceID", "ImageID"})
 				}
@@ -648,6 +677,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					fsId := ""
 					fsSize := ""
 					fsexpiry := ""
+					var volExp time.Time
 					if a.opts.Config.Backend.Type == "aws" {
 						for voli, vol := range inv.Volumes {
 							if vol.Name == v.ClusterName {
@@ -662,6 +692,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 											ed, err := time.ParseDuration(expireDuration)
 											if err == nil {
 												expiresTime := lu.Add(ed)
+												volExp = expiresTime
 												expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
 												if expiresIn < 6*time.Hour {
 													fsexpiry = errExp.Sprintf("%s", expiresIn.Round(time.Minute))
@@ -738,6 +769,12 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					vv = append(vv, v.InstanceId)
 					if a.opts.Config.Backend.Type == "docker" {
 						vv = append(vv, v.ImageId)
+					} else {
+						expirationTime, _ := time.Parse(time.RFC3339, v.Expires)
+						vv = append(vv, expirationTime.Unix())
+					}
+					if a.opts.Config.Backend.Type == "aws" {
+						vv = append(vv, volExp.Unix())
 					}
 					t.AppendRow(vv)
 				}
@@ -749,6 +786,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						continue
 					}
 					expiry := ""
+					var expTs time.Time
 					if lastUsed, ok := vol.Tags["lastUsed"]; ok {
 						if expireDuration, ok := vol.Tags["expireDuration"]; ok {
 							lu, err := time.Parse(time.RFC3339, lastUsed)
@@ -756,6 +794,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 								ed, err := time.ParseDuration(expireDuration)
 								if err == nil {
 									expiresTime := lu.Add(ed)
+									expTs = expiresTime
 									expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
 									if expiresIn < 6*time.Hour {
 										expiry = errExp.Sprintf("%s", expiresIn.Round(time.Minute))
@@ -766,14 +805,14 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 							}
 						}
 					}
-					vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags["agiLabel"], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, ""}
+					vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags["agiLabel"], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix()}
 					t.AppendRow(vv)
 				}
 			} else {
 				if a.opts.Config.Backend.Type == "gcp" {
-					t.AppendHeader(table.Row{"Name", "State", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Zone", "InstanceID"})
+					t.AppendHeader(table.Row{"Name", "State", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Zone", "InstanceID", "ExpiryTs"})
 				} else if a.opts.Config.Backend.Type == "aws" {
-					t.AppendHeader(table.Row{"Name", "State", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "InstanceID"})
+					t.AppendHeader(table.Row{"Name", "State", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "InstanceID", "ExpiryTs"})
 				} else {
 					t.AppendHeader(table.Row{"Name", "State", "Owner", "Access URL", "AGILabel", "PublicIP", "PrivateIP", "InstanceID", "ImageID"})
 				}
@@ -829,6 +868,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					vv = append(vv, v.InstanceId)
 					if a.opts.Config.Backend.Type == "docker" {
 						vv = append(vv, v.ImageId)
+					} else {
+						expirationTime, _ := time.Parse(time.RFC3339, v.Expires)
+						vv = append(vv, expirationTime.Unix())
 					}
 					t.AppendRow(vv)
 				}

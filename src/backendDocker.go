@@ -1020,15 +1020,19 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) ClusterListFull(isJson bool, owner string, pager bool) (string, error) {
+func (d *backendDocker) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) TemplateListFull(isJson bool, pager bool) (string, error) {
+func (d *backendDocker) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }

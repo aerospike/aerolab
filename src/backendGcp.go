@@ -1364,10 +1364,12 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nlist, nil
 }
 
-func (d *backendGcp) ClusterListFull(isJson bool, owner string, pager bool) (string, error) {
+func (d *backendGcp) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
 	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
@@ -2030,9 +2032,11 @@ func (d *backendGcp) VacuumTemplates() error {
 	return d.vacuum(nil)
 }
 
-func (d *backendGcp) TemplateListFull(isJson bool, pager bool) (string, error) {
+func (d *backendGcp) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
+	a.opts.Inventory.List.JsonPretty = isPretty
+	a.opts.Inventory.List.SortBy = sort
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
