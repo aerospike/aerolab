@@ -504,6 +504,13 @@ func (d *backendAws) ExpiriesSystemRemove() error {
 	}
 
 	_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
+		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess"),
+		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+	})
+	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+		ret = append(ret, err.Error())
+	}
+	_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
 		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonEC2FullAccess"),
 		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
 	})
