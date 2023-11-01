@@ -374,8 +374,9 @@ type IngestSteps struct {
 }
 
 type NotifyEvent struct {
-	AGIName      string
-	Event        string
-	EventDetail  string
-	IngestStatus *IngestStatusStruct
+	AGIName        string
+	Event          string
+	EventDetail    string
+	IsDataInMemory bool
+	IngestStatus   *IngestStatusStruct
 }

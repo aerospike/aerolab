@@ -20,6 +20,7 @@ import (
 type agiCreateCmd struct {
 	ClusterName      TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
 	AGILabel         string          `long:"agi-label" description:"friendly label"`
+	NoDIM            bool            `long:"no-dim" description:"set to disable data-in-memory and enable read-page-cache in aerospike; much less RAM used, but slower"`
 	LocalSource      flags.Filename  `long:"source-local" description:"get logs from a local directory"`
 	SftpEnable       bool            `long:"source-sftp-enable" description:"enable sftp source"`
 	SftpThreads      int             `long:"source-sftp-threads" description:"number of concurrent downloader threads" default:"6"`
@@ -555,9 +556,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		override = "0"
 	}
 	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, !c.NoDIM, c.NoDIM, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	} else {
-		installScript = fmt.Sprintf(agiCreateScript, override, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, !c.NoDIM, c.NoDIM, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 
