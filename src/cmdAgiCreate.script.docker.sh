@@ -2,6 +2,7 @@ set -e
 override=%s
 mkdir -p /opt/agi/aerospike/data
 mkdir -p /opt/agi/aerospike/smd
+[ "%t" = "true" ] && touch /opt/agi/nodim || echo "DIM"
 cat <<'EOF' > /opt/agi/owner
 %s
 EOF
@@ -44,7 +45,8 @@ namespace agi {
     storage-engine device {
         file /opt/agi/aerospike/data/agi.dat
         filesize %dG
-        data-in-memory true
+        data-in-memory %t
+        read-page-cache %t
     }
 }
 EOF
