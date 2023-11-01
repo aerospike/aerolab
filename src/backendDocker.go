@@ -986,15 +986,15 @@ func (d *backendDocker) Download(clusterName string, node int, source string, de
 	return nil
 }
 
-func (d *backendDocker) AttachAndRun(clusterName string, node int, command []string) (err error) {
-	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr)
+func (d *backendDocker) AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error) {
+	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive)
 }
 
-func (d *backendDocker) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (err error) {
+func (d *backendDocker) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) (err error) {
 	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	var cmd *exec.Cmd
 	termMode := "-t"
-	if len(command) == 0 {
+	if isInteractive {
 		termMode = "-ti"
 	}
 	head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), termMode, name}
