@@ -569,3 +569,11 @@ patterns:
             every: 10s
             field: "repeated"
             on: "errC"
+    -
+        setName: "truncate"
+        search: "truncat"
+        export:
+            - "{(?P<Namespace>[^}]+)} got command to truncate to now \\((?P<truncStart>\\d+)\\)"
+            - "{(?P<Namespace>[^}]+)} got command to truncate to (?P<truncStart>\\d+)"
+            - "{(?P<Namespace>[^}]+)} truncating to (?P<truncNow>\\d+) on (?P<truncThread>\\d+) threads"
+            - "{(?P<Namespace>[^}]+)} done truncate to (?P<truncEnd>\\d+) deleted (?P<truncDel>\\d+)"
