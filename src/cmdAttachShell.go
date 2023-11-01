@@ -52,7 +52,7 @@ func (c *attachShellCmd) run(args []string) (err error) {
 			nodes = append(nodes, nodeInt)
 		}
 	}
-	if len(nodes) > 1 && len(args) == 0 {
+	if len(nodes) > 1 && (len(args) == 0 || (len(args) == 1 && (args[0] == "asadm" || args[0] == "aql" || args[0] == "asinfo"))) {
 		return fmt.Errorf("%s", "When using more than 1 node in node-attach, you must specify the command to run. For example: 'node-attach -l 1,2,3 -- /command/to/run'")
 	}
 
@@ -67,12 +67,16 @@ func (c *attachShellCmd) run(args []string) (err error) {
 		return err
 	}
 
+	isInteractive := true
+	if len(nodes) > 1 {
+		isInteractive = false
+	}
 	if !c.Parallel {
 		for _, node := range nodes {
 			if len(nodes) > 1 {
 				fmt.Printf(" ======== %s:%d ========\n", string(c.ClusterName), node)
 			}
-			erra := b.AttachAndRun(string(c.ClusterName), node, args)
+			erra := b.AttachAndRun(string(c.ClusterName), node, args, isInteractive)
 			if erra != nil {
 				if err == nil {
 					err = erra
@@ -105,15 +109,15 @@ func (c *attachShellCmd) run(args []string) (err error) {
 	wg := new(sync.WaitGroup)
 	for _, node := range nodes {
 		wg.Add(1)
-		go c.runbg(wg, node, args)
+		go c.runbg(wg, node, args, isInteractive)
 	}
 	wg.Wait()
 	return nil
 }
 
-func (c *attachShellCmd) runbg(wg *sync.WaitGroup, node int, args []string) {
+func (c *attachShellCmd) runbg(wg *sync.WaitGroup, node int, args []string, isInteractive bool) {
 	defer wg.Done()
-	err := b.AttachAndRun(string(c.ClusterName), node, args)
+	err := b.AttachAndRun(string(c.ClusterName), node, args, isInteractive)
 	if err != nil {
 		log.Printf(" ---- Node %d ERROR: %s", node, err)
 	}

@@ -64,6 +64,10 @@ func (c *attachCmdTrino) run(args []string) (err error) {
 			log.Printf("WARNING: client expires in %s (%s)", time.Until(expiry), expiry.Format(time.RFC850))
 		}
 	}
+	isInteractive := true
+	if len(nodes) > 1 {
+		isInteractive = false
+	}
 	for _, node := range nodes {
 		if len(nodes) > 1 {
 			fmt.Printf(" ======== %s:%d ========\n", string(c.ClientName), node)
@@ -72,7 +76,7 @@ func (c *attachCmdTrino) run(args []string) (err error) {
 		if len(args) > 0 {
 			nargs = append(nargs, args...)
 		}
-		erra := b.AttachAndRun(string(c.ClientName), node, nargs)
+		erra := b.AttachAndRun(string(c.ClientName), node, nargs, isInteractive)
 		if erra != nil {
 			if err == nil {
 				err = erra

@@ -1863,11 +1863,11 @@ func (d *backendGcp) RunCommands(clusterName string, commands [][]string, nodes 
 	return fout, nil
 }
 
-func (d *backendGcp) AttachAndRun(clusterName string, node int, command []string) (err error) {
-	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr)
+func (d *backendGcp) AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error) {
+	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive)
 }
 
-func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (err error) {
+func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) (err error) {
 	clusters, err := d.ClusterList()
 	if err != nil {
 		return fmt.Errorf("could not get cluster list: %s", err)
@@ -1891,9 +1891,7 @@ func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string
 		return fmt.Errorf("could not get key path: %s", err)
 	}
 	var comm string
-	isInteractive := true
 	if len(command) > 0 {
-		isInteractive = false
 		comm = command[0]
 		for _, c := range command[1:] {
 			if strings.Contains(c, " ") {

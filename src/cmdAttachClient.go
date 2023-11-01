@@ -62,12 +62,16 @@ func (c *attachClientCmd) run(args []string) (err error) {
 		return err
 	}
 
+	isInteractive := true
+	if len(nodes) > 1 {
+		isInteractive = false
+	}
 	if !c.Parallel {
 		for _, node := range nodes {
 			if len(nodes) > 1 {
 				fmt.Printf(" ======== %s:%d ========\n", string(c.ClientName), node)
 			}
-			erra := b.AttachAndRun(string(c.ClientName), node, args)
+			erra := b.AttachAndRun(string(c.ClientName), node, args, isInteractive)
 			if erra != nil {
 				if err == nil {
 					err = erra
@@ -99,15 +103,15 @@ func (c *attachClientCmd) run(args []string) (err error) {
 	wg := new(sync.WaitGroup)
 	for _, node := range nodes {
 		wg.Add(1)
-		go c.runbg(wg, node, args)
+		go c.runbg(wg, node, args, isInteractive)
 	}
 	wg.Wait()
 	return nil
 }
 
-func (c *attachClientCmd) runbg(wg *sync.WaitGroup, node int, args []string) {
+func (c *attachClientCmd) runbg(wg *sync.WaitGroup, node int, args []string, isInteractive bool) {
 	defer wg.Done()
-	err := b.AttachAndRun(string(c.ClientName), node, args)
+	err := b.AttachAndRun(string(c.ClientName), node, args, isInteractive)
 	if err != nil {
 		log.Printf(" ---- Node %d ERROR: %s", node, err)
 	}

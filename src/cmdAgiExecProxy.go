@@ -72,6 +72,7 @@ type agiExecProxyCmd struct {
 	slackcustomsource    string
 	owner                string
 	slackAccessDetails   string
+	isDim                bool
 }
 
 type tokens struct {
@@ -242,6 +243,11 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	// notifier load start
 	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
 	if err == nil {
+		c.isDim = true
+		if _, err := os.Stat("/opt/agi/nodim"); err == nil {
+			c.isDim = false
+		}
+
 		yaml.Unmarshal(nstring, &c.notify)
 		c.notify.Init()
 		defer c.notify.Close()
@@ -605,9 +611,10 @@ func (c *agiExecProxyCmd) maxUptime() {
 		notifyData, err := getAgiStatus("/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IngestStatus: notifyData,
-				Event:        AgiEventMaxAge,
-				AGIName:      c.AGIName,
+				IsDataInMemory: c.isDim,
+				IngestStatus:   notifyData,
+				Event:          AgiEventMaxAge,
+				AGIName:        c.AGIName,
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
@@ -671,10 +678,11 @@ func (c *agiExecProxyCmd) spotMonitor() {
 		c.shuttingDown = true
 		c.shuttingDownMutex.Unlock()
 		notifyItem := &ingest.NotifyEvent{
-			IngestStatus: stat,
-			Event:        AgiEventSpotNoCapacity,
-			AGIName:      c.AGIName,
-			EventDetail:  string(body),
+			IsDataInMemory: c.isDim,
+			IngestStatus:   stat,
+			Event:          AgiEventSpotNoCapacity,
+			AGIName:        c.AGIName,
+			EventDetail:    string(body),
 		}
 		c.notify.NotifyJSON(notifyItem)
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
@@ -713,18 +721,20 @@ func (c *agiExecProxyCmd) serviceMonitor() {
 		}
 		if notifyDown {
 			notifyItem := &ingest.NotifyEvent{
-				IngestStatus: stat,
-				Event:        AgiEventServiceDown,
-				AGIName:      c.AGIName,
+				IsDataInMemory: c.isDim,
+				IngestStatus:   stat,
+				Event:          AgiEventServiceDown,
+				AGIName:        c.AGIName,
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			c.notify.NotifySlack(AgiEventServiceDown, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *A required service has quit unexpectedly, check: aerolab agi status*", AgiEventServiceDown, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
 		} else if notifyUp {
 			notifyItem := &ingest.NotifyEvent{
-				IngestStatus: stat,
-				Event:        AgiEventServiceUp,
-				AGIName:      c.AGIName,
+				IsDataInMemory: c.isDim,
+				IngestStatus:   stat,
+				Event:          AgiEventServiceUp,
+				AGIName:        c.AGIName,
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
@@ -775,9 +785,10 @@ func (c *agiExecProxyCmd) activityMonitor() {
 				notifyData, err := getAgiStatus("/opt/agi/ingest/")
 				if err == nil {
 					notifyItem := &ingest.NotifyEvent{
-						IngestStatus: notifyData,
-						Event:        AgiEventMaxInactive,
-						AGIName:      c.AGIName,
+						IsDataInMemory: c.isDim,
+						IngestStatus:   notifyData,
+						Event:          AgiEventMaxInactive,
+						AGIName:        c.AGIName,
 					}
 					c.notify.NotifyJSON(notifyItem)
 					slackagiLabel, _ := os.ReadFile("/opt/agi/label")

@@ -110,6 +110,8 @@ aerolab agi status
 
 ```
 aerolab agi attach
+cd /opt/agi/files
+ls
 ```
 
 ### Connect to grafana and other web services
@@ -232,6 +234,14 @@ aerolab agi create --name myAgi --agi-label "myCluster" --source-local ./myClust
 
 The below if average data size for logs. This may vary.
 
+### Default (data in memory)
+
 ```
-10GB logs requires 14GB on disk and 17.3GB RAM (using data-in-memory)
+10GB logs requires 14GB on disk and 17.4GB RAM
+```
+
+### No data in memory (--no-dim)
+
+```
+10GB logs requires 14GB on disk and 3.4GB RAM
 ```

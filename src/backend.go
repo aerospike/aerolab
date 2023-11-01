@@ -124,9 +124,9 @@ type backend interface {
 	// /stop/destroy/start cluster of given name. optional nodes slice to only start particular nodes.
 	ClusterDestroy(name string, nodes []int) error
 	// attach to a node in cluster and run a single command. does not return output of command.
-	AttachAndRun(clusterName string, node int, command []string) (err error)
+	AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error)
 	// like AttachAndRun, but provide custom stdin, stdout and stderr the command should pipe to
-	RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (err error)
+	RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) (err error)
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
