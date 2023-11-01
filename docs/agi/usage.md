@@ -110,6 +110,8 @@ aerolab agi status
 
 ```
 aerolab agi attach
+cd /opt/agi/files
+ls
 ```
 
 ### Connect to grafana and other web services
