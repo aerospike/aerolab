@@ -102,7 +102,7 @@ After=network.target
 [Service]
 Type=simple
 TimeoutStopSec=600
-Restart=never
+Restart=no
 User=root
 RestartSec=10
 WorkingDirectory=/opt/agi
