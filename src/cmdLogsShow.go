@@ -45,7 +45,7 @@ func (c *logsShowCmd) Execute(args []string) error {
 		} else {
 			command = append(command, "--no-pager")
 		}
-		err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), command)
+		err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), command, true)
 		if err != nil {
 			return fmt.Errorf("journalctl error: %s", err)
 		}
@@ -58,7 +58,7 @@ func (c *logsShowCmd) Execute(args []string) error {
 	} else {
 		command = []string{"cat", c.LogLocation}
 	}
-	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), command)
+	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), command, true)
 	if err != nil {
 		return fmt.Errorf("log cat error: %s", err)
 	}

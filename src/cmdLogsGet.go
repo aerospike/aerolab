@@ -124,7 +124,7 @@ func (c *logsGetCmd) get(node int) error {
 	defer f.Close()
 	if c.Journal {
 		command := []string{"journalctl", "-u", "aerospike", "--no-pager"}
-		err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f)
+		err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f, false)
 		if err != nil {
 			return fmt.Errorf("journalctl error: %s", err)
 		}
@@ -132,7 +132,7 @@ func (c *logsGetCmd) get(node int) error {
 	}
 
 	command := []string{"cat", c.LogLocation}
-	err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f)
+	err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f, false)
 	if err != nil {
 		return fmt.Errorf("log cat error: %s", err)
 	}
