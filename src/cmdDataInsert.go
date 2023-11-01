@@ -189,7 +189,7 @@ func (c *dataInsertSelectorCmd) unpack(args []string, extraArgs []string) error 
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.CopyFilesToCluster: %s", err)
 	}
-	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), []string{"chmod", "755", "/usr/local/bin/aerolab"})
+	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), []string{"chmod", "755", "/usr/local/bin/aerolab"}, false)
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(1): %s", err)
 	}
@@ -197,7 +197,7 @@ func (c *dataInsertSelectorCmd) unpack(args []string, extraArgs []string) error 
 	runCommand = append(runCommand, os.Args[1:]...)
 	runCommand = append(runCommand, "-d", "1")
 	runCommand = append(runCommand, extraArgs...)
-	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), runCommand)
+	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), runCommand, false)
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(2): %s", err)
 	}
