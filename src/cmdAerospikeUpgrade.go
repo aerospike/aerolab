@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bestmethod/inslice"
 )
@@ -156,22 +157,20 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 
 	log.Print("Upgrading Aerospike")
 	// upgrade
+	ntime := strconv.Itoa(int(time.Now().Unix()))
 	for _, i := range nodeList {
 		// backup aerospike.conf
-		nret, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{i})
+		nret, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}, {"mkdir", "-p", "/tmp/" + ntime}}, []int{i})
 		if err != nil {
 			return err
 		}
 		nfile := nret[0]
-		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"tar", "-zxvf", "/root/upgrade.tgz"}}, []int{i})
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"tar", "-zxvf", "/root/upgrade.tgz", "-C", "/tmp/" + ntime}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// upgrade
-		//fnDir := strings.TrimSuffix(fn, ".tgz")
-		//fnDir = strings.TrimSuffix(fnDir, ".x86_64")
-		//fnDir = strings.TrimSuffix(fnDir, ".arm64")
-		out, err = b.RunCommands(string(c.ClusterName), [][]string{{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd aerospike-server-enterprise*%s* && ./asinstall", c.AerospikeVersion)}}, []int{i})
+		out, err = b.RunCommands(string(c.ClusterName), [][]string{{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd /tmp/%s/aerospike* && ./asinstall", ntime)}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
