@@ -135,8 +135,9 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 	sort.Ints(nodes)
 	headerPrinted := NewSafeBool()
 	if len(nodes) == 1 || c.ParallelThreads == 1 {
+		doutlock := new(sync.Mutex)
 		for _, node := range nodes {
-			err = c.runList(dout, node, printable, filterDisks, filterPartitions, headerPrinted)
+			err = c.runList(dout, doutlock, node, printable, filterDisks, filterPartitions, headerPrinted)
 			if err != nil {
 				return dout, err
 			}
@@ -145,10 +146,11 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 		parallel := make(chan int, c.ParallelThreads)
 		hasError := make(chan bool, len(nodes))
 		wait := new(sync.WaitGroup)
+		doutlock := new(sync.Mutex)
 		for _, node := range nodes {
 			parallel <- 1
 			wait.Add(1)
-			go c.runListParallel(dout, node, printable, filterDisks, filterPartitions, headerPrinted, parallel, wait, hasError)
+			go c.runListParallel(dout, doutlock, node, printable, filterDisks, filterPartitions, headerPrinted, parallel, wait, hasError)
 		}
 		wait.Wait()
 		if len(hasError) > 0 {
@@ -161,19 +163,19 @@ func (c *clusterPartitionListCmd) run(printable bool) (disks, error) {
 	return dout, nil
 }
 
-func (c *clusterPartitionListCmd) runListParallel(dout disks, node int, printable bool, filterDisks []int, filterPartitions []int, headerPrinted *SafeBool, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+func (c *clusterPartitionListCmd) runListParallel(dout disks, doutlock *sync.Mutex, node int, printable bool, filterDisks []int, filterPartitions []int, headerPrinted *SafeBool, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
 	defer func() {
 		<-parallel
 		wait.Done()
 	}()
-	err := c.runList(dout, node, printable, filterDisks, filterPartitions, headerPrinted)
+	err := c.runList(dout, doutlock, node, printable, filterDisks, filterPartitions, headerPrinted)
 	if err != nil {
 		log.Printf("ERROR getting logs from node %d: %s", node, err)
 		hasError <- true
 	}
 }
 
-func (c *clusterPartitionListCmd) runList(dout disks, node int, printable bool, filterDisks []int, filterPartitions []int, headerPrinted *SafeBool) error {
+func (c *clusterPartitionListCmd) runList(dout disks, doutlock *sync.Mutex, node int, printable bool, filterDisks []int, filterPartitions []int, headerPrinted *SafeBool) error {
 	blkFormat := 1
 	ret, err := b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
 	if err != nil {
@@ -234,6 +236,7 @@ func (c *clusterPartitionListCmd) runList(dout disks, node int, printable bool, 
 		disk.diskNo = diskNo
 		disk.partNo = 0
 		disk.nodeNo = node
+		doutlock.Lock()
 		if _, ok := dout[node]; !ok {
 			dout[node] = make(map[int]map[int]blockDevices)
 		}
@@ -277,6 +280,7 @@ func (c *clusterPartitionListCmd) runList(dout disks, node int, printable bool, 
 				}
 			}
 		}
+		doutlock.Unlock()
 	}
 	if printable && len(out) > 0 {
 		headerPrinted.lock.Lock()

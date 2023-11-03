@@ -22,9 +22,11 @@
 * Fix: GCP arm support.
 * Parallelize docker cluster and client listing for speed.
 * If terminationProtection is on, show in inventory, avoid trying to destroy, and do not expire.
+* Parallelize `aerospike upgrade` command.
 * Fix `access-address` and `alternate-access-address` internal IPs, if those change.
 * Fix Docker discovery of exposed ports on stopped containers.
 * Fix `aerospike upgrade` command to handle differing folder names in minor versions.
+* Fix `cluster partition list` race condition when in parallel mode.
 
 #### 7.1.1
 * GCP just made `DiscardLocalSsd` non-optional when stopping instances. Adjusting accordingly.
