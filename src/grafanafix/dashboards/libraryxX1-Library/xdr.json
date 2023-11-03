@@ -4055,12 +4055,9 @@
                 }
               ]
             },
-            "unit": "ms"
+            "unit": "s"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "py0IbbEVz"
         },
         "options": {
           "legend": {
