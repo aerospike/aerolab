@@ -7,7 +7,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 )
 
@@ -17,6 +19,7 @@ type aerospikeUpgradeCmd struct {
 	Aws              aerospikeUpgradeCmdAws `no-flag:"true"`
 	Gcp              aerospikeUpgradeCmdAws `no-flag:"true"`
 	RestartAerospike TypeYesNo              `short:"s" long:"restart" description:"Restart aerospike after upgrade (y/n)" default:"y"`
+	parallelThreadsCmd
 }
 
 type aerospikeUpgradeCmdAws struct {
@@ -141,6 +144,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		return err
 	}
 	defer fnContents.Close()
+	log.Print("Uploading installer to nodes")
 	err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/root/upgrade.tgz", fnContents, pfilelen}}, nodeList)
 	if err != nil {
 		return err
@@ -149,6 +153,7 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	// stop aerospike
 	a.opts.Aerospike.Stop.ClusterName = c.ClusterName
 	a.opts.Aerospike.Stop.Nodes = c.Nodes
+	a.opts.Aerospike.Stop.ParallelThreads = c.ParallelThreads
 	err = a.opts.Aerospike.Stop.Execute(nil)
 	if err != nil {
 		return err
@@ -156,22 +161,20 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 
 	log.Print("Upgrading Aerospike")
 	// upgrade
-	for _, i := range nodeList {
+	ntime := strconv.Itoa(int(time.Now().Unix()))
+	returns := parallelize.MapLimit(nodeList, c.ParallelThreads, func(i int) error {
 		// backup aerospike.conf
-		nret, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{i})
+		nret, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}, {"mkdir", "-p", "/tmp/" + ntime}}, []int{i})
 		if err != nil {
 			return err
 		}
 		nfile := nret[0]
-		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"tar", "-zxvf", "/root/upgrade.tgz"}}, []int{i})
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"tar", "-zxvf", "/root/upgrade.tgz", "-C", "/tmp/" + ntime}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
 		// upgrade
-		//fnDir := strings.TrimSuffix(fn, ".tgz")
-		//fnDir = strings.TrimSuffix(fnDir, ".x86_64")
-		//fnDir = strings.TrimSuffix(fnDir, ".arm64")
-		out, err = b.RunCommands(string(c.ClusterName), [][]string{{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd aerospike-server-enterprise*%s* && ./asinstall", c.AerospikeVersion)}}, []int{i})
+		out, err = b.RunCommands(string(c.ClusterName), [][]string{{"/bin/bash", "-c", fmt.Sprintf("export DEBIAN_FRONTEND=noninteractive; cd /tmp/%s/aerospike* && ./asinstall", ntime)}}, []int{i})
 		if err != nil {
 			return fmt.Errorf("%s : %s", string(out[0]), err)
 		}
@@ -180,12 +183,24 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
+		return nil
+	})
+	isError := false
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %d returned %s", nodes[i], ret)
+			isError = true
+		}
+	}
+	if isError {
+		return errors.New("some nodes returned errors")
 	}
 
 	// start aerospike if selected
 	if inslice.HasString([]string{"YES", "Y"}, strings.ToUpper(c.RestartAerospike.String())) {
 		a.opts.Aerospike.Start.ClusterName = c.ClusterName
 		a.opts.Aerospike.Start.Nodes = c.Nodes
+		a.opts.Aerospike.Start.ParallelThreads = c.ParallelThreads
 		err = a.opts.Aerospike.Start.Execute(nil)
 		if err != nil {
 			return err
