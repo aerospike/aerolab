@@ -1772,8 +1772,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->index-usage - used-bytes",
-          "uid": ""
+          "uid": "aaf0f530-47c6-44aa-a774-eba4b5c64ac1"
         },
         "options": {
           "legend": {
@@ -1873,8 +1872,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->set-index-usage - used-bytes",
-          "uid": ""
+          "uid": "ca7fd270-dc8c-4e65-8a0b-456ab8fa0147"
         },
         "options": {
           "legend": {
@@ -1974,8 +1972,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->Sindex-Usage - used-bytes",
-          "uid": ""
+          "uid": "d7d3e12d-377f-40ef-a622-175280f84dfb"
         },
         "options": {
           "legend": {
@@ -2075,8 +2072,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->data-usage - used-bytes",
-          "uid": ""
+          "uid": "c6c665fd-ec6d-4ce0-9960-e87fb861da9b"
         },
         "options": {
           "legend": {
@@ -2176,8 +2172,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->data-usage - avail-pct",
-          "uid": ""
+          "uid": "bdcbe067-a6bd-44d9-8cfb-30eef4f2bc25"
         },
         "options": {
           "legend": {
@@ -2277,8 +2272,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->stop-writes - sys-memory-pct",
-          "uid": ""
+          "uid": "ae8eb53c-7758-4496-b604-26618b193cf0"
         },
         "options": {
           "legend": {
@@ -2378,8 +2372,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->stop-writes - data avail-pct",
-          "uid": ""
+          "uid": "dd76ba95-4154-48ec-8f0b-c0ffbd78c310"
         },
         "options": {
           "legend": {
@@ -2479,8 +2472,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->stop-writes - used-pct",
-          "uid": ""
+          "uid": "f5ba945f-375d-4c87-8be7-bec951443770"
         },
         "options": {
           "legend": {
@@ -2580,8 +2572,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->stop-writes - all-indexes-memory",
-          "uid": ""
+          "uid": "fda6a22b-5ae4-4156-a377-bd9b7e2d1839"
         },
         "options": {
           "legend": {
@@ -2681,8 +2672,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->stop-writes - index-memory",
-          "uid": ""
+          "uid": "e21622d7-482c-4820-921c-3749f7f54cfe"
         },
         "options": {
           "legend": {
@@ -2782,8 +2772,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->stop-writes - set-index-memory",
-          "uid": ""
+          "uid": "cd637967-d121-480e-b25e-d47ee2ecf956"
         },
         "options": {
           "legend": {
@@ -2883,8 +2872,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->stop-writes - sindex-memory",
-          "uid": ""
+          "uid": "ea8c108f-ee3f-4c81-b16c-e7c2a76d540d"
         },
         "options": {
           "legend": {
@@ -2984,8 +2972,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->eviction - sys-memory-pct",
-          "uid": ""
+          "uid": "c4110adc-8adf-4362-9370-ad44bf002b6f"
         },
         "options": {
           "legend": {
@@ -3085,8 +3072,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->eviction - index-device",
-          "uid": ""
+          "uid": "f54675d5-570c-432d-889c-bae790264da8"
         },
         "options": {
           "legend": {
@@ -3186,8 +3172,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->eviction - used-pct",
-          "uid": ""
+          "uid": "ed39611e-252a-45bb-82cc-3596e3969380"
         },
         "options": {
           "legend": {
@@ -3287,8 +3272,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->eviction - data-used-pct",
-          "uid": ""
+          "uid": "b41093f6-461a-4537-aa56-da41892eb860"
         },
         "options": {
           "legend": {
@@ -3388,8 +3372,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->eviction - all-indexes-memory",
-          "uid": ""
+          "uid": "c9bfe61b-4466-42ed-a91c-f16acf378299"
         },
         "options": {
           "legend": {
@@ -3489,8 +3472,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->eviction - index-memory",
-          "uid": ""
+          "uid": "a560ae36-0668-4131-b225-bb6f3805b572"
         },
         "options": {
           "legend": {
@@ -3590,8 +3572,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->eviction - set-index-memory",
-          "uid": ""
+          "uid": "bc522506-741f-4b63-a1a3-af9cfabdc7fc"
         },
         "options": {
           "legend": {
@@ -3691,8 +3672,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->eviction - sindex-memory",
-          "uid": ""
+          "uid": "edcca7d6-e5ef-4fe6-8b50-bfcc6b0cebe9"
         },
         "options": {
           "legend": {
@@ -13247,6 +13227,12 @@
       "id": "text",
       "name": "Text",
       "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
     }
   ],
   "annotations": {
@@ -14575,7 +14561,7 @@
             "h": 7,
             "w": 12,
             "x": 0,
-            "y": 12
+            "y": 16
           },
           "id": 56,
           "libraryPanel": {
@@ -14589,7 +14575,7 @@
             "h": 7,
             "w": 12,
             "x": 12,
-            "y": 12
+            "y": 16
           },
           "id": 58,
           "libraryPanel": {
@@ -15623,9 +15609,508 @@
       ],
       "title": "Sindex GC",
       "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 180,
+      "panels": [
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 10,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "dateTimeAsIso"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 24
+          },
+          "id": 181,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"truncStart\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "refId": "A",
+              "target": "truncate"
+            }
+          ],
+          "title": "Truncate: Got command with timestamp",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 10,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "dateTimeAsIso"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 24
+          },
+          "id": 182,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"truncNow\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "refId": "A",
+              "target": "truncate"
+            }
+          ],
+          "title": "Truncate: Starting: timestamp",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 10,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 24
+          },
+          "id": 183,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"truncThread\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "refId": "A",
+              "target": "truncate"
+            }
+          ],
+          "title": "Truncate: Starting: threads",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 10,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "dateTimeAsIso"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 4,
+            "y": 31
+          },
+          "id": 184,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"truncEnd\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "refId": "A",
+              "target": "truncate"
+            }
+          ],
+          "title": "Truncate: Done: timestamp",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 10,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "always",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 12,
+            "y": 31
+          },
+          "id": 185,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"truncDel\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "refId": "A",
+              "target": "truncate"
+            }
+          ],
+          "title": "Truncate: Done: Deleted",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Truncates",
+      "type": "row"
     }
   ],
-  "refresh": false,
+  "refresh": "",
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",
@@ -16081,6 +16566,6 @@
   "timezone": "",
   "title": "Namespace",
   "uid": "zgXTPgPVka",
-  "version": 3,
+  "version": 2,
   "weekStart": ""
 }

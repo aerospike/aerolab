@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"log"
+	"net"
+	"strings"
 	"sync"
 
 	"github.com/bestmethod/inslice"
+	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 )
 
 type confFixMeshCmd struct {
@@ -107,6 +112,10 @@ func (c *confFixMeshCmd) fixIt(i int, nip map[int]string, clusterIps []string, n
 	if err != nil {
 		return err
 	}
+	newconf, err = c.fixAccessAddress(newconf, nip[i])
+	if err != nil {
+		log.Printf("WARNING: Could not fix access-address: %s", err)
+	}
 	files = append(files, fileList{"/etc/aerospike/aerospike.conf", newconf, len(newconf)})
 	if len(files) > 0 {
 		err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{i})
@@ -115,4 +124,55 @@ func (c *confFixMeshCmd) fixIt(i int, nip map[int]string, clusterIps []string, n
 		}
 	}
 	return nil
+}
+
+func (c *confFixMeshCmd) fixAccessAddress(old string, newIp string) (new string, err error) {
+	conf, err := aeroconf.Parse(strings.NewReader(old))
+	if err != nil {
+		return old, err
+	}
+	s := conf.Stanza("network")
+	if s == nil {
+		return old, errors.New("network stanza not found")
+	}
+	s = s.Stanza("service")
+	if s == nil {
+		return old, errors.New("network.service stanza not found")
+	}
+	if s.Type("access-address") == aeroconf.ValueString {
+		vals, err := s.GetValues("access-address")
+		if err != nil {
+			return old, err
+		}
+		for i, val := range vals {
+			if val == nil || strings.HasPrefix(*val, "127.") {
+				continue
+			}
+			valIP := net.ParseIP(*val)
+			if valIP.IsPrivate() {
+				vals[i] = &newIp
+			}
+		}
+	}
+	if s.Type("alternate-access-address") == aeroconf.ValueString {
+		vals, err := s.GetValues("alternate-access-address")
+		if err != nil {
+			return old, err
+		}
+		for i, val := range vals {
+			if val == nil || strings.HasPrefix(*val, "127.") {
+				continue
+			}
+			valIP := net.ParseIP(*val)
+			if valIP.IsPrivate() {
+				vals[i] = &newIp
+			}
+		}
+	}
+	var buf bytes.Buffer
+	err = conf.Write(&buf, "", "    ", true)
+	if err != nil {
+		return old, err
+	}
+	return buf.String(), nil
 }
