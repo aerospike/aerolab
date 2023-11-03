@@ -184,14 +184,33 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					lineErrorLock.Unlock()
 					return
 				}
-				out2, err := exec.Command("docker", "container", "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
+				out2, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.ExposedPorts}} {{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
 				if err != nil {
 					lineErrorLock.Lock()
 					lineError = err
 					lineErrorLock.Unlock()
 					return
 				}
-				ip := strings.Trim(string(out2), "'\" \n\r")
+				ipport := strings.Split(strings.Trim(string(out2), "'\" \n\r"), " ")
+				ip := ""
+				exposePort := ""
+				intPort := ""
+				for _, it := range ipport {
+					if strings.HasPrefix(it, "{") {
+						nports := make(map[string]interface{})
+						err = json.Unmarshal([]byte(it), &nports)
+						if err == nil {
+							for k := range nports {
+								k = strings.Split(k, "/")[0]
+								exposePort = k
+								intPort = k
+							}
+						}
+					} else {
+						ip = it
+						break
+					}
+				}
 				arch := "amd64"
 				if d.isArm {
 					arch = "arm64"
@@ -230,6 +249,12 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 						ep2 = strings.Split(ep1[1], "/")
 						intPorts = ep2[0]
 					}
+				}
+				if exposePorts == "" {
+					exposePorts = exposePort
+				}
+				if intPorts == "" {
+					intPorts = intPort
 				}
 				invLock.Lock()
 				defer invLock.Unlock()
