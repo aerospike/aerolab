@@ -37,12 +37,14 @@ type expiryInstallCmdGcp struct {
 
 func init() {
 	addBackendSwitch("config.gcp.expiry-install", "gcp", &a.opts.Config.Gcp.ExpiryInstall.Gcp)
+	addBackendSwitch("config.gcp.expiry-remove", "gcp", &a.opts.Config.Gcp.ExpiryRemove.Gcp)
 }
 
 func (c *expiryInstallCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	log.Println("Running config." + a.opts.Config.Backend.Type + ".expiry-install")
 	if a.opts.Config.Backend.Type == "docker" {
 		return logFatal("required backend type to be AWS|GCP")
 	}
@@ -54,24 +56,28 @@ func (c *expiryInstallCmd) Execute(args []string) error {
 	if err != nil {
 		return errors.New(err.Error())
 	}
+	log.Println("Done")
 	return nil
 }
 
 type expiryRemoveCmd struct {
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Gcp  expiryInstallCmdGcp `no-flag:"true"`
+	Help helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *expiryRemoveCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	log.Println("Running config." + a.opts.Config.Backend.Type + ".expiry-remove")
 	if a.opts.Config.Backend.Type == "docker" {
 		return logFatal("required backend type to be AWS|GCP")
 	}
-	err := b.ExpiriesSystemRemove()
+	err := b.ExpiriesSystemRemove(c.Gcp.Region)
 	if err != nil {
 		return errors.New(err.Error())
 	}
+	log.Println("Done")
 	return nil
 }
 
@@ -84,6 +90,7 @@ func (c *expiryCheckFreqCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	log.Println("Running config." + a.opts.Config.Backend.Type + ".expiry-run-frequency")
 	if a.opts.Config.Backend.Type == "docker" {
 		return logFatal("required backend type to be AWS|GCP")
 	}
@@ -91,6 +98,7 @@ func (c *expiryCheckFreqCmd) Execute(args []string) error {
 	if err != nil {
 		return errors.New(err.Error())
 	}
+	log.Println("Done")
 	return nil
 }
 
