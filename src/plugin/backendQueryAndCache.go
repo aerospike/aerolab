@@ -8,6 +8,7 @@ import (
 
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
+	"github.com/rglonek/sbs"
 )
 
 func (p *Plugin) queryAndCache() {
@@ -98,7 +99,7 @@ func (p *Plugin) cacheMetadataList() error {
 		}
 		for k, v := range rec.Record.Bins {
 			metaItem := &metaEntries{}
-			nerr := json.Unmarshal([]byte(v.(string)), &metaItem)
+			nerr := json.Unmarshal(sbs.StringToByteSlice(v.(string)), &metaItem)
 			if nerr != nil {
 				logger.Warn("Failed to unmarshal existing label data for %s: %s", k, nerr)
 			}

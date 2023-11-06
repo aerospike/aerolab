@@ -95,7 +95,7 @@ func aerolabExpireDo() error {
 		}
 		instances := pair.Value.Instances
 		for _, instance := range instances {
-			if strings.ToUpper(*instance.Status) == "STOPPING" || strings.ToUpper(*instance.Status) == "TERMINATED" {
+			if strings.ToUpper(*instance.Status) != "RUNNING" && strings.ToUpper(*instance.Status) != "TERMINATED" && strings.ToUpper(*instance.Status) != "SUSPENDED" {
 				continue
 			}
 			expire, ok := instance.Labels["aerolab4expires"]

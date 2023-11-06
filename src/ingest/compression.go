@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/rglonek/sbs"
 
 	"github.com/nwaples/rardecode"
 )
@@ -161,7 +162,7 @@ func un7z(src string, dst string) error {
 	}
 	out, err := exec.Command("7z", "x", "-aou", "-y", fmt.Sprintf("-o%s", dst), src).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("err:%s .. out:%s", err, string(out))
+		return fmt.Errorf("err:%s .. out:%s", err, sbs.ByteSliceToString(out))
 	}
 	return nil
 }
