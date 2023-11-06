@@ -11,6 +11,7 @@ import (
 
 	"github.com/aerospike/aerospike-client-go/v6"
 	"github.com/bestmethod/logger"
+	"github.com/rglonek/sbs"
 )
 
 func isSocketTimeout(ctx context.Context) bool {
@@ -57,7 +58,7 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusBadRequest, "Failed to read body (remote:%s) (error:%s)", r.RemoteAddr, err)
 		return
 	}
-	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, string(body))
+	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
 	req := new(queryRequest)
 	err = json.Unmarshal(body, req)
 	if err != nil {
@@ -105,7 +106,7 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 			responseError(w, http.StatusBadRequest, "Failed to marshal body json of scoped vars for detail logging (remote:%s) (error:%s)", r.RemoteAddr, err)
 			return
 		}
-		logger.Detail("(remote:%s) (parsed-payload:%s) (selected-vars:%s)", r.RemoteAddr, string(body), string(bodyx))
+		logger.Detail("(remote:%s) (parsed-payload:%s) (selected-vars:%s)", r.RemoteAddr, sbs.ByteSliceToString(body), sbs.ByteSliceToString(bodyx))
 	}
 	logger.Info("QUERY ALLOCATE_JOB (type:query) (runningJobs:%d) (remote:%s)", len(p.jobs), r.RemoteAddr)
 	jtime := time.Now()

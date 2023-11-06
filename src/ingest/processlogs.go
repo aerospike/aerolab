@@ -15,6 +15,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v6"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
+	"github.com/rglonek/sbs"
 )
 
 type metaEntries struct {
@@ -85,7 +86,7 @@ func (i *Ingest) ProcessLogs() error {
 			}
 			for k, v := range rec.Record.Bins {
 				metaItem := &metaEntries{}
-				err = json.Unmarshal([]byte(v.(string)), &metaItem)
+				err = json.Unmarshal(sbs.StringToByteSlice(v.(string)), &metaItem)
 				if err != nil {
 					logger.Warn("Failed to unmarshal existing label data: %s", err)
 				}
@@ -150,7 +151,7 @@ func (i *Ingest) ProcessLogs() error {
 							<-threads
 							return
 						}
-						bin := aerospike.NewBin(k, string(metajson))
+						bin := aerospike.NewBin(k, sbs.ByteSliceToString(metajson))
 						aerr = i.db.PutBins(i.wp, key, bin)
 						if aerr != nil {
 							metaLock.Unlock()

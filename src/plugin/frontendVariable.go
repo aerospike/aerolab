@@ -10,6 +10,7 @@ import (
 
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
+	"github.com/rglonek/sbs"
 )
 
 type variableQuery struct {
@@ -36,7 +37,7 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusBadRequest, "Failed to read body (remote:%s) (error:%s)", r.RemoteAddr, err)
 		return
 	}
-	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, string(body))
+	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
 	query := new(variableQuery)
 	err = json.Unmarshal(body, query)
 	if err != nil {
@@ -57,8 +58,8 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(200)
 		json.NewEncoder(w).Encode([]*variableResponse{{
-			Text:  string(fc),
-			Value: string(fc),
+			Text:  sbs.ByteSliceToString(fc),
+			Value: sbs.ByteSliceToString(fc),
 		}})
 		return
 	}
@@ -68,7 +69,7 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 	clusterNames := []string{}
 	if len(q) > 1 {
 		cn := strings.Join(q[1:], "@")
-		err = json.Unmarshal([]byte(cn), &clusterNames)
+		err = json.Unmarshal(sbs.StringToByteSlice(cn), &clusterNames)
 		if err != nil {
 			responseError(w, http.StatusBadRequest, "Failed to unmarshal json request cluster names (remote:%s) (error:%s)", r.RemoteAddr, err)
 			p.cache.lock.RUnlock()
