@@ -268,20 +268,39 @@ func (d *backendGcp) expiriesSystemInstall(intervalMinutes int, deployRegion str
 }
 
 func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+	if deployRegion == "" {
+		return errors.New("to install the expriries system, region must be specified")
+	}
+	if len(strings.Split(deployRegion, "-")) != 2 {
+		return errors.New("wrong region format, example: us-central1")
+	}
 	rd, err := a.aerolabRootDir()
 	if err != nil {
 		return fmt.Errorf("error getting aerolab home dir: %s", err)
 	}
 	log.Println("Expiries: checking if job exists already")
+	prevRegion := ""
 	if lastRegion, err := os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project)); err == nil {
+		prevRegion = string(lastRegion)
 		if _, err = exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(lastRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
+			log.Println("Expiries: done")
+			return errors.New("EXISTS")
+		}
+	}
+	if prevRegion != deployRegion {
+		if _, err = exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(deployRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
 			log.Println("Expiries: done")
 			return errors.New("EXISTS")
 		}
 	}
 
 	log.Println("Expiries: cleaning up old jobs")
-	d.expiriesSystemRemove(false) // cleanup
+	if prevRegion != "" {
+		d.expiriesSystemRemove(false, prevRegion) // cleanup
+	}
+	if prevRegion != deployRegion {
+		d.expiriesSystemRemove(false, deployRegion)
+	}
 
 	err = os.WriteFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project), []byte(deployRegion), 0600)
 	if err != nil {
@@ -368,18 +387,21 @@ func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	return nil
 }
 
-func (d *backendGcp) ExpiriesSystemRemove() error {
-	return d.expiriesSystemRemove(true)
+func (d *backendGcp) ExpiriesSystemRemove(region string) error {
+	return d.expiriesSystemRemove(true, region)
 }
 
-func (d *backendGcp) expiriesSystemRemove(printErr bool) error {
+func (d *backendGcp) expiriesSystemRemove(printErr bool, region string) error {
 	rd, err := a.aerolabRootDir()
 	if err != nil {
 		return fmt.Errorf("error getting aerolab home dir: %s", err)
 	}
-	lastRegion, err := os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project))
-	if err != nil {
-		return fmt.Errorf("could not read job region from %s: %s", path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project), err)
+	lastRegion := []byte(region)
+	if region == "" {
+		lastRegion, err = os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project))
+		if err != nil {
+			return fmt.Errorf("could not read job region from %s: %s", path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project), err)
+		}
 	}
 	var nerr error
 	if out, err := exec.Command("gcloud", "scheduler", "jobs", "delete", "aerolab-expiries", "--location", string(lastRegion), "--quiet", "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err != nil {
