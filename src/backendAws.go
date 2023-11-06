@@ -307,7 +307,8 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	}
 	log.Println("Installing cluster expiry system")
 	// attempt to remove any garbage left behind by previous installation efforts
-	d.ExpiriesSystemRemove()
+	d.ExpiriesSystemRemove("")
+	time.Sleep(5 * time.Second)
 
 	ident, err := d.sts.GetCallerIdentity(&sts.GetCallerIdentityInput{})
 	if err != nil {
@@ -486,7 +487,7 @@ func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.
 	return err
 }
 
-func (d *backendAws) ExpiriesSystemRemove() error {
+func (d *backendAws) ExpiriesSystemRemove(region string) error {
 	var ret []string
 	_, err := d.scheduler.DeleteSchedule(&scheduler.DeleteScheduleInput{
 		Name:        aws.String("aerolab-expiries"),

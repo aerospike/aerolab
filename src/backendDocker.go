@@ -69,7 +69,7 @@ func (d *backendDocker) EnableServices() error {
 func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
 	return nil
 }
-func (d *backendDocker) ExpiriesSystemRemove() error {
+func (d *backendDocker) ExpiriesSystemRemove(region string) error {
 	return nil
 }
 func (d *backendDocker) ExpiriesSystemFrequency(intervalMinutes int) error {
