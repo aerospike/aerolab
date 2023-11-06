@@ -15,6 +15,7 @@ import (
 	"github.com/aerospike/aerospike-client-go/v6"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
+	"github.com/rglonek/sbs"
 )
 
 type timeseriesResponse struct {
@@ -272,17 +273,17 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			dpGroups := make([]string, 0, len(dp.groups)+1)
 			if p.config.TimeseriesDisplayNameFirst && k != "" {
 				dpGroups = append(dpGroups, k)
-				groupHash.Write([]byte(k))
+				groupHash.Write(sbs.StringToByteSlice(k))
 			}
 			for _, g := range dp.groups {
 				if g.value != "" {
 					dpGroups = append(dpGroups, g.value)
-					groupHash.Write([]byte(g.value))
+					groupHash.Write(sbs.StringToByteSlice(g.value))
 				}
 			}
 			if !p.config.TimeseriesDisplayNameFirst && k != "" {
 				dpGroups = append(dpGroups, k)
-				groupHash.Write([]byte(k))
+				groupHash.Write(sbs.StringToByteSlice(k))
 			}
 			grHash := groupHash.Sum(nil)
 			found := -1

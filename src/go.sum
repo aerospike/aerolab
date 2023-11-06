@@ -142,6 +142,8 @@ github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744 h1:HyBW093bA2fLY
 github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744/go.mod h1:CS128EIeoFCR4HBOwZDqzicTdDDcwzAWSqPUof2r8vI=
 github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible h1:YetOOw5mSL6xmwbF5GMcmvMbpthp03tmGLx3U/ke/YA=
 github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible/go.mod h1:yWO03+fWZps+sVPozmNXFoq1v+V3xIGOd8m2WU9Vm70=
+github.com/rglonek/sbs v1.0.0 h1:CU15j5+gcBE6Oee0P7ldp7WHBVvUszNy83tPX8v92Lk=
+github.com/rglonek/sbs v1.0.0/go.mod h1:abz3p7k2s1/vpiP6QOrOoKapqTzc8e9h+Ofza0aKDhU=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.4 h1:8TfxU8dW6PdqD27gjM8MVNuicgxIjxpm4K7x4jp8sis=
 github.com/rivo/uniseg v0.4.4/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
