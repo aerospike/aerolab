@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/bestmethod/logger"
+	"github.com/rglonek/sbs"
 )
 
 type metricQuery struct {
@@ -29,7 +30,7 @@ func (p *Plugin) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusBadRequest, "Failed to read body (remote:%s) (error:%s)", r.RemoteAddr, err)
 		return
 	}
-	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, string(body))
+	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
 	query := new(metricQuery)
 	err = json.Unmarshal(body, query)
 	if err != nil {
@@ -53,5 +54,5 @@ func (p *Plugin) handleMetrics(w http.ResponseWriter, r *http.Request) {
 func responseError(w http.ResponseWriter, httpStatus int, message string, tail ...interface{}) {
 	logger.Warn(message, tail...)
 	w.WriteHeader(httpStatus)
-	w.Write([]byte(fmt.Sprintf(message, tail...)))
+	w.Write(sbs.StringToByteSlice(fmt.Sprintf(message, tail...)))
 }

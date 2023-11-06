@@ -219,6 +219,9 @@ github.com/rglonek/envconfig
 # github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
 ## explicit
 github.com/rglonek/jeddevdk-goflags
+# github.com/rglonek/sbs v1.0.0
+## explicit; go 1.21.3
+github.com/rglonek/sbs
 # github.com/rivo/uniseg v0.4.4
 ## explicit; go 1.18
 github.com/rivo/uniseg

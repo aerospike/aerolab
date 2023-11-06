@@ -11,6 +11,7 @@ import (
 
 	"github.com/bestmethod/logger"
 	"github.com/gabriel-vasile/mimetype"
+	"github.com/rglonek/sbs"
 )
 
 // {"JsonPayload":{"Log": "full line..."}}
@@ -34,7 +35,7 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 	}
 	fh.Seek(0, 0)
 	// test for tab formats
-	line := strings.Split(string(b), "\n")[0]
+	line := strings.Split(sbs.ByteSliceToString(b), "\n")[0]
 	tabsplit := strings.Split(line, "\t")
 	if len(tabsplit) == 4 {
 		logger.Debug("PreProcess-special: %s is tab-4", fn)
