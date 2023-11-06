@@ -83,7 +83,7 @@ type backend interface {
 	EnableServices() error
 	// expiries calls
 	ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error
-	ExpiriesSystemRemove() error
+	ExpiriesSystemRemove(region string) error
 	ExpiriesSystemFrequency(intervalMinutes int) error
 	ClusterExpiry(zone string, clusterName string, expiry time.Duration, nodes []int) error
 	// returns whether the given system is arm (using instanceType)
