@@ -29,6 +29,7 @@
 * Fix `cluster partition list` race condition when in parallel mode.
 * Improve AWS expiry system refresh and GCP expiry system discovery.
 * AGI fix issue of discovery of the aerolab binary when using symlinks.
+* Fix telemetry for expiries to also use microseconds.
 
 #### 7.1.1
 * GCP just made `DiscardLocalSsd` non-optional when stopping instances. Adjusting accordingly.
