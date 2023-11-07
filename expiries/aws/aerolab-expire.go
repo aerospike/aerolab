@@ -237,7 +237,7 @@ func telemetryShipDo(uuid string, zone string, instance string, clusterName stri
 		ClusterName:   clusterName,
 		NodeNo:        nodeNo,
 		ExpiryVersion: "2",
-		Time:          time.Now().Unix(),
+		Time:          time.Now().UnixMicro(),
 		CmdLine:       []string{"EXPIRY"},
 	}
 	contents, err := json.Marshal(t)
