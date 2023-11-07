@@ -354,7 +354,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			nLinuxBinary = nLinuxBinaryArm64
 		}
 		if len(nLinuxBinary) == 0 {
-			nLinuxBinary, err = os.ReadFile(os.Args[0])
+			execName, err := findExec()
+			if err != nil {
+				return err
+			}
+			nLinuxBinary, err = os.ReadFile(execName)
 			if err != nil {
 				return err
 			}
