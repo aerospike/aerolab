@@ -2,16 +2,16 @@
 
 If using AWS or GCP backends, extra steps are required to migrate the firewalls from AeroLab version 6.0 or below to a new system.
 
-[Follow this manual for upgrade instructions](https://github.com/aerospike/aerolab/blob/v7.2.0/docs/upgrade-to-610.md)
+[Follow this manual for upgrade instructions](https://github.com/aerospike/aerolab/blob/v7.3.0/docs/upgrade-to-610.md)
 
 NOTES:
 * AeroLab 7.0.0 implements an instance expiry system. By default your instances will terminate after 30 hours. To modify this behaviour, create clusters with `--aws-expires TIME` or `--gcp-expires`. For example `--aws-expires 50h`. To disable expiry, set to `0`.
 * AeroLab 7.2.0 adds AWS EFS Volume expiries. If using the expiry system in AWS, reinstall using `aerolab config aws expiry-remove && aerolab config aws expiry-install`.
 
 ### Documentation and changelog
-See [the documentation](https://github.com/aerospike/aerolab/blob/v7.2.0/README.md) for full installation and usage instructions.
+See [the documentation](https://github.com/aerospike/aerolab/blob/v7.3.0/README.md) for full installation and usage instructions.
 
-[Changelog](https://github.com/aerospike/aerolab/blob/v7.2.0/CHANGELOG.md#7.2.0)
+[Changelog](https://github.com/aerospike/aerolab/blob/v7.3.0/CHANGELOG.md#7.3.0)
 
 ### Download aerolab from Assets below
 
