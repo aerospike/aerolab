@@ -4,6 +4,7 @@
 * TODO: Tag expiry systems to allow for version discovery and automated updating.
 * TODO: Allow choosing renderer mode for inventory listing to be normal, TSV, CSV, Markdown or HTML.
 * TODO: Fix: `conf generate` command for v7 aerospike is missing an argument `data-size` where needed.
+* TODO: Version check logic - if user is using a dev build and a final build is out, inform user of available upgrade.
 
 #### 7.2.0
 * Allow specifying aerospike version number for agi.
