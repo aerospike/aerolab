@@ -1,3 +1,10 @@
+#### 7.3.0
+* TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
+* TODO: Document agi instance state monitor.
+* TODO: Tag expiry systems to allow for version discovery and automated updating.
+* TODO: Allow choosing renderer mode for inventory listing to be normal, TSV, CSV, Markdown or HTML.
+* TODO: Fix: `conf generate` command for v7 aerospike is missing an argument `data-size` where needed.
+
 #### 7.2.0
 * Allow specifying aerospike version number for agi.
 * Check if locked security group / firewall rule does not include current IP. In this case, attempt to fix the rule.
