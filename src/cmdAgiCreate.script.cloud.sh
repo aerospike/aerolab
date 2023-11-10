@@ -6,7 +6,19 @@ mkdir -p /opt/agi/aerospike/smd
 cat <<'EOF' > /opt/agi/owner
 %s
 EOF
-apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
+set +e
+which apt
+ISAPT=$?
+set -e
+if [ $ISAPT -eq 0 ]
+then
+    apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
+else
+    yum install -y wget mod_ssl
+    mkdir -p /etc/ssl/certs /etc/ssl/private
+    openssl req -new -x509 -nodes -out /etc/ssl/certs/ssl-cert-snakeoil.pem -keyout /etc/ssl/private/ssl-cert-snakeoil.key -days 3650 -subj '/CN=www.example.com'
+    yum install -y https://dl.grafana.com/oss/release/grafana-10.2.0-1.x86_64.rpm
+fi
 chmod 755 /usr/local/bin/aerolab
 aerolab config backend -t none
 cat <<'EOF' > /etc/aerospike/aerospike.conf

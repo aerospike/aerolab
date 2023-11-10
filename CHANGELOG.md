@@ -1,4 +1,6 @@
 #### 7.3.0
+* Volume command supports mounts on centos/amazon.
+* AGI commands support centos/amazon.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
 * TODO: Tag expiry systems to allow for version discovery and automated updating.
