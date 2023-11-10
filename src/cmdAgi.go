@@ -50,6 +50,7 @@ type agiListCmd struct {
 	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	RenderType string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
 	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -65,6 +66,7 @@ func (c *agiListCmd) Execute(args []string) error {
 	a.opts.Inventory.List.Pager = c.Pager
 	a.opts.Inventory.List.SortBy = c.SortBy
 	a.opts.Inventory.List.JsonPretty = c.JsonPretty
+	a.opts.Inventory.List.RenderType = c.RenderType
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowAGI|inventoryShowAGIStatus)
 }
 

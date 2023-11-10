@@ -12,6 +12,7 @@ type clientListCmd struct {
 	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
 	IP         bool     `short:"i" long:"ip" description:"print only the IP of the client machines (disables JSON output)"`
+	RenderType string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
 	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -60,7 +61,7 @@ func (c *clientListCmd) Execute(args []string) error {
 		}
 		return nil
 	}
-	f, e := b.ClusterListFull(c.Json, c.Owner, c.Pager, c.JsonPretty, c.SortBy)
+	f, e := b.ClusterListFull(c.Json, c.Owner, c.Pager, c.JsonPretty, c.SortBy, c.RenderType)
 	if e != nil {
 		return e
 	}
