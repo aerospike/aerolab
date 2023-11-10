@@ -29,6 +29,7 @@ type inventoryListCmd struct {
 	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	AWSFull    bool     `long:"aws-full" description:"set to iterate through all regions and provide full output"`
+	RenderType string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
 	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -301,6 +302,18 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	}
 
 	t := table.NewWriter()
+	type renderer func() string
+	var render renderer = t.Render
+	switch strings.ToUpper(c.RenderType) {
+	case "HTML":
+		render = t.RenderHTML
+	case "CSV":
+		render = t.RenderCSV
+	case "TSV":
+		render = t.RenderTSV
+	case "MARKDOWN":
+		render = t.RenderMarkdown
+	}
 	if !isTerminal {
 		pipeLess = false
 		isColor = false
@@ -397,7 +410,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-		fmt.Println(t.Render())
+		fmt.Println(render())
 		fmt.Println()
 	}
 
@@ -463,7 +476,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-		fmt.Println(t.Render())
+		fmt.Println(render())
 		if a.opts.Config.Backend.Type != "docker" {
 			fmt.Fprint(os.Stderr, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n\n")
 		} else {
@@ -528,7 +541,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-		fmt.Println(t.Render())
+		fmt.Println(render())
 		if a.opts.Config.Backend.Type == "docker" {
 			fmt.Fprint(os.Stderr, "* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL\n\n")
 		} else {
@@ -595,7 +608,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendRow(vv)
 				}
 			}
-			fmt.Println(t.Render())
+			fmt.Println(render())
 			fmt.Println()
 		}
 		if showOther&inventoryShowAGI > 0 {
@@ -875,7 +888,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendRow(vv)
 				}
 			}
-			fmt.Println(t.Render())
+			fmt.Println(render())
 			if a.opts.Config.Backend.Type != "docker" {
 				fmt.Fprint(os.Stderr, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n\n")
 			} else {
@@ -938,7 +951,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 
 		}
 
-		fmt.Println(t.Render())
+		fmt.Println(render())
 		fmt.Println()
 	}
 
@@ -968,7 +981,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				}
 				t.AppendRow(vv)
 			}
-			fmt.Println(t.Render())
+			fmt.Println(render())
 			fmt.Println()
 		}
 	}
@@ -989,7 +1002,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendRow(table.Row{i, "Scheduler", v.Scheduler})
 					t.AppendRow(table.Row{i, "Schedule", v.Schedule})
 				}
-				fmt.Println(t.Render())
+				fmt.Println(render())
 				fmt.Println()
 			case "gcp":
 				t.SetTitle(colorHiWhite.Sprint("EXPIRY_SYSTEM"))
@@ -999,7 +1012,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendRow(table.Row{i, "Scheduler", v.Scheduler})
 					t.AppendRow(table.Row{i, "Schedule", v.Schedule})
 				}
-				fmt.Println(t.Render())
+				fmt.Println(render())
 				fmt.Println()
 			}
 		}

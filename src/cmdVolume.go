@@ -35,6 +35,7 @@ type volumeListCmd struct {
 	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Owner      string   `long:"owner" description:"filter by owner tag/label"`
 	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	RenderType string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
 	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -47,6 +48,7 @@ func (c *volumeListCmd) Execute(args []string) error {
 	a.opts.Inventory.List.Pager = c.Pager
 	a.opts.Inventory.List.SortBy = c.SortBy
 	a.opts.Inventory.List.JsonPretty = c.JsonPretty
+	a.opts.Inventory.List.RenderType = c.RenderType
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowVolumes)
 }
 
