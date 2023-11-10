@@ -20,6 +20,9 @@ var vEdition string
 
 var version = "v" + strings.Trim(vBranch, "\t\r\n ") + "-" + strings.Trim(vCommit, "\t\r\n ") + strings.Trim(vEdition, "\t\r\n ")
 
-var telemetryVersion = "3"
+var telemetryVersion = "4"
 
 var simulateArmInstaller = false
+
+var awsExpiryVersion = 2
+var gcpExpiryVersion = 2

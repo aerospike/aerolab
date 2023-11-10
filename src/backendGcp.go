@@ -282,15 +282,41 @@ func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	prevRegion := ""
 	if lastRegion, err := os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project)); err == nil {
 		prevRegion = string(lastRegion)
-		if _, err = exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(lastRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
-			log.Println("Expiries: done")
-			return errors.New("EXISTS")
+		if out, err := exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(lastRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
+			outx := strings.Split(string(out), "\n")
+			for _, line := range outx {
+				if !strings.HasPrefix(line, "description:") {
+					continue
+				}
+				linex := strings.Split(line, ":")
+				if len(linex) == 2 {
+					ever, err := strconv.Atoi(strings.Trim(linex[1], " \t\r\n'"))
+					if err == nil && ever >= gcpExpiryVersion {
+						log.Println("Expiries: done")
+						return errors.New("EXISTS")
+					}
+					break
+				}
+			}
 		}
 	}
 	if prevRegion != deployRegion {
-		if _, err = exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(deployRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
-			log.Println("Expiries: done")
-			return errors.New("EXISTS")
+		if out, err := exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(deployRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
+			outx := strings.Split(string(out), "\n")
+			for _, line := range outx {
+				if !strings.HasPrefix(line, "description:") {
+					continue
+				}
+				linex := strings.Split(line, ":")
+				if len(linex) == 2 {
+					ever, err := strconv.Atoi(strings.Trim(linex[1], " \t\r\n'"))
+					if err == nil && ever >= gcpExpiryVersion {
+						log.Println("Expiries: done")
+						return errors.New("EXISTS")
+					}
+					break
+				}
+			}
 		}
 	}
 
@@ -369,6 +395,7 @@ func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	sched = append(sched, "--schedule="+cron)
 	uri := "https://" + deployRegion + "-" + a.opts.Config.Backend.Project + ".cloudfunctions.net/aerolab-expiries"
 	sched = append(sched, "--uri="+uri)
+	sched = append(sched, "--description="+strconv.Itoa(gcpExpiryVersion))
 	sched = append(sched, "--max-backoff=15s")
 	sched = append(sched, "--min-backoff=5s")
 	sched = append(sched, "--max-doublings=2")
