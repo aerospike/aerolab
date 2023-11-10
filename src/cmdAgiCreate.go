@@ -56,6 +56,7 @@ type agiCreateCmd struct {
 	NoConfigOverride bool            `long:"no-config-override" description:"if set, existing configuration will not be overridden; useful when restarting EFS-based AGIs"`
 	notifier.HTTPSNotify
 	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
+	Distro                  TypeDistro           `short:"d" long:"distro" description:"Custom distro" default:"ubuntu"`
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool                 `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
 	chDirCmd
@@ -225,8 +226,8 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Owner = c.Owner
 	a.opts.Cluster.Create.PriceOnly = false
 	a.opts.Cluster.Create.ChDir = c.ChDir
-	a.opts.Cluster.Create.DistroName = "ubuntu"
-	a.opts.Cluster.Create.DistroVersion = "22.04"
+	a.opts.Cluster.Create.DistroName = c.Distro
+	a.opts.Cluster.Create.DistroVersion = "latest"
 	a.opts.Cluster.Create.AerospikeVersion = c.AerospikeVersion
 	a.opts.Cluster.Create.Username = ""
 	a.opts.Cluster.Create.Password = ""

@@ -304,6 +304,48 @@ func (c *volumeExecMountCmd) dpkgGrep(name string) (bool, error) {
 }
 
 func (c *volumeExecMountCmd) installEFSUtils() error {
+	if c.isDeb() {
+		return c.installEFSUtilsDeb()
+	}
+	return c.installEFSUtilsYum()
+}
+
+func (c *volumeExecMountCmd) isDeb() bool {
+	_, err := exec.Command("/bin/bash", "-c", "which dpkg").CombinedOutput()
+	return err == nil
+}
+
+func (c *volumeExecMountCmd) installEFSUtilsYum() error {
+	// deps
+	command := []string{"/bin/bash", "-c", "yum install -y make rpm-build git"}
+	out, err := exec.Command(command[0], command[1:]...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", err, string(out))
+	}
+	// git clone
+	if _, err := os.Stat("efs-utils"); err != nil {
+		command := []string{"git", "clone", "https://github.com/aws/efs-utils"}
+		out, err := exec.Command(command[0], command[1:]...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("%s: %s", err, string(out))
+		}
+	}
+	// compile
+	command = []string{"/bin/bash", "-c", "cd efs-utils && make rpm"}
+	out, err = exec.Command(command[0], command[1:]...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", err, string(out))
+	}
+	// install
+	command = []string{"/bin/bash", "-c", "yum install -y efs-utils/build/amazon-efs-utils-*.noarch.rpm"}
+	out, err = exec.Command(command[0], command[1:]...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", err, string(out))
+	}
+	return nil
+}
+
+func (c *volumeExecMountCmd) installEFSUtilsDeb() error {
 	// already installed package?
 	alreadyInstalled, err := c.dpkgGrep("amazon-efs-utils")
 	if err != nil {
