@@ -4,9 +4,9 @@
 * Version check logic - if user is using a dev build and a final build is out, inform user of available upgrade.
 * Fix: `conf generate` command for v7 aerospike is missing an argument `data-size` where needed.
 * Allow choosing renderer mode for inventory listing to be normal, TSV, CSV, Markdown or HTML.
+* Tag expiry systems to allow for version discovery and automated updating.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
-* TODO: Tag expiry systems to allow for version discovery and automated updating.
 
 #### 7.2.0
 * Allow specifying aerospike version number for agi.

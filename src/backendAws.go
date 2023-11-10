@@ -303,7 +303,18 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 		NamePrefix: aws.String("aerolab-expiries"),
 	})
 	if err == nil && len(q.Schedules) > 0 {
-		return errors.New("EXISTS")
+		qq, err := d.scheduler.GetSchedule(&scheduler.GetScheduleInput{
+			Name: q.Schedules[0].Name,
+		})
+		if err == nil {
+			qVer := aws.StringValue(qq.Description)
+			if qVer != "" {
+				qvint, err := strconv.Atoi(qVer)
+				if err == nil && qvint >= awsExpiryVersion {
+					return errors.New("EXISTS")
+				}
+			}
+		}
 	}
 	log.Println("Installing cluster expiry system")
 	// attempt to remove any garbage left behind by previous installation efforts
@@ -418,6 +429,7 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 
 	_, err = d.scheduler.CreateSchedule(&scheduler.CreateScheduleInput{
 		Name:               aws.String("aerolab-expiries"),
+		Description:        aws.String(strconv.Itoa(awsExpiryVersion)),
 		ScheduleExpression: aws.String("rate(" + strconv.Itoa(intervalMinutes) + " minutes)"),
 		State:              aws.String("ENABLED"),
 		ClientToken:        aws.String("aerolab-expiries-" + a.opts.Config.Backend.Region),
