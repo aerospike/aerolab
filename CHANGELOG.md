@@ -6,6 +6,7 @@
 * Allow choosing renderer mode for inventory listing to be normal, TSV, CSV, Markdown or HTML.
 * Tag expiry systems to allow for version discovery and automated updating.
 * Fix: add support for `time.Duration` to `config defaults` command.
+* Fix: `config defaults` should be able to set defaults for any parameter, even if it is for a backend not currently in use.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
 

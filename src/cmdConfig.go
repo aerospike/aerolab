@@ -323,7 +323,6 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 		fmt.Printf("ERROR: Key is not a parameter (%s)\n", keyField.Type().Kind())
 		beepExit(1)
 	}
-	fmt.Println(a.opts.Cluster.Create.Aws.Expires)
 	err := writeConfigFile()
 	if err != nil {
 		fmt.Printf("ERROR writing configuration file: %s\n", err)
