@@ -109,7 +109,9 @@ func main() {
 	if installSelf() {
 		return
 	}
-	go a.isLatestVersion()
+	if len(os.Args) < 2 || os.Args[1] != "upgrade" {
+		go a.isLatestVersion()
+	}
 	_, command := path.Split(os.Args[0])
 	switch command {
 	case "showsysinfo", "showconf", "showinterrupts":
