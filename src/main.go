@@ -184,6 +184,10 @@ func (a *aerolab) main(name string, args []string) error {
 	a.forceFileOptional = ffo
 
 	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+	populateAllBackends := false
+	if len(args) >= 2 && args[0] == "config" && args[1] == "defaults" {
+		populateAllBackends = true
+	}
 	for command, switchList := range backendSwitches {
 		keys := strings.Split(strings.ToLower(string(command)), ".")
 		var nCmd *flags.Command
@@ -199,7 +203,7 @@ func (a *aerolab) main(name string, args []string) error {
 			if err != nil {
 				logExit(err)
 			}
-			if string(backend) != a.opts.Config.Backend.Type {
+			if string(backend) != a.opts.Config.Backend.Type && !populateAllBackends {
 				grp.Hidden = true
 			}
 		}
