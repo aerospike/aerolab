@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 )
 
 type dlVersion struct {
@@ -85,77 +88,105 @@ func fixClusterNameConfig(conf string, cluster_name string) (newconf string, err
 }
 
 func fixAerospikeConfig(conf string, mgroup string, mesh string, mesh_ip_list []string, node_list []int) (newconf string, err error) {
+	if mesh == "default" {
+		return conf, nil
+	}
+	ac, err := aeroconf.Parse(strings.NewReader(conf))
+	if err != nil {
+		return conf, err
+	}
+	if ac.Type("network") == aeroconf.ValueNil {
+		ac.NewStanza("network")
+	}
+	if ac.Stanza("network").Type("heartbeat") == aeroconf.ValueNil {
+		ac.Stanza("network").NewStanza("heartbeat")
+	}
+	if ac.Stanza("network").Stanza("heartbeat").Type("interval") == aeroconf.ValueNil {
+		ac.Stanza("network").Stanza("heartbeat").SetValue("interval", "150")
+	}
+	if ac.Stanza("network").Stanza("heartbeat").Type("timeout") == aeroconf.ValueNil {
+		ac.Stanza("network").Stanza("heartbeat").SetValue("timeout", "10")
+	}
 	if mesh == "mcast" && mgroup != "" {
-		newconf = ""
-		changed := false
-		scanner := bufio.NewScanner(strings.NewReader(string(conf)))
-		for scanner.Scan() {
-			t := scanner.Text()
-			if strings.Contains(t, "multicast-group") {
-				t = fmt.Sprintf("multicast-group %s", mgroup)
-				changed = true
+		ac.Stanza("network").Stanza("heartbeat").SetValue("mode", "multicast")
+		ac.Stanza("network").Stanza("heartbeat").SetValue("multicast-group", mgroup)
+		ac.Stanza("network").Stanza("heartbeat").Delete("mesh-seed-address-port")
+		ac.Stanza("network").Stanza("heartbeat").Delete("tls-mesh-seed-address-port")
+		if ac.Stanza("network").Stanza("heartbeat").Type("port") == aeroconf.ValueNil && ac.Stanza("network").Stanza("heartbeat").Type("tls-port") == aeroconf.ValueNil {
+			ac.Stanza("network").Stanza("heartbeat").SetValue("port", "9918")
+		} else {
+			vals, err := ac.Stanza("network").Stanza("heartbeat").GetValues("port")
+			if err != nil {
+				return conf, err
 			}
-			newconf = newconf + "\n" + t
-		}
-		if !changed {
-			err = errors.New(fmt.Sprintln("WARNING: Could not nodify multicast-group in the config file, search failed"))
-			return conf, err
+			for _, val := range vals {
+				valx := strings.Trim(*val, "\r\n\t ")
+				if strings.HasPrefix(valx, "3") {
+					ac.Stanza("network").Stanza("heartbeat").SetValue("port", "9918")
+					break
+				}
+			}
 		}
 	} else if mesh == "mesh" {
-		for range node_list {
-			changed := 0
-			added_mesh_list := false
-			newconf = ""
-			scanner := bufio.NewScanner(strings.NewReader(string(conf)))
-			for scanner.Scan() {
-				t := scanner.Text()
-				t = strings.Trim(t, "\r")
-				if strings.Contains(t, "multicast-group") {
-					t = ""
-					changed = changed + 1
-				} else if strings.Contains(t, "mode multicast") {
-					t = "mode mesh"
-					changed = changed + 1
-				} else if strings.Contains(t, "mode mesh") {
-					changed = changed + 2
-				} else if strings.Contains(t, "mesh-seed-address-port") {
-					t = ""
-				} else if strings.Contains(t, "port 9918") {
-					t = "port 3002\n"
-					for j := 0; j < len(mesh_ip_list); j++ {
-						t = t + fmt.Sprintf("mesh-seed-address-port %s 3002\n", mesh_ip_list[j])
-					}
-					added_mesh_list = true
-				} else if strings.Contains(t, "port 3002") {
-					t = "port 3002\n"
-					for j := 0; j < len(mesh_ip_list); j++ {
-						t = t + fmt.Sprintf("mesh-seed-address-port %s 3002\n", mesh_ip_list[j])
-					}
-					added_mesh_list = true
-				} else if strings.Contains(t, "tls-port 3012") {
-					t = "tls-port 3012\n"
-					for j := 0; j < len(mesh_ip_list); j++ {
-						t = t + fmt.Sprintf("tls-mesh-seed-address-port %s 3012\n", mesh_ip_list[j])
-					}
-					added_mesh_list = true
-				}
-				if strings.TrimSpace(t) != "" {
-					newconf = newconf + "\n" + t
-				}
-			}
-			if changed < 2 {
-				err = errors.New(fmt.Sprintln("WARNING: Tried removing multicast-group and changing 'mode multicast' to 'mode mesh'. One of those ops failed"))
-				return "", err
-			}
-			if !added_mesh_list {
-				err = errors.New(fmt.Sprintln("WARNING: Could not locate line stating 'port 9918' in pleace of which we would put 'port 3002' and mesh address list. Mesh config has no nodes added!!!"))
-				return "", err
-			}
+		ac.Stanza("network").Stanza("heartbeat").Delete("multicast-group")
+		ac.Stanza("network").Stanza("heartbeat").SetValue("mode", "mesh")
+		ac.Stanza("network").Stanza("heartbeat").Delete("mesh-seed-address-port")
+		ac.Stanza("network").Stanza("heartbeat").Delete("tls-mesh-seed-address-port")
+		if ac.Stanza("network").Stanza("heartbeat").Type("port") == aeroconf.ValueNil && ac.Stanza("network").Stanza("heartbeat").Type("tls-port") == aeroconf.ValueNil {
+			ac.Stanza("network").Stanza("heartbeat").SetValue("port", "3002")
 		}
-	} else if mesh == "default" {
-		newconf = conf
+		if ac.Stanza("network").Stanza("heartbeat").Type("port") != aeroconf.ValueNil {
+			vals, err := ac.Stanza("network").Stanza("heartbeat").GetValues("port")
+			if err != nil {
+				return conf, err
+			}
+			port := "3002"
+			for _, val := range vals {
+				valx := strings.Trim(*val, "\r\n\t ")
+				if strings.HasPrefix(valx, "9") {
+					ac.Stanza("network").Stanza("heartbeat").SetValue("port", "3002")
+					break
+				} else {
+					port = valx
+				}
+			}
+			vals = []*string{}
+			for j := 0; j < len(mesh_ip_list); j++ {
+				val := fmt.Sprintf("%s %s", mesh_ip_list[j], port)
+				vals = append(vals, &val)
+			}
+			ac.Stanza("network").Stanza("heartbeat").SetValues("mesh-seed-address-port", vals)
+		}
+		if ac.Stanza("network").Stanza("heartbeat").Type("tls-port") != aeroconf.ValueNil {
+			vals, err := ac.Stanza("network").Stanza("heartbeat").GetValues("tls-port")
+			if err != nil {
+				return conf, err
+			}
+			port := "3012"
+			for _, val := range vals {
+				valx := strings.Trim(*val, "\r\n\t ")
+				if strings.HasPrefix(valx, "9") {
+					ac.Stanza("network").Stanza("heartbeat").SetValue("tls-port", "3012")
+					break
+				} else {
+					port = valx
+				}
+			}
+			vals = []*string{}
+			for j := 0; j < len(mesh_ip_list); j++ {
+				val := fmt.Sprintf("%s %s", mesh_ip_list[j], port)
+				vals = append(vals, &val)
+			}
+			ac.Stanza("network").Stanza("heartbeat").SetValues("tls-mesh-seed-address-port", vals)
+		}
 	}
-	return newconf, nil
+	var buf bytes.Buffer
+	err = ac.Write(&buf, "", "    ", true)
+	if err != nil {
+		return conf, err
+	}
+	conf = buf.String()
+	return conf, nil
 }
 
 // returns -1 if v1 is newer, or 1 if v2 is newer
