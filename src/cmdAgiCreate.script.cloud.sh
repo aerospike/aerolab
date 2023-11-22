@@ -21,6 +21,7 @@ else
 fi
 chmod 755 /usr/local/bin/aerolab
 aerolab config backend -t none
+%s
 cat <<'EOF' > /etc/aerospike/aerospike.conf
 service {
     proto-fd-max 15000

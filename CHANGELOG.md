@@ -13,6 +13,9 @@
 * Improvement: in `aerolab conf namespace-memory`, adjust `data-size` instead if using aerospike `v7+`, and only if required. Otherwise `noop`.
 * Fix: aws security groups will now also open ICMP traffic in the rules.
 * AGI: support v7 of aerospike.
+* AGI: support arm editions of centos-based operating systems.
+* AGI: add `--no-dim-filesize` option to specify data storage file size for non-data-in-memory namespaces.
+* AGI: override tools package by default by the latest tools. Allow `--no-tools-override` to disable.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
 

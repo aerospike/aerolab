@@ -56,6 +56,7 @@ type agiCreateCmd struct {
 	PluginCpuProfile bool            `long:"plugin-cpu-profiling" description:"enable CPU profiling for the grafana plugin"`
 	PluginLogLevel   int             `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
 	NoConfigOverride bool            `long:"no-config-override" description:"if set, existing configuration will not be overridden; useful when restarting EFS-based AGIs"`
+	NoToolsOverride  bool            `long:"no-tools-override" description:"by default agi will install the latest tools package; set this to disable tools package upgrade"`
 	notifier.HTTPSNotify
 	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
 	Distro                  TypeDistro           `short:"d" long:"distro" description:"Custom distro" default:"ubuntu"`
@@ -592,10 +593,17 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if edition == "arm64" {
 		cedition = "aarch64"
 	}
+
+	// upgrade tools package
+	toolsUpgrade := ""
+	if !c.NoToolsOverride {
+		toolsUpgrade = fmt.Sprintf("mkdir /tmp/toolsupgrade && pushd /tmp/toolsupgrade && aerolab installer download -d %s -i %s && tar -zxvf aerospike-server* && rm -rf *tgz && cd aerospike-server* && rm -f aerospike-server* && ./asinstall && popd", a.opts.Cluster.Create.DistroName, a.opts.Cluster.Create.DistroVersion)
+	}
+
 	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, cedition, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	} else {
-		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 
