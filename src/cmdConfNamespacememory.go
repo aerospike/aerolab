@@ -72,7 +72,19 @@ func (c *confNamespaceMemoryCmd) Execute(args []string) error {
 		if memSizeGb == 0 {
 			return errors.New("percentage would result in memory size 0")
 		}
-		log.Printf("Processing NodeNumber %d TotalRamGb %d memory-size=%dG", node, sysSizeGb, memSizeGb)
+		// get asd version
+		vno, err := b.RunCommands(c.ClusterName.String(), [][]string{{"cat", "/opt/aerolab.aerospike.version"}}, []int{node})
+		if err != nil {
+			nout := ""
+			for _, n := range vno {
+				nout = nout + "\n" + string(n)
+			}
+			return fmt.Errorf("error on cluster %s: %s: %s", c.ClusterName, nout, err)
+		}
+		is7 := true
+		if VersionCheck(string(vno[0]), "7.0.0.0") > 0 {
+			is7 = false
+		}
 		// get config file
 		out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"cat", c.Path}}, []int{node})
 		if err != nil {
@@ -91,7 +103,25 @@ func (c *confNamespaceMemoryCmd) Execute(args []string) error {
 		if s.Type("namespace "+c.Namespace) == aeroconf.ValueNil {
 			return errors.New("namespace not found")
 		}
-		s.Stanza("namespace "+c.Namespace).SetValue("memory-size", strconv.Itoa(memSizeGb)+"G")
+		if !is7 {
+			log.Printf("Processing NodeVersion %s NodeNumber %d TotalRamGb %d memory-size=%dG", string(vno[0]), node, sysSizeGb, memSizeGb)
+			s.Stanza("namespace "+c.Namespace).SetValue("memory-size", strconv.Itoa(memSizeGb)+"G")
+		} else {
+			if s.Stanza("namespace "+c.Namespace).Type("storage-engine memory") != aeroconf.ValueStanza {
+				log.Printf("WARN Skipping NodeVersion %s NodeNumber %d storage-engine is not memory", string(vno[0]), node)
+				return nil
+			}
+			if s.Stanza("namespace "+c.Namespace).Stanza("storage-engine memory").Type("device") != aeroconf.ValueNil {
+				log.Printf("WARN Skipping NodeVersion %s NodeNumber %d device backing configured for storage-engine", string(vno[0]), node)
+				return nil
+			}
+			if s.Stanza("namespace "+c.Namespace).Stanza("storage-engine memory").Type("file") != aeroconf.ValueNil {
+				log.Printf("WARN Skipping NodeVersion %s NodeNumber %d file backing configured for storage-engine", string(vno[0]), node)
+				return nil
+			}
+			log.Printf("Processing NodeVersion %s NodeNumber %d TotalRamGb %d data-size=%dG", string(vno[0]), node, sysSizeGb, memSizeGb)
+			s.Stanza("namespace "+c.Namespace).Stanza("storage-engine memory").SetValue("data-size", strconv.Itoa(memSizeGb)+"G")
+		}
 		// write file back
 		var buf bytes.Buffer
 		err = s.Write(&buf, "", "    ", true)
