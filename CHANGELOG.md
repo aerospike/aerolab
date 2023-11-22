@@ -11,6 +11,7 @@
 * Windows: catch the use of command prompt and warn against it.
 * Improvement: replace the `mesh/multicast` fix system with `aeroconf` parser.
 * Improvement: in `aerolab conf namespace-memory`, adjust `data-size` instead if using aerospike `v7+`, and only if required. Otherwise `noop`.
+* Fix: aws security groups will now also open ICMP traffic in the rules.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
 

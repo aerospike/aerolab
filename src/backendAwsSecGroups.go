@@ -373,6 +373,16 @@ func (d *backendAws) createSecGroups(vpc string, namePrefix string) (secGroups [
 							Description: aws.String("ssh from anywhere"),
 						},
 					},
+				}, {
+					IpProtocol: aws.String("icmp"),
+					FromPort:   aws.Int64(-1),
+					ToPort:     aws.Int64(-1),
+					IpRanges: []*ec2.IpRange{
+						{
+							CidrIp:      aws.String("0.0.0.0/0"),
+							Description: aws.String("icmp from anywhere"),
+						},
+					},
 				},
 			},
 		})
@@ -849,6 +859,9 @@ func (d *backendAws) listSecurityGroups(stdout bool) ([]inventoryFirewallRule, e
 	for _, sg := range out.SecurityGroups {
 		nIps := []string{}
 		for _, sga := range sg.IpPermissions {
+			if *sga.IpProtocol == "icmp" {
+				continue
+			}
 			for _, sgb := range sga.IpRanges {
 				if !inslice.HasString(nIps, *sgb.CidrIp) {
 					nIps = append(nIps, *sgb.CidrIp)
