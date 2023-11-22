@@ -17,7 +17,7 @@ else
     yum install -y wget mod_ssl
     mkdir -p /etc/ssl/certs /etc/ssl/private
     openssl req -new -x509 -nodes -out /etc/ssl/certs/ssl-cert-snakeoil.pem -keyout /etc/ssl/private/ssl-cert-snakeoil.key -days 3650 -subj '/CN=www.example.com'
-    yum install -y https://dl.grafana.com/oss/release/grafana-10.2.0-1.x86_64.rpm
+    yum install -y https://dl.grafana.com/oss/release/grafana-10.2.0-1.%s.rpm
 fi
 chmod 755 /usr/local/bin/aerolab
 mkdir /opt/autoload
@@ -26,6 +26,7 @@ cat <<'EOF' > /etc/aerospike/aerospike.conf
 service {
     proto-fd-max 15000
     work-directory /opt/agi/aerospike
+    cluster-name agi
 }
 logging {
     file /var/log/agi-aerospike.log {
@@ -52,13 +53,13 @@ network {
 }
 namespace agi {
     default-ttl 0
-    memory-size %dG
+    %s
     replication-factor 2
-    storage-engine device {
+    storage-engine %s {
         file /opt/agi/aerospike/data/agi.dat
         filesize %dG
-        data-in-memory %t
-        read-page-cache %t
+        %s
+        %s
     }
 }
 EOF

@@ -13,6 +13,7 @@ import (
 
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/notifier"
+	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +22,7 @@ type agiCreateCmd struct {
 	ClusterName      TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
 	AGILabel         string          `long:"agi-label" description:"friendly label"`
 	NoDIM            bool            `long:"no-dim" description:"set to disable data-in-memory and enable read-page-cache in aerospike; much less RAM used, but slower"`
+	NoDIMFileSize    int             `long:"no-dim-filesize" description:"if using --no-dim, optionally specify a filesize in GB for data storage; default: memory size calculation"`
 	LocalSource      flags.Filename  `long:"source-local" description:"get logs from a local directory"`
 	SftpEnable       bool            `long:"source-sftp-enable" description:"enable sftp source"`
 	SftpThreads      int             `long:"source-sftp-threads" description:"number of concurrent downloader threads" default:"6"`
@@ -560,10 +562,40 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if c.NoConfigOverride {
 		override = "0"
 	}
-	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, !c.NoDIM, c.NoDIM, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+	nver := strings.Split(c.AerospikeVersion.String(), ".")[0]
+	//memory-size %dG
+	var memSizeStr, storEngine, dimStr, rpcStr string
+	var fileSizeInt int
+	if inslice.HasString([]string{"6", "5", "4", "3"}, nver) {
+		memSizeStr = "memory-size " + strconv.Itoa(memSize/1024/1024/1024) + "G"
+		storEngine = "device"
+		fileSizeInt = memSize / 1024 / 1024 / 1024
+		if c.NoDIM && c.NoDIMFileSize != 0 {
+			fileSizeInt = c.NoDIMFileSize
+		}
+		dimStr = fmt.Sprintf("data-in-memory %t", !c.NoDIM)
+		rpcStr = fmt.Sprintf("read-page-cache %t", c.NoDIM)
 	} else {
-		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, !c.NoDIM, c.NoDIM, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		if c.NoDIM {
+			storEngine = "device"
+			fileSizeInt = memSize / 1024 / 1024 / 1024
+			if c.NoDIMFileSize != 0 {
+				fileSizeInt = c.NoDIMFileSize
+			}
+			rpcStr = fmt.Sprintf("read-page-cache %t", c.NoDIM)
+		} else {
+			storEngine = "memory"
+			fileSizeInt = int(float64(memSize/1024/1024/1024) / 1.25)
+		}
+	}
+	cedition := "x86_64"
+	if edition == "arm64" {
+		cedition = "aarch64"
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, cedition, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+	} else {
+		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 
