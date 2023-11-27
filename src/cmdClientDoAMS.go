@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/parallelize"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"gopkg.in/yaml.v3"
@@ -236,6 +237,10 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			return err
 		}
 	}
+	customDashboards = append(customDashboards, CustomAMSDashboard{
+		FromUrl:     aws.String("https://raw.githubusercontent.com/aerospike/aerolab/master/scripts/asbench2.json"),
+		Destination: "/var/lib/grafana/dashboards/asbench.json",
+	})
 
 	b.WorkOnClients()
 	var nodes []int
