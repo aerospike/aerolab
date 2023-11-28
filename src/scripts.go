@@ -270,7 +270,7 @@ test -f $DAEMON || exit 0
 case "$1" in
 start)  log_daemon_msg "Starting aerospike" "aerospike"
 		/bin/bash /usr/local/bin/early.sh
-		ulimit -n 1048576
+		ulimit -n 1048576 || echo "ulimit not set"
 		start_daemon -p $PIDFILE $DAEMON $EXTRA_OPTS
 		log_end_msg $?
 		;;
