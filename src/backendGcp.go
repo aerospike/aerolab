@@ -3081,6 +3081,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		labels["telemetry"] = string(expiryTelemetryUUID)
 	}
 	expiryTelemetryLock.Unlock()
+	onHostMaintenance := "MIGRATE"
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
@@ -3173,7 +3174,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 				},
 				Scheduling: &computepb.Scheduling{
 					AutomaticRestart:  proto.Bool(true),
-					OnHostMaintenance: proto.String("MIGRATE"),
+					OnHostMaintenance: proto.String(onHostMaintenance),
 					ProvisioningModel: proto.String("STANDARD"),
 				},
 				Disks: disksList,
@@ -3192,6 +3193,11 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 
 		op, err := instancesClient.Insert(ctx, req)
+		if err != nil && strings.Contains(err.Error(), "OnHostMaintenance must be set to TERMINATE") {
+			req.InstanceResource.Scheduling.OnHostMaintenance = proto.String("TERMINATE")
+			onHostMaintenance = "TERMINATE"
+			op, err = instancesClient.Insert(ctx, req)
+		}
 		if err != nil {
 			return fmt.Errorf("unable to create instance: %w", err)
 		}
