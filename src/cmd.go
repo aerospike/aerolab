@@ -110,7 +110,7 @@ func (c *upgradeCmd) Execute(args []string) error {
 			return nil
 		}
 	} else {
-		if pre.LatestVersion != pre.CurrentVersion {
+		if pre.LatestVersion+"-prerelease" != pre.CurrentVersion+"-"+strings.Trim(vCommit, "\r\t\n ")+strings.Trim(vEdition, "\r\t\n ") {
 			latestVersion = "v" + pre.LatestVersion + "-prerelease"
 			v = pre
 		} else {
