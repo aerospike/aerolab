@@ -18,8 +18,14 @@
 * AGI: override tools package by default by the latest tools. Allow `--no-tools-override` to disable.
 * AMS: fix regression: `asbench` dashboard installation.
 * Improvement: on docker, attempt to auto-adjust limit of open files.
+* Fix: GCP: for some instances, `TERMINATE` scheduling policy must be set.
+* TODO: Allow adding of `aerolab` to a server/client instance on-demand.
+* TODO: Add option in AGI to automatically deploy instance-monitor client machine.
+* TODO: GCP AGI Volumes support (using standard `pd-ssd` as there is no `EFS` equivalent).
+* TODO: GCP AGI spot instance support.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
+* TODO: Basic WebUI for AGI and Clusters/Clients.
 
 #### 7.2.0
 * Allow specifying aerospike version number for agi.
