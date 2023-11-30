@@ -769,6 +769,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		if extra.network != "" {
 			exposeList = append(exposeList, "--network", extra.network)
 		}
+		if extra.limitNoFile > 0 {
+			exposeList = append(exposeList, "--ulimit", fmt.Sprintf("nofile=%d:%d", extra.limitNoFile, extra.limitNoFile))
+		}
 		if extra.privileged {
 			fmt.Println("WARNING: privileged container")
 			exposeList = append(exposeList, "--device-cgroup-rule=b 7:* rmw", "--privileged=true", "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf(dockerNameHeader+"%s_%d", name, node), tmplName, "/bin/bash", "-c", "while true; do [ -f /tmp/poweroff.now ] && rm -f /tmp/poweroff.now && exit; sleep 1; done")

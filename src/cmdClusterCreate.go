@@ -106,6 +106,7 @@ type clusterCreateCmdDocker struct {
 	CpuLimit          string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
 	RamLimit          string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
 	SwapLimit         string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
+	NoFILELimit       int      `long:"nofile-limit" description:"for clusters, default will attempt to set to proto-fd-max+5000; you can set this manually or set to -1 to disable the parameter" default:"0"`
 	Privileged        bool     `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
 	NetworkName       string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
 	ClientType        string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
@@ -760,6 +761,32 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	extra.gcpMeta = c.gcpMeta
 	extra.terminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	extra.spotInstance = c.Aws.SpotInstance
+
+	// limitnofile check
+	if c.Docker.NoFILELimit == 0 {
+		if string(c.CustomConfigFilePath) != "" {
+			cf, err := aeroconf.ParseFile(string(c.CustomConfigFilePath))
+			if err != nil {
+				log.Printf("WARNING: Could not parse aerospike.conf: %s", err)
+			} else {
+				if cf.Type("service") == aeroconf.ValueStanza {
+					vals, err := cf.Stanza("service").GetValues("proto-fd-max")
+					if err == nil && len(vals) > 0 {
+						fdmax, err := strconv.Atoi(*vals[0])
+						if err == nil && fdmax > 0 {
+							extra.limitNoFile = fdmax + 5000
+						}
+					}
+				}
+			}
+		}
+		if extra.limitNoFile == 0 {
+			extra.limitNoFile = 20000
+		}
+	} else if c.Docker.NoFILELimit > 0 {
+		extra.limitNoFile = c.Docker.NoFILELimit
+	}
+
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err

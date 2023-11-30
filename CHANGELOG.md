@@ -17,6 +17,7 @@
 * AGI: add `--no-dim-filesize` option to specify data storage file size for non-data-in-memory namespaces.
 * AGI: override tools package by default by the latest tools. Allow `--no-tools-override` to disable.
 * AMS: fix regression: `asbench` dashboard installation.
+* Improvement: on docker, attempt to auto-adjust limit of open files.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
 
