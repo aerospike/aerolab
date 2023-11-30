@@ -763,28 +763,30 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	extra.spotInstance = c.Aws.SpotInstance
 
 	// limitnofile check
-	if c.Docker.NoFILELimit == 0 {
-		if string(c.CustomConfigFilePath) != "" {
-			cf, err := aeroconf.ParseFile(string(c.CustomConfigFilePath))
-			if err != nil {
-				log.Printf("WARNING: Could not parse aerospike.conf: %s", err)
-			} else {
-				if cf.Type("service") == aeroconf.ValueStanza {
-					vals, err := cf.Stanza("service").GetValues("proto-fd-max")
-					if err == nil && len(vals) > 0 {
-						fdmax, err := strconv.Atoi(*vals[0])
-						if err == nil && fdmax > 0 {
-							extra.limitNoFile = fdmax + 5000
+	if a.opts.Config.Backend.Type == "docker" {
+		if c.Docker.NoFILELimit == 0 {
+			if string(c.CustomConfigFilePath) != "" {
+				cf, err := aeroconf.ParseFile(string(c.CustomConfigFilePath))
+				if err != nil {
+					log.Printf("WARNING: Could not parse aerospike.conf: %s", err)
+				} else {
+					if cf.Type("service") == aeroconf.ValueStanza {
+						vals, err := cf.Stanza("service").GetValues("proto-fd-max")
+						if err == nil && len(vals) > 0 {
+							fdmax, err := strconv.Atoi(*vals[0])
+							if err == nil && fdmax > 0 {
+								extra.limitNoFile = fdmax + 5000
+							}
 						}
 					}
 				}
 			}
+			if extra.limitNoFile == 0 {
+				extra.limitNoFile = 20000
+			}
+		} else if c.Docker.NoFILELimit > 0 {
+			extra.limitNoFile = c.Docker.NoFILELimit
 		}
-		if extra.limitNoFile == 0 {
-			extra.limitNoFile = 20000
-		}
-	} else if c.Docker.NoFILELimit > 0 {
-		extra.limitNoFile = c.Docker.NoFILELimit
 	}
 
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
