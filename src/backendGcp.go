@@ -2557,6 +2557,7 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 	if err != nil {
 		return err
 	}
+	var ops []*compute.Operation
 	for _, node := range nodes {
 		inst, err := client.Get(ctx, &computepb.GetInstanceRequest{
 			Project:  a.opts.Config.Backend.Project,
@@ -2595,8 +2596,11 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 		if err != nil {
 			return err
 		}
+		ops = append(ops, op)
+	}
+	for opid, op := range ops {
 		if err = op.Wait(ctx); err != nil {
-			return fmt.Errorf("unable to wait for the operation: %w", err)
+			return fmt.Errorf("unable to wait for the operation on node %d: %w", opid, err)
 		}
 	}
 	return nil
@@ -3082,6 +3086,10 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	expiryTelemetryLock.Unlock()
 	onHostMaintenance := "MIGRATE"
+	provisioning := "STANDARD"
+	if extra.spotInstance {
+		provisioning = "SPOT"
+	}
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
@@ -3175,7 +3183,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 				Scheduling: &computepb.Scheduling{
 					AutomaticRestart:  proto.Bool(true),
 					OnHostMaintenance: proto.String(onHostMaintenance),
-					ProvisioningModel: proto.String("STANDARD"),
+					ProvisioningModel: proto.String(provisioning),
 				},
 				Disks: disksList,
 				NetworkInterfaces: []*computepb.NetworkInterface{

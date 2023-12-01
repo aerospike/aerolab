@@ -94,6 +94,7 @@ type agiCreateCmdGcp struct {
 	Tags         []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels       []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix   []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	SpotInstance bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires      time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 }
 
@@ -254,6 +255,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	a.opts.Cluster.Create.Aws.TerminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	a.opts.Cluster.Create.Aws.SpotInstance = c.Aws.SpotInstance
+	a.opts.Cluster.Create.Gcp.SpotInstance = c.Gcp.SpotInstance
 	a.opts.Cluster.Create.Gcp.Image = ""
 	a.opts.Cluster.Create.Gcp.InstanceType = c.Gcp.InstanceType
 	a.opts.Cluster.Create.Gcp.Disks = c.Gcp.Disks

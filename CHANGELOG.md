@@ -19,12 +19,16 @@
 * AMS: fix regression: `asbench` dashboard installation.
 * Improvement: on docker, attempt to auto-adjust limit of open files.
 * Fix: GCP: for some instances, `TERMINATE` scheduling policy must be set.
-* TODO: Allow adding of `aerolab` to a server/client instance on-demand.
-* TODO: Add option in AGI to automatically deploy instance-monitor client machine.
+* GCP: The `cluster add firewall` command should issue `op.Wait` after all operations have been queued.
+* Allow adding of `aerolab` to a server/client instance on-demand.
+* GCP AGI spot instance support.
 * TODO: GCP AGI Volumes support (using standard `pd-ssd` as there is no `EFS` equivalent).
-* TODO: GCP AGI spot instance support.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
+  * `aerolab client create none -n agi-monitor; aerolab client configure aerolab -n agi-monitor; aerolab attach client -n agi-monitor --detach -- /usr/local/bin/aerolab agi monitor`
+  * document what it's for: to run sizing for agi instances in AWS/GCP which use volume backing, and to cycle spot to on-demand if capacity becomes unavailable
+  * document running monitor locally
+  * document usage with AGI instances (need to specify `--monitor-url` and must have a backing volume)
 * TODO: Basic WebUI for AGI and Clusters/Clients.
 
 #### 7.2.0
