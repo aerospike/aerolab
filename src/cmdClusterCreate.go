@@ -97,6 +97,7 @@ type clusterCreateCmdGcp struct {
 	Tags            []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels          []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix      []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	SpotInstance    bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires         time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 }
 
@@ -761,6 +762,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	extra.gcpMeta = c.gcpMeta
 	extra.terminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	extra.spotInstance = c.Aws.SpotInstance
+	if a.opts.Config.Backend.Type == "gcp" {
+		extra.spotInstance = c.Gcp.SpotInstance
+	}
 
 	// limitnofile check
 	if a.opts.Config.Backend.Type == "docker" {

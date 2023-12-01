@@ -16,6 +16,7 @@ type clientConfigureCmd struct {
 	RestGateway clientConfigureRestGatewayCmd `command:"rest-gateway" subcommands-optional:"true" description:"change aerospike seed IPs for the rest-gateway"`
 	Firewall    clientConfigureFirewallCmd    `command:"firewall" subcommands-optional:"true" description:"Add firewall rules to existing client machines"`
 	Expiry      clientAddExpiryCmd            `command:"expiry" subcommands-optional:"true" description:"Add or change hours until expiry for a client group (aws|gcp only)"`
+	AeroLab     clientConfigureAerolabCmd     `command:"aerolab" subcommands-optional:"true" description:"Deploy aerolab binary on a client group"`
 	Help        helpCmd                       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -23,6 +24,21 @@ func (c *clientConfigureCmd) Execute(args []string) error {
 	c.Help.Execute(args)
 	os.Exit(1)
 	return nil
+}
+
+type clientConfigureAerolabCmd struct {
+	ClusterName TypeClientName `short:"n" long:"name" description:"Client name" default:"client"`
+	parallelThreadsCmd
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *clientConfigureAerolabCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	a.opts.Cluster.Add.AeroLab.ClusterName = TypeClusterName(c.ClusterName)
+	a.opts.Cluster.Add.AeroLab.ParallelThreads = c.ParallelThreads
+	return a.opts.Cluster.Add.AeroLab.run(true)
 }
 
 type clientAddExpiryCmd struct {
