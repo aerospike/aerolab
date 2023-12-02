@@ -980,6 +980,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				if port == "" || privateIp == "" {
 					return errors.New("WARN: could not find privateIp/exposed port; not fixing")
 				}
+				if strings.Contains(port, "-") {
+					port = strings.Split(port, "-")[0]
+				}
 				confReader := strings.NewReader(in)
 				s, err := aeroconf.Parse(confReader)
 				if err != nil {
