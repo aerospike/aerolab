@@ -22,6 +22,7 @@
 * GCP: The `cluster add firewall` command should issue `op.Wait` after all operations have been queued.
 * Allow adding of `aerolab` to a server/client instance on-demand.
 * GCP AGI spot instance support.
+* Docker: when exposing multiple ports in a continuous order, only use first exposed port for the service port.
 * TODO: GCP AGI Volumes support (using standard `pd-ssd` as there is no `EFS` equivalent).
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
