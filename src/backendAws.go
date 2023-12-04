@@ -196,6 +196,10 @@ func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string, zon
 	return err
 }
 
+func (d *backendAws) ResizeVolume(name string, zone string, newSize int64) error {
+	return nil
+}
+
 func (d *backendAws) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
 	var az *string
 	if zone != "" {

@@ -83,6 +83,7 @@ type backend interface {
 	GetAZName(subnetId string) (string, error)
 	// volumes: gcp only
 	AttachVolume(name string, zone string, clusterName string, node int) error
+	ResizeVolume(name string, zone string, newSize int64) error
 	// cause gcp
 	EnableServices() error
 	// expiries calls
