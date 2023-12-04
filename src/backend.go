@@ -74,7 +74,7 @@ var TypeArchAmd = TypeArch(2)
 
 type backend interface {
 	// gcp/aws volumes
-	CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error
+	CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error
 	TagVolume(fsId string, tagName string, tagValue string, zone string) error
 	DeleteVolume(name string, zone string) error
 	// volumes: efs only
@@ -199,6 +199,7 @@ type inventoryVolume struct {
 	MountTargets         []inventoryMountTarget
 	Owner                string
 	GCPAttachedTo        []string
+	GCPDescription       string
 }
 
 type inventoryMountTarget struct {

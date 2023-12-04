@@ -273,10 +273,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Gcp.IsArm = false
 	a.opts.Cluster.Create.Gcp.NoBestPractices = false
 	a.opts.Cluster.Create.Gcp.Tags = c.Gcp.Tags
-	a.opts.Cluster.Create.Gcp.Labels = append(c.Gcp.Labels, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL))
+	a.opts.Cluster.Create.Gcp.Labels = append(c.Gcp.Labels, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), "agilabel=set")
 	a.opts.Cluster.Create.gcpMeta = map[string]string{
 		"agiLabel": c.AGILabel,
 	}
+	a.opts.Cluster.Create.Gcp.VolDescription = c.AGILabel
 	a.opts.Cluster.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
 	a.opts.Cluster.Create.Gcp.Expires = c.Gcp.Expires
 	if !c.ProxyDisableSSL {

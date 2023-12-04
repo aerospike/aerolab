@@ -188,8 +188,9 @@ type volumeCreateCmd struct {
 }
 
 type volumeCreateGcpCmd struct {
-	Zone string `short:"z" long:"zone" description:"Zone name to use"`
-	Size int64  `short:"s" long:"size" description:"Volume SizeGB" default:"100"`
+	Zone        string `short:"z" long:"zone" description:"Zone name to use"`
+	Size        int64  `short:"s" long:"size" description:"Volume SizeGB" default:"100"`
+	Description string `short:"d" long:"description" description:"set the description field"`
 }
 
 type volumeCreateAwsCmd struct {
@@ -208,7 +209,7 @@ func (c *volumeCreateCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type == "gcp" {
 		zone = c.Gcp.Zone
 	}
-	err := b.CreateVolume(c.Name, zone, c.Tags, c.Expires, c.Gcp.Size)
+	err := b.CreateVolume(c.Name, zone, c.Tags, c.Expires, c.Gcp.Size, c.Gcp.Description)
 	if err != nil {
 		return err
 	}

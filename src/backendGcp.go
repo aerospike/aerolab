@@ -260,7 +260,7 @@ func (d *backendGcp) DetachVolume(name string, clusterName string, node int, zon
 	return op.Wait(ctx)
 }
 
-func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
+func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error {
 	ctx := context.Background()
 	client, err := compute.NewDisksRESTClient(ctx)
 	if err != nil {
@@ -292,7 +292,7 @@ func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expir
 		Zone:    zone,
 		Project: a.opts.Config.Backend.Project,
 		DiskResource: &computepb.Disk{
-			Description: proto.String(name),
+			Description: proto.String(desc),
 			Labels:      labels,
 			Name:        proto.String(name),
 			SizeGb:      proto.Int64(int64(size)),
@@ -307,6 +307,23 @@ func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expir
 }
 
 func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZone string) error {
+	if key == "agiLabel" {
+		ctx := context.Background()
+		client, err := compute.NewDisksRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewDisksRESTClient: %w", err)
+		}
+		defer client.Close()
+		client.Update(ctx, &computepb.UpdateDiskRequest{
+			Disk:    clusterName,
+			Project: a.opts.Config.Backend.Project,
+			Zone:    gcpZone,
+			DiskResource: &computepb.Disk{
+				Description: proto.String(value),
+			},
+			UpdateMask: proto.String("description"),
+		})
+	}
 	instances := make(map[string]gcpClusterExpiryInstances)
 	if d.server {
 		j, err := d.Inventory("", []int{InventoryItemClusters})
@@ -1384,6 +1401,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						Tags:                 pair.Labels,
 						Owner:                pair.Labels["aerolab7owner"],
 						GCPAttachedTo:        attachedTo,
+						GCPDescription:       *pair.Description,
 					})
 					lock.Unlock()
 				}

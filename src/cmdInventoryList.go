@@ -646,7 +646,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					convSize(int64(v.SizeBytes)),
 					expiry,
 					v.LifeCycleState,
-					v.Tags["agilabel"],
+					v.GCPDescription,
 					v.Owner,
 				}
 				t.AppendRow(vv)
@@ -883,7 +883,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags[agilabeltag], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix()}
 						t.AppendRow(vv)
 					} else {
-						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags[agilabeltag], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, "", "", expTs.Unix()}
+						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.GCPDescription, convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, "", "", expTs.Unix()}
 						t.AppendRow(vv)
 					}
 				}

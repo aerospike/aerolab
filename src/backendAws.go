@@ -204,7 +204,7 @@ func (d *backendAws) ResizeVolume(name string, zone string, newSize int64) error
 	return nil
 }
 
-func (d *backendAws) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
+func (d *backendAws) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error {
 	var az *string
 	if zone != "" {
 		az = &zone
