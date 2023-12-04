@@ -18,6 +18,8 @@ func init() {
 	addBackendSwitch("volume.create", "aws", &a.opts.Volume.Create.Aws)
 	addBackendSwitch("volume.create", "gcp", &a.opts.Volume.Create.Gcp)
 	addBackendSwitch("volume.delete", "gcp", &a.opts.Volume.Delete.Gcp)
+	addBackendSwitch("volume.mount", "gcp", &a.opts.Volume.Mount.Gcp)
+	addBackendSwitch("volume.mount", "aws", &a.opts.Volume.Mount.Aws)
 }
 
 type volumeCmd struct {
@@ -98,13 +100,23 @@ func (c *volumeCreateCmd) Execute(args []string) error {
 }
 
 type volumeMountCmd struct {
-	Name        string `short:"n" long:"name" description:"EFS Name" default:"agi"`
-	ClusterName string `short:"N" long:"cluster-name" description:"Cluster/Client Name on which to mount" default:"agi"`
-	IsClient    bool   `short:"c" long:"is-client" description:"Specify mounting on client instead of cluster"`
-	LocalPath   string `short:"p" long:"mount-path" description:"Path on the node to mount to" default:"/mnt/{EFS_NAME}"`
-	EfsPath     string `short:"P" long:"volume-path" description:"Volume path to mount" default:"/"`
+	Name        string            `short:"n" long:"name" description:"VOL Name" default:"agi"`
+	ClusterName string            `short:"N" long:"cluster-name" description:"Cluster/Client Name on which to mount" default:"agi"`
+	IsClient    bool              `short:"c" long:"is-client" description:"Specify mounting on client instead of cluster"`
+	LocalPath   string            `short:"p" long:"mount-path" description:"Path on the node to mount to" default:"/mnt/{VOL_NAME}"`
+	Aws         volumeMountAwsCmd `no-flag:"true"`
+	Gcp         volumeMountGcpCmd `no-flag:"true"`
 	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type volumeMountAwsCmd struct {
+	EfsPath string `short:"P" long:"volume-path" description:"Volume path to mount" default:"/"`
+}
+
+type volumeMountGcpCmd struct {
+	Node   int    `short:"l" long:"node" description:"Node to attach to" default:"1"`
+	FsType string `short:"f" long:"fs-type" description:"Filesystem type to create if one doesn't exist" default:"xfs"`
 }
 
 func (c *volumeMountCmd) Execute(args []string) error {
@@ -115,6 +127,7 @@ func (c *volumeMountCmd) Execute(args []string) error {
 	log.Println("Gathering volume and cluster data")
 	secGroups := []string{}
 	subnet := ""
+	instanceZone := ""
 	if !c.IsClient {
 		inv, err := b.Inventory("", []int{InventoryItemClusters})
 		if err != nil {
@@ -126,6 +139,7 @@ func (c *volumeMountCmd) Execute(args []string) error {
 			}
 			subnet = cluster.awsSubnet
 			secGroups = cluster.awsSecGroups
+			instanceZone = cluster.Zone
 			break
 		}
 	} else {
@@ -139,6 +153,7 @@ func (c *volumeMountCmd) Execute(args []string) error {
 			}
 			subnet = cluster.awsSubnet
 			secGroups = cluster.awsSecGroups
+			instanceZone = cluster.Zone
 			break
 		}
 	}
@@ -189,6 +204,10 @@ func (c *volumeMountCmd) Execute(args []string) error {
 				}
 			}
 		}
+	} else {
+		if instanceZone != volume.AvailabilityZoneName {
+			return fmt.Errorf("instance zone %s differs from volume zone %s", instanceZone, volume.AvailabilityZoneName)
+		}
 	}
 	usedName := "lastUsed"
 	usedTag := time.Now().Format(time.RFC3339)
@@ -196,7 +215,7 @@ func (c *volumeMountCmd) Execute(args []string) error {
 		usedTag = strings.ReplaceAll(strings.ReplaceAll(usedTag, ":", "_"), "+", "-")
 		usedName = "lastused"
 	}
-	err = b.TagVolume(volume.FileSystemId, usedName, usedTag)
+	err = b.TagVolume(volume.FileSystemId, usedName, usedTag, volume.AvailabilityZoneName)
 	if err != nil {
 		return err
 	}
@@ -205,16 +224,30 @@ func (c *volumeMountCmd) Execute(args []string) error {
 	} else {
 		b.WorkOnServers()
 	}
-	return c.doMount(volume)
+	if a.opts.Config.Backend.Type == "gcp" {
+		log.Println("Attaching disk to node")
+		err = b.AttachVolume(c.Name, instanceZone, c.ClusterName, c.Gcp.Node)
+		if err != nil {
+			return err
+		}
+	}
+	return c.doMount(volume, c.Gcp.Node)
 }
 
-func (c *volumeMountCmd) doMount(volume *inventoryVolume) error {
-	log.Println("Listing cluster nodes")
-	nodes, err := b.NodeListInCluster(c.ClusterName)
-	if err != nil {
-		return err
+func (c *volumeMountCmd) doMount(volume *inventoryVolume, node int) error {
+	var nodes []int
+	var err error
+	if a.opts.Config.Backend.Type == "aws" {
+		log.Println("Listing cluster nodes")
+		nodes, err = b.NodeListInCluster(c.ClusterName)
+		if err != nil {
+			return err
+		}
+		log.Println("Attempting remote mount on each node")
+	} else {
+		nodes = []int{node}
+		log.Printf("Attempting remote mount on node %d", node)
 	}
-	log.Println("Attempting remote mount on each node")
 	returns := parallelize.MapLimit(nodes, c.ParallelThreads, func(node int) error {
 		isArm, err := b.IsNodeArm(c.ClusterName, node)
 		if err != nil {
@@ -248,12 +281,12 @@ func (c *volumeMountCmd) doMount(volume *inventoryVolume) error {
 				return fmt.Errorf("could not upload configuration to instance: %s", err)
 			}
 		}
-		c.LocalPath = strings.ReplaceAll(c.LocalPath, "{EFS_NAME}", c.Name)
+		c.LocalPath = strings.ReplaceAll(c.LocalPath, "{VOL_NAME}", c.Name)
 		out, err := b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "config", "backend", "-t", "none"}}, []int{node})
 		if err != nil {
 			return fmt.Errorf("could not mount: %s: %s", err, string(out[0]))
 		}
-		out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-P", c.EfsPath, "-n", volume.FileSystemId}}, []int{node})
+		out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-P", c.Aws.EfsPath, "-n", volume.FileSystemId, "-f", c.Gcp.FsType}}, []int{node})
 		if err != nil {
 			return fmt.Errorf("could not mount: %s: %s", err, string(out[0]))
 		}
@@ -277,6 +310,7 @@ type volumeExecMountCmd struct {
 	LocalPath string  `short:"p" long:"mount-path" description:"Path on the node to mount to"`
 	EfsPath   string  `short:"P" long:"volume-path" description:"Volume path to mount" default:"/"`
 	FsId      string  `short:"n" long:"name" description:"FsId" default:"agi"`
+	FsType    string  `short:"f" long:"fs-type" description:"type of filesystem" default:"xfs"`
 	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -284,17 +318,64 @@ func (c *volumeExecMountCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
 	}
-	err := c.installEFSUtils()
-	if err != nil {
-		return err
-	}
-	err = c.installEFSfstab()
-	if err != nil {
-		return err
-	}
-	err = c.installMountEFS()
-	if err != nil {
-		return err
+	if a.opts.Config.Backend.Type == "aws" {
+		err := c.installEFSUtils()
+		if err != nil {
+			return err
+		}
+		err = c.installEFSfstab()
+		if err != nil {
+			return err
+		}
+		err = c.installMountEFS()
+		if err != nil {
+			return err
+		}
+	} else {
+		diskPath := "/dev/disk/by-id/google-" + c.FsId
+		if _, err := os.Stat(diskPath); err != nil {
+			return errors.New("disk not found")
+		}
+		fstype := c.FsType
+		out, err := exec.Command("blkid", diskPath).CombinedOutput()
+		if err != nil {
+			out, err := exec.Command("mkfs."+c.FsType, diskPath).CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("%s Failed to create filesystem: %s", err, string(out))
+			}
+		} else {
+			outn := strings.Split(string(out), " ")
+			for _, outx := range outn {
+				if !strings.HasPrefix(outx, "TYPE=") {
+					continue
+				}
+				fstype = strings.Trim(strings.TrimPrefix(outx, "TYPE="), "\r\n\t \"")
+			}
+		}
+		os.MkdirAll(c.LocalPath, 0755)
+		fstabstring := diskPath + "  " + c.LocalPath + "  " + fstype + "  discard,auto,nofail  0 1"
+		f, err := os.ReadFile("/etc/fstab")
+		if err != nil {
+			return fmt.Errorf("failed to open fstab: %s", err)
+		}
+		found := false
+		for _, line := range strings.Split(string(f), "\n") {
+			if strings.HasPrefix(line, diskPath+"  ") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			fs := string(f) + "\n" + fstabstring + "\n"
+			err = os.WriteFile("/etc/fstab", []byte(fs), 0644)
+			if err != nil {
+				return fmt.Errorf("failed to write fstab: %s", err)
+			}
+		}
+		out, err = exec.Command("mount", "-a").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("mount failed: %s: %s", err, string(out))
+		}
 	}
 	return nil
 }

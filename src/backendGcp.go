@@ -123,7 +123,8 @@ func (d *backendGcp) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
 
-func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string) error {
+func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
+	tagValue = strings.ToLower(tagValue)
 	ctx := context.Background()
 	client, err := compute.NewDisksRESTClient(ctx)
 	if err != nil {
@@ -133,6 +134,7 @@ func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string) err
 	it := client.List(ctx, &computepb.ListDisksRequest{
 		Project: a.opts.Config.Backend.Project,
 		Filter:  proto.String("labels.usedby=" + gcpTagEnclose("aerolab7")),
+		Zone:    zone,
 	})
 	for {
 		pair, err := it.Next()
@@ -147,7 +149,6 @@ func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string) err
 		}
 		labels := pair.Labels
 		labelFinger := pair.LabelFingerprint
-		zone := *pair.Zone
 		labels[strings.ToLower(tagName)] = tagValue
 		op, err := client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
 			Project:  a.opts.Config.Backend.Project,
@@ -193,6 +194,32 @@ func (d *backendGcp) DeleteVolume(name string, zone string) error {
 	return err
 }
 
+func (d *backendGcp) AttachVolume(name string, zone string, clusterName string, node int) error {
+	ctx := context.Background()
+	client, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer client.Close()
+	op, err := client.AttachDisk(ctx, &computepb.AttachDiskInstanceRequest{
+		Zone:     zone,
+		Instance: fmt.Sprintf("aerolab4-%s-%d", clusterName, node),
+		Project:  a.opts.Config.Backend.Project,
+		AttachedDiskResource: &computepb.AttachedDisk{
+			AutoDelete: proto.Bool(false),
+			Boot:       proto.Bool(false),
+			DeviceName: proto.String(name),
+			Mode:       proto.String("READ_WRITE"),
+			Type:       proto.String("PERSISTENT"),
+			Source:     proto.String(fmt.Sprintf("zones/%s/disks/%s", zone, name)),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return op.Wait(ctx)
+}
+
 func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
 	ctx := context.Background()
 	client, err := compute.NewDisksRESTClient(ctx)
@@ -206,16 +233,20 @@ func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expir
 		if len(ts) < 2 {
 			return fmt.Errorf("incorrect label format, must be key=value")
 		}
-		labels[strings.ToLower(ts[0])] = strings.Join(ts[1:], "=")
+		labels[strings.ToLower(ts[0])] = strings.ToLower(strings.Join(ts[1:], "="))
 	}
 	labels["usedby"] = "aerolab7"
 	if expires != 0 {
-		err := d.ExpiriesSystemInstall(10, "")
+		deployRegion := strings.Split(zone, "-")
+		if len(deployRegion) > 2 {
+			deployRegion = deployRegion[:len(deployRegion)-1]
+		}
+		err := d.ExpiriesSystemInstall(10, strings.Join(deployRegion, "-"))
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
 		}
-		labels["lastused"] = strings.ReplaceAll(strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_"), "+", "-")
-		labels["expireduration"] = strings.ReplaceAll(expires.String(), ".", "_")
+		labels["lastused"] = strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_"), "+", "-"))
+		labels["expireduration"] = strings.ToLower(strings.ReplaceAll(expires.String(), ".", "_"))
 	}
 	op, err := client.Insert(ctx, &computepb.InsertDiskRequest{
 		Zone:    zone,
@@ -1263,38 +1294,88 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 	}
 
 	if inslice.HasInt(inventoryItems, InventoryItemVolumes) {
-		ctx := context.Background()
-		client, err := compute.NewDisksRESTClient(ctx)
+		zones, err := listZones()
 		if err != nil {
-			return ij, fmt.Errorf("NewDisksRESTClient: %w", err)
+			return ij, err
 		}
-		defer client.Close()
-		it := client.List(ctx, &computepb.ListDisksRequest{
-			Project: a.opts.Config.Backend.Project,
-			Filter:  proto.String("labels.usedby=" + gcpTagEnclose("aerolab7")),
-		})
-		for {
-			pair, err := it.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				return ij, err
-			}
-			ts, _ := time.Parse(time.RFC3339, *pair.CreationTimestamp)
-			ij.Volumes = append(ij.Volumes, inventoryVolume{
-				AvailabilityZoneId:   *pair.Zone,
-				AvailabilityZoneName: *pair.Zone,
-				CreationTime:         ts,
-				LifeCycleState:       *pair.Status,
-				Name:                 *pair.Name,
-				SizeBytes:            int(*pair.SizeGb),
-				Tags:                 pair.Labels,
-				Owner:                pair.Labels["aerolab7owner"],
-			})
+		wait := new(sync.WaitGroup)
+		lock := new(sync.Mutex)
+		for _, zone := range zones {
+			wait.Add(1)
+			go func(zone string) {
+				defer wait.Done()
+				ctx := context.Background()
+				client, err := compute.NewDisksRESTClient(ctx)
+				if err != nil {
+					log.Printf("zone=%s NewDisksRESTClient: %s", zone, err)
+					return
+				}
+				defer client.Close()
+				it := client.List(ctx, &computepb.ListDisksRequest{
+					Project: a.opts.Config.Backend.Project,
+					Filter:  proto.String("labels.usedby=" + gcpTagEnclose("aerolab7")),
+					Zone:    zone,
+				})
+				for {
+					pair, err := it.Next()
+					if err == iterator.Done {
+						break
+					}
+					if err != nil {
+						log.Printf("zone=%s iterator: %s", zone, err)
+						return
+					}
+					ts, _ := time.Parse(time.RFC3339, *pair.CreationTimestamp)
+					lock.Lock()
+					nzone := strings.Split(pair.GetZone(), "/")
+					attachedTo := []string{}
+					for _, user := range pair.Users {
+						userx := strings.Split(user, "/")
+						attachedTo = append(attachedTo, strings.TrimPrefix(userx[len(userx)-1], "aerolab4-"))
+					}
+					ij.Volumes = append(ij.Volumes, inventoryVolume{
+						AvailabilityZoneId:   *pair.Zone,
+						AvailabilityZoneName: nzone[len(nzone)-1],
+						FileSystemId:         *pair.Name,
+						CreationTime:         ts,
+						LifeCycleState:       *pair.Status,
+						Name:                 *pair.Name,
+						SizeBytes:            int(*pair.SizeGb) * 1024 * 1024 * 1024,
+						Tags:                 pair.Labels,
+						Owner:                pair.Labels["aerolab7owner"],
+						GCPAttachedTo:        attachedTo,
+					})
+					lock.Unlock()
+				}
+			}(zone)
 		}
+		wait.Wait()
 	}
 	return ij, nil
+}
+
+func listZones() ([]string, error) {
+	ctx := context.Background()
+	client, err := compute.NewZonesRESTClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	it := client.List(ctx, &computepb.ListZonesRequest{
+		Project: a.opts.Config.Backend.Project,
+	})
+	zones := []string{}
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		zones = append(zones, pair.GetName())
+	}
+	return zones, nil
 }
 
 func gcplabelDecode(a string) string {

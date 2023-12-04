@@ -174,7 +174,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 				return nil, err
 			}
 		} else if foundVol != nil {
-			err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String())
+			err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String(), foundVol.AvailabilityZoneName)
 			if err != nil {
 				return nil, err
 			}
@@ -402,7 +402,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	// efs mounts
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.EFSMount != "" {
 		a.opts.Volume.Mount.ClusterName = string(c.ClientName)
-		a.opts.Volume.Mount.EfsPath = efsPath
+		a.opts.Volume.Mount.Aws.EfsPath = efsPath
 		a.opts.Volume.Mount.IsClient = true
 		a.opts.Volume.Mount.LocalPath = efsLocalPath
 		a.opts.Volume.Mount.Name = efsName

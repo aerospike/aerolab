@@ -183,7 +183,7 @@ func (d *backendAws) DeleteVolume(name string, zone string) error {
 	return nil
 }
 
-func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string) error {
+func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
 	_, err := d.efs.TagResource(&efs.TagResourceInput{
 		ResourceId: aws.String(fsId),
 		Tags: []*efs.Tag{
@@ -1295,6 +1295,10 @@ func (d *backendAws) PruneNetworks() error {
 	return nil
 }
 func (d *backendAws) ListNetworks(csv bool, writer io.Writer) error {
+	return nil
+}
+
+func (d *backendAws) AttachVolume(name string, zone string, clusterName string, node int) error {
 	return nil
 }
 
