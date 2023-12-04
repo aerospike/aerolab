@@ -254,7 +254,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			} else if foundVol == nil {
 				a.opts.Volume.Create.Name = efsName
 				if c.Aws.EFSOneZone {
-					a.opts.Volume.Create.Zone, err = b.GetAZName(c.Aws.SubnetID)
+					a.opts.Volume.Create.Aws.Zone, err = b.GetAZName(c.Aws.SubnetID)
 					if err != nil {
 						return err
 					}

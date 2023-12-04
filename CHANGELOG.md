@@ -23,7 +23,7 @@
 * Allow adding of `aerolab` to a server/client instance on-demand.
 * GCP AGI spot instance support.
 * Docker: when exposing multiple ports in a continuous order, only use first exposed port for the service port.
-* TODO: GCP AGI Volumes support (using standard `pd-ssd` as there is no `EFS` equivalent).
+* GCP Volumes support (using standard `pd-ssd`, and requiring size, as there is no `EFS` equivalent).
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
   * `aerolab client create none -n agi-monitor; aerolab client configure aerolab -n agi-monitor; aerolab attach client -n agi-monitor --detach -- /usr/local/bin/aerolab agi monitor`

@@ -611,6 +611,48 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			fmt.Println(render())
 			fmt.Println()
 		}
+		if a.opts.Config.Backend.Type == "gcp" && showOther&inventoryShowVolumes > 0 {
+			t.SetTitle(colorHiWhite.Sprint("EXTRA VOLUMES"))
+			t.ResetHeaders()
+			t.ResetRows()
+			t.ResetFooters()
+			t.AppendHeader(table.Row{"Name", "Zone", "Created", "Size", "ExpiresIn", "Status", "AGILabel", "Owner"})
+			for _, v := range inv.Volumes {
+				expiry := ""
+				if lastUsed, ok := v.Tags["lastused"]; ok {
+					lastUsed = strings.ReplaceAll(lastUsed, "_", ":")
+					if expireDuration, ok := v.Tags["expireduration"]; ok {
+						expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
+						lu, err := time.Parse(time.RFC3339, lastUsed)
+						if err == nil {
+							ed, err := time.ParseDuration(expireDuration)
+							if err == nil {
+								expiresTime := lu.Add(ed)
+								expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+								if expiresIn < 6*time.Hour {
+									expiry = errExp.Sprintf("%s", expiresIn.Round(time.Minute))
+								} else {
+									expiry = expiresIn.Round(time.Minute).String()
+								}
+							}
+						}
+					}
+				}
+				vv := table.Row{
+					v.Name,
+					v.AvailabilityZoneName,
+					v.CreationTime.Format(time.RFC822),
+					convSize(int64(v.SizeBytes)),
+					expiry,
+					v.LifeCycleState,
+					v.Tags["agilabel"],
+					v.Owner,
+				}
+				t.AppendRow(vv)
+			}
+			fmt.Println(render())
+			fmt.Println()
+		}
 		if showOther&inventoryShowAGI > 0 {
 			t.SetTitle(colorHiWhite.Sprint("AGI"))
 			t.ResetHeaders()

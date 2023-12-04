@@ -46,11 +46,11 @@ func (d *backendDocker) MountTargetAddSecurityGroup(mountTarget *inventoryMountT
 	return nil
 }
 
-func (d *backendDocker) DeleteVolume(name string) error {
+func (d *backendDocker) DeleteVolume(name string, zone string) error {
 	return nil
 }
 
-func (d *backendDocker) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
+func (d *backendDocker) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
 	return nil
 }
 

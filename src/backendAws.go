@@ -138,7 +138,7 @@ func (d *backendAws) MountTargetAddSecurityGroup(mountTarget *inventoryMountTarg
 	return err
 }
 
-func (d *backendAws) DeleteVolume(name string) error {
+func (d *backendAws) DeleteVolume(name string, zone string) error {
 	vols, err := b.Inventory("", []int{InventoryItemVolumes})
 	if err != nil {
 		return fmt.Errorf("could not enumerate through volumes: %s", err)
@@ -196,7 +196,7 @@ func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string) err
 	return err
 }
 
-func (d *backendAws) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
+func (d *backendAws) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
 	var az *string
 	if zone != "" {
 		az = &zone

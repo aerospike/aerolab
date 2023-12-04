@@ -14,6 +14,12 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
+func init() {
+	addBackendSwitch("volume.create", "aws", &a.opts.Volume.Create.Aws)
+	addBackendSwitch("volume.create", "gcp", &a.opts.Volume.Create.Gcp)
+	addBackendSwitch("volume.delete", "gcp", &a.opts.Volume.Delete.Gcp)
+}
+
 type volumeCmd struct {
 	Create  volumeCreateCmd    `command:"create" subcommands-optional:"true" description:"Create a volume"`
 	List    volumeListCmd      `command:"list" subcommands-optional:"true" description:"List volumes"`
@@ -53,12 +59,22 @@ func (c *volumeListCmd) Execute(args []string) error {
 }
 
 type volumeCreateCmd struct {
-	Name    string        `short:"n" long:"name" description:"EFS Name" default:"agi"`
-	Zone    string        `short:"z" long:"zone" description:"Full Availability Zone name; if provided, will define a one-zone volume; default {REGION}a"`
-	Tags    []string      `short:"t" long:"tag" description:"tag as key=value; can be specified multiple times"`
-	Owner   string        `short:"o" long:"owner" description:"set owner tag to the specified value"`
-	Expires time.Duration `short:"e" long:"expire" description:"expire the volume if 'mount' against the volume has not been executed for this long"`
-	Help    helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	Name    string             `short:"n" long:"name" description:"EFS Name" default:"agi"`
+	Tags    []string           `short:"t" long:"tag" description:"tag as key=value; can be specified multiple times"`
+	Owner   string             `short:"o" long:"owner" description:"set owner tag to the specified value"`
+	Expires time.Duration      `short:"e" long:"expire" description:"expire the volume if 'mount' against the volume has not been executed for this long"`
+	Aws     volumeCreateAwsCmd `no-flag:"true"`
+	Gcp     volumeCreateGcpCmd `no-flag:"true"`
+	Help    helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type volumeCreateGcpCmd struct {
+	Zone string `short:"z" long:"zone" description:"Zone name to use"`
+	Size int64  `short:"s" long:"size" description:"Volume SizeGB" default:"100"`
+}
+
+type volumeCreateAwsCmd struct {
+	Zone string `short:"z" long:"zone" description:"Full Availability Zone name; if provided, will define a one-zone volume; default {REGION}a"`
 }
 
 func (c *volumeCreateCmd) Execute(args []string) error {
@@ -69,7 +85,11 @@ func (c *volumeCreateCmd) Execute(args []string) error {
 	if c.Owner != "" {
 		c.Tags = append(c.Tags, "aerolab7owner="+c.Owner)
 	}
-	err := b.CreateVolume(c.Name, c.Zone, c.Tags, c.Expires)
+	zone := c.Aws.Zone
+	if a.opts.Config.Backend.Type == "gcp" {
+		zone = c.Gcp.Zone
+	}
+	err := b.CreateVolume(c.Name, zone, c.Tags, c.Expires, c.Gcp.Size)
 	if err != nil {
 		return err
 	}
@@ -137,38 +157,46 @@ func (c *volumeMountCmd) Execute(args []string) error {
 	if volume == nil {
 		return errors.New("volume not found")
 	}
-	var mountTarget *inventoryMountTarget
-	for _, mt := range volume.MountTargets {
-		if mt.SubnetId == subnet {
-			mountTarget = &mt
-			break
-		}
-	}
-	if mountTarget == nil {
-		log.Println("Volume mount target not found, creating")
-		_, err := b.CreateMountTarget(volume, subnet, secGroups)
-		if err != nil {
-			return err
-		}
-		//mountTarget = &mt
-	} else {
-		addGroups := mountTarget.SecurityGroups
-		needMTFix := false
-		for _, sg := range secGroups {
-			if !inslice.HasString(addGroups, sg) {
-				addGroups = append(addGroups, sg)
-				needMTFix = true
+	if a.opts.Config.Backend.Type == "aws" {
+		var mountTarget *inventoryMountTarget
+		for _, mt := range volume.MountTargets {
+			if mt.SubnetId == subnet {
+				mountTarget = &mt
+				break
 			}
 		}
-		if needMTFix {
-			log.Println("Mount Target security group mismatch, fixing")
-			err = b.MountTargetAddSecurityGroup(mountTarget, volume, addGroups)
+		if mountTarget == nil {
+			log.Println("Volume mount target not found, creating")
+			_, err := b.CreateMountTarget(volume, subnet, secGroups)
 			if err != nil {
 				return err
 			}
+			//mountTarget = &mt
+		} else {
+			addGroups := mountTarget.SecurityGroups
+			needMTFix := false
+			for _, sg := range secGroups {
+				if !inslice.HasString(addGroups, sg) {
+					addGroups = append(addGroups, sg)
+					needMTFix = true
+				}
+			}
+			if needMTFix {
+				log.Println("Mount Target security group mismatch, fixing")
+				err = b.MountTargetAddSecurityGroup(mountTarget, volume, addGroups)
+				if err != nil {
+					return err
+				}
+			}
 		}
 	}
-	err = b.TagVolume(volume.FileSystemId, "lastUsed", time.Now().Format(time.RFC3339))
+	usedName := "lastUsed"
+	usedTag := time.Now().Format(time.RFC3339)
+	if a.opts.Config.Backend.Type == "gcp" {
+		usedTag = strings.ReplaceAll(strings.ReplaceAll(usedTag, ":", "_"), "+", "-")
+		usedName = "lastused"
+	}
+	err = b.TagVolume(volume.FileSystemId, usedName, usedTag)
 	if err != nil {
 		return err
 	}
@@ -272,8 +300,13 @@ func (c *volumeExecMountCmd) Execute(args []string) error {
 }
 
 type volumeDeleteCmd struct {
-	Name string  `short:"n" long:"name" description:"EFS Name" default:"agi"`
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Name string             `short:"n" long:"name" description:"EFS Name" default:"agi"`
+	Gcp  volumeDeleteGcpCmd `no-flag:"true"`
+	Help helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type volumeDeleteGcpCmd struct {
+	Zone string `short:"z" long:"zone" description:"Zone name to use"`
 }
 
 func (c *volumeDeleteCmd) Execute(args []string) error {
@@ -283,7 +316,7 @@ func (c *volumeDeleteCmd) Execute(args []string) error {
 	vols := strings.Split(c.Name, ",")
 	for _, vol := range vols {
 		log.Printf("Deleting volume %s", vol)
-		err := b.DeleteVolume(vol)
+		err := b.DeleteVolume(vol, c.Gcp.Zone)
 		if err != nil {
 			return err
 		}
