@@ -29,6 +29,7 @@ type volumeCmd struct {
 	Mount   volumeMountCmd     `command:"mount" subcommands-optional:"true" description:"Mount a volume on a node"`
 	Delete  volumeDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete a volume"`
 	Resize  volumeResizeCmd    `command:"grow" subcommands-optional:"true" description:"GCP only: grow a volume; if the volume is not attached, the filesystem will not be resized automatically"`
+	Detach  volumeDetachCmd    `command:"detach" subcommands-optional:"true" description:"GCP only: detach a volume for an instance"`
 	DoMount volumeExecMountCmd `command:"exec-mount" hidden:"true" subcommands-optional:"true" description:"Execute actual mounting operation"`
 	Help    helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -208,6 +209,34 @@ func (c *volumeCreateCmd) Execute(args []string) error {
 		zone = c.Gcp.Zone
 	}
 	err := b.CreateVolume(c.Name, zone, c.Tags, c.Expires, c.Gcp.Size)
+	if err != nil {
+		return err
+	}
+	log.Println("Done")
+	return nil
+}
+
+type volumeDetachCmd struct {
+	Name        string `short:"n" long:"name" description:"VOL Name" default:"agi"`
+	ClusterName string `short:"N" long:"cluster-name" description:"Cluster/Client Name from which to detach" default:"agi"`
+	Node        int    `short:"l" long:"node" description:"Node to detach from" default:"1"`
+	Zone        string `short:"z" long:"zone" description:"gcp zone"`
+	IsClient    bool   `short:"c" long:"is-client" description:"Specify mounting on client instead of cluster"`
+	parallelThreadsCmd
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *volumeDetachCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	log.Println("Running volume.detach")
+	if c.IsClient {
+		b.WorkOnClients()
+	} else {
+		b.WorkOnServers()
+	}
+	err := b.DetachVolume(c.Name, c.ClusterName, c.Node, c.Zone)
 	if err != nil {
 		return err
 	}

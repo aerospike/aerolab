@@ -196,6 +196,10 @@ func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string, zon
 	return err
 }
 
+func (d *backendAws) DetachVolume(name string, clusterName string, node int, zone string) error {
+	return nil
+}
+
 func (d *backendAws) ResizeVolume(name string, zone string, newSize int64) error {
 	return nil
 }
