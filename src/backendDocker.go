@@ -34,7 +34,11 @@ func (d *backendDocker) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
 
-func (d *backendDocker) TagVolume(fsId string, tagName string, tagValue string) error {
+func (d *backendDocker) AttachVolume(name string, zone string, clusterName string, node int) error {
+	return nil
+}
+
+func (d *backendDocker) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
 	return nil
 }
 

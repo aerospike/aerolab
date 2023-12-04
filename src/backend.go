@@ -73,13 +73,16 @@ var TypeArchArm = TypeArch(1)
 var TypeArchAmd = TypeArch(2)
 
 type backend interface {
-	// aws efs volumes
+	// gcp/aws volumes
 	CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error
-	TagVolume(fsId string, tagName string, tagValue string) error
+	TagVolume(fsId string, tagName string, tagValue string, zone string) error
 	DeleteVolume(name string, zone string) error
+	// volumes: efs only
 	CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error)
 	MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error
 	GetAZName(subnetId string) (string, error)
+	// volumes: gcp only
+	AttachVolume(name string, zone string, clusterName string, node int) error
 	// cause gcp
 	EnableServices() error
 	// expiries calls
@@ -193,6 +196,7 @@ type inventoryVolume struct {
 	Tags                 map[string]string
 	MountTargets         []inventoryMountTarget
 	Owner                string
+	GCPAttachedTo        []string
 }
 
 type inventoryMountTarget struct {

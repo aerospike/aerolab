@@ -267,7 +267,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 					return err
 				}
 			} else if foundVol != nil {
-				err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String())
+				err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String(), foundVol.AvailabilityZoneName)
 				if err != nil {
 					return err
 				}
@@ -1254,7 +1254,7 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 	// efs mounts
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.EFSMount != "" {
 		a.opts.Volume.Mount.ClusterName = c.ClusterName.String()
-		a.opts.Volume.Mount.EfsPath = efsPath
+		a.opts.Volume.Mount.Aws.EfsPath = efsPath
 		a.opts.Volume.Mount.IsClient = false
 		a.opts.Volume.Mount.LocalPath = efsLocalPath
 		a.opts.Volume.Mount.Name = efsName
