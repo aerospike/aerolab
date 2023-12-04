@@ -96,6 +96,9 @@ type agiCreateCmdGcp struct {
 	NamePrefix   []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
 	SpotInstance bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires      time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	WithVol      bool          `long:"gcp-with-vol" description:"set to enable extra volume as the storage medium for the AGI stack"`
+	VolName      string        `long:"gcp-vol-name" description:"set to change the default name of the volume" default:"{AGI_NAME}"`
+	VolExpires   time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
 }
 
 type agiCreateCmdDocker struct {
@@ -252,6 +255,12 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		a.opts.Cluster.Create.Aws.EFSOneZone = !c.Aws.EFSMultiZone
 		a.opts.Cluster.Create.Aws.EFSMount = c.Aws.EFSName + ":" + c.Aws.EFSPath + ":" + "/opt/agi"
 		a.opts.Cluster.Create.Aws.EFSExpires = c.Aws.EFSExpires
+	}
+	if c.Gcp.WithVol {
+		c.Gcp.VolName = strings.ReplaceAll(c.Aws.EFSName, "{AGI_NAME}", string(c.ClusterName))
+		a.opts.Cluster.Create.Gcp.VolCreate = true
+		a.opts.Cluster.Create.Gcp.VolExpires = c.Gcp.VolExpires
+		a.opts.Cluster.Create.Gcp.VolMount = c.Gcp.VolName + ":/opt/agi"
 	}
 	a.opts.Cluster.Create.Aws.TerminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	a.opts.Cluster.Create.Aws.SpotInstance = c.Aws.SpotInstance

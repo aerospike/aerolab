@@ -178,6 +178,44 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 				return nil, err
 			}
 		}
+	} else if a.opts.Config.Backend.Type == "gcp" && c.Gcp.VolMount != "" {
+		if c.Gcp.VolMount != "" && len(strings.Split(c.Gcp.VolMount, ":")) < 2 {
+			return nil, logFatal("Mount format incorrect")
+		}
+		if c.Gcp.VolMount != "" {
+			mountDetail := strings.Split(c.Gcp.VolMount, ":")
+			efsName = mountDetail[0]
+			efsLocalPath = mountDetail[1]
+			inv, err := b.Inventory("", []int{InventoryItemVolumes})
+			if err != nil {
+				return nil, err
+			}
+			for _, vol := range inv.Volumes {
+				if vol.Name != efsName {
+					continue
+				}
+				foundVol = &vol
+				break
+			}
+			if foundVol == nil && !c.Gcp.VolCreate {
+				return nil, logFatal("Volume not found, and is not set to be created")
+			} else if foundVol == nil {
+				a.opts.Volume.Create.Name = efsName
+				a.opts.Volume.Create.Tags = c.Gcp.Labels
+				a.opts.Volume.Create.Owner = c.Owner
+				a.opts.Volume.Create.Expires = c.Gcp.VolExpires
+				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone
+				err = a.opts.Volume.Create.Execute(nil)
+				if err != nil {
+					return nil, err
+				}
+			} else if foundVol != nil {
+				err = b.TagVolume(foundVol.FileSystemId, "expireduration", strings.ToLower(strings.ReplaceAll(c.Gcp.VolExpires.String(), ".", "_")), foundVol.AvailabilityZoneName)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 	b.WorkOnClients()
 
@@ -381,6 +419,17 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 
 	// efs mounts
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.EFSMount != "" {
+		a.opts.Volume.Mount.ClusterName = string(c.ClientName)
+		a.opts.Volume.Mount.Aws.EfsPath = efsPath
+		a.opts.Volume.Mount.IsClient = true
+		a.opts.Volume.Mount.LocalPath = efsLocalPath
+		a.opts.Volume.Mount.Name = efsName
+		a.opts.Volume.Mount.ParallelThreads = c.ParallelThreads
+		err = a.opts.Volume.Mount.Execute(nil)
+		if err != nil {
+			return nil, err
+		}
+	} else if a.opts.Config.Backend.Type == "gcp" && c.Gcp.VolMount != "" {
 		a.opts.Volume.Mount.ClusterName = string(c.ClientName)
 		a.opts.Volume.Mount.Aws.EfsPath = efsPath
 		a.opts.Volume.Mount.IsClient = true
