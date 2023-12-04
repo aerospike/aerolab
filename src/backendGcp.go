@@ -220,6 +220,27 @@ func (d *backendGcp) AttachVolume(name string, zone string, clusterName string, 
 	return op.Wait(ctx)
 }
 
+func (d *backendGcp) ResizeVolume(name string, zone string, newSize int64) error {
+	ctx := context.Background()
+	client, err := compute.NewDisksRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewDisksRESTClient: %w", err)
+	}
+	defer client.Close()
+	op, err := client.Resize(ctx, &computepb.ResizeDiskRequest{
+		Zone:    zone,
+		Project: a.opts.Config.Backend.Project,
+		Disk:    name,
+		DisksResizeRequestResource: &computepb.DisksResizeRequest{
+			SizeGb: proto.Int64(newSize),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return op.Wait(ctx)
+}
+
 func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
 	ctx := context.Background()
 	client, err := compute.NewDisksRESTClient(ctx)

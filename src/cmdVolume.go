@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ type volumeCmd struct {
 	List    volumeListCmd      `command:"list" subcommands-optional:"true" description:"List volumes"`
 	Mount   volumeMountCmd     `command:"mount" subcommands-optional:"true" description:"Mount a volume on a node"`
 	Delete  volumeDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete a volume"`
+	Resize  volumeResizeCmd    `command:"grow" subcommands-optional:"true" description:"GCP only: grow a volume; if the volume is not attached, the filesystem will not be resized automatically"`
 	DoMount volumeExecMountCmd `command:"exec-mount" hidden:"true" subcommands-optional:"true" description:"Execute actual mounting operation"`
 	Help    helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -58,6 +60,120 @@ func (c *volumeListCmd) Execute(args []string) error {
 	a.opts.Inventory.List.JsonPretty = c.JsonPretty
 	a.opts.Inventory.List.RenderType = c.RenderType
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowVolumes)
+}
+
+type volumeResizeCmd struct {
+	Name string  `short:"n" long:"name" description:"EFS Name" default:"agi"`
+	Zone string  `short:"z" long:"zone" description:"Zone name to use"`
+	Size int64   `short:"s" long:"size" description:"Volume SizeGB" default:"100"`
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *volumeResizeCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type != "gcp" {
+		return nil
+	}
+	log.Print("Listing volumes, cluster and clients")
+	vols, err := b.Inventory("", []int{InventoryItemVolumes})
+	if err != nil {
+		return fmt.Errorf("cannot list volumes")
+	}
+	var volume *inventoryVolume
+	for _, vol := range vols.Volumes {
+		if vol.Name != c.Name {
+			continue
+		}
+		vol := vol
+		volume = &vol
+		break
+	}
+	if volume == nil {
+		return errors.New("volume not found")
+	}
+	var ClusterName *string
+	var NodeId int
+	if volume.GCPAttachedTo != nil {
+		node := strings.Split(volume.GCPAttachedTo[0], "-")
+		clusterName := strings.Join(node[0:len(node)-1], "-")
+		nodeId := node[len(node)-1]
+		b.WorkOnServers()
+		clusters, err := b.ClusterList()
+		if err != nil {
+			return fmt.Errorf("could not list clusters")
+		}
+		b.WorkOnClients()
+		clients, err := b.ClusterList()
+		if err != nil {
+			return fmt.Errorf("could not list clients")
+		}
+		if inslice.HasString(clusters, clusterName) {
+			b.WorkOnServers()
+		} else if inslice.HasString(clients, clusterName) {
+			b.WorkOnClients()
+		} else {
+			return fmt.Errorf("could not find attached cluster/client nodes")
+		}
+		nodes, err := b.NodeListInCluster(clusterName)
+		if err != nil {
+			return fmt.Errorf("could not list nodes: %s", err)
+		}
+		nodeIdInt, _ := strconv.Atoi(nodeId)
+		if !inslice.HasInt(nodes, nodeIdInt) {
+			return fmt.Errorf("node %d not found", nodeIdInt)
+		}
+		ClusterName = &clusterName
+		NodeId = nodeIdInt
+	}
+	log.Println("Resizing volume")
+	err = b.ResizeVolume(c.Name, c.Zone, c.Size)
+	if err != nil {
+		return err
+	}
+	if ClusterName != nil {
+		log.Println("Resizing filesystem")
+		// discover fstype
+		outs, err := b.RunCommands(*ClusterName, [][]string{{"cat", "/etc/fstab"}}, []int{NodeId})
+		if err != nil {
+			return fmt.Errorf("failed to cat fstab: %s: %s", err, string(outs[0]))
+		}
+		out := string(outs[0])
+		fstype := ""
+		mountpoint := ""
+		for _, line := range strings.Split(out, "\n") {
+			if !strings.HasPrefix(line, "/dev/disk/by-id/google-"+c.Name) {
+				continue
+			}
+			fstab := strings.Split(line, "  ")
+			if len(fstab) < 3 {
+				return errors.New("could not work out filesystem type from fstab")
+			}
+			fstype = fstab[2]
+			mountpoint = fstab[1]
+		}
+		if fstype == "" {
+			return errors.New("could not work out filesystem location from fstab")
+		}
+		// run the correct command to resize fs
+		switch fstype {
+		case "xfs":
+			outs, err = b.RunCommands(*ClusterName, [][]string{{"xfs_growfs", mountpoint}}, []int{NodeId})
+			if err != nil {
+				return fmt.Errorf("resize command failed %s with %s", err, string(outs[0]))
+			}
+		case "ext3", "ext2", "ext4":
+			outs, err = b.RunCommands(*ClusterName, [][]string{{"resize2fs", "/dev/disk/by-id/google-" + c.Name}}, []int{NodeId})
+			if err != nil {
+				return fmt.Errorf("resize command failed %s with %s", err, string(outs[0]))
+			}
+		default:
+			return fmt.Errorf("fstype %s not supported for automated resizing", fstype)
+		}
+	}
+	log.Println("Done")
+	return nil
 }
 
 type volumeCreateCmd struct {
