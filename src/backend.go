@@ -84,6 +84,7 @@ type backend interface {
 	// volumes: gcp only
 	AttachVolume(name string, zone string, clusterName string, node int) error
 	ResizeVolume(name string, zone string, newSize int64) error
+	DetachVolume(name string, clusterName string, node int, zone string) error
 	// cause gcp
 	EnableServices() error
 	// expiries calls

@@ -50,6 +50,10 @@ func (d *backendDocker) MountTargetAddSecurityGroup(mountTarget *inventoryMountT
 	return nil
 }
 
+func (d *backendDocker) DetachVolume(name string, clusterName string, node int, zone string) error {
+	return nil
+}
+
 func (d *backendDocker) ResizeVolume(name string, zone string, newSize int64) error {
 	return nil
 }

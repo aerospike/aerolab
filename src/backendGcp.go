@@ -241,6 +241,25 @@ func (d *backendGcp) ResizeVolume(name string, zone string, newSize int64) error
 	return op.Wait(ctx)
 }
 
+func (d *backendGcp) DetachVolume(name string, clusterName string, node int, zone string) error {
+	ctx := context.Background()
+	client, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewDisksRESTClient: %w", err)
+	}
+	defer client.Close()
+	op, err := client.DetachDisk(ctx, &computepb.DetachDiskInstanceRequest{
+		Project:    a.opts.Config.Backend.Project,
+		Zone:       zone,
+		Instance:   fmt.Sprintf("aerolab4-%s-%d", clusterName, node),
+		DeviceName: name,
+	})
+	if err != nil {
+		return err
+	}
+	return op.Wait(ctx)
+}
+
 func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
 	ctx := context.Background()
 	client, err := compute.NewDisksRESTClient(ctx)
