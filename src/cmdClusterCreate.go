@@ -102,6 +102,7 @@ type clusterCreateCmdGcp struct {
 	VolMount        string        `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath"`
 	VolCreate       bool          `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist"`
 	VolExpires      time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
+	VolDescription  string        `long:"gcp-vol-desc" description:"set volume description field value"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -309,6 +310,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				a.opts.Volume.Create.Owner = c.Owner
 				a.opts.Volume.Create.Expires = c.Gcp.VolExpires
 				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone
+				a.opts.Volume.Create.Gcp.Description = c.Gcp.VolDescription
 				err = a.opts.Volume.Create.Execute(nil)
 				if err != nil {
 					return err

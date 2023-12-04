@@ -62,7 +62,7 @@ func (d *backendDocker) DeleteVolume(name string, zone string) error {
 	return nil
 }
 
-func (d *backendDocker) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error {
+func (d *backendDocker) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error {
 	return nil
 }
 
