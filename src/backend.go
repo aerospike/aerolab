@@ -74,9 +74,9 @@ var TypeArchAmd = TypeArch(2)
 
 type backend interface {
 	// aws efs volumes
-	CreateVolume(name string, zone string, tags []string, expires time.Duration) error
+	CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64) error
 	TagVolume(fsId string, tagName string, tagValue string) error
-	DeleteVolume(name string) error
+	DeleteVolume(name string, zone string) error
 	CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error)
 	MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error
 	GetAZName(subnetId string) (string, error)

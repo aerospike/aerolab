@@ -161,7 +161,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		} else if foundVol == nil {
 			a.opts.Volume.Create.Name = efsName
 			if c.Aws.EFSOneZone {
-				a.opts.Volume.Create.Zone, err = b.GetAZName(c.Aws.SubnetID)
+				a.opts.Volume.Create.Aws.Zone, err = b.GetAZName(c.Aws.SubnetID)
 				if err != nil {
 					return nil, err
 				}
@@ -169,6 +169,11 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			a.opts.Volume.Create.Owner = c.Owner
 			a.opts.Volume.Create.Tags = c.Aws.Tags
 			err = a.opts.Volume.Create.Execute(nil)
+			if err != nil {
+				return nil, err
+			}
+		} else if foundVol != nil {
+			err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String())
 			if err != nil {
 				return nil, err
 			}
