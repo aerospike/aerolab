@@ -850,8 +850,16 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					}
 					expiry := ""
 					var expTs time.Time
-					if lastUsed, ok := vol.Tags["lastUsed"]; ok {
-						if expireDuration, ok := vol.Tags["expireDuration"]; ok {
+					tused := "lastUsed"
+					tdur := "expireDuration"
+					if a.opts.Config.Backend.Type == "gcp" {
+						tused = "lastused"
+						tdur = "expireduration"
+					}
+					if lastUsed, ok := vol.Tags[tused]; ok {
+						lastUsed = strings.ReplaceAll(lastUsed, "_", ":")
+						if expireDuration, ok := vol.Tags[tdur]; ok {
+							expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
 							lu, err := time.Parse(time.RFC3339, lastUsed)
 							if err == nil {
 								ed, err := time.ParseDuration(expireDuration)
@@ -868,8 +876,13 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 							}
 						}
 					}
-					vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags["agiLabel"], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix()}
-					t.AppendRow(vv)
+					if a.opts.Config.Backend.Type == "aws" {
+						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags["agiLabel"], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix()}
+						t.AppendRow(vv)
+					} else {
+						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags["agiLabel"], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, "", "", expTs.Unix()}
+						t.AppendRow(vv)
+					}
 				}
 			} else {
 				if a.opts.Config.Backend.Type == "gcp" {
