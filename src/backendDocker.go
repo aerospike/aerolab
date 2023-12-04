@@ -206,7 +206,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 								intPort = k
 							}
 						}
-					} else {
+					} else if it != "null" && it != "" {
 						ip = it
 						break
 					}
