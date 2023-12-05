@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
@@ -103,6 +104,7 @@ type clusterCreateCmdGcp struct {
 	VolCreate       bool          `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist"`
 	VolExpires      time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
 	VolDescription  string        `long:"gcp-vol-desc" description:"set volume description field value"`
+	VolLabels       []string      `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -275,6 +277,18 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				if err != nil {
 					return err
 				}
+				ii := -1
+				for i, v := range c.Aws.Tags {
+					if strings.HasPrefix(v, "agiLabel=") {
+						ii = i
+						break
+					}
+				}
+				if ii >= 0 {
+					if agiLabel, ok := foundVol.Tags["agiLabel"]; ok {
+						c.Aws.Tags[ii] = "agiLabel=" + agiLabel
+					}
+				}
 			}
 		}
 		b.WorkOnServers()
@@ -306,11 +320,11 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				return logFatal("Volume not found, and is not set to be created")
 			} else if foundVol == nil {
 				a.opts.Volume.Create.Name = efsName
-				a.opts.Volume.Create.Tags = c.Gcp.Labels
 				a.opts.Volume.Create.Owner = c.Owner
 				a.opts.Volume.Create.Expires = c.Gcp.VolExpires
 				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone
 				a.opts.Volume.Create.Gcp.Description = c.Gcp.VolDescription
+				a.opts.Volume.Create.Tags = c.Gcp.VolLabels
 				err = a.opts.Volume.Create.Execute(nil)
 				if err != nil {
 					return err
@@ -319,6 +333,11 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				err = b.TagVolume(foundVol.FileSystemId, "expireduration", strings.ToLower(strings.ReplaceAll(c.Gcp.VolExpires.String(), ".", "_")), foundVol.AvailabilityZoneName)
 				if err != nil {
 					return err
+				}
+				if _, ok := c.gcpMeta["agiLabel"]; ok {
+					if agiLabel, err := gcplabels.Unpack(foundVol.Tags, "agilabel"); err == nil {
+						c.gcpMeta["agiLabel"] = agiLabel
+					}
 				}
 			}
 		}

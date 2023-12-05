@@ -432,7 +432,11 @@ func (c *volumeMountCmd) doMount(volume *inventoryVolume, node int) error {
 		if err != nil {
 			return fmt.Errorf("could not mount: %s: %s", err, string(out[0]))
 		}
-		out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-P", c.Aws.EfsPath, "-n", volume.FileSystemId, "-f", c.Gcp.FsType}}, []int{node})
+		if a.opts.Config.Backend.Type == "aws" {
+			out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-P", c.Aws.EfsPath, "-n", volume.FileSystemId}}, []int{node})
+		} else {
+			out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-n", volume.FileSystemId, "-f", c.Gcp.FsType}}, []int{node})
+		}
 		if err != nil {
 			return fmt.Errorf("could not mount: %s: %s", err, string(out[0]))
 		}
