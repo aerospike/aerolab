@@ -1,6 +1,6 @@
-# AWS EFS volumes for cluster and clients
+# AWS EFS and GCP extra volumes for cluster and clients
 
-AeroLab supports basic creation and management of EFS volumes in AWS, as well as automated attachment, mounting and `MountPoint` creation.
+AeroLab supports basic creation and management of EFS volumes in AWS and extra disk volumes in GCP, as well as automated attachment, mounting and `MountPoint` creation.
 
 ## Managing volumes
 
@@ -18,6 +18,8 @@ Available commands:
   list    List volumes
   mount   Mount a volume on a node
   delete  Delete a volume
+  grow    GCP only: grow a volume; if the volume is not attached, the filesystem will not be resized automatically
+  detach  GCP only: detach a volume for an instance
   help    Print help
 ```
 
@@ -36,5 +38,11 @@ Parameter | Description
 `--aws-efs-mount=` | mount EFS volume; format: NAME:EfsPath:MountPath OR use NAME:MountPath to mount the EFS root
 `--aws-efs-create` | set to create the EFS volume if it doesn't exist
 `--aws-efs-onezone` | set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments
+`--aws-efs-expire` | if a volume has not had a `mount` executed against it using aerolab for this amount of time, expire the volume
+`--gcp-vol-mount` | attach and mount GCP volume; format: NAME:MountPath
+`--gcp-vol-create` | create volume if it does not exist
+`--gcp-vol-expire` | if a volume has not had a `mount` executed against it using aerolab for this amount of time, expire the volume
+`--gcp-vol-desc` | set volume disk description field
+`--gcp-vol-label` | set a label; format: key=value; can be specified multiple times
 
 If a volume is created at cluster creation, it gets mounted after the installation, but before Aerospike is started.
