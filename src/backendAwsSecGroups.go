@@ -242,6 +242,9 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 					myIp := getip2()
 					parsedIp := net.ParseIP(myIp)
 					for _, perms := range out.SecurityGroups[0].IpPermissions {
+						if aws.Int64Value(perms.FromPort) == -1 || aws.Int64Value(perms.ToPort) == -1 {
+							continue
+						}
 						for _, permRange := range perms.IpRanges {
 							_, cidr, _ := net.ParseCIDR(*permRange.CidrIp)
 							if cidr.Contains(parsedIp) {
