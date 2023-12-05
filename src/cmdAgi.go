@@ -20,6 +20,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func init() {
+	addBackendSwitch("agi.delete", "gcp", &a.opts.AGI.Delete.Gcp)
+}
+
 type agiCmd struct {
 	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances"`
 	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance"`
@@ -170,6 +174,7 @@ func (c *agiDestroyCmd) Execute(args []string) error {
 
 type agiDeleteCmd struct {
 	agiDestroyCmd
+	Gcp volumeDeleteGcpCmd `no-flag:"true"`
 }
 
 func (c *agiDeleteCmd) Execute(args []string) error {
@@ -179,9 +184,16 @@ func (c *agiDeleteCmd) Execute(args []string) error {
 	a.opts.Cluster.Destroy.ClusterName = c.ClusterName
 	a.opts.Cluster.Destroy.Force = c.Force
 	a.opts.Cluster.Destroy.Parallel = c.Parallel
-	a.opts.Cluster.Destroy.doDestroy("agi", args)
+	err := a.opts.Cluster.Destroy.doDestroy("agi", args)
+	if err != nil {
+		log.Printf("Could not remove instance: %s", err)
+	}
 	a.opts.Volume.Delete.Name = c.ClusterName.String()
-	a.opts.Volume.Delete.Execute(args)
+	a.opts.Volume.Delete.Gcp.Zone = c.Gcp.Zone
+	err = a.opts.Volume.Delete.Execute(args)
+	if err != nil {
+		log.Printf("Could not remove volume: %s", err)
+	}
 	return nil
 }
 

@@ -26,6 +26,7 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
+	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/bestmethod/inslice"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
@@ -314,14 +315,42 @@ func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZ
 			return fmt.Errorf("NewDisksRESTClient: %w", err)
 		}
 		defer client.Close()
+		disk, err := client.Get(ctx, &computepb.GetDiskRequest{
+			Disk:    clusterName,
+			Project: a.opts.Config.Backend.Project,
+			Zone:    gcpZone,
+		})
+		if err == nil {
+			vals := gcplabels.PackToMap("agilabel", value)
+			vals["agilabel"] = "set"
+			for k, v := range disk.Labels {
+				if strings.HasPrefix(k, "agilabel") {
+					continue
+				}
+				vals[k] = v
+			}
+			_, err := client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
+				Resource: clusterName,
+				Project:  a.opts.Config.Backend.Project,
+				Zone:     gcpZone,
+				ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
+					LabelFingerprint: disk.LabelFingerprint,
+					Labels:           vals,
+				},
+			})
+			if err != nil {
+				return err
+			}
+		}
 		client.Update(ctx, &computepb.UpdateDiskRequest{
 			Disk:    clusterName,
 			Project: a.opts.Config.Backend.Project,
 			Zone:    gcpZone,
 			DiskResource: &computepb.Disk{
 				Description: proto.String(value),
+				Name:        proto.String(clusterName),
 			},
-			UpdateMask: proto.String("description"),
+			UpdateMask: proto.String("labels"),
 		})
 	}
 	instances := make(map[string]gcpClusterExpiryInstances)
@@ -1401,7 +1430,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						Tags:                 pair.Labels,
 						Owner:                pair.Labels["aerolab7owner"],
 						GCPAttachedTo:        attachedTo,
-						GCPDescription:       *pair.Description,
+						GCPDescription:       pair.GetDescription(),
 					})
 					lock.Unlock()
 				}

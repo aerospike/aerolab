@@ -11,6 +11,7 @@ import (
 
 	_ "embed"
 
+	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/notifier"
 	"github.com/bestmethod/inslice"
@@ -277,6 +278,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.gcpMeta = map[string]string{
 		"agiLabel": c.AGILabel,
 	}
+	a.opts.Cluster.Create.Gcp.VolLabels = append(gcplabels.PackToKV("agilabel", c.AGILabel), "agilabel=set")
 	a.opts.Cluster.Create.Gcp.VolDescription = c.AGILabel
 	a.opts.Cluster.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
 	a.opts.Cluster.Create.Gcp.Expires = c.Gcp.Expires

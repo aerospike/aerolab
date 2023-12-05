@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/bestmethod/inslice"
 	isatty "github.com/mattn/go-isatty"
@@ -646,7 +647,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					convSize(int64(v.SizeBytes)),
 					expiry,
 					v.LifeCycleState,
-					v.GCPDescription,
+					gcplabels.UnpackNoErr(v.Tags, "agilabel"),
 					v.Owner,
 				}
 				t.AppendRow(vv)
@@ -834,11 +835,19 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					if a.opts.Config.Backend.Type == "docker" {
 						vv = append(vv, v.ImageId)
 					} else {
-						expirationTime, _ := time.Parse(time.RFC3339, v.Expires)
-						vv = append(vv, expirationTime.Unix())
+						expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+						if err == nil && !expirationTime.IsZero() {
+							vv = append(vv, expirationTime.Unix())
+						} else {
+							vv = append(vv, " ")
+						}
 					}
 					if a.opts.Config.Backend.Type != "docker" {
-						vv = append(vv, volExp.Unix())
+						if !volExp.IsZero() {
+							vv = append(vv, volExp.Unix())
+						} else {
+							vv = append(vv, " ")
+						}
 					}
 					t.AppendRow(vv)
 				}
@@ -883,7 +892,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags[agilabeltag], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix()}
 						t.AppendRow(vv)
 					} else {
-						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.GCPDescription, convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, "", "", expTs.Unix()}
+						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", gcplabels.UnpackNoErr(vol.Tags, "agilabel"), convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, "", "", expTs.Unix()}
 						t.AppendRow(vv)
 					}
 				}
