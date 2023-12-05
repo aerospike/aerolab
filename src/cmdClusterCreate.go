@@ -88,23 +88,24 @@ type clusterCreateCmdAws struct {
 }
 
 type clusterCreateCmdGcp struct {
-	Image           string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
-	InstanceType    string        `long:"instance" description:"instance type to use" default:""`
-	Disks           []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
-	PublicIP        bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
-	Zone            string        `long:"zone" description:"zone name to deploy to"`
-	IsArm           bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
-	Tags            []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
-	Labels          []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix      []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	SpotInstance    bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
-	Expires         time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
-	VolMount        string        `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath"`
-	VolCreate       bool          `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist"`
-	VolExpires      time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
-	VolDescription  string        `long:"gcp-vol-desc" description:"set volume description field value"`
-	VolLabels       []string      `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
+	Image               string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
+	InstanceType        string        `long:"instance" description:"instance type to use" default:""`
+	Disks               []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
+	PublicIP            bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
+	Zone                string        `long:"zone" description:"zone name to deploy to"`
+	IsArm               bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices     bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
+	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	SpotInstance        bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
+	Expires             time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	VolMount            string        `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath"`
+	VolCreate           bool          `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist"`
+	VolExpires          time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
+	VolDescription      string        `long:"gcp-vol-desc" description:"set volume description field value"`
+	VolLabels           []string      `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
+	TerminateOnPoweroff bool          `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -826,6 +827,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	extra.spotInstance = c.Aws.SpotInstance
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra.spotInstance = c.Gcp.SpotInstance
+		extra.terminateOnPoweroff = c.Gcp.TerminateOnPoweroff
 	}
 
 	// limitnofile check
@@ -989,6 +991,10 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 
 	// store deployed aerospike version
 	files = append(files, fileList{"/opt/aerolab.aerospike.version", c.AerospikeVersion.String(), len(c.AerospikeVersion)})
+	if a.opts.Config.Backend.Type == "gcp" && c.Gcp.TerminateOnPoweroff {
+		termonpoweroffContents := "export NAME=$(curl -X GET http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google'); export ZONE=$(curl -X GET http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google'); gcloud --quiet compute instances delete $NAME --zone=$ZONE; systemctl poweroff"
+		files = append(files, fileList{"/usr/local/bin/poweroff", termonpoweroffContents, len(termonpoweroffContents)})
+	}
 
 	// actually save files to nodes in cluster if needed
 	if len(files) > 0 {
@@ -996,6 +1002,12 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{nnode})
 			if err != nil {
 				return err
+			}
+			if a.opts.Config.Backend.Type == "gcp" && c.Gcp.TerminateOnPoweroff {
+				out, err := b.RunCommands(string(c.ClusterName), [][]string{{"/bin/bash", "-c", "rm -f /sbin/poweroff; ln -s /usr/local/bin/poweroff /sbin/poweroff"}}, []int{nnode})
+				if err != nil {
+					log.Printf("ERROR: failed to install TerminateOnPoweroff script, instance will not terminate on poweroff: %s: %s", err, string(out[0]))
+				}
 			}
 			return nil
 		})
