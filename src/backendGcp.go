@@ -3383,6 +3383,16 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	if extra.spotInstance {
 		provisioning = "SPOT"
 	}
+	var serviceAccounts []*computepb.ServiceAccount
+	if extra.terminateOnPoweroff {
+		serviceAccounts = []*computepb.ServiceAccount{
+			{
+				Scopes: []string{
+					"https://www.googleapis.com/auth/compute",
+				},
+			},
+		}
+	}
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
@@ -3464,6 +3474,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			Project: a.opts.Config.Backend.Project,
 			Zone:    extra.zone,
 			InstanceResource: &computepb.Instance{
+				ServiceAccounts: serviceAccounts,
 				Metadata: &computepb.Metadata{
 					Items: metaItems,
 				},
