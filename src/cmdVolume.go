@@ -433,9 +433,9 @@ func (c *volumeMountCmd) doMount(volume *inventoryVolume, node int) error {
 			return fmt.Errorf("could not mount: %s: %s", err, string(out[0]))
 		}
 		if a.opts.Config.Backend.Type == "aws" {
-			out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-P", c.Aws.EfsPath, "-n", volume.FileSystemId}}, []int{node})
+			out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-P", c.Aws.EfsPath, "-n", volume.FileSystemId, "-b", "aws"}}, []int{node})
 		} else {
-			out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-n", volume.FileSystemId, "-f", c.Gcp.FsType}}, []int{node})
+			out, err = b.RunCommands(c.ClusterName, [][]string{{"/usr/local/bin/aerolab", "volume", "exec-mount", "-p", c.LocalPath, "-n", volume.FileSystemId, "-f", c.Gcp.FsType, "-b", "gcp"}}, []int{node})
 		}
 		if err != nil {
 			return fmt.Errorf("could not mount: %s: %s", err, string(out[0]))
@@ -461,6 +461,7 @@ type volumeExecMountCmd struct {
 	EfsPath   string  `short:"P" long:"volume-path" description:"Volume path to mount" default:"/"`
 	FsId      string  `short:"n" long:"name" description:"FsId" default:"agi"`
 	FsType    string  `short:"f" long:"fs-type" description:"type of filesystem" default:"xfs"`
+	Backend   string  `short:"b" long:"backend" description:"aws|gcp"`
 	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -468,7 +469,7 @@ func (c *volumeExecMountCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
 	}
-	if a.opts.Config.Backend.Type == "aws" {
+	if c.Backend == "aws" {
 		err := c.installEFSUtils()
 		if err != nil {
 			return err
@@ -638,7 +639,7 @@ func (c *volumeExecMountCmd) installEFSUtilsDeb() error {
 	}
 
 	// install
-	command = []string{"/bin/bash", "-c", "apt-get -y install ./efs-utils/build/amazon-efs-utils*deb"}
+	command = []string{"/bin/bash", "-c", "apt-get update && apt-get -y install ./efs-utils/build/amazon-efs-utils*deb"}
 	out, err = exec.Command(command[0], command[1:]...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %s", err, string(out))
