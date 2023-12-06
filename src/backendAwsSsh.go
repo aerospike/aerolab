@@ -145,7 +145,7 @@ func scp(user string, addr string, privateKey string, files []fileListReader) er
 	for _, file := range files {
 		err := scpFile(user, addr, privateKey, file)
 		if err != nil {
-			log.Printf("error: %s", err)
+			log.Printf("error 0: %s", err)
 			return err
 		}
 	}
@@ -164,14 +164,14 @@ func scpFile(user string, addr string, privateKey string, file fileListReader) e
 	go func() {
 		w, err := session.StdinPipe()
 		if err != nil {
-			log.Printf("error: %s", err)
+			log.Printf("error 1: %s", err)
 			return
 		}
 		defer func() { _ = w.Close() }()
 		if file.fileSize == 0 {
 			contents, err := io.ReadAll(file.fileContents)
 			if err != nil {
-				log.Printf("error: %s", err)
+				log.Printf("error 2: %s", err)
 				return
 			}
 			file.fileSize = len(contents)
@@ -179,17 +179,17 @@ func scpFile(user string, addr string, privateKey string, file fileListReader) e
 		}
 		_, err = fmt.Fprintln(w, "C"+"0755", file.fileSize, path.Base(file.filePath))
 		if err != nil {
-			log.Printf("error: %s", err)
+			log.Printf("error 3: %s", err)
 			return
 		}
 		_, err = io.Copy(w, file.fileContents)
 		if err != nil {
-			log.Printf("error: %s", err)
+			log.Printf("error 4: %s", err)
 			return
 		}
 		_, err = fmt.Fprintln(w, "\x00")
 		if err != nil {
-			log.Printf("error: %s", err)
+			log.Printf("error 5: %s", err)
 			return
 		}
 	}()
@@ -197,7 +197,7 @@ func scpFile(user string, addr string, privateKey string, file fileListReader) e
 	err = session.Run("/usr/bin/scp -qt " + path.Dir(file.filePath))
 
 	if err != nil && err.Error() != "Process exited with status 1" {
-		return err
+		return fmt.Errorf("6:%s", err)
 	}
 	_ = session.Close()
 	sess.Close()

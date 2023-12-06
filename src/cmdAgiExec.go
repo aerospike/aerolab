@@ -82,7 +82,11 @@ func (c *agiExecIngestDetailCmd) Execute(args []string) error {
 		if _, err := os.Stat(npath); err != nil {
 			npath = npath + ".gz"
 			if _, err := os.Stat(npath); err != nil {
-				return errors.New("file not found")
+				if len(c.DetailType) == 1 {
+					return errors.New("file not found")
+				} else {
+					continue
+				}
 			}
 			gz = true
 		}
