@@ -24,5 +24,5 @@ var telemetryVersion = "4"
 
 var simulateArmInstaller = false
 
-var awsExpiryVersion = 2
-var gcpExpiryVersion = 2
+var awsExpiryVersion = 5
+var gcpExpiryVersion = 5
