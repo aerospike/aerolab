@@ -141,7 +141,7 @@ Restart=on-failure
 User=root
 RestartSec=10
 WorkingDirectory=/opt/agi
-ExecStart=/usr/local/bin/aerolab agi exec proxy --agi-name %s -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s
+ExecStart=/usr/local/bin/aerolab agi exec proxy -c "%s" --agi-name %s -L "%s" -a token -l %d %s -C %s -K %s -m %s -M %s
 
 [Install]
 WantedBy=multi-user.target
