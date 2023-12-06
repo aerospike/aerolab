@@ -89,17 +89,18 @@ type agiCreateCmdAws struct {
 }
 
 type agiCreateCmdGcp struct {
-	InstanceType string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
-	Disks        []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
-	Zone         string        `long:"zone" description:"zone name to deploy to"`
-	Tags         []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
-	Labels       []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix   []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	SpotInstance bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
-	Expires      time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
-	WithVol      bool          `long:"gcp-with-vol" description:"set to enable extra volume as the storage medium for the AGI stack"`
-	VolName      string        `long:"gcp-vol-name" description:"set to change the default name of the volume" default:"{AGI_NAME}"`
-	VolExpires   time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired" default:"96h"`
+	InstanceType        string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
+	Disks               []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
+	Zone                string        `long:"zone" description:"zone name to deploy to"`
+	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
+	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	SpotInstance        bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
+	Expires             time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	WithVol             bool          `long:"gcp-with-vol" description:"set to enable extra volume as the storage medium for the AGI stack"`
+	VolName             string        `long:"gcp-vol-name" description:"set to change the default name of the volume" default:"{AGI_NAME}"`
+	VolExpires          time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired" default:"96h"`
+	TerminateOnPoweroff bool          `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
 }
 
 type agiCreateCmdDocker struct {
@@ -264,6 +265,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		a.opts.Cluster.Create.Gcp.VolMount = c.Gcp.VolName + ":/opt/agi"
 	}
 	a.opts.Cluster.Create.Aws.TerminateOnPoweroff = c.Aws.TerminateOnPoweroff
+	a.opts.Cluster.Create.Gcp.TerminateOnPoweroff = c.Gcp.TerminateOnPoweroff
 	a.opts.Cluster.Create.Aws.SpotInstance = c.Aws.SpotInstance
 	a.opts.Cluster.Create.Gcp.SpotInstance = c.Gcp.SpotInstance
 	a.opts.Cluster.Create.Gcp.Image = ""
