@@ -16,14 +16,12 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/aerospike/aerolab/ingest"
@@ -276,15 +274,6 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	}
 	// notifier load end
 	if c.MaxInactivity > 0 {
-		sigc := make(chan os.Signal, 1)
-		signal.Notify(sigc, syscall.SIGHUP)
-		go func() {
-			for {
-				<-sigc
-				lastActivity := c.lastActivity.Get()
-				log.Printf("lastActivity at %s maxInactivity %s currentInactivity %s", lastActivity, c.MaxInactivity, time.Since(lastActivity))
-			}
-		}()
 		go c.activityMonitor()
 	}
 	if c.MaxUptime > 0 {
@@ -299,6 +288,7 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	http.HandleFunc("/agi/shutdown", c.handleShutdown)          // gracefully shutdown the proxy
 	http.HandleFunc("/agi/poweroff", c.handlePoweroff)          // poweroff the instance
 	http.HandleFunc("/agi/status", c.handleStatus)              // high-level agi service status
+	http.HandleFunc("/agi/inactivity", c.handleInactivity)      // print inactivity timers
 	http.HandleFunc("/agi/ingest/detail", c.handleIngestDetail) // detailed logingest progress json; form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
 	http.HandleFunc("/", c.grafanaHandler)                      // grafana
 	c.srv = &http.Server{Addr: "0.0.0.0:" + strconv.Itoa(c.ListenPort)}
@@ -829,7 +819,16 @@ func (c *agiExecProxyCmd) activityMonitor() {
 	}
 }
 
-func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool {
+func (c *agiExecProxyCmd) handleInactivity(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuthOnly(w, r) {
+		return
+	}
+	logger.Info("Listener: inactivity status request from %s", r.RemoteAddr)
+	lastActivity := c.lastActivity.Get()
+	w.Write([]byte(fmt.Sprintf("lastActivity:%s maxInactivity:%s currentInactivity:%s", lastActivity.Format(time.RFC3339), c.MaxInactivity, time.Since(lastActivity))))
+}
+
+func (c *agiExecProxyCmd) checkAuthOnly(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Add("Strict-Transport-Security", "max-age=31536000")
 	if c.isBasicAuth {
 		user, pass, ok := r.BasicAuth()
@@ -874,9 +873,13 @@ func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool
 		}
 		c.tokens.RUnlock()
 	}
-	// note down activity timestamp
-	go c.lastActivity.Set(time.Now())
 	return true
+}
+
+func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool {
+	ret := c.checkAuthOnly(w, r)
+	go c.lastActivity.Set(time.Now())
+	return ret
 }
 
 func (c *agiExecProxyCmd) displayAuthTokenRequest(w http.ResponseWriter, r *http.Request) {
