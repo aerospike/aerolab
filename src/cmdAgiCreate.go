@@ -99,7 +99,7 @@ type agiCreateCmdGcp struct {
 	Expires      time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 	WithVol      bool          `long:"gcp-with-vol" description:"set to enable extra volume as the storage medium for the AGI stack"`
 	VolName      string        `long:"gcp-vol-name" description:"set to change the default name of the volume" default:"{AGI_NAME}"`
-	VolExpires   time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
+	VolExpires   time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired" default:"96h"`
 }
 
 type agiCreateCmdDocker struct {
