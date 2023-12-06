@@ -37,21 +37,144 @@ func aerolabExpire(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := aerolabExpireDo()
+	err := aerolabExpireDoInstances()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		log.Printf("Error executing: %s", err)
 	} else {
-		w.Write([]byte("OK"))
-		log.Println("Done")
+		err = aerolabExpireDoVolumes()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Error executing: %s", err)
+		} else {
+			w.Write([]byte("OK"))
+			log.Println("Done")
+		}
 	}
 }
 
-func aerolabExpireDo() error {
-	now := time.Now()
-	deleteList := make(map[string][]string)
-	deleteListForLog := []string{}
-	enumCount := 0
+var zones []string
+
+func listZones() ([]string, error) {
+	if len(zones) > 0 {
+		return zones, nil
+	}
+	ctx := context.Background()
+	client, err := compute.NewZonesRESTClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	it := client.List(ctx, &computepb.ListZonesRequest{
+		Project: projectId,
+	})
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		zones = append(zones, pair.GetName())
+	}
+	return zones, nil
+}
+
+func aerolabExpireDoVolumes() error {
+	_, err := getProjectId()
+	if err != nil {
+		return err
+	}
+	zones, err := listZones()
+	if err != nil {
+		return err
+	}
+	wait := new(sync.WaitGroup)
+	lock := new(sync.Mutex)
+	vls := [][]string{} // []->0-zone,1-name
+	for _, zone := range zones {
+		wait.Add(1)
+		go func(zone string) {
+			defer wait.Done()
+			ctx := context.Background()
+			client, err := compute.NewDisksRESTClient(ctx)
+			if err != nil {
+				log.Printf("NewDisksRESTClient: %s", err)
+				return
+			}
+			defer client.Close()
+			it := client.List(ctx, &computepb.ListDisksRequest{
+				Project: projectId,
+				Filter:  proto.String("labels.usedby=" + "\"aerolab7\""),
+				Zone:    zone,
+			})
+			for {
+				pair, err := it.Next()
+				if err == iterator.Done {
+					break
+				}
+				if err != nil {
+					log.Printf("zone=%s iterator: %s", zone, err)
+					return
+				}
+				nzone := strings.Split(pair.GetZone(), "/")
+				if len(pair.Users) > 0 {
+					continue
+				}
+				pairZone := nzone[len(nzone)-1]
+				pairName := *pair.Name
+				if lastUsed, ok := pair.Labels["lastused"]; ok {
+					lastUsed = strings.ToUpper(strings.ReplaceAll(lastUsed, "_", ":"))
+					if expireDuration, ok := pair.Labels["expireduration"]; ok {
+						expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
+						lu, err := time.Parse(time.RFC3339, lastUsed)
+						if err == nil {
+							ed, err := time.ParseDuration(expireDuration)
+							if err == nil {
+								expiresTime := lu.Add(ed)
+								expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+								if expiresIn < 0 {
+									lock.Lock()
+									vls = append(vls, []string{pairZone, pairName, expiresIn.String(), lastUsed, expireDuration})
+									lock.Unlock()
+								}
+							}
+						}
+					}
+				}
+			}
+		}(zone)
+	}
+	wait.Wait()
+	for _, item := range vls {
+		zone := item[0]
+		name := item[1]
+		log.Printf("VOLUME EXPIRE: %s -> %s; expiresIn: %s lastUsed: %s expireDuration: %s", zone, name, item[2], item[3], item[4])
+		ctx := context.Background()
+		client, err := compute.NewDisksRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewDisksRESTClient: %w", err)
+		}
+		defer client.Close()
+		_, err = client.Delete(ctx, &computepb.DeleteDiskRequest{
+			Zone:    zone,
+			Project: projectId,
+			Disk:    name,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var projectId = ""
+
+func getProjectId() (string, error) {
+	if projectId != "" {
+		return projectId, nil
+	}
 	req, _ := http.NewRequest("GET", "http://metadata.google.internal/computeMetadata/v1/project/project-id", nil)
 	req.Header.Set("Metadata-Flavor", "Google")
 	client := &http.Client{
@@ -60,18 +183,29 @@ func aerolabExpireDo() error {
 	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("getProjectId: %s", err)
+		return projectId, fmt.Errorf("getProjectId: %s", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("getProjectId statusCode:%d", resp.StatusCode)
+		return projectId, fmt.Errorf("getProjectId statusCode:%d", resp.StatusCode)
 	}
 	projectX, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("getProjectId read: %s", err)
+		return projectId, fmt.Errorf("getProjectId read: %s", err)
 	}
-	projectId := strings.Trim(string(projectX), "\r\t\n ")
+	projectId = strings.Trim(string(projectX), "\r\t\n ")
+	return projectId, nil
+}
 
+func aerolabExpireDoInstances() error {
+	now := time.Now()
+	deleteList := make(map[string][]string)
+	deleteListForLog := []string{}
+	enumCount := 0
+	_, err := getProjectId()
+	if err != nil {
+		return err
+	}
 	ctx := context.Background()
 	instancesClient, err := compute.NewInstancesRESTClient(ctx)
 	if err != nil {
