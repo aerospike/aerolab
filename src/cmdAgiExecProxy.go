@@ -16,12 +16,14 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/aerospike/aerolab/ingest"
@@ -274,6 +276,15 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	}
 	// notifier load end
 	if c.MaxInactivity > 0 {
+		sigc := make(chan os.Signal, 1)
+		signal.Notify(sigc, syscall.SIGHUP)
+		go func() {
+			for {
+				<-sigc
+				lastActivity := c.lastActivity.Get()
+				log.Printf("lastActivity at %s maxInactivity %s currentInactivity %s", lastActivity, c.MaxInactivity, time.Since(lastActivity))
+			}
+		}()
 		go c.activityMonitor()
 	}
 	if c.MaxUptime > 0 {
