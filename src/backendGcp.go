@@ -3176,10 +3176,20 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
 			myIp := getip2()
 			parsedIp := net.ParseIP(myIp)
 			for _, iprange := range firewallRule.SourceRanges {
-				_, cidr, _ := net.ParseCIDR(iprange)
-				if cidr.Contains(parsedIp) {
-					needsLock = false
-					break
+				if strings.Contains(iprange, "/") {
+					_, cidr, err := net.ParseCIDR(iprange)
+					if err != nil || cidr == nil {
+						log.Printf("WARNING: failed to parse Source Range CIDR (%s): %s", iprange, err)
+					} else if cidr.Contains(parsedIp) {
+						needsLock = false
+						break
+					}
+				} else {
+					nip := net.ParseIP(iprange)
+					if nip.Equal(parsedIp) {
+						needsLock = false
+						break
+					}
 				}
 			}
 		}
