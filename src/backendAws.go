@@ -2830,6 +2830,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 						DeleteOnTermination: aws.Bool(true),
 						VolumeSize:          aws.Int64(disksInt[0]),
 						VolumeType:          aws.String("gp2"),
+						Encrypted:           aws.Bool(true),
 					},
 				},
 			}
@@ -2845,6 +2846,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 					DeleteOnTermination: aws.Bool(true),
 					VolumeSize:          aws.Int64(int64(av)),
 					VolumeType:          aws.String("gp2"),
+					Encrypted:           aws.Bool(true),
 				},
 			})
 		} // END EBS mapping
