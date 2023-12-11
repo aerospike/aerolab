@@ -727,46 +727,44 @@ func spotGetInstanceActionAws() (data []byte, retCode int, err error) {
 
 func (c *agiExecProxyCmd) spotMonitor() {
 	for {
-		req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254", nil)
-		if err != nil {
-			time.Sleep(5 * time.Second)
-			continue
-		}
+		func() {
+			req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254", nil)
+			if err != nil {
+				return
+			}
 
-		tr := &http.Transport{
-			DisableKeepAlives: true,
-			IdleConnTimeout:   30 * time.Second,
-		}
-		client := &http.Client{
-			Timeout:   30 * time.Second,
-			Transport: tr,
-		}
-		defer client.CloseIdleConnections()
-		resp, err := client.Do(req)
-		if err != nil {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		if resp.StatusCode < 200 || resp.StatusCode > 299 {
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		if strings.Contains(string(body), "computeMetadata") {
-			log.Println("Discovered instance provider GCP")
-			c.spotMonitorGcp()
-		} else if strings.Contains(string(body), "latest") {
-			log.Println("Discovered instance provider AWS")
-			c.spotMonitorAws()
-		} else {
-			time.Sleep(5 * time.Second)
-			continue
-		}
+			tr := &http.Transport{
+				DisableKeepAlives: true,
+				IdleConnTimeout:   30 * time.Second,
+			}
+			client := &http.Client{
+				Timeout:   30 * time.Second,
+				Transport: tr,
+			}
+			defer client.CloseIdleConnections()
+			resp, err := client.Do(req)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return
+			}
+			if resp.StatusCode < 200 || resp.StatusCode > 299 {
+				return
+			}
+			if strings.Contains(string(body), "computeMetadata") {
+				log.Println("Discovered instance provider GCP")
+				c.spotMonitorGcp()
+			} else if strings.Contains(string(body), "latest") {
+				log.Println("Discovered instance provider AWS")
+				c.spotMonitorAws()
+			} else {
+				return
+			}
+		}()
+		time.Sleep(5 * time.Second)
 	}
 }
 
