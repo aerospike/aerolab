@@ -39,6 +39,7 @@ type agiCmd struct {
 	AddToken  agiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add an auth token to AGI Proxy - only valid if token auth type was selected"`
 	Share     clusterShareCmd `command:"share" subcommands-optional:"true" description:"AWS/GCP: share the AGI node by importing a provided ssh public key file"`
 	Exec      agiExecCmd      `command:"exec" hidden:"true" subcommands-optional:"true" description:"Run an AGI subsystem"`
+	Monitor   agiMonitorCmd   `command:"monitor" subcommands-optional:"true" description:"AGI auto-sizing and spot->on-demand upgrading system monitor"`
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

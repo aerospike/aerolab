@@ -18,17 +18,19 @@ import (
 )
 
 type HTTPSNotify struct {
-	Endpoint          string   `long:"notify-web-endpoint" description:"http(s) URL to contact with a notification" yaml:"endpoint"`
-	Headers           []string `long:"notify-web-header" description:"a header to set for notification; for example to use Authorization tokens; format: Name=value" yaml:"headers"`
-	AbortOnFail       bool     `long:"notify-web-abort-on-fail" description:"if set, ingest will be aborted if the notification system receives an error response" yaml:"abortOnFail"`
-	AbortOnCode       []int    `long:"notify-web-abort-code" description:"set to status codes on which to abort the operation" yaml:"abortStatusCodes"`
-	IgnoreInvalidCert bool     `long:"notify-web-ignore-cert" description:"set to make https calls ignore invalid server certificate"`
-	SlackToken        string   `long:"notify-slack-token" description:"set to enable slack notifications for events"`
-	SlackChannel      string   `long:"notify-slack-channel" description:"set to the channel to notify to"`
-	SlackEvents       string   `long:"notify-slack-events" description:"comma-separated list of events to notify for" default:"INGEST_FINISHED,SERVICE_DOWN,SERVICE_UP,MAX_AGE_REACHED,MAX_INACTIVITY_REACHED,SPOT_INSTANCE_CAPACITY_SHUTDOWN"`
-	slackEvents       []string
-	slack             *slack.Slack
-	wg                *sync.WaitGroup
+	AGIMonitorUrl        string   `long:"agi-monitor-url" description:"AWS/GCP: AGI Monitor endpoint url to send the notifications to for sizing" yaml:"agiMonitor"`
+	AGIMonitorCertIgnore bool     `long:"agi-monitor-ignore-cert" description:"set to make https calls ignore invalid server certificate"`
+	Endpoint             string   `long:"notify-web-endpoint" description:"http(s) URL to contact with a notification" yaml:"endpoint"`
+	Headers              []string `long:"notify-web-header" description:"a header to set for notification; for example to use Authorization tokens; format: Name=value" yaml:"headers"`
+	AbortOnFail          bool     `long:"notify-web-abort-on-fail" description:"if set, ingest will be aborted if the notification system receives an error response or no response" yaml:"abortOnFail"`
+	AbortOnCode          []int    `long:"notify-web-abort-code" description:"set to status codes on which to abort the operation" yaml:"abortStatusCodes"`
+	IgnoreInvalidCert    bool     `long:"notify-web-ignore-cert" description:"set to make https calls ignore invalid server certificate"`
+	SlackToken           string   `long:"notify-slack-token" description:"set to enable slack notifications for events"`
+	SlackChannel         string   `long:"notify-slack-channel" description:"set to the channel to notify to"`
+	SlackEvents          string   `long:"notify-slack-events" description:"comma-separated list of events to notify for" default:"INGEST_FINISHED,SERVICE_DOWN,SERVICE_UP,MAX_AGE_REACHED,MAX_INACTIVITY_REACHED,SPOT_INSTANCE_CAPACITY_SHUTDOWN"`
+	slackEvents          []string
+	slack                *slack.Slack
+	wg                   *sync.WaitGroup
 }
 
 func (h *HTTPSNotify) Init() {
@@ -73,7 +75,7 @@ func (h *HTTPSNotify) NotifySlack(event string, message string, threadedMessage 
 }
 
 func (h *HTTPSNotify) NotifyJSON(payload interface{}) error {
-	if h.Endpoint == "" {
+	if h.Endpoint == "" && h.AGIMonitorUrl == "" {
 		return nil
 	}
 	data, err := json.Marshal(payload)
@@ -84,18 +86,32 @@ func (h *HTTPSNotify) NotifyJSON(payload interface{}) error {
 }
 
 func (h *HTTPSNotify) NotifyData(data []byte) error {
-	if h.Endpoint == "" {
+	if h.Endpoint == "" && h.AGIMonitorUrl == "" {
 		return nil
 	}
-	if !h.AbortOnFail && len(h.AbortOnCode) == 0 {
-		h.wg.Add(1)
-		go func() {
-			defer h.wg.Done()
-			h.notify(data)
-		}()
-		return nil
+	var httpErr error
+	if h.Endpoint != "" {
+		if !h.AbortOnFail && len(h.AbortOnCode) == 0 {
+			h.wg.Add(1)
+			go func() {
+				defer h.wg.Done()
+				h.notify(data)
+			}()
+		} else {
+			httpErr = h.notify(data)
+		}
 	}
-	return h.notify(data)
+	if h.AGIMonitorUrl == "" {
+		return httpErr
+	}
+	err := h.notifyAgi(data)
+	if err != nil {
+		return err
+	}
+	if httpErr != nil {
+		return httpErr
+	}
+	return nil
 }
 
 func (h *HTTPSNotify) notify(data []byte) error {
@@ -110,7 +126,12 @@ func (h *HTTPSNotify) notify(data []byte) error {
 
 	req, err := http.NewRequest(http.MethodPost, h.Endpoint, bytes.NewReader(data))
 	if err != nil {
-		return err
+		if h.AbortOnFail {
+			return err
+		} else {
+			log.Printf("notifyJSON: %s", err)
+			return nil
+		}
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -130,7 +151,12 @@ func (h *HTTPSNotify) notify(data []byte) error {
 	defer client.CloseIdleConnections()
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		if h.AbortOnFail {
+			return err
+		} else {
+			log.Printf("notifyJSON: %s", err)
+			return nil
+		}
 	}
 	defer resp.Body.Close()
 	if (h.AbortOnFail && resp.StatusCode < 200 || resp.StatusCode > 299) || inslice.HasInt(h.AbortOnCode, resp.StatusCode) {
@@ -141,4 +167,48 @@ func (h *HTTPSNotify) notify(data []byte) error {
 		return fmt.Errorf("statusCode:%d status:%s body:%s", resp.StatusCode, resp.Status, string(body))
 	}
 	return nil
+}
+
+func (h *HTTPSNotify) notifyAgi(data []byte) error {
+	headers := h.notifyAgiAuthHeaders()
+	req, err := http.NewRequest(http.MethodPost, h.AGIMonitorUrl, bytes.NewReader(data))
+	if err != nil {
+		log.Printf("notifyAGI: %s", err)
+		return nil
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	for n, v := range headers {
+		req.Header.Add(n, v)
+	}
+
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   30 * time.Second,
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: h.AGIMonitorCertIgnore},
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: tr,
+	}
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("notifyAGI: %s", err)
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 418 {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			body = append(body, []byte("<ERROR:BODY READ ERROR>")...)
+		}
+		return fmt.Errorf("statusCode:%d status:%s body:%s", resp.StatusCode, resp.Status, string(body))
+	}
+	return nil
+}
+
+func (h *HTTPSNotify) notifyAgiAuthHeaders() map[string]string {
+	// TODO: generate auth secret that agi-monitor can lookup
+	return make(map[string]string)
 }
