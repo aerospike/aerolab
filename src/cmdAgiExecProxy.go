@@ -636,7 +636,69 @@ func (c *agiExecProxyCmd) maxUptime() {
 	}
 }
 
-func spotGetInstanceAction() (data []byte, retCode int, err error) {
+func spotGetInstanceActionGcp() (shuttingDown bool) {
+	req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254/computeMetadata/v1/instance/preempted?wait_for_change=true", nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Add("Metadata-Flavor", "Google")
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   30 * time.Second,
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: tr,
+	}
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+	if string(body) == "TRUE" {
+		return true
+	}
+	return false
+}
+
+func (c *agiExecProxyCmd) spotMonitorGcp() {
+	for {
+		time.Sleep(10 * time.Second)
+		if !spotGetInstanceActionGcp() {
+			continue
+		}
+		stat, err := getAgiStatus("/opt/agi/ingest/")
+		if err != nil {
+			logger.Warn("spot-monitor: could not get process status")
+			continue
+		}
+		body := "GCP-SPOT-PREEMPTED-NO-CAPACITY"
+		c.shuttingDownMutex.Lock()
+		c.shuttingDown = true
+		c.shuttingDownMutex.Unlock()
+		notifyItem := &ingest.NotifyEvent{
+			IsDataInMemory: c.isDim,
+			IngestStatus:   stat,
+			Event:          AgiEventSpotNoCapacity,
+			AGIName:        c.AGIName,
+			EventDetail:    string(body),
+		}
+		c.notify.NotifyJSON(notifyItem)
+		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+		c.notify.NotifySlack(AgiEventSpotNoCapacity, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AWS Shutting spot instance down due to capacity restrictions*", AgiEventSpotNoCapacity, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
+		time.Sleep(2 * time.Minute)
+		c.shuttingDownMutex.Lock()
+		c.shuttingDown = false
+		c.shuttingDownMutex.Unlock()
+	}
+}
+
+func spotGetInstanceActionAws() (data []byte, retCode int, err error) {
 	req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254/latest/meta-data/spot/instance-action", nil)
 	if err != nil {
 		return nil, 0, err
@@ -665,8 +727,53 @@ func spotGetInstanceAction() (data []byte, retCode int, err error) {
 
 func (c *agiExecProxyCmd) spotMonitor() {
 	for {
+		req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254", nil)
+		if err != nil {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		tr := &http.Transport{
+			DisableKeepAlives: true,
+			IdleConnTimeout:   30 * time.Second,
+		}
+		client := &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: tr,
+		}
+		defer client.CloseIdleConnections()
+		resp, err := client.Do(req)
+		if err != nil {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		if strings.Contains(string(body), "computeMetadata") {
+			log.Println("Discovered instance provider GCP")
+			c.spotMonitorGcp()
+		} else if strings.Contains(string(body), "latest") {
+			log.Println("Discovered instance provider AWS")
+			c.spotMonitorAws()
+		} else {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+	}
+}
+
+func (c *agiExecProxyCmd) spotMonitorAws() {
+	for {
 		time.Sleep(30 * time.Second)
-		body, code, err := spotGetInstanceAction()
+		body, code, err := spotGetInstanceActionAws()
 		if err != nil || code < 200 || code > 299 {
 			continue
 		}
