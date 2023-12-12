@@ -70,7 +70,9 @@ func (c *clientAddTrinoCmd) Execute(args []string) error {
 
 func (c *clientAddTrinoCmd) addTrino(args []string) error {
 	b.WorkOnClients()
-	os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
+	if a.opts.Config.Backend.TmpDir != "" {
+		os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
+	}
 	f, err := os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "")
 	if err != nil {
 		return err

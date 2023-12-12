@@ -832,7 +832,9 @@ func (d *backendDocker) CopyFilesToClusterReader(name string, files []fileListRe
 			return err
 		}
 	}
-	os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
+	if a.opts.Config.Backend.TmpDir != "" {
+		os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
+	}
 	for _, file := range files {
 		var tmpfile *os.File
 		var tmpfileName string
@@ -1054,7 +1056,9 @@ func (d *backendDocker) RunCustomOut(clusterName string, node int, command []str
 
 func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader) error {
 	var err error
-	os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
+	if a.opts.Config.Backend.TmpDir != "" {
+		os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
+	}
 	for _, file := range files {
 		var tmpfile *os.File
 		var tmpfileName string
