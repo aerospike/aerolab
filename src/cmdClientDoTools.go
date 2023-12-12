@@ -163,6 +163,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 		}
 	}
 	runasbench := runAsbenchScript()
+	os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
 	f, err := os.CreateTemp(string(a.opts.Config.Backend.TmpDir), "runasbench-")
 	if err != nil {
 		return fmt.Errorf("could not create a temp file for asbench wrapper: %s", err)
