@@ -235,8 +235,106 @@ type AgiMonitorAuth struct {
 }
 
 func getJsonAuthData(a *AgiMonitorAuth) error {
-	// TODO actual http calls to get the data and fill the struct; first discover AWS or GCP?
+	body, err := wget("http://169.254.169.254/latest/dynamic/instance-identity/document/", false)
+	if err != nil {
+		data, err := wget("http://169.254.169.254/computeMetadata/v1/project/project-id", true)
+		if err != nil {
+			return err
+		}
+		a.AccountProjectId = string(data)
+
+		data, err = wget("http://169.254.169.254/computeMetadata/v1/instance/zone", true)
+		if err != nil {
+			return err
+		}
+		arr := strings.Split(string(data), "/")
+		a.AvailabilityZoneName = arr[len(arr)-1]
+
+		data, err = wget("http://169.254.169.254/computeMetadata/v1/instance/image", true)
+		if err != nil {
+			return err
+		}
+		a.ImageId = string(data)
+
+		data, err = wget("http://169.254.169.254/computeMetadata/v1/instance/name", true)
+		if err != nil {
+			return err
+		}
+		a.InstanceId = string(data)
+
+		data, err = wget("http://169.254.169.254/computeMetadata/v1/instance/machine-type", true)
+		if err != nil {
+			return err
+		}
+		arr = strings.Split(string(data), "/")
+		a.InstanceType = arr[len(arr)-1]
+
+		data, err = wget("http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/ip", true)
+		if err != nil {
+			return err
+		}
+		a.PrivateIp = string(data)
+
+		data, err = wget("http://169.254.169.254/computeMetadata/v1/instance/tags", true)
+		if err != nil {
+			return err
+		}
+		mylist := []string{}
+		err = json.Unmarshal(data, &mylist)
+		if err != nil {
+			return err
+		}
+		a.SecurityGroups = mylist
+		return nil
+	}
+	err = json.Unmarshal(body, a)
+	if err != nil {
+		return err
+	}
+	secgrp, err := wget("http://169.254.169.254/latest/meta-data/security-groups", false)
+	if err != nil {
+		return err
+	}
+	for _, line := range strings.Split(string(secgrp), "\n") {
+		line = strings.Trim(line, "\r\n\t ")
+		if line == "" {
+			continue
+		}
+		a.SecurityGroups = append(a.SecurityGroups, line)
+	}
 	return nil
+}
+
+func wget(url string, gcp bool) (data []byte, err error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if gcp {
+		req.Header.Add("Metadata-Flavor", "Google")
+	}
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   30 * time.Second,
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: tr,
+	}
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, fmt.Errorf("statusCode: %d body: %s", resp.StatusCode, string(body))
+	}
+	return body, nil
 }
 
 func EncodeAuthJson() (string, error) {
