@@ -18,6 +18,7 @@
 * GCP: The `cluster add firewall` command should issue `op.Wait` after all operations have been queued.
 * GCP AGI spot instance support.
 * GCP Volumes support (using standard `pd-ssd`, and requiring size, as there is no `EFS` equivalent).
+* AWS: Always encrypt EBS volumes.
 * Fix: `conf generate` command for v7 aerospike is missing an argument `data-size` where needed.
 * Fix: add support for `time.Duration` to `config defaults` command.
 * Fix: `config defaults` should be able to set defaults for any parameter, even if it is for a backend not currently in use.
@@ -25,6 +26,8 @@
 * Fix: GCP: for some instances, `TERMINATE` scheduling policy must be set.
 * Fix: Docker show IPs for containers which do not have exposed ports.
 * Fix: AMS client fix regression: `asbench` dashboard installation.
+* Fix: Auto-create temporary directory as needed, if it is specified.
+* Fix: GCP: Handle firewall rules which use an IP instead of CIDR.
 * TODO: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
   * `aerolab client create none -n agi-monitor; aerolab client configure aerolab -n agi-monitor; aerolab attach client -n agi-monitor --detach -- /usr/local/bin/aerolab agi monitor`
