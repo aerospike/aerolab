@@ -11,6 +11,11 @@ type agiMonitorListenCmd struct {
 type agiMonitorCreateCmd struct {
 }
 
+// TODO: AUTH
+// call: notifier.DecodeAuthJson("") to get the auth json values
+// get the instance details from backend
+// compare
+
 /* TODO:
 receive events from agi-proxy http notifier
 authenticate them

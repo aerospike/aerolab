@@ -3,6 +3,7 @@ package notifier
 import (
 	"bytes"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -209,6 +210,54 @@ func (h *HTTPSNotify) notifyAgi(data []byte) error {
 }
 
 func (h *HTTPSNotify) notifyAgiAuthHeaders() map[string]string {
-	// TODO: generate auth secret that agi-monitor can lookup
-	return make(map[string]string)
+	a := make(map[string]string)
+	auth, err := EncodeAuthJson()
+	if err != nil {
+		log.Printf("FAILED auth headers: %s", err)
+		return a
+	}
+	a["Agi-Monitor-Auth"] = auth
+	return a
+}
+
+// aws: http://169.254.169.254/latest/dynamic/instance-identity/document/
+// gcp: set header Metadata-Flavor:Google
+type AgiMonitorAuth struct {
+	AccountProjectId     string `json:"accountId"`        // http://169.254.169.254/computeMetadata/v1/project/project-id: aerolab-test-project-2
+	AvailabilityZoneName string `json:"availabilityZone"` // http://169.254.169.254/computeMetadata/v1/instance/zone: projects/485062447394/zones/us-central1-a
+	ImageId              string `json:"imageId"`          // http://169.254.169.254/computeMetadata/v1/instance/image: projects/ubuntu-os-cloud/global/images/ubuntu-2204-jammy-v20231201
+	InstanceId           string `json:"instanceId"`       // http://169.254.169.254/computeMetadata/v1/instance/name: aerolab4-client-1
+	InstanceType         string `json:"instanceType"`     // http://169.254.169.254/computeMetadata/v1/instance/machine-type: projects/485062447394/machineTypes/e2-standard-2
+	PrivateIp            string `json:"privateIp"`        // http://169.254.169.254/computeMetadata/v1/instance/network-interfaces/0/ip: 10.128.0.16
+	// aws: http://169.254.169.254/latest/meta-data/security-groups - returns one name per line
+	// gcp: http://169.254.169.254/computeMetadata/v1/instance/tags: ["aerolab-managed-external","aerolab-server"]
+	SecurityGroups []string `json:"securityGroups"`
+}
+
+func getJsonAuthData(a *AgiMonitorAuth) error {
+	// TODO actual http calls to get the data and fill the struct; first discover AWS or GCP?
+	return nil
+}
+
+func EncodeAuthJson() (string, error) {
+	a := &AgiMonitorAuth{}
+	err := getJsonAuthData(a)
+	if err != nil {
+		return "", err
+	}
+	ab, err := json.Marshal(a)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(ab), nil
+}
+
+func DecodeAuthJson(val string) (*AgiMonitorAuth, error) {
+	ab, err := base64.StdEncoding.DecodeString(val)
+	if err != nil {
+		return nil, err
+	}
+	ret := &AgiMonitorAuth{}
+	err = json.Unmarshal(ab, ret)
+	return ret, err
 }
