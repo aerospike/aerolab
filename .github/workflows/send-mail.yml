@@ -10,6 +10,8 @@ jobs:
     build-and-release:
         runs-on: macos-13
         steps:
+          - name: "Git checkout"
+            uses: actions/checkout@v3
           - name: Send mail
             uses: dawidd6/action-send-mail@v3
             with:
