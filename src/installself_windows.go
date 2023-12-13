@@ -40,7 +40,8 @@ func installSelf() (isGUI bool) {
 	aerolabHome := filepath.Join(home, "AppData", "Local", "Aerospike", "AeroLab")
 	binDir := filepath.Join(aerolabHome, "bin")
 	bin := filepath.Join(binDir, "aerolab.exe")
-	if os.Args[0] == bin {
+	binX, _ := os.Executable()
+	if os.Args[0] == bin || binX == bin || os.Args[0] == "aerolab" {
 		log.Printf("WARNING: AeroLab seems to be running from a prompt other than PowerShell (%s). For full compatibility please use PowerShell.", pName)
 		return false
 	}

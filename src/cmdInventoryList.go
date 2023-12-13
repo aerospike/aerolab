@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/bestmethod/inslice"
 	isatty "github.com/mattn/go-isatty"
@@ -29,6 +30,7 @@ type inventoryListCmd struct {
 	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	AWSFull    bool     `long:"aws-full" description:"set to iterate through all regions and provide full output"`
+	RenderType string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
 	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -301,6 +303,18 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	}
 
 	t := table.NewWriter()
+	type renderer func() string
+	var render renderer = t.Render
+	switch strings.ToUpper(c.RenderType) {
+	case "HTML":
+		render = t.RenderHTML
+	case "CSV":
+		render = t.RenderCSV
+	case "TSV":
+		render = t.RenderTSV
+	case "MARKDOWN":
+		render = t.RenderMarkdown
+	}
 	if !isTerminal {
 		pipeLess = false
 		isColor = false
@@ -397,7 +411,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-		fmt.Println(t.Render())
+		fmt.Println(render())
 		fmt.Println()
 	}
 
@@ -463,7 +477,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-		fmt.Println(t.Render())
+		fmt.Println(render())
 		if a.opts.Config.Backend.Type != "docker" {
 			fmt.Fprint(os.Stderr, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n\n")
 		} else {
@@ -528,7 +542,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			t.AppendRow(vv)
 		}
-		fmt.Println(t.Render())
+		fmt.Println(render())
 		if a.opts.Config.Backend.Type == "docker" {
 			fmt.Fprint(os.Stderr, "* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL\n\n")
 		} else {
@@ -595,7 +609,50 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendRow(vv)
 				}
 			}
-			fmt.Println(t.Render())
+			fmt.Println(render())
+			fmt.Println()
+		}
+		if a.opts.Config.Backend.Type == "gcp" && showOther&inventoryShowVolumes > 0 {
+			t.SetTitle(colorHiWhite.Sprint("VOLUMES"))
+			t.ResetHeaders()
+			t.ResetRows()
+			t.ResetFooters()
+			t.AppendHeader(table.Row{"Name", "Zone", "AttachedTo", "Created", "Size", "ExpiresIn", "Status", "AGILabel", "Owner"})
+			for _, v := range inv.Volumes {
+				expiry := ""
+				if lastUsed, ok := v.Tags["lastused"]; ok {
+					lastUsed = strings.ToUpper(strings.ReplaceAll(lastUsed, "_", ":"))
+					if expireDuration, ok := v.Tags["expireduration"]; ok {
+						expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
+						lu, err := time.Parse(time.RFC3339, lastUsed)
+						if err == nil {
+							ed, err := time.ParseDuration(expireDuration)
+							if err == nil {
+								expiresTime := lu.Add(ed)
+								expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+								if expiresIn < 6*time.Hour {
+									expiry = errExp.Sprintf("%s", expiresIn.Round(time.Minute))
+								} else {
+									expiry = expiresIn.Round(time.Minute).String()
+								}
+							}
+						}
+					}
+				}
+				vv := table.Row{
+					v.Name,
+					v.AvailabilityZoneName,
+					strings.Join(v.GCPAttachedTo, ","),
+					v.CreationTime.Format(time.RFC822),
+					convSize(int64(v.SizeBytes)),
+					expiry,
+					v.LifeCycleState,
+					gcplabels.UnpackNoErr(v.Tags, "agilabel"),
+					v.Owner,
+				}
+				t.AppendRow(vv)
+			}
+			fmt.Println(render())
 			fmt.Println()
 		}
 		if showOther&inventoryShowAGI > 0 {
@@ -605,7 +662,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.ResetFooters()
 			if showOther&inventoryShowAGIStatus > 0 {
 				if a.opts.Config.Backend.Type == "gcp" {
-					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "Owner", "Access URL", "AGILabel", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Zone", "InstanceID", "ExpiryTs"})
+					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "VolOwner", "Owner", "Access URL", "AGILabel", "VolSize", "VolExpires", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Zone", "InstanceID", "ExpiryTs", "VolExpiryTs"})
 				} else if a.opts.Config.Backend.Type == "aws" {
 					t.AppendHeader(table.Row{"Name", "State", "Status", "ExpiresIn", "VolOwner", "Owner", "Access URL", "AGILabel", "VolSize", "VolExpires", "RunningCost", "PublicIP", "PrivateIP", "Firewalls", "Region", "VolID", "InstanceID", "ExpiryTs", "VolExpiryTs"})
 				} else {
@@ -678,15 +735,23 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					fsSize := ""
 					fsexpiry := ""
 					var volExp time.Time
-					if a.opts.Config.Backend.Type == "aws" {
+					if a.opts.Config.Backend.Type != "docker" {
 						for voli, vol := range inv.Volumes {
 							if vol.Name == v.ClusterName {
 								foundVols = append(foundVols, voli)
 								fsId = vol.FileSystemId
 								fsSize = convSize(int64(vol.SizeBytes))
 								efsOwner = vol.Owner
-								if lastUsed, ok := vol.Tags["lastUsed"]; ok {
-									if expireDuration, ok := vol.Tags["expireDuration"]; ok {
+								tused := "lastUsed"
+								tdur := "expireDuration"
+								if a.opts.Config.Backend.Type == "gcp" {
+									tused = "lastused"
+									tdur = "expireduration"
+								}
+								if lastUsed, ok := vol.Tags[tused]; ok {
+									lastUsed = strings.ToUpper(strings.ReplaceAll(lastUsed, "_", ":"))
+									if expireDuration, ok := vol.Tags[tdur]; ok {
+										expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
 										lu, err := time.Parse(time.RFC3339, lastUsed)
 										if err == nil {
 											ed, err := time.ParseDuration(expireDuration)
@@ -732,7 +797,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 							}
 						}
 					}
-					if a.opts.Config.Backend.Type == "aws" {
+					if a.opts.Config.Backend.Type != "docker" {
 						vv = append(vv, efsOwner)
 					}
 					accessUrl := ""
@@ -749,7 +814,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 							vv = append(vv, v.dockerLabels["agiLabel"])
 						}
 					*/
-					if a.opts.Config.Backend.Type == "aws" {
+					if a.opts.Config.Backend.Type != "docker" {
 						vv = append(vv, fsSize, fsexpiry)
 					}
 					if a.opts.Config.Backend.Type != "docker" {
@@ -770,25 +835,43 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					if a.opts.Config.Backend.Type == "docker" {
 						vv = append(vv, v.ImageId)
 					} else {
-						expirationTime, _ := time.Parse(time.RFC3339, v.Expires)
-						vv = append(vv, expirationTime.Unix())
+						expirationTime, err := time.Parse(time.RFC3339, v.Expires)
+						if err == nil && !expirationTime.IsZero() {
+							vv = append(vv, expirationTime.Unix())
+						} else {
+							vv = append(vv, " ")
+						}
 					}
-					if a.opts.Config.Backend.Type == "aws" {
-						vv = append(vv, volExp.Unix())
+					if a.opts.Config.Backend.Type != "docker" {
+						if !volExp.IsZero() {
+							vv = append(vv, volExp.Unix())
+						} else {
+							vv = append(vv, " ")
+						}
 					}
 					t.AppendRow(vv)
+				}
+				tused := "lastUsed"
+				tdur := "expireDuration"
+				agilabeltag := "agiLabel"
+				if a.opts.Config.Backend.Type == "gcp" {
+					tused = "lastused"
+					tdur = "expireduration"
+					agilabeltag = "agilabel"
 				}
 				for voli, vol := range inv.Volumes {
 					if inslice.HasInt(foundVols, voli) {
 						continue
 					}
-					if _, ok := vol.Tags["agiLabel"]; !ok {
+					if _, ok := vol.Tags[agilabeltag]; !ok {
 						continue
 					}
 					expiry := ""
 					var expTs time.Time
-					if lastUsed, ok := vol.Tags["lastUsed"]; ok {
-						if expireDuration, ok := vol.Tags["expireDuration"]; ok {
+					if lastUsed, ok := vol.Tags[tused]; ok {
+						lastUsed = strings.ToUpper(strings.ReplaceAll(lastUsed, "_", ":"))
+						if expireDuration, ok := vol.Tags[tdur]; ok {
+							expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
 							lu, err := time.Parse(time.RFC3339, lastUsed)
 							if err == nil {
 								ed, err := time.ParseDuration(expireDuration)
@@ -805,8 +888,13 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 							}
 						}
 					}
-					vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags["agiLabel"], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix()}
-					t.AppendRow(vv)
+					if a.opts.Config.Backend.Type == "aws" {
+						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", vol.Tags[agilabeltag], convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, vol.FileSystemId, "", "", expTs.Unix()}
+						t.AppendRow(vv)
+					} else {
+						vv := table.Row{vol.Name, "", "", "", vol.Owner, "", "", gcplabels.UnpackNoErr(vol.Tags, "agilabel"), convSize(int64(vol.SizeBytes)), expiry, "", "", "", "", vol.AvailabilityZoneName, "", "", expTs.Unix()}
+						t.AppendRow(vv)
+					}
 				}
 			} else {
 				if a.opts.Config.Backend.Type == "gcp" {
@@ -875,7 +963,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendRow(vv)
 				}
 			}
-			fmt.Println(t.Render())
+			fmt.Println(render())
 			if a.opts.Config.Backend.Type != "docker" {
 				fmt.Fprint(os.Stderr, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n\n")
 			} else {
@@ -938,7 +1026,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 
 		}
 
-		fmt.Println(t.Render())
+		fmt.Println(render())
 		fmt.Println()
 	}
 
@@ -968,7 +1056,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				}
 				t.AppendRow(vv)
 			}
-			fmt.Println(t.Render())
+			fmt.Println(render())
 			fmt.Println()
 		}
 	}
@@ -989,7 +1077,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendRow(table.Row{i, "Scheduler", v.Scheduler})
 					t.AppendRow(table.Row{i, "Schedule", v.Schedule})
 				}
-				fmt.Println(t.Render())
+				fmt.Println(render())
 				fmt.Println()
 			case "gcp":
 				t.SetTitle(colorHiWhite.Sprint("EXPIRY_SYSTEM"))
@@ -999,7 +1087,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					t.AppendRow(table.Row{i, "Scheduler", v.Scheduler})
 					t.AppendRow(table.Row{i, "Schedule", v.Schedule})
 				}
-				fmt.Println(t.Render())
+				fmt.Println(render())
 				fmt.Println()
 			}
 		}

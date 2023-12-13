@@ -26,6 +26,7 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
+	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/bestmethod/inslice"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
@@ -123,8 +124,48 @@ func (d *backendGcp) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
 
-func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string) error {
-	return nil
+func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
+	tagValue = strings.ToLower(tagValue)
+	ctx := context.Background()
+	client, err := compute.NewDisksRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewDisksRESTClient: %w", err)
+	}
+	defer client.Close()
+	it := client.List(ctx, &computepb.ListDisksRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels.usedby=" + gcpTagEnclose("aerolab7")),
+		Zone:    zone,
+	})
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if *pair.Name != fsId {
+			continue
+		}
+		labels := pair.Labels
+		labelFinger := pair.LabelFingerprint
+		labels[strings.ToLower(tagName)] = tagValue
+		op, err := client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
+			Project:  a.opts.Config.Backend.Project,
+			Resource: fsId,
+			Zone:     zone,
+			ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
+				LabelFingerprint: labelFinger,
+				Labels:           labels,
+			},
+		})
+		if err != nil {
+			return err
+		}
+		return op.Wait(ctx)
+	}
+	return errors.New("disk not found")
 }
 
 func (d *backendGcp) CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error) {
@@ -135,15 +176,183 @@ func (d *backendGcp) MountTargetAddSecurityGroup(mountTarget *inventoryMountTarg
 	return nil
 }
 
-func (d *backendGcp) DeleteVolume(name string) error {
-	return nil
+func (d *backendGcp) DeleteVolume(name string, zone string) error {
+	ctx := context.Background()
+	client, err := compute.NewDisksRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewDisksRESTClient: %w", err)
+	}
+	defer client.Close()
+	op, err := client.Delete(ctx, &computepb.DeleteDiskRequest{
+		Zone:    zone,
+		Project: a.opts.Config.Backend.Project,
+		Disk:    name,
+	})
+	if err != nil {
+		return err
+	}
+	err = op.Wait(ctx)
+	return err
 }
 
-func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
-	return nil
+func (d *backendGcp) AttachVolume(name string, zone string, clusterName string, node int) error {
+	ctx := context.Background()
+	client, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer client.Close()
+	op, err := client.AttachDisk(ctx, &computepb.AttachDiskInstanceRequest{
+		Zone:     zone,
+		Instance: fmt.Sprintf("aerolab4-%s-%d", clusterName, node),
+		Project:  a.opts.Config.Backend.Project,
+		AttachedDiskResource: &computepb.AttachedDisk{
+			AutoDelete: proto.Bool(false),
+			Boot:       proto.Bool(false),
+			DeviceName: proto.String(name),
+			Mode:       proto.String("READ_WRITE"),
+			Type:       proto.String("PERSISTENT"),
+			Source:     proto.String(fmt.Sprintf("zones/%s/disks/%s", zone, name)),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return op.Wait(ctx)
+}
+
+func (d *backendGcp) ResizeVolume(name string, zone string, newSize int64) error {
+	ctx := context.Background()
+	client, err := compute.NewDisksRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewDisksRESTClient: %w", err)
+	}
+	defer client.Close()
+	op, err := client.Resize(ctx, &computepb.ResizeDiskRequest{
+		Zone:    zone,
+		Project: a.opts.Config.Backend.Project,
+		Disk:    name,
+		DisksResizeRequestResource: &computepb.DisksResizeRequest{
+			SizeGb: proto.Int64(newSize),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return op.Wait(ctx)
+}
+
+func (d *backendGcp) DetachVolume(name string, clusterName string, node int, zone string) error {
+	ctx := context.Background()
+	client, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewDisksRESTClient: %w", err)
+	}
+	defer client.Close()
+	op, err := client.DetachDisk(ctx, &computepb.DetachDiskInstanceRequest{
+		Project:    a.opts.Config.Backend.Project,
+		Zone:       zone,
+		Instance:   fmt.Sprintf("aerolab4-%s-%d", clusterName, node),
+		DeviceName: name,
+	})
+	if err != nil {
+		return err
+	}
+	return op.Wait(ctx)
+}
+
+func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error {
+	ctx := context.Background()
+	client, err := compute.NewDisksRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewDisksRESTClient: %w", err)
+	}
+	defer client.Close()
+	labels := make(map[string]string)
+	for _, tag := range tags {
+		ts := strings.Split(tag, "=")
+		if len(ts) < 2 {
+			return fmt.Errorf("incorrect label format, must be key=value")
+		}
+		labels[strings.ToLower(ts[0])] = strings.ToLower(strings.Join(ts[1:], "="))
+	}
+	labels["usedby"] = "aerolab7"
+	if expires != 0 {
+		deployRegion := strings.Split(zone, "-")
+		if len(deployRegion) > 2 {
+			deployRegion = deployRegion[:len(deployRegion)-1]
+		}
+		err := d.ExpiriesSystemInstall(10, strings.Join(deployRegion, "-"))
+		if err != nil && err.Error() != "EXISTS" {
+			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
+		}
+		labels["lastused"] = strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(time.Now().Format(time.RFC3339), ":", "_"), "+", "-"))
+		labels["expireduration"] = strings.ToLower(strings.ReplaceAll(expires.String(), ".", "_"))
+	}
+	op, err := client.Insert(ctx, &computepb.InsertDiskRequest{
+		Zone:    zone,
+		Project: a.opts.Config.Backend.Project,
+		DiskResource: &computepb.Disk{
+			Description: proto.String(desc),
+			Labels:      labels,
+			Name:        proto.String(name),
+			SizeGb:      proto.Int64(int64(size)),
+			Type:        proto.String(fmt.Sprintf("/zones/%s/diskTypes/pd-ssd", zone)),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	err = op.Wait(ctx)
+	return err
 }
 
 func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZone string) error {
+	if key == "agiLabel" {
+		ctx := context.Background()
+		client, err := compute.NewDisksRESTClient(ctx)
+		if err != nil {
+			return fmt.Errorf("NewDisksRESTClient: %w", err)
+		}
+		defer client.Close()
+		disk, err := client.Get(ctx, &computepb.GetDiskRequest{
+			Disk:    clusterName,
+			Project: a.opts.Config.Backend.Project,
+			Zone:    gcpZone,
+		})
+		if err == nil {
+			vals := gcplabels.PackToMap("agilabel", value)
+			vals["agilabel"] = "set"
+			for k, v := range disk.Labels {
+				if strings.HasPrefix(k, "agilabel") {
+					continue
+				}
+				vals[k] = v
+			}
+			_, err := client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
+				Resource: clusterName,
+				Project:  a.opts.Config.Backend.Project,
+				Zone:     gcpZone,
+				ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
+					LabelFingerprint: disk.LabelFingerprint,
+					Labels:           vals,
+				},
+			})
+			if err != nil {
+				return err
+			}
+		}
+		client.Update(ctx, &computepb.UpdateDiskRequest{
+			Disk:    clusterName,
+			Project: a.opts.Config.Backend.Project,
+			Zone:    gcpZone,
+			DiskResource: &computepb.Disk{
+				Description: proto.String(value),
+				Name:        proto.String(clusterName),
+			},
+			UpdateMask: proto.String("labels"),
+		})
+	}
 	instances := make(map[string]gcpClusterExpiryInstances)
 	if d.server {
 		j, err := d.Inventory("", []int{InventoryItemClusters})
@@ -282,15 +491,41 @@ func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	prevRegion := ""
 	if lastRegion, err := os.ReadFile(path.Join(rd, "gcp-expiries.region."+a.opts.Config.Backend.Project)); err == nil {
 		prevRegion = string(lastRegion)
-		if _, err = exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(lastRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
-			log.Println("Expiries: done")
-			return errors.New("EXISTS")
+		if out, err := exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(lastRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
+			outx := strings.Split(string(out), "\n")
+			for _, line := range outx {
+				if !strings.HasPrefix(line, "description:") {
+					continue
+				}
+				linex := strings.Split(line, ":")
+				if len(linex) == 2 {
+					ever, err := strconv.Atoi(strings.Trim(linex[1], " \t\r\n'"))
+					if err == nil && ever >= gcpExpiryVersion {
+						log.Println("Expiries: done")
+						return errors.New("EXISTS")
+					}
+					break
+				}
+			}
 		}
 	}
 	if prevRegion != deployRegion {
-		if _, err = exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(deployRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
-			log.Println("Expiries: done")
-			return errors.New("EXISTS")
+		if out, err := exec.Command("gcloud", "scheduler", "jobs", "describe", "aerolab-expiries", "--location", string(deployRegion), "--project="+a.opts.Config.Backend.Project).CombinedOutput(); err == nil {
+			outx := strings.Split(string(out), "\n")
+			for _, line := range outx {
+				if !strings.HasPrefix(line, "description:") {
+					continue
+				}
+				linex := strings.Split(line, ":")
+				if len(linex) == 2 {
+					ever, err := strconv.Atoi(strings.Trim(linex[1], " \t\r\n'"))
+					if err == nil && ever >= gcpExpiryVersion {
+						log.Println("Expiries: done")
+						return errors.New("EXISTS")
+					}
+					break
+				}
+			}
 		}
 	}
 
@@ -369,6 +604,7 @@ func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	sched = append(sched, "--schedule="+cron)
 	uri := "https://" + deployRegion + "-" + a.opts.Config.Backend.Project + ".cloudfunctions.net/aerolab-expiries"
 	sched = append(sched, "--uri="+uri)
+	sched = append(sched, "--description="+strconv.Itoa(gcpExpiryVersion))
 	sched = append(sched, "--max-backoff=15s")
 	sched = append(sched, "--min-backoff=5s")
 	sched = append(sched, "--max-doublings=2")
@@ -1142,7 +1378,91 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 			}
 		}
 	}
+
+	if inslice.HasInt(inventoryItems, InventoryItemVolumes) {
+		zones, err := listZones()
+		if err != nil {
+			return ij, err
+		}
+		wait := new(sync.WaitGroup)
+		lock := new(sync.Mutex)
+		for _, zone := range zones {
+			wait.Add(1)
+			go func(zone string) {
+				defer wait.Done()
+				ctx := context.Background()
+				client, err := compute.NewDisksRESTClient(ctx)
+				if err != nil {
+					log.Printf("zone=%s NewDisksRESTClient: %s", zone, err)
+					return
+				}
+				defer client.Close()
+				it := client.List(ctx, &computepb.ListDisksRequest{
+					Project: a.opts.Config.Backend.Project,
+					Filter:  proto.String("labels.usedby=" + gcpTagEnclose("aerolab7")),
+					Zone:    zone,
+				})
+				for {
+					pair, err := it.Next()
+					if err == iterator.Done {
+						break
+					}
+					if err != nil {
+						log.Printf("zone=%s iterator: %s", zone, err)
+						return
+					}
+					ts, _ := time.Parse(time.RFC3339, *pair.CreationTimestamp)
+					lock.Lock()
+					nzone := strings.Split(pair.GetZone(), "/")
+					attachedTo := []string{}
+					for _, user := range pair.Users {
+						userx := strings.Split(user, "/")
+						attachedTo = append(attachedTo, strings.TrimPrefix(userx[len(userx)-1], "aerolab4-"))
+					}
+					ij.Volumes = append(ij.Volumes, inventoryVolume{
+						AvailabilityZoneId:   *pair.Zone,
+						AvailabilityZoneName: nzone[len(nzone)-1],
+						FileSystemId:         *pair.Name,
+						CreationTime:         ts,
+						LifeCycleState:       *pair.Status,
+						Name:                 *pair.Name,
+						SizeBytes:            int(*pair.SizeGb) * 1024 * 1024 * 1024,
+						Tags:                 pair.Labels,
+						Owner:                pair.Labels["aerolab7owner"],
+						GCPAttachedTo:        attachedTo,
+						GCPDescription:       pair.GetDescription(),
+					})
+					lock.Unlock()
+				}
+			}(zone)
+		}
+		wait.Wait()
+	}
 	return ij, nil
+}
+
+func listZones() ([]string, error) {
+	ctx := context.Background()
+	client, err := compute.NewZonesRESTClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+	it := client.List(ctx, &computepb.ListZonesRequest{
+		Project: a.opts.Config.Backend.Project,
+	})
+	zones := []string{}
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		zones = append(zones, pair.GetName())
+	}
+	return zones, nil
 }
 
 func gcplabelDecode(a string) string {
@@ -1386,12 +1706,13 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nlist, nil
 }
 
-func (d *backendGcp) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
+func (d *backendGcp) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string, renderer string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
 	a.opts.Inventory.List.Pager = pager
 	a.opts.Inventory.List.JsonPretty = isPretty
 	a.opts.Inventory.List.SortBy = sort
+	a.opts.Inventory.List.RenderType = renderer
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
@@ -2055,11 +2376,12 @@ func (d *backendGcp) VacuumTemplates() error {
 	return d.vacuum(nil)
 }
 
-func (d *backendGcp) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
+func (d *backendGcp) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string, renderer string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
 	a.opts.Inventory.List.JsonPretty = isPretty
 	a.opts.Inventory.List.SortBy = sort
+	a.opts.Inventory.List.RenderType = renderer
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
@@ -2528,6 +2850,7 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 	if err != nil {
 		return err
 	}
+	var ops []*compute.Operation
 	for _, node := range nodes {
 		inst, err := client.Get(ctx, &computepb.GetInstanceRequest{
 			Project:  a.opts.Config.Backend.Project,
@@ -2566,8 +2889,11 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 		if err != nil {
 			return err
 		}
+		ops = append(ops, op)
+	}
+	for opid, op := range ops {
 		if err = op.Wait(ctx); err != nil {
-			return fmt.Errorf("unable to wait for the operation: %w", err)
+			return fmt.Errorf("unable to wait for the operation on node %d: %w", opid, err)
 		}
 	}
 	return nil
@@ -2850,10 +3176,20 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
 			myIp := getip2()
 			parsedIp := net.ParseIP(myIp)
 			for _, iprange := range firewallRule.SourceRanges {
-				_, cidr, _ := net.ParseCIDR(iprange)
-				if cidr.Contains(parsedIp) {
-					needsLock = false
-					break
+				if strings.Contains(iprange, "/") {
+					_, cidr, err := net.ParseCIDR(iprange)
+					if err != nil || cidr == nil {
+						log.Printf("WARNING: failed to parse Source Range CIDR (%s): %s", iprange, err)
+					} else if cidr.Contains(parsedIp) {
+						needsLock = false
+						break
+					}
+				} else {
+					nip := net.ParseIP(iprange)
+					if nip.Equal(parsedIp) {
+						needsLock = false
+						break
+					}
 				}
 			}
 		}
@@ -3052,6 +3388,21 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		labels["telemetry"] = string(expiryTelemetryUUID)
 	}
 	expiryTelemetryLock.Unlock()
+	onHostMaintenance := "MIGRATE"
+	provisioning := "STANDARD"
+	if extra.spotInstance {
+		provisioning = "SPOT"
+	}
+	var serviceAccounts []*computepb.ServiceAccount
+	if extra.terminateOnPoweroff {
+		serviceAccounts = []*computepb.ServiceAccount{
+			{
+				Scopes: []string{
+					"https://www.googleapis.com/auth/compute",
+				},
+			},
+		}
+	}
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
 		_, keyPath, err = d.getKey(name)
@@ -3133,6 +3484,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			Project: a.opts.Config.Backend.Project,
 			Zone:    extra.zone,
 			InstanceResource: &computepb.Instance{
+				ServiceAccounts: serviceAccounts,
 				Metadata: &computepb.Metadata{
 					Items: metaItems,
 				},
@@ -3144,8 +3496,8 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 				},
 				Scheduling: &computepb.Scheduling{
 					AutomaticRestart:  proto.Bool(true),
-					OnHostMaintenance: proto.String("MIGRATE"),
-					ProvisioningModel: proto.String("STANDARD"),
+					OnHostMaintenance: proto.String(onHostMaintenance),
+					ProvisioningModel: proto.String(provisioning),
 				},
 				Disks: disksList,
 				NetworkInterfaces: []*computepb.NetworkInterface{
@@ -3163,6 +3515,11 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 
 		op, err := instancesClient.Insert(ctx, req)
+		if err != nil && strings.Contains(err.Error(), "OnHostMaintenance must be set to TERMINATE") {
+			req.InstanceResource.Scheduling.OnHostMaintenance = proto.String("TERMINATE")
+			onHostMaintenance = "TERMINATE"
+			op, err = instancesClient.Insert(ctx, req)
+		}
 		if err != nil {
 			return fmt.Errorf("unable to create instance: %w", err)
 		}

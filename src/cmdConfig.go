@@ -230,9 +230,14 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 			if def == "" {
 				value = "false"
 			}
-		case reflect.Int, reflect.String, reflect.Float64, reflect.Ptr:
+		case reflect.Int, reflect.String, reflect.Float64, reflect.Ptr, reflect.Int64:
+			if keyField.Type().String() == "time.Duration" {
+				if value == "" {
+					value = "0"
+				}
+			}
 		default:
-			fmt.Println("ERROR: Key is not a parameter")
+			fmt.Printf("ERROR: Key is not a parameter (%s)\n", keyField.Type().Kind())
 			beepExit(1)
 		}
 	}
@@ -243,13 +248,22 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 	}
 	value = strings.Trim(value, " ")
 	switch keyField.Type().Kind() {
-	case reflect.Int:
-		v, err := strconv.Atoi(value)
-		if err != nil {
-			fmt.Println("ERROR: value must be an integer")
-			beepExit(1)
+	case reflect.Int, reflect.Int64:
+		if keyField.Type().String() == "time.Duration" {
+			v, err := time.ParseDuration(value)
+			if err != nil {
+				fmt.Printf("ERROR: value must be a duration (%s)\n", value)
+				beepExit(1)
+			}
+			keyField.Set(reflect.ValueOf(v))
+		} else {
+			v, err := strconv.Atoi(value)
+			if err != nil {
+				fmt.Println("ERROR: value must be an integer")
+				beepExit(1)
+			}
+			keyField.SetInt(int64(v))
 		}
-		keyField.SetInt(int64(v))
 	case reflect.String:
 		keyField.SetString(value)
 	case reflect.Bool:
@@ -288,16 +302,25 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 				beepExit(1)
 			}
 			keyField.Set(reflect.ValueOf(&boolVal))
-		case "int":
-			v, err := strconv.Atoi(value)
-			if err != nil {
-				fmt.Println("ERROR: value must be an integer")
-				beepExit(1)
+		case "int", "int64":
+			if keyField.Type().String() == "time.Duration" {
+				v, err := time.ParseDuration(value)
+				if err != nil {
+					fmt.Println("ERROR: value must be a duration")
+					beepExit(1)
+				}
+				keyField.Set(reflect.ValueOf(&v))
+			} else {
+				v, err := strconv.Atoi(value)
+				if err != nil {
+					fmt.Println("ERROR: value must be an integer")
+					beepExit(1)
+				}
+				keyField.Set(reflect.ValueOf(&v))
 			}
-			keyField.Set(reflect.ValueOf(&v))
 		}
 	default:
-		fmt.Println("ERROR: Key is not a parameter")
+		fmt.Printf("ERROR: Key is not a parameter (%s)\n", keyField.Type().Kind())
 		beepExit(1)
 	}
 	err := writeConfigFile()

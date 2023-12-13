@@ -20,6 +20,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func init() {
+	addBackendSwitch("agi.delete", "gcp", &a.opts.AGI.Delete.Gcp)
+}
+
 type agiCmd struct {
 	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances"`
 	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance"`
@@ -35,6 +39,7 @@ type agiCmd struct {
 	AddToken  agiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add an auth token to AGI Proxy - only valid if token auth type was selected"`
 	Share     clusterShareCmd `command:"share" subcommands-optional:"true" description:"AWS/GCP: share the AGI node by importing a provided ssh public key file"`
 	Exec      agiExecCmd      `command:"exec" hidden:"true" subcommands-optional:"true" description:"Run an AGI subsystem"`
+	Monitor   agiMonitorCmd   `command:"monitor" subcommands-optional:"true" description:"AGI auto-sizing and spot->on-demand upgrading system monitor"`
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -50,6 +55,7 @@ type agiListCmd struct {
 	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	RenderType string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
 	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -65,6 +71,7 @@ func (c *agiListCmd) Execute(args []string) error {
 	a.opts.Inventory.List.Pager = c.Pager
 	a.opts.Inventory.List.SortBy = c.SortBy
 	a.opts.Inventory.List.JsonPretty = c.JsonPretty
+	a.opts.Inventory.List.RenderType = c.RenderType
 	return a.opts.Inventory.List.run(false, false, false, false, false, inventoryShowAGI|inventoryShowAGIStatus)
 }
 
@@ -168,6 +175,7 @@ func (c *agiDestroyCmd) Execute(args []string) error {
 
 type agiDeleteCmd struct {
 	agiDestroyCmd
+	Gcp volumeDeleteGcpCmd `no-flag:"true"`
 }
 
 func (c *agiDeleteCmd) Execute(args []string) error {
@@ -177,9 +185,16 @@ func (c *agiDeleteCmd) Execute(args []string) error {
 	a.opts.Cluster.Destroy.ClusterName = c.ClusterName
 	a.opts.Cluster.Destroy.Force = c.Force
 	a.opts.Cluster.Destroy.Parallel = c.Parallel
-	a.opts.Cluster.Destroy.doDestroy("agi", args)
+	err := a.opts.Cluster.Destroy.doDestroy("agi", args)
+	if err != nil {
+		log.Printf("Could not remove instance: %s", err)
+	}
 	a.opts.Volume.Delete.Name = c.ClusterName.String()
-	a.opts.Volume.Delete.Execute(args)
+	a.opts.Volume.Delete.Gcp.Zone = c.Gcp.Zone
+	err = a.opts.Volume.Delete.Execute(args)
+	if err != nil {
+		log.Printf("Could not remove volume: %s", err)
+	}
 	return nil
 }
 
@@ -194,6 +209,7 @@ func (c *agiRelabelCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	// TODO: set description for volume too!
 	err := b.SetLabel(c.ClusterName.String(), "agiLabel", c.NewLabel, c.Gcpzone)
 	if err != nil {
 		return err

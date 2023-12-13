@@ -18,7 +18,7 @@ This document explains the basic usage, and examples, of AGI.
 
 See [this page](usage.md) for usage.
 
-## AWS EFS volumes
+## AWS EFS and GCP extra volumes
 
 See [this page](efs.md) for usage with persistent elastic volumes for data storage.
 

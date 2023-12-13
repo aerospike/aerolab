@@ -11,8 +11,10 @@ import (
 
 	_ "embed"
 
+	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/notifier"
+	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +23,7 @@ type agiCreateCmd struct {
 	ClusterName      TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
 	AGILabel         string          `long:"agi-label" description:"friendly label"`
 	NoDIM            bool            `long:"no-dim" description:"set to disable data-in-memory and enable read-page-cache in aerospike; much less RAM used, but slower"`
+	NoDIMFileSize    int             `long:"no-dim-filesize" description:"if using --no-dim, optionally specify a filesize in GB for data storage; default: memory size calculation"`
 	LocalSource      flags.Filename  `long:"source-local" description:"get logs from a local directory"`
 	SftpEnable       bool            `long:"source-sftp-enable" description:"enable sftp source"`
 	SftpThreads      int             `long:"source-sftp-threads" description:"number of concurrent downloader threads" default:"6"`
@@ -54,8 +57,10 @@ type agiCreateCmd struct {
 	PluginCpuProfile bool            `long:"plugin-cpu-profiling" description:"enable CPU profiling for the grafana plugin"`
 	PluginLogLevel   int             `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
 	NoConfigOverride bool            `long:"no-config-override" description:"if set, existing configuration will not be overridden; useful when restarting EFS-based AGIs"`
+	NoToolsOverride  bool            `long:"no-tools-override" description:"by default agi will install the latest tools package; set this to disable tools package upgrade"`
 	notifier.HTTPSNotify
 	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
+	Distro                  TypeDistro           `short:"d" long:"distro" description:"Custom distro" default:"ubuntu"`
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool                 `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
 	chDirCmd
@@ -84,13 +89,18 @@ type agiCreateCmdAws struct {
 }
 
 type agiCreateCmdGcp struct {
-	InstanceType string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
-	Disks        []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
-	Zone         string        `long:"zone" description:"zone name to deploy to"`
-	Tags         []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
-	Labels       []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix   []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	Expires      time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	InstanceType        string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
+	Disks               []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
+	Zone                string        `long:"zone" description:"zone name to deploy to"`
+	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
+	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	SpotInstance        bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
+	Expires             time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	WithVol             bool          `long:"gcp-with-vol" description:"set to enable extra volume as the storage medium for the AGI stack"`
+	VolName             string        `long:"gcp-vol-name" description:"set to change the default name of the volume" default:"{AGI_NAME}"`
+	VolExpires          time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired" default:"96h"`
+	TerminateOnPoweroff bool          `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
 }
 
 type agiCreateCmdDocker struct {
@@ -225,8 +235,8 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Owner = c.Owner
 	a.opts.Cluster.Create.PriceOnly = false
 	a.opts.Cluster.Create.ChDir = c.ChDir
-	a.opts.Cluster.Create.DistroName = "ubuntu"
-	a.opts.Cluster.Create.DistroVersion = "22.04"
+	a.opts.Cluster.Create.DistroName = c.Distro
+	a.opts.Cluster.Create.DistroVersion = "latest"
 	a.opts.Cluster.Create.AerospikeVersion = c.AerospikeVersion
 	a.opts.Cluster.Create.Username = ""
 	a.opts.Cluster.Create.Password = ""
@@ -248,8 +258,16 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		a.opts.Cluster.Create.Aws.EFSMount = c.Aws.EFSName + ":" + c.Aws.EFSPath + ":" + "/opt/agi"
 		a.opts.Cluster.Create.Aws.EFSExpires = c.Aws.EFSExpires
 	}
+	if c.Gcp.WithVol {
+		c.Gcp.VolName = strings.ReplaceAll(c.Aws.EFSName, "{AGI_NAME}", string(c.ClusterName))
+		a.opts.Cluster.Create.Gcp.VolCreate = true
+		a.opts.Cluster.Create.Gcp.VolExpires = c.Gcp.VolExpires
+		a.opts.Cluster.Create.Gcp.VolMount = c.Gcp.VolName + ":/opt/agi"
+	}
 	a.opts.Cluster.Create.Aws.TerminateOnPoweroff = c.Aws.TerminateOnPoweroff
+	a.opts.Cluster.Create.Gcp.TerminateOnPoweroff = c.Gcp.TerminateOnPoweroff
 	a.opts.Cluster.Create.Aws.SpotInstance = c.Aws.SpotInstance
+	a.opts.Cluster.Create.Gcp.SpotInstance = c.Gcp.SpotInstance
 	a.opts.Cluster.Create.Gcp.Image = ""
 	a.opts.Cluster.Create.Gcp.InstanceType = c.Gcp.InstanceType
 	a.opts.Cluster.Create.Gcp.Disks = c.Gcp.Disks
@@ -258,10 +276,12 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Gcp.IsArm = false
 	a.opts.Cluster.Create.Gcp.NoBestPractices = false
 	a.opts.Cluster.Create.Gcp.Tags = c.Gcp.Tags
-	a.opts.Cluster.Create.Gcp.Labels = append(c.Gcp.Labels, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL))
+	a.opts.Cluster.Create.Gcp.Labels = append(c.Gcp.Labels, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), "agilabel=set")
 	a.opts.Cluster.Create.gcpMeta = map[string]string{
 		"agiLabel": c.AGILabel,
 	}
+	a.opts.Cluster.Create.Gcp.VolLabels = append(gcplabels.PackToKV("agilabel", c.AGILabel), "agilabel=set")
+	a.opts.Cluster.Create.Gcp.VolDescription = c.AGILabel
 	a.opts.Cluster.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
 	a.opts.Cluster.Create.Gcp.Expires = c.Gcp.Expires
 	if !c.ProxyDisableSSL {
@@ -559,10 +579,53 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if c.NoConfigOverride {
 		override = "0"
 	}
-	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, !c.NoDIM, c.NoDIM, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+	nver := strings.Split(c.AerospikeVersion.String(), ".")[0]
+	//memory-size %dG
+	var memSizeStr, storEngine, dimStr, rpcStr string
+	var fileSizeInt int
+	if inslice.HasString([]string{"6", "5", "4", "3"}, nver) {
+		memSizeStr = "memory-size " + strconv.Itoa(memSize/1024/1024/1024) + "G"
+		storEngine = "device"
+		fileSizeInt = memSize / 1024 / 1024 / 1024
+		if c.NoDIM && c.NoDIMFileSize != 0 {
+			fileSizeInt = c.NoDIMFileSize
+		}
+		dimStr = fmt.Sprintf("data-in-memory %t", !c.NoDIM)
+		rpcStr = fmt.Sprintf("read-page-cache %t", c.NoDIM)
 	} else {
-		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, memSize/1024/1024/1024, memSize/1024/1024/1024, !c.NoDIM, c.NoDIM, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		if c.NoDIM {
+			storEngine = "device"
+			fileSizeInt = memSize / 1024 / 1024 / 1024
+			if c.NoDIMFileSize != 0 {
+				fileSizeInt = c.NoDIMFileSize
+			}
+			rpcStr = fmt.Sprintf("read-page-cache %t", c.NoDIM)
+		} else {
+			storEngine = "memory"
+			fileSizeInt = int(float64(memSize/1024/1024/1024) / 1.25)
+		}
+	}
+	cedition := "x86_64"
+	if edition == "arm64" {
+		cedition = "aarch64"
+	}
+
+	// upgrade tools package
+	toolsUpgrade := ""
+	if !c.NoToolsOverride {
+		toolsUpgrade = fmt.Sprintf("mkdir /tmp/toolsupgrade && pushd /tmp/toolsupgrade && aerolab installer download -d %s -i %s && tar -zxvf aerospike-server* && rm -rf *tgz && cd aerospike-server* && rm -f aerospike-server* && ./asinstall && popd", a.opts.Cluster.Create.DistroName, a.opts.Cluster.Create.DistroVersion)
+	}
+
+	if a.opts.Config.Backend.Type == "docker" {
+		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+	} else {
+		shutdownCmd := "/sbin/poweroff"
+		if a.opts.Config.Backend.Type == "aws" && c.Aws.TerminateOnPoweroff {
+			shutdownCmd = "/bin/bash /sbin/poweroff"
+		} else if a.opts.Config.Backend.Type == "gcp" && c.Gcp.TerminateOnPoweroff {
+			shutdownCmd = "/bin/bash /sbin/poweroff"
+		}
+		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, shutdownCmd, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 

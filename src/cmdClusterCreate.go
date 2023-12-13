@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
@@ -87,17 +88,24 @@ type clusterCreateCmdAws struct {
 }
 
 type clusterCreateCmdGcp struct {
-	Image           string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
-	InstanceType    string        `long:"instance" description:"instance type to use" default:""`
-	Disks           []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
-	PublicIP        bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
-	Zone            string        `long:"zone" description:"zone name to deploy to"`
-	IsArm           bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
-	Tags            []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
-	Labels          []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix      []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	Expires         time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	Image               string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
+	InstanceType        string        `long:"instance" description:"instance type to use" default:""`
+	Disks               []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
+	PublicIP            bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
+	Zone                string        `long:"zone" description:"zone name to deploy to"`
+	IsArm               bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices     bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
+	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	SpotInstance        bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
+	Expires             time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	VolMount            string        `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath"`
+	VolCreate           bool          `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist"`
+	VolExpires          time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
+	VolDescription      string        `long:"gcp-vol-desc" description:"set volume description field value"`
+	VolLabels           []string      `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
+	TerminateOnPoweroff bool          `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -106,6 +114,7 @@ type clusterCreateCmdDocker struct {
 	CpuLimit          string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
 	RamLimit          string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
 	SwapLimit         string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
+	NoFILELimit       int      `long:"nofile-limit" description:"for clusters, default will attempt to set to proto-fd-max+5000; you can set this manually or set to -1 to disable the parameter" default:"0"`
 	Privileged        bool     `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
 	NetworkName       string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
 	ClientType        string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
@@ -252,7 +261,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			} else if foundVol == nil {
 				a.opts.Volume.Create.Name = efsName
 				if c.Aws.EFSOneZone {
-					a.opts.Volume.Create.Zone, err = b.GetAZName(c.Aws.SubnetID)
+					a.opts.Volume.Create.Aws.Zone, err = b.GetAZName(c.Aws.SubnetID)
 					if err != nil {
 						return err
 					}
@@ -265,9 +274,21 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 					return err
 				}
 			} else if foundVol != nil {
-				err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String())
+				err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String(), foundVol.AvailabilityZoneName)
 				if err != nil {
 					return err
+				}
+				ii := -1
+				for i, v := range c.Aws.Tags {
+					if strings.HasPrefix(v, "agiLabel=") {
+						ii = i
+						break
+					}
+				}
+				if ii >= 0 {
+					if agiLabel, ok := foundVol.Tags["agiLabel"]; ok {
+						c.Aws.Tags[ii] = "agiLabel=" + agiLabel
+					}
 				}
 			}
 		}
@@ -278,6 +299,50 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		if c.Gcp.InstanceType == "" {
 			return logFatal("GCP backend requires InstanceType to be specified")
 		}
+		if c.Gcp.VolMount != "" && len(strings.Split(c.Gcp.VolMount, ":")) < 2 {
+			return logFatal("Mount format incorrect")
+		}
+		if c.Gcp.VolMount != "" {
+			mountDetail := strings.Split(c.Gcp.VolMount, ":")
+			efsName = mountDetail[0]
+			efsLocalPath = mountDetail[1]
+			inv, err := b.Inventory("", []int{InventoryItemVolumes})
+			if err != nil {
+				return err
+			}
+			for _, vol := range inv.Volumes {
+				if vol.Name != efsName {
+					continue
+				}
+				foundVol = &vol
+				break
+			}
+			if foundVol == nil && !c.Gcp.VolCreate {
+				return logFatal("Volume not found, and is not set to be created")
+			} else if foundVol == nil {
+				a.opts.Volume.Create.Name = efsName
+				a.opts.Volume.Create.Owner = c.Owner
+				a.opts.Volume.Create.Expires = c.Gcp.VolExpires
+				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone
+				a.opts.Volume.Create.Gcp.Description = c.Gcp.VolDescription
+				a.opts.Volume.Create.Tags = c.Gcp.VolLabels
+				err = a.opts.Volume.Create.Execute(nil)
+				if err != nil {
+					return err
+				}
+			} else if foundVol != nil {
+				err = b.TagVolume(foundVol.FileSystemId, "expireduration", strings.ToLower(strings.ReplaceAll(c.Gcp.VolExpires.String(), ".", "_")), foundVol.AvailabilityZoneName)
+				if err != nil {
+					return err
+				}
+				if _, ok := c.gcpMeta["agiLabel"]; ok {
+					if agiLabel, err := gcplabels.Unpack(foundVol.Tags, "agilabel"); err == nil {
+						c.gcpMeta["agiLabel"] = agiLabel
+					}
+				}
+			}
+		}
+		b.WorkOnServers()
 	}
 	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
 		return logFatal("Docker backend does not support pricing")
@@ -760,6 +825,38 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	extra.gcpMeta = c.gcpMeta
 	extra.terminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	extra.spotInstance = c.Aws.SpotInstance
+	if a.opts.Config.Backend.Type == "gcp" {
+		extra.spotInstance = c.Gcp.SpotInstance
+		extra.terminateOnPoweroff = c.Gcp.TerminateOnPoweroff
+	}
+
+	// limitnofile check
+	if a.opts.Config.Backend.Type == "docker" {
+		if c.Docker.NoFILELimit == 0 {
+			if string(c.CustomConfigFilePath) != "" {
+				cf, err := aeroconf.ParseFile(string(c.CustomConfigFilePath))
+				if err != nil {
+					log.Printf("WARNING: Could not parse aerospike.conf: %s", err)
+				} else {
+					if cf.Type("service") == aeroconf.ValueStanza {
+						vals, err := cf.Stanza("service").GetValues("proto-fd-max")
+						if err == nil && len(vals) > 0 {
+							fdmax, err := strconv.Atoi(*vals[0])
+							if err == nil && fdmax > 0 {
+								extra.limitNoFile = fdmax + 5000
+							}
+						}
+					}
+				}
+			}
+			if extra.limitNoFile == 0 {
+				extra.limitNoFile = 20000
+			}
+		} else if c.Docker.NoFILELimit > 0 {
+			extra.limitNoFile = c.Docker.NoFILELimit
+		}
+	}
+
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err
@@ -894,6 +991,10 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 
 	// store deployed aerospike version
 	files = append(files, fileList{"/opt/aerolab.aerospike.version", c.AerospikeVersion.String(), len(c.AerospikeVersion)})
+	if a.opts.Config.Backend.Type == "gcp" && c.Gcp.TerminateOnPoweroff {
+		termonpoweroffContents := "export NAME=$(curl -X GET http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google'); export ZONE=$(curl -X GET http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google'); gcloud --quiet compute instances delete $NAME --zone=$ZONE; systemctl poweroff"
+		files = append(files, fileList{"/usr/local/bin/poweroff", termonpoweroffContents, len(termonpoweroffContents)})
+	}
 
 	// actually save files to nodes in cluster if needed
 	if len(files) > 0 {
@@ -901,6 +1002,12 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			err := b.CopyFilesToCluster(string(c.ClusterName), files, []int{nnode})
 			if err != nil {
 				return err
+			}
+			if a.opts.Config.Backend.Type == "gcp" && c.Gcp.TerminateOnPoweroff {
+				out, err := b.RunCommands(string(c.ClusterName), [][]string{{"/bin/bash", "-c", "rm -f /sbin/poweroff; ln -s /usr/local/bin/poweroff /sbin/poweroff"}}, []int{nnode})
+				if err != nil {
+					log.Printf("ERROR: failed to install TerminateOnPoweroff script, instance will not terminate on poweroff: %s: %s", err, string(out[0]))
+				}
 			}
 			return nil
 		})
@@ -946,6 +1053,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				}
 				if port == "" || privateIp == "" {
 					return errors.New("WARN: could not find privateIp/exposed port; not fixing")
+				}
+				if strings.Contains(port, "-") {
+					port = strings.Split(port, "-")[0]
 				}
 				confReader := strings.NewReader(in)
 				s, err := aeroconf.Parse(confReader)
@@ -1218,7 +1328,18 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 	// efs mounts
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.EFSMount != "" {
 		a.opts.Volume.Mount.ClusterName = c.ClusterName.String()
-		a.opts.Volume.Mount.EfsPath = efsPath
+		a.opts.Volume.Mount.Aws.EfsPath = efsPath
+		a.opts.Volume.Mount.IsClient = false
+		a.opts.Volume.Mount.LocalPath = efsLocalPath
+		a.opts.Volume.Mount.Name = efsName
+		a.opts.Volume.Mount.ParallelThreads = c.ParallelThreads
+		err = a.opts.Volume.Mount.Execute(nil)
+		if err != nil {
+			return err
+		}
+	} else if a.opts.Config.Backend.Type == "gcp" && c.Gcp.VolMount != "" {
+		a.opts.Volume.Mount.ClusterName = string(c.ClusterName)
+		a.opts.Volume.Mount.Aws.EfsPath = efsPath
 		a.opts.Volume.Mount.IsClient = false
 		a.opts.Volume.Mount.LocalPath = efsLocalPath
 		a.opts.Volume.Mount.Name = efsName
