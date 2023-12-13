@@ -10,6 +10,8 @@ jobs:
     build-and-release:
         runs-on: macos-13
         steps:
+          - name: "Git checkout"
+            uses: actions/checkout@v3
           - name: Send mail
             uses: dawidd6/action-send-mail@v3
             with:
@@ -18,11 +20,10 @@ jobs:
               secure: true
               username: ${{secrets.RELEASE_MAIL_USERNAME}}
               password: ${{secrets.RELEASE_MAIL_PASSWORD}}
-              subject: AeroLab release v${{input.VERSION}}
+              subject: AeroLab release v${{inputs.VERSION}}
               to: ${{secrets.RELEASE_MAIL_TO}}
               from: AeroLab Release Bot <${{secrets.RELEASE_MAIL_FROM}}>
               reply_to: ${{secrets.RELEASE_MAIL_FROM}}
-              content_type: text/html
               convert_markdown: true
               html_body: file://LATEST.md
               body: file://LATEST.md
@@ -31,4 +32,4 @@ jobs:
                 SLACK_CHANNEL: ${{ secrets.RELEASE_SLACK_CHANNEL }}
                 SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
             run: |
-              curl -d "text=https://github.com/aerospike/aerolab/releases/tag/${{input.VERSION}}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+              curl -d "text=https://github.com/aerospike/aerolab/releases/tag/${{inputs.VERSION}}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
