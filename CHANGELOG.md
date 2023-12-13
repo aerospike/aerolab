@@ -1,3 +1,6 @@
+#### 7.2.1
+* Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
+
 #### 7.2.0
 * Allow specifying aerospike version number for agi.
 * Check if locked security group / firewall rule does not include current IP. In this case, attempt to fix the rule.
