@@ -6,14 +6,28 @@ mkdir -p /opt/agi/aerospike/smd
 cat <<'EOF' > /opt/agi/owner
 %s
 EOF
-apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
+set +e
+which apt
+ISAPT=$?
+set -e
+if [ $ISAPT -eq 0 ]
+then
+    apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
+else
+    yum install -y wget mod_ssl
+    mkdir -p /etc/ssl/certs /etc/ssl/private
+    openssl req -new -x509 -nodes -out /etc/ssl/certs/ssl-cert-snakeoil.pem -keyout /etc/ssl/private/ssl-cert-snakeoil.key -days 3650 -subj '/CN=www.example.com'
+    yum install -y https://dl.grafana.com/oss/release/grafana-10.2.0-1.%s.rpm
+fi
 chmod 755 /usr/local/bin/aerolab
 mkdir /opt/autoload
 aerolab config backend -t none
+%s
 cat <<'EOF' > /etc/aerospike/aerospike.conf
 service {
     proto-fd-max 15000
     work-directory /opt/agi/aerospike
+    cluster-name agi
 }
 logging {
     file /var/log/agi-aerospike.log {
@@ -40,13 +54,13 @@ network {
 }
 namespace agi {
     default-ttl 0
-    memory-size %dG
+    %s
     replication-factor 2
-    storage-engine device {
+    storage-engine %s {
         file /opt/agi/aerospike/data/agi.dat
         filesize %dG
-        data-in-memory %t
-        read-page-cache %t
+        %s
+        %s
     }
 }
 EOF

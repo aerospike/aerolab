@@ -138,7 +138,7 @@ func (d *backendAws) MountTargetAddSecurityGroup(mountTarget *inventoryMountTarg
 	return err
 }
 
-func (d *backendAws) DeleteVolume(name string) error {
+func (d *backendAws) DeleteVolume(name string, zone string) error {
 	vols, err := b.Inventory("", []int{InventoryItemVolumes})
 	if err != nil {
 		return fmt.Errorf("could not enumerate through volumes: %s", err)
@@ -183,7 +183,7 @@ func (d *backendAws) DeleteVolume(name string) error {
 	return nil
 }
 
-func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string) error {
+func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
 	_, err := d.efs.TagResource(&efs.TagResourceInput{
 		ResourceId: aws.String(fsId),
 		Tags: []*efs.Tag{
@@ -196,7 +196,15 @@ func (d *backendAws) TagVolume(fsId string, tagName string, tagValue string) err
 	return err
 }
 
-func (d *backendAws) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
+func (d *backendAws) DetachVolume(name string, clusterName string, node int, zone string) error {
+	return nil
+}
+
+func (d *backendAws) ResizeVolume(name string, zone string, newSize int64) error {
+	return nil
+}
+
+func (d *backendAws) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error {
 	var az *string
 	if zone != "" {
 		az = &zone
@@ -303,7 +311,18 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 		NamePrefix: aws.String("aerolab-expiries"),
 	})
 	if err == nil && len(q.Schedules) > 0 {
-		return errors.New("EXISTS")
+		qq, err := d.scheduler.GetSchedule(&scheduler.GetScheduleInput{
+			Name: q.Schedules[0].Name,
+		})
+		if err == nil {
+			qVer := aws.StringValue(qq.Description)
+			if qVer != "" {
+				qvint, err := strconv.Atoi(qVer)
+				if err == nil && qvint >= awsExpiryVersion {
+					return errors.New("EXISTS")
+				}
+			}
+		}
 	}
 	log.Println("Installing cluster expiry system")
 	// attempt to remove any garbage left behind by previous installation efforts
@@ -418,6 +437,7 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 
 	_, err = d.scheduler.CreateSchedule(&scheduler.CreateScheduleInput{
 		Name:               aws.String("aerolab-expiries"),
+		Description:        aws.String(strconv.Itoa(awsExpiryVersion)),
 		ScheduleExpression: aws.String("rate(" + strconv.Itoa(intervalMinutes) + " minutes)"),
 		State:              aws.String("ENABLED"),
 		ClientToken:        aws.String("aerolab-expiries-" + a.opts.Config.Backend.Region),
@@ -1283,6 +1303,10 @@ func (d *backendAws) PruneNetworks() error {
 	return nil
 }
 func (d *backendAws) ListNetworks(csv bool, writer io.Writer) error {
+	return nil
+}
+
+func (d *backendAws) AttachVolume(name string, zone string, clusterName string, node int) error {
 	return nil
 }
 
@@ -2163,20 +2187,22 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 	return nodeList, nil
 }
 
-func (d *backendAws) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string, renderer string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
 	a.opts.Inventory.List.Pager = pager
 	a.opts.Inventory.List.JsonPretty = isPretty
 	a.opts.Inventory.List.SortBy = sort
+	a.opts.Inventory.List.RenderType = renderer
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
-func (d *backendAws) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
+func (d *backendAws) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string, renderer string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
 	a.opts.Inventory.List.JsonPretty = isPretty
 	a.opts.Inventory.List.SortBy = sort
+	a.opts.Inventory.List.RenderType = renderer
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
@@ -2804,6 +2830,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 						DeleteOnTermination: aws.Bool(true),
 						VolumeSize:          aws.Int64(disksInt[0]),
 						VolumeType:          aws.String("gp2"),
+						Encrypted:           aws.Bool(true),
 					},
 				},
 			}
@@ -2819,6 +2846,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 					DeleteOnTermination: aws.Bool(true),
 					VolumeSize:          aws.Int64(int64(av)),
 					VolumeType:          aws.String("gp2"),
+					Encrypted:           aws.Bool(true),
 				},
 			})
 		} // END EBS mapping

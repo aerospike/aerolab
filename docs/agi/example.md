@@ -47,13 +47,19 @@ aerolab agi destroy -n myagi
 aerolab agi create -n myagi --aws-with-efs --aws-terminate-on-poweroff --no-config-override
 ```
 
+## GCP with Volumes
+
+```
+aerolab agi create -n myagi --gcp-with-vol --agi-label "some useful label" --source-local /path/to/logs --notify-slack-channel=...USERID... --notify-slack-token=xoxb-...
+```
+
 ## Operating
 
 Command | Description
 --- | ---
 `aerolab agi list` | get list of AGI instances and volumes, as well as percent ingest complete and the web access URL
 `aerolab agi status -n myagi` | get detailed report of the AGI instance process
-`aerolab agi sstop -n myagi` | stop the instance (stop paying for instance, pay just for storage)
+`aerolab agi stop -n myagi` | stop the instance (stop paying for instance, pay just for storage)
 `aerolab agi start -n myagi` | start the instance again
 `aerolab agi change-label -n myagi` | change the friendly label
 `aerolab agi run-ingest -n myagi` | retrigger log ingest (for example if more logs appeared in the sftp/s3 source location, or another location is specified)
@@ -71,3 +77,7 @@ In AWS, default instance size is `r5a.xlarge` and in GCP it is `e2-highmem-4`. T
 ### AWS spot instances
 
 When using AWS with EFS, it may be beneficial to run the instances as spot-instances. This reduces the usage prices. An instance can be recreated as on-demand at a later time if required, and it will just continue where it left off, using the EFS-backed storage. To do this, add `--aws-spot-instance`.
+
+### GCP spot instances
+
+GCP also supports spot instances through calling `--gcp-spot-instance`.

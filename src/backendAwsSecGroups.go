@@ -242,6 +242,9 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 					myIp := getip2()
 					parsedIp := net.ParseIP(myIp)
 					for _, perms := range out.SecurityGroups[0].IpPermissions {
+						if aws.Int64Value(perms.FromPort) == -1 || aws.Int64Value(perms.ToPort) == -1 {
+							continue
+						}
 						for _, permRange := range perms.IpRanges {
 							_, cidr, _ := net.ParseCIDR(*permRange.CidrIp)
 							if cidr.Contains(parsedIp) {
@@ -371,6 +374,16 @@ func (d *backendAws) createSecGroups(vpc string, namePrefix string) (secGroups [
 						{
 							CidrIp:      aws.String(ip),
 							Description: aws.String("ssh from anywhere"),
+						},
+					},
+				}, {
+					IpProtocol: aws.String("icmp"),
+					FromPort:   aws.Int64(-1),
+					ToPort:     aws.Int64(-1),
+					IpRanges: []*ec2.IpRange{
+						{
+							CidrIp:      aws.String("0.0.0.0/0"),
+							Description: aws.String("icmp from anywhere"),
 						},
 					},
 				},
@@ -849,6 +862,9 @@ func (d *backendAws) listSecurityGroups(stdout bool) ([]inventoryFirewallRule, e
 	for _, sg := range out.SecurityGroups {
 		nIps := []string{}
 		for _, sga := range sg.IpPermissions {
+			if *sga.IpProtocol == "icmp" {
+				continue
+			}
 			for _, sgb := range sga.IpRanges {
 				if !inslice.HasString(nIps, *sgb.CidrIp) {
 					nIps = append(nIps, *sgb.CidrIp)

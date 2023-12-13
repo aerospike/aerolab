@@ -288,6 +288,7 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	http.HandleFunc("/agi/shutdown", c.handleShutdown)          // gracefully shutdown the proxy
 	http.HandleFunc("/agi/poweroff", c.handlePoweroff)          // poweroff the instance
 	http.HandleFunc("/agi/status", c.handleStatus)              // high-level agi service status
+	http.HandleFunc("/agi/inactivity", c.handleInactivity)      // print inactivity timers
 	http.HandleFunc("/agi/ingest/detail", c.handleIngestDetail) // detailed logingest progress json; form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
 	http.HandleFunc("/", c.grafanaHandler)                      // grafana
 	c.srv = &http.Server{Addr: "0.0.0.0:" + strconv.Itoa(c.ListenPort)}
@@ -635,7 +636,69 @@ func (c *agiExecProxyCmd) maxUptime() {
 	}
 }
 
-func spotGetInstanceAction() (data []byte, retCode int, err error) {
+func spotGetInstanceActionGcp() (shuttingDown bool) {
+	req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254/computeMetadata/v1/instance/preempted?wait_for_change=true", nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Add("Metadata-Flavor", "Google")
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   30 * time.Second,
+	}
+	client := &http.Client{
+		Timeout:   30 * time.Second,
+		Transport: tr,
+	}
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+	if string(body) == "TRUE" {
+		return true
+	}
+	return false
+}
+
+func (c *agiExecProxyCmd) spotMonitorGcp() {
+	for {
+		time.Sleep(10 * time.Second)
+		if !spotGetInstanceActionGcp() {
+			continue
+		}
+		stat, err := getAgiStatus("/opt/agi/ingest/")
+		if err != nil {
+			logger.Warn("spot-monitor: could not get process status")
+			continue
+		}
+		body := "GCP-SPOT-PREEMPTED-NO-CAPACITY"
+		c.shuttingDownMutex.Lock()
+		c.shuttingDown = true
+		c.shuttingDownMutex.Unlock()
+		notifyItem := &ingest.NotifyEvent{
+			IsDataInMemory: c.isDim,
+			IngestStatus:   stat,
+			Event:          AgiEventSpotNoCapacity,
+			AGIName:        c.AGIName,
+			EventDetail:    string(body),
+		}
+		c.notify.NotifyJSON(notifyItem)
+		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
+		c.notify.NotifySlack(AgiEventSpotNoCapacity, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AWS Shutting spot instance down due to capacity restrictions*", AgiEventSpotNoCapacity, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
+		time.Sleep(2 * time.Minute)
+		c.shuttingDownMutex.Lock()
+		c.shuttingDown = false
+		c.shuttingDownMutex.Unlock()
+	}
+}
+
+func spotGetInstanceActionAws() (data []byte, retCode int, err error) {
 	req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254/latest/meta-data/spot/instance-action", nil)
 	if err != nil {
 		return nil, 0, err
@@ -664,8 +727,51 @@ func spotGetInstanceAction() (data []byte, retCode int, err error) {
 
 func (c *agiExecProxyCmd) spotMonitor() {
 	for {
+		func() {
+			req, err := http.NewRequest(http.MethodGet, "http://169.254.169.254", nil)
+			if err != nil {
+				return
+			}
+
+			tr := &http.Transport{
+				DisableKeepAlives: true,
+				IdleConnTimeout:   30 * time.Second,
+			}
+			client := &http.Client{
+				Timeout:   30 * time.Second,
+				Transport: tr,
+			}
+			defer client.CloseIdleConnections()
+			resp, err := client.Do(req)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return
+			}
+			if resp.StatusCode < 200 || resp.StatusCode > 299 {
+				return
+			}
+			if strings.Contains(string(body), "computeMetadata") {
+				log.Println("Discovered instance provider GCP")
+				c.spotMonitorGcp()
+			} else if strings.Contains(string(body), "latest") {
+				log.Println("Discovered instance provider AWS")
+				c.spotMonitorAws()
+			} else {
+				return
+			}
+		}()
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func (c *agiExecProxyCmd) spotMonitorAws() {
+	for {
 		time.Sleep(30 * time.Second)
-		body, code, err := spotGetInstanceAction()
+		body, code, err := spotGetInstanceActionAws()
 		if err != nil || code < 200 || code > 299 {
 			continue
 		}
@@ -818,7 +924,16 @@ func (c *agiExecProxyCmd) activityMonitor() {
 	}
 }
 
-func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool {
+func (c *agiExecProxyCmd) handleInactivity(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuthOnly(w, r) {
+		return
+	}
+	logger.Info("Listener: inactivity status request from %s", r.RemoteAddr)
+	lastActivity := c.lastActivity.Get()
+	w.Write([]byte(fmt.Sprintf("lastActivity:%s maxInactivity:%s currentInactivity:%s", lastActivity.Format(time.RFC3339), c.MaxInactivity, time.Since(lastActivity))))
+}
+
+func (c *agiExecProxyCmd) checkAuthOnly(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Add("Strict-Transport-Security", "max-age=31536000")
 	if c.isBasicAuth {
 		user, pass, ok := r.BasicAuth()
@@ -863,9 +978,13 @@ func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool
 		}
 		c.tokens.RUnlock()
 	}
-	// note down activity timestamp
-	go c.lastActivity.Set(time.Now())
 	return true
+}
+
+func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool {
+	ret := c.checkAuthOnly(w, r)
+	go c.lastActivity.Set(time.Now())
+	return ret
 }
 
 func (c *agiExecProxyCmd) displayAuthTokenRequest(w http.ResponseWriter, r *http.Request) {

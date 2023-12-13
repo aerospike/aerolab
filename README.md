@@ -51,7 +51,9 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
 * [Getting started](docs/GETTING_STARTED.md)
 * [Help commands](docs/usage/help.md)
 * [GCP](docs/gcp-setup.md)
+  * [Spot instance support](docs/gcp-spot.md)
   * [Expiry system](docs/expiries.md)
+  * [Extra Volume Support](docs/efs.md)
   * [Partitioner](docs/partitioner/partition-disks.md)
   * [Advanced - GCP Firewall Rules](docs/gcp-firewall.md)
 * [AWS](docs/aws-setup.md)
@@ -76,6 +78,7 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
   * [Tools and Asbench](docs/usage/full-stack/index.md)
 * [REST API](docs/rest-api.md)
 * [Utility scripts](docs/utility_scripts/index.md)
+* [Volume usage examples](docs/volume-examples.md)
 
 ## Changelog
 

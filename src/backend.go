@@ -29,6 +29,7 @@ type backendExtra struct {
 	dockerHostname      bool      // docker only
 	network             string    // docker only
 	autoExpose          bool      // docker only
+	limitNoFile         int       // docker only
 	securityGroupID     string    // aws only
 	subnetID            string    // aws only
 	ebs                 string    // aws only
@@ -72,13 +73,18 @@ var TypeArchArm = TypeArch(1)
 var TypeArchAmd = TypeArch(2)
 
 type backend interface {
-	// aws efs volumes
-	CreateVolume(name string, zone string, tags []string, expires time.Duration) error
-	TagVolume(fsId string, tagName string, tagValue string) error
-	DeleteVolume(name string) error
+	// gcp/aws volumes
+	CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error
+	TagVolume(fsId string, tagName string, tagValue string, zone string) error
+	DeleteVolume(name string, zone string) error
+	// volumes: efs only
 	CreateMountTarget(volume *inventoryVolume, subnet string, secGroups []string) (inventoryMountTarget, error)
 	MountTargetAddSecurityGroup(mountTarget *inventoryMountTarget, volume *inventoryVolume, addGroups []string) error
 	GetAZName(subnetId string) (string, error)
+	// volumes: gcp only
+	AttachVolume(name string, zone string, clusterName string, node int) error
+	ResizeVolume(name string, zone string, newSize int64) error
+	DetachVolume(name string, clusterName string, node int, zone string) error
 	// cause gcp
 	EnableServices() error
 	// expiries calls
@@ -130,9 +136,9 @@ type backend interface {
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
-	ClusterListFull(json bool, owner string, noPager bool, isPretty bool, sort []string) (string, error)
+	ClusterListFull(json bool, owner string, noPager bool, isPretty bool, sort []string, renderer string) (string, error)
 	// return formatted for printing template list
-	TemplateListFull(json bool, noPager bool, isPretty bool, sort []string) (string, error)
+	TemplateListFull(json bool, noPager bool, isPretty bool, sort []string, renderer string) (string, error)
 	// upload files to node
 	Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error
 	// download files from node
@@ -192,6 +198,8 @@ type inventoryVolume struct {
 	Tags                 map[string]string
 	MountTargets         []inventoryMountTarget
 	Owner                string
+	GCPAttachedTo        []string
+	GCPDescription       string
 }
 
 type inventoryMountTarget struct {

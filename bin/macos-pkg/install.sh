@@ -7,5 +7,5 @@ chmod 755 /Library/aerolab/*
 rm -f /usr/local/bin/aerolab || echo "first_install"
 rm -f /usr/bin/aerolab || echo "first_install"
 ln -s /Library/aerolab/${BIN} /usr/local/bin/aerolab
-ln -s /Library/aerolab/${BIN} /usr/bin/aerolab || echo "usr-bin not allowed"
-
+mkdir -p /etc/paths.d || echo "path install will fail"
+echo "/usr/local/bin" |tee /etc/paths.d/aerolab || echo "path install failed"

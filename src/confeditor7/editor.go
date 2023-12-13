@@ -547,6 +547,7 @@ namespace test {
     default-ttl 0
     replication-factor 2
     storage-engine memory {
+        data-size 4G
 	}
 }
 `
@@ -859,7 +860,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						}
 					}
 					aeroConfig.Stanza("namespace test").NewStanza("storage-engine memory")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("data-size", "1G")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("data-size", "4G")
 				}
 			case itemStorageDisk:
 				if change.Selected {
@@ -868,7 +869,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 					}
 					aeroConfig.Stanza("namespace test").NewStanza("storage-engine device")
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("file", "/opt/aerospike/data/bar.dat")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("filesize", "1G")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("filesize", "4G")
 				} else {
 					for _, key := range aeroConfig.Stanza("namespace test").ListKeys() {
 						if strings.HasPrefix(key, "storage-engine device") {
@@ -881,13 +882,13 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 					aeroConfig.Stanza("namespace test").Delete("storage-engine device")
 					aeroConfig.Stanza("namespace test").NewStanza("storage-engine memory")
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("file", "/opt/aerospike/data/bar.dat")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("filesize", "1G")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("filesize", "4G")
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("data-size")
 				} else {
 					if aeroConfig.Stanza("namespace test").Stanza("storage-engine memory") != nil {
 						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("file")
 						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("filesize")
-						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("data-size", "1G")
+						aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("data-size", "4G")
 					}
 				}
 			case itemStorageEngineEncryption:

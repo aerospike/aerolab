@@ -34,7 +34,11 @@ func (d *backendDocker) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
 
-func (d *backendDocker) TagVolume(fsId string, tagName string, tagValue string) error {
+func (d *backendDocker) AttachVolume(name string, zone string, clusterName string, node int) error {
+	return nil
+}
+
+func (d *backendDocker) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
 	return nil
 }
 
@@ -46,11 +50,19 @@ func (d *backendDocker) MountTargetAddSecurityGroup(mountTarget *inventoryMountT
 	return nil
 }
 
-func (d *backendDocker) DeleteVolume(name string) error {
+func (d *backendDocker) DetachVolume(name string, clusterName string, node int, zone string) error {
 	return nil
 }
 
-func (d *backendDocker) CreateVolume(name string, zone string, tags []string, expires time.Duration) error {
+func (d *backendDocker) ResizeVolume(name string, zone string, newSize int64) error {
+	return nil
+}
+
+func (d *backendDocker) DeleteVolume(name string, zone string) error {
+	return nil
+}
+
+func (d *backendDocker) CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error {
 	return nil
 }
 
@@ -206,7 +218,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 								intPort = k
 							}
 						}
-					} else {
+					} else if it != "null" && it != "" {
 						ip = it
 						break
 					}
@@ -769,6 +781,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		if extra.network != "" {
 			exposeList = append(exposeList, "--network", extra.network)
 		}
+		if extra.limitNoFile > 0 {
+			exposeList = append(exposeList, "--ulimit", fmt.Sprintf("nofile=%d:%d", extra.limitNoFile, extra.limitNoFile))
+		}
 		if extra.privileged {
 			fmt.Println("WARNING: privileged container")
 			exposeList = append(exposeList, "--device-cgroup-rule=b 7:* rmw", "--privileged=true", "--cap-add=NET_ADMIN", "--cap-add=NET_RAW", "-td", "--name", fmt.Sprintf(dockerNameHeader+"%s_%d", name, node), tmplName, "/bin/bash", "-c", "while true; do [ -f /tmp/poweroff.now ] && rm -f /tmp/poweroff.now && exit; sleep 1; done")
@@ -816,6 +831,9 @@ func (d *backendDocker) CopyFilesToClusterReader(name string, files []fileListRe
 		if err != nil {
 			return err
 		}
+	}
+	if a.opts.Config.Backend.TmpDir != "" {
+		os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
 	}
 	for _, file := range files {
 		var tmpfile *os.File
@@ -1038,6 +1056,9 @@ func (d *backendDocker) RunCustomOut(clusterName string, node int, command []str
 
 func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader) error {
 	var err error
+	if a.opts.Config.Backend.TmpDir != "" {
+		os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
+	}
 	for _, file := range files {
 		var tmpfile *os.File
 		var tmpfileName string
@@ -1069,19 +1090,21 @@ func (d *backendDocker) copyFilesToContainer(name string, files []fileListReader
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string) (string, error) {
+func (d *backendDocker) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string, renderer string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
 	a.opts.Inventory.List.JsonPretty = isPretty
 	a.opts.Inventory.List.SortBy = sort
+	a.opts.Inventory.List.RenderType = renderer
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
 // returns an unformatted string with list of clusters, to be printed to user
-func (d *backendDocker) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string) (string, error) {
+func (d *backendDocker) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string, renderer string) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
 	a.opts.Inventory.List.JsonPretty = isPretty
 	a.opts.Inventory.List.SortBy = sort
+	a.opts.Inventory.List.RenderType = renderer
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
