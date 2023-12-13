@@ -28,6 +28,7 @@
 * Fix: AMS client fix regression: `asbench` dashboard installation.
 * Fix: Auto-create temporary directory as needed, if it is specified.
 * Fix: GCP: Handle firewall rules which use an IP instead of CIDR.
+* Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
 * Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * TODO: Document agi instance state monitor.
   * `aerolab client create none -n agi-monitor; aerolab client configure aerolab -n agi-monitor; aerolab attach client -n agi-monitor --detach -- /usr/local/bin/aerolab agi monitor`
