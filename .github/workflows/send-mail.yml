@@ -1,0 +1,23 @@
+- name: Send mail
+  on:
+    workflow_dispatch:
+        inputs:
+            VERSION:
+                description: "Version for subject (eg v7.2.1)"
+                required: true
+
+  uses: dawidd6/action-send-mail@v3
+  with:
+    server_address: smtp.gmail.com
+    server_port: 465
+    secure: true
+    username: ${{secrets.RELEASE_MAIL_USERNAME}}
+    password: ${{secrets.RELEASE_MAIL_PASSWORD}}
+    subject: AeroLab release ${{input.VERSION}}
+    to: ${{secrets.RELEASE_MAIL_TO}}
+    from: AeroLab Release Bot <${{secrets.RELEASE_MAIL_FROM}}>
+    reply_to: ${{secrets.RELEASE_MAIL_FROM}}
+    content_type: text/html
+    convert_markdown: true
+    html_body: file://LATEST.md
+    body: file://LATEST.md
