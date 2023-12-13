@@ -45,3 +45,11 @@ aerolab agi monitor run --listen 0.0.0.0:4433 --cert x.pem --key y.pem OR --auto
 first one creates a none client with aerolab inside and the required systemd file/docker autoload script
 second one actually runs the monitor
 */
+
+/*
+* TODO: Document agi instance state monitor.
+  * `aerolab client create none -n agi-monitor; aerolab client configure aerolab -n agi-monitor; aerolab attach client -n agi-monitor --detach -- /usr/local/bin/aerolab agi monitor`
+  * document what it's for: to run sizing for agi instances in AWS/GCP which use volume backing, and to cycle spot to on-demand if capacity becomes unavailable
+  * document running monitor locally
+  * document usage with AGI instances (need to specify `--monitor-url` and must have a backing volume)
+*/

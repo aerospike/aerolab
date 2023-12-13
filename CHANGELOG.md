@@ -29,12 +29,7 @@
 * Fix: Auto-create temporary directory as needed, if it is specified.
 * Fix: GCP: Handle firewall rules which use an IP instead of CIDR.
 * Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
-* Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
-* TODO: Document agi instance state monitor.
-  * `aerolab client create none -n agi-monitor; aerolab client configure aerolab -n agi-monitor; aerolab attach client -n agi-monitor --detach -- /usr/local/bin/aerolab agi monitor`
-  * document what it's for: to run sizing for agi instances in AWS/GCP which use volume backing, and to cycle spot to on-demand if capacity becomes unavailable
-  * document running monitor locally
-  * document usage with AGI instances (need to specify `--monitor-url` and must have a backing volume)
+* AGI: Feature: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 
 #### 7.2.1
 * Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
