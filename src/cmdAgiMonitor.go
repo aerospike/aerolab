@@ -6,9 +6,19 @@ type agiMonitorCmd struct {
 }
 
 type agiMonitorListenCmd struct {
+	ListenAddress     string
+	UseTLS            bool
+	UseLetsEncrypt    bool
+	LetsEncyptDomains []string
+	CertFile          string
+	KeyFile           string
 }
 
 type agiMonitorCreateCmd struct {
+	Name string
+	agiMonitorListenCmd
+	// gcp: zone
+	// aws/gcp/docker specific switches, as few as possible, this is an embedded solution
 }
 
 // TODO: AUTH
