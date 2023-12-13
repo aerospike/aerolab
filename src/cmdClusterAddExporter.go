@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/aerospike/aerolab/parallelize"
+	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
@@ -63,8 +64,8 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		return fmt.Errorf("could not locate prometheus url: %s", err)
 	}
 	log.Printf("Installing version %s of prometheus exporter", pV)
-	pUrlAmd := pUrl + "aerospike-prometheus-exporter_" + pV + "_x86_64.tar.gz"
-	pUrlArm := pUrl + "aerospike-prometheus-exporter_" + pV + "_aarch64.tar.gz"
+	pUrlAmd := pUrl + "aerospike-prometheus-exporter_" + pV + "_x86_64.tgz"
+	pUrlArm := pUrl + "aerospike-prometheus-exporter_" + pV + "_aarch64.tgz"
 	nodeExpAmd := "https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz"
 	nodeExpArm := "https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-arm64.tar.gz"
 
@@ -157,9 +158,13 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 	// install custom ape.toml
 	if c.CustomConf != "" {
 		for _, cluster := range cList {
+			nodesTxt := []string{}
+			for _, nn := range nodes[cluster] {
+				nodesTxt = append(nodesTxt, strconv.Itoa(nn))
+			}
 			a.opts.Files.Upload.ClusterName = TypeClusterName(cluster)
 			a.opts.Files.Upload.IsClient = false
-			a.opts.Files.Upload.Nodes = TypeNodes("all")
+			a.opts.Files.Upload.Nodes = TypeNodes(strings.Join(nodesTxt, ","))
 			a.opts.Files.Upload.Files.Source = c.CustomConf
 			a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike-prometheus-exporter/ape.toml")
 			a.opts.Files.Upload.doLegacy = true
@@ -180,6 +185,10 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 		b.WorkOnServers()
 		returns := parallelize.MapLimit(inv.Clusters, c.ParallelThreads, func(item inventoryCluster) error {
 			if item.ClusterName != c.ClusterName.String() {
+				return nil
+			}
+			nodeNo, _ := strconv.Atoi(item.NodeNo)
+			if !inslice.HasInt(amdlist, nodeNo) && !inslice.HasInt(armlist, nodeNo) {
 				return nil
 			}
 			if item.DockerExposePorts == "" {
