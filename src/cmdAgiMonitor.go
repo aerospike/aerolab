@@ -6,12 +6,12 @@ type agiMonitorCmd struct {
 }
 
 type agiMonitorListenCmd struct {
-	ListenAddress     string
-	UseTLS            bool
-	UseLetsEncrypt    bool
-	LetsEncyptDomains []string
-	CertFile          string
-	KeyFile           string
+	ListenAddress   string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443"`                                 // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
+	UseTLS          bool     `long:"tls" description:"enable tls"`                                                                                                                      // enable TLS
+	AutoCertDomains []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
+	CertFile        string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed"`                                      // TLS: cert file (if not using autocert), default: snakeoil
+	KeyFile         string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed"`                                               // TLS: key file (if not using autocert), default: snakeoil
+	// TODO: configs for how to perform auto-sizing and auto-rotation for capacity (try another AZ, try another instance type, rotate to on-demand, what instance types to use for sizing, etc)
 }
 
 type agiMonitorCreateCmd struct {
