@@ -24,7 +24,6 @@ jobs:
               to: ${{secrets.RELEASE_MAIL_TO}}
               from: AeroLab Release Bot <${{secrets.RELEASE_MAIL_FROM}}>
               reply_to: ${{secrets.RELEASE_MAIL_FROM}}
-              content_type: text/html
               convert_markdown: true
               html_body: file://LATEST.md
               body: file://LATEST.md
