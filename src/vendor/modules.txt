@@ -219,8 +219,8 @@ github.com/rglonek/envconfig
 # github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
 ## explicit
 github.com/rglonek/jeddevdk-goflags
-# github.com/rglonek/sbs v1.0.0
-## explicit; go 1.21.3
+# github.com/rglonek/sbs v1.0.1
+## explicit; go 1.21
 github.com/rglonek/sbs
 # github.com/rivo/uniseg v0.4.4
 ## explicit; go 1.18
@@ -251,6 +251,8 @@ go.opencensus.io/trace/propagation
 go.opencensus.io/trace/tracestate
 # golang.org/x/crypto v0.14.0
 ## explicit; go 1.17
+golang.org/x/crypto/acme
+golang.org/x/crypto/acme/autocert
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/chacha20poly1305
