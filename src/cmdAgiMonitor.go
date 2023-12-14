@@ -169,9 +169,9 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	if len(c.AutoCertDomains) > 0 && c.AutoCertEmail == "" {
 		return errors.New("if autocert domains is in use, a valid email must be provided for letsencrypt registration")
 	}
-	log.Printf("Listening on %s", c.ListenAddress)
 	http.HandleFunc("/", c.handle)
 	if c.NoTLS {
+		log.Printf("Listening on %s", c.ListenAddress)
 		return http.ListenAndServe(c.ListenAddress, nil)
 	}
 	if _, err := os.Stat("autocert-cache"); err != nil {
@@ -191,6 +191,7 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 			Addr:      c.ListenAddress,
 			TLSConfig: m.TLSConfig(),
 		}
+		log.Printf("Listening on %s", c.ListenAddress)
 		return s.ListenAndServeTLS("", "")
 	}
 	if c.CertFile == "" && c.KeyFile == "" {
@@ -219,6 +220,7 @@ fi
 			}
 		}
 	}
+	log.Printf("Listening on %s", c.ListenAddress)
 	return http.ListenAndServeTLS(c.ListenAddress, c.CertFile, c.KeyFile, nil)
 }
 
@@ -266,3 +268,5 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
   * document running monitor locally
   * document usage with AGI instances (need to specify `--monitor-url` and must have a backing volume)
 */
+
+/* TODO: agi create - have --with-monitor option which will either deploy a monitor if it doesn't exist, or use an existing one if it does automatically - this means we will need to carry listen port in a tag on agimonitor */
