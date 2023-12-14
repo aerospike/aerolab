@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 
+	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,9 +21,10 @@ type agiMonitorCmd struct {
 }
 
 type agiMonitorListenCmd struct {
-	ListenAddress    string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443" yaml:"listenAddress"`                                       // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
-	NoTLS            bool     `long:"no-tls" description:"disable tls" yaml:"noTLS"`                                                                                                                                // enable TLS
-	AutoCertDomains  []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains"`     // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
+	ListenAddress    string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443" yaml:"listenAddress"`                                   // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
+	NoTLS            bool     `long:"no-tls" description:"disable tls" yaml:"noTLS"`                                                                                                                            // enable TLS
+	AutoCertDomains  []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
+	AutoCertEmail    string   `long:"autocert-email" description:"TLS: if autocert is specified, specify a valid email address to use with letsencrypt"`
 	CertFile         string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile"`                                                 // TLS: cert file (if not using autocert), default: snakeoil
 	KeyFile          string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile"`                                                           // TLS: key file (if not using autocert), default: snakeoil
 	AWSSizingOptions string   `long:"aws-sizing" description:"specify instance types, comma-separated to use for sizing; same.auto means same family, auto increase the size" default:"same.auto" yaml:"awsSizing"` // if r6g.2xlarge, size above using r6g family
@@ -61,6 +66,9 @@ func (c *agiMonitorCreateCmd) Execute(args []string) error {
 	}
 	if a.opts.Config.Backend.Type == "docker" {
 		return errors.New("this feature can only be deployed on GCP or AWS")
+	}
+	if len(c.AutoCertDomains) > 0 && c.AutoCertEmail == "" {
+		return errors.New("if autocert domains is in use, a valid email must be provided for letsencrypt registration")
 	}
 	log.Printf("Running agi.monitor.create")
 	agiConfigYaml, err := yaml.Marshal(c.agiMonitorListenCmd)
@@ -158,30 +166,99 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	log.Print("Configuration:")
 	yaml.NewEncoder(os.Stderr).Encode(c)
 
-	log.Print("Initializing")
-	// TODO: configure routing etc
-
+	if len(c.AutoCertDomains) > 0 && c.AutoCertEmail == "" {
+		return errors.New("if autocert domains is in use, a valid email must be provided for letsencrypt registration")
+	}
 	log.Printf("Listening on %s", c.ListenAddress)
-	// TODO: start listener
-	return nil
+	http.HandleFunc("/", c.handle)
+	if c.NoTLS {
+		return http.ListenAndServe(c.ListenAddress, nil)
+	}
+	if _, err := os.Stat("autocert-cache"); err != nil {
+		err = os.Mkdir("autocert-cache", 0755)
+		if err != nil {
+			return err
+		}
+	}
+	if len(c.AutoCertDomains) > 0 {
+		m := &autocert.Manager{
+			Cache:      autocert.DirCache("autocert-cache"),
+			Prompt:     autocert.AcceptTOS,
+			Email:      c.AutoCertEmail,
+			HostPolicy: autocert.HostWhitelist(c.AutoCertDomains...),
+		}
+		s := &http.Server{
+			Addr:      c.ListenAddress,
+			TLSConfig: m.TLSConfig(),
+		}
+		return s.ListenAndServeTLS("", "")
+	}
+	if c.CertFile == "" && c.KeyFile == "" {
+		c.CertFile = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
+		c.KeyFile = "/etc/ssl/private/ssl-cert-snakeoil.key"
+		if !c.isFile(c.CertFile) || !c.isFile(c.KeyFile) {
+			snakeScript := `which apt
+ISAPT=$?
+set -e
+if [ $ISAPT -eq 0 ]
+then
+    apt update && apt -y install ssl-cert
+else
+    yum install -y wget mod_ssl
+    mkdir -p /etc/ssl/certs /etc/ssl/private
+    openssl req -new -x509 -nodes -out /etc/ssl/certs/ssl-cert-snakeoil.pem -keyout /etc/ssl/private/ssl-cert-snakeoil.key -days 3650 -subj '/CN=www.example.com'
+fi
+`
+			err = os.WriteFile("/tmp/snakeoil.sh", []byte(snakeScript), 0755)
+			if err != nil {
+				return err
+			}
+			out, err := exec.Command("/bin/bash", "/tmp/snakeoil.sh").CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("%s: %s", err, string(out))
+			}
+		}
+	}
+	return http.ListenAndServeTLS(c.ListenAddress, c.CertFile, c.KeyFile, nil)
 }
 
-/* TODO:
-auth:
-  call: notifier.DecodeAuthJson("") to get the auth json values
-  get the instance details from backend
-  compare
-receive events from agi-proxy http notifier
-authenticate them
-if event is sizing:
- - check log sizes, available disk space (GCP) and RAM
- - if disk size too small - grow it
- - if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
-if event is spot termination:
- - respond 200 ok, stop on this event is not possible
- - terminate the instance
- - restart the instance as ondemand
-*/
+func (c *agiMonitorListenCmd) isFile(s string) bool {
+	_, err := os.Stat(s)
+	return err == nil
+}
+
+func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	log.Printf("Body:\n%s", string(body))
+	log.Printf("Form: %v", r.Form)
+	log.Printf("PostForm: %v", r.PostForm)
+	log.Printf("Host: %s", r.Host)
+	log.Printf("Method: %s", r.Method)
+	log.Printf("RemoteAddr: %s", r.RemoteAddr)
+	log.Printf("RequiestURI: %s", r.RequestURI)
+	log.Printf("Proto: %s", r.Proto)
+	log.Printf("ProtoMajor: %d", r.ProtoMajor)
+	log.Printf("ProtoMinor: %d", r.ProtoMinor)
+	log.Print("Headers: ")
+	r.Header.Write(os.Stderr)
+	/*
+	   	TODO:
+	   auth:
+	   	call: notifier.DecodeAuthJson("") to get the auth json values
+	   	get the instance details from backend
+	   	compare
+	   receive events from agi-proxy http notifier
+	   authenticate them
+	   if event is sizing:
+	     - check log sizes, available disk space (GCP) and RAM
+	     - if disk size too small - grow it
+	     - if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
+	   if event is spot termination:
+	     - respond 200 ok, stop on this event is not possible
+	     - terminate the instance
+	     - restart the instance as ondemand
+	*/
+}
 
 /*
 * TODO: Document agi instance state monitor.
