@@ -1,55 +1,272 @@
 package main
 
+import (
+	"bytes"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"strings"
+
+	"golang.org/x/crypto/acme/autocert"
+	"gopkg.in/yaml.v3"
+)
+
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener"`
 	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it"`
 }
 
 type agiMonitorListenCmd struct {
-	ListenAddress   string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443"`                                 // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
-	UseTLS          bool     `long:"tls" description:"enable tls"`                                                                                                                      // enable TLS
-	AutoCertDomains []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
-	CertFile        string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed"`                                      // TLS: cert file (if not using autocert), default: snakeoil
-	KeyFile         string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed"`                                               // TLS: key file (if not using autocert), default: snakeoil
-	// TODO: configs for how to perform auto-sizing and auto-rotation for capacity (try another AZ, try another instance type, rotate to on-demand, what instance types to use for sizing, etc)
+	ListenAddress    string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443" yaml:"listenAddress"`                                   // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
+	NoTLS            bool     `long:"no-tls" description:"disable tls" yaml:"noTLS"`                                                                                                                            // enable TLS
+	AutoCertDomains  []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
+	AutoCertEmail    string   `long:"autocert-email" description:"TLS: if autocert is specified, specify a valid email address to use with letsencrypt"`
+	CertFile         string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile"`                                                 // TLS: cert file (if not using autocert), default: snakeoil
+	KeyFile          string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile"`                                                           // TLS: key file (if not using autocert), default: snakeoil
+	AWSSizingOptions string   `long:"aws-sizing" description:"specify instance types, comma-separated to use for sizing; same.auto means same family, auto increase the size" default:"same.auto" yaml:"awsSizing"` // if r6g.2xlarge, size above using r6g family
+	GCPSizingOptions string   `long:"gcp-sizing" description:"specify instance types, comma-separated to use for sizing; same.auto means same family, auto increase the size" default:"same.auto" yaml:"gcpSizing"` // if c2d-highmem-4, size above using c2d-highmem family
+	SizingNoDIMFirst bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes" yaml:"sizingOptionNoDIMFirst"`
+	DisableSizing    bool     `long:"sizing-disable" description:"Set to disable sizing of instances for more resources" yaml:"disableSizing"`
+	DisableCapacity  bool     `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand" yaml:"disableSpotCapacityRotation"`
 }
 
 type agiMonitorCreateCmd struct {
-	Name string
+	Name  string `short:"n" long:"name" description:"monitor client name" default:"agimonitor"`
+	Owner string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	agiMonitorListenCmd
-	// gcp: zone
-	// aws/gcp/docker specific switches, as few as possible, this is an embedded solution
+	Aws agiMonitorCreateCmdAws `no-flag:"true"`
+	Gcp agiMonitorCreateCmdGcp `no-flag:"true"`
 }
 
-// TODO: AUTH
-// call: notifier.DecodeAuthJson("") to get the auth json values
-// get the instance details from backend
-// compare
+type agiMonitorCreateCmdGcp struct {
+	InstanceType string   `long:"gcp-instance" description:"instance type to use" default:"e2-medium"`
+	Zone         string   `long:"zone" description:"zone name to deploy to"`
+	NamePrefix   []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+}
 
-/* TODO:
-receive events from agi-proxy http notifier
-authenticate them
-if event is sizing:
- - check log sizes, available disk space (GCP) and RAM
- - if disk size too small - grow it
- - if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
-if event is spot termination:
- - respond 200 ok, stop on this event is not possible
- - terminate the instance
- - restart the instance as ondemand or as different stop (different AZ, or type) as per configuration for "next in line" rotation - need to carry what we tried so far in a label/tag so we can try the "next step"
+type agiMonitorCreateCmdAws struct {
+	InstanceType    string   `long:"aws-instance" description:"instance type to use" default:"t3a.medium"`
+	SecurityGroupID string   `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
+	SubnetID        string   `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
+	NamePrefix      []string `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+}
 
-what we need:
-aerolab agi monitor create --listen 0.0.0.0:4433 --cert x.pem --key y.pem OR --autocert=domain.example.com // --autocert only if we can listen on 80, or otherwise error
-aerolab agi monitor run --listen 0.0.0.0:4433 --cert x.pem --key y.pem OR --autocert=domain.example.com // --autocert only if we can listen on 80, or otherwise error
+func init() {
+	addBackendSwitch("agi.monitor.create", "aws", &a.opts.AGI.Monitor.Create.Aws)
+	addBackendSwitch("agi.monitor.create", "gcp", &a.opts.AGI.Monitor.Create.Gcp)
+}
 
-first one creates a none client with aerolab inside and the required systemd file/docker autoload script
-second one actually runs the monitor
-*/
+func (c *agiMonitorCreateCmd) Execute(args []string) error {
+	if earlyProcessV2(args, true) {
+		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		return errors.New("this feature can only be deployed on GCP or AWS")
+	}
+	if len(c.AutoCertDomains) > 0 && c.AutoCertEmail == "" {
+		return errors.New("if autocert domains is in use, a valid email must be provided for letsencrypt registration")
+	}
+	log.Printf("Running agi.monitor.create")
+	agiConfigYaml, err := yaml.Marshal(c.agiMonitorListenCmd)
+	if err != nil {
+		return err
+	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		printPrice(c.Gcp.Zone, c.Gcp.InstanceType, 1, false)
+	} else if a.opts.Config.Backend.Type == "aws" {
+		printPrice("", c.Aws.InstanceType, 1, false)
+	}
+	log.Printf("Creating base instance")
+	a.opts.Client.Create.None.ClientCount = 1
+	a.opts.Client.Create.None.ClientName = TypeClientName(c.Name)
+	a.opts.Client.Create.None.DistroName = "ubuntu"
+	a.opts.Client.Create.None.DistroVersion = "latest"
+	a.opts.Client.Create.None.Owner = c.Owner
+	a.opts.Client.Create.None.Aws.SecurityGroupID = c.Aws.SecurityGroupID
+	a.opts.Client.Create.None.Aws.SubnetID = c.Aws.SubnetID
+	a.opts.Client.Create.None.Aws.InstanceType = c.Aws.InstanceType
+	a.opts.Client.Create.None.Aws.NamePrefix = c.Aws.NamePrefix
+	a.opts.Client.Create.None.Aws.Expires = 0
+	a.opts.Client.Create.None.Gcp.Expires = 0
+	a.opts.Client.Create.None.Aws.Ebs = "20"
+	a.opts.Client.Create.None.Gcp.Disks = []string{"pd-ssd:20"}
+	a.opts.Client.Create.None.Gcp.InstanceType = c.Gcp.InstanceType
+	a.opts.Client.Create.None.Gcp.NamePrefix = c.Gcp.NamePrefix
+	a.opts.Client.Create.None.Gcp.Zone = c.Gcp.Zone
+	_, err = a.opts.Client.Create.None.createBase(nil, "agimonitor")
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Installing aerolab")
+	a.opts.Cluster.Add.AeroLab.ClusterName = TypeClusterName(c.Name)
+	err = a.opts.Cluster.Add.AeroLab.run(true)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Installing config and systemd unit file")
+	b.WorkOnClients()
+	agiSystemd := `[Unit]
+Description=AeroLab AGI Monitor
+After=network.target
+
+[Service]
+Type=simple
+TimeoutStopSec=600
+Restart=on-failure
+User=root
+RestartSec=10
+ExecStartPre=/usr/local/bin/aerolab config backend -t none
+ExecStart=/usr/local/bin/aerolab agi monitor listen
+
+[Install]
+WantedBy=multi-user.target
+`
+	err = b.CopyFilesToClusterReader(c.Name, []fileListReader{{"/usr/lib/systemd/system/agimonitor.service", strings.NewReader(agiSystemd), len(agiSystemd)}, {"/etc/agimonitor.yaml", bytes.NewReader(agiConfigYaml), len(agiConfigYaml)}}, []int{1})
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Starting agimonitor")
+	out, err := b.RunCommands(c.Name, [][]string{{"systemctl", "enable", "--now", "agimonitor"}}, []int{1})
+	if err != nil {
+		return fmt.Errorf("%s: %s", err, string(out[0]))
+	}
+	return nil
+}
+
+func (c *agiMonitorListenCmd) Execute(args []string) error {
+	if earlyProcessNoBackend(args) {
+		return nil
+	}
+	log.Print("Starting agi-monitor")
+	err := os.MkdirAll("/var/lib/agimonitor", 0755)
+	if err != nil {
+		return err
+	}
+	err = os.Chdir("/var/lib/agimonitor")
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat("/etc/agimonitor.yaml"); err == nil {
+		data, err := os.ReadFile("/etc/agimonitor.yaml")
+		if err != nil {
+			return err
+		}
+		err = yaml.Unmarshal(data, c)
+		if err != nil {
+			return err
+		}
+	}
+	log.Print("Configuration:")
+	yaml.NewEncoder(os.Stderr).Encode(c)
+
+	if len(c.AutoCertDomains) > 0 && c.AutoCertEmail == "" {
+		return errors.New("if autocert domains is in use, a valid email must be provided for letsencrypt registration")
+	}
+	http.HandleFunc("/", c.handle)
+	if c.NoTLS {
+		log.Printf("Listening on %s", c.ListenAddress)
+		return http.ListenAndServe(c.ListenAddress, nil)
+	}
+	if _, err := os.Stat("autocert-cache"); err != nil {
+		err = os.Mkdir("autocert-cache", 0755)
+		if err != nil {
+			return err
+		}
+	}
+	if len(c.AutoCertDomains) > 0 {
+		m := &autocert.Manager{
+			Cache:      autocert.DirCache("autocert-cache"),
+			Prompt:     autocert.AcceptTOS,
+			Email:      c.AutoCertEmail,
+			HostPolicy: autocert.HostWhitelist(c.AutoCertDomains...),
+		}
+		s := &http.Server{
+			Addr:      c.ListenAddress,
+			TLSConfig: m.TLSConfig(),
+		}
+		log.Printf("Listening on %s", c.ListenAddress)
+		return s.ListenAndServeTLS("", "")
+	}
+	if c.CertFile == "" && c.KeyFile == "" {
+		c.CertFile = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
+		c.KeyFile = "/etc/ssl/private/ssl-cert-snakeoil.key"
+		if !c.isFile(c.CertFile) || !c.isFile(c.KeyFile) {
+			snakeScript := `which apt
+ISAPT=$?
+set -e
+if [ $ISAPT -eq 0 ]
+then
+    apt update && apt -y install ssl-cert
+else
+    yum install -y wget mod_ssl
+    mkdir -p /etc/ssl/certs /etc/ssl/private
+    openssl req -new -x509 -nodes -out /etc/ssl/certs/ssl-cert-snakeoil.pem -keyout /etc/ssl/private/ssl-cert-snakeoil.key -days 3650 -subj '/CN=www.example.com'
+fi
+`
+			err = os.WriteFile("/tmp/snakeoil.sh", []byte(snakeScript), 0755)
+			if err != nil {
+				return err
+			}
+			out, err := exec.Command("/bin/bash", "/tmp/snakeoil.sh").CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("%s: %s", err, string(out))
+			}
+		}
+	}
+	log.Printf("Listening on %s", c.ListenAddress)
+	return http.ListenAndServeTLS(c.ListenAddress, c.CertFile, c.KeyFile, nil)
+}
+
+func (c *agiMonitorListenCmd) isFile(s string) bool {
+	_, err := os.Stat(s)
+	return err == nil
+}
+
+func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	log.Printf("Body:\n%s", string(body))
+	log.Printf("Form: %v", r.Form)
+	log.Printf("PostForm: %v", r.PostForm)
+	log.Printf("Host: %s", r.Host)
+	log.Printf("Method: %s", r.Method)
+	log.Printf("RemoteAddr: %s", r.RemoteAddr)
+	log.Printf("RequiestURI: %s", r.RequestURI)
+	log.Printf("Proto: %s", r.Proto)
+	log.Printf("ProtoMajor: %d", r.ProtoMajor)
+	log.Printf("ProtoMinor: %d", r.ProtoMinor)
+	log.Print("Headers: ")
+	r.Header.Write(os.Stderr)
+	/*
+	   	TODO:
+	   auth:
+	   	call: notifier.DecodeAuthJson("") to get the auth json values
+	   	get the instance details from backend
+	   	compare
+	   receive events from agi-proxy http notifier
+	   authenticate them
+	   if event is sizing:
+	     - check log sizes, available disk space (GCP) and RAM
+	     - if disk size too small - grow it
+	     - if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
+	   if event is spot termination:
+	     - respond 200 ok, stop on this event is not possible
+	     - terminate the instance
+	     - restart the instance as ondemand
+	*/
+}
 
 /*
 * TODO: Document agi instance state monitor.
-  * `aerolab client create none -n agi-monitor; aerolab client configure aerolab -n agi-monitor; aerolab attach client -n agi-monitor --detach -- /usr/local/bin/aerolab agi monitor`
   * document what it's for: to run sizing for agi instances in AWS/GCP which use volume backing, and to cycle spot to on-demand if capacity becomes unavailable
   * document running monitor locally
   * document usage with AGI instances (need to specify `--monitor-url` and must have a backing volume)
 */
+
+/* TODO: agi create - have --with-monitor option which will either deploy a monitor if it doesn't exist, or use an existing one if it does automatically - this means we will need to carry listen port in a tag on agimonitor */

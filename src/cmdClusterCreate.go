@@ -175,9 +175,13 @@ func (c *clusterCreateCmd) preChDir() {
 	}
 }
 
-func printPrice(isArm bool, zone string, iType string, instances int, spot bool) {
+func printPrice(zone string, iType string, instances int, spot bool) {
+	printPriceDo(zone, iType, instances, spot, 0)
+}
+
+func printPriceDo(zone string, iType string, instances int, spot bool, iter int) {
 	price := float64(-1)
-	iTypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, isArm, zone)
+	iTypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, iter == 0, zone)
 	if err != nil {
 		log.Printf("Could not get instance pricing: %s", err)
 	} else {
@@ -197,6 +201,9 @@ func printPrice(isArm bool, zone string, iType string, instances int, spot bool)
 			priceH = strconv.FormatFloat(price, 'f', 4, 64)
 			priceD = strconv.FormatFloat(price*24, 'f', 2, 64)
 			priceM = strconv.FormatFloat(price*24*30.5, 'f', 2, 64)
+		} else if iter == 0 {
+			printPriceDo(zone, iType, instances, spot, 1)
+			return
 		}
 		log.Printf("Pre-tax cost for %d %s instances (does not include disk or network costs): $ %s/hour ; $ %s/day ; $ %s/month", instances, iType, priceH, priceD, priceM)
 	}
@@ -350,9 +357,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	iType := c.Aws.InstanceType
 	if a.opts.Config.Backend.Type == "gcp" {
 		iType = c.Gcp.InstanceType
-		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount, false)
+		printPrice(c.Gcp.Zone, iType, c.NodeCount, false)
 	} else if a.opts.Config.Backend.Type == "aws" {
-		printPrice(isArm, c.Gcp.Zone, iType, c.NodeCount, c.Aws.SpotInstance)
+		printPrice(c.Gcp.Zone, iType, c.NodeCount, c.Aws.SpotInstance)
 	}
 	if c.PriceOnly {
 		return nil
