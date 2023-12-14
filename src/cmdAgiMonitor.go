@@ -6,20 +6,40 @@ type agiMonitorCmd struct {
 }
 
 type agiMonitorListenCmd struct {
-	ListenAddress   string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443"`                                 // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
-	UseTLS          bool     `long:"tls" description:"enable tls"`                                                                                                                      // enable TLS
-	AutoCertDomains []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
-	CertFile        string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed"`                                      // TLS: cert file (if not using autocert), default: snakeoil
-	KeyFile         string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed"`                                               // TLS: key file (if not using autocert), default: snakeoil
-	// TODO: configs for how to perform auto-sizing and auto-rotation for capacity (try another AZ, try another instance type, rotate to on-demand, what instance types to use for sizing, etc)
+	ListenAddress    string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443"`                                           // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
+	UseTLS           bool     `long:"tls" description:"enable tls"`                                                                                                                                // enable TLS
+	AutoCertDomains  []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once"`           // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
+	CertFile         string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed"`                                                // TLS: cert file (if not using autocert), default: snakeoil
+	KeyFile          string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed"`                                                         // TLS: key file (if not using autocert), default: snakeoil
+	AWSSizingOptions string   `long:"aws-sizing" description:"specify instance types, comma-separated to use for sizing; same.auto means same family, auto increase the size" default:"same.auto"` // if r6g.2xlarge, size above using r6g family
+	GCPSizingOptions string   `long:"gcp-sizing" description:"specify instance types, comma-separated to use for sizing; same.auto means same family, auto increase the size" default:"same.auto"` // if c2d-highmem-4, size above using c2d-highmem family
+	SizingNoDIMFirst bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes"`
+	DisableSizing    bool     `long:"sizing-disable" description:"Set to disable sizing of instances for more resources"`
+	DisableCapacity  bool     `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand"`
 }
 
 type agiMonitorCreateCmd struct {
-	Name string
+	Name string `short:"n" long:"name" description:"monitor client name" default:"agimonitor"`
 	agiMonitorListenCmd
-	// gcp: zone
-	// aws/gcp/docker specific switches, as few as possible, this is an embedded solution
+	Aws agiMonitorCreateCmdAws `no-flag:"true"`
+	Gcp agiMonitorCreateCmdGcp `no-flag:"true"`
 }
+
+type agiMonitorCreateCmdGcp struct {
+	InstanceType string `long:"gcp-instance" description:"instance type to use" default:"e2-medium"`
+	Zone         string `long:"zone" description:"zone name to deploy to"`
+}
+
+type agiMonitorCreateCmdAws struct {
+	InstanceType string `long:"aws-instance" description:"instance type to use" default:"t3a.medium"`
+}
+
+func init() {
+	addBackendSwitch("agi.monitor.create", "aws", &a.opts.AGI.Monitor.Create.Aws)
+	addBackendSwitch("agi.monitor.create", "gcp", &a.opts.AGI.Monitor.Create.Gcp)
+}
+
+// TODO first code the Create function as that is easy - deploy self to client, install systemd and run self with correct switches
 
 // TODO: AUTH
 // call: notifier.DecodeAuthJson("") to get the auth json values
