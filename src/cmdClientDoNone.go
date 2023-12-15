@@ -23,8 +23,9 @@ type clientCreateNoneCmd struct {
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
 	osSelectorCmd
 	parallelThreadsCmd
-	PriceOnly bool   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
-	Owner     string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	instanceRole string
+	PriceOnly    bool   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Owner        string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 }
 
 func (c *clientCreateNoneCmd) isGrow() bool {
@@ -237,6 +238,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		publicIP:        c.Aws.PublicIP,
 		tags:            c.Aws.Tags,
 		clientType:      strings.ToLower(nt),
+		instanceRole:    c.instanceRole,
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra = &backendExtra{
@@ -247,6 +249,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			disks:        c.Gcp.Disks,
 			zone:         c.Gcp.Zone,
 			labels:       c.Gcp.Labels,
+			instanceRole: c.instanceRole,
 			clientType:   strings.ToLower(nt),
 		}
 	}

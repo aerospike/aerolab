@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,14 +11,20 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/aerospike/aerolab/ingest"
+	"github.com/aerospike/aerolab/notifier"
+	"github.com/bestmethod/inslice"
+	"github.com/lithammer/shortuuid"
 	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v3"
 )
 
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener"`
-	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it"`
+	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands"`
 }
 
 type agiMonitorListenCmd struct {
@@ -32,6 +39,9 @@ type agiMonitorListenCmd struct {
 	SizingNoDIMFirst bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes" yaml:"sizingOptionNoDIMFirst"`
 	DisableSizing    bool     `long:"sizing-disable" description:"Set to disable sizing of instances for more resources" yaml:"disableSizing"`
 	DisableCapacity  bool     `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand" yaml:"disableSpotCapacityRotation"`
+	invCache         inventoryJson
+	invCacheTimeout  time.Time
+	invLock          *sync.Mutex
 }
 
 type agiMonitorCreateCmd struct {
@@ -46,6 +56,7 @@ type agiMonitorCreateCmdGcp struct {
 	InstanceType string   `long:"gcp-instance" description:"instance type to use" default:"e2-medium"`
 	Zone         string   `long:"zone" description:"zone name to deploy to"`
 	NamePrefix   []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	InstanceRole string   `hidden:"true" long:"gcp-role" description:"instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
 }
 
 type agiMonitorCreateCmdAws struct {
@@ -53,6 +64,7 @@ type agiMonitorCreateCmdAws struct {
 	SecurityGroupID string   `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID        string   `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
 	NamePrefix      []string `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+	InstanceRole    string   `long:"aws-role" description:"instance role to assign to the instance; the role must allow at least EC2 and EFS access; and must be manually precreated" default:"agimonitor"`
 }
 
 func init() {
@@ -64,6 +76,10 @@ func (c *agiMonitorCreateCmd) Execute(args []string) error {
 	if earlyProcessV2(args, true) {
 		return nil
 	}
+	return c.create(args)
+}
+
+func (c *agiMonitorCreateCmd) create(args []string) error {
 	if a.opts.Config.Backend.Type == "docker" {
 		return errors.New("this feature can only be deployed on GCP or AWS")
 	}
@@ -91,6 +107,10 @@ func (c *agiMonitorCreateCmd) Execute(args []string) error {
 	a.opts.Client.Create.None.Aws.InstanceType = c.Aws.InstanceType
 	a.opts.Client.Create.None.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Client.Create.None.Aws.Expires = 0
+	a.opts.Client.Create.None.instanceRole = c.Aws.InstanceRole
+	if a.opts.Config.Backend.Type == "gcp" {
+		a.opts.Client.Create.None.instanceRole = c.Gcp.InstanceRole
+	}
 	a.opts.Client.Create.None.Gcp.Expires = 0
 	a.opts.Client.Create.None.Aws.Ebs = "20"
 	a.opts.Client.Create.None.Gcp.Disks = []string{"pd-ssd:20"}
@@ -121,12 +141,13 @@ TimeoutStopSec=600
 Restart=on-failure
 User=root
 RestartSec=10
-ExecStartPre=/usr/local/bin/aerolab config backend -t none
+ExecStartPre=/usr/local/bin/aerolab config backend -t %s -r %s -o %s
 ExecStart=/usr/local/bin/aerolab agi monitor listen
 
 [Install]
 WantedBy=multi-user.target
 `
+	agiSystemd = fmt.Sprintf(agiSystemd, a.opts.Config.Backend.Type, a.opts.Config.Backend.Region, a.opts.Config.Backend.Project)
 	err = b.CopyFilesToClusterReader(c.Name, []fileListReader{{"/usr/lib/systemd/system/agimonitor.service", strings.NewReader(agiSystemd), len(agiSystemd)}, {"/etc/agimonitor.yaml", bytes.NewReader(agiConfigYaml), len(agiConfigYaml)}}, []int{1})
 	if err != nil {
 		return err
@@ -141,7 +162,7 @@ WantedBy=multi-user.target
 }
 
 func (c *agiMonitorListenCmd) Execute(args []string) error {
-	if earlyProcessNoBackend(args) {
+	if earlyProcess(args) {
 		return nil
 	}
 	log.Print("Starting agi-monitor")
@@ -165,13 +186,13 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	}
 	log.Print("Configuration:")
 	yaml.NewEncoder(os.Stderr).Encode(c)
-
+	c.invLock = new(sync.Mutex)
 	if len(c.AutoCertDomains) > 0 && c.AutoCertEmail == "" {
 		return errors.New("if autocert domains is in use, a valid email must be provided for letsencrypt registration")
 	}
 	http.HandleFunc("/", c.handle)
 	if c.NoTLS {
-		log.Printf("Listening on %s", c.ListenAddress)
+		log.Printf("Listening on http://%s", c.ListenAddress)
 		return http.ListenAndServe(c.ListenAddress, nil)
 	}
 	if _, err := os.Stat("autocert-cache"); err != nil {
@@ -191,7 +212,7 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 			Addr:      c.ListenAddress,
 			TLSConfig: m.TLSConfig(),
 		}
-		log.Printf("Listening on %s", c.ListenAddress)
+		log.Printf("Listening on https://%s", c.ListenAddress)
 		return s.ListenAndServeTLS("", "")
 	}
 	if c.CertFile == "" && c.KeyFile == "" {
@@ -220,7 +241,7 @@ fi
 			}
 		}
 	}
-	log.Printf("Listening on %s", c.ListenAddress)
+	log.Printf("Listening on https://%s", c.ListenAddress)
 	return http.ListenAndServeTLS(c.ListenAddress, c.CertFile, c.KeyFile, nil)
 }
 
@@ -229,44 +250,140 @@ func (c *agiMonitorListenCmd) isFile(s string) bool {
 	return err == nil
 }
 
-func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
-	log.Printf("Body:\n%s", string(body))
-	log.Printf("Form: %v", r.Form)
-	log.Printf("PostForm: %v", r.PostForm)
-	log.Printf("Host: %s", r.Host)
-	log.Printf("Method: %s", r.Method)
-	log.Printf("RemoteAddr: %s", r.RemoteAddr)
-	log.Printf("RequiestURI: %s", r.RequestURI)
-	log.Printf("Proto: %s", r.Proto)
-	log.Printf("ProtoMajor: %d", r.ProtoMajor)
-	log.Printf("ProtoMinor: %d", r.ProtoMinor)
-	log.Print("Headers: ")
-	r.Header.Write(os.Stderr)
-	/*
-	   	TODO:
-	   auth:
-	   	call: notifier.DecodeAuthJson("") to get the auth json values
-	   	get the instance details from backend
-	   	compare
-	   receive events from agi-proxy http notifier
-	   authenticate them
-	   if event is sizing:
-	     - check log sizes, available disk space (GCP) and RAM
-	     - if disk size too small - grow it
-	     - if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
-	   if event is spot termination:
-	     - respond 200 ok, stop on this event is not possible
-	     - terminate the instance
-	     - restart the instance as ondemand
-	*/
+func (c *agiMonitorListenCmd) respond(w http.ResponseWriter, r *http.Request, uuid string, code int, value string, logmsg string) {
+	log.Printf("tid:%s remoteAddr:%s requestUri:%s method:%s returnCode:%d log:%s", uuid, r.RemoteAddr, r.RequestURI, r.Method, code, logmsg)
+	if code > 299 || code < 200 {
+		http.Error(w, value, code)
+	} else {
+		w.WriteHeader(code)
+		w.Write([]byte(value))
+	}
 }
 
-/*
-* TODO: Document agi instance state monitor.
-  * document what it's for: to run sizing for agi instances in AWS/GCP which use volume backing, and to cycle spot to on-demand if capacity becomes unavailable
-  * document running monitor locally
-  * document usage with AGI instances (need to specify `--monitor-url` and must have a backing volume)
-*/
+func (c *agiMonitorListenCmd) inventory(forceRefresh bool) inventoryJson {
+	c.invLock.Lock()
+	defer c.invLock.Unlock()
+	if forceRefresh || c.invCacheTimeout.Before(time.Now()) {
+		inv, err := b.Inventory("", []int{InventoryItemAGI, InventoryItemClusters, InventoryItemVolumes})
+		if err == nil {
+			c.invCache = inv
+			c.invCacheTimeout = time.Now().Add(10 * time.Second)
+		} else {
+			log.Printf("WARNING: INVENTORY CACHE: %s", err)
+		}
+	}
+	return c.invCache
+}
 
-/* TODO: agi create - have --with-monitor option which will either deploy a monitor if it doesn't exist, or use an existing one if it does automatically - this means we will need to carry listen port in a tag on agimonitor */
+func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
+	uuid := shortuuid.New()
+	authHeader := r.Header.Get("Agi-Monitor-Auth")
+	if authHeader == "" {
+		c.respond(w, r, uuid, 401, "auth header missing", "auth header missing")
+		return
+	}
+	authObj, err := notifier.DecodeAuthJson(authHeader)
+	if err != nil {
+		c.respond(w, r, uuid, 401, "auth header invalid json", "auth header invalid json: "+err.Error())
+		log.Print(authHeader)
+		return
+	}
+	inv := c.inventory(false)
+	found := false
+	var cluster inventoryCluster
+	for _, cl := range inv.Clusters {
+		if cl.InstanceId != authObj.InstanceId {
+			continue
+		}
+		cluster = cl
+		found = true
+	}
+
+	if !found {
+		inv = c.inventory(true)
+		for _, cl := range inv.Clusters {
+			if cl.InstanceId != authObj.InstanceId {
+				continue
+			}
+			cluster = cl
+			found = true
+		}
+	}
+
+	var logJson struct {
+		Cluster inventoryCluster
+		AuthObj *notifier.AgiMonitorAuth
+	}
+	logJson.Cluster = cluster
+	logJson.AuthObj = authObj
+	v, _ := json.Marshal(logJson)
+	if !found {
+		c.respond(w, r, uuid, 401, "auth: instance not found", "auth: instance not found: "+string(v))
+		return
+	}
+	if a.opts.Config.Backend.Type == "aws" && authObj.ImageId != cluster.ImageId {
+		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:1 incorrect: "+string(v))
+		return
+	} else if a.opts.Config.Backend.Type == "gcp" && !strings.HasSuffix(cluster.ImageId, "/"+authObj.ImageId) {
+		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:1 incorrect: "+string(v))
+		return
+	}
+	if authObj.PrivateIp != cluster.PrivateIp {
+		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:2 incorrect: "+string(v))
+		return
+	}
+	if !strings.HasPrefix(authObj.AvailabilityZoneName, cluster.Zone) {
+		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:3 incorrect: "+string(v))
+		return
+	}
+	sgMatch := true
+	for _, sg := range cluster.Firewalls {
+		if inslice.HasString(authObj.SecurityGroups, sg) {
+			continue
+		}
+		sgMatch = false
+	}
+	if !sgMatch {
+		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:4 incorrect: "+string(v))
+		return
+	}
+	if a.opts.Config.Backend.Type == "gcp" {
+		clt := strings.Split(cluster.InstanceType, "/")
+		cluster.InstanceType = clt[len(clt)-1]
+	}
+	if authObj.InstanceType != cluster.InstanceType {
+		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:5 incorrect: "+string(v))
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		c.respond(w, r, uuid, 400, "message body read error", "io.ReadAll(r.Body):"+err.Error())
+		return
+	}
+	event := &ingest.NotifyEvent{}
+	err = json.Unmarshal(body, event)
+	if err != nil {
+		c.respond(w, r, uuid, 400, "message json malformed", "json.Unmarshal(body):"+err.Error())
+		return
+	}
+
+	// TODO: document agi instance state monitor - what it's for and usage (create/listen/agi --with-monitor, url autofill, letsencrypt, etc)
+	// TODO: implement AgiEventResourceMonitor on agi side - do not send to slack, send to web/monitor only; run only from AgiEventInitComplete until INGEST_FINISHED is reached
+	// TODO: it would appear that the events do not show the file sizes too well (eg PreProcess Complete does not show log sizes, only ProcessComplete does, by that time it's too late)
+	//       * we need comprehensive log sizes everywhere on each notification, preferably with disk usage stats, ram usage etc.
+	// TODO: handle event
+	switch event.Event {
+	case AgiEventSpotNoCapacity:
+		//- respond 200 ok or 418 teapot, stop on this event is not possible
+		//- terminate the instance
+		//- restart the instance as ondemand
+	case AgiEventInitComplete, AgiEventDownloadComplete, AgiEventUnpackComplete, AgiEventPreProcessComplete, AgiEventResourceMonitor, AgiEventServiceDown:
+		//- check log sizes, available disk space (GCP) and RAM
+		//- if disk size too small - grow it
+		//- if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
+		//- if we grew instances already and are out of options, disable DIM
+		//- allow config option to set max limit for instance growth in size
+		//- respond with 418 when we are wanting processing to stop
+	}
+}

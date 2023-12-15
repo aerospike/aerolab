@@ -1323,12 +1323,40 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								meta[metaItem.GetKey()] = metaItem.GetValue()
 							}
 						}
+						srcimg := ""
+						for _, dd := range instance.Disks {
+							if dd.GetBoot() {
+								srcimg, err = func() (string, error) {
+									clt := strings.Split(*dd.Source, "/")
+									clz := strings.Split(*instance.Zone, "/")
+									ctx := context.Background()
+									client, err := compute.NewDisksRESTClient(ctx)
+									if err != nil {
+										return "", fmt.Errorf("NewDisksRESTClient: %w", err)
+									}
+									defer client.Close()
+									disk, err := client.Get(ctx, &computepb.GetDiskRequest{
+										Project: a.opts.Config.Backend.Project,
+										Zone:    clz[len(clz)-1],
+										Disk:    clt[len(clt)-1],
+									})
+									if err != nil {
+										return "", err
+									}
+									return *disk.SourceImage, nil
+								}()
+								if err != nil {
+									log.Printf("WARN: could not get boot disk information: %s", err)
+								}
+								break
+							}
+						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
 								ClusterName:            instance.Labels[gcpTagClusterName],
 								NodeNo:                 instance.Labels[gcpTagNodeNumber],
 								InstanceId:             *instance.Name,
-								ImageId:                instance.GetSourceMachineImage(),
+								ImageId:                srcimg,
 								State:                  *instance.Status,
 								Arch:                   sysArch,
 								Distribution:           instance.Labels[gcpTagOperatingSystem],
@@ -1347,13 +1375,15 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								gcpMeta:                meta,
 								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
 								Features:               FeatureSystem(features),
+								InstanceType:           *instance.MachineType,
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
+								InstanceType:           *instance.MachineType,
 								ClientName:             instance.Labels[gcpTagClusterName],
 								NodeNo:                 instance.Labels[gcpTagNodeNumber],
 								InstanceId:             *instance.Name,
-								ImageId:                instance.GetSourceMachineImage(),
+								ImageId:                srcimg,
 								State:                  *instance.Status,
 								Arch:                   sysArch,
 								Distribution:           instance.Labels[gcpTagOperatingSystem],
@@ -3394,7 +3424,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		provisioning = "SPOT"
 	}
 	var serviceAccounts []*computepb.ServiceAccount
-	if extra.terminateOnPoweroff {
+	if extra.terminateOnPoweroff || extra.instanceRole != "" {
 		serviceAccounts = []*computepb.ServiceAccount{
 			{
 				Scopes: []string{

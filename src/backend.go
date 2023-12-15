@@ -35,6 +35,7 @@ type backendExtra struct {
 	ebs                 string    // aws only
 	terminateOnPoweroff bool      // aws only
 	spotInstance        bool      // aws only
+	instanceRole        string    // aws only
 	instanceType        string    // aws/gcp only
 	ami                 string    // aws/gcp only
 	publicIP            bool      // aws/gcp only
@@ -263,6 +264,7 @@ type inventoryCluster struct {
 	AccessUrl              string
 	Features               FeatureSystem
 	AGILabel               string
+	InstanceType           string
 	gcpLabelFingerprint    string
 	gcpLabels              map[string]string
 	gcpMetadataFingerprint string
@@ -318,6 +320,7 @@ type inventoryClient struct {
 	DockerExposePorts      string
 	DockerInternalPort     string
 	Expires                string
+	InstanceType           string
 	gcpLabelFingerprint    string
 	gcpLabels              map[string]string
 	gcpMeta                map[string]string
