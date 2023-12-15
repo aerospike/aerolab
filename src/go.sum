@@ -104,6 +104,8 @@ github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
+github.com/lithammer/shortuuid v3.0.0+incompatible h1:NcD0xWW/MZYXEHa6ITy6kaXN5nwm/V115vj2YXfhS0w=
+github.com/lithammer/shortuuid v3.0.0+incompatible/go.mod h1:FR74pbAuElzOUuenUHTK2Tciko1/vKuIKS9dSkDrA4w=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mattn/go-runewidth v0.0.9/go.mod h1:H031xJmbD/WCDINGzjvQ9THkh0rPKHF+m2gUSrubnMI=
@@ -142,8 +144,6 @@ github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744 h1:HyBW093bA2fLY
 github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744/go.mod h1:CS128EIeoFCR4HBOwZDqzicTdDDcwzAWSqPUof2r8vI=
 github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible h1:YetOOw5mSL6xmwbF5GMcmvMbpthp03tmGLx3U/ke/YA=
 github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible/go.mod h1:yWO03+fWZps+sVPozmNXFoq1v+V3xIGOd8m2WU9Vm70=
-github.com/rglonek/sbs v1.0.0 h1:CU15j5+gcBE6Oee0P7ldp7WHBVvUszNy83tPX8v92Lk=
-github.com/rglonek/sbs v1.0.0/go.mod h1:abz3p7k2s1/vpiP6QOrOoKapqTzc8e9h+Ofza0aKDhU=
 github.com/rglonek/sbs v1.0.1 h1:zwdzaMs6J8n9UXOcnFFjnacrBk13EJ13HxQzEDMmMko=
 github.com/rglonek/sbs v1.0.1/go.mod h1:B07E+15yeDM/eT1AN9T83+TztA6AdE/o0GrKINe8pqU=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=

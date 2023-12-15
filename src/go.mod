@@ -17,6 +17,7 @@ require (
 	github.com/google/uuid v1.4.0
 	github.com/jedib0t/go-pretty/v6 v6.4.9
 	github.com/jroimartin/gocui v0.5.0
+	github.com/lithammer/shortuuid v3.0.0+incompatible
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mitchellh/go-ps v1.0.0
 	github.com/nwaples/rardecode v1.1.3
