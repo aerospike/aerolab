@@ -2,6 +2,7 @@ set -e
 override=%s
 mkdir -p /opt/agi/aerospike/data
 mkdir -p /opt/agi/aerospike/smd
+uuidgen -r > /opt/agi/uuid
 [ "%t" = "true" ] && touch /opt/agi/nodim || echo "DIM"
 cat <<'EOF' > /opt/agi/owner
 %s
