@@ -131,7 +131,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		return errors.New("AGI monitor can only be enabled for instances with EFS storage enabled (use --aws-with-efs)")
 	}
 	if (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "gcp" && !c.Gcp.WithVol {
-		return errors.New("AGI monitor can only be enabled for instances with EFS storage enabled (use --gcp-with-vol)")
+		return errors.New("AGI monitor can only be enabled for instances with extra Volume storage enabled (use --gcp-with-vol)")
 	}
 	if c.WithAGIMonitorAuto {
 		b.WorkOnClients()
