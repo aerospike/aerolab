@@ -26,6 +26,13 @@ import (
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener"`
 	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands"`
+	Help   helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiMonitorCmd) Execute(args []string) error {
+	c.Help.Execute(args)
+	os.Exit(1)
+	return nil
 }
 
 type agiMonitorListenCmd struct {
@@ -43,14 +50,16 @@ type agiMonitorListenCmd struct {
 	invCache         inventoryJson
 	invCacheTimeout  time.Time
 	invLock          *sync.Mutex
+	Help             helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type agiMonitorCreateCmd struct {
 	Name  string `short:"n" long:"name" description:"monitor client name" default:"agimonitor"`
 	Owner string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	agiMonitorListenCmd
-	Aws agiMonitorCreateCmdAws `no-flag:"true"`
-	Gcp agiMonitorCreateCmdGcp `no-flag:"true"`
+	Aws  agiMonitorCreateCmdAws `no-flag:"true"`
+	Gcp  agiMonitorCreateCmdGcp `no-flag:"true"`
+	Help helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type agiMonitorCreateCmdGcp struct {
@@ -421,7 +430,6 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: document agi instance state monitor - what it's for and usage (create/listen/agi --with-monitor, url autofill, letsencrypt, etc)
 	// TODO: implement AgiEventResourceMonitor on agi side - do not send to slack, send to web/monitor only; run only from AgiEventInitComplete until INGEST_FINISHED is reached
 	// TODO: it would appear that the events do not show the file sizes too well (eg PreProcess Complete does not show log sizes, only ProcessComplete does, by that time it's too late)
 	//       * we need comprehensive log sizes everywhere on each notification, preferably with disk usage stats, ram usage etc.

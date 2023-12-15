@@ -26,6 +26,10 @@ See [this page](efs.md) for usage with persistent elastic volumes for data stora
 
 See [this page](notify.md) for usage with notification support.
 
+## AGI Monitor
+
+See [this page](monitor/README.md) for usage with AGI monitor support.
+
 ## Examples
 
 See [this page](example.md) for usage examples.
