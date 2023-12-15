@@ -239,6 +239,7 @@ const (
 	AgiEventMaxAge             = "MAX_AGE_REACHED"
 	AgiEventMaxInactive        = "MAX_INACTIVITY_REACHED"
 	AgiEventSpotNoCapacity     = "SPOT_INSTANCE_CAPACITY_SHUTDOWN"
+	AgiEventResourceMonitor    = "SYS_RESOURCE_USAGE_MONITOR"
 )
 
 func (c *agiExecIngestCmd) run(args []string) error {

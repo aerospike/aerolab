@@ -367,25 +367,23 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 		c.respond(w, r, uuid, 400, "message json malformed", "json.Unmarshal(body):"+err.Error())
 		return
 	}
+
+	// TODO: document agi instance state monitor - what it's for and usage (create/listen/agi --with-monitor, url autofill, letsencrypt, etc)
+	// TODO: implement AgiEventResourceMonitor on agi side - do not send to slack, send to web/monitor only; run only from AgiEventInitComplete until INGEST_FINISHED is reached
+	// TODO: it would appear that the events do not show the file sizes too well (eg PreProcess Complete does not show log sizes, only ProcessComplete does, by that time it's too late)
+	//       * we need comprehensive log sizes everywhere on each notification, preferably with disk usage stats, ram usage etc.
 	// TODO: handle event
-	enc := json.NewEncoder(os.Stderr)
-	enc.SetIndent(uuid+"    ", "    ")
-	enc.Encode(event)
-
-	/*
-	   if event is sizing:
-	     - check log sizes, available disk space (GCP) and RAM
-	     - if disk size too small - grow it
-	     - if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
-	   if event is spot termination:
-	     - respond 200 ok, stop on this event is not possible
-	     - terminate the instance
-	     - restart the instance as ondemand
-	   no-continue pause returnCode: 418 (teapot)
-	*/
+	switch event.Event {
+	case AgiEventSpotNoCapacity:
+		//- respond 200 ok or 418 teapot, stop on this event is not possible
+		//- terminate the instance
+		//- restart the instance as ondemand
+	case AgiEventInitComplete, AgiEventDownloadComplete, AgiEventUnpackComplete, AgiEventPreProcessComplete, AgiEventResourceMonitor, AgiEventServiceDown:
+		//- check log sizes, available disk space (GCP) and RAM
+		//- if disk size too small - grow it
+		//- if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
+		//- if we grew instances already and are out of options, disable DIM
+		//- allow config option to set max limit for instance growth in size
+		//- respond with 418 when we are wanting processing to stop
+	}
 }
-
-/* TODO:
-1. actually handle the events
-2. document agi instance state monitor - what it's for and usage (create/listen/agi --with-monitor, url autofill, letsencrypt, etc)
-*/
