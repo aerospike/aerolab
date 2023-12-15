@@ -1189,9 +1189,11 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							awsSubnet:           aws.StringValue(instance.SubnetId),
 							awsSecGroups:        secGroups,
 							AwsIsSpot:           isSpot,
+							InstanceType:        *instance.InstanceType,
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
+							InstanceType:        *instance.InstanceType,
 							ClientName:          clusterName,
 							NodeNo:              nodeNo,
 							PublicIp:            publicIp,
@@ -2872,6 +2874,11 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 				input.InstanceMarketOptions.SpotOptions.SpotInstanceType = aws.String(ec2.SpotInstanceTypeOneTime)
 			}
 			input.InstanceInitiatedShutdownBehavior = aws.String(ec2.ShutdownBehaviorTerminate)
+		}
+		if extra.instanceRole != "" {
+			input.IamInstanceProfile = &ec2.IamInstanceProfileSpecification{
+				Name: aws.String(extra.instanceRole),
+			}
 		}
 		reservationsX, err := d.ec2svc.RunInstances(&input)
 		if err != nil {

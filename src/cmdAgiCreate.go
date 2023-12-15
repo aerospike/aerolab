@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -59,6 +60,7 @@ type agiCreateCmd struct {
 	NoConfigOverride bool            `long:"no-config-override" description:"if set, existing configuration will not be overridden; useful when restarting EFS-based AGIs"`
 	NoToolsOverride  bool            `long:"no-tools-override" description:"by default agi will install the latest tools package; set this to disable tools package upgrade"`
 	notifier.HTTPSNotify
+	WithAGIMonitorAuto      bool                 `long:"with-monitor" description:"if set, system will look for agimonitor client; if not present, one will be created; will also auto-fill the monitor URL"`
 	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
 	Distro                  TypeDistro           `short:"d" long:"distro" description:"Custom distro" default:"ubuntu"`
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
@@ -121,6 +123,47 @@ func init() {
 func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" && (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") {
+		return errors.New("AGI monitor is not supported on docker; sizing would not be possible either way")
+	}
+	if (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "aws" && !c.Aws.WithEFS {
+		return errors.New("AGI monitor can only be enabled for instances with EFS storage enabled (use --aws-with-efs)")
+	}
+	if (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "gcp" && !c.Gcp.WithVol {
+		return errors.New("AGI monitor can only be enabled for instances with EFS storage enabled (use --gcp-with-vol)")
+	}
+	if c.WithAGIMonitorAuto {
+		b.WorkOnClients()
+		clients, err := b.ClusterList()
+		if err != nil {
+			return err
+		}
+		if !inslice.HasString(clients, a.opts.AGI.Monitor.Create.Name) {
+			a.opts.AGI.Monitor.Create.Owner = c.Owner
+			a.opts.AGI.Monitor.Create.Aws.NamePrefix = c.Aws.NamePrefix
+			a.opts.AGI.Monitor.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
+			a.opts.AGI.Monitor.Create.Aws.SubnetID = c.Aws.SubnetID
+			a.opts.AGI.Monitor.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
+			a.opts.AGI.Monitor.Create.Gcp.Zone = c.Gcp.Zone
+			err := a.opts.AGI.Monitor.Create.create(nil)
+			if err != nil {
+				return err
+			}
+		}
+		ips, err := b.GetNodeIpMap(a.opts.AGI.Monitor.Create.Name, true)
+		if err != nil {
+			return err
+		}
+		if len(ips) == 0 {
+			return errors.New("could not get private IP of AGI monitor client, ensure it is running")
+		}
+		if nip, ok := ips[1]; !ok || nip == "" {
+			return errors.New("could not resolve private IP of AGI monitor client, ensure it is running")
+		}
+		c.AGIMonitorUrl = "https://" + ips[1]
+		c.AGIMonitorCertIgnore = true
+		b.WorkOnServers()
 	}
 	var tfrom, tto time.Time
 	var err error
