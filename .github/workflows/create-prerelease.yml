@@ -37,8 +37,8 @@ jobs:
                 cd ~/work/aerolab/aerolab/Formula && /usr/local/bin/brew install --formula ./rpm.rb
             - name: "Install golang"
               run: |
-                wget https://go.dev/dl/go1.21.3.darwin-amd64.pkg
-                sudo installer -store -pkg go1.21.3.darwin-amd64.pkg -target /
+                wget https://go.dev/dl/go1.21.5.darwin-amd64.pkg
+                sudo installer -store -pkg go1.21.5.darwin-amd64.pkg -target /
             - name: "Install Packages.pkg for making macos PKG files"
               run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target /
             - name: "Compile"
