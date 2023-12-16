@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -25,6 +26,13 @@ import (
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener"`
 	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands"`
+	Help   helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *agiMonitorCmd) Execute(args []string) error {
+	c.Help.Execute(args)
+	os.Exit(1)
+	return nil
 }
 
 type agiMonitorListenCmd struct {
@@ -42,14 +50,16 @@ type agiMonitorListenCmd struct {
 	invCache         inventoryJson
 	invCacheTimeout  time.Time
 	invLock          *sync.Mutex
+	Help             helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type agiMonitorCreateCmd struct {
 	Name  string `short:"n" long:"name" description:"monitor client name" default:"agimonitor"`
 	Owner string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	agiMonitorListenCmd
-	Aws agiMonitorCreateCmdAws `no-flag:"true"`
-	Gcp agiMonitorCreateCmdGcp `no-flag:"true"`
+	Aws  agiMonitorCreateCmdAws `no-flag:"true"`
+	Gcp  agiMonitorCreateCmdGcp `no-flag:"true"`
+	Help helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type agiMonitorCreateCmdGcp struct {
@@ -275,6 +285,44 @@ func (c *agiMonitorListenCmd) inventory(forceRefresh bool) inventoryJson {
 	return c.invCache
 }
 
+func (c *agiMonitorListenCmd) challengeCallback(ip string, secret string) (confirmed bool, err error) {
+	ret, err := c.challengeCallbackDo("https", ip, secret)
+	if err != nil {
+		ret, err = c.challengeCallbackDo("http", ip, secret)
+	}
+	return ret, err
+}
+
+func (c *agiMonitorListenCmd) challengeCallbackDo(prot string, ip string, secret string) (confirmed bool, err error) {
+	req, err := http.NewRequest(http.MethodGet, prot+"://"+ip+"/agi/monitor-challenge", nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("Agi-Monitor-Secret", secret)
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   10 * time.Second,
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Timeout:   10 * time.Second,
+		Transport: tr,
+	}
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTeapot {
+		return false, nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return false, fmt.Errorf("wrong error code: %d", resp.StatusCode)
+	}
+	return true, nil
+}
+
 func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 	uuid := shortuuid.New()
 	authHeader := r.Header.Get("Agi-Monitor-Auth")
@@ -356,6 +404,20 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	reqIp := strings.Split(r.RemoteAddr, ":")[0]
+	if !inslice.HasString([]string{cluster.PrivateIp, cluster.PublicIp}, reqIp) {
+		c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:6 incorrect: request IP does not match (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
+		return
+	}
+	secretChallenge := r.Header.Get("Agi-Monitor-Secret")
+	var callbackFailure error
+	if accepted, err := c.challengeCallback(reqIp, secretChallenge); err != nil {
+		callbackFailure = err
+	} else if !accepted {
+		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: challenge callback not accepted")
+		return
+	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		c.respond(w, r, uuid, 400, "message body read error", "io.ReadAll(r.Body):"+err.Error())
@@ -368,17 +430,23 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: document agi instance state monitor - what it's for and usage (create/listen/agi --with-monitor, url autofill, letsencrypt, etc)
 	// TODO: implement AgiEventResourceMonitor on agi side - do not send to slack, send to web/monitor only; run only from AgiEventInitComplete until INGEST_FINISHED is reached
 	// TODO: it would appear that the events do not show the file sizes too well (eg PreProcess Complete does not show log sizes, only ProcessComplete does, by that time it's too late)
 	//       * we need comprehensive log sizes everywhere on each notification, preferably with disk usage stats, ram usage etc.
 	// TODO: handle event
+	ret, _ := json.MarshalIndent(event, "", "    ") // todo remove
+	log.Print(string(ret))                          // todo remove
 	switch event.Event {
 	case AgiEventSpotNoCapacity:
+		//- this is the only event on which we ignore callback failure, as we could have been simply too late
 		//- respond 200 ok or 418 teapot, stop on this event is not possible
 		//- terminate the instance
 		//- restart the instance as ondemand
 	case AgiEventInitComplete, AgiEventDownloadComplete, AgiEventUnpackComplete, AgiEventPreProcessComplete, AgiEventResourceMonitor, AgiEventServiceDown:
+		if callbackFailure != nil {
+			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+err.Error())
+			return
+		}
 		//- check log sizes, available disk space (GCP) and RAM
 		//- if disk size too small - grow it
 		//- if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)

@@ -280,6 +280,7 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		go c.maxUptime()
 	}
 	go c.loadTokens()
+	http.HandleFunc("/agi/monitor-challenge", c.secretValidate)
 	http.HandleFunc("/agi/ttyd", c.ttydHandler)                 // web console tty
 	http.HandleFunc("/agi/ttyd/", c.ttydHandler)                // web console tty
 	http.HandleFunc("/agi/filebrowser", c.fbHandler)            // file browser
@@ -312,6 +313,20 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	} else {
 		return nil
 	}
+}
+
+func (c *agiExecProxyCmd) secretValidate(w http.ResponseWriter, r *http.Request) {
+	secret, err := os.ReadFile("/opt/agi/uuid")
+	if err != nil {
+		http.Error(w, "NO-SECRET", http.StatusInternalServerError)
+		return
+	}
+	challenge := r.Header.Get("Agi-Monitor-Secret")
+	if challenge != strings.Trim(string(secret), "\r\n\t ") {
+		http.Error(w, "wrong", http.StatusTeapot)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {

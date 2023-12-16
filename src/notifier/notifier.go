@@ -10,12 +10,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/aerospike/aerolab/slack"
 	"github.com/bestmethod/inslice"
+	"github.com/google/uuid"
 )
 
 type HTTPSNotify struct {
@@ -185,11 +187,11 @@ func (h *HTTPSNotify) notifyAgi(data []byte) error {
 
 	tr := &http.Transport{
 		DisableKeepAlives: true,
-		IdleConnTimeout:   30 * time.Second,
+		IdleConnTimeout:   60 * time.Second,
 		TLSClientConfig:   &tls.Config{InsecureSkipVerify: h.AGIMonitorCertIgnore},
 	}
 	client := &http.Client{
-		Timeout:   30 * time.Second,
+		Timeout:   60 * time.Second,
 		Transport: tr,
 	}
 	defer client.CloseIdleConnections()
@@ -217,6 +219,12 @@ func (h *HTTPSNotify) notifyAgiAuthHeaders() map[string]string {
 		return a
 	}
 	a["Agi-Monitor-Auth"] = auth
+	secret, err := os.ReadFile("/opt/agi/uuid")
+	if err != nil {
+		secret = []byte(uuid.New().String())
+		os.WriteFile("/opt/agi/uuid", secret, 0644)
+	}
+	a["Agi-Monitor-Secret"] = strings.Trim(string(secret), "\r\n\t ")
 	return a
 }
 
