@@ -247,7 +247,6 @@ func (c *agiRelabelCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	// TODO: set description for volume too!
 	err := b.SetLabel(c.ClusterName.String(), "agiLabel", c.NewLabel, c.Gcpzone)
 	if err != nil {
 		return err

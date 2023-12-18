@@ -38,7 +38,6 @@ func (c *confNamespaceMemoryCmd) Execute(args []string) error {
 	}
 
 	returns := parallelize.MapLimit(nodes, c.ParallelThreads, func(node int) error {
-		// TODO get memory size and calculate percentage into memSizeGb variable
 		out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"free", "-b"}}, []int{node})
 		if err != nil {
 			nout := ""
