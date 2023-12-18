@@ -47,6 +47,7 @@ type agiMonitorListenCmd struct {
 	SizingNoDIMFirst bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes" yaml:"sizingOptionNoDIMFirst"`
 	DisableSizing    bool     `long:"sizing-disable" description:"Set to disable sizing of instances for more resources" yaml:"disableSizing"`
 	DisableCapacity  bool     `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand" yaml:"disableSpotCapacityRotation"`
+	DebugEvents      bool     `long:"debug-events" description:"Log all events for debugging purposes" yaml:"debugEvents"`
 	invCache         inventoryJson
 	invCacheTimeout  time.Time
 	invLock          *sync.Mutex
@@ -428,6 +429,11 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		c.respond(w, r, uuid, 400, "message json malformed", "json.Unmarshal(body):"+err.Error())
 		return
+	}
+
+	if c.DebugEvents {
+		debugEvent, _ := json.MarshalIndent(event, "", "  ")
+		log.Printf("%s: %s", uuid, string(debugEvent))
 	}
 
 	// TODO: handle event
