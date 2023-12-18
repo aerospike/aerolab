@@ -439,11 +439,19 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 	// TODO: handle event
 	switch event.Event {
 	case AgiEventSpotNoCapacity:
+		if c.DisableCapacity {
+			w.WriteHeader(200)
+			w.Write([]byte("OK"))
+		}
 		//- this is the only event on which we ignore callback failure, as we could have been simply too late
 		//- respond 200 ok or 418 teapot, stop on this event is not possible
 		//- terminate the instance
 		//- restart the instance as ondemand
 	case AgiEventInitComplete, AgiEventDownloadComplete, AgiEventUnpackComplete, AgiEventPreProcessComplete, AgiEventResourceMonitor, AgiEventServiceDown:
+		if c.DisableSizing {
+			w.WriteHeader(200)
+			w.Write([]byte("OK"))
+		}
 		if callbackFailure != nil {
 			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+err.Error())
 			return
