@@ -99,7 +99,12 @@ func TestAll(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		err := i.ProcessLogs()
+		foundLogs, meta, err := i.ProcessLogsPrep()
+		if err != nil {
+			nerr = append(nerr, fmt.Errorf("ProcessLogsPrep: %s", err))
+			return
+		}
+		err = i.ProcessLogs(foundLogs, meta)
 		if err != nil {
 			nerr = append(nerr, fmt.Errorf("processLogs: %s", err))
 		}
@@ -155,7 +160,12 @@ func TestPart(t *testing.T) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		err := i.ProcessLogs()
+		foundLogs, meta, err := i.ProcessLogsPrep()
+		if err != nil {
+			nerr = append(nerr, fmt.Errorf("ProcessLogsPrep: %s", err))
+			return
+		}
+		err = i.ProcessLogs(foundLogs, meta)
 		if err != nil {
 			nerr = append(nerr, fmt.Errorf("processLogs: %s", err))
 		}

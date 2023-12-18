@@ -430,12 +430,7 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: implement AgiEventResourceMonitor on agi side - do not send to slack, send to web/monitor only; run only from AgiEventInitComplete until INGEST_FINISHED is reached
-	// TODO: it would appear that the events do not show the file sizes too well (eg PreProcess Complete does not show log sizes, only ProcessComplete does, by that time it's too late)
-	//       * we need comprehensive log sizes everywhere on each notification, preferably with disk usage stats, ram usage etc.
 	// TODO: handle event
-	ret, _ := json.MarshalIndent(event, "", "    ") // todo remove
-	log.Print(string(ret))                          // todo remove
 	switch event.Event {
 	case AgiEventSpotNoCapacity:
 		//- this is the only event on which we ignore callback failure, as we could have been simply too late
