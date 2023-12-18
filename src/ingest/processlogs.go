@@ -18,13 +18,15 @@ import (
 	"github.com/rglonek/sbs"
 )
 
+type MetaEntries map[string]*metaEntries
+
 type metaEntries struct {
 	Entries          []string
 	ByCluster        map[string][]int
 	StaticEntriesIdx []int
 }
 
-func (i *Ingest) ProcessLogs() error {
+func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[string]*metaEntries, err error) {
 	i.progress.Lock()
 	i.progress.LogProcessor.Finished = false
 	i.progress.LogProcessor.running = true
@@ -38,8 +40,8 @@ func (i *Ingest) ProcessLogs() error {
 	}()
 	// find node prefix->nodeID from log files
 	logger.Debug("Process Logs: enumerating log files")
-	foundLogs := make(map[string]*LogFile) //cluster,nodeid,prefix
-	err := filepath.Walk(i.config.Directories.Logs, func(filePath string, info os.FileInfo, err error) error {
+	foundLogs = make(map[string]*LogFile) //cluster,nodeid,prefix
+	err = filepath.Walk(i.config.Directories.Logs, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -62,7 +64,7 @@ func (i *Ingest) ProcessLogs() error {
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("listing collectinfos: %s", err)
+		return nil, nil, fmt.Errorf("listing logs: %s", err)
 	}
 	// merge list
 	logger.Debug("ProcessLogs: merging lists")
@@ -75,7 +77,7 @@ func (i *Ingest) ProcessLogs() error {
 		i.progress.LogProcessor.Files[n] = f
 	}
 	i.progress.LogProcessor.changed = true
-	meta := make(map[string]*metaEntries)
+	meta = make(map[string]*metaEntries)
 	recset, err := i.db.ScanAll(nil, i.config.Aerospike.Namespace, i.patterns.LabelsSetName)
 	if err != nil {
 		logger.Warn("Could not read existing labels: %s", err)
@@ -94,9 +96,20 @@ func (i *Ingest) ProcessLogs() error {
 			}
 		}
 	}
-	metaLock := new(sync.Mutex)
 	i.progress.Unlock()
+	err = i.saveProgress()
+	return foundLogs, meta, err
+}
 
+func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*metaEntries) error {
+	if foundLogs == nil || meta == nil {
+		var err error
+		foundLogs, meta, err = i.ProcessLogsPrep()
+		if err != nil {
+			return err
+		}
+	}
+	metaLock := new(sync.Mutex)
 	// process
 	resultsChan := make(chan *processResult)
 	go i.processLogsFeed(foundLogs, resultsChan)

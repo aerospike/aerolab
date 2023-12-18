@@ -73,6 +73,7 @@ type agiExecProxyCmd struct {
 	owner                string
 	slackAccessDetails   string
 	isDim                bool
+	notifyJSON           bool
 }
 
 type tokens struct {
@@ -251,6 +252,11 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		yaml.Unmarshal(nstring, &c.notify)
 		c.notify.Init()
 		defer c.notify.Close()
+		if c.notify.AGIMonitorUrl == "" && c.notify.Endpoint == "" {
+			c.notifyJSON = false
+		} else {
+			c.notifyJSON = true
+		}
 		// for slack notifier
 		if c.notify.SlackToken != "" {
 			ingestConfig, err := ingest.MakeConfig(true, "/opt/agi/ingest.yaml", true)
@@ -393,7 +399,7 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logger.Info("Listener: status request from %s", r.RemoteAddr)
-	resp, err := getAgiStatus(c.IngestProgressPath)
+	resp, err := getAgiStatus(true, c.IngestProgressPath)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
@@ -403,172 +409,6 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	enc := json.NewEncoder(w)
 	enc.Encode(resp)
-}
-
-func getAgiStatus(ingestProgressPath string) (*ingest.IngestStatusStruct, error) {
-	status := new(ingest.IngestStatusStruct)
-	plist, err := ps.Processes()
-	if err != nil {
-		return nil, err
-	}
-	for _, p := range plist {
-		if strings.HasSuffix(p.Executable(), "asd") {
-			status.AerospikeRunning = true
-			break
-		}
-	}
-	pidf, err := os.ReadFile("/opt/agi/ingest.pid")
-	if err == nil {
-		pid, err := strconv.Atoi(string(pidf))
-		if err == nil {
-			_, err := os.FindProcess(pid)
-			if err == nil {
-				status.Ingest.Running = true
-			}
-		}
-	}
-	pidf, err = os.ReadFile("/opt/agi/plugin.pid")
-	if err == nil {
-		pid, err := strconv.Atoi(string(pidf))
-		if err == nil {
-			_, err := os.FindProcess(pid)
-			if err == nil {
-				status.PluginRunning = true
-			}
-		}
-	}
-	pidf, err = os.ReadFile("/opt/agi/grafanafix.pid")
-	if err == nil {
-		pid, err := strconv.Atoi(string(pidf))
-		if err == nil {
-			_, err := os.FindProcess(pid)
-			if err == nil {
-				status.GrafanaHelperRunning = true
-			}
-		}
-	}
-	steps := new(ingest.IngestSteps)
-	f, err := os.ReadFile("/opt/agi/ingest/steps.json")
-	if err == nil {
-		json.Unmarshal(f, steps)
-	}
-	status.Ingest.CompleteSteps = steps
-
-	fname := ""
-	if steps.Init && !steps.Download {
-		fname = "downloader.json"
-	} else if steps.Download && !steps.Unpack {
-		fname = "unpacker.json"
-	} else if steps.Unpack && !steps.PreProcess {
-		fname = "pre-processor.json"
-	} else if steps.PreProcess {
-		fname = "log-processor.json"
-	}
-	npath := path.Join(ingestProgressPath, fname)
-	gz := false
-	isEmptyResponse := false
-	if _, err := os.Stat(npath); err != nil {
-		npath = npath + ".gz"
-		if _, err := os.Stat(npath); err != nil {
-			//return []byte{}, fmt.Errorf("file not found: %s", npath)
-			isEmptyResponse = true
-		}
-		gz = true
-	}
-	var reader io.Reader
-	if !isEmptyResponse {
-		fa, err := os.Open(npath)
-		if err != nil {
-			return nil, fmt.Errorf("file open error: %s: %s", npath, err)
-		}
-		defer fa.Close()
-		reader = fa
-		if gz {
-			fx, err := gzip.NewReader(fa)
-			if err != nil {
-				return nil, fmt.Errorf("could not open gz for reading: %s: %s", npath, err)
-			}
-			defer fx.Close()
-			reader = fx
-		}
-	} else {
-		reader = strings.NewReader("{}")
-	}
-	if steps.Init && !steps.Download {
-		p := new(ingest.ProgressDownloader)
-		json.NewDecoder(reader).Decode(p)
-		totalSize := int64(0)
-		dlSize := int64(0)
-		for fn, f := range p.S3Files {
-			if f.Error != "" {
-				status.Ingest.Errors = append(status.Ingest.Errors, fn+"::"+f.Error)
-			}
-			totalSize += f.Size
-			if f.IsDownloaded {
-				dlSize += f.Size
-			} else {
-				if nstat, err := os.Stat(path.Join("/opt/agi/files/input/s3source", fn)); err == nil {
-					dlSize += nstat.Size()
-				}
-			}
-		}
-		for fn, f := range p.SftpFiles {
-			if f.Error != "" {
-				status.Ingest.Errors = append(status.Ingest.Errors, fn+"::"+f.Error)
-			}
-			totalSize += f.Size
-			if f.IsDownloaded {
-				dlSize += f.Size
-			} else {
-				if nstat, err := os.Stat(path.Join("/opt/agi/files/input/sftpsource", fn)); err == nil {
-					dlSize += nstat.Size()
-				}
-			}
-		}
-		status.Ingest.DownloaderTotalSize = totalSize
-		status.Ingest.DownloaderCompleteSize = dlSize
-		if totalSize > 0 {
-			status.Ingest.DownloaderCompletePct = int((100 * dlSize) / totalSize)
-		}
-	} else if steps.Download && !steps.Unpack {
-		status.Ingest.DownloaderCompletePct = 100
-		p := new(ingest.ProgressUnpacker)
-		json.NewDecoder(reader).Decode(p)
-		for fn, f := range p.Files {
-			for _, nerr := range f.Errors {
-				status.Ingest.Errors = append(status.Ingest.Errors, fn+"::"+nerr)
-			}
-		}
-	} else if steps.Unpack && !steps.PreProcess {
-		status.Ingest.DownloaderCompletePct = 100
-		p := new(ingest.ProgressPreProcessor)
-		json.NewDecoder(reader).Decode(p)
-		for fn, f := range p.Files {
-			for _, nerr := range f.Errors {
-				status.Ingest.Errors = append(status.Ingest.Errors, fn+"::"+nerr)
-			}
-		}
-	} else if steps.PreProcess {
-		status.Ingest.DownloaderCompletePct = 100
-		p := new(ingest.ProgressLogProcessor)
-		json.NewDecoder(reader).Decode(p)
-		totalSize := int64(0)
-		dlSize := int64(0)
-		for _, f := range p.Files {
-			totalSize += f.Size
-			if f.Finished {
-				dlSize += f.Size
-			} else {
-				dlSize += f.Processed
-			}
-		}
-		status.Ingest.LogProcessorTotalSize = totalSize
-		status.Ingest.LogProcessorCompleteSize = dlSize
-		if totalSize > 0 {
-			status.Ingest.LogProcessorCompletePct = int((100 * dlSize) / totalSize)
-		}
-	}
-	return status, nil
 }
 
 func (c *agiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request) {
@@ -624,7 +464,7 @@ func (c *agiExecProxyCmd) maxUptime() {
 	c.shuttingDown = true
 	c.shuttingDownMutex.Unlock()
 	go func() {
-		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
 				IsDataInMemory: c.isDim,
@@ -687,11 +527,14 @@ func (c *agiExecProxyCmd) spotMonitorGcp() {
 		if !spotGetInstanceActionGcp() {
 			continue
 		}
-		stat, err := getAgiStatus("/opt/agi/ingest/")
-		if err != nil {
-			logger.Warn("spot-monitor: could not get process status")
-			continue
-		}
+		/*
+			stat, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
+			if err != nil {
+				logger.Warn("spot-monitor: could not get process status")
+				continue
+			}
+		*/
+		stat, _ := getAgiStatus(false, "/opt/agi/ingest/")
 		body := "GCP-SPOT-PREEMPTED-NO-CAPACITY"
 		c.shuttingDownMutex.Lock()
 		c.shuttingDown = true
@@ -790,11 +633,14 @@ func (c *agiExecProxyCmd) spotMonitorAws() {
 		if err != nil || code < 200 || code > 299 {
 			continue
 		}
-		stat, err := getAgiStatus("/opt/agi/ingest/")
-		if err != nil {
-			logger.Warn("spot-monitor: could not get process status")
-			continue
-		}
+		/*
+			stat, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
+			if err != nil {
+				logger.Warn("spot-monitor: could not get process status")
+				continue
+			}
+		*/
+		stat, _ := getAgiStatus(false, "/opt/agi/ingest/")
 		c.shuttingDownMutex.Lock()
 		c.shuttingDown = true
 		c.shuttingDownMutex.Unlock()
@@ -825,7 +671,7 @@ func (c *agiExecProxyCmd) serviceMonitor() {
 			continue
 		}
 		c.shuttingDownMutex.Unlock()
-		stat, err := getAgiStatus("/opt/agi/ingest/")
+		stat, err := getAgiStatus(true, "/opt/agi/ingest/")
 		if err != nil {
 			logger.Warn("service-monitor: could not get process status")
 			continue
@@ -903,7 +749,7 @@ func (c *agiExecProxyCmd) activityMonitor() {
 		}
 		if time.Since(newActivity) > c.MaxInactivity {
 			go func() {
-				notifyData, err := getAgiStatus("/opt/agi/ingest/")
+				notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 				if err == nil {
 					notifyItem := &ingest.NotifyEvent{
 						IsDataInMemory: c.isDim,
@@ -998,7 +844,9 @@ func (c *agiExecProxyCmd) checkAuthOnly(w http.ResponseWriter, r *http.Request) 
 
 func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool {
 	ret := c.checkAuthOnly(w, r)
-	go c.lastActivity.Set(time.Now())
+	if ret {
+		go c.lastActivity.Set(time.Now())
+	}
 	return ret
 }
 
