@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -205,6 +206,7 @@ type agiExecIngestCmd struct {
 	YamlFile   string `short:"y" long:"yaml" description:"Yaml config file"`
 	notify     notifier.HTTPSNotify
 	notifyJSON bool
+	deployJson string
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -255,10 +257,11 @@ func (c *agiExecIngestCmd) resourceMonitor() {
 			continue
 		}
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory: isDim,
-			IngestStatus:   notifyData,
-			Event:          AgiEventResourceMonitor,
-			AGIName:        c.AGIName,
+			IsDataInMemory:      isDim,
+			IngestStatus:        notifyData,
+			Event:               AgiEventResourceMonitor,
+			AGIName:             c.AGIName,
+			DeploymentJsonGzB64: c.deployJson,
 		}
 		c.notify.NotifyJSON(notifyItem)
 	}
@@ -268,6 +271,8 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
 	}
+	deploymentjson, _ := os.ReadFile("/opt/agi/deployment.json.gz")
+	c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
 	os.Mkdir("/opt/agi", 0755)
 	os.WriteFile("/opt/agi/ingest.pid", []byte(strconv.Itoa(os.Getpid())), 0644)
 	defer os.Remove("/opt/agi/ingest.pid")
@@ -344,10 +349,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 	if err == nil {
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory: isDim,
-			IngestStatus:   notifyData,
-			Event:          AgiEventInitComplete,
-			AGIName:        c.AGIName,
+			IsDataInMemory:      isDim,
+			IngestStatus:        notifyData,
+			Event:               AgiEventInitComplete,
+			AGIName:             c.AGIName,
+			DeploymentJsonGzB64: c.deployJson,
 		}
 		err = c.notify.NotifyJSON(notifyItem)
 		if err != nil {
@@ -376,10 +382,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory: isDim,
-				IngestStatus:   notifyData,
-				Event:          AgiEventDownloadComplete,
-				AGIName:        c.AGIName,
+				IsDataInMemory:      isDim,
+				IngestStatus:        notifyData,
+				Event:               AgiEventDownloadComplete,
+				AGIName:             c.AGIName,
+				DeploymentJsonGzB64: c.deployJson,
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
@@ -435,10 +442,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory: isDim,
-				IngestStatus:   notifyData,
-				Event:          AgiEventUnpackComplete,
-				AGIName:        c.AGIName,
+				IsDataInMemory:      isDim,
+				IngestStatus:        notifyData,
+				Event:               AgiEventUnpackComplete,
+				AGIName:             c.AGIName,
+				DeploymentJsonGzB64: c.deployJson,
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
@@ -473,10 +481,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory: isDim,
-				IngestStatus:   notifyData,
-				Event:          AgiEventPreProcessComplete,
-				AGIName:        c.AGIName,
+				IsDataInMemory:      isDim,
+				IngestStatus:        notifyData,
+				Event:               AgiEventPreProcessComplete,
+				AGIName:             c.AGIName,
+				DeploymentJsonGzB64: c.deployJson,
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
@@ -529,10 +538,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory: isDim,
-				IngestStatus:   notifyData,
-				Event:          AgiEventProcessComplete,
-				AGIName:        c.AGIName,
+				IsDataInMemory:      isDim,
+				IngestStatus:        notifyData,
+				Event:               AgiEventProcessComplete,
+				AGIName:             c.AGIName,
+				DeploymentJsonGzB64: c.deployJson,
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
@@ -555,10 +565,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	notifyData, err = getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 	if err == nil {
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory: isDim,
-			IngestStatus:   notifyData,
-			Event:          AgiEventIngestFinish,
-			AGIName:        c.AGIName,
+			IsDataInMemory:      isDim,
+			IngestStatus:        notifyData,
+			Event:               AgiEventIngestFinish,
+			AGIName:             c.AGIName,
+			DeploymentJsonGzB64: c.deployJson,
 		}
 		err = c.notify.NotifyJSON(notifyItem)
 		if err != nil {
