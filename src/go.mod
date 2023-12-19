@@ -26,7 +26,7 @@ require (
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
 	github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
 	github.com/rglonek/sbs v1.0.1
-	golang.org/x/crypto v0.16.0
+	golang.org/x/crypto v0.17.0
 	golang.org/x/sys v0.15.0
 	golang.org/x/term v0.15.0
 	google.golang.org/api v0.154.0
