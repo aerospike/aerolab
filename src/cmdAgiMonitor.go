@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,6 +53,7 @@ type agiMonitorListenCmd struct {
 	invCache         inventoryJson
 	invCacheTimeout  time.Time
 	invLock          *sync.Mutex
+	execLock         *sync.Mutex
 	Help             helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -176,6 +179,7 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	c.execLock = new(sync.Mutex)
 	log.Print("Starting agi-monitor")
 	err := os.MkdirAll("/var/lib/agimonitor", 0755)
 	if err != nil {
@@ -441,10 +445,15 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	evt, _ := json.Marshal(event)
+	c.execLock.Lock()
+	defer c.execLock.Unlock()
 	switch event.Event {
 	case AgiEventSpotNoCapacity:
 		if c.DisableCapacity {
 			c.respond(w, r, uuid, 200, "ignoring: capacity handling disabled", "ignoring: capacity handling disabled")
+			return
+		}
+		if !c.getDeploymentJSON(w, r, uuid, event) {
 			return
 		}
 		c.respond(w, r, uuid, 418, "capacity: rotating to on-demand", "Capacity: start on-demand rotation"+string(evt))
@@ -455,6 +464,9 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		if callbackFailure != nil {
 			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+err.Error())
+			return
+		}
+		if !c.getDeploymentJSON(w, r, uuid, event) {
 			return
 		}
 		// TODO: handle event
@@ -468,28 +480,83 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (c *agiMonitorListenCmd) getDeploymentJSON(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent) bool {
+	deployDetail, err := base64.StdEncoding.DecodeString(event.DeploymentJsonGzB64)
+	if err != nil {
+		c.respond(w, r, uuid, 400, "event deployment json malformed", "base64.StdEncoding.DecodeString:"+err.Error())
+		return false
+	}
+	un, err := gzip.NewReader(bytes.NewReader(deployDetail))
+	if err != nil {
+		c.respond(w, r, uuid, 400, "event deployment json malformed", "gzip.NewReader:"+err.Error())
+		return false
+	}
+	deployDetail, err = io.ReadAll(un)
+	un.Close()
+	if err != nil {
+		c.respond(w, r, uuid, 400, "event deployment json malformed", "io.Read(gz):"+err.Error())
+		return false
+	}
+	err = json.Unmarshal(deployDetail, &a.opts.AGI.Create)
+	if err != nil {
+		c.respond(w, r, uuid, 400, "event deployment json malformed", "json.Unmarshal:"+err.Error())
+		return false
+	}
+	return true
+}
+
 func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEvent) {
 	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
 	a.opts.Cluster.Destroy.Force = true
 	a.opts.Cluster.Destroy.Nodes = "1"
 	err := a.opts.Cluster.Destroy.doDestroy("agi", nil)
 	if err != nil {
-		c.log(uuid, "capacity", "Error destroying instance, attempting to continue (%s)")
+		c.log(uuid, "capacity", fmt.Sprintf("Error destroying instance, attempting to continue (%s)", err))
 		return
 	}
-	// TODO: create the same instance, as on-demand
-	// TODO: it would be best if the AGI instance had a json of the a.opts.AGI.Create, which it should provide with the event; we could then load that and execute (after modifying to ensure we do not set certain things?)
+	a.opts.AGI.Create.Aws.SpotInstance = false
+	a.opts.AGI.Create.Gcp.SpotInstance = false
+	err = a.opts.AGI.Create.Execute(nil)
+	if err != nil {
+		c.log(uuid, "capacity", fmt.Sprintf("Error creating new instance (%s)", err))
+		return
+	}
+	c.log(uuid, "capacity", "rotated to on-demand instance")
 }
 
-func (c *agiMonitorListenCmd) handleSizing(uuid string, event *ingest.NotifyEvent, newType string) {
+func (c *agiMonitorListenCmd) handleSizingDisk(uuid string, event *ingest.NotifyEvent, newSize int64) {
+	a.opts.Volume.Resize.Zone = a.opts.AGI.Create.Gcp.Zone
+	a.opts.Volume.Resize.Name = string(a.opts.AGI.Create.ClusterName)
+	a.opts.Volume.Resize.Size = newSize
+	err := a.opts.Volume.Resize.Execute(nil)
+	if err != nil {
+		c.log(uuid, "volume", fmt.Sprintf("Error resizing (%s)", err))
+		return
+	}
+}
+
+func (c *agiMonitorListenCmd) handleSizingRAM(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool) {
 	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
 	a.opts.Cluster.Destroy.Force = true
 	a.opts.Cluster.Destroy.Nodes = "1"
 	err := a.opts.Cluster.Destroy.doDestroy("agi", nil)
 	if err != nil {
-		c.log(uuid, "sizing", "Error destroying instance, attempting to continue (%s)")
+		c.log(uuid, "sizing", fmt.Sprintf("Error destroying instance, attempting to continue (%s)", err))
 		return
 	}
-	// TODO: create the same instance, different type; use spot if last instance was spot, otherwise use on-demand
-	// TODO: it would be best if the AGI instance had a json of the a.opts.AGI.Create, which it should provide with the event; we could then load that and execute (after modifying to ensure we do not set certain things?)
+	a.opts.AGI.Create.Aws.InstanceType = newType
+	a.opts.AGI.Create.Gcp.InstanceType = newType
+	if disableDim {
+		a.opts.AGI.Create.NoDIM = true
+	}
+	err = a.opts.AGI.Create.Execute(nil)
+	if err != nil {
+		c.log(uuid, "sizing", fmt.Sprintf("Error creating new instance (%s)", err))
+		return
+	}
+	if disableDim {
+		c.log(uuid, "sizing", "disabled data-in-memory, rotated to instance type: "+newType)
+	} else {
+		c.log(uuid, "sizing", "rotated to instance type: "+newType)
+	}
 }
