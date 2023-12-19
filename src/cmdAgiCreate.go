@@ -699,8 +699,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	log.Println("Done")
 	log.Println("* aerolab agi help                 - list of available AGI commands")
 	log.Println("* aerolab agi list                 - get web URL")
-	log.Printf("* aerolab agi add-auth-token -n %s - generate an authentication token", c.ClusterName.String())
-	log.Printf("* aerolab agi attach -n %s         - attach to the shell; log files are at /opt/agi/files/", c.ClusterName.String())
+	log.Printf("* aerolab agi add-auth-token -n %s       - generate an authentication token", c.ClusterName.String())
+	log.Printf("* aerolab agi add-auth-token -n %s --url - generate an authentication token and display a quick-access url", c.ClusterName.String())
+	log.Printf("* aerolab agi attach -n %s               - attach to the shell; log files are at /opt/agi/files/", c.ClusterName.String())
 	return nil
 }
 

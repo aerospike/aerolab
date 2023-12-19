@@ -357,6 +357,12 @@ type IngestStatusStruct struct {
 	AerospikeRunning     bool
 	PluginRunning        bool
 	GrafanaHelperRunning bool
+	System               struct {
+		DiskTotalBytes   uint64
+		DiskFreeBytes    uint64
+		MemoryTotalBytes int
+		MemoryFreeBytes  int
+	}
 }
 
 type IngestSteps struct {
