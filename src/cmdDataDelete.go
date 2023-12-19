@@ -30,6 +30,8 @@ func (c *dataDeleteCmd) delete(args []string) error {
 		log.Print("Delete start")
 		defer log.Print("Delete done")
 		switch c.Version {
+		case "7":
+			return c.delete7(args)
 		case "6":
 			return c.delete6(args)
 		case "5":
