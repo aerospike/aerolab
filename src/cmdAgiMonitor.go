@@ -47,6 +47,7 @@ type agiMonitorListenCmd struct {
 	SizingNoDIMFirst bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes" yaml:"sizingOptionNoDIMFirst"`
 	DisableSizing    bool     `long:"sizing-disable" description:"Set to disable sizing of instances for more resources" yaml:"disableSizing"`
 	DisableCapacity  bool     `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand" yaml:"disableSpotCapacityRotation"`
+	DebugEvents      bool     `long:"debug-events" description:"Log all events for debugging purposes" yaml:"debugEvents"`
 	invCache         inventoryJson
 	invCacheTimeout  time.Time
 	invLock          *sync.Mutex
@@ -260,6 +261,10 @@ func (c *agiMonitorListenCmd) isFile(s string) bool {
 	return err == nil
 }
 
+func (c *agiMonitorListenCmd) log(uuid string, action string, line string) {
+	log.Printf("tid:%s action:%s log:%s", uuid, action, line)
+}
+
 func (c *agiMonitorListenCmd) respond(w http.ResponseWriter, r *http.Request, uuid string, code int, value string, logmsg string) {
 	log.Printf("tid:%s remoteAddr:%s requestUri:%s method:%s returnCode:%d log:%s", uuid, r.RemoteAddr, r.RequestURI, r.Method, code, logmsg)
 	if code > 299 || code < 200 {
@@ -430,28 +435,61 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: implement AgiEventResourceMonitor on agi side - do not send to slack, send to web/monitor only; run only from AgiEventInitComplete until INGEST_FINISHED is reached
-	// TODO: it would appear that the events do not show the file sizes too well (eg PreProcess Complete does not show log sizes, only ProcessComplete does, by that time it's too late)
-	//       * we need comprehensive log sizes everywhere on each notification, preferably with disk usage stats, ram usage etc.
-	// TODO: handle event
-	ret, _ := json.MarshalIndent(event, "", "    ") // todo remove
-	log.Print(string(ret))                          // todo remove
+	if c.DebugEvents {
+		debugEvent, _ := json.MarshalIndent(event, "", "  ")
+		log.Printf("%s: %s", uuid, string(debugEvent))
+	}
+
+	evt, _ := json.Marshal(event)
 	switch event.Event {
 	case AgiEventSpotNoCapacity:
-		//- this is the only event on which we ignore callback failure, as we could have been simply too late
-		//- respond 200 ok or 418 teapot, stop on this event is not possible
-		//- terminate the instance
-		//- restart the instance as ondemand
+		if c.DisableCapacity {
+			c.respond(w, r, uuid, 200, "ignoring: capacity handling disabled", "ignoring: capacity handling disabled")
+			return
+		}
+		c.respond(w, r, uuid, 418, "capacity: rotating to on-demand", "Capacity: start on-demand rotation"+string(evt))
+		go c.handleCapacity(uuid, event)
 	case AgiEventInitComplete, AgiEventDownloadComplete, AgiEventUnpackComplete, AgiEventPreProcessComplete, AgiEventResourceMonitor, AgiEventServiceDown:
+		if c.DisableSizing {
+			c.respond(w, r, uuid, 200, "ignoring: sizing disabled", "ignoring: sizing disabled")
+		}
 		if callbackFailure != nil {
 			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+err.Error())
 			return
 		}
+		// TODO: handle event
 		//- check log sizes, available disk space (GCP) and RAM
 		//- if disk size too small - grow it
 		//- if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
 		//- if we grew instances already and are out of options, disable DIM
 		//- allow config option to set max limit for instance growth in size
 		//- respond with 418 when we are wanting processing to stop
+		//go c.handleSizing(uuid, event, newType)
 	}
+}
+
+func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEvent) {
+	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
+	a.opts.Cluster.Destroy.Force = true
+	a.opts.Cluster.Destroy.Nodes = "1"
+	err := a.opts.Cluster.Destroy.doDestroy("agi", nil)
+	if err != nil {
+		c.log(uuid, "capacity", "Error destroying instance, attempting to continue (%s)")
+		return
+	}
+	// TODO: create the same instance, as on-demand
+	// TODO: it would be best if the AGI instance had a json of the a.opts.AGI.Create, which it should provide with the event; we could then load that and execute (after modifying to ensure we do not set certain things?)
+}
+
+func (c *agiMonitorListenCmd) handleSizing(uuid string, event *ingest.NotifyEvent, newType string) {
+	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
+	a.opts.Cluster.Destroy.Force = true
+	a.opts.Cluster.Destroy.Nodes = "1"
+	err := a.opts.Cluster.Destroy.doDestroy("agi", nil)
+	if err != nil {
+		c.log(uuid, "sizing", "Error destroying instance, attempting to continue (%s)")
+		return
+	}
+	// TODO: create the same instance, different type; use spot if last instance was spot, otherwise use on-demand
+	// TODO: it would be best if the AGI instance had a json of the a.opts.AGI.Create, which it should provide with the event; we could then load that and execute (after modifying to ensure we do not set certain things?)
 }

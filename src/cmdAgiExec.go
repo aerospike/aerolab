@@ -47,7 +47,7 @@ func (c *agiExecIngestStatusCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
 	}
-	resp, err := getAgiStatus(c.IngestPath)
+	resp, err := getAgiStatus(true, c.IngestPath)
 	if err != nil {
 		return err
 	}
@@ -201,10 +201,11 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 }
 
 type agiExecIngestCmd struct {
-	AGIName  string `long:"agi-name"`
-	YamlFile string `short:"y" long:"yaml" description:"Yaml config file"`
-	notify   notifier.HTTPSNotify
-	Help     helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	AGIName    string `long:"agi-name"`
+	YamlFile   string `short:"y" long:"yaml" description:"Yaml config file"`
+	notify     notifier.HTTPSNotify
+	notifyJSON bool
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *agiExecIngestCmd) Execute(args []string) error {
@@ -239,8 +240,29 @@ const (
 	AgiEventMaxAge             = "MAX_AGE_REACHED"
 	AgiEventMaxInactive        = "MAX_INACTIVITY_REACHED"
 	AgiEventSpotNoCapacity     = "SPOT_INSTANCE_CAPACITY_SHUTDOWN"
-	AgiEventResourceMonitor    = "SYS_RESOURCE_USAGE_MONITOR"
+	AgiEventResourceMonitor    = "SYS_RESOURCE_USAGE_MONITOR" // run from AgiEventInitComplete until AgiEventIngestFinish; on timer, send to notifier http/monitor only, no slack
 )
+
+func (c *agiExecIngestCmd) resourceMonitor() {
+	isDim := true
+	if _, err := os.Stat("/opt/agi/nodim"); err == nil {
+		isDim = false
+	}
+	for {
+		time.Sleep(30 * time.Second)
+		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
+		if err != nil {
+			continue
+		}
+		notifyItem := &ingest.NotifyEvent{
+			IsDataInMemory: isDim,
+			IngestStatus:   notifyData,
+			Event:          AgiEventResourceMonitor,
+			AGIName:        c.AGIName,
+		}
+		c.notify.NotifyJSON(notifyItem)
+	}
+}
 
 func (c *agiExecIngestCmd) run(args []string) error {
 	if earlyProcessNoBackend(args) {
@@ -283,6 +305,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		c.notify.Init()
 		defer c.notify.Close()
 	}
+	if c.notify.AGIMonitorUrl == "" && c.notify.Endpoint == "" {
+		c.notifyJSON = false
+	} else {
+		c.notifyJSON = true
+	}
 	// notifier load end
 	// slack notifier vars
 	slacks3source := ""
@@ -314,7 +341,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 		}
 	}
-	notifyData, err := getAgiStatus("/opt/agi/ingest/")
+	notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 	if err == nil {
 		notifyItem := &ingest.NotifyEvent{
 			IsDataInMemory: isDim,
@@ -328,6 +355,9 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 		c.notify.NotifySlack(AgiEventInitComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventInitComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
+	}
+	if c.notifyJSON {
+		go c.resourceMonitor()
 	}
 	if !steps.Download {
 		err = i.Download()
@@ -343,7 +373,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
-		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
 				IsDataInMemory: isDim,
@@ -402,7 +432,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
-		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
 				IsDataInMemory: isDim,
@@ -418,6 +448,8 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			c.notify.NotifySlack(AgiEventUnpackComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventUnpackComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 	}
+	var foundLogs map[string]*ingest.LogFile
+	var meta ingest.MetaEntries
 	if !steps.PreProcess {
 		err = i.PreProcess()
 		if err != nil {
@@ -434,7 +466,11 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
-		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		foundLogs, meta, err = i.ProcessLogsPrep()
+		if err != nil {
+			return fmt.Errorf("ProcessLogsPrep: %s", err)
+		}
+		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
 				IsDataInMemory: isDim,
@@ -457,7 +493,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := i.ProcessLogs()
+			err := i.ProcessLogs(foundLogs, meta)
 			steps.ProcessLogsEndTime = time.Now().UTC()
 			if err != nil {
 				nerrLock.Lock()
@@ -490,7 +526,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				os.Rename("/opt/agi/ingest/steps.json.new", "/opt/agi/ingest/steps.json")
 			}
 		}
-		notifyData, err := getAgiStatus("/opt/agi/ingest/")
+		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
 				IsDataInMemory: isDim,
@@ -516,7 +552,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		return errors.New(errstr)
 	}
-	notifyData, err = getAgiStatus("/opt/agi/ingest/")
+	notifyData, err = getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 	if err == nil {
 		notifyItem := &ingest.NotifyEvent{
 			IsDataInMemory: isDim,

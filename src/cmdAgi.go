@@ -103,6 +103,7 @@ type agiAddTokenCmd struct {
 	TokenName   string          `short:"u" long:"token-name" description:"a unique token name; default:auto-generate"`
 	TokenSize   int             `short:"s" long:"size" description:"size of the new token to be generated" default:"128"`
 	Token       string          `short:"t" long:"token" description:"A 64+ character long token to use; if not specified, a random token will be generated"`
+	GenURL      bool            `long:"url" description:"Generate an display a direct-access token URL; this isn't fully secure as proxies, if user uses them, can capture this"`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -112,6 +113,39 @@ func (c *agiAddTokenCmd) Execute(args []string) error {
 	}
 	if c.TokenSize < 64 {
 		return fmt.Errorf("minimum token size is 64")
+	}
+	nodeUrl := ""
+	if c.GenURL {
+		inv, err := b.Inventory("", []int{InventoryItemClusters, InventoryItemAGI})
+		if err != nil {
+			return err
+		}
+		for vi, v := range inv.Clusters {
+			if v.ClusterName != string(c.ClusterName) || v.Features&ClusterFeatureAGI == 0 {
+				continue
+			}
+			nip := v.PublicIp
+			if nip == "" {
+				nip = v.PrivateIp
+			}
+			if nip == "" {
+				return errors.New("AGI node IP is empty, is AGI down? See: aerolab agi list")
+			}
+			port := ""
+			if a.opts.Config.Backend.Type == "docker" && inv.Clusters[vi].DockerExposePorts != "" {
+				nip = "127.0.0.1"
+				port = ":" + inv.Clusters[vi].DockerExposePorts
+			}
+			prot := "http://"
+			if v.gcpLabels["aerolab4ssl"] == "true" || v.awsTags["aerolab4ssl"] == "true" || v.DockerInternalPort == "443" {
+				prot = "https://"
+			}
+			nodeUrl = prot + nip + port + "/agi/menu?AGI_TOKEN="
+		}
+		if nodeUrl == "" {
+			return errors.New("cluster IP could not be retrieved, cluster not found")
+		}
+		b.WorkOnServers()
 	}
 	loc := "/opt/agitokens"
 	if c.TokenName == "" {
@@ -127,7 +161,11 @@ func (c *agiAddTokenCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println(newToken)
+	if !c.GenURL {
+		fmt.Println(newToken)
+	} else {
+		fmt.Println(nodeUrl + newToken)
+	}
 	return nil
 }
 
@@ -209,7 +247,6 @@ func (c *agiRelabelCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	// TODO: set description for volume too!
 	err := b.SetLabel(c.ClusterName.String(), "agiLabel", c.NewLabel, c.Gcpzone)
 	if err != nil {
 		return err
