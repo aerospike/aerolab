@@ -445,67 +445,63 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	evt, _ := json.Marshal(event)
-	c.execLock.Lock()
-	defer c.execLock.Unlock()
 	switch event.Event {
 	case AgiEventSpotNoCapacity:
 		if c.DisableCapacity {
 			c.respond(w, r, uuid, 200, "ignoring: capacity handling disabled", "ignoring: capacity handling disabled")
 			return
 		}
-		if !c.getDeploymentJSON(w, r, uuid, event) {
+		testJson := &agiCreateCmd{}
+		if !c.getDeploymentJSON(uuid, event, testJson) {
+			c.respond(w, r, uuid, 400, "capacity: invalid deployment json", "Capacity: abort on invalid deployment json")
 			return
 		}
-		c.respond(w, r, uuid, 418, "capacity: rotating to on-demand", "Capacity: start on-demand rotation"+string(evt))
+		c.respond(w, r, uuid, 418, "capacity: rotating to on-demand", "Capacity: start on-demand rotation: "+string(evt))
 		go c.handleCapacity(uuid, event)
 	case AgiEventInitComplete, AgiEventDownloadComplete, AgiEventUnpackComplete, AgiEventPreProcessComplete, AgiEventResourceMonitor, AgiEventServiceDown:
 		if c.DisableSizing {
 			c.respond(w, r, uuid, 200, "ignoring: sizing disabled", "ignoring: sizing disabled")
+			return
 		}
 		if callbackFailure != nil {
 			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+err.Error())
 			return
 		}
-		if !c.getDeploymentJSON(w, r, uuid, event) {
-			return
-		}
-		// TODO: handle event
-		//- check log sizes, available disk space (GCP) and RAM
-		//- if disk size too small - grow it
-		//- if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
-		//- if we grew instances already and are out of options, disable DIM
-		//- allow config option to set max limit for instance growth in size
-		//- respond with 418 when we are wanting processing to stop
-		//go c.handleSizing(uuid, event, newType)
+		c.handleCheckSizing(w, r, uuid, event)
 	}
 }
 
-func (c *agiMonitorListenCmd) getDeploymentJSON(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent) bool {
+func (c *agiMonitorListenCmd) getDeploymentJSON(uuid string, event *ingest.NotifyEvent, dst interface{}) bool {
 	deployDetail, err := base64.StdEncoding.DecodeString(event.DeploymentJsonGzB64)
 	if err != nil {
-		c.respond(w, r, uuid, 400, "event deployment json malformed", "base64.StdEncoding.DecodeString:"+err.Error())
+		c.log(uuid, "getDeploymentJson", "base64.StdEncoding.DecodeString:"+err.Error())
 		return false
 	}
 	un, err := gzip.NewReader(bytes.NewReader(deployDetail))
 	if err != nil {
-		c.respond(w, r, uuid, 400, "event deployment json malformed", "gzip.NewReader:"+err.Error())
+		c.log(uuid, "getDeploymentJson", "gzip.NewReader:"+err.Error())
 		return false
 	}
 	deployDetail, err = io.ReadAll(un)
 	un.Close()
 	if err != nil {
-		c.respond(w, r, uuid, 400, "event deployment json malformed", "io.Read(gz):"+err.Error())
+		c.log(uuid, "getDeploymentJson", "io.Read(gz):"+err.Error())
 		return false
 	}
-	err = json.Unmarshal(deployDetail, &a.opts.AGI.Create)
+	err = json.Unmarshal(deployDetail, dst)
 	if err != nil {
-		c.respond(w, r, uuid, 400, "event deployment json malformed", "json.Unmarshal:"+err.Error())
+		c.log(uuid, "getDeploymentJson", "json.Unmarshal:"+err.Error())
 		return false
 	}
 	return true
 }
 
 func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEvent) {
+	c.execLock.Lock()
+	defer c.execLock.Unlock()
+	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
+		return
+	}
 	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
 	a.opts.Cluster.Destroy.Force = true
 	a.opts.Cluster.Destroy.Nodes = "1"
@@ -525,6 +521,34 @@ func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEv
 }
 
 func (c *agiMonitorListenCmd) handleSizingDisk(uuid string, event *ingest.NotifyEvent, newSize int64) {
+	c.execLock.Lock()
+	defer c.execLock.Unlock()
+	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
+		return
+	}
+	c.handleSizingDiskDo(uuid, event, newSize)
+}
+
+func (c *agiMonitorListenCmd) handleSizingRAM(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool) {
+	c.execLock.Lock()
+	defer c.execLock.Unlock()
+	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
+		return
+	}
+	c.handleSizingRAMDo(uuid, event, newType, disableDim)
+}
+
+func (c *agiMonitorListenCmd) handleSizingDiskAndRAM(uuid string, event *ingest.NotifyEvent, newSize int64, newType string, disableDim bool) {
+	c.execLock.Lock()
+	defer c.execLock.Unlock()
+	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
+		return
+	}
+	c.handleSizingDiskDo(uuid, event, newSize)
+	c.handleSizingRAMDo(uuid, event, newType, disableDim)
+}
+
+func (c *agiMonitorListenCmd) handleSizingDiskDo(uuid string, event *ingest.NotifyEvent, newSize int64) {
 	a.opts.Volume.Resize.Zone = a.opts.AGI.Create.Gcp.Zone
 	a.opts.Volume.Resize.Name = string(a.opts.AGI.Create.ClusterName)
 	a.opts.Volume.Resize.Size = newSize
@@ -535,7 +559,7 @@ func (c *agiMonitorListenCmd) handleSizingDisk(uuid string, event *ingest.Notify
 	}
 }
 
-func (c *agiMonitorListenCmd) handleSizingRAM(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool) {
+func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool) {
 	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
 	a.opts.Cluster.Destroy.Force = true
 	a.opts.Cluster.Destroy.Nodes = "1"
@@ -559,4 +583,27 @@ func (c *agiMonitorListenCmd) handleSizingRAM(uuid string, event *ingest.NotifyE
 	} else {
 		c.log(uuid, "sizing", "rotated to instance type: "+newType)
 	}
+}
+
+func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent) {
+	// TODO: handle event
+	//- check log sizes, available disk space (GCP) and RAM
+	//- if disk size too small - grow it
+	//- if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
+	//- if we grew instances already and are out of options, disable DIM
+	//- allow config option to set max limit for instance growth in size
+	//- respond with 418 when we are wanting processing to stop
+	// if sizing is required, run the below before commiting with a final 418 teapot:
+	/*
+		testJson := &agiCreateCmd{}
+		if !c.getDeploymentJSON(uuid, event, testJson) {
+			c.respond(w, r, uuid, 400, "sizing: invalid deployment json", "Sizing: abort on invalid deployment json")
+			return
+		}
+	*/
+	//go c.handleSizingRAM(uuid, event, newType, disableDim)
+	//go c.handleSizingDisk(uuid, event, newSize)
+	//go c.handleSizingDiskAndRAM(uuid, event, newSize, newTime, disableDim)
+
+	//TODO: notification system itself->if monitor notification returned error 400 or 401, inform slack if slack notification has been configured
 }
