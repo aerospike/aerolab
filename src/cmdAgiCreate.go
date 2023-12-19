@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -672,6 +674,21 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 
+	// upload agiCreate config
+	c.SftpPass = ""
+	c.S3Secret = ""
+	c.SftpKey = ""
+	c.ProxyCert = ""
+	c.ProxyKey = ""
+	c.NoConfigOverride = true
+	deploymentDetail, _ := json.Marshal(c)
+	deploymentDetail, _ = gz(deploymentDetail)
+	flist = append(flist, fileListReader{
+		filePath:     "/opt/agi/deployment.json.gz",
+		fileContents: bytes.NewReader(deploymentDetail),
+		fileSize:     len(deploymentDetail),
+	})
+
 	// upload all files and run installer
 	err = b.CopyFilesToClusterReader(c.ClusterName.String(), flist, []int{1})
 	if err != nil {
@@ -710,3 +727,15 @@ var agiCreateScript string
 
 //go:embed cmdAgiCreate.script.docker.sh
 var agiCreateScriptDocker string
+
+func gz(p []byte) (r []byte, err error) {
+	buf := &bytes.Buffer{}
+	g := gzip.NewWriter(buf)
+	_, err = g.Write(p)
+	if err != nil {
+		g.Close()
+		return nil, err
+	}
+	g.Close()
+	return buf.Bytes(), nil
+}

@@ -10,7 +10,7 @@ import (
 	"runtime/pprof"
 	"sync"
 
-	"github.com/aerospike/aerospike-client-go/v6"
+	"github.com/aerospike/aerospike-client-go/v7"
 	"github.com/bestmethod/logger"
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
