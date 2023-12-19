@@ -6,7 +6,6 @@ require (
 	cloud.google.com/go/compute v1.23.3
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
-	github.com/aerospike/aerospike-client-go/v6 v6.14.1
 	github.com/aerospike/aerospike-client-go/v7 v7.0.0
 	github.com/aws/aws-sdk-go v1.49.4
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
@@ -67,4 +66,5 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20231212172506-995d672761c0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231212172506-995d672761c0 // indirect
 	google.golang.org/grpc v1.60.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 )

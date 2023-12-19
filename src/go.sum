@@ -10,8 +10,6 @@ github.com/aerospike/aerospike-client-go v4.5.2+incompatible h1:G7cGT9bbOEJwPR8s
 github.com/aerospike/aerospike-client-go v4.5.2+incompatible/go.mod h1:zj8LBEnWBDOVEIJt8LvaRvDG5ARAoa5dBeHaB472NRc=
 github.com/aerospike/aerospike-client-go/v5 v5.11.0 h1:z3ZmDSm3I10VMXXIIrsFCFq3IenwFqTCnLNyvnFVzrk=
 github.com/aerospike/aerospike-client-go/v5 v5.11.0/go.mod h1:e/zYeIoBg9We63fLKa+h+198+fT1GdoLfKa+Pu4QSpg=
-github.com/aerospike/aerospike-client-go/v6 v6.14.1 h1:1DB9rgbPcCSjR7QS+2CL4MM4atdVcRiWa2AVKO7ydyY=
-github.com/aerospike/aerospike-client-go/v6 v6.14.1/go.mod h1:/0Wm81GhMqem+9flWcpazPKoRfjFeG6WrQdXGiMNi0A=
 github.com/aerospike/aerospike-client-go/v7 v7.0.0 h1:yX0xLjfCLBMA1IzjpUYukKWG19+T7foiTsxCXKkid18=
 github.com/aerospike/aerospike-client-go/v7 v7.0.0/go.mod h1:1UvHUWax4xH0+2bM3bPZPjER7u0kYMfU+Tq2jiJ5QkE=
 github.com/aws/aws-sdk-go v1.49.4 h1:qiXsqEeLLhdLgUIyfr5ot+N/dGPWALmtM1SetRmbUlY=
