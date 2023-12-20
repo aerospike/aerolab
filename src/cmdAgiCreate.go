@@ -682,6 +682,10 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	c.SftpKey = ""
 	c.ProxyCert = ""
 	c.ProxyKey = ""
+	c.LocalSource = ""
+	c.PatternsFile = ""
+	c.ChDir = ""
+	c.FeaturesFilePath = ""
 	c.NoConfigOverride = true
 	deploymentDetail, _ := json.Marshal(c)
 	deploymentDetail, _ = gz(deploymentDetail)

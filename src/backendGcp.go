@@ -40,8 +40,9 @@ func (d *backendGcp) Arch() TypeArch {
 }
 
 type backendGcp struct {
-	server bool
-	client bool
+	server         bool
+	client         bool
+	disablePricing bool
 }
 
 func init() {
@@ -122,6 +123,10 @@ type gcpClusterExpiryInstances struct {
 
 func (d *backendGcp) GetAZName(subnetId string) (string, error) {
 	return "", nil
+}
+
+func (d *backendGcp) DisablePricingAPI() {
+	d.disablePricing = true
 }
 
 func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
@@ -989,10 +994,13 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 		return it, err
 	}
 	saveCache := true
-	prices, err := d.getInstancePricesPerHour(zone)
-	if err != nil {
-		log.Printf("WARN: pricing error: %s", err)
-		saveCache = false
+	prices := make(map[string]*gcpInstancePricing)
+	if !d.disablePricing {
+		prices, err = d.getInstancePricesPerHour(zone)
+		if err != nil {
+			log.Printf("WARN: pricing error: %s", err)
+			saveCache = false
+		}
 	}
 	it = []instanceType{}
 	// find instance types

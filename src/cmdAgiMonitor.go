@@ -27,6 +27,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// TODO: custom feature file in agi-create command: deploy features file into /opt/agi instead of default location
+// TODO: consider how gcp/aws firewall rules are to work with agi-monitor, as it will attempt to re-lock the system; may need a separate AGI-access firewall ruleset for instances supported on the backend
+// TODO: consider how token authentication will be updated, deployed and supported when using AGI-monitor as adding tokens will not longer from outside on instance creation; possibly need another mechanism for auth to AGI instances; or how to deploy tokens?
+//       Or use cluster-share to copy the original owner's pubkey back to the instance! (will need to get it in the event body)
+
+// TODO: test and debug sizing disk
+// TODO: test and debug sizing ram
+// TODO: test and debug sizing disk and ram
+// TODO: test and debug capacity spot rotation on AWS (GCP tested)
+
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener"`
 	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands"`
@@ -187,6 +197,7 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	b.DisablePricingAPI()
 	c.execLock = new(sync.Mutex)
 	log.Print("Starting agi-monitor")
 	err := os.MkdirAll("/var/lib/agimonitor", 0755)
@@ -635,8 +646,8 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 			}
 		case AgiEventPreProcessComplete:
 			requiredRam := 0
-			dimRequiredMemory := int(math.Ceil(float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.DimMultiplier))
-			noDimRequiredMemory := int(math.Ceil(float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.NoDimMultiplier))
+			dimRequiredMemory := int(math.Ceil((float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.DimMultiplier) / 1024 / 1024 / 1024))
+			noDimRequiredMemory := int(math.Ceil((float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.NoDimMultiplier) / 1024 / 1024 / 1024))
 			if event.IsDataInMemory {
 				requiredRam = dimRequiredMemory
 			} else {

@@ -75,6 +75,7 @@ var TypeArchAmd = TypeArch(2)
 
 type backend interface {
 	// gcp/aws volumes
+	DisablePricingAPI()
 	CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error
 	TagVolume(fsId string, tagName string, tagValue string, zone string) error
 	DeleteVolume(name string, zone string) error
