@@ -1,3 +1,6 @@
+#### 7.2.2
+* Fix: `lsblk` now shows sizes as float not int.
+
 #### 7.2.1
 * Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
 
