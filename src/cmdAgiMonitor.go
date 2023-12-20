@@ -467,7 +467,7 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+err.Error())
 			return
 		}
-		c.handleCheckSizing(w, r, uuid, event)
+		c.handleCheckSizing(w, r, uuid, event, authObj.InstanceType)
 	}
 }
 
@@ -585,7 +585,7 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 	}
 }
 
-func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent) {
+func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent, currentType string) {
 	// check for required disk sizing on GCP
 	diskNewSize := uint64(0)
 	if a.opts.Config.Backend.Type == "gcp" {
@@ -602,11 +602,16 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 	disableDim := false
 	switch event.Event {
 	case AgiEventServiceDown:
-
+		if event.IsDataInMemory && c.SizingNoDIMFirst {
+			disableDim = true
+		} else {
+			// TODO: size one up or disableDim if no more UP remain
+		}
+	case AgiEventPreProcessComplete:
+		// TODO: estimate RAM requirement based on log size and instance type, size if required accordingly (or disableDim)
+	default:
+		// TODO: if available RAM below certain threshold (minimum xxGB or %, whichever thresshold is hit first), size accordingly (or disableDim)
 	}
-	// TODO: SERVICE_DOWN - need to size one up
-	// TODO: AgiEventPreProcessComplete - use estimate of RAM required vs what the current instance type has
-	// TODO: all other events - if available RAM below threshold, force sizing
 	// note: remember to either first disableDim or first size instance, depending on configuration
 	// note: allow config option to set max limit for instance growth in size
 
