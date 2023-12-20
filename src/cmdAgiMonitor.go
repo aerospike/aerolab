@@ -586,24 +586,54 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 }
 
 func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent) {
-	// TODO: handle event
-	//- check log sizes, available disk space (GCP) and RAM
-	//- if disk size too small - grow it
-	//- if RAM too small, tell agi to stop, shutdown the instance and restart it as larger instance accordingly (configurable sizing options)
-	//- if we grew instances already and are out of options, disable DIM
-	//- allow config option to set max limit for instance growth in size
-	//- respond with 418 when we are wanting processing to stop
-	// if sizing is required, run the below before commiting with a final 418 teapot:
-	/*
-		testJson := &agiCreateCmd{}
+	// check for required disk sizing on GCP
+	diskNewSize := uint64(0)
+	if a.opts.Config.Backend.Type == "gcp" {
+		// if log processor not finished and we are down to 10% disk space, add 50%
+		if event.IngestStatus.System.DiskFreeBytes > 0 && event.IngestStatus.System.DiskTotalBytes > 0 {
+			if event.IngestStatus.Ingest.LogProcessorCompletePct < 100 && float64(event.IngestStatus.System.DiskFreeBytes)/float64(event.IngestStatus.System.DiskTotalBytes) < 0.1 {
+				diskNewSize = (event.IngestStatus.System.DiskTotalBytes * 3 / 2) / 1024 / 1024 / 1024
+			}
+		}
+	}
+
+	// check if RAM is running out and size accordingly
+	newType := ""
+	disableDim := false
+	switch event.Event {
+	case AgiEventServiceDown:
+
+	}
+	// TODO: SERVICE_DOWN - need to size one up
+	// TODO: AgiEventPreProcessComplete - use estimate of RAM required vs what the current instance type has
+	// TODO: all other events - if available RAM below threshold, force sizing
+	// note: remember to either first disableDim or first size instance, depending on configuration
+	// note: allow config option to set max limit for instance growth in size
+
+	// perform sizing
+	testJson := &agiCreateCmd{}
+	if diskNewSize > 0 && newType == "" && !disableDim {
 		if !c.getDeploymentJSON(uuid, event, testJson) {
 			c.respond(w, r, uuid, 400, "sizing: invalid deployment json", "Sizing: abort on invalid deployment json")
 			return
 		}
-	*/
-	//go c.handleSizingRAM(uuid, event, newType, disableDim)
-	//go c.handleSizingDisk(uuid, event, newSize)
-	//go c.handleSizingDiskAndRAM(uuid, event, newSize, newTime, disableDim)
-
-	//TODO: notification system itself->if monitor notification returned error 400 or 401, inform slack if slack notification has been configured
+		c.respond(w, r, uuid, 200, "sizing: adding disk capacity", fmt.Sprintf("Sizing: changing disk capacity from %d GiB to %d GiB", event.IngestStatus.System.DiskTotalBytes/1024/1024/1024, diskNewSize))
+		go c.handleSizingDisk(uuid, event, int64(diskNewSize))
+	} else if diskNewSize == 0 && (newType != "" || disableDim) {
+		if !c.getDeploymentJSON(uuid, event, testJson) {
+			c.respond(w, r, uuid, 400, "sizing: invalid deployment json", "Sizing: abort on invalid deployment json")
+			return
+		}
+		c.respond(w, r, uuid, 418, "sizing: instance-ram", fmt.Sprintf("Sizing: instance-ram newType=%s disableDim=%t", newType, disableDim))
+		go c.handleSizingRAM(uuid, event, newType, disableDim)
+	} else if diskNewSize > 0 && (newType != "" || disableDim) {
+		if !c.getDeploymentJSON(uuid, event, testJson) {
+			c.respond(w, r, uuid, 400, "sizing: invalid deployment json", "Sizing: abort on invalid deployment json")
+			return
+		}
+		c.respond(w, r, uuid, 418, "sizing: instance-ram", fmt.Sprintf("Sizing: instance-disk-and-ram old-disk=%dGiB new-disk=%dGiB newType=%s disableDim=%t", event.IngestStatus.System.DiskTotalBytes/1024/1024/1024, diskNewSize, newType, disableDim))
+		go c.handleSizingDiskAndRAM(uuid, event, int64(diskNewSize), newType, disableDim)
+	} else {
+		c.respond(w, r, uuid, 200, "sizing: not required", "sizing: not required")
+	}
 }
