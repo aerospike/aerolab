@@ -634,13 +634,15 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		fileSizeInt = memSize / 1024 / 1024 / 1024
 		if c.NoDIM && c.NoDIMFileSize != 0 {
 			fileSizeInt = c.NoDIMFileSize
+		} else if c.NoDIM {
+			fileSizeInt = 2000
 		}
 		dimStr = fmt.Sprintf("data-in-memory %t", !c.NoDIM)
 		rpcStr = fmt.Sprintf("read-page-cache %t", c.NoDIM)
 	} else {
 		if c.NoDIM {
 			storEngine = "device"
-			fileSizeInt = memSize / 1024 / 1024 / 1024
+			fileSizeInt = 2000
 			if c.NoDIMFileSize != 0 {
 				fileSizeInt = c.NoDIMFileSize
 			}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -285,7 +286,16 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			pp := p.MountPoint
 			vals = append(vals, &pp)
 			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValues("mount", vals)
-			fsSizeI, err := strconv.Atoi(strings.TrimRight(p.FsSize, "GMBTgmbti"))
+			var fsSizeI int
+			if strings.Contains(p.FsSize, ".") {
+				var fsSizeF float64
+				fsSizeF, err = strconv.ParseFloat(strings.TrimRight(p.FsSize, "GMBTgmbti"), 64)
+				if err == nil {
+					fsSizeI = int(math.Floor(fsSizeF))
+				}
+			} else {
+				fsSizeI, err = strconv.Atoi(strings.TrimRight(p.FsSize, "GMBTgmbti"))
+			}
 			fsSize := p.FsSize
 			if err == nil {
 				suffix := ""
@@ -312,7 +322,16 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			pp := p.MountPoint
 			vals = append(vals, &pp)
 			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValues("mount", vals)
-			fsSizeI, err := strconv.Atoi(strings.TrimRight(p.FsSize, "GMBTgmbti"))
+			var fsSizeI int
+			if strings.Contains(p.FsSize, ".") {
+				var fsSizeF float64
+				fsSizeF, err = strconv.ParseFloat(strings.TrimRight(p.FsSize, "GMBTgmbti"), 64)
+				if err == nil {
+					fsSizeI = int(math.Floor(fsSizeF))
+				}
+			} else {
+				fsSizeI, err = strconv.Atoi(strings.TrimRight(p.FsSize, "GMBTgmbti"))
+			}
 			fsSize := p.FsSize
 			if err == nil {
 				suffix := ""
