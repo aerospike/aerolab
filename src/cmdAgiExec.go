@@ -62,6 +62,8 @@ func (c *agiExecSimulateCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
+		deploymentjson, _ := os.ReadFile("/opt/agi/deployment.json.gz")
+		c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
 		notifyItem := &ingest.NotifyEvent{
 			IsDataInMemory:      isDim,
 			IngestStatus:        notifyData,
@@ -97,8 +99,6 @@ func (c *agiExecSimulateCmd) Execute(args []string) error {
 	if c.notify.AGIMonitorUrl == "" && c.notify.Endpoint == "" {
 		return errors.New("JSON notification is disabled")
 	}
-	deploymentjson, _ := os.ReadFile("/opt/agi/deployment.json.gz")
-	c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
 	return c.notify.NotifyData(data)
 }
 

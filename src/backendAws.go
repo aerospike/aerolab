@@ -31,15 +31,16 @@ func (d *backendAws) Arch() TypeArch {
 }
 
 type backendAws struct {
-	sess      *session.Session
-	ec2svc    *ec2.EC2
-	lambda    *lambda.Lambda
-	scheduler *scheduler.Scheduler
-	iam       *iam.IAM
-	sts       *sts.STS
-	efs       *efs.EFS
-	server    bool
-	client    bool
+	sess           *session.Session
+	ec2svc         *ec2.EC2
+	lambda         *lambda.Lambda
+	scheduler      *scheduler.Scheduler
+	iam            *iam.IAM
+	sts            *sts.STS
+	efs            *efs.EFS
+	server         bool
+	client         bool
+	disablePricing bool
 }
 
 func init() {
@@ -669,15 +670,19 @@ func (d *backendAws) getInstanceTypes() ([]instanceType, error) {
 		return it, err
 	}
 	saveCache := true
-	prices, err := d.getInstancePricesPerHour()
-	if err != nil {
-		log.Printf("WARN: pricing error: %s", err)
-		saveCache = false
-	}
-	spotPrices, err := d.getSpotPricesPerHour()
-	if err != nil {
-		log.Printf("WARN: pricing error: %s", err)
-		saveCache = false
+	prices := make(map[string]float64)
+	spotPrices := make(map[string]float64)
+	if !d.disablePricing {
+		prices, err = d.getInstancePricesPerHour()
+		if err != nil {
+			log.Printf("WARN: pricing error: %s", err)
+			saveCache = false
+		}
+		spotPrices, err = d.getSpotPricesPerHour()
+		if err != nil {
+			log.Printf("WARN: pricing error: %s", err)
+			saveCache = false
+		}
 	}
 	it = []instanceType{}
 	err = d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
@@ -1936,6 +1941,10 @@ func (d *backendAws) ClusterStop(name string, nodes []int) error {
 		InstanceIds: instList,
 	})
 	return nil
+}
+
+func (d *backendAws) DisablePricingAPI() {
+	d.disablePricing = true
 }
 
 func (d *backendAws) VacuumTemplate(v backendVersion) error {

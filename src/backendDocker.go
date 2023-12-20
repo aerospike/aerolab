@@ -824,6 +824,9 @@ func (d *backendDocker) CopyFilesToCluster(name string, files []fileList, nodes 
 	return d.CopyFilesToClusterReader(name, fr, nodes)
 }
 
+func (d *backendDocker) DisablePricingAPI() {
+}
+
 func (d *backendDocker) CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error {
 	var err error
 	if nodes == nil {
