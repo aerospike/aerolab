@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -38,23 +40,29 @@ func (c *agiMonitorCmd) Execute(args []string) error {
 }
 
 type agiMonitorListenCmd struct {
-	ListenAddress    string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443" yaml:"listenAddress"`                                   // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
-	NoTLS            bool     `long:"no-tls" description:"disable tls" yaml:"noTLS"`                                                                                                                            // enable TLS
-	AutoCertDomains  []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
-	AutoCertEmail    string   `long:"autocert-email" description:"TLS: if autocert is specified, specify a valid email address to use with letsencrypt"`
-	CertFile         string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile"`                                                 // TLS: cert file (if not using autocert), default: snakeoil
-	KeyFile          string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile"`                                                           // TLS: key file (if not using autocert), default: snakeoil
-	AWSSizingOptions string   `long:"aws-sizing" description:"specify instance types, comma-separated to use for sizing; same.auto means same family, auto increase the size" default:"same.auto" yaml:"awsSizing"` // if r6g.2xlarge, size above using r6g family
-	GCPSizingOptions string   `long:"gcp-sizing" description:"specify instance types, comma-separated to use for sizing; same.auto means same family, auto increase the size" default:"same.auto" yaml:"gcpSizing"` // if c2d-highmem-4, size above using c2d-highmem family
-	SizingNoDIMFirst bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes" yaml:"sizingOptionNoDIMFirst"`
-	DisableSizing    bool     `long:"sizing-disable" description:"Set to disable sizing of instances for more resources" yaml:"disableSizing"`
-	DisableCapacity  bool     `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand" yaml:"disableSpotCapacityRotation"`
-	DebugEvents      bool     `long:"debug-events" description:"Log all events for debugging purposes" yaml:"debugEvents"`
-	invCache         inventoryJson
-	invCacheTimeout  time.Time
-	invLock          *sync.Mutex
-	execLock         *sync.Mutex
-	Help             helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ListenAddress       string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443" yaml:"listenAddress"`                                   // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
+	NoTLS               bool     `long:"no-tls" description:"disable tls" yaml:"noTLS"`                                                                                                                            // enable TLS
+	AutoCertDomains     []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
+	AutoCertEmail       string   `long:"autocert-email" description:"TLS: if autocert is specified, specify a valid email address to use with letsencrypt"`
+	CertFile            string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile"` // TLS: cert file (if not using autocert), default: snakeoil
+	KeyFile             string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile"`           // TLS: key file (if not using autocert), default: snakeoil
+	GCPDiskThresholdPct int      `long:"gcp-disk-thres-pct" description:"usage threshold pct at which the disk will be increased" yaml:"gcpDiskThresholdPct" default:"80"`
+	GCPDiskIncreaseGB   int      `long:"gcp-disk-grow-gb" description:"when threshold is breached, grow by these many GB" yaml:"gcpDiskIncreaseGB" default:"50"`
+	RAMThresUsedPct     int      `long:"ram-thres-used-pct" description:"max used PCT of RAM before instance gets sized" yaml:"ramThresholdUsedPct" default:"90"`
+	RAMThresMinFreeGB   int      `long:"ram-thres-minfree-gb" description:"minimum free GB of RAM before instance gets sized" yaml:"ramThresholdMinFreeGB" default:"8"`
+	SizingNoDIMFirst    bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes" yaml:"sizingOptionNoDIMFirst"`
+	DisableSizing       bool     `long:"sizing-disable" description:"Set to disable sizing of instances for more resources" yaml:"disableSizing"`
+	SizingMaxRamGB      int      `long:"sizing-max-ram-gb" description:"will not size above these many GB" default:"130" yaml:"sizingMaxRamGB"`
+	SizingMaxDiskGB     int      `long:"sizing-max-disk-gb" description:"will not size above these many GB" default:"400" yaml:"sizingMaxDiskGB"`
+	DisableCapacity     bool     `long:"capacity-disable" description:"Set to disable rotation of spot instances with capacity issues to ondemand" yaml:"disableSpotCapacityRotation"`
+	DimMultiplier       float64  `long:"sizing-multiplier-dim" description:"log size * multiplier = how much RAM is needed" yaml:"ramMultiplierDim" default:"1.8"`
+	NoDimMultiplier     float64  `long:"sizing-multiplier-nodim" description:"log size * multiplier = how much RAM is needed" yaml:"ramMultiplierNoDim" default:"0.4"`
+	DebugEvents         bool     `long:"debug-events" description:"Log all events for debugging purposes" yaml:"debugEvents"`
+	invCache            inventoryJson
+	invCacheTimeout     time.Time
+	invLock             *sync.Mutex
+	execLock            *sync.Mutex
+	Help                helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type agiMonitorCreateCmd struct {
@@ -467,7 +475,7 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+err.Error())
 			return
 		}
-		c.handleCheckSizing(w, r, uuid, event, authObj.InstanceType)
+		c.handleCheckSizing(w, r, uuid, event, authObj.InstanceType, cluster.Zone)
 	}
 }
 
@@ -585,14 +593,18 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 	}
 }
 
-func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent, currentType string) {
+func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent, currentType string, zone string) {
 	// check for required disk sizing on GCP
 	diskNewSize := uint64(0)
 	if a.opts.Config.Backend.Type == "gcp" {
-		// if log processor not finished and we are down to 10% disk space, add 50%
-		if event.IngestStatus.System.DiskFreeBytes > 0 && event.IngestStatus.System.DiskTotalBytes > 0 {
-			if event.IngestStatus.Ingest.LogProcessorCompletePct < 100 && float64(event.IngestStatus.System.DiskFreeBytes)/float64(event.IngestStatus.System.DiskTotalBytes) < 0.1 {
-				diskNewSize = (event.IngestStatus.System.DiskTotalBytes * 3 / 2) / 1024 / 1024 / 1024
+		if event.IngestStatus.System.DiskTotalBytes/1024/1024/1024 < uint64(c.SizingMaxDiskGB) {
+			if event.IngestStatus.System.DiskFreeBytes > 0 && event.IngestStatus.System.DiskTotalBytes > 0 {
+				if event.IngestStatus.Ingest.LogProcessorCompletePct < 100 && 1-(float64(event.IngestStatus.System.DiskFreeBytes)/float64(event.IngestStatus.System.DiskTotalBytes)) > float64(c.GCPDiskThresholdPct)/100 {
+					diskNewSize = (event.IngestStatus.System.DiskTotalBytes / 1024 / 1024 / 1024) + uint64(c.GCPDiskIncreaseGB)
+					if diskNewSize > uint64(c.SizingMaxDiskGB) {
+						diskNewSize = uint64(c.SizingMaxDiskGB)
+					}
+				}
 			}
 		}
 	}
@@ -600,22 +612,106 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 	// check if RAM is running out and size accordingly
 	newType := ""
 	disableDim := false
-	switch event.Event {
-	case AgiEventServiceDown:
-		if event.IsDataInMemory && c.SizingNoDIMFirst {
-			disableDim = true
-		} else {
-			// TODO: size one up or disableDim if no more UP remain
+	performRamSizing := func() (performRamSizing bool) {
+		switch event.Event {
+		case AgiEventServiceDown:
+			if event.IsDataInMemory && c.SizingNoDIMFirst {
+				disableDim = true
+			} else {
+				instanceTypes, itype, err := c.getInstanceTypes(zone, currentType)
+				if err != nil {
+					c.respond(w, r, uuid, 500, "sizing: get instance types failure", fmt.Sprintf("Sizing: getInstanceTypes: %s", err))
+					return
+				}
+				newType, err = c.sizeInstanceType(instanceTypes, currentType, int(itype.RamGB+1))
+				if err != nil {
+					if !event.IsDataInMemory {
+						c.respond(w, r, uuid, 400, "sizing: "+err.Error(), fmt.Sprintf("Sizing: %s", err))
+						return
+					} else {
+						disableDim = true
+					}
+				}
+			}
+		case AgiEventPreProcessComplete:
+			requiredRam := 0
+			dimRequiredMemory := int(math.Ceil(float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.DimMultiplier))
+			noDimRequiredMemory := int(math.Ceil(float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.NoDimMultiplier))
+			if event.IsDataInMemory {
+				requiredRam = dimRequiredMemory
+			} else {
+				requiredRam = noDimRequiredMemory
+			}
+
+			instanceTypes, itype, err := c.getInstanceTypes(zone, currentType)
+			if err != nil {
+				c.respond(w, r, uuid, 500, "sizing: get instance types failure", fmt.Sprintf("Sizing: getInstanceTypes: %s", err))
+				return
+			}
+
+			if itype.RamGB >= float64(requiredRam) {
+				return
+			}
+
+			if event.IsDataInMemory && c.SizingNoDIMFirst {
+				disableDim = true
+				if itype.RamGB < float64(noDimRequiredMemory) {
+					newType, err = c.sizeInstanceType(instanceTypes, currentType, noDimRequiredMemory)
+					if err != nil {
+						c.log(uuid, "sizing", "WARNING: reached max sizing and will not have enough RAM anyways: "+err.Error())
+					}
+				}
+			} else if event.IsDataInMemory {
+				newType, err = c.sizeInstanceType(instanceTypes, currentType, requiredRam)
+				if err != nil {
+					disableDim = true
+				}
+			} else {
+				newType, err = c.sizeInstanceType(instanceTypes, currentType, requiredRam)
+				if err != nil {
+					if newType == currentType {
+						c.respond(w, r, uuid, 500, "sizing: max reached and may still run out of memory", fmt.Sprintf("Sizing: reached max and will probably still run out of RAM: %s", err))
+						return
+					}
+					c.log(uuid, "sizing", "WARNING: reached max sizing and will not have enough RAM anyways: "+err.Error())
+				}
+			}
+		default:
+			if event.IngestStatus.System.MemoryFreeBytes/1024/1024/1024 < c.RAMThresMinFreeGB || (event.IngestStatus.System.MemoryTotalBytes > 0 && event.IngestStatus.System.MemoryFreeBytes > 0 && 1-(float64(event.IngestStatus.System.MemoryFreeBytes)/float64(event.IngestStatus.System.MemoryTotalBytes)) > float64(c.RAMThresUsedPct)/100) {
+				if event.IsDataInMemory && c.SizingNoDIMFirst {
+					disableDim = true
+				} else {
+					instanceTypes, itype, err := c.getInstanceTypes(zone, currentType)
+					if err != nil {
+						c.respond(w, r, uuid, 500, "sizing: get instance types failure", fmt.Sprintf("Sizing: getInstanceTypes: %s", err))
+						return
+					}
+					newType, err = c.sizeInstanceType(instanceTypes, currentType, int(itype.RamGB+1))
+					if err != nil {
+						if !event.IsDataInMemory {
+							c.respond(w, r, uuid, 400, "sizing: "+err.Error(), fmt.Sprintf("Sizing: %s", err))
+							return
+						} else {
+							disableDim = true
+						}
+					}
+				}
+			} else {
+				return
+			}
 		}
-	case AgiEventPreProcessComplete:
-		// TODO: estimate RAM requirement based on log size and instance type, size if required accordingly (or disableDim)
-	default:
-		// TODO: if available RAM below certain threshold (minimum xxGB or %, whichever thresshold is hit first), size accordingly (or disableDim)
-	}
-	// note: remember to either first disableDim or first size instance, depending on configuration
-	// note: allow config option to set max limit for instance growth in size
+		performRamSizing = true
+		return
+	}()
 
 	// perform sizing
+	if !performRamSizing {
+		newType = ""
+		disableDim = false
+	}
+	if newType == "" && disableDim {
+		newType = currentType
+	}
 	testJson := &agiCreateCmd{}
 	if diskNewSize > 0 && newType == "" && !disableDim {
 		if !c.getDeploymentJSON(uuid, event, testJson) {
@@ -629,16 +725,100 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 			c.respond(w, r, uuid, 400, "sizing: invalid deployment json", "Sizing: abort on invalid deployment json")
 			return
 		}
-		c.respond(w, r, uuid, 418, "sizing: instance-ram", fmt.Sprintf("Sizing: instance-ram newType=%s disableDim=%t", newType, disableDim))
+		c.respond(w, r, uuid, 418, "sizing: instance-ram", fmt.Sprintf("Sizing: instance-ram currentType=%s newType=%s disableDim=%t", currentType, newType, disableDim))
 		go c.handleSizingRAM(uuid, event, newType, disableDim)
 	} else if diskNewSize > 0 && (newType != "" || disableDim) {
 		if !c.getDeploymentJSON(uuid, event, testJson) {
 			c.respond(w, r, uuid, 400, "sizing: invalid deployment json", "Sizing: abort on invalid deployment json")
 			return
 		}
-		c.respond(w, r, uuid, 418, "sizing: instance-ram", fmt.Sprintf("Sizing: instance-disk-and-ram old-disk=%dGiB new-disk=%dGiB newType=%s disableDim=%t", event.IngestStatus.System.DiskTotalBytes/1024/1024/1024, diskNewSize, newType, disableDim))
+		c.respond(w, r, uuid, 418, "sizing: instance-disk-and-ram", fmt.Sprintf("Sizing: instance-disk-and-ram old-disk=%dGiB new-disk=%dGiB currentType=%s newType=%s disableDim=%t", event.IngestStatus.System.DiskTotalBytes/1024/1024/1024, diskNewSize, currentType, newType, disableDim))
 		go c.handleSizingDiskAndRAM(uuid, event, int64(diskNewSize), newType, disableDim)
 	} else {
 		c.respond(w, r, uuid, 200, "sizing: not required", "sizing: not required")
 	}
+}
+
+func (c *agiMonitorListenCmd) getInstanceTypes(zone string, currentType string) ([]instanceType, *instanceType, error) {
+	instanceTypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, false, zone)
+	if err != nil {
+		return nil, nil, err
+	}
+	instanceTypesX, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, true, zone)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, t := range instanceTypesX {
+		found := false
+		for _, tt := range instanceTypes {
+			if t.InstanceName == tt.InstanceName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			instanceTypes = append(instanceTypes, t)
+		}
+	}
+
+	var itype *instanceType
+	for _, t := range instanceTypes {
+		if t.InstanceName == currentType {
+			itype = &t
+			break
+		}
+	}
+	if itype == nil {
+		return instanceTypes, itype, fmt.Errorf("instance type '%s' not found", currentType)
+	}
+	return instanceTypes, itype, nil
+}
+
+// will return err if required RAM exceeds max instance sizing
+// if err is set, newType will be set to max instance size available; or to currentType if family not found
+func (c *agiMonitorListenCmd) sizeInstanceType(instanceTypes []instanceType, currentType string, requiredMemory int) (newType string, err error) {
+	family := ""
+	if a.opts.Config.Backend.Type == "aws" {
+		if !strings.Contains(currentType, ".") {
+			return currentType, errors.New("family not found")
+		}
+		family = strings.Split(currentType, ".")[0] + "."
+	} else {
+		fsplit := strings.Split(currentType, "-")
+		if len(fsplit) != 3 {
+			return currentType, errors.New("family type cannot be sized")
+		}
+		family = fsplit[0] + "-" + fsplit[1] + "-"
+	}
+
+	type ntype struct {
+		name string
+		ram  float64
+	}
+
+	ntypes := []ntype{}
+	for _, t := range instanceTypes {
+		if t.RamGB > float64(c.SizingMaxRamGB) {
+			continue
+		}
+		if strings.HasPrefix(t.InstanceName, family) {
+			ntypes = append(ntypes, ntype{
+				name: t.InstanceName,
+				ram:  t.RamGB,
+			})
+		}
+	}
+	if len(ntypes) == 0 {
+		return currentType, errors.New("family not in list or list exhausted")
+	}
+	sort.Slice(ntypes, func(i, j int) bool {
+		return ntypes[i].ram < ntypes[j].ram
+	})
+	for _, n := range ntypes {
+		if n.ram >= float64(requiredMemory) {
+			return n.name, nil
+		}
+		newType = n.name
+	}
+	return newType, errors.New("sizing exhausted")
 }

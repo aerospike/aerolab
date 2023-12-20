@@ -17,6 +17,8 @@ _Release Date: UNDEF_
 * AGI: support arm editions of centos-based operating systems.
 * AGI: add `--no-dim-filesize` option to specify data storage file size for non-data-in-memory namespaces.
 * AGI: override tools package by default by the latest tools. Allow `--no-tools-override` to disable.
+* AGI: All stack items utilize `v7` aerospike client library.
+* AGI: Feature: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
 * Docker: Improvement: attempt to auto-adjust limit of open files.
 * Docker: when exposing multiple ports in a continuous order, only use first exposed port for the service port.
 * GCP: The `cluster add firewall` command should issue `op.Wait` after all operations have been queued.
@@ -33,4 +35,5 @@ _Release Date: UNDEF_
 * Fix: Auto-create temporary directory as needed, if it is specified.
 * Fix: GCP: Handle firewall rules which use an IP instead of CIDR.
 * Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
-* AGI: Feature: Monitor agi instance states and react accordingly - sizing or cycling from spot to on-demand types.
+* Fix: `lsblk` now shows sizes as float not int.
+* Aerospike Client Versions: `data insert`, `data delete` support for `v7` aerospike client.
