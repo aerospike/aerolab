@@ -30,6 +30,7 @@ type agiExecCmd struct {
 	Proxy        agiExecProxyCmd        `command:"proxy" subcommands-optional:"true" description:"Proxy from aerolab to AGI services"`
 	IngestStatus agiExecIngestStatusCmd `command:"ingest-status" subcommands-optional:"true" description:"Ingest logs into aerospike"`
 	IngestDetail agiExecIngestDetailCmd `command:"ingest-detail" subcommands-optional:"true" description:"Ingest logs into aerospike"`
+	Simulate     agiExecSimulateCmd     `command:"simulate" subcommands-optional:"true" description:"simulate a notification to the agi monitor"`
 	Help         helpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -37,6 +38,68 @@ func (c *agiExecCmd) Execute(args []string) error {
 	a.parser.WriteHelp(os.Stderr)
 	os.Exit(1)
 	return nil
+}
+
+type agiExecSimulateCmd struct {
+	Path       string  `long:"path" description:"path to a json file to use for notification"`
+	Make       bool    `long:"make" description:"set to make the notification file using resource manager code instead of sending it"`
+	AGIName    string  `long:"make-agi-name" description:"set agiName when making the notificaiton json"`
+	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	notify     notifier.HTTPSNotify
+	deployJson string
+}
+
+func (c *agiExecSimulateCmd) Execute(args []string) error {
+	if earlyProcessNoBackend(args) {
+		return nil
+	}
+	if c.Make {
+		isDim := true
+		if _, err := os.Stat("/opt/agi/nodim"); err == nil {
+			isDim = false
+		}
+		notifyData, err := getAgiStatus(true, "/opt/agi/ingest/")
+		if err != nil {
+			return err
+		}
+		notifyItem := &ingest.NotifyEvent{
+			IsDataInMemory:      isDim,
+			IngestStatus:        notifyData,
+			Event:               AgiEventResourceMonitor,
+			AGIName:             c.AGIName,
+			DeploymentJsonGzB64: c.deployJson,
+		}
+		data, err := json.MarshalIndent(notifyItem, "", "  ")
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(c.Path, data, 0644)
+	}
+	data, err := os.ReadFile(c.Path)
+	if err != nil {
+		return err
+	}
+	v := make(map[string]interface{})
+	err = json.Unmarshal(data, &v)
+	if err != nil {
+		return err
+	}
+	data, err = json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
+	if err == nil {
+		yaml.Unmarshal(nstring, &c.notify)
+		c.notify.Init()
+		defer c.notify.Close()
+	}
+	if c.notify.AGIMonitorUrl == "" && c.notify.Endpoint == "" {
+		return errors.New("JSON notification is disabled")
+	}
+	deploymentjson, _ := os.ReadFile("/opt/agi/deployment.json.gz")
+	c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
+	return c.notify.NotifyData(data)
 }
 
 type agiExecIngestStatusCmd struct {
