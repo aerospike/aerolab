@@ -47,7 +47,7 @@ type agiMonitorListenCmd struct {
 	CertFile            string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile"` // TLS: cert file (if not using autocert), default: snakeoil
 	KeyFile             string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile"`           // TLS: key file (if not using autocert), default: snakeoil
 	GCPDiskThresholdPct int      `long:"gcp-disk-thres-pct" description:"usage threshold pct at which the disk will be increased" yaml:"gcpDiskThresholdPct" default:"80"`
-	GCPDiskIncreaseGB   int      `long:"gcp-disk-grow-gb" description:"when threshold is breached, grow by these many GB" yaml:"gcpDiskIncreaseGB" default:"50"`
+	GCPDiskIncreaseGB   int      `long:"gcp-disk-grow-gb" description:"when threshold is breached, grow by these many GB" yaml:"gcpDiskIncreaseGB" default:"100"`
 	RAMThresUsedPct     int      `long:"ram-thres-used-pct" description:"max used PCT of RAM before instance gets sized" yaml:"ramThresholdUsedPct" default:"90"`
 	RAMThresMinFreeGB   int      `long:"ram-thres-minfree-gb" description:"minimum free GB of RAM before instance gets sized" yaml:"ramThresholdMinFreeGB" default:"8"`
 	SizingNoDIMFirst    bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes" yaml:"sizingOptionNoDIMFirst"`
