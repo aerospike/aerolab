@@ -31,7 +31,11 @@
 * Fix: Auto-create temporary directory as needed, if it is specified.
 * Fix: GCP: Handle firewall rules which use an IP instead of CIDR.
 * Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
+* Fix: `lsblk` now shows sizes as float not int.
 * Aerospike Client Versions: `data insert`, `data delete` support for `v7` aerospike client.
+
+#### 7.2.2
+* Fix: `lsblk` now shows sizes as float not int.
 
 #### 7.2.1
 * Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
