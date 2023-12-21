@@ -264,11 +264,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 	}
 
 	//t.SetTitle("INSTANCES")
-	if a.opts.Config.Backend.Type == "aws" {
-		t.AppendHeader(table.Row{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month", "Spot $/hour", "Spot $/day", "Spot $/month", "Spot $%"})
-	} else {
-		t.AppendHeader(table.Row{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month"})
-	}
+	t.AppendHeader(table.Row{"Instance Name", "CPUs", "Ram GB", "Local Disks", "Local Disk Total Size GB", "On-Demand $/hour", "On-Demand $/day", "On-Demand $/month", "Spot $/hour", "Spot $/day", "Spot $/month", "Spot $%"})
 	for _, v := range instanceTypes {
 		if c.FilterName != "" && !strings.HasPrefix(v.InstanceName, c.FilterName) {
 			continue
@@ -319,9 +315,7 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 			pricepd,
 			pricepm,
 		}
-		if a.opts.Config.Backend.Type == "aws" {
-			vv = append(vv, spotprice, spotpricepd, spotpricepm, strconv.FormatFloat(spotpct, 'f', 0, 64))
-		}
+		vv = append(vv, spotprice, spotpricepd, spotpricepm, strconv.FormatFloat(spotpct, 'f', 0, 64))
 		t.AppendRow(vv)
 	}
 	fmt.Println(t.Render())
