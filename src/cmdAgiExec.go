@@ -42,9 +42,9 @@ func (c *agiExecCmd) Execute(args []string) error {
 }
 
 type agiExecSimulateCmd struct {
-	Path       string  `long:"path" description:"path to a json file to use for notification"`
+	Path       string  `long:"path" description:"path to a json file to use for notification" default:"notify.sim.json"`
 	Make       bool    `long:"make" description:"set to make the notification file using resource manager code instead of sending it"`
-	AGIName    string  `long:"make-agi-name" description:"set agiName when making the notificaiton json"`
+	AGIName    string  `long:"agi-name" description:"set agiName when making the notificaiton json" default:"agi"`
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	notify     notifier.HTTPSNotify
 	deployJson string

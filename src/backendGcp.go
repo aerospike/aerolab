@@ -3453,9 +3453,12 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	expiryTelemetryLock.Unlock()
 	onHostMaintenance := "MIGRATE"
+	autoRestart := true
 	provisioning := "STANDARD"
 	if extra.spotInstance {
 		provisioning = "SPOT"
+		autoRestart = false
+		onHostMaintenance = "TERMINATE"
 	}
 	var serviceAccounts []*computepb.ServiceAccount
 	if extra.terminateOnPoweroff || extra.instanceRole != "" {
@@ -3559,7 +3562,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 					Items: tags,
 				},
 				Scheduling: &computepb.Scheduling{
-					AutomaticRestart:  proto.Bool(true),
+					AutomaticRestart:  proto.Bool(autoRestart),
 					OnHostMaintenance: proto.String(onHostMaintenance),
 					ProvisioningModel: proto.String(provisioning),
 				},
