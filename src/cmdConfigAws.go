@@ -166,7 +166,7 @@ func (c *createSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Creating security groups")
-	err := b.CreateSecurityGroups(c.VPC, c.NamePrefix)
+	err := b.CreateSecurityGroups(c.VPC, c.NamePrefix, false)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (c *lockSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Locking security groups")
-	err := b.LockSecurityGroups(c.IP, true, c.VPC, c.NamePrefix)
+	err := b.LockSecurityGroups(c.IP, true, c.VPC, c.NamePrefix, false)
 	if err != nil {
 		return err
 	}

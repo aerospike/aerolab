@@ -62,6 +62,7 @@ func (c *clusterAddExpiryCmd) Execute(args []string) error {
 
 type clusterAddAerolabCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	alt         bool
 	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -91,10 +92,30 @@ func (c *clusterAddAerolabCmd) run(onClient bool) error {
 			return fmt.Errorf("could not identify node architecture: %s", err)
 		}
 
+		tail := ""
+		if c.alt {
+			isArm = !isArm
+			if isArm {
+				tail = ".arm"
+			} else {
+				tail = ".amd"
+			}
+		}
 		// upload aerolab to remote
 		nLinuxBinary := nLinuxBinaryX64
 		if isArm {
 			nLinuxBinary = nLinuxBinaryArm64
+		}
+		if len(nLinuxBinary) == 0 {
+			xtail := ""
+			if isArm {
+				xtail = ".arm"
+			} else {
+				xtail = ".amd"
+			}
+			if _, err := os.Stat("/usr/local/bin/aerolab" + xtail); err == nil {
+				nLinuxBinary, _ = os.ReadFile("/usr/local/bin/aerolab" + xtail)
+			}
 		}
 		if len(nLinuxBinary) == 0 {
 			execName, err := findExec()
@@ -108,7 +129,7 @@ func (c *clusterAddAerolabCmd) run(onClient bool) error {
 		}
 		flist := []fileListReader{
 			{
-				filePath:     "/usr/local/bin/aerolab",
+				filePath:     "/usr/local/bin/aerolab" + tail,
 				fileContents: bytes.NewReader(nLinuxBinary),
 				fileSize:     len(nLinuxBinary),
 			},

@@ -82,7 +82,7 @@ type agiCreateCmdAws struct {
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
 	Tags                []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix          []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+	NamePrefix          []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroAGI"`
 	WithEFS             bool          `long:"aws-with-efs" description:"set to enable EFS as the storage medium for the AGI stack"`
 	EFSName             string        `long:"aws-efs-name" description:"set to change the default name of the EFS volume" default:"{AGI_NAME}"`
 	EFSPath             string        `long:"aws-efs-path" description:"set to change the default path of the EFS directory to be mounted" default:"/"`
@@ -99,7 +99,7 @@ type agiCreateCmdGcp struct {
 	Zone                string        `long:"zone" description:"zone name to deploy to"`
 	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"agi-managed-external"`
 	SpotInstance        bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires             time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 	WithVol             bool          `long:"gcp-with-vol" description:"set to enable extra volume as the storage medium for the AGI stack"`
@@ -286,6 +286,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.AerospikeVersion = c.AerospikeVersion
 	a.opts.Cluster.Create.Username = ""
 	a.opts.Cluster.Create.Password = ""
+	a.opts.Cluster.Create.useAgiFirewall = true
 	a.opts.Cluster.Create.Aws.AMI = ""
 	a.opts.Cluster.Create.Aws.InstanceType = c.Aws.InstanceType
 	a.opts.Cluster.Create.Aws.Ebs = c.Aws.Ebs
@@ -418,6 +419,17 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		nLinuxBinary := nLinuxBinaryX64
 		if isArm {
 			nLinuxBinary = nLinuxBinaryArm64
+		}
+		if len(nLinuxBinary) == 0 {
+			xtail := ""
+			if isArm {
+				xtail = ".arm"
+			} else {
+				xtail = ".amd"
+			}
+			if _, err := os.Stat("/usr/local/bin/aerolab" + xtail); err == nil {
+				nLinuxBinary, _ = os.ReadFile("/usr/local/bin/aerolab" + xtail)
+			}
 		}
 		if len(nLinuxBinary) == 0 {
 			execName, err := findExec()

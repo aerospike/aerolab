@@ -406,6 +406,17 @@ func (c *volumeMountCmd) doMount(volume *inventoryVolume, node int) error {
 				nLinuxBinary = nLinuxBinaryArm64
 			}
 			if len(nLinuxBinary) == 0 {
+				xtail := ""
+				if isArm {
+					xtail = ".arm"
+				} else {
+					xtail = ".amd"
+				}
+				if _, err := os.Stat("/usr/local/bin/aerolab" + xtail); err == nil {
+					nLinuxBinary, _ = os.ReadFile("/usr/local/bin/aerolab" + xtail)
+				}
+			}
+			if len(nLinuxBinary) == 0 {
 				execName, err := findExec()
 				if err != nil {
 					return err

@@ -40,9 +40,10 @@ func (d *backendGcp) Arch() TypeArch {
 }
 
 type backendGcp struct {
-	server         bool
-	client         bool
-	disablePricing bool
+	server               bool
+	client               bool
+	disablePricing       bool
+	disableExpiryInstall bool
 }
 
 func init() {
@@ -127,6 +128,10 @@ func (d *backendGcp) GetAZName(subnetId string) (string, error) {
 
 func (d *backendGcp) DisablePricingAPI() {
 	d.disablePricing = true
+}
+
+func (d *backendGcp) DisableExpiryInstall() {
+	d.disableExpiryInstall = true
 }
 
 func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
@@ -482,6 +487,9 @@ func (d *backendGcp) expiriesSystemInstall(intervalMinutes int, deployRegion str
 }
 
 func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	if deployRegion == "" {
 		return errors.New("to install the expriries system, region must be specified")
 	}
@@ -633,6 +641,9 @@ func (d *backendGcp) ExpiriesSystemRemove(region string) error {
 }
 
 func (d *backendGcp) expiriesSystemRemove(printErr bool, region string) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	rd, err := a.aerolabRootDir()
 	if err != nil {
 		return fmt.Errorf("error getting aerolab home dir: %s", err)
@@ -661,6 +672,9 @@ func (d *backendGcp) expiriesSystemRemove(printErr bool, region string) error {
 }
 
 func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	cron := "*/" + strconv.Itoa(intervalMinutes) + " * * * *"
 	if intervalMinutes >= 60 {
 		if intervalMinutes%60 != 0 || intervalMinutes > 1440 {
@@ -2624,7 +2638,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp)
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}
@@ -2874,7 +2888,7 @@ func (d *backendGcp) ListSubnets() error {
 func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool) error {
 	ctx := context.Background()
 	for _, name := range names {
-		if err := d.createSecurityGroupsIfNotExist(name); err != nil {
+		if err := d.createSecurityGroupsIfNotExist(name, false); err != nil {
 			return err
 		}
 	}
@@ -2937,11 +2951,15 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 	return nil
 }
 
-func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string) error {
-	return d.createSecurityGroupsIfNotExist(namePrefix)
+func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error {
+	return d.createSecurityGroupsIfNotExist(namePrefix, isAgi)
 }
 
-func (d *backendGcp) createSecurityGroupExternal(namePrefix string) error {
+func (d *backendGcp) createSecurityGroupExternal(namePrefix string, isAgi bool) error {
+	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200"}
+	if isAgi {
+		ports = []string{"22", "80", "443"}
+	}
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -2953,7 +2971,7 @@ func (d *backendGcp) createSecurityGroupExternal(namePrefix string) error {
 		Allowed: []*computepb.Allowed{
 			{
 				IPProtocol: proto.String("tcp"),
-				Ports:      []string{"22", "3000", "443", "80", "8080", "8888", "9200"},
+				Ports:      ports,
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
@@ -3026,12 +3044,20 @@ func (d *backendGcp) createSecurityGroupInternal(namePrefix string) error {
 	return nil
 }
 
-func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error {
-	if ip == "discover-caller-ip" {
-		ip = getip2()
+func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error {
+	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200"}
+	if isAgi {
+		ports = []string{"22", "80", "443"}
 	}
-	if !strings.Contains(ip, "/") {
-		ip = ip + "/32"
+	if isAgi {
+		ip = "0.0.0.0/0"
+	} else {
+		if ip == "discover-caller-ip" {
+			ip = getip2()
+		}
+		if !strings.Contains(ip, "/") {
+			ip = ip + "/32"
+		}
 	}
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
@@ -3044,7 +3070,7 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, nam
 		Allowed: []*computepb.Allowed{
 			{
 				IPProtocol: proto.String("tcp"),
-				Ports:      []string{"22", "3000", "443", "80", "8080", "8888", "9200"},
+				Ports:      ports,
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
@@ -3182,7 +3208,7 @@ func (d *backendGcp) ListSecurityGroups() error {
 	return nil
 }
 
-func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
+func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi bool) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -3239,17 +3265,17 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
 		}
 	}
 	if !existExternal {
-		err = d.createSecurityGroupExternal(namePrefix)
+		err = d.createSecurityGroupExternal(namePrefix, isAgi)
 		if err != nil {
 			return err
 		}
-		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix)
+		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi)
 		if err != nil {
 			return err
 		}
 	} else if needsLock {
 		log.Println("Security group CIDR doesn't allow this command to complete, re-locking security groups with the caller's IP")
-		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix)
+		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi)
 		if err != nil {
 			return err
 		}
@@ -3403,7 +3429,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp)
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}

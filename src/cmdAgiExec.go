@@ -66,11 +66,12 @@ func (c *agiExecSimulateCmd) Execute(args []string) error {
 		deploymentjson, _ := os.ReadFile("/opt/agi/deployment.json.gz")
 		c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory:      isDim,
-			IngestStatus:        notifyData,
-			Event:               AgiEventResourceMonitor,
-			AGIName:             c.AGIName,
-			DeploymentJsonGzB64: c.deployJson,
+			IsDataInMemory:             isDim,
+			IngestStatus:               notifyData,
+			Event:                      AgiEventResourceMonitor,
+			AGIName:                    c.AGIName,
+			DeploymentJsonGzB64:        c.deployJson,
+			SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 		}
 		data, err := json.MarshalIndent(notifyItem, "", "  ")
 		if err != nil {

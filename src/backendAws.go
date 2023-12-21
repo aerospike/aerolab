@@ -31,16 +31,17 @@ func (d *backendAws) Arch() TypeArch {
 }
 
 type backendAws struct {
-	sess           *session.Session
-	ec2svc         *ec2.EC2
-	lambda         *lambda.Lambda
-	scheduler      *scheduler.Scheduler
-	iam            *iam.IAM
-	sts            *sts.STS
-	efs            *efs.EFS
-	server         bool
-	client         bool
-	disablePricing bool
+	sess                 *session.Session
+	ec2svc               *ec2.EC2
+	lambda               *lambda.Lambda
+	scheduler            *scheduler.Scheduler
+	iam                  *iam.IAM
+	sts                  *sts.STS
+	efs                  *efs.EFS
+	server               bool
+	client               bool
+	disablePricing       bool
+	disableExpiryInstall bool
 }
 
 func init() {
@@ -307,6 +308,9 @@ func (d *backendAws) SetLabel(clusterName string, key string, value string, gzpZ
 }
 
 func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	// if a scheduler already exists, return EXISTS as it's all been already made
 	q, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
 		NamePrefix: aws.String("aerolab-expiries"),
@@ -509,6 +513,9 @@ func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.
 }
 
 func (d *backendAws) ExpiriesSystemRemove(region string) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	var ret []string
 	_, err := d.scheduler.DeleteSchedule(&scheduler.DeleteScheduleInput{
 		Name:        aws.String("aerolab-expiries"),
@@ -574,6 +581,9 @@ func (d *backendAws) ExpiriesSystemRemove(region string) error {
 }
 
 func (d *backendAws) ExpiriesSystemFrequency(intervalMinutes int) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	out, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
 		NamePrefix: aws.String("aerolab-expiries"),
 	})
@@ -1947,6 +1957,10 @@ func (d *backendAws) DisablePricingAPI() {
 	d.disablePricing = true
 }
 
+func (d *backendAws) DisableExpiryInstall() {
+	d.disableExpiryInstall = true
+}
+
 func (d *backendAws) VacuumTemplate(v backendVersion) error {
 	isArm := "amd"
 	if v.isArm {
@@ -2301,7 +2315,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	// end tag setup
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
-	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true, extra.firewallNamePrefix)
+	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true, extra.firewallNamePrefix, extra.isAgiFirewall)
 	if err != nil {
 		return err
 	}
@@ -2808,7 +2822,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		if i == start {
 			printID = true
 		}
-		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID, extra.firewallNamePrefix)
+		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID, extra.firewallNamePrefix, extra.isAgiFirewall)
 		if err != nil {
 			return err
 		}
