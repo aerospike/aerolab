@@ -23,11 +23,13 @@ fi
 chmod 755 /usr/local/bin/aerolab
 aerolab config backend -t none
 %s
+[ ! -f /opt/agi/aerospike/features.conf ] && cp /etc/aerospike/features.conf /opt/agi/aerospike/features.conf
 cat <<'EOF' > /etc/aerospike/aerospike.conf
 service {
     proto-fd-max 15000
     work-directory /opt/agi/aerospike
     cluster-name agi
+    feature-key-file /opt/agi/aerospike/features.conf
 }
 logging {
     file /var/log/agi-aerospike.log {

@@ -68,11 +68,12 @@ type agiCreateCmd struct {
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool                 `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
 	chDirCmd
-	NoVacuumOnFail bool               `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
-	Aws            agiCreateCmdAws    `no-flag:"true"`
-	Gcp            agiCreateCmdGcp    `no-flag:"true"`
-	Docker         agiCreateCmdDocker `no-flag:"true"`
-	Owner          string             `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	NoVacuumOnFail                bool               `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	Aws                           agiCreateCmdAws    `no-flag:"true"`
+	Gcp                           agiCreateCmdGcp    `no-flag:"true"`
+	Docker                        agiCreateCmdDocker `no-flag:"true"`
+	Owner                         string             `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	uploadAuthorizedContentsGzB64 string
 }
 
 type agiCreateCmdAws struct {
@@ -694,6 +695,13 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		fileContents: bytes.NewReader(deploymentDetail),
 		fileSize:     len(deploymentDetail),
 	})
+	if c.uploadAuthorizedContentsGzB64 != "" {
+		flist = append(flist, fileListReader{
+			filePath:     "/tmp/aerolab.install.ssh",
+			fileContents: strings.NewReader(c.uploadAuthorizedContentsGzB64),
+			fileSize:     len(c.uploadAuthorizedContentsGzB64),
+		})
+	}
 
 	// upload all files and run installer
 	err = b.CopyFilesToClusterReader(c.ClusterName.String(), flist, []int{1})
