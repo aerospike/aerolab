@@ -40,8 +40,10 @@ func (d *backendGcp) Arch() TypeArch {
 }
 
 type backendGcp struct {
-	server bool
-	client bool
+	server               bool
+	client               bool
+	disablePricing       bool
+	disableExpiryInstall bool
 }
 
 func init() {
@@ -109,10 +111,18 @@ func (d *backendGcp) WorkOnServers() {
 }
 
 type gcpInstancePricing struct {
-	perCoreHour  float64
-	perRamGBHour float64
-	gpuPriceHour float64
-	gpuUltraHour float64
+	onDemand struct {
+		perCoreHour  float64
+		perRamGBHour float64
+		gpuPriceHour float64
+		gpuUltraHour float64
+	}
+	spot struct {
+		perCoreHour  float64
+		perRamGBHour float64
+		gpuPriceHour float64
+		gpuUltraHour float64
+	}
 }
 
 type gcpClusterExpiryInstances struct {
@@ -122,6 +132,14 @@ type gcpClusterExpiryInstances struct {
 
 func (d *backendGcp) GetAZName(subnetId string) (string, error) {
 	return "", nil
+}
+
+func (d *backendGcp) DisablePricingAPI() {
+	d.disablePricing = true
+}
+
+func (d *backendGcp) DisableExpiryInstall() {
+	d.disableExpiryInstall = true
 }
 
 func (d *backendGcp) TagVolume(fsId string, tagName string, tagValue string, zone string) error {
@@ -477,6 +495,9 @@ func (d *backendGcp) expiriesSystemInstall(intervalMinutes int, deployRegion str
 }
 
 func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	if deployRegion == "" {
 		return errors.New("to install the expriries system, region must be specified")
 	}
@@ -628,6 +649,9 @@ func (d *backendGcp) ExpiriesSystemRemove(region string) error {
 }
 
 func (d *backendGcp) expiriesSystemRemove(printErr bool, region string) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	rd, err := a.aerolabRootDir()
 	if err != nil {
 		return fmt.Errorf("error getting aerolab home dir: %s", err)
@@ -656,6 +680,9 @@ func (d *backendGcp) expiriesSystemRemove(printErr bool, region string) error {
 }
 
 func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	cron := "*/" + strconv.Itoa(intervalMinutes) + " * * * *"
 	if intervalMinutes >= 60 {
 		if intervalMinutes%60 != 0 || intervalMinutes > 1440 {
@@ -733,7 +760,10 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 			if i.Category.ResourceFamily != "Compute" {
 				continue
 			}
-			if i.Category.UsageType != "OnDemand" {
+			onDemand := true
+			if i.Category.UsageType == "Preemptible" {
+				onDemand = false
+			} else if i.Category.UsageType != "OnDemand" {
 				continue
 			}
 			if !inslice.HasString(i.ServiceRegions, zone) {
@@ -742,6 +772,9 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 			iGroup := strings.Split(i.Description, " ")
 			if len(iGroup) < 6 {
 				continue
+			}
+			if !onDemand {
+				iGroup = iGroup[2:]
 			}
 			if i.Category.ResourceGroup == "GPU" && iGroup[0] == "Nvidia" {
 				grp := ""
@@ -772,7 +805,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 							if x.UnitPrice.CurrencyCode != "USD" {
 								continue
 							}
-							prices[grp].gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							if onDemand {
+								prices[grp].onDemand.gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							} else {
+								prices[grp].spot.gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							}
 						}
 					}
 				} else if strings.HasPrefix(i.Description, "Nvidia Tesla A100 80GB GPU ") {
@@ -790,7 +827,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 							if x.UnitPrice.CurrencyCode != "USD" {
 								continue
 							}
-							prices[grp].gpuUltraHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							if onDemand {
+								prices[grp].onDemand.gpuUltraHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							} else {
+								prices[grp].spot.gpuUltraHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							}
 						}
 					}
 				} else if strings.HasPrefix(i.Description, "Nvidia L4 GPU ") {
@@ -808,7 +849,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 							if x.UnitPrice.CurrencyCode != "USD" {
 								continue
 							}
-							prices[grp].gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							if onDemand {
+								prices[grp].onDemand.gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							} else {
+								prices[grp].spot.gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							}
 						}
 					}
 				}
@@ -836,8 +881,13 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 						if _, ok := prices[grp]; !ok {
 							prices[grp] = &gcpInstancePricing{}
 						}
-						prices["g1"].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
-						prices["g1"].perRamGBHour = 0.0000000000001
+						if onDemand {
+							prices["g1"].onDemand.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							prices["g1"].onDemand.perRamGBHour = 0.0000000000001
+						} else {
+							prices["g1"].spot.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							prices["g1"].spot.perRamGBHour = 0.0000000000001
+						}
 					}
 				}
 				continue
@@ -860,12 +910,17 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 						if _, ok := prices[grp]; !ok {
 							prices[grp] = &gcpInstancePricing{}
 						}
-						prices["f1"].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
-						prices["f1"].perRamGBHour = 0.0000000000001
+						if onDemand {
+							prices["f1"].onDemand.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							prices["f1"].onDemand.perRamGBHour = 0.0000000000001
+						} else {
+							prices["f1"].spot.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							prices["f1"].spot.perRamGBHour = 0.0000000000001
+						}
 					}
 				}
 				continue
-			} else if (iGroup[1] != "Instance" || (iGroup[2] != "Core" && iGroup[2] != "Ram") || iGroup[3] != "running" || iGroup[4] != "in") && ((iGroup[1] != "Predefined" && iGroup[1] != "AMD" && iGroup[1] != "Memory-optimized") || iGroup[2] != "Instance" || (iGroup[3] != "Core" && iGroup[3] != "Ram") || iGroup[4] != "running" || iGroup[5] != "in") {
+			} else if (iGroup[1] != "Instance" || (iGroup[2] != "Core" && iGroup[2] != "Ram") || iGroup[3] != "running" || iGroup[4] != "in") && ((iGroup[1] != "Predefined" && iGroup[1] != "AMD" && iGroup[1] != "Arm" && iGroup[1] != "Memory-optimized") || iGroup[2] != "Instance" || (iGroup[3] != "Core" && iGroup[3] != "Ram") || iGroup[4] != "running" || iGroup[5] != "in") {
 				continue
 			}
 			grp := strings.ToLower(iGroup[0])
@@ -895,7 +950,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 						if x.UnitPrice.CurrencyCode != "USD" {
 							continue
 						}
-						prices[grp].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						if onDemand {
+							prices[grp].onDemand.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						} else {
+							prices[grp].spot.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
 					}
 				}
 			case "RAM":
@@ -913,7 +972,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 						if x.UnitPrice.CurrencyCode != "USD" {
 							continue
 						}
-						prices[grp].perRamGBHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						if onDemand {
+							prices[grp].onDemand.perRamGBHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						} else {
+							prices[grp].spot.perRamGBHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
 					}
 				}
 			}
@@ -989,10 +1052,13 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 		return it, err
 	}
 	saveCache := true
-	prices, err := d.getInstancePricesPerHour(zone)
-	if err != nil {
-		log.Printf("WARN: pricing error: %s", err)
-		saveCache = false
+	prices := make(map[string]*gcpInstancePricing)
+	if !d.disablePricing {
+		prices, err = d.getInstancePricesPerHour(zone)
+		if err != nil {
+			log.Printf("WARN: pricing error: %s", err)
+			saveCache = false
+		}
 	}
 	it = []instanceType{}
 	// find instance types
@@ -1018,6 +1084,9 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 		isArm := false
 		isX86 := false
 		for _, t := range pair.Value.MachineTypes {
+			if strings.HasPrefix(*t.Name, "ct5l-") || strings.HasPrefix(*t.Name, "ct5lp-") {
+				continue
+			}
 			if strings.HasPrefix(*t.Name, "t2") {
 				isArm = true
 			} else {
@@ -1025,13 +1094,19 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 			}
 			eph := 0
 			ephs := float64(0)
-			if !*t.IsSharedCpu && !strings.HasPrefix(*t.Name, "e2-") && !strings.HasPrefix(*t.Name, "t2d-") && !strings.HasPrefix(*t.Name, "t2a-") && !strings.HasPrefix(*t.Name, "m2-") && !strings.HasPrefix(*t.Name, "c3-") {
+			if !*t.IsSharedCpu && !strings.HasPrefix(*t.Name, "e2-") && !strings.HasPrefix(*t.Name, "t2d-") && !strings.HasPrefix(*t.Name, "t2a-") && !strings.HasPrefix(*t.Name, "m2-") && !strings.HasPrefix(*t.Name, "h3-") {
 				if strings.HasPrefix(*t.Name, "c2-") || strings.HasPrefix(*t.Name, "c2d-") || strings.HasPrefix(*t.Name, "a2-") || strings.HasPrefix(*t.Name, "m1-") || strings.HasPrefix(*t.Name, "m3-") || strings.HasPrefix(*t.Name, "g2-") {
 					eph = 8
-					ephs = 3 * 1024
+					ephs = 3 * 1000
+				} else if strings.HasPrefix(*t.Name, "a3-") {
+					eph = 16
+					ephs = 6 * 1000
 				} else if strings.HasPrefix(*t.Name, "n1-") || strings.HasPrefix(*t.Name, "n2-") || strings.HasPrefix(*t.Name, "n2d-") {
 					eph = 24
-					ephs = 9 * 1024
+					ephs = 9 * 1000
+				} else if strings.HasPrefix(*t.Name, "c3-") || strings.HasPrefix(*t.Name, "c3d-") {
+					eph = 32
+					ephs = 12 * 1000
 				} else {
 					eph = -1
 					ephs = -1
@@ -1039,16 +1114,25 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 			}
 			prices := prices[strings.Split(*t.Name, "-")[0]]
 			price := float64(-1)
+			spotPrice := float64(-1)
 			accels := 0
 			for _, acc := range t.Accelerators {
 				accels += int(*acc.GuestAcceleratorCount)
 			}
-			if prices != nil && prices.perCoreHour > 0 && prices.perRamGBHour > 0 && prices.gpuPriceHour >= 0 {
-				price = prices.perCoreHour*float64(*t.GuestCpus) + prices.perRamGBHour*float64(*t.MemoryMb/1024)
+			if prices != nil && prices.onDemand.perCoreHour > 0 && prices.onDemand.perRamGBHour > 0 && prices.onDemand.gpuPriceHour >= 0 {
+				price = prices.onDemand.perCoreHour*float64(*t.GuestCpus) + prices.onDemand.perRamGBHour*float64(*t.MemoryMb/1024)
 				if strings.Contains(*t.Name, "-ultragpu") {
-					price = price + prices.gpuUltraHour*float64(accels)
+					price = price + prices.onDemand.gpuUltraHour*float64(accels)
 				} else {
-					price = price + prices.gpuPriceHour*float64(accels)
+					price = price + prices.onDemand.gpuPriceHour*float64(accels)
+				}
+			}
+			if prices != nil && prices.spot.perCoreHour > 0 && prices.spot.perRamGBHour > 0 && prices.spot.gpuPriceHour >= 0 {
+				spotPrice = prices.spot.perCoreHour*float64(*t.GuestCpus) + prices.spot.perRamGBHour*float64(*t.MemoryMb/1024)
+				if strings.Contains(*t.Name, "-ultragpu") {
+					spotPrice = spotPrice + prices.spot.gpuUltraHour*float64(accels)
+				} else {
+					spotPrice = spotPrice + prices.spot.gpuPriceHour*float64(accels)
 				}
 			}
 			it = append(it, instanceType{
@@ -1058,6 +1142,7 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
 				PriceUSD:                 price,
+				SpotPriceUSD:             spotPrice,
 				IsArm:                    isArm,
 				IsX86:                    isX86,
 			})
@@ -1351,6 +1436,13 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								break
 							}
 						}
+						isSpot := false
+						if val, ok := instance.Labels["isspot"]; ok && val == "true" {
+							isSpot = true
+						}
+						if currentCost < 0 {
+							currentCost = 0
+						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
 								ClusterName:            instance.Labels[gcpTagClusterName],
@@ -1376,6 +1468,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
 								Features:               FeatureSystem(features),
 								InstanceType:           *instance.MachineType,
+								GcpIsSpot:              isSpot,
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
@@ -1401,6 +1494,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								gcpLabels:              instance.Labels,
 								gcpMeta:                meta,
 								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
+								GcpIsSpot:              isSpot,
 							})
 						}
 					}
@@ -2616,7 +2710,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp)
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}
@@ -2866,7 +2960,7 @@ func (d *backendGcp) ListSubnets() error {
 func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool) error {
 	ctx := context.Background()
 	for _, name := range names {
-		if err := d.createSecurityGroupsIfNotExist(name); err != nil {
+		if err := d.createSecurityGroupsIfNotExist(name, false); err != nil {
 			return err
 		}
 	}
@@ -2929,11 +3023,15 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 	return nil
 }
 
-func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string) error {
-	return d.createSecurityGroupsIfNotExist(namePrefix)
+func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error {
+	return d.createSecurityGroupsIfNotExist(namePrefix, isAgi)
 }
 
-func (d *backendGcp) createSecurityGroupExternal(namePrefix string) error {
+func (d *backendGcp) createSecurityGroupExternal(namePrefix string, isAgi bool) error {
+	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200"}
+	if isAgi {
+		ports = []string{"22", "80", "443"}
+	}
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -2945,7 +3043,7 @@ func (d *backendGcp) createSecurityGroupExternal(namePrefix string) error {
 		Allowed: []*computepb.Allowed{
 			{
 				IPProtocol: proto.String("tcp"),
-				Ports:      []string{"22", "3000", "443", "80", "8080", "8888", "9200"},
+				Ports:      ports,
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
@@ -3018,12 +3116,20 @@ func (d *backendGcp) createSecurityGroupInternal(namePrefix string) error {
 	return nil
 }
 
-func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error {
-	if ip == "discover-caller-ip" {
-		ip = getip2()
+func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error {
+	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200"}
+	if isAgi {
+		ports = []string{"22", "80", "443"}
 	}
-	if !strings.Contains(ip, "/") {
-		ip = ip + "/32"
+	if isAgi {
+		ip = "0.0.0.0/0"
+	} else {
+		if ip == "discover-caller-ip" {
+			ip = getip2()
+		}
+		if !strings.Contains(ip, "/") {
+			ip = ip + "/32"
+		}
 	}
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
@@ -3036,7 +3142,7 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, nam
 		Allowed: []*computepb.Allowed{
 			{
 				IPProtocol: proto.String("tcp"),
-				Ports:      []string{"22", "3000", "443", "80", "8080", "8888", "9200"},
+				Ports:      ports,
 			},
 		},
 		Direction: proto.String(computepb.Firewall_INGRESS.String()),
@@ -3174,7 +3280,7 @@ func (d *backendGcp) ListSecurityGroups() error {
 	return nil
 }
 
-func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
+func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi bool) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -3231,17 +3337,17 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string) error {
 		}
 	}
 	if !existExternal {
-		err = d.createSecurityGroupExternal(namePrefix)
+		err = d.createSecurityGroupExternal(namePrefix, isAgi)
 		if err != nil {
 			return err
 		}
-		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix)
+		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi)
 		if err != nil {
 			return err
 		}
 	} else if needsLock {
 		log.Println("Security group CIDR doesn't allow this command to complete, re-locking security groups with the caller's IP")
-		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix)
+		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi)
 		if err != nil {
 			return err
 		}
@@ -3395,7 +3501,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp)
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}
@@ -3419,9 +3525,13 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	expiryTelemetryLock.Unlock()
 	onHostMaintenance := "MIGRATE"
+	autoRestart := true
 	provisioning := "STANDARD"
 	if extra.spotInstance {
 		provisioning = "SPOT"
+		autoRestart = false
+		onHostMaintenance = "TERMINATE"
+		labels["isspot"] = "true"
 	}
 	var serviceAccounts []*computepb.ServiceAccount
 	if extra.terminateOnPoweroff || extra.instanceRole != "" {
@@ -3431,6 +3541,9 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 					"https://www.googleapis.com/auth/compute",
 				},
 			},
+		}
+		if !strings.HasSuffix(extra.instanceRole, "::nopricing") {
+			serviceAccounts[0].Scopes = append(serviceAccounts[0].Scopes, "https://www.googleapis.com/auth/cloud-billing.readonly")
 		}
 	}
 	for i := start; i < (nodeCount + start); i++ {
@@ -3525,7 +3638,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 					Items: tags,
 				},
 				Scheduling: &computepb.Scheduling{
-					AutomaticRestart:  proto.Bool(true),
+					AutomaticRestart:  proto.Bool(autoRestart),
 					OnHostMaintenance: proto.String(onHostMaintenance),
 					ProvisioningModel: proto.String(provisioning),
 				},

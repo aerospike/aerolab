@@ -344,7 +344,7 @@ func (d *backendDocker) DeleteSecurityGroups(vpc string, namePrefix string, inte
 	return nil
 }
 
-func (d *backendDocker) CreateSecurityGroups(vpc string, namePrefix string) error {
+func (d *backendDocker) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error {
 	return nil
 }
 
@@ -356,7 +356,7 @@ func (d *backendDocker) ListSubnets() error {
 	return nil
 }
 
-func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error {
+func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error {
 	return nil
 }
 
@@ -822,6 +822,12 @@ func (d *backendDocker) CopyFilesToCluster(name string, files []fileList, nodes 
 		})
 	}
 	return d.CopyFilesToClusterReader(name, fr, nodes)
+}
+
+func (d *backendDocker) DisablePricingAPI() {
+}
+
+func (d *backendDocker) DisableExpiryInstall() {
 }
 
 func (d *backendDocker) CopyFilesToClusterReader(name string, files []fileListReader, nodes []int) error {

@@ -380,10 +380,11 @@ type IngestSteps struct {
 }
 
 type NotifyEvent struct {
-	AGIName             string
-	Event               string
-	EventDetail         string
-	IsDataInMemory      bool
-	IngestStatus        *IngestStatusStruct
-	DeploymentJsonGzB64 string
+	AGIName                    string
+	Event                      string
+	EventDetail                string
+	IsDataInMemory             bool
+	IngestStatus               *IngestStatusStruct
+	DeploymentJsonGzB64        string
+	SSHAuthorizedKeysFileGzB64 string
 }

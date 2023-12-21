@@ -58,6 +58,7 @@ type agiMonitorListenCmd struct {
 	DimMultiplier       float64  `long:"sizing-multiplier-dim" description:"log size * multiplier = how much RAM is needed" yaml:"ramMultiplierDim" default:"1.8"`
 	NoDimMultiplier     float64  `long:"sizing-multiplier-nodim" description:"log size * multiplier = how much RAM is needed" yaml:"ramMultiplierNoDim" default:"0.4"`
 	DebugEvents         bool     `long:"debug-events" description:"Log all events for debugging purposes" yaml:"debugEvents"`
+	DisablePricingAPI   bool     `long:"disable-pricing-api" description:"Set to disable pricing queries for cost tracking" yaml:"disablePricingAPI"`
 	invCache            inventoryJson
 	invCacheTimeout     time.Time
 	invLock             *sync.Mutex
@@ -132,6 +133,9 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	a.opts.Client.Create.None.instanceRole = c.Aws.InstanceRole
 	if a.opts.Config.Backend.Type == "gcp" {
 		a.opts.Client.Create.None.instanceRole = c.Gcp.InstanceRole
+		if c.DisablePricingAPI {
+			a.opts.Client.Create.None.instanceRole = c.Gcp.InstanceRole + "::nopricing"
+		}
 	}
 	a.opts.Client.Create.None.Gcp.Expires = 0
 	a.opts.Client.Create.None.Aws.Ebs = "20"
@@ -147,6 +151,12 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	log.Printf("Installing aerolab")
 	a.opts.Cluster.Add.AeroLab.ClusterName = TypeClusterName(c.Name)
 	err = a.opts.Cluster.Add.AeroLab.run(true)
+	if err != nil {
+		return err
+	}
+	a.opts.Cluster.Add.AeroLab.alt = true
+	err = a.opts.Cluster.Add.AeroLab.run(true)
+	a.opts.Cluster.Add.AeroLab.alt = false
 	if err != nil {
 		return err
 	}
@@ -187,6 +197,10 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.DisablePricingAPI {
+		b.DisablePricingAPI()
+	}
+	b.DisableExpiryInstall()
 	c.execLock = new(sync.Mutex)
 	log.Print("Starting agi-monitor")
 	err := os.MkdirAll("/var/lib/agimonitor", 0755)
@@ -520,7 +534,9 @@ func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEv
 	}
 	a.opts.AGI.Create.Aws.SpotInstance = false
 	a.opts.AGI.Create.Gcp.SpotInstance = false
+	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = event.SSHAuthorizedKeysFileGzB64
 	err = a.opts.AGI.Create.Execute(nil)
+	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
 		c.log(uuid, "capacity", fmt.Sprintf("Error creating new instance (%s)", err))
 		return
@@ -581,7 +597,9 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 	if disableDim {
 		a.opts.AGI.Create.NoDIM = true
 	}
+	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = event.SSHAuthorizedKeysFileGzB64
 	err = a.opts.AGI.Create.Execute(nil)
+	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
 		c.log(uuid, "sizing", fmt.Sprintf("Error creating new instance (%s)", err))
 		return
@@ -635,8 +653,8 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 			}
 		case AgiEventPreProcessComplete:
 			requiredRam := 0
-			dimRequiredMemory := int(math.Ceil(float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.DimMultiplier))
-			noDimRequiredMemory := int(math.Ceil(float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.NoDimMultiplier))
+			dimRequiredMemory := int(math.Ceil((float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.DimMultiplier) / 1024 / 1024 / 1024))
+			noDimRequiredMemory := int(math.Ceil((float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.NoDimMultiplier) / 1024 / 1024 / 1024))
 			if event.IsDataInMemory {
 				requiredRam = dimRequiredMemory
 			} else {

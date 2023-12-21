@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"compress/gzip"
 	"encoding/base64"
 	"encoding/json"
@@ -41,9 +42,9 @@ func (c *agiExecCmd) Execute(args []string) error {
 }
 
 type agiExecSimulateCmd struct {
-	Path       string  `long:"path" description:"path to a json file to use for notification"`
+	Path       string  `long:"path" description:"path to a json file to use for notification" default:"notify.sim.json"`
 	Make       bool    `long:"make" description:"set to make the notification file using resource manager code instead of sending it"`
-	AGIName    string  `long:"make-agi-name" description:"set agiName when making the notificaiton json"`
+	AGIName    string  `long:"agi-name" description:"set agiName when making the notificaiton json" default:"agi"`
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	notify     notifier.HTTPSNotify
 	deployJson string
@@ -62,12 +63,15 @@ func (c *agiExecSimulateCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
+		deploymentjson, _ := os.ReadFile("/opt/agi/deployment.json.gz")
+		c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory:      isDim,
-			IngestStatus:        notifyData,
-			Event:               AgiEventResourceMonitor,
-			AGIName:             c.AGIName,
-			DeploymentJsonGzB64: c.deployJson,
+			IsDataInMemory:             isDim,
+			IngestStatus:               notifyData,
+			Event:                      AgiEventResourceMonitor,
+			AGIName:                    c.AGIName,
+			DeploymentJsonGzB64:        c.deployJson,
+			SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 		}
 		data, err := json.MarshalIndent(notifyItem, "", "  ")
 		if err != nil {
@@ -97,8 +101,6 @@ func (c *agiExecSimulateCmd) Execute(args []string) error {
 	if c.notify.AGIMonitorUrl == "" && c.notify.Endpoint == "" {
 		return errors.New("JSON notification is disabled")
 	}
-	deploymentjson, _ := os.ReadFile("/opt/agi/deployment.json.gz")
-	c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
 	return c.notify.NotifyData(data)
 }
 
@@ -308,6 +310,43 @@ const (
 	AgiEventResourceMonitor    = "SYS_RESOURCE_USAGE_MONITOR" // run from AgiEventInitComplete until AgiEventIngestFinish; on timer, send to notifier http/monitor only, no slack
 )
 
+func getSSHAuthorizedKeysGzB64() string {
+	c, err := os.ReadFile("/root/.ssh/authorized_keys")
+	if err != nil {
+		return ""
+	}
+	w := &bytes.Buffer{}
+	wr := gzip.NewWriter(w)
+	_, err = wr.Write(c)
+	if err != nil {
+		wr.Close()
+		return ""
+	}
+	wr.Close()
+	return base64.StdEncoding.EncodeToString(w.Bytes())
+}
+
+func putSSHAuthorizedKeys(ContentsGzB64 string) {
+	c, err := base64.StdEncoding.DecodeString(ContentsGzB64)
+	if err != nil {
+		return
+	}
+	r, err := gzip.NewReader(bytes.NewReader(c))
+	if err != nil {
+		return
+	}
+	keys, err := io.ReadAll(r)
+	if err != nil {
+		return
+	}
+	kfile, err := os.OpenFile("/root/.ssh/authorized_keys", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return
+	}
+	defer kfile.Close()
+	kfile.Write(keys)
+}
+
 func (c *agiExecIngestCmd) resourceMonitor() {
 	isDim := true
 	if _, err := os.Stat("/opt/agi/nodim"); err == nil {
@@ -320,11 +359,12 @@ func (c *agiExecIngestCmd) resourceMonitor() {
 			continue
 		}
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory:      isDim,
-			IngestStatus:        notifyData,
-			Event:               AgiEventResourceMonitor,
-			AGIName:             c.AGIName,
-			DeploymentJsonGzB64: c.deployJson,
+			IsDataInMemory:             isDim,
+			IngestStatus:               notifyData,
+			Event:                      AgiEventResourceMonitor,
+			AGIName:                    c.AGIName,
+			DeploymentJsonGzB64:        c.deployJson,
+			SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 		}
 		c.notify.NotifyJSON(notifyItem)
 	}
@@ -412,11 +452,12 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 	if err == nil {
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory:      isDim,
-			IngestStatus:        notifyData,
-			Event:               AgiEventInitComplete,
-			AGIName:             c.AGIName,
-			DeploymentJsonGzB64: c.deployJson,
+			IsDataInMemory:             isDim,
+			IngestStatus:               notifyData,
+			Event:                      AgiEventInitComplete,
+			AGIName:                    c.AGIName,
+			DeploymentJsonGzB64:        c.deployJson,
+			SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 		}
 		err = c.notify.NotifyJSON(notifyItem)
 		if err != nil {
@@ -445,11 +486,12 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory:      isDim,
-				IngestStatus:        notifyData,
-				Event:               AgiEventDownloadComplete,
-				AGIName:             c.AGIName,
-				DeploymentJsonGzB64: c.deployJson,
+				IsDataInMemory:             isDim,
+				IngestStatus:               notifyData,
+				Event:                      AgiEventDownloadComplete,
+				AGIName:                    c.AGIName,
+				DeploymentJsonGzB64:        c.deployJson,
+				SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
@@ -505,11 +547,12 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory:      isDim,
-				IngestStatus:        notifyData,
-				Event:               AgiEventUnpackComplete,
-				AGIName:             c.AGIName,
-				DeploymentJsonGzB64: c.deployJson,
+				IsDataInMemory:             isDim,
+				IngestStatus:               notifyData,
+				Event:                      AgiEventUnpackComplete,
+				AGIName:                    c.AGIName,
+				DeploymentJsonGzB64:        c.deployJson,
+				SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
@@ -544,11 +587,12 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory:      isDim,
-				IngestStatus:        notifyData,
-				Event:               AgiEventPreProcessComplete,
-				AGIName:             c.AGIName,
-				DeploymentJsonGzB64: c.deployJson,
+				IsDataInMemory:             isDim,
+				IngestStatus:               notifyData,
+				Event:                      AgiEventPreProcessComplete,
+				AGIName:                    c.AGIName,
+				DeploymentJsonGzB64:        c.deployJson,
+				SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
@@ -601,11 +645,12 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory:      isDim,
-				IngestStatus:        notifyData,
-				Event:               AgiEventProcessComplete,
-				AGIName:             c.AGIName,
-				DeploymentJsonGzB64: c.deployJson,
+				IsDataInMemory:             isDim,
+				IngestStatus:               notifyData,
+				Event:                      AgiEventProcessComplete,
+				AGIName:                    c.AGIName,
+				DeploymentJsonGzB64:        c.deployJson,
+				SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 			}
 			err = c.notify.NotifyJSON(notifyItem)
 			if err != nil {
@@ -628,11 +673,12 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	notifyData, err = getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 	if err == nil {
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory:      isDim,
-			IngestStatus:        notifyData,
-			Event:               AgiEventIngestFinish,
-			AGIName:             c.AGIName,
-			DeploymentJsonGzB64: c.deployJson,
+			IsDataInMemory:             isDim,
+			IngestStatus:               notifyData,
+			Event:                      AgiEventIngestFinish,
+			AGIName:                    c.AGIName,
+			DeploymentJsonGzB64:        c.deployJson,
+			SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 		}
 		err = c.notify.NotifyJSON(notifyItem)
 		if err != nil {

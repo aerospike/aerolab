@@ -49,7 +49,7 @@ type agiExecProxyCmd struct {
 	AuthType             string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic|token"`
 	BasicAuthUser        string        `short:"u" long:"basic-auth-user" default:"admin" description:"Basic authentication username"`
 	BasicAuthPass        string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password"`
-	TokenAuthLocation    string        `short:"t" long:"token-path" default:"/opt/agitokens" description:"Directory where tokens are stored for access"`
+	TokenAuthLocation    string        `short:"t" long:"token-path" default:"/opt/agi/tokens" description:"Directory where tokens are stored for access"`
 	TokenName            string        `short:"T" long:"token-name" default:"AGI_TOKEN" description:"Name of the token variable and cookie to use"`
 	DebugActivityMonitor bool          `short:"D" long:"debug-mode" description:"set to log activity monitor for debugging"`
 	Help                 helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -193,6 +193,12 @@ func (a *activity) Get() (t time.Time) {
 func (c *agiExecProxyCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
+	}
+	if _, err := os.Stat("/tmp/aerolab.install.ssh"); err == nil {
+		contents, err := os.ReadFile("/tmp/aerolab.install.ssh")
+		if err == nil {
+			putSSHAuthorizedKeys(string(contents))
+		}
 	}
 	deploymentjson, _ := os.ReadFile("/opt/agi/deployment.json.gz")
 	c.deployJson = base64.StdEncoding.EncodeToString(deploymentjson)
@@ -471,11 +477,12 @@ func (c *agiExecProxyCmd) maxUptime() {
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory:      c.isDim,
-				IngestStatus:        notifyData,
-				Event:               AgiEventMaxAge,
-				AGIName:             c.AGIName,
-				DeploymentJsonGzB64: c.deployJson,
+				IsDataInMemory:             c.isDim,
+				IngestStatus:               notifyData,
+				Event:                      AgiEventMaxAge,
+				AGIName:                    c.AGIName,
+				DeploymentJsonGzB64:        c.deployJson,
+				SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
@@ -545,12 +552,13 @@ func (c *agiExecProxyCmd) spotMonitorGcp() {
 		c.shuttingDown = true
 		c.shuttingDownMutex.Unlock()
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory:      c.isDim,
-			IngestStatus:        stat,
-			Event:               AgiEventSpotNoCapacity,
-			AGIName:             c.AGIName,
-			EventDetail:         string(body),
-			DeploymentJsonGzB64: c.deployJson,
+			IsDataInMemory:             c.isDim,
+			IngestStatus:               stat,
+			Event:                      AgiEventSpotNoCapacity,
+			AGIName:                    c.AGIName,
+			EventDetail:                string(body),
+			DeploymentJsonGzB64:        c.deployJson,
+			SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 		}
 		c.notify.NotifyJSON(notifyItem)
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
@@ -651,12 +659,13 @@ func (c *agiExecProxyCmd) spotMonitorAws() {
 		c.shuttingDown = true
 		c.shuttingDownMutex.Unlock()
 		notifyItem := &ingest.NotifyEvent{
-			IsDataInMemory:      c.isDim,
-			IngestStatus:        stat,
-			Event:               AgiEventSpotNoCapacity,
-			AGIName:             c.AGIName,
-			EventDetail:         string(body),
-			DeploymentJsonGzB64: c.deployJson,
+			IsDataInMemory:             c.isDim,
+			IngestStatus:               stat,
+			Event:                      AgiEventSpotNoCapacity,
+			AGIName:                    c.AGIName,
+			EventDetail:                string(body),
+			DeploymentJsonGzB64:        c.deployJson,
+			SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 		}
 		c.notify.NotifyJSON(notifyItem)
 		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
@@ -695,22 +704,24 @@ func (c *agiExecProxyCmd) serviceMonitor() {
 		}
 		if notifyDown {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory:      c.isDim,
-				IngestStatus:        stat,
-				Event:               AgiEventServiceDown,
-				AGIName:             c.AGIName,
-				DeploymentJsonGzB64: c.deployJson,
+				IsDataInMemory:             c.isDim,
+				IngestStatus:               stat,
+				Event:                      AgiEventServiceDown,
+				AGIName:                    c.AGIName,
+				DeploymentJsonGzB64:        c.deployJson,
+				SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			c.notify.NotifySlack(AgiEventServiceDown, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *A required service has quit unexpectedly, check: aerolab agi status*", AgiEventServiceDown, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), c.owner, c.slacks3source, c.slacksftpsource, c.slackcustomsource), c.slackAccessDetails)
 		} else if notifyUp {
 			notifyItem := &ingest.NotifyEvent{
-				IsDataInMemory:      c.isDim,
-				IngestStatus:        stat,
-				Event:               AgiEventServiceUp,
-				AGIName:             c.AGIName,
-				DeploymentJsonGzB64: c.deployJson,
+				IsDataInMemory:             c.isDim,
+				IngestStatus:               stat,
+				Event:                      AgiEventServiceUp,
+				AGIName:                    c.AGIName,
+				DeploymentJsonGzB64:        c.deployJson,
+				SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 			}
 			c.notify.NotifyJSON(notifyItem)
 			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
@@ -761,11 +772,12 @@ func (c *agiExecProxyCmd) activityMonitor() {
 				notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 				if err == nil {
 					notifyItem := &ingest.NotifyEvent{
-						IsDataInMemory:      c.isDim,
-						IngestStatus:        notifyData,
-						Event:               AgiEventMaxInactive,
-						AGIName:             c.AGIName,
-						DeploymentJsonGzB64: c.deployJson,
+						IsDataInMemory:             c.isDim,
+						IngestStatus:               notifyData,
+						Event:                      AgiEventMaxInactive,
+						AGIName:                    c.AGIName,
+						DeploymentJsonGzB64:        c.deployJson,
+						SSHAuthorizedKeysFileGzB64: getSSHAuthorizedKeysGzB64(),
 					}
 					c.notify.NotifyJSON(notifyItem)
 					slackagiLabel, _ := os.ReadFile("/opt/agi/label")

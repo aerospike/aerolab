@@ -42,6 +42,7 @@ type backendExtra struct {
 	tags                []string  // aws/gcp only
 	firewallNamePrefix  []string  // aws/gcp only
 	expiresTime         time.Time // aws/gcp only
+	isAgiFirewall       bool      // aws/gcp only
 	disks               []string  // gcp only
 	zone                string    // gcp only
 	labels              []string  // gcp only
@@ -75,6 +76,8 @@ var TypeArchAmd = TypeArch(2)
 
 type backend interface {
 	// gcp/aws volumes
+	DisablePricingAPI()
+	DisableExpiryInstall()
 	CreateVolume(name string, zone string, tags []string, expires time.Duration, size int64, desc string) error
 	TagVolume(fsId string, tagName string, tagValue string, zone string) error
 	DeleteVolume(name string, zone string) error
@@ -150,9 +153,9 @@ type backend interface {
 	// may implement
 	DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error
 	// may implement
-	CreateSecurityGroups(vpc string, namePrefix string) error
+	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error
 	// may implement
-	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string) error
+	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error
 	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool) error
 	// may implement
 	ListSecurityGroups() error
@@ -274,6 +277,7 @@ type inventoryCluster struct {
 	awsSubnet              string
 	awsSecGroups           []string
 	AwsIsSpot              bool
+	GcpIsSpot              bool
 }
 
 type FeatureSystem int64
@@ -330,6 +334,7 @@ type inventoryClient struct {
 	awsSubnet              string
 	awsSecGroups           []string
 	AwsIsSpot              bool
+	GcpIsSpot              bool
 }
 
 type inventoryTemplate struct {

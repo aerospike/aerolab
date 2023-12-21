@@ -31,15 +31,17 @@ func (d *backendAws) Arch() TypeArch {
 }
 
 type backendAws struct {
-	sess      *session.Session
-	ec2svc    *ec2.EC2
-	lambda    *lambda.Lambda
-	scheduler *scheduler.Scheduler
-	iam       *iam.IAM
-	sts       *sts.STS
-	efs       *efs.EFS
-	server    bool
-	client    bool
+	sess                 *session.Session
+	ec2svc               *ec2.EC2
+	lambda               *lambda.Lambda
+	scheduler            *scheduler.Scheduler
+	iam                  *iam.IAM
+	sts                  *sts.STS
+	efs                  *efs.EFS
+	server               bool
+	client               bool
+	disablePricing       bool
+	disableExpiryInstall bool
 }
 
 func init() {
@@ -306,6 +308,9 @@ func (d *backendAws) SetLabel(clusterName string, key string, value string, gzpZ
 }
 
 func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	// if a scheduler already exists, return EXISTS as it's all been already made
 	q, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
 		NamePrefix: aws.String("aerolab-expiries"),
@@ -508,6 +513,9 @@ func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.
 }
 
 func (d *backendAws) ExpiriesSystemRemove(region string) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	var ret []string
 	_, err := d.scheduler.DeleteSchedule(&scheduler.DeleteScheduleInput{
 		Name:        aws.String("aerolab-expiries"),
@@ -573,6 +581,9 @@ func (d *backendAws) ExpiriesSystemRemove(region string) error {
 }
 
 func (d *backendAws) ExpiriesSystemFrequency(intervalMinutes int) error {
+	if d.disableExpiryInstall {
+		return nil
+	}
 	out, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
 		NamePrefix: aws.String("aerolab-expiries"),
 	})
@@ -669,15 +680,19 @@ func (d *backendAws) getInstanceTypes() ([]instanceType, error) {
 		return it, err
 	}
 	saveCache := true
-	prices, err := d.getInstancePricesPerHour()
-	if err != nil {
-		log.Printf("WARN: pricing error: %s", err)
-		saveCache = false
-	}
-	spotPrices, err := d.getSpotPricesPerHour()
-	if err != nil {
-		log.Printf("WARN: pricing error: %s", err)
-		saveCache = false
+	prices := make(map[string]float64)
+	spotPrices := make(map[string]float64)
+	if !d.disablePricing {
+		prices, err = d.getInstancePricesPerHour()
+		if err != nil {
+			log.Printf("WARN: pricing error: %s", err)
+			saveCache = false
+		}
+		spotPrices, err = d.getSpotPricesPerHour()
+		if err != nil {
+			log.Printf("WARN: pricing error: %s", err)
+			saveCache = false
+		}
 	}
 	it = []instanceType{}
 	err = d.ec2svc.DescribeInstanceTypesPages(&ec2.DescribeInstanceTypesInput{}, func(ec2Types *ec2.DescribeInstanceTypesOutput, lastPage bool) bool {
@@ -1164,6 +1179,9 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					isSpot := false
 					if spot, ok := allTags["aerolab7spot"]; ok && spot == "true" {
 						isSpot = true
+					}
+					if currentCost < 0 {
+						currentCost = 0
 					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
@@ -1938,6 +1956,14 @@ func (d *backendAws) ClusterStop(name string, nodes []int) error {
 	return nil
 }
 
+func (d *backendAws) DisablePricingAPI() {
+	d.disablePricing = true
+}
+
+func (d *backendAws) DisableExpiryInstall() {
+	d.disableExpiryInstall = true
+}
+
 func (d *backendAws) VacuumTemplate(v backendVersion) error {
 	isArm := "amd"
 	if v.isArm {
@@ -2292,7 +2318,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	// end tag setup
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
-	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true, extra.firewallNamePrefix)
+	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true, extra.firewallNamePrefix, extra.isAgiFirewall)
 	if err != nil {
 		return err
 	}
@@ -2799,7 +2825,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		if i == start {
 			printID = true
 		}
-		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID, extra.firewallNamePrefix)
+		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID, extra.firewallNamePrefix, extra.isAgiFirewall)
 		if err != nil {
 			return err
 		}
