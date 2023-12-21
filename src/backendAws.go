@@ -1180,6 +1180,9 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					if spot, ok := allTags["aerolab7spot"]; ok && spot == "true" {
 						isSpot = true
 					}
+					if currentCost < 0 {
+						currentCost = 0
+					}
 					if i == 1 {
 						ij.Clusters = append(ij.Clusters, inventoryCluster{
 							ClusterName:         clusterName,

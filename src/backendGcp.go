@@ -1373,6 +1373,13 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								break
 							}
 						}
+						isSpot := false
+						if val, ok := instance.Labels["isspot"]; ok && val == "true" {
+							isSpot = true
+						}
+						if currentCost < 0 {
+							currentCost = 0
+						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
 								ClusterName:            instance.Labels[gcpTagClusterName],
@@ -1398,6 +1405,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
 								Features:               FeatureSystem(features),
 								InstanceType:           *instance.MachineType,
+								GcpIsSpot:              isSpot,
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
@@ -1423,6 +1431,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								gcpLabels:              instance.Labels,
 								gcpMeta:                meta,
 								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
+								GcpIsSpot:              isSpot,
 							})
 						}
 					}
@@ -3459,6 +3468,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		provisioning = "SPOT"
 		autoRestart = false
 		onHostMaintenance = "TERMINATE"
+		labels["isspot"] = "true"
 	}
 	var serviceAccounts []*computepb.ServiceAccount
 	if extra.terminateOnPoweroff || extra.instanceRole != "" {

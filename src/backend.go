@@ -277,6 +277,7 @@ type inventoryCluster struct {
 	awsSubnet              string
 	awsSecGroups           []string
 	AwsIsSpot              bool
+	GcpIsSpot              bool
 }
 
 type FeatureSystem int64
@@ -333,6 +334,7 @@ type inventoryClient struct {
 	awsSubnet              string
 	awsSecGroups           []string
 	AwsIsSpot              bool
+	GcpIsSpot              bool
 }
 
 type inventoryTemplate struct {
