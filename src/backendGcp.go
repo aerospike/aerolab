@@ -111,10 +111,18 @@ func (d *backendGcp) WorkOnServers() {
 }
 
 type gcpInstancePricing struct {
-	perCoreHour  float64
-	perRamGBHour float64
-	gpuPriceHour float64
-	gpuUltraHour float64
+	onDemand struct {
+		perCoreHour  float64
+		perRamGBHour float64
+		gpuPriceHour float64
+		gpuUltraHour float64
+	}
+	spot struct {
+		perCoreHour  float64
+		perRamGBHour float64
+		gpuPriceHour float64
+		gpuUltraHour float64
+	}
 }
 
 type gcpClusterExpiryInstances struct {
@@ -752,7 +760,10 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 			if i.Category.ResourceFamily != "Compute" {
 				continue
 			}
-			if i.Category.UsageType != "OnDemand" {
+			onDemand := true
+			if i.Category.UsageType == "Preemptible" {
+				onDemand = false
+			} else if i.Category.UsageType != "OnDemand" {
 				continue
 			}
 			if !inslice.HasString(i.ServiceRegions, zone) {
@@ -761,6 +772,9 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 			iGroup := strings.Split(i.Description, " ")
 			if len(iGroup) < 6 {
 				continue
+			}
+			if !onDemand {
+				iGroup = iGroup[2:]
 			}
 			if i.Category.ResourceGroup == "GPU" && iGroup[0] == "Nvidia" {
 				grp := ""
@@ -791,7 +805,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 							if x.UnitPrice.CurrencyCode != "USD" {
 								continue
 							}
-							prices[grp].gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							if onDemand {
+								prices[grp].onDemand.gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							} else {
+								prices[grp].spot.gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							}
 						}
 					}
 				} else if strings.HasPrefix(i.Description, "Nvidia Tesla A100 80GB GPU ") {
@@ -809,7 +827,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 							if x.UnitPrice.CurrencyCode != "USD" {
 								continue
 							}
-							prices[grp].gpuUltraHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							if onDemand {
+								prices[grp].onDemand.gpuUltraHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							} else {
+								prices[grp].spot.gpuUltraHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							}
 						}
 					}
 				} else if strings.HasPrefix(i.Description, "Nvidia L4 GPU ") {
@@ -827,7 +849,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 							if x.UnitPrice.CurrencyCode != "USD" {
 								continue
 							}
-							prices[grp].gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							if onDemand {
+								prices[grp].onDemand.gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							} else {
+								prices[grp].spot.gpuPriceHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							}
 						}
 					}
 				}
@@ -855,8 +881,13 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 						if _, ok := prices[grp]; !ok {
 							prices[grp] = &gcpInstancePricing{}
 						}
-						prices["g1"].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
-						prices["g1"].perRamGBHour = 0.0000000000001
+						if onDemand {
+							prices["g1"].onDemand.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							prices["g1"].onDemand.perRamGBHour = 0.0000000000001
+						} else {
+							prices["g1"].spot.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							prices["g1"].spot.perRamGBHour = 0.0000000000001
+						}
 					}
 				}
 				continue
@@ -879,12 +910,17 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 						if _, ok := prices[grp]; !ok {
 							prices[grp] = &gcpInstancePricing{}
 						}
-						prices["f1"].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
-						prices["f1"].perRamGBHour = 0.0000000000001
+						if onDemand {
+							prices["f1"].onDemand.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							prices["f1"].onDemand.perRamGBHour = 0.0000000000001
+						} else {
+							prices["f1"].spot.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+							prices["f1"].spot.perRamGBHour = 0.0000000000001
+						}
 					}
 				}
 				continue
-			} else if (iGroup[1] != "Instance" || (iGroup[2] != "Core" && iGroup[2] != "Ram") || iGroup[3] != "running" || iGroup[4] != "in") && ((iGroup[1] != "Predefined" && iGroup[1] != "AMD" && iGroup[1] != "Memory-optimized") || iGroup[2] != "Instance" || (iGroup[3] != "Core" && iGroup[3] != "Ram") || iGroup[4] != "running" || iGroup[5] != "in") {
+			} else if (iGroup[1] != "Instance" || (iGroup[2] != "Core" && iGroup[2] != "Ram") || iGroup[3] != "running" || iGroup[4] != "in") && ((iGroup[1] != "Predefined" && iGroup[1] != "AMD" && iGroup[1] != "Arm" && iGroup[1] != "Memory-optimized") || iGroup[2] != "Instance" || (iGroup[3] != "Core" && iGroup[3] != "Ram") || iGroup[4] != "running" || iGroup[5] != "in") {
 				continue
 			}
 			grp := strings.ToLower(iGroup[0])
@@ -914,7 +950,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 						if x.UnitPrice.CurrencyCode != "USD" {
 							continue
 						}
-						prices[grp].perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						if onDemand {
+							prices[grp].onDemand.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						} else {
+							prices[grp].spot.perCoreHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
 					}
 				}
 			case "RAM":
@@ -932,7 +972,11 @@ func (d *backendGcp) getInstancePricesPerHour(zone string) (map[string]*gcpInsta
 						if x.UnitPrice.CurrencyCode != "USD" {
 							continue
 						}
-						prices[grp].perRamGBHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						if onDemand {
+							prices[grp].onDemand.perRamGBHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						} else {
+							prices[grp].spot.perRamGBHour = float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
+						}
 					}
 				}
 			}
@@ -1040,6 +1084,9 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 		isArm := false
 		isX86 := false
 		for _, t := range pair.Value.MachineTypes {
+			if strings.HasPrefix(*t.Name, "ct5l-") || strings.HasPrefix(*t.Name, "ct5lp-") {
+				continue
+			}
 			if strings.HasPrefix(*t.Name, "t2") {
 				isArm = true
 			} else {
@@ -1047,13 +1094,19 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 			}
 			eph := 0
 			ephs := float64(0)
-			if !*t.IsSharedCpu && !strings.HasPrefix(*t.Name, "e2-") && !strings.HasPrefix(*t.Name, "t2d-") && !strings.HasPrefix(*t.Name, "t2a-") && !strings.HasPrefix(*t.Name, "m2-") && !strings.HasPrefix(*t.Name, "c3-") {
+			if !*t.IsSharedCpu && !strings.HasPrefix(*t.Name, "e2-") && !strings.HasPrefix(*t.Name, "t2d-") && !strings.HasPrefix(*t.Name, "t2a-") && !strings.HasPrefix(*t.Name, "m2-") && !strings.HasPrefix(*t.Name, "h3-") {
 				if strings.HasPrefix(*t.Name, "c2-") || strings.HasPrefix(*t.Name, "c2d-") || strings.HasPrefix(*t.Name, "a2-") || strings.HasPrefix(*t.Name, "m1-") || strings.HasPrefix(*t.Name, "m3-") || strings.HasPrefix(*t.Name, "g2-") {
 					eph = 8
-					ephs = 3 * 1024
+					ephs = 3 * 1000
+				} else if strings.HasPrefix(*t.Name, "a3-") {
+					eph = 16
+					ephs = 6 * 1000
 				} else if strings.HasPrefix(*t.Name, "n1-") || strings.HasPrefix(*t.Name, "n2-") || strings.HasPrefix(*t.Name, "n2d-") {
 					eph = 24
-					ephs = 9 * 1024
+					ephs = 9 * 1000
+				} else if strings.HasPrefix(*t.Name, "c3-") || strings.HasPrefix(*t.Name, "c3d-") {
+					eph = 32
+					ephs = 12 * 1000
 				} else {
 					eph = -1
 					ephs = -1
@@ -1061,16 +1114,25 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 			}
 			prices := prices[strings.Split(*t.Name, "-")[0]]
 			price := float64(-1)
+			spotPrice := float64(-1)
 			accels := 0
 			for _, acc := range t.Accelerators {
 				accels += int(*acc.GuestAcceleratorCount)
 			}
-			if prices != nil && prices.perCoreHour > 0 && prices.perRamGBHour > 0 && prices.gpuPriceHour >= 0 {
-				price = prices.perCoreHour*float64(*t.GuestCpus) + prices.perRamGBHour*float64(*t.MemoryMb/1024)
+			if prices != nil && prices.onDemand.perCoreHour > 0 && prices.onDemand.perRamGBHour > 0 && prices.onDemand.gpuPriceHour >= 0 {
+				price = prices.onDemand.perCoreHour*float64(*t.GuestCpus) + prices.onDemand.perRamGBHour*float64(*t.MemoryMb/1024)
 				if strings.Contains(*t.Name, "-ultragpu") {
-					price = price + prices.gpuUltraHour*float64(accels)
+					price = price + prices.onDemand.gpuUltraHour*float64(accels)
 				} else {
-					price = price + prices.gpuPriceHour*float64(accels)
+					price = price + prices.onDemand.gpuPriceHour*float64(accels)
+				}
+			}
+			if prices != nil && prices.spot.perCoreHour > 0 && prices.spot.perRamGBHour > 0 && prices.spot.gpuPriceHour >= 0 {
+				spotPrice = prices.spot.perCoreHour*float64(*t.GuestCpus) + prices.spot.perRamGBHour*float64(*t.MemoryMb/1024)
+				if strings.Contains(*t.Name, "-ultragpu") {
+					spotPrice = spotPrice + prices.spot.gpuUltraHour*float64(accels)
+				} else {
+					spotPrice = spotPrice + prices.spot.gpuPriceHour*float64(accels)
 				}
 			}
 			it = append(it, instanceType{
@@ -1080,6 +1142,7 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 				EphemeralDisks:           eph,
 				EphemeralDiskTotalSizeGB: ephs,
 				PriceUSD:                 price,
+				SpotPriceUSD:             spotPrice,
 				IsArm:                    isArm,
 				IsX86:                    isX86,
 			})
