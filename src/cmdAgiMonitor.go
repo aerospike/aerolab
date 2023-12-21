@@ -27,11 +27,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TODO: custom feature file in agi-create command: deploy features file into /opt/agi instead of default location
 // TODO: consider how gcp/aws firewall rules are to work with agi-monitor, as it will attempt to re-lock the system; may need a separate AGI-access firewall ruleset for instances supported on the backend
-// TODO: consider how token authentication will be updated, deployed and supported when using AGI-monitor as adding tokens will not longer from outside on instance creation; possibly need another mechanism for auth to AGI instances; or how to deploy tokens?
-//       Or use cluster-share to copy the original owner's pubkey back to the instance! (will need to get it in the event body)
-
 // TODO: test and debug sizing disk
 // TODO: test and debug sizing ram
 // TODO: test and debug sizing disk and ram
@@ -531,7 +527,9 @@ func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEv
 	}
 	a.opts.AGI.Create.Aws.SpotInstance = false
 	a.opts.AGI.Create.Gcp.SpotInstance = false
+	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = event.SSHAuthorizedKeysFileGzB64
 	err = a.opts.AGI.Create.Execute(nil)
+	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
 		c.log(uuid, "capacity", fmt.Sprintf("Error creating new instance (%s)", err))
 		return
@@ -592,7 +590,9 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 	if disableDim {
 		a.opts.AGI.Create.NoDIM = true
 	}
+	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = event.SSHAuthorizedKeysFileGzB64
 	err = a.opts.AGI.Create.Execute(nil)
+	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
 		c.log(uuid, "sizing", fmt.Sprintf("Error creating new instance (%s)", err))
 		return
