@@ -27,11 +27,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TODO: test new firewall setup on GCP as part of below tests (ensure cluster create works as before still!)
-// TODO: test and debug sizing disk
-// TODO: test and debug sizing ram
-// TODO: test and debug sizing disk and ram
-
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener"`
 	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands"`
