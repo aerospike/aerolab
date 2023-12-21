@@ -27,11 +27,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TODO: consider how gcp/aws firewall rules are to work with agi-monitor, as it will attempt to re-lock the system; may need a separate AGI-access firewall ruleset for instances supported on the backend
+// TODO: test new firewall setup on GCP as part of below tests (ensure cluster create works as before still!)
 // TODO: test and debug sizing disk
 // TODO: test and debug sizing ram
 // TODO: test and debug sizing disk and ram
-// TODO: test and debug capacity spot rotation on AWS (GCP tested)
 
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener"`
@@ -156,6 +155,12 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	if err != nil {
 		return err
 	}
+	a.opts.Cluster.Add.AeroLab.alt = true
+	err = a.opts.Cluster.Add.AeroLab.run(true)
+	a.opts.Cluster.Add.AeroLab.alt = false
+	if err != nil {
+		return err
+	}
 
 	log.Printf("Installing config and systemd unit file")
 	b.WorkOnClients()
@@ -194,6 +199,7 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 		return nil
 	}
 	b.DisablePricingAPI()
+	b.DisableExpiryInstall()
 	c.execLock = new(sync.Mutex)
 	log.Print("Starting agi-monitor")
 	err := os.MkdirAll("/var/lib/agimonitor", 0755)

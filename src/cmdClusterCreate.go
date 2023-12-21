@@ -44,6 +44,7 @@ type clusterCreateCmd struct {
 	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 	gcpMeta        map[string]string
+	useAgiFirewall bool
 }
 
 type osSelectorCmd struct {
@@ -776,6 +777,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 	}
 	log.Print("Starting deployment")
+	extra.isAgiFirewall = c.useAgiFirewall
 	if a.opts.Config.Backend.Type != "aws" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
 		extra.labels = append(extra.labels, "owner="+c.Owner)
