@@ -461,7 +461,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			vv = append(vv, v.Owner, strings.ReplaceAll(v.AerospikeVersion, "-", "."))
 			if a.opts.Config.Backend.Type != "docker" {
 				spot := ""
-				if v.AwsIsSpot {
+				if v.AwsIsSpot || v.GcpIsSpot {
 					spot = " (spot)"
 				}
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
@@ -526,7 +526,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			vv = append(vv, v.Owner, strings.ReplaceAll(v.AerospikeVersion, "-", "."))
 			if a.opts.Config.Backend.Type != "docker" {
 				spot := ""
-				if v.AwsIsSpot {
+				if v.AwsIsSpot || v.GcpIsSpot {
 					spot = " (spot)"
 				}
 				vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
@@ -819,7 +819,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					}
 					if a.opts.Config.Backend.Type != "docker" {
 						spot := ""
-						if v.AwsIsSpot {
+						if v.AwsIsSpot || v.GcpIsSpot {
 							spot = " (spot)"
 						}
 						vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
@@ -944,7 +944,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					*/
 					if a.opts.Config.Backend.Type != "docker" {
 						spot := ""
-						if v.AwsIsSpot {
+						if v.AwsIsSpot || v.GcpIsSpot {
 							spot = " (spot)"
 						}
 						vv = append(vv, strconv.FormatFloat(v.InstanceRunningCost, 'f', 4, 64)+spot)
