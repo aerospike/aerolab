@@ -147,7 +147,7 @@ func (c *agiAddTokenCmd) Execute(args []string) error {
 		}
 		b.WorkOnServers()
 	}
-	loc := "/opt/agitokens"
+	loc := "/opt/agi/tokens"
 	if c.TokenName == "" {
 		c.TokenName = strconv.Itoa(int(time.Now().UnixNano()))
 	}

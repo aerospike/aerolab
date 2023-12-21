@@ -49,7 +49,7 @@ type agiExecProxyCmd struct {
 	AuthType             string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic|token"`
 	BasicAuthUser        string        `short:"u" long:"basic-auth-user" default:"admin" description:"Basic authentication username"`
 	BasicAuthPass        string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password"`
-	TokenAuthLocation    string        `short:"t" long:"token-path" default:"/opt/agitokens" description:"Directory where tokens are stored for access"`
+	TokenAuthLocation    string        `short:"t" long:"token-path" default:"/opt/agi/tokens" description:"Directory where tokens are stored for access"`
 	TokenName            string        `short:"T" long:"token-name" default:"AGI_TOKEN" description:"Name of the token variable and cookie to use"`
 	DebugActivityMonitor bool          `short:"D" long:"debug-mode" description:"set to log activity monitor for debugging"`
 	Help                 helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
