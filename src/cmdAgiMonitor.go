@@ -58,6 +58,7 @@ type agiMonitorListenCmd struct {
 	DimMultiplier       float64  `long:"sizing-multiplier-dim" description:"log size * multiplier = how much RAM is needed" yaml:"ramMultiplierDim" default:"1.8"`
 	NoDimMultiplier     float64  `long:"sizing-multiplier-nodim" description:"log size * multiplier = how much RAM is needed" yaml:"ramMultiplierNoDim" default:"0.4"`
 	DebugEvents         bool     `long:"debug-events" description:"Log all events for debugging purposes" yaml:"debugEvents"`
+	DisablePricingAPI   bool     `long:"disable-pricing-api" description:"Set to disable pricing queries for cost tracking" yaml:"disablePricingAPI"`
 	invCache            inventoryJson
 	invCacheTimeout     time.Time
 	invLock             *sync.Mutex
@@ -132,6 +133,9 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	a.opts.Client.Create.None.instanceRole = c.Aws.InstanceRole
 	if a.opts.Config.Backend.Type == "gcp" {
 		a.opts.Client.Create.None.instanceRole = c.Gcp.InstanceRole
+		if c.DisablePricingAPI {
+			a.opts.Client.Create.None.instanceRole = c.Gcp.InstanceRole + "::nopricing"
+		}
 	}
 	a.opts.Client.Create.None.Gcp.Expires = 0
 	a.opts.Client.Create.None.Aws.Ebs = "20"
@@ -193,7 +197,9 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	b.DisablePricingAPI()
+	if c.DisablePricingAPI {
+		b.DisablePricingAPI()
+	}
 	b.DisableExpiryInstall()
 	c.execLock = new(sync.Mutex)
 	log.Print("Starting agi-monitor")

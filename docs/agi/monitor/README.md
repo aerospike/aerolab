@@ -9,6 +9,15 @@ AeroLab has a service called `agi-monitor` for deployments in GCP and AWS. The m
 
 In AWS, an IAM instance policy must be created first, in order to allow the instance to assume the required role to perform it's actions. To do that, head to the AWS Web Console, navigate to the `IAM` service, and set it up as seen [here](aws-create-policy-step-1.png) and [here](aws-create-policy-summary.png).
 
+The following AWS-managed policies MUST be attached:
+* AmazonEC2FullAccess
+* AmazonElasticFileSystemFullAccess
+* AWSPriceListServiceFullAccess (if `--disable-pricing-api` isn't used at AGI-monitor creation)
+
+## GCP Scopes
+
+AeroLab will automatically request to assign the `https://www.googleapis.com/auth/compute` scope to the instance. If `--disable-pricing-api` is not specified, AeroLab will also assign `https://www.googleapis.com/auth/cloud-billing.readonly`.
+
 ## Requirements
 
 In order for the AGI monitor to be able to perform sizing or spot-to-ondemand rotation, the AGI instances must be started with extra volumes. On GCP that is `--gcp-with-vol` and on AWS that is `--aws-with-efs` parameter when creating AGI instances.

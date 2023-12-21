@@ -3542,6 +3542,9 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 				},
 			},
 		}
+		if !strings.HasSuffix(extra.instanceRole, "::nopricing") {
+			serviceAccounts[0].Scopes = append(serviceAccounts[0].Scopes, "https://www.googleapis.com/auth/cloud-billing.readonly")
+		}
 	}
 	for i := start; i < (nodeCount + start); i++ {
 		labels[gcpTagNodeNumber] = strconv.Itoa(i)
