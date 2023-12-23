@@ -1345,8 +1345,13 @@ func (d *backendAws) Init() error {
 	var svc *ec2.EC2
 	if a.opts.Config.Backend.Region == "" {
 		svc = ec2.New(d.sess)
+		a.opts.Config.Backend.Region = aws.StringValue(svc.Config.Region)
 	} else {
 		svc = ec2.New(d.sess, aws.NewConfig().WithRegion(a.opts.Config.Backend.Region))
+	}
+
+	if a.opts.Config.Backend.Region == "" {
+		return errors.New("region could not be resolved; please specify using `aerolab config backend -t aws -r REGION` or in your ~/.aws/config file")
 	}
 
 	_, err = svc.DescribeRegions(nil)
