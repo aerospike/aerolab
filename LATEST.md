@@ -37,5 +37,6 @@ _Release Date: UNDEF_
 * Fix: New exporter name changes cause 1.15.0 to not install. This uses the new names.
 * Fix: `lsblk` now shows sizes as float not int.
 * Fix: GCP: upgrade and improve instance type listing.
+* Fix: AWS: multiple APIs when user specifies AWS backend without choosing a custom region.
 * GCP: instance-type listing now includes spot instance support.
 * Aerospike Client Versions: `data insert`, `data delete` support for `v7` aerospike client.
