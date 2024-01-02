@@ -1,3 +1,6 @@
+#### 7.4.0
+* TODO
+
 #### 7.3.0
 * Volume command supports mounts on centos/amazon.
 * Version check logic - if user is using a dev build and a final build is out, inform user of available upgrade.
