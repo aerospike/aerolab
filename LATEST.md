@@ -1,6 +1,6 @@
 # [v7.3.0](https://github.com/aerospike/aerolab/releases/tag/7.3.0)
 
-_Release Date: UNDEF_
+_Release Date: January 2, 2024_
 
 **Release Notes:**
 * Volume command supports mounts on centos/amazon.
