@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/compute v1.23.3
 	github.com/GoogleCloudPlatform/functions-framework-go v1.8.0
 	google.golang.org/api v0.154.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.32.0
 )
 
 require (
