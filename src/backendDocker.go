@@ -385,7 +385,17 @@ func (d *backendDocker) ClusterList() ([]string, error) {
 }
 
 func (d *backendDocker) NodeListInCluster(name string) ([]int, error) {
-	out, err := exec.Command("docker", "container", "list", "-a", "--format", "{{json .Names}}").CombinedOutput()
+	return d.nodeListInClusterDo(name, false)
+}
+
+func (d *backendDocker) nodeListInClusterDo(name string, onlyRunning bool) ([]int, error) {
+	var out []byte
+	var err error
+	if onlyRunning {
+		out, err = exec.Command("docker", "container", "list", "--format", "{{json .Names}}").CombinedOutput()
+	} else {
+		out, err = exec.Command("docker", "container", "list", "-a", "--format", "{{json .Names}}").CombinedOutput()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -938,7 +948,7 @@ func (d *backendDocker) GetNodeIpMap(name string, internalIPs bool) (map[int]str
 	if !inslice.HasString(clusters, name) {
 		return nil, errors.New("cluster not found")
 	}
-	nodes, err := d.NodeListInCluster(name)
+	nodes, err := d.nodeListInClusterDo(name, true)
 	if err != nil {
 		return nil, err
 	}

@@ -1,5 +1,6 @@
 #### 7.4.0
-* TODO
+* FEATURE: Web UI.
+* FIX: The `net list` command does not work when client has same name as server.
 
 #### 7.3.0
 * Volume command supports mounts on centos/amazon.
