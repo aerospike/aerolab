@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
@@ -20,6 +21,7 @@ type logsGetCmd struct {
 	Journal     bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
 	LogLocation string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
 	Destination flags.Filename  `short:"d" long:"destination" description:"Destination directory (will be created if doesn't exist)" default:"./logs/"`
+	Force       bool            `short:"f" long:"force" description:"set to not be asked whether to override existing files"`
 	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -74,6 +76,36 @@ func (c *logsGetCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
+	} else if !c.Force {
+		entries, _ := os.ReadDir(string(c.Destination))
+		_, logf := path.Split(c.LogLocation)
+		ask := false
+		for _, ee := range entries {
+			if strings.HasPrefix(ee.Name(), string(c.ClusterName)+"-") && strings.HasSuffix(ee.Name(), "."+strings.TrimLeft(logf, ".")) {
+				ask = true
+				break
+			}
+		}
+		if ask {
+			for {
+				reader := bufio.NewReader(os.Stdin)
+				fmt.Print("Directory exists and existing files will be overwritten, continue download (y/n)? ")
+
+				yesno, err := reader.ReadString('\n')
+				if err != nil {
+					logExit(err)
+				}
+
+				yesno = strings.ToLower(strings.TrimSpace(yesno))
+
+				if yesno == "y" || yesno == "yes" {
+					break
+				} else if yesno == "n" || yesno == "no" {
+					fmt.Println("Aborting")
+					return nil
+				}
+			}
+		}
 	}
 
 	c.Destination = flags.Filename(path.Join(string(c.Destination), string(c.ClusterName)))
@@ -117,6 +149,12 @@ func (c *logsGetCmd) getParallel(node int, parallel chan int, wait *sync.WaitGro
 
 func (c *logsGetCmd) get(node int) error {
 	fn := string(c.Destination) + "-" + strconv.Itoa(node)
+	if c.Journal {
+		fn = fn + ".journald.log"
+	} else {
+		_, logf := path.Split(c.LogLocation)
+		fn = fn + "." + strings.TrimLeft(logf, ".")
+	}
 	f, err := os.OpenFile(fn, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0644)
 	if err != nil {
 		return err
