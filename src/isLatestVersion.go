@@ -55,10 +55,10 @@ func (a *aerolab) isLatestVersion() {
 		}
 	}
 	if VersionCheck(v.CurrentVersion, v.LatestVersion) > 0 {
-		log.Println("AEROLAB VERSION: A new version of AeroLab is available, download link: https://github.com/aerospike/aerolab/releases")
+		log.Println("AEROLAB VERSION: A new version of AeroLab is available, install using `aerolab upgrade`, or download link: https://github.com/aerospike/aerolab/releases")
 	}
 	if VersionCheck(v.CurrentVersion, v.LatestVersion) == 0 && strings.Contains(vEdition, "prerelease") {
-		log.Println("AEROLAB VERSION: Current version is a dev build, a stable release is available, download link: https://github.com/aerospike/aerolab/releases")
+		log.Println("AEROLAB VERSION: Current version is a dev build, a stable release is available, install using `aerolab upgrade`, or download link: https://github.com/aerospike/aerolab/releases")
 	}
 }
 
