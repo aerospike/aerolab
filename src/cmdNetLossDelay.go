@@ -273,7 +273,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		if c.Action != "show" && c.Action != "delall" {
 			for _, destNode := range sysRunOnDestNodeList {
 				destNodeIp := sysRunOnDestIpMap[destNode]
-				command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s --network %s", rest, destNodeIp)}
+				command := []string{"/bin/bash", "-c", fmt.Sprintf("%s --network %s", rest, destNodeIp)}
 				if sysRunOnClient {
 					b.WorkOnClients()
 				}
@@ -284,7 +284,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 				}
 				if sysRunOnDestIpMapInternal != nil {
 					destNodeIpInternal := sysRunOnDestIpMapInternal[destNode]
-					command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s --network %s", rest, destNodeIpInternal)}
+					command := []string{"/bin/bash", "-c", fmt.Sprintf("%s --network %s", rest, destNodeIpInternal)}
 					if sysRunOnClient {
 						b.WorkOnClients()
 					}
@@ -296,7 +296,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 				}
 			}
 		} else {
-			command := []string{"/bin/bash", "-c", fmt.Sprintf("source /tcconfig/bin/activate; %s", rest)}
+			command := []string{"/bin/bash", "-c", rest}
 			if sysRunOnClient {
 				b.WorkOnClients()
 			}
