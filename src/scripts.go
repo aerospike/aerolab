@@ -41,7 +41,7 @@ CPUVER=amd64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-${VERSION_ID}-${CPUVER}.deb"
 wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-dpkg -i ${tcfn}
+dpkg --force-architecture -i ${tcfn}
 ########## tcconfig end
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -127,7 +127,6 @@ ExecStopPost=/bin/bash /usr/local/bin/late.sh
 EOF
 chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
 systemctl daemon-reload
-dnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y || exit 1
 yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
@@ -262,7 +261,7 @@ CPUVER=amd64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-${VERSION_ID}-${CPUVER}.deb"
 wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-dpkg -i ${tcfn}
+dpkg --force-architecture -i ${tcfn}
 ########## tcconfig end
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -446,7 +445,6 @@ chmod 755 /etc/init.d/aerospike
 `
 
 	aerospikeInstallScript["docker:centos:8"] = `#!/bin/bash
-dnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y || exit 1
 set -o xtrace
 yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-devel || exit 1
