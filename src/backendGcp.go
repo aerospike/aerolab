@@ -1801,6 +1801,9 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
+				if strings.HasPrefix(*instance.Name, "aerolab4-template-") {
+					continue
+				}
 				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					if instance.Labels[gcpTagClusterName] == name {
 						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
