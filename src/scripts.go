@@ -181,6 +181,7 @@ yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 ########### tcconfig
 VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+[ "${VERSION_ID}" = "2023" ] && VERSION_ID=9
 CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
