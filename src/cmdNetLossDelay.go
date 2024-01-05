@@ -19,10 +19,12 @@ type netLossDelayCmd struct {
 	IsDestinationClient    bool              `short:"C" long:"destination-client" description:"set to indicate the destination is a client group"`
 	Action                 TypeNetLossAction `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
 	ShowNames              bool              `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output"`
-	Delay                  string            `short:"p" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
+	Delay                  string            `short:"D" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
 	Loss                   string            `short:"L" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
-	RunOnDestination       bool              `short:"D" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)"`
 	Rate                   string            `short:"R" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
+	RunOnDestination       bool              `short:"o" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)"`
+	DstPort                int               `short:"p" long:"dst-port" description:"only apply the rule to a specific destination port"`
+	SrcPort                int               `short:"P" long:"src-port" description:"only apply the rule to a specific source port"`
 }
 
 func (c *netLossDelayCmd) Execute(args []string) error {
@@ -204,7 +206,9 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 	sysRunOnDestNodeList := destNodeList
 	sysRunOnDestIpMap := destNodeIpMap
 	sysRunOnDestIpMapInternal := destNodeIpMapInternal
+	rule := "--direction=outgoing --network"
 	if c.RunOnDestination {
+		rule = "--direction=incoming --src-network"
 		sysRunOnClient = c.IsDestinationClient
 		sysRunOnClusterName = string(c.DestinationClusterName)
 		sysLogTheOther = string(c.SourceClusterName)
@@ -212,6 +216,12 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		sysRunOnDestNodeList = sourceNodeList
 		sysRunOnDestIpMap = sourceNodeIpMap
 		sysRunOnDestIpMapInternal = sourceNodeIpMapInternal
+	}
+	if c.DstPort != 0 {
+		rule = fmt.Sprintf("--port %d %s", c.DstPort, rule)
+	}
+	if c.SrcPort != 0 {
+		rule = fmt.Sprintf("--src-port %d %s", c.SrcPort, rule)
 	}
 
 	iface := "eth0"
@@ -273,7 +283,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 		if c.Action != "show" && c.Action != "delall" {
 			for _, destNode := range sysRunOnDestNodeList {
 				destNodeIp := sysRunOnDestIpMap[destNode]
-				command := []string{"/bin/bash", "-c", fmt.Sprintf("%s --network %s", rest, destNodeIp)}
+				command := []string{"/bin/bash", "-c", fmt.Sprintf("%s %s %s", rest, rule, destNodeIp)}
 				if sysRunOnClient {
 					b.WorkOnClients()
 				}
@@ -284,7 +294,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 				}
 				if sysRunOnDestIpMapInternal != nil {
 					destNodeIpInternal := sysRunOnDestIpMapInternal[destNode]
-					command := []string{"/bin/bash", "-c", fmt.Sprintf("%s --network %s", rest, destNodeIpInternal)}
+					command := []string{"/bin/bash", "-c", fmt.Sprintf("%s %s %s", rest, rule, destNodeIpInternal)}
 					if sysRunOnClient {
 						b.WorkOnClients()
 					}
