@@ -1801,6 +1801,9 @@ func (d *backendGcp) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 		instances := pair.Value.Instances
 		if len(instances) > 0 {
 			for _, instance := range instances {
+				if strings.HasPrefix(*instance.Name, "aerolab4-template-") {
+					continue
+				}
 				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 					if instance.Labels[gcpTagClusterName] == name {
 						nodeNo, err := strconv.Atoi(instance.Labels[gcpTagNodeNumber])
@@ -2240,7 +2243,7 @@ func (d *backendGcp) TemplateDestroy(v backendVersion) error {
 		}
 		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 			isArm := false
-			if strings.Contains(*image.Architecture, "arm") || strings.Contains(*image.Architecture, "aarch") {
+			if strings.Contains(strings.ToLower(*image.Architecture), "arm") || strings.Contains(strings.ToLower(*image.Architecture), "aarch") {
 				isArm = true
 			}
 			if (image.Labels[gcpServerTagOperatingSystem] == v.distroName || v.distroName == "all") && (image.Labels[gcpServerTagOSVersion] == gcpResourceName(v.distroVersion) || v.distroVersion == "all") && (image.Labels[gcpServerTagAerospikeVersion] == gcpResourceName(v.aerospikeVersion) || v.aerospikeVersion == "all") && isArm == v.isArm {
