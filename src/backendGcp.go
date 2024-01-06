@@ -2243,7 +2243,7 @@ func (d *backendGcp) TemplateDestroy(v backendVersion) error {
 		}
 		if image.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
 			isArm := false
-			if strings.Contains(*image.Architecture, "arm") || strings.Contains(*image.Architecture, "aarch") {
+			if strings.Contains(strings.ToLower(*image.Architecture), "arm") || strings.Contains(strings.ToLower(*image.Architecture), "aarch") {
 				isArm = true
 			}
 			if (image.Labels[gcpServerTagOperatingSystem] == v.distroName || v.distroName == "all") && (image.Labels[gcpServerTagOSVersion] == gcpResourceName(v.distroVersion) || v.distroVersion == "all") && (image.Labels[gcpServerTagAerospikeVersion] == gcpResourceName(v.aerospikeVersion) || v.aerospikeVersion == "all") && isArm == v.isArm {

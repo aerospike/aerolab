@@ -1,6 +1,7 @@
 #### 7.4.0
 * FEATURE: Web UI.
 * FIX: GCP: Many commands would fail during template creation, making parallel use imposible. Fixed.
+* FIX: GCP: Delete `arm` templates was not working at all.
 * FIX: The `net list` command does not work when client has same name as server.
 * FIX: The `net loss-delay` feature would fail to activate a python environment.
 * ENHANCEMENT: Support all ubuntu 18+ and centos 7+ builds with `net loss-delay` feature.
