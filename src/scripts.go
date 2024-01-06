@@ -1,7 +1,5 @@
 package main
 
-import "strings"
-
 var aerospikeInstallScript = make(map[string]string) //docker:centos:7 = script; or aws:ubuntu:20.04 = script
 
 func init() {
@@ -36,13 +34,18 @@ apt-get -y install python
 apt-get -y install nano lnav
 apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || apt-get update && apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
 apt-get -y install dnsutils iputils-ping telnet netcat sysstat vim
-wget https://github.com/rglonek/tcconfig-ubuntu-venv/releases/download/latest/tc.tar.gz
-tar -zxvf tc.tar.gz
-mv tcconfig-ubuntu-venv-tc /tcconfig
-mv /tcconfig/lib/* /tcconfig/lib/python$(python3 --version |egrep -o '[0-9]+\.[0-9]+')
+########### tcconfig
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-${VERSION_ID}-${CPUVER}.deb"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+dpkg --force-architecture -i ${tcfn}
+########## tcconfig end
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
-apt-get -y install libldap-2.4-2 ; apt -y --fix-broken install ; apt-get -y install libldap-2.4-2
+apt-get -y install libldap-2.4-2 ; apt -y --fix-broken install ; apt-get -y install libldap-2.4-2 || apt-get -y install libldap-common
 cat <<'EOF' > /etc/apt/apt.conf.d/local
 Dpkg::Options {
 	"--force-confdef";
@@ -90,6 +93,16 @@ yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
+########### tcconfig
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-centos-${VERSION_ID}-${CPUVER}.tgz"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+tar -C /usr/local/bin -zxvf ${tcfn}
+chmod 755 /usr/local/bin/tc*
+########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 `
@@ -114,7 +127,6 @@ ExecStopPost=/bin/bash /usr/local/bin/late.sh
 EOF
 chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
 systemctl daemon-reload
-dnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y || exit 1
 yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
@@ -124,6 +136,16 @@ yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
+########### tcconfig
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-centos-stream${VERSION_ID}-${CPUVER}.tgz"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+tar -C /usr/local/bin -zxvf ${tcfn}
+chmod 755 /usr/local/bin/tc*
+########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 rm -f /etc/systemd/system/sshd-keygen\@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
@@ -157,6 +179,17 @@ yum -y install python
 yum -y install nano lnav
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
+########### tcconfig
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+[ "${VERSION_ID}" = "2023" ] && VERSION_ID=9
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-centos-stream${VERSION_ID}-${CPUVER}.tgz"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+tar -C /usr/local/bin -zxvf ${tcfn}
+chmod 755 /usr/local/bin/tc*
+########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 rm -f /etc/systemd/system/sshd-keygen\@.service.d/disable-sshd-keygen-if-cloud-init-active.conf || echo "Not there"
@@ -195,6 +228,15 @@ yum -y install nano lnav
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
+########### tcconfig
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-centos-7-${CPUVER}.tgz"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+tar -C /usr/local/bin -zxvf ${tcfn}
+chmod 755 /usr/local/bin/tc*
+########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 `
@@ -213,10 +255,15 @@ apt-get -y install python
 apt-get -y install nano lnav
 apt-get -y install iptables wget dnsutils tcpdump net-tools vim binutils iproute2 python3 libcurl4-openssl-dev less || exit 1
 apt-get -y install dnsutils iputils-ping telnet netcat sysstat vim
-wget https://github.com/rglonek/tcconfig-ubuntu-venv/releases/download/latest/tc.tar.gz
-tar -zxvf tc.tar.gz
-mv /tcconfig-ubuntu-venv-tc /tcconfig
-mv /tcconfig/lib/* /tcconfig/lib/python$(python3 --version |egrep -o '[0-9]+\.[0-9]+')
+########### tcconfig
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-${VERSION_ID}-${CPUVER}.deb"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+dpkg --force-architecture -i ${tcfn}
+########## tcconfig end
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 cat <<'EOF' > /usr/local/bin/early.sh
@@ -229,7 +276,7 @@ ls / >/dev/null 2>&1
 EOF
 chmod 755 /usr/local/bin/early.sh
 chmod 755 /usr/local/bin/late.sh
-apt-get -y install libldap-2.4-2 ; apt -y --fix-broken install ; apt-get -y install libldap-2.4-2
+apt-get -y install libldap-2.4-2 ; apt -y --fix-broken install ; apt-get -y install libldap-2.4-2 || apt-get -y install libldap-common
 cat <<'EOF' > /etc/apt/apt.conf.d/local
 Dpkg::Options {
 	"--force-confdef";
@@ -316,6 +363,16 @@ yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
+########### tcconfig
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-centos-${VERSION_ID}-${CPUVER}.tgz"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+tar -C /usr/local/bin -zxvf ${tcfn}
+chmod 755 /usr/local/bin/tc*
+########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 cat <<'EOF' > /usr/local/bin/early.sh
@@ -388,7 +445,98 @@ EOF
 chmod 755 /etc/init.d/aerospike
 `
 
-	aerospikeInstallScript["docker:centos:8"] = strings.Replace(strings.Replace(aerospikeInstallScript["docker:centos:7"], "#!/bin/bash", "#!/bin/bash\ndnf --disablerepo '*' --enablerepo=extras swap centos-linux-repos centos-stream-repos -y && dnf distro-sync -y || exit 1", 1), "libcurl-openssl-devel", "libcurl-devel", 1)
+	aerospikeInstallScript["docker:centos:8"] = `#!/bin/bash
+set -o xtrace
+yum -y update || exit 1
+yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-devel || exit 1
+yum -y install dnsutils || yum -y install bind-utils
+yum -y install python
+yum -y install nano lnav
+yum -y install initscripts || exit 1
+yum -y install redhat-lsb || exit 1
+yum -y install telnet sysstat nc bind-utils iputils vim
+yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
+########### tcconfig
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-centos-stream${VERSION_ID}-${CPUVER}.tgz"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+tar -C /usr/local/bin -zxvf ${tcfn}
+chmod 755 /usr/local/bin/tc*
+########## tcconfig end
+cd /root && tar -zxvf installer.tgz || exit 1
+cd aerospike-server-* ; ./asinstall || exit 1
+cat <<'EOF' > /usr/local/bin/early.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+cat <<'EOF' > /usr/local/bin/late.sh
+#!/bin/bash
+ls / >/dev/null 2>&1
+EOF
+chmod 755 /usr/local/bin/early.sh
+chmod 755 /usr/local/bin/late.sh
+cat <<'EOF' > /etc/init.d/aerospike
+#!/bin/sh
+# Start/stop the aerospike daemon.
+#
+### BEGIN INIT INFO
+# Provides:          aerospike
+# Required-Start:    $remote_fs $syslog $time
+# Required-Stop:     $remote_fs $syslog $time
+# Should-Start:      $network $named slapd autofs ypbind nscd nslcd winbind
+# Should-Stop:       $network $named slapd autofs ypbind nscd nslcd winbind
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Aerospike
+# Description:       Aerospike
+### END INIT INFO
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin
+DESC="aerospike daemon"
+NAME=aerospike
+DAEMON=/usr/bin/asd
+PIDFILE=/var/run/asd.pid
+SCRIPTNAME=/etc/init.d/"$NAME"
+
+test -f $DAEMON || exit 0
+
+. /lib/lsb/init-functions
+
+case "$1" in
+start)  log_success_msg "Starting aerospike" "aerospike"
+		/bin/bash /usr/local/bin/early.sh
+		start_daemon -p $PIDFILE $DAEMON $EXTRA_OPTS
+		log_success_msg $?
+		;;
+stop)   log_success_msg "Stopping aerospike" "aerospike"
+		pkill asd
+		sleep 1
+		if [ $? -ne 0 ]; then pkill -9 asd; fi
+		/bin/bash /usr/local/bin/late.sh
+		log_success_msg $RETVAL
+		;;
+restart) log_success_msg "Restarting aerospike" "aerospike"
+		$0 stop
+		$0 start
+		;;
+coldstart)  log_success_msg "Starting aerospike" "aerospike"
+		start_daemon -p $PIDFILE $DAEMON --cold-start $EXTRA_OPTS
+		log_success_msg $?
+		;;
+status)
+		status_of_proc -p $PIDFILE $DAEMON $NAME && exit 0 || exit $?
+		;;
+*)      log_success_msg "Usage: /etc/init.d/aerospike {start|stop|status|restart|coldstart}"
+		exit 2
+		;;
+esac
+exit 0
+EOF
+chmod 755 /etc/init.d/aerospike
+`
 	aerospikeInstallScript["docker:amazon:2"] = aerospikeInstallScript["docker:centos:7"]
 
 	aerospikeInstallScript["docker:debian:12"] = aerospikeInstallScript["docker:ubuntu:22.04"]
@@ -418,6 +566,16 @@ yum -y install python
 yum -y install nano lnav
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
+########### tcconfig
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+CPUVER=amd64
+[ "$(uname -p)" = "arm64" ] && CPUVER=arm64
+[ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
+tcfn="tcconfig-centos-stream${VERSION_ID}-${CPUVER}.tgz"
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
+tar -C /usr/local/bin -zxvf ${tcfn}
+chmod 755 /usr/local/bin/tc*
+########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
 cat <<'EOF' > /usr/local/bin/early.sh
