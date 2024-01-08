@@ -38,6 +38,7 @@ type configBackendCmd struct {
 	Region     string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
 	AWSProfile string         `short:"P" long:"aws-profile" description:"AWS backend: provide a profile to use; setting this ignores the AWS_PROFILE env variable"`
 	Project    string         `short:"o" long:"project" description:"GCP backend: override default gcp configured project" default:""`
+	Arch       string         `short:"a" long:"docker-arch" description:"set to either amd64 or arm64 to force a particular architecture on docker; see https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md"`
 	TmpDir     flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:""`
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	typeSet    string
@@ -61,6 +62,12 @@ func (c *configBackendCmd) Execute(args []string) error {
 		a.forceFileOptional = true
 		return nil
 	}
+	if c.Arch != "" && c.Arch != "amd64" && c.Arch != "arm64" && c.Arch != "unset" {
+		return errors.New("docker-arch must be one of: unset, amd64, arm64")
+	}
+	if c.Arch == "unset" {
+		c.Arch = ""
+	}
 	if c.typeSet != "" {
 		err := c.ExecTypeSet(args)
 		if err != nil {
@@ -73,6 +80,9 @@ func (c *configBackendCmd) Execute(args []string) error {
 	}
 	if c.Type == "gcp" {
 		fmt.Printf("Config.Backend.Project = %s\n", c.Project)
+	}
+	if c.Type == "docker" && c.Arch != "" {
+		fmt.Printf("Config.Backend.Arch = %s\n", c.Arch)
 	}
 	fmt.Printf("Config.Backend.TmpDir = %s\n", c.TmpDir)
 	return nil
