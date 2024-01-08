@@ -236,13 +236,19 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					if len(i2) > 1 {
 						i3 = strings.Split(i2[1], ":")
 					}
-					if len(i3) > 1 {
-						asdVer = i3[1]
+					i4 := strings.Split(tt[3], ":")
+					if len(i4) > 1 {
+						asdVer = i4[1]
 					}
 				} else {
 					i2 = strings.Split(tt[3], ":")
 					if len(i2) > 1 {
 						i3[0] = i2[1]
+					}
+					ix := strings.Split(i2[0], "/")
+					if len(ix) > 1 {
+						i2[0] = ix[1]
+						arch = ix[0]
 					}
 				}
 				clientType := ""
@@ -267,6 +273,11 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 				}
 				if intPorts == "" {
 					intPorts = intPort
+				}
+				if strings.Contains(tt[3], "_amd64") {
+					arch = "amd64"
+				} else if strings.Contains(tt[3], "_arm64") {
+					arch = "arm64"
 				}
 				invLock.Lock()
 				defer invLock.Unlock()
@@ -435,11 +446,19 @@ func (d *backendDocker) ListTemplates() ([]backendVersion, error) {
 			if len(repo) > len(dockerNameHeader)+2 {
 				repo = repo[len(dockerNameHeader):]
 				distVer := strings.Split(repo, "_")
-				if len(distVer) == 2 {
+				if len(distVer) > 1 {
+					isArm := d.isArm
+					if len(distVer) > 2 {
+						if distVer[2] == "arm64" {
+							isArm = true
+						} else {
+							isArm = false
+						}
+					}
 					tagList := strings.Split(t, ";")
 					if len(tagList) > 1 {
 						tag := strings.Trim(tagList[1], "'\"")
-						templateList = append(templateList, backendVersion{distVer[0], distVer[1], tag, d.isArm})
+						templateList = append(templateList, backendVersion{distVer[0], distVer[1], tag, isArm})
 					}
 				}
 			}
@@ -461,22 +480,29 @@ func (d *backendDocker) WorkOnServers() {
 }
 
 func (d *backendDocker) Init() error {
-	ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer ctxCancel()
 	out, err := exec.CommandContext(ctx, "docker", "info").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker command not found, or docker appears to be unreachable or down: %s", string(out))
 	}
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.Trim(line, "\r\n\t ")
-		if !strings.HasPrefix(line, "Architecture: ") {
-			continue
+	switch a.opts.Config.Backend.Arch {
+	case "amd64":
+		d.isArm = false
+	case "arm64":
+		d.isArm = true
+	default:
+		for _, line := range strings.Split(string(out), "\n") {
+			line = strings.Trim(line, "\r\n\t ")
+			if !strings.HasPrefix(line, "Architecture: ") {
+				continue
+			}
+			arch := strings.Split(line, ": ")[1]
+			if strings.Contains(arch, "arm") || strings.Contains(arch, "aarch") {
+				d.isArm = true
+			}
+			break
 		}
-		arch := strings.Split(line, ": ")[1]
-		if strings.Contains(arch, "arm") || strings.Contains(arch, "aarch") {
-			d.isArm = true
-		}
-		break
 	}
 	d.WorkOnServers()
 	return nil
@@ -527,7 +553,11 @@ func (d *backendDocker) VacuumTemplate(v backendVersion) error {
 	if err := d.versionToReal(&v); err != nil {
 		return err
 	}
-	templName := fmt.Sprintf("aerotmpl-%s-%s-%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	arch := "amd64"
+	if v.isArm {
+		arch = "arm64"
+	}
+	templName := fmt.Sprintf("aerotmpl-%s-%s-%s-%s", v.distroName, v.distroVersion, v.aerospikeVersion, arch)
 	out, err := exec.Command("docker", "stop", "-t", "1", templName).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("could not stop temporary template container: %s;%s", out, err)
@@ -545,7 +575,11 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 	if err := d.versionToReal(&v); err != nil {
 		return err
 	}
-	templName := fmt.Sprintf("aerotmpl-%s-%s-%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	arch := "amd64"
+	if v.isArm {
+		arch = "arm64"
+	}
+	templName := fmt.Sprintf("aerotmpl-%s-%s-%s-%s", v.distroName, v.distroVersion, v.aerospikeVersion, arch)
 	addShutdownHandler("deployTemplate", func(os.Signal) {
 		for len(deployTemplateShutdownMaking) > 0 {
 			time.Sleep(time.Second)
@@ -555,7 +589,7 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 	defer delShutdownHandler("deployTemplate")
 	// deploy container with os
 	deployTemplateShutdownMaking <- 1
-	out, err := exec.Command("docker", "run", "-td", "--name", templName, d.centosNaming(v)).CombinedOutput()
+	out, err := exec.Command("docker", "run", "-td", "--name", templName, d.imageNaming(v)).CombinedOutput()
 	<-deployTemplateShutdownMaking
 	if err != nil {
 		return fmt.Errorf("could not start vanilla container: %s;%s", out, err)
@@ -582,7 +616,7 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 		return fmt.Errorf("failed stopping container: %s;%s", out, err)
 	}
 	// docker container commit container_name dist_ver:aeroVer
-	templImg := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	templImg := fmt.Sprintf(dockerNameHeader+"%s_%s_%s:%s", v.distroName, v.distroVersion, arch, v.aerospikeVersion)
 	out, err = exec.Command("docker", "container", "commit", templName, templImg).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to commit container to image: %s;%s", out, err)
@@ -599,10 +633,18 @@ func (d *backendDocker) TemplateDestroy(v backendVersion) error {
 	if v.distroName == "el" {
 		v.distroName = "centos"
 	}
-	name := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	arch := "amd64"
+	if v.isArm {
+		arch = "arm64"
+	}
+	name := fmt.Sprintf(dockerNameHeader+"%s_%s_%s:%s", v.distroName, v.distroVersion, arch, v.aerospikeVersion)
 	out, err := exec.Command("docker", "image", "list", "--format", "{{json .ID}}", fmt.Sprintf("--filter=reference=%s", name)).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to get image list: %s;%s", string(out), err)
+	if err != nil || len(strings.Trim(string(out), "\t\r\n ")) == 0 {
+		name = fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+		out, err = exec.Command("docker", "image", "list", "--format", "{{json .ID}}", fmt.Sprintf("--filter=reference=%s", name)).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to get image list: %s;%s", string(out), err)
+		}
 	}
 	imageId := strings.Trim(string(out), "\"' \n\r")
 	out, err = exec.Command("docker", "rmi", imageId).CombinedOutput()
@@ -762,9 +804,13 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		for _, newlabel := range extra.labels {
 			exposeList = append(exposeList, "--label", newlabel)
 		}
-		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+		arch := "amd64"
+		if v.isArm {
+			arch = "arm64"
+		}
+		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s_%s:%s", v.distroName, v.distroVersion, arch, v.aerospikeVersion)
 		if d.client {
-			tmplName = d.centosNaming(v)
+			tmplName = d.imageNaming(v)
 		}
 		if extra.dockerHostname {
 			exposeList = append(exposeList, "--hostname", name+"-"+strconv.Itoa(node))
@@ -808,17 +854,34 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 	return nil
 }
 
-func (d *backendDocker) centosNaming(v backendVersion) (templName string) {
-	if v.distroName != "centos" {
-		return fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)
-	}
-	switch v.distroVersion {
-	case "6":
-		return "quay.io/centos/centos:6"
-	case "7":
-		return "quay.io/centos/centos:7"
+func (d *backendDocker) imageNaming(v backendVersion) (templName string) {
+	switch v.distroName {
+	case "centos":
+		switch v.distroVersion {
+		case "6":
+			return "quay.io/centos/centos:6"
+		case "7":
+			return "quay.io/centos/centos:7"
+		default:
+			switch a.opts.Config.Backend.Arch {
+			case "amd64":
+				return "quay.io/centos/amd64:stream" + v.distroVersion
+			case "arm64":
+				return "quay.io/centos/arm64v8:stream" + v.distroVersion
+			default:
+				return "quay.io/centos/centos:stream" + v.distroVersion
+			}
+		}
+	case "ubuntu", "debian":
+		switch a.opts.Config.Backend.Arch {
+		case "amd64":
+			return fmt.Sprintf("amd64/%s:%s", v.distroName, v.distroVersion)
+		case "arm64":
+			return fmt.Sprintf("arm64v8/%s:%s", v.distroName, v.distroVersion)
+		}
+		fallthrough
 	default:
-		return "quay.io/centos/centos:stream" + v.distroVersion
+		return fmt.Sprintf("%s:%s", v.distroName, v.distroVersion)
 	}
 }
 
