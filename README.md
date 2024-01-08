@@ -28,11 +28,14 @@ See [this document](docs/building.md) for manually building AeroLab (not recomme
 
 ## Supported backends
 
-* Docker
+* Docker and Docker Desktop
   * on macOS
   * on Linux
   * on Windows
-* Podman (with the following command to enable: `alias docker=podman`)
+* Podman as a service with official docker `docker-cli` command line tool
+  * Follow [podman documentation](https://podman.io/docs/installation) to install podman.
+  * To install the full docker cli tool, follow the [official documentation](https://docs.docker.com/engine/install/ubuntu/), but instead of installing the full docker engine, just install `docker-ce-cli` package.
+  * Enable podman service with: `sudo systemctl enable --now podman.service podman.socket && sudo touch /etc/containers/nodocker`.
 * AWS
 * GCP
 
