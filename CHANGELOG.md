@@ -1,5 +1,6 @@
 #### 7.4.0
 * FEATURE: Web UI.
+* FRATURE: DOCKER: Add support for multiarch. See [this page](https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md) for details.
 * FIX: GCP: Many commands would fail during template creation, making parallel use imposible. Fixed.
 * FIX: GCP: Delete `arm` templates was not working at all.
 * FIX: The `net list` command does not work when client has same name as server.
