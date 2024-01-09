@@ -11,6 +11,7 @@
 * ENHANCEMENT: The `logs get` command will append original filename as suffix and will ask if files would be overwritten unless `-f` is specified.
 * ENHANCEMENT: For centos stream 8/9 installs, there is no more need to re-enable repos and sync distros.
 * ENHANCEMENT: All inventory instance listings in cloud will now show instance type in the last field.
+* ENHANCEMENT: Tested and documented podman backend support.
 
 #### 7.3.0
 * Volume command supports mounts on centos/amazon.
