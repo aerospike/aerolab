@@ -369,6 +369,36 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			}
 			break
 		}
+	} else if (a.opts.Config.Backend.Type == "aws" && c.Aws.InstanceType != "") || (a.opts.Config.Backend.Type == "gcp" && c.Gcp.InstanceType != "") {
+		ntype := c.Aws.InstanceType
+		if a.opts.Config.Backend.Type == "gcp" {
+			ntype = c.Gcp.InstanceType
+		}
+		log.Println("Resolving supported Instance Types")
+		found := false
+		for _, narm := range []bool{true, false} {
+			itypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, narm, c.Gcp.Zone)
+			if err != nil {
+				log.Printf("WARNING: Could not check instance size, ensure instance has 12GB RAM or more (%s)", err)
+			} else {
+				for _, itype := range itypes {
+					if itype.InstanceName != ntype {
+						continue
+					}
+					if itype.RamGB < 12 {
+						return fmt.Errorf("instance %s is too small (min=12G instance=%d)", itype.InstanceName, int(itype.RamGB))
+					}
+					found = true
+					break
+				}
+			}
+			if found {
+				break
+			}
+		}
+		if !found {
+			log.Printf("WARNING: Instance Type not found in instance listing, could not verify the instance has at least 12GB RAM")
+		}
 	}
 	log.Println("Starting AGI deployment...")
 	if c.AGILabel == "" {
