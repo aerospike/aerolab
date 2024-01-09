@@ -178,9 +178,12 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					return
 				}
 				nameNo := strings.Split(strings.TrimPrefix(tt[1], dockerNameHeader+""), "_")
-				if len(nameNo) != 2 {
+				if len(nameNo) < 2 {
 					return
 				}
+				nno := nameNo[len(nameNo)-1]
+				nname := strings.Join(nameNo[0:len(nameNo)-1], "_")
+				nameNo = []string{nname, nno}
 				outl, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.Labels}}", tt[1]).CombinedOutput()
 				if err != nil {
 					lineErrorLock.Lock()

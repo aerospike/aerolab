@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -437,4 +438,94 @@ func (ssh_client *SSH) Connect(mode int) error {
 
 func (ssh_client *SSH) Close() {
 	ssh_client.client.Close()
+}
+
+func SftpCheckLogin(config *Config, getFileList bool) (map[string]*DownloaderFile, error) {
+	if config.Downloader.SftpSource.SearchRegex != "" {
+		regex, err := regexp.Compile(config.Downloader.SftpSource.SearchRegex)
+		if err != nil {
+			return nil, fmt.Errorf("failed to compile %s: %s", config.Downloader.SftpSource.SearchRegex, err)
+		}
+		config.Downloader.SftpSource.searchRegex = regex
+	}
+	i := &Ingest{
+		config:   config,
+		patterns: nil,
+		progress: nil,
+	}
+	client := &SSH{
+		Ip:   fmt.Sprintf("%s:%d", i.config.Downloader.SftpSource.Host, i.config.Downloader.SftpSource.Port),
+		User: i.config.Downloader.SftpSource.Username,
+		Cert: i.config.Downloader.SftpSource.KeyFile,
+		Pass: i.config.Downloader.SftpSource.Password,
+	}
+	mode := 2
+	if i.config.Downloader.SftpSource.Password != "" {
+		mode = 1
+	}
+	err := client.Connect(mode)
+	if err != nil {
+		return nil, fmt.Errorf("sftp failed to connect: %s", err)
+	}
+	defer client.Close()
+	sclient, err := sftp.NewClient(client.client)
+	if err != nil {
+		return nil, fmt.Errorf("sftp failed to establish protocol: %s", err)
+	}
+	defer sclient.Close()
+	fileList := make(map[string]*DownloaderFile)
+	var prefix *string
+	if i.config.Downloader.SftpSource.PathPrefix != "" {
+		prefix = &i.config.Downloader.SftpSource.PathPrefix
+	}
+	if getFileList {
+		walker := sclient.Walk(i.config.Downloader.SftpSource.PathPrefix)
+		for walker.Step() {
+			if err = walker.Err(); err != nil {
+				return nil, fmt.Errorf("sftp failed to walk directories: %s", err)
+			}
+			wstat := walker.Stat()
+			if wstat.IsDir() {
+				continue
+			}
+			lastModTime := wstat.ModTime()
+			size := wstat.Size()
+			object := walker.Path()
+			if i.config.Downloader.SftpSource.searchRegex != nil {
+				regexOn := object
+				if prefix != nil {
+					regexOn = strings.TrimPrefix(strings.TrimPrefix(object, *prefix), "/")
+				}
+				if !i.config.Downloader.SftpSource.searchRegex.MatchString(regexOn) {
+					continue
+				}
+			}
+			fileList[object] = &DownloaderFile{
+				Size:         size,
+				LastModified: lastModTime,
+				IsDownloaded: false,
+			}
+		}
+		return fileList, nil
+	}
+	fi, err := sclient.Stat(i.config.Downloader.SftpSource.PathPrefix)
+	if err != nil {
+		return nil, err
+	}
+	if fi.IsDir() {
+		fl, err := sclient.ReadDir(i.config.Downloader.SftpSource.PathPrefix)
+		if err != nil {
+			return nil, err
+		}
+		for _, f := range fl {
+			fileList[f.Name()] = &DownloaderFile{
+				Size: f.Size(),
+			}
+		}
+	} else {
+		fileList[fi.Name()] = &DownloaderFile{
+			Size: fi.Size(),
+		}
+	}
+	return fileList, nil
 }
