@@ -15,3 +15,4 @@ _Release Date: January 2, 2024_
 * ENHANCEMENT: The `logs get` command will append original filename as suffix and will ask if files would be overwritten unless `-f` is specified.
 * ENHANCEMENT: For centos stream 8/9 installs, there is no more need to re-enable repos and sync distros.
 * ENHANCEMENT: All inventory instance listings in cloud will now show instance type in the last field.
+* ENHANCEMENT: Tested and documented podman backend support.
