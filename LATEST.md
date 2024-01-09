@@ -17,3 +17,4 @@ _Release Date: UNDEF_
 * ENHANCEMENT: All inventory instance listings in cloud will now show instance type in the last field.
 * ENHANCEMENT: Tested and documented podman backend support.
 * ENHANCEMENT: AGI: Check sftp access and file count in directory prior to creating anything.
+* ENHANCEMENT: AGI: (gcp/aws) Always check if the selected instance type is large enough.
