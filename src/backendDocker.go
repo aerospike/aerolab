@@ -230,6 +230,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 				var i1, asdVer string
 				var i2 []string
 				i3 := []string{""}
+				tt[3] = strings.TrimPrefix(tt[3], "localhost/")
 				if i == 1 {
 					i1 = strings.TrimPrefix(tt[3], "aerolab-")
 					i2 = strings.Split(i1, "_")
@@ -442,6 +443,7 @@ func (d *backendDocker) ListTemplates() ([]backendVersion, error) {
 	for scanner.Scan() {
 		t := scanner.Text()
 		repo := strings.Trim(strings.Split(t, ";")[0], "'\"")
+		repo = strings.TrimPrefix(repo, "localhost/")
 		if strings.Contains(repo, dockerNameHeader+"") {
 			if len(repo) > len(dockerNameHeader)+2 {
 				repo = repo[len(dockerNameHeader):]
