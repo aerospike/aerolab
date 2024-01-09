@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
@@ -37,6 +38,8 @@ type agiCreateCmd struct {
 	SftpKey          flags.Filename  `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password"`
 	SftpPath         string          `long:"source-sftp-path" description:"path on sftp to download logs from"`
 	SftpRegex        string          `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^"`
+	SftpSkipCheck    bool            `long:"source-sftp-skipcheck" description:"set to prevent aerolab for checking from this machine if sftp is accessible with the given credentials"`
+	SftpFullCheck    bool            `long:"source-sftp-listfiles" description:"set this to make aerolab login to sftp and list files prior to starting AGI; this will interactively prompt to continue"`
 	S3Enable         bool            `long:"source-s3-enable" description:"enable s3 source"`
 	S3Threads        int             `long:"source-s3-threads" description:"number of concurrent downloader threads" default:"6"`
 	S3Region         string          `long:"source-s3-region" description:"aws region where the s3 bucket is located"`
@@ -77,7 +80,7 @@ type agiCreateCmd struct {
 }
 
 type agiCreateCmdAws struct {
-	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use; default in order, as available: edition: g/a/i, family:r7/r6/r5, size:xlarge"`
+	InstanceType        string        `short:"I" long:"instance-type" description:"optional instance type to use; min RAM: 16GB; default in order, as available: edition: g/a/i, family:r7/r6/r5, size:xlarge"`
 	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume size GB" default:"40"`
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
@@ -136,6 +139,128 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "gcp" && !c.Gcp.WithVol {
 		return errors.New("AGI monitor can only be enabled for instances with extra Volume storage enabled (use --gcp-with-vol)")
 	}
+
+	// generate ingest.yaml
+	flist := []fileListReader{}
+	var tfrom, tto time.Time
+	var err error
+	if c.TimeRangesFrom != "" {
+		tfrom, err = time.Parse("2006-01-02T15:04:05Z07:00", c.TimeRangesFrom)
+		if err != nil {
+			return fmt.Errorf("from time range invalid: %s", err)
+		}
+	}
+	if c.TimeRangesTo != "" {
+		tto, err = time.Parse("2006-01-02T15:04:05Z07:00", c.TimeRangesTo)
+		if err != nil {
+			return fmt.Errorf("to time range invalid: %s", err)
+		}
+	}
+	config, err := ingest.MakeConfigReader(true, nil, true)
+	if err != nil {
+		return fmt.Errorf("create.ingest.MakeConfig: %s", err)
+	}
+	config.Aerospike.MaxPutThreads = 1024
+	if a.opts.Config.Backend.Type == "docker" {
+		config.Aerospike.MaxPutThreads = 64
+	}
+	config.Aerospike.WaitForSindexes = true
+	config.PreProcess.FileThreads = 6
+	config.PreProcess.UnpackerFileThreads = 4
+	config.Processor.MaxConcurrentLogFiles = 6
+	config.ProgressFile.DisableWrite = false
+	config.ProgressFile.Compress = true
+	config.ProgressFile.WriteInterval = 10 * time.Second
+	config.ProgressFile.OutputFilePath = "/opt/agi/ingest"
+	config.ProgressPrint.Enable = true
+	config.ProgressPrint.PrintDetailProgress = true
+	config.ProgressPrint.PrintOverallProgress = true
+	config.ProgressPrint.UpdateInterval = 10 * time.Second
+	if c.PatternsFile != "" {
+		config.PatternsFile = "/opt/agi/patterns.yaml"
+	}
+	config.Directories.CollectInfo = "/opt/agi/files/collectinfo"
+	config.Directories.DirtyTmp = "/opt/agi/files/input"
+	config.Directories.Logs = "/opt/agi/files/logs"
+	config.Directories.NoStatLogs = "/opt/agi/files/no-stat"
+	config.Directories.OtherFiles = "/opt/agi/files/other"
+	config.LogLevel = c.IngestLogLevel
+	if c.IngestCpuProfile {
+		config.CPUProfilingOutputFile = "/opt/agi/cpu.ingest.pprof"
+	}
+	config.CustomSourceName = c.CustomSourceName
+	config.IngestTimeRanges.Enabled = c.TimeRanges
+	if c.TimeRanges {
+		config.IngestTimeRanges.From = tfrom
+		config.IngestTimeRanges.To = tto
+	}
+	// sources - sftp
+	config.Downloader.SftpSource = new(ingest.SftpSource)
+	config.Downloader.SftpSource.Enabled = c.SftpEnable
+	config.Downloader.SftpSource.Threads = c.SftpThreads
+	config.Downloader.SftpSource.Host = c.SftpHost
+	config.Downloader.SftpSource.Port = c.SftpPort
+	config.Downloader.SftpSource.Username = c.SftpUser
+	config.Downloader.SftpSource.Password = c.SftpPass
+	if c.SftpKey != "" {
+		config.Downloader.SftpSource.KeyFile = "/opt/agi/sftp.key"
+	}
+	config.Downloader.SftpSource.PathPrefix = c.SftpPath
+	config.Downloader.SftpSource.SearchRegex = c.SftpRegex
+	// sources - s3
+	config.Downloader.S3Source = new(ingest.S3Source)
+	config.Downloader.S3Source.Enabled = c.S3Enable
+	config.Downloader.S3Source.Threads = c.S3Threads
+	config.Downloader.S3Source.Region = c.S3Region
+	config.Downloader.S3Source.BucketName = c.S3Bucket
+	config.Downloader.S3Source.KeyID = c.S3KeyID
+	config.Downloader.S3Source.SecretKey = c.S3Secret
+	config.Downloader.S3Source.PathPrefix = c.S3path
+	config.Downloader.S3Source.SearchRegex = c.S3Regex
+	var encBuf bytes.Buffer
+	enc := yaml.NewEncoder(&encBuf)
+	enc.SetIndent(2)
+	err = enc.Encode(config)
+	if err != nil {
+		return fmt.Errorf("could not marshal ingest configuration to yaml: %s", err)
+	}
+	conf := encBuf.Bytes()
+	flist = append(flist, fileListReader{
+		filePath:     "/opt/agi/ingest.yaml",
+		fileContents: bytes.NewReader(conf),
+		fileSize:     len(conf),
+	})
+
+	// test sftp access and directory
+	if c.SftpEnable || !c.SftpSkipCheck {
+		log.Println("Checking sftp access...")
+		sftpFiles, err := ingest.SftpCheckLogin(config, c.SftpFullCheck)
+		if err != nil {
+			return fmt.Errorf("failed to validate sftp: %s", err)
+		}
+		if c.SftpFullCheck {
+			log.Println("=-=-=-= Starting sftp directory listing =-=-=-=")
+			for sftpName, sftpFile := range sftpFiles {
+				fmt.Printf("==> %s (%s)\n", sftpName, convSize(sftpFile.Size))
+			}
+			log.Println("=-=-=-= End sftp directory listing =-=-=-=")
+			fmt.Println("Press ENTER to continue, or ctrl+c to exit")
+			reader := bufio.NewReader(os.Stdin)
+			_, err := reader.ReadString('\n')
+			if err != nil {
+				logExit(err)
+			}
+		} else if len(sftpFiles) == 0 {
+			fmt.Println("WARNING: Directory appears to be empty, press ENTER to continue, ot ctrl+c to exit")
+			reader := bufio.NewReader(os.Stdin)
+			_, err := reader.ReadString('\n')
+			if err != nil {
+				logExit(err)
+			}
+		}
+	}
+
+	// agi monitor
 	if c.WithAGIMonitorAuto {
 		b.WorkOnClients()
 		clients, err := b.ClusterList()
@@ -167,20 +292,6 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		c.AGIMonitorUrl = "https://" + ips[1]
 		c.AGIMonitorCertIgnore = true
 		b.WorkOnServers()
-	}
-	var tfrom, tto time.Time
-	var err error
-	if c.TimeRangesFrom != "" {
-		tfrom, err = time.Parse("2006-01-02T15:04:05Z07:00", c.TimeRangesFrom)
-		if err != nil {
-			return fmt.Errorf("from time range invalid: %s", err)
-		}
-	}
-	if c.TimeRangesTo != "" {
-		tto, err = time.Parse("2006-01-02T15:04:05Z07:00", c.TimeRangesTo)
-		if err != nil {
-			return fmt.Errorf("to time range invalid: %s", err)
-		}
 	}
 	// if files specified do not exist, bail early
 	for _, fn := range []string{
@@ -413,7 +524,6 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 
 	// upload aerolab to remote
-	flist := []fileListReader{}
 	_, err = b.RunCommands(string(c.ClusterName), [][]string{{"ls", "/usr/local/bin/aerolab"}}, []int{1})
 	if err != nil {
 		nLinuxBinary := nLinuxBinaryX64
@@ -441,13 +551,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 				return err
 			}
 		}
-		flist = []fileListReader{
-			{
-				filePath:     "/usr/local/bin/aerolab",
-				fileContents: bytes.NewReader(nLinuxBinary),
-				fileSize:     len(nLinuxBinary),
-			},
-		}
+		flist = append(flist, fileListReader{
+			filePath:     "/usr/local/bin/aerolab",
+			fileContents: bytes.NewReader(nLinuxBinary),
+			fileSize:     len(nLinuxBinary),
+		})
 	}
 
 	// upload custom patterns file
@@ -521,82 +629,6 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			fileSize:     int(stat.Size()),
 		})
 	}
-
-	// generate ingest.yaml
-	config, err := ingest.MakeConfigReader(true, nil, true)
-	if err != nil {
-		return fmt.Errorf("create.ingest.MakeConfig: %s", err)
-	}
-	config.Aerospike.MaxPutThreads = 1024
-	if a.opts.Config.Backend.Type == "docker" {
-		config.Aerospike.MaxPutThreads = 64
-	}
-	config.Aerospike.WaitForSindexes = true
-	config.PreProcess.FileThreads = 6
-	config.PreProcess.UnpackerFileThreads = 4
-	config.Processor.MaxConcurrentLogFiles = 6
-	config.ProgressFile.DisableWrite = false
-	config.ProgressFile.Compress = true
-	config.ProgressFile.WriteInterval = 10 * time.Second
-	config.ProgressFile.OutputFilePath = "/opt/agi/ingest"
-	config.ProgressPrint.Enable = true
-	config.ProgressPrint.PrintDetailProgress = true
-	config.ProgressPrint.PrintOverallProgress = true
-	config.ProgressPrint.UpdateInterval = 10 * time.Second
-	if c.PatternsFile != "" {
-		config.PatternsFile = "/opt/agi/patterns.yaml"
-	}
-	config.Directories.CollectInfo = "/opt/agi/files/collectinfo"
-	config.Directories.DirtyTmp = "/opt/agi/files/input"
-	config.Directories.Logs = "/opt/agi/files/logs"
-	config.Directories.NoStatLogs = "/opt/agi/files/no-stat"
-	config.Directories.OtherFiles = "/opt/agi/files/other"
-	config.LogLevel = c.IngestLogLevel
-	if c.IngestCpuProfile {
-		config.CPUProfilingOutputFile = "/opt/agi/cpu.ingest.pprof"
-	}
-	config.CustomSourceName = c.CustomSourceName
-	config.IngestTimeRanges.Enabled = c.TimeRanges
-	if c.TimeRanges {
-		config.IngestTimeRanges.From = tfrom
-		config.IngestTimeRanges.To = tto
-	}
-	// sources - sftp
-	config.Downloader.SftpSource = new(ingest.SftpSource)
-	config.Downloader.SftpSource.Enabled = c.SftpEnable
-	config.Downloader.SftpSource.Threads = c.SftpThreads
-	config.Downloader.SftpSource.Host = c.SftpHost
-	config.Downloader.SftpSource.Port = c.SftpPort
-	config.Downloader.SftpSource.Username = c.SftpUser
-	config.Downloader.SftpSource.Password = c.SftpPass
-	if c.SftpKey != "" {
-		config.Downloader.SftpSource.KeyFile = "/opt/agi/sftp.key"
-	}
-	config.Downloader.SftpSource.PathPrefix = c.SftpPath
-	config.Downloader.SftpSource.SearchRegex = c.SftpRegex
-	// sources - s3
-	config.Downloader.S3Source = new(ingest.S3Source)
-	config.Downloader.S3Source.Enabled = c.S3Enable
-	config.Downloader.S3Source.Threads = c.S3Threads
-	config.Downloader.S3Source.Region = c.S3Region
-	config.Downloader.S3Source.BucketName = c.S3Bucket
-	config.Downloader.S3Source.KeyID = c.S3KeyID
-	config.Downloader.S3Source.SecretKey = c.S3Secret
-	config.Downloader.S3Source.PathPrefix = c.S3path
-	config.Downloader.S3Source.SearchRegex = c.S3Regex
-	var encBuf bytes.Buffer
-	enc := yaml.NewEncoder(&encBuf)
-	enc.SetIndent(2)
-	err = enc.Encode(config)
-	if err != nil {
-		return fmt.Errorf("could not marshal ingest configuration to yaml: %s", err)
-	}
-	conf := encBuf.Bytes()
-	flist = append(flist, fileListReader{
-		filePath:     "/opt/agi/ingest.yaml",
-		fileContents: bytes.NewReader(conf),
-		fileSize:     len(conf),
-	})
 
 	// make install script
 	edition := "amd64"
