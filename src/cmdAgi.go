@@ -354,6 +354,9 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 
 	// read current config into the config struct
 	out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"cat", "/opt/agi/ingest.yaml"}}, []int{1})
+	if len(out) == 0 {
+		out = append(out, []byte(""))
+	}
 	if err != nil {
 		return fmt.Errorf("could not get current config: %s: %s", err, string(out[0]))
 	}
@@ -546,11 +549,17 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	// remove /opt/agi/ingest/steps.json on remote and restart agi-ingest
 	if a.opts.Config.Backend.Type != "docker" {
 		out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "rm -f /opt/agi/ingest/steps.json; service agi-ingest start"}}, []int{1})
+		if len(out) == 0 {
+			out = append(out, []byte(""))
+		}
 		if err != nil {
 			return fmt.Errorf("could not start ingest system: %s: %s", err, string(out[0]))
 		}
 	} else {
 		out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "rm -f /opt/agi/ingest/steps.json; /opt/autoload/ingest.sh"}}, []int{1})
+		if len(out) == 0 {
+			out = append(out, []byte(""))
+		}
 		if err != nil {
 			return fmt.Errorf("could not start ingest system: %s: %s", err, string(out[0]))
 		}
@@ -571,6 +580,9 @@ func (c *agiStatusCmd) Execute(args []string) error {
 		return nil
 	}
 	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
+	if len(out) == 0 {
+		out = append(out, []byte(""))
+	}
 	if err != nil {
 		return fmt.Errorf("%s : %s", err, string(out[0]))
 	}
@@ -686,6 +698,9 @@ func (c *agiDetailsCmd) Execute(args []string) error {
 		cmdline = append(cmdline, "-t", detail+".json")
 	}
 	out, err := b.RunCommands(c.ClusterName.String(), [][]string{cmdline}, []int{1})
+	if len(out) == 0 {
+		out = append(out, []byte(""))
+	}
 	if err != nil {
 		return fmt.Errorf("%s\n%s", err, string(out[0]))
 	}
