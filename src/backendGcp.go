@@ -3344,9 +3344,11 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi boo
 		if err != nil {
 			return err
 		}
-		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi)
-		if err != nil {
-			return err
+		if !isAgi {
+			err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi)
+			if err != nil {
+				return err
+			}
 		}
 	} else if needsLock {
 		log.Println("Security group CIDR doesn't allow this command to complete, re-locking security groups with the caller's IP")

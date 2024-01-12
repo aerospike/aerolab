@@ -30,7 +30,7 @@ type agiCreateCmd struct {
 	NoDIMFileSize    int             `long:"no-dim-filesize" description:"if using --no-dim, optionally specify a filesize in GB for data storage; default: memory size calculation"`
 	LocalSource      flags.Filename  `long:"source-local" description:"get logs from a local directory"`
 	SftpEnable       bool            `long:"source-sftp-enable" description:"enable sftp source"`
-	SftpThreads      int             `long:"source-sftp-threads" description:"number of concurrent downloader threads" default:"6"`
+	SftpThreads      int             `long:"source-sftp-threads" description:"number of concurrent downloader threads" default:"1"`
 	SftpHost         string          `long:"source-sftp-host" description:"sftp host"`
 	SftpPort         int             `long:"source-sftp-port" description:"sftp port" default:"22"`
 	SftpUser         string          `long:"source-sftp-user" description:"sftp user"`
@@ -41,7 +41,7 @@ type agiCreateCmd struct {
 	SftpSkipCheck    bool            `long:"source-sftp-skipcheck" description:"set to prevent aerolab for checking from this machine if sftp is accessible with the given credentials"`
 	SftpFullCheck    bool            `long:"source-sftp-listfiles" description:"set this to make aerolab login to sftp and list files prior to starting AGI; this will interactively prompt to continue"`
 	S3Enable         bool            `long:"source-s3-enable" description:"enable s3 source"`
-	S3Threads        int             `long:"source-s3-threads" description:"number of concurrent downloader threads" default:"6"`
+	S3Threads        int             `long:"source-s3-threads" description:"number of concurrent downloader threads" default:"4"`
 	S3Region         string          `long:"source-s3-region" description:"aws region where the s3 bucket is located"`
 	S3Bucket         string          `long:"source-s3-bucket" description:"s3 bucket name"`
 	S3KeyID          string          `long:"source-s3-key-id" description:"(optional) access key ID"`
