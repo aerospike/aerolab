@@ -36,7 +36,7 @@ See [this document](docs/building.md) for manually building AeroLab (not recomme
    * Install Podman Desktop
    * Use `docker` backend in aerolab
    * Install full official `docker-cli`
-     * Example MacOS: `brew install docker-cli`
+     * Example MacOS: `brew install docker`
      * Example Ubuntu: follow the [official documentation](https://docs.docker.com/engine/install/ubuntu/), but instead of installing the full docker engine, just install `docker-ce-cli` package
 * Podman Native on Linux
   * Follow [podman documentation](https://podman.io/docs/installation) to install podman.
