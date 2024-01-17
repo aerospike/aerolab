@@ -10,8 +10,9 @@ mkdir prod prod/dist prod/plugins
 cp -a dev/dist prod/.
 rm -rf prod/dist/css/alt
 
-# copy over html
+# copy over html and other bits
 cp dev/*html prod/.
+cp dev/favicon.ico prod/.
 
 # fontawesome
 mkdir -p prod/plugins/fontawesome-free/css prod/plugins/fontawesome-free/webfonts
