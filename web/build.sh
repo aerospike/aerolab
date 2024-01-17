@@ -12,7 +12,8 @@ rm -rf prod/dist/css/alt
 
 # copy over html and other bits
 cp dev/*html prod/.
-cp dev/favicon.ico prod/.
+cp dev/*js prod/.
+cp dev/*css prod/.
 
 # fontawesome
 mkdir -p prod/plugins/fontawesome-free/css prod/plugins/fontawesome-free/webfonts
@@ -29,3 +30,4 @@ cp -a dev/plugins/bootstrap/js/*.min.* prod/plugins/bootstrap/js
 
 # summary
 du -hs *
+ls prod
