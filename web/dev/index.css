@@ -17,4 +17,8 @@
     z-index: 999;
     display: none;
  }
+ .dropdown-menu{
+    max-height:1000%;
+    overflow-y: scroll;
+ }
  {{end}}

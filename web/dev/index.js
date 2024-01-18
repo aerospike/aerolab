@@ -30,4 +30,9 @@ function menuSetActive(id) {
         }
     }
 }
+
+function pendingActionShowAll(id) {
+    let isChecked = $(id).is(":checked");
+    console.log(isChecked); // TODO
+}
 {{end}}

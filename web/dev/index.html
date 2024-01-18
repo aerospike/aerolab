@@ -12,7 +12,6 @@
   <link rel="stylesheet" href="/plugins/fontawesome-free/css/all.min.css">
   <!-- Theme style -->
   <link rel="stylesheet" href="/dist/css/adminlte.min.css">
-  <script>{{template "mainjs"}}</script>
   <style>{{template "maincss"}}</style>
 </head>
 <body class="hold-transition sidebar-mini{{if .FixedFooter}} layout-footer-fixed{{end}}{{if .FixedNavbar}} layout-navbar-fixed{{end}}">
@@ -50,34 +49,49 @@
       <!-- Notifications Dropdown Menu -->
       <li class="nav-item dropdown">
         <a class="nav-link" data-toggle="dropdown" href="#">
-          <i class="far fa-bell"></i>
-          <span class="badge badge-warning navbar-badge">15</span>
+          <i class="far fa-bell" id="pending-action-icon"></i>
+          <span class="badge badge-warning navbar-badge" id="pending-action-count">15</span>
         </a>
-        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
-          <span class="dropdown-header">15 Notifications</span>
+        <div class="dropdown-menu dropdown-menu-xl dropdown-menu-right" id="pending-user-action-list">
+          {{if .PendingActionsShowAllUsersToggle}}
+          <form>
+            <span class="dropdown-header">
+              <div class="custom-control custom-switch">
+                <input type="checkbox" class="custom-control-input" id="pending-action-showall" onchange="pendingActionShowAll(this);"{{if .PendingActionsShowAllUsersToggleChecked}} checked{{end}}>
+                <label class="custom-control-label" for="pending-action-showall">Show all users</label>
+              </div>
+            </span>
+          </form>
+          {{else}}
+          <span class="dropdown-header">
+            {{if .PendingActionsShowAllUsersToggleChecked}}
+            All user actions
+            {{else}}
+            Current user actions
+            {{end}}
+          </span>
+          {{end}}
           <div class="dropdown-divider"></div>
           <a href="#" class="dropdown-item">
-            <i class="fas fa-envelope mr-2"></i> 4 new messages
+            <i class="fas fa-envelope mr-2"></i> cluster create
             <span class="float-right text-muted text-sm">3 mins</span>
+            <br><span class="text-muted text-sm">Robert Glonek</span><span class="text-muted float-right text-sm">rglonek@aerospike.com</span>
           </a>
           <div class="dropdown-divider"></div>
           <a href="#" class="dropdown-item">
-            <i class="fas fa-users mr-2"></i> 8 friend requests
+            <i class="fas fa-users mr-2"></i> client create vscode
             <span class="float-right text-muted text-sm">12 hours</span>
+            <br><span class="text-muted text-sm">Robert Glonek</span><span class="text-muted float-right text-sm">rglonek@aerospike.com</span>
           </a>
           <div class="dropdown-divider"></div>
           <a href="#" class="dropdown-item">
-            <i class="fas fa-file mr-2"></i> 3 new reports
+            <i class="fas fa-file mr-2"></i> cluster stop
             <span class="float-right text-muted text-sm">2 days</span>
+            <br><span class="text-muted text-sm">Robert Glonek</span><span class="text-muted float-right text-sm">rglonek@aerospike.com</span>
           </a>
           <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer">See All Notifications</a>
+          <a href="#" class="dropdown-item dropdown-footer">Clear Notifications</a>
         </div>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link" data-widget="fullscreen" href="#" role="button">
-          <i class="fas fa-expand-arrows-alt"></i>
-        </a>
       </li>
       <li class="nav-item">
         <a class="nav-link" data-widget="control-sidebar" data-slide="true" href="#" role="button">
@@ -194,8 +208,12 @@
   <aside class="control-sidebar control-sidebar-dark">
     <!-- Control sidebar content goes here -->
     <div class="p-3">
-      <h5>Title</h5>
-      <p>Sidebar content</p>
+      <h5>Quick Settings</h5>
+      <p>TODO: Change backend, aws-region, gcp-project, docker-arch, aws-profile</p>
+    </div>
+    <div class="p-3">
+      <h5>Quick Inventory</h5>
+      <p>TODO: Show a list of clusters and clients, allowing to expand clusters/clients to see a list of nodes, and a dropdown for quick actions</p>
     </div>
   </aside>
   <!-- /.control-sidebar -->
@@ -220,6 +238,7 @@
 <script src="/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
 <script src="/dist/js/adminlte.min.js"></script>
+<script>{{template "mainjs"}}</script>
 </body>
 </html>
 {{end}}
