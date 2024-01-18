@@ -14,11 +14,13 @@ const (
 )
 
 type Page struct {
-	FixedFooter bool
-	FixedNavbar bool
-	Navigation  *Nav
-	Menu        *MainMenu
-	Content     []*ContentItem
+	FixedFooter                             bool
+	FixedNavbar                             bool
+	PendingActionsShowAllUsersToggle        bool
+	PendingActionsShowAllUsersToggleChecked bool
+	Navigation                              *Nav
+	Menu                                    *MainMenu
+	Content                                 []*ContentItem
 }
 
 type ContentItem struct {
@@ -29,6 +31,7 @@ type ContentItem struct {
 }
 
 // TODO: also handle /api/items - respond with json containing a list of items to display in notifications section; js should refresh this regularly (every 10 seconds?), or using push somehow? Can jquery use push?
+// TODO: optional google sso auth!
 
 type FormElement struct {
 	Type string // input/checkbox/multi/etc
@@ -96,8 +99,10 @@ func serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 	log.Println(r.RequestURI)
 	p := &Page{
-		FixedNavbar: true,
-		FixedFooter: true,
+		FixedNavbar:                             true,
+		FixedFooter:                             true,
+		PendingActionsShowAllUsersToggle:        true,
+		PendingActionsShowAllUsersToggleChecked: false,
 		Navigation: &Nav{
 			Top: []*NavTop{
 				{
