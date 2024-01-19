@@ -35,4 +35,8 @@ function pendingActionShowAll(id) {
     let isChecked = $(id).is(":checked");
     console.log(isChecked); // TODO
 }
+
+$(function () {
+    $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", boundary: "viewport" });
+  })
 {{end}}

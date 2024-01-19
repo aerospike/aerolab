@@ -114,7 +114,7 @@
     <div class="sidebar">
       <!-- Sidebar Menu -->
       <nav class="mt-2">
-        <ul class="nav nav-pills nav-sidebar nav-child-indent flex-column" data-widget="treeview" role="menu" data-accordion="false" id="mainMenu">
+        <ul class="nav nav-pills nav-sidebar nav-child-indent flex-column text-sm" data-widget="treeview" role="menu" data-accordion="false" id="mainMenu">
           {{ template "menuItems" .Menu.Items }}
         </ul>
       </nav>
@@ -238,6 +238,8 @@
 <script src="/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
 <script src="/dist/js/adminlte.min.js"></script>
+<!-- fontawesome -->
+<script src="/plugins/fontawesome-free/js/all.min.js"></script>
 <script>{{template "mainjs"}}</script>
 </body>
 </html>
@@ -246,7 +248,7 @@
 {{ define "menuItems" }}
 {{ range . }}
 <li class="nav-item{{if .HasChildren}} menu {{if .IsActive}}menu-open{{else}}menu-closed{{end}}{{end}}">
-  <a href="{{if .HasChildren}}#{{else}}{{.Href}}{{end}}" class="nav-link{{if .IsActive}} active{{.ActiveColor}}{{end}}" onclick="menuSetActive(this);">
+  <a href="{{if .HasChildren}}#{{else}}{{.Href}}{{end}}" class="nav-link{{if .IsActive}} active{{.ActiveColor}}{{end}}" onclick="menuSetActive(this);" data-toggle="tooltip" title="{{.Tooltip}}">
     <i class="nav-icon {{.Icon}}"></i>
     <p>
       {{.Name}}
