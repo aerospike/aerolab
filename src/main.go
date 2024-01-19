@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -174,6 +175,7 @@ To specify a custom configuration file, set the environment variable:
 `
 
 func (a *aerolab) main(name string, args []string) error {
+	setOwners()
 	defer backendRestoreTerminal()
 	a.createDefaults()
 	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
@@ -230,6 +232,32 @@ func (a *aerolab) main(name string, args []string) error {
 
 	err = a.parseArgs(args)
 	return err
+}
+
+var currentOwnerUser = ""
+
+func setOwners() {
+	user, err := user.Current()
+	if err != nil {
+		return
+	}
+	uname := ""
+	for _, r := range user.Username {
+		if r < 48 {
+			continue
+		}
+		if r > 57 && r < 65 {
+			continue
+		}
+		if r > 90 && r < 97 {
+			continue
+		}
+		if r > 122 {
+			continue
+		}
+		uname = uname + string(r)
+	}
+	currentOwnerUser = uname
 }
 
 func earlyProcessNoBackend(tail []string) (early bool) {

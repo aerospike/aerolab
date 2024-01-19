@@ -99,6 +99,9 @@ func (c *agiMonitorCreateCmd) Execute(args []string) error {
 	if earlyProcessV2(args, true) {
 		return nil
 	}
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
 	return c.create(args)
 }
 
