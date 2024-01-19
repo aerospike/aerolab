@@ -70,6 +70,7 @@ help:
 .PHONY: webdebug
 webdebug:
 	go generate
+	[ ! -f webui/www.tgz ] && touch webui/www.tgz
 	go run . webui --web-path ../web/dev --web-no-override
 
 .PHONY: macos-build-all
