@@ -17,9 +17,9 @@ cp dev/*css prod/.
 grep 'webuiVersion' ../src/version.go |awk -F'"' '{print $2}' > prod/version.cfg
 
 # fontawesome
-mkdir -p prod/plugins/fontawesome-free/css prod/plugins/fontawesome-free/webfonts
+mkdir -p prod/plugins/fontawesome-free/css prod/plugins/fontawesome-free/js
 cp -a dev/plugins/fontawesome-free/css/*.min.css prod/plugins/fontawesome-free/css/.
-cp -a dev/plugins/fontawesome-free/webfonts prod/plugins/fontawesome-free/.
+cp -a dev/plugins/fontawesome-free/js/*.min.js prod/plugins/fontawesome-free/js/.
 
 # jquery
 mkdir -p prod/plugins/jquery
