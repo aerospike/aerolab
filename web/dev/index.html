@@ -4,14 +4,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="/dist/img/favicon.ico">
+  <link rel="icon" type="image/x-icon" href="{{.WebRoot}}dist/img/favicon.ico">
   <title>AeroLab Web UI</title>
   <!-- Google Font: Source Sans Pro -->
-  <link rel="stylesheet" href="/dist/fonts/sourcesans.css">
+  <link rel="stylesheet" href="{{.WebRoot}}dist/fonts/sourcesans.css">
   <!-- Font Awesome Icons -->
-  <link rel="stylesheet" href="/plugins/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}plugins/fontawesome-free/css/all.min.css">
   <!-- Theme style -->
-  <link rel="stylesheet" href="/dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}dist/css/adminlte.min.css">
   <style>{{template "maincss"}}</style>
 </head>
 <body class="hold-transition sidebar-mini{{if .FixedFooter}} layout-footer-fixed{{end}}{{if .FixedNavbar}} layout-navbar-fixed{{end}}">
@@ -106,7 +106,7 @@
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <!-- Brand Logo -->
     <a href="/" class="brand-link">
-      <img src="/dist/img/aerolab.png" alt="A" class="brand-image img-circle elevation-3" style="opacity: .8">
+      <img src="{{.WebRoot}}dist/img/aerolab.png" alt="A" class="brand-image img-circle elevation-3" style="opacity: .8">
       <span class="brand-text font-weight-light">AeroLab</span>
     </a>
 
@@ -233,13 +233,13 @@
 <!-- REQUIRED SCRIPTS -->
 
 <!-- jQuery -->
-<script src="/plugins/jquery/jquery.min.js"></script>
+<script src="{{.WebRoot}}plugins/jquery/jquery.min.js"></script>
 <!-- Bootstrap 4 -->
-<script src="/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="{{.WebRoot}}plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
-<script src="/dist/js/adminlte.min.js"></script>
+<script src="{{.WebRoot}}dist/js/adminlte.min.js"></script>
 <!-- fontawesome -->
-<script src="/plugins/fontawesome-free/js/all.min.js"></script>
+<script src="{{.WebRoot}}plugins/fontawesome-free/js/all.min.js"></script>
 <script>{{template "mainjs"}}</script>
 </body>
 </html>

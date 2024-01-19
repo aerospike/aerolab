@@ -14,6 +14,7 @@ type Page struct {
 	FixedNavbar                             bool
 	PendingActionsShowAllUsersToggle        bool
 	PendingActionsShowAllUsersToggleChecked bool
+	WebRoot                                 string
 	Navigation                              *Nav
 	Menu                                    *MainMenu
 	Content                                 []*ContentItem
