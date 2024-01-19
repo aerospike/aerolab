@@ -14,6 +14,7 @@ rm -rf prod/dist/css/alt
 cp dev/*html prod/.
 cp dev/*js prod/.
 cp dev/*css prod/.
+grep 'webuiVersion' ../src/version.go |awk -F'"' '{print $2}' > prod/version.cfg
 
 # fontawesome
 mkdir -p prod/plugins/fontawesome-free/css prod/plugins/fontawesome-free/webfonts
@@ -29,5 +30,6 @@ mkdir -p prod/plugins/bootstrap/js
 cp -a dev/plugins/bootstrap/js/*.min.* prod/plugins/bootstrap/js
 
 # summary
-du -hs *
-ls prod
+cd prod
+tar -zcf ../../src/webui/www.tgz *
+cd ..

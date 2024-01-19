@@ -67,6 +67,11 @@ help:
 	OUTPUTS: ../bin/ and ../bin/packages/\n\
 	"
 
+.PHONY: webdebug
+webdebug:
+	go generate
+	go run . webui --web-path ../web/dev --web-no-override
+
 .PHONY: macos-build-all
 macos-build-all: macos-codesign macos-zip-build macos-pkg-build macos-pkg-sign
 
@@ -224,6 +229,7 @@ reset2:
 prep:
 	go generate
 	cd ../expiries/aws && $(MAKE)
+	cd ../web && ./build.sh
 
 .PHONY: compile_linux_wip_amd64
 compile_linux_wip_amd64:
