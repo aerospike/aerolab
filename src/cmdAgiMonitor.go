@@ -535,6 +535,7 @@ func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEv
 	a.opts.AGI.Create.Aws.SpotInstance = false
 	a.opts.AGI.Create.Gcp.SpotInstance = false
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = event.SSHAuthorizedKeysFileGzB64
+	a.opts.AGI.Create.SftpSkipCheck = true
 	err = a.opts.AGI.Create.Execute(nil)
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
@@ -598,6 +599,7 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 		a.opts.AGI.Create.NoDIM = true
 	}
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = event.SSHAuthorizedKeysFileGzB64
+	a.opts.AGI.Create.SftpSkipCheck = true
 	err = a.opts.AGI.Create.Execute(nil)
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
