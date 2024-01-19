@@ -70,8 +70,8 @@ help:
 .PHONY: webdebug
 webdebug:
 	go generate
-	[ ! -f webui/www.tgz ] && touch webui/www.tgz
-	go run . webui --web-path ../web/dev --web-no-override
+	[ ! -f webui/www.tgz ] && touch webui/www.tgz || echo
+	go run . webui --web-path ../web/dev --web-no-override --listen 0.0.0.0:3333 --webroot /aerolab/
 
 .PHONY: macos-build-all
 macos-build-all: macos-codesign macos-zip-build macos-pkg-build macos-pkg-sign

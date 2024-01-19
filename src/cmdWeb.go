@@ -17,10 +17,8 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr string `long:"listen" description:"listing host:port, or just :port" default:"0.0.0.0:3333"`
-	// TODO: TLS+letsencrypt
-	// TODO: google sso auth
-	// TODO: page settings (all users/not all/ etc)
+	ListenAddr    string  `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
+	WebRoot       string  `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
 	WebPath       string  `long:"web-path" hidden:"true"`
 	WebNoOverride bool    `long:"web-no-override" hidden:"true"`
 	Help          helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -30,6 +28,10 @@ type webCmd struct {
 func (c *webCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
+	}
+	c.WebRoot = "/" + strings.Trim(c.WebRoot, "/") + "/"
+	if c.WebRoot == "//" {
+		c.WebRoot = "/"
 	}
 	err := c.genMenu()
 	if err != nil {
@@ -58,11 +60,20 @@ func (c *webCmd) Execute(args []string) error {
 			}
 		}
 	}
-	http.Handle("/dist/", http.FileServer(http.Dir(c.WebPath)))
-	http.Handle("/plugins/", http.FileServer(http.Dir(c.WebPath)))
-	http.HandleFunc("/", c.serve)
+	http.HandleFunc(c.WebRoot+"dist/", c.static)
+	http.HandleFunc(c.WebRoot+"plugins/", c.static)
+	http.HandleFunc(c.WebRoot, c.serve)
+	if c.WebRoot != "/" {
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, c.WebRoot, http.StatusTemporaryRedirect)
+		})
+	}
 	log.Printf("Listening on %s", c.ListenAddr)
 	return http.ListenAndServe(c.ListenAddr, nil)
+}
+
+func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, path.Join(c.WebPath, strings.TrimPrefix(r.URL.Path, c.WebRoot)))
 }
 
 func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser, commands []*apiCommand, commandsIndex map[string]int, spath string, hiddenItems []string) (ret []*webui.MenuItem) {
@@ -82,7 +93,7 @@ func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser,
 		ret = append(ret, &webui.MenuItem{
 			Icon:    commands[commandsIndex[wpath]].icon,
 			Name:    name,
-			Href:    "/" + commands[commandsIndex[wpath]].path,
+			Href:    c.WebRoot + commands[commandsIndex[wpath]].path,
 			Tooltip: commands[commandsIndex[wpath]].description,
 		})
 		if len(sub.(map[string]interface{})) > 0 {
@@ -94,7 +105,7 @@ func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser,
 
 func (c *webCmd) sortMenu(items []*webui.MenuItem, commandsIndex map[string]int) {
 	sort.Slice(items, func(i, j int) bool {
-		return commandsIndex[items[i].Href[1:]] < commandsIndex[items[j].Href[1:]]
+		return commandsIndex[items[i].Href[len(c.WebRoot):]] < commandsIndex[items[j].Href[len(c.WebRoot):]]
 	})
 	for i := range items {
 		if len(items[i].Items) > 0 {
@@ -145,6 +156,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 	log.Println(r.RequestURI)
 	p := &webui.Page{
+		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
 		PendingActionsShowAllUsersToggle:        true,
@@ -153,11 +165,11 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			Top: []*webui.NavTop{
 				{
 					Name: "Home",
-					Href: "/",
+					Href: c.WebRoot,
 				},
 				{
 					Name: "Logout",
-					Href: "/logout",
+					Href: c.WebRoot + "logout",
 				},
 			},
 		},
