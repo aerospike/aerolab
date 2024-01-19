@@ -201,6 +201,9 @@ func (c *volumeCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
 	log.Println("Creating volume")
 	if c.Owner != "" {
 		c.Tags = append(c.Tags, "aerolab7owner="+c.Owner)

@@ -226,6 +226,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 	}
 
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
 	if !isGrow {
 		log.Println("Running cluster.create")
 	} else {

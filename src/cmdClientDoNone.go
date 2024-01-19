@@ -49,6 +49,9 @@ func (c *clientCreateNoneCmd) Execute(args []string) error {
 	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
 		return logFatal("Docker backend does not support pricing")
 	}
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
 	iType := c.Aws.InstanceType
 	if a.opts.Config.Backend.Type == "gcp" {
 		iType = c.Gcp.InstanceType

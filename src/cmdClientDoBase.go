@@ -51,6 +51,9 @@ func (c *clientCreateBaseCmd) Execute(args []string) error {
 }
 
 func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []int, err error) {
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
 	if !c.isGrow() {
 		fmt.Println("Running client.create." + nt)
 	} else {

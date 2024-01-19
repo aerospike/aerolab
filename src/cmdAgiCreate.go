@@ -130,6 +130,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
 	if a.opts.Config.Backend.Type == "docker" && (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") {
 		return errors.New("AGI monitor is not supported on docker; sizing would not be possible either way")
 	}
