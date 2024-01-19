@@ -235,7 +235,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	})
 
 	// test sftp access and directory
-	if c.SftpEnable || !c.SftpSkipCheck {
+	if c.SftpEnable && !c.SftpSkipCheck {
 		log.Println("Checking sftp access...")
 		sftpFiles, err := ingest.SftpCheckLogin(config, c.SftpFullCheck)
 		if err != nil {
