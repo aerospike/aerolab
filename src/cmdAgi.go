@@ -25,21 +25,21 @@ func init() {
 }
 
 type agiCmd struct {
-	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances"`
-	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance"`
-	Start     agiStartCmd     `command:"start" subcommands-optional:"true" description:"Start AGI instance"`
-	Stop      agiStopCmd      `command:"stop" subcommands-optional:"true" description:"Stop AGI instance"`
-	Status    agiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show status of an AGI instance"`
-	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance"`
-	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance"`
-	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name"`
-	Relabel   agiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change instance name label"`
-	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)"`
-	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance"`
-	AddToken  agiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add an auth token to AGI Proxy - only valid if token auth type was selected"`
-	Share     clusterShareCmd `command:"share" subcommands-optional:"true" description:"AWS/GCP: share the AGI node by importing a provided ssh public key file"`
+	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances" webicon:"fas fa-list"`
+	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance" webicon:"fas fa-circle-plus"`
+	Start     agiStartCmd     `command:"start" subcommands-optional:"true" description:"Start AGI instance" webicon:"fas fa-play"`
+	Stop      agiStopCmd      `command:"stop" subcommands-optional:"true" description:"Stop AGI instance" webicon:"fas fa-stop"`
+	Status    agiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show status of an AGI instance" webicon:"fas fa-circle-question"`
+	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance" webicon:"fas fa-circle-info"`
+	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance" webicon:"fas fa-trash"`
+	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name" webicon:"fas fa-dumpster"`
+	Relabel   agiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change instance name label" webicon:"fas fa-tag"`
+	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)" webicon:"fas fa-water"`
+	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance" webicon:"fas fa-terminal"`
+	AddToken  agiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add an auth token to AGI Proxy - only valid if token auth type was selected" webicon:"fas fa-key"`
+	Share     clusterShareCmd `command:"share" subcommands-optional:"true" description:"AWS/GCP: share the AGI node by importing a provided ssh public key file" webicon:"fas fa-share"`
 	Exec      agiExecCmd      `command:"exec" hidden:"true" subcommands-optional:"true" description:"Run an AGI subsystem"`
-	Monitor   agiMonitorCmd   `command:"monitor" subcommands-optional:"true" description:"AGI auto-sizing and spot->on-demand upgrading system monitor"`
+	Monitor   agiMonitorCmd   `command:"monitor" subcommands-optional:"true" description:"AGI auto-sizing and spot->on-demand upgrading system monitor" webicon:"fas fa-equals"`
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

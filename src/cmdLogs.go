@@ -5,8 +5,8 @@ import (
 )
 
 type logsCmd struct {
-	Get  logsGetCmd  `command:"get" subcommands-optional:"true" description:"Download logs from Aerospike logs"`
-	Show logsShowCmd `command:"show" subcommands-optional:"true" description:"Print logs from an Aerospike node"`
+	Get  logsGetCmd  `command:"get" subcommands-optional:"true" description:"Download logs from Aerospike logs" webicon:"fas fa-file-export"`
+	Show logsShowCmd `command:"show" subcommands-optional:"true" description:"Print logs from an Aerospike node" webicon:"fas fa-eye"`
 	Help helpCmd     `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

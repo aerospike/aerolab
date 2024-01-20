@@ -6,10 +6,10 @@ import (
 )
 
 type configDockerCmd struct {
-	CreateNetwork createNetworkCmd `command:"create-network" subcommands-optional:"true" description:"create a new docker network"`
-	DeleteNetwork deleteNetworkCmd `command:"delete-network" subcommands-optional:"true" description:"delete a docker network"`
-	ListNetworks  listNetworksCmd  `command:"list-networks" subcommands-optional:"true" description:"list docker networks"`
-	PruneNetworks pruneNetworksCmd `command:"prune-networks" subcommands-optional:"true" description:"remove unused docker networks"`
+	CreateNetwork createNetworkCmd `command:"create-network" subcommands-optional:"true" description:"create a new docker network" webicon:"fas fa-circle-plus"`
+	DeleteNetwork deleteNetworkCmd `command:"delete-network" subcommands-optional:"true" description:"delete a docker network" webicon:"fas fa-trash"`
+	ListNetworks  listNetworksCmd  `command:"list-networks" subcommands-optional:"true" description:"list docker networks" webicon:"fas fa-list"`
+	PruneNetworks pruneNetworksCmd `command:"prune-networks" subcommands-optional:"true" description:"remove unused docker networks" webicon:"fas fa-dumpster"`
 	Help          helpCmd          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
