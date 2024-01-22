@@ -29,6 +29,12 @@ cp -a dev/plugins/jquery/*.min.* prod/plugins/jquery/.
 mkdir -p prod/plugins/bootstrap/js
 cp -a dev/plugins/bootstrap/js/*.min.* prod/plugins/bootstrap/js
 
+# select2
+mkdir -p prod/plugins/select2/css prod/plugins/select2/js prod/plugins/select2-bootstrap4-theme
+cp -a dev/plugins/select2/css/select2.min.css prod/plugins/select2/css/select2.min.css
+cp -a dev/plugins/select2/js/select2.full.min.js prod/plugins/select2/js/select2.full.min.js
+cp -a dev/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css prod/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css
+
 # summary
 cd prod
 tar -zcf ../../src/webui/www.tgz *

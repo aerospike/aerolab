@@ -23,6 +23,9 @@ type webCmd struct {
 	WebNoOverride bool    `long:"web-no-override" hidden:"true"`
 	Help          helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	menuItems     []*webui.MenuItem
+	commands      []*apiCommand
+	commandsIndex map[string]int
+	titler        cases.Caser
 }
 
 func (c *webCmd) Execute(args []string) error {
@@ -60,6 +63,7 @@ func (c *webCmd) Execute(args []string) error {
 			}
 		}
 	}
+	http.HandleFunc(c.WebRoot+"api/command", c.command)
 	http.HandleFunc(c.WebRoot+"dist/", c.static)
 	http.HandleFunc(c.WebRoot+"plugins/", c.static)
 	http.HandleFunc(c.WebRoot, c.serve)
@@ -147,7 +151,93 @@ func (c *webCmd) genMenu() error {
 	titler := cases.Title(language.English)
 	c.menuItems = c.fillMenu(commandMap, titler, commands, commandsIndex, "", hiddenItems)
 	c.sortMenu(c.menuItems, commandsIndex)
+	c.commands = commands
+	c.commandsIndex = commandsIndex
+	c.titler = titler
 	return nil
+}
+
+func (c *webCmd) getFormItems(urlPath string) []*webui.FormItem {
+	// TODO: generate form
+	return []*webui.FormItem{
+		{
+			Type: webui.FormItemType{
+				Input: true,
+			},
+			Input: webui.FormItemInput{
+				Name:        "Cluster Name",
+				Description: "cool name goes here",
+				ID:          "xxClusterName",
+				Type:        "text",
+				Default:     "mydc",
+			},
+		},
+		{
+			Type: webui.FormItemType{
+				Input: true,
+			},
+			Input: webui.FormItemInput{
+				Name:        "Node Count",
+				Description: "count goes here",
+				ID:          "xxNodes",
+				Type:        "number",
+				Default:     "1",
+			},
+		},
+		{
+			Type: webui.FormItemType{
+				Toggle: true,
+			},
+			Toggle: webui.FormItemToggle{
+				Name:        "StartAerospike",
+				Description: "auto-start aerospike on creation",
+				ID:          "StartAerospike",
+			},
+		},
+		{
+			Type: webui.FormItemType{
+				Select: true,
+			},
+			Select: webui.FormItemSelect{
+				Name:        "Operating System",
+				Description: "OS to use",
+				ID:          "OperatingSystem",
+				Items: []*webui.FormItemSelectItem{
+					{
+						Name:     "ubuntu",
+						Value:    "ubuntu",
+						Selected: true,
+					},
+					{
+						Name:  "centos",
+						Value: "centos",
+					},
+				},
+			},
+		},
+		{
+			Type: webui.FormItemType{
+				Select: true,
+			},
+			Select: webui.FormItemSelect{
+				Name:        "OS Version",
+				Description: "OS version to use",
+				ID:          "OSVersion",
+				Multiple:    true,
+				Items: []*webui.FormItemSelectItem{
+					{
+						Name:     "22.04",
+						Value:    "22.04",
+						Selected: true,
+					},
+					{
+						Name:  "20.04",
+						Value: "20.04",
+					},
+				},
+			},
+		},
+	}
 }
 
 func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
@@ -155,12 +245,22 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 	log.Println(r.RequestURI)
+
+	title := strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot), "\r\n\t /")
+	title = c.titler.String(strings.ReplaceAll(title, "/", " / "))
+	title = strings.ReplaceAll(title, "-", " ")
+
+	formItems := c.getFormItems(r.URL.Path)
+
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
 		PendingActionsShowAllUsersToggle:        true,
 		PendingActionsShowAllUsersToggleChecked: false,
+		IsForm:                                  true,
+		FormItems:                               formItems,
+		FormCommandTitle:                        title,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
@@ -187,4 +287,8 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
+	// TODO: handle form
 }
