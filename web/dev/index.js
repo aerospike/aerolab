@@ -38,5 +38,9 @@ function pendingActionShowAll(id) {
 
 $(function () {
     $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", boundary: "viewport" });
+    $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: "left", boundary: "viewport" });
+    $('.select2bs4').select2({
+        theme: 'bootstrap4'
+    })
   })
 {{end}}

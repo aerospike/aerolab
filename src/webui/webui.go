@@ -15,26 +15,52 @@ type Page struct {
 	PendingActionsShowAllUsersToggle        bool
 	PendingActionsShowAllUsersToggleChecked bool
 	WebRoot                                 string
+	FormCommandTitle                        string
+	IsForm                                  bool
 	Navigation                              *Nav
 	Menu                                    *MainMenu
-	Content                                 []*ContentItem
+	FormItems                               []*FormItem
 }
 
-type ContentItem struct {
-	ContentType string
-	Form        struct {
-		Elements []*FormElement
-	}
+type FormItem struct {
+	Type   FormItemType
+	Input  FormItemInput
+	Toggle FormItemToggle
+	Select FormItemSelect
 }
 
-// TODO: also handle /api/items - respond with json containing a list of items to display in notifications section; js should refresh this regularly (every 10 seconds?), or using push somehow? Can jquery use push?
-// TODO: optional google sso auth!
+type FormItemType struct {
+	Input  bool
+	Toggle bool
+	Select bool
+}
 
-type FormElement struct {
-	Type string // input/checkbox/multi/etc
-	// TODO: multiple form elements described
-	// TODO: rethink this approach - we will always render the page from server side - tables/forms; the table contents will be refreshed using javascript
-	// TODO: so we should just render the page templates accordingly, and let javascript work out if it has any table element items it needs to fill
+type FormItemInput struct {
+	Name        string
+	Description string
+	ID          string
+	Type        string
+	Default     string
+}
+
+type FormItemSelect struct {
+	Name        string
+	Description string
+	ID          string
+	Multiple    bool
+	Items       []*FormItemSelectItem
+}
+
+type FormItemSelectItem struct {
+	Name     string
+	Value    string
+	Selected bool
+}
+
+type FormItemToggle struct {
+	Name        string
+	Description string
+	ID          string
 }
 
 type Nav struct {

@@ -12,6 +12,9 @@
   <link rel="stylesheet" href="{{.WebRoot}}plugins/fontawesome-free/css/all.min.css">
   <!-- Theme style -->
   <link rel="stylesheet" href="{{.WebRoot}}dist/css/adminlte.min.css">
+  <!-- select2 -->
+  <link rel="stylesheet" href="{{.WebRoot}}plugins/select2/css/select2.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
   <style>{{template "maincss"}}</style>
 </head>
 <body class="hold-transition sidebar-mini{{if .FixedFooter}} layout-footer-fixed{{end}}{{if .FixedNavbar}} layout-navbar-fixed{{end}}">
@@ -125,79 +128,60 @@
 
   <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
-      <div class="container-fluid">
-        <div class="row mb-2">
-          <div class="col-sm-6">
-            <h1 class="m-0">Create VSCode Client</h1>
-          </div><!-- /.col -->
-        </div><!-- /.row -->
-      </div><!-- /.container-fluid -->
-    </div>
-    <!-- /.content-header -->
+    &nbsp;
 
     <!-- Main content -->
     <div class="content">
       <div class="container-fluid">
+
+        {{if .IsForm}}
         <div class="row">
-          <div class="col-lg-6">
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">Card title</h5>
-
-                <p class="card-text">
-                  Some quick example text to build on the card title and make up the bulk of the card's
-                  content.
-                </p>
-
-                <a href="#" class="card-link">Card link</a>
-                <a href="#" class="card-link">Another link</a>
-              </div>
-            </div>
-
-            <div class="card card-primary card-outline">
-              <div class="card-body">
-                <h5 class="card-title">Card title</h5>
-
-                <p class="card-text">
-                  Some quick example text to build on the card title and make up the bulk of the card's
-                  content.
-                </p>
-                <a href="#" class="card-link">Card link</a>
-                <a href="#" class="card-link">Another link</a>
-              </div>
-            </div><!-- /.card -->
+          <div class="col-md-3 col-sm-0">
           </div>
-          <!-- /.col-md-6 -->
-          <div class="col-lg-6">
-            <div class="card">
+          <div class="col-md-6 col-sm-12">
+            <div class="card card-primary">
               <div class="card-header">
-                <h5 class="m-0">Featured</h5>
+                <h3 class="card-title">{{.FormCommandTitle}}</h3>
               </div>
-              <div class="card-body">
-                <h6 class="card-title">Special title treatment</h6>
-
-                <p class="card-text">With supporting text below as a natural lead-in to additional content.</p>
-                <a href="#" class="btn btn-primary">Go somewhere</a>
-              </div>
-            </div>
-
-            <div class="card card-primary card-outline">
-              <div class="card-header">
-                <h5 class="m-0">Featured</h5>
-              </div>
-              <div class="card-body">
-                <h6 class="card-title">Special title treatment</h6>
-
-                <p class="card-text">With supporting text below as a natural lead-in to additional content.<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>bob</p>
-                <a href="#" class="btn btn-primary">Go somewhere</a>
-              </div>
+              <form method="post">
+                <div class="card-body">
+                  {{ range .FormItems }}
+                  {{ if .Type.Input }}
+                  <div class="form-group">
+                    <label for="{{.Input.ID}}">{{.Input.Name}}</label>
+                    <input type="{{.Input.Type}}" class="form-control" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
+                  </div>
+                  {{end}}
+                  {{if .Type.Toggle}}
+                  <div class="form-group">
+                    <div class="custom-control custom-switch" data-toggle="tooltipleft" title="{{.Toggle.Description}}">
+                      <input type="checkbox" class="custom-control-input" id="{{.Toggle.ID}}" name="{{.Toggle.ID}}">
+                      <label class="custom-control-label" for="{{.Toggle.ID}}">{{.Toggle.Name}}</label>
+                    </div>
+                  </div>
+                  {{end}}
+                  {{if .Type.Select}}
+                  <div class="form-group" data-toggle="tooltipleft" title="{{.Select.Description}}">
+                    <label>{{.Select.Name}}</label>
+                    <select class="select2bs4"{{if .Select.Multiple}} multiple="multiple"{{end}} style="width: 100%;" id="{{.Select.ID}}" name="{{.Select.ID}}">
+                    {{range .Select.Items}}
+                    <option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                    </select>
+                  </div>
+                  {{end}}
+                  {{end}}
+                </div>
+                <div class="card-footer">
+                  <button type="submit" class="btn btn-primary">Run</button>
+                  <button type="button" class="btn btn-primary">Show Command</button>
+                </div>
+              </form>
             </div>
           </div>
-          <!-- /.col-md-6 -->
         </div>
-        <!-- /.row -->
+        {{end}}
+        
       </div><!-- /.container-fluid -->
     </div>
     <!-- /.content -->
@@ -240,6 +224,8 @@
 <script src="{{.WebRoot}}dist/js/adminlte.min.js"></script>
 <!-- fontawesome -->
 <script src="{{.WebRoot}}plugins/fontawesome-free/js/all.min.js"></script>
+<!-- select2 -->
+<script src="{{.WebRoot}}plugins/select2/js/select2.full.min.js"></script>
 <script>{{template "mainjs"}}</script>
 </body>
 </html>
