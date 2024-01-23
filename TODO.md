@@ -13,6 +13,8 @@ pendingActions modal - allow copy of path where log is and copy of output of aer
 submit should do a jquery submit and present result, do NOT submit the actual page as all selections will be lost
 add new tag: required - this should show a star next to required items, and JS should, on submit attempt, check if all required items are filled in
 allow loading a historical command into the form from previous run/json?
+implement "simple" mode which will have the list of options greatly reduced, present "simple/full" slider
+add option to disable "full mode" and to configure a custom simple mode
 --
 implement handler for json/yaml command running:
 cat command |aerolab fromjson
