@@ -17,22 +17,31 @@ type Page struct {
 	WebRoot                                 string
 	FormCommandTitle                        string
 	IsForm                                  bool
+	IsError                                 bool
+	ErrorString                             string
+	ErrorTitle                              string
 	Navigation                              *Nav
 	Menu                                    *MainMenu
 	FormItems                               []*FormItem
 }
 
 type FormItem struct {
-	Type   FormItemType
-	Input  FormItemInput
-	Toggle FormItemToggle
-	Select FormItemSelect
+	Type      FormItemType
+	Input     FormItemInput
+	Toggle    FormItemToggle
+	Select    FormItemSelect
+	Separator FormItemSeparator
+}
+
+type FormItemSeparator struct {
+	Name string
 }
 
 type FormItemType struct {
-	Input  bool
-	Toggle bool
-	Select bool
+	Input     bool
+	Toggle    bool
+	Select    bool
+	Separator bool
 }
 
 type FormItemInput struct {
@@ -41,6 +50,7 @@ type FormItemInput struct {
 	ID          string
 	Type        string
 	Default     string
+	Tags        bool
 }
 
 type FormItemSelect struct {

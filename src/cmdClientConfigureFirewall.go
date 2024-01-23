@@ -11,9 +11,9 @@ import (
 
 type clientConfigureFirewallCmd struct {
 	ClusterName TypeClientName                `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"client"`
+	Remove      bool                          `short:"r" long:"remove" description:"Set to remove the given firewalls instead of adding them"`
 	Gcp         clientConfigureFirewallCmdGcp `no-flag:"true"`
 	Aws         clientConfigureFirewallCmdAws `no-flag:"true"`
-	Remove      bool                          `short:"r" long:"remove" description:"Set to remove the given firewalls instead of adding them"`
 	Help        helpCmd                       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

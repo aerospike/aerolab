@@ -42,5 +42,10 @@ $(function () {
     $('.select2bs4').select2({
         theme: 'bootstrap4'
     })
+    $(".select2bs4tag").select2({
+        theme: 'bootstrap4',
+        tags: true,
+        tokenSeparators: [',', ' ']
+    })
   })
 {{end}}

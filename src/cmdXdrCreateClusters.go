@@ -11,8 +11,8 @@ import (
 type xdrCreateClustersCmd struct {
 	DestinationClusterNames TypeClusterName `short:"N" long:"destinations" description:"Comma-separate list of destination cluster names" default:"destdc"`
 	DestinationNodeCount    int             `short:"C" long:"destination-count" description:"Number of nodes per destination cluster" default:"1"`
-	clusterCreateCmd
 	xdrConnectRealCmd
+	clusterCreateCmd
 }
 
 func init() {

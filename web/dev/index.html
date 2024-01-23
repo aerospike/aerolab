@@ -135,6 +135,22 @@
       <div class="container-fluid">
 
         {{if .IsForm}}
+        {{if .IsError}}
+        <div class="row">
+          <div class="col-md-3 col-sm-0">
+          </div>
+          <div class="col-md-6 col-sm-12">
+            <div class="card card-danger">
+              <div class="card-header">
+                <h3 class="card-title">{{.ErrorTitle}}</h3>
+              </div>
+              <div class="card-body">
+                {{.ErrorString}}
+              </div>
+            </div>
+          </div>
+        </div>
+        {{end}}
         <div class="row">
           <div class="col-md-3 col-sm-0">
           </div>
@@ -146,11 +162,22 @@
               <form method="post">
                 <div class="card-body">
                   {{ range .FormItems }}
+                  {{if .Type.Separator}}
+                  <div class="separator"><span class="right badge badge-info">{{.Separator.Name}}</span></div>
+                  {{end}}
                   {{ if .Type.Input }}
+                  {{if .Input.Tags}}
+                  <div class="form-group" data-toggle="tooltipleft" title="{{.Input.Description}}">
+                    <label>{{.Input.Name}}</label>
+                    <select class="select2bs4tag" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}">
+                    </select>
+                  </div>
+                  {{else}}
                   <div class="form-group">
                     <label for="{{.Input.ID}}">{{.Input.Name}}</label>
                     <input type="{{.Input.Type}}" class="form-control" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
                   </div>
+                  {{end}}
                   {{end}}
                   {{if .Type.Toggle}}
                   <div class="form-group">

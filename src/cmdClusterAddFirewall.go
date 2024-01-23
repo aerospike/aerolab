@@ -11,9 +11,9 @@ import (
 
 type clusterAddFirewallCmd struct {
 	ClusterName TypeClusterName          `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
+	Remove      bool                     `short:"r" long:"remove" description:"Set to remove the given firewalls instead of adding them"`
 	Gcp         clusterAddFirewallCmdGcp `no-flag:"true"`
 	Aws         clusterAddFirewallCmdAws `no-flag:"true"`
-	Remove      bool                     `short:"r" long:"remove" description:"Set to remove the given firewalls instead of adding them"`
 	Help        helpCmd                  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

@@ -35,13 +35,13 @@ type clientAddAMSCmd struct {
 	StartScript flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	osSelectorCmd
 	nodes           map[string][]string // destination map[cluster][]nodeIPs
-	Aws             clientAddAMSCmdAws  `no-flag:"true"`
-	Gcp             clientAddAMSCmdAws  `no-flag:"true"`
 	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
 	Dashboards      flags.Filename      `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
 	parallelThreadsCmd
-	DebugDashboards bool    `long:"debug-dashboards" hidden:"true"`
-	Help            helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	DebugDashboards bool               `long:"debug-dashboards" hidden:"true"`
+	Aws             clientAddAMSCmdAws `no-flag:"true"`
+	Gcp             clientAddAMSCmdAws `no-flag:"true"`
+	Help            helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type clientAddAMSCmdAws struct {

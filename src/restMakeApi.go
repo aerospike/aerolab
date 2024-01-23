@@ -78,5 +78,6 @@ func (c *restCmd) getCommandsNext(keyField reflect.Value, start string, ret chan
 		description: tags.Get("description"),
 		isHidden:    isHidden,
 		icon:        tags.Get("webicon"),
+		Value:       keyField,
 	}
 }
