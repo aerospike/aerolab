@@ -10,6 +10,9 @@ implement console for all attach commands
 implement inventory listing as another item, that is not a "command item" at the top, with separator under it, together with common config options item too ("special forms")
 webconsole and/or login ssh script download from web UI (or maybe aerolab webUI will do the socket->node ssh?)
 pendingActions modal - allow copy of path where log is and copy of output of aerolab command - log should also contain the yaml of the command executed
+submit should do a jquery submit and present result, do NOT submit the actual page as all selections will be lost
+add new tag: required - this should show a star next to required items, and JS should, on submit attempt, check if all required items are filled in
+allow loading a historical command into the form from previous run/json?
 --
 implement handler for json/yaml command running:
 cat command |aerolab fromjson
