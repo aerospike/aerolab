@@ -47,9 +47,9 @@ type xdrConnectCmd struct {
 	SourceClusterName       TypeClusterName `short:"S" long:"source" description:"Source Cluster name" default:"mydc"`
 	DestinationClusterNames TypeClusterName `short:"D" long:"destinations" description:"Destination Cluster names, comma separated." default:"destdc"`
 	IsConnector             bool            `short:"c" long:"connector" description:"set to indicate that the destination is a client connector, not a cluster"`
-	Aws                     xdrConnectAws   `no-flag:"true"`
 	parallelThreadsCmd
 	xdrConnectRealCmd
+	Aws xdrConnectAws `no-flag:"true"`
 }
 
 type xdrConnectRealCmd struct {

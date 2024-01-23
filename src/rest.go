@@ -36,6 +36,7 @@ type apiCommand struct {
 	pathStack   []string
 	icon        string
 	isHidden    bool
+	Value       reflect.Value
 }
 
 func (c *restCmd) Execute(args []string) error {

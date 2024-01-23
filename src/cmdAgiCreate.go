@@ -34,7 +34,7 @@ type agiCreateCmd struct {
 	SftpHost         string          `long:"source-sftp-host" description:"sftp host"`
 	SftpPort         int             `long:"source-sftp-port" description:"sftp port" default:"22"`
 	SftpUser         string          `long:"source-sftp-user" description:"sftp user"`
-	SftpPass         string          `long:"source-sftp-pass" description:"sftp password"`
+	SftpPass         string          `long:"source-sftp-pass" description:"sftp password" webtype:"password"`
 	SftpKey          flags.Filename  `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password"`
 	SftpPath         string          `long:"source-sftp-path" description:"path on sftp to download logs from"`
 	SftpRegex        string          `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^"`
@@ -45,7 +45,7 @@ type agiCreateCmd struct {
 	S3Region         string          `long:"source-s3-region" description:"aws region where the s3 bucket is located"`
 	S3Bucket         string          `long:"source-s3-bucket" description:"s3 bucket name"`
 	S3KeyID          string          `long:"source-s3-key-id" description:"(optional) access key ID"`
-	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key"`
+	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password"`
 	S3path           string          `long:"source-s3-path" description:"path on s3 to download logs from"`
 	S3Regex          string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^"`
 	ProxyDisableSSL  bool            `long:"proxy-ssl-disable" description:"switch to disable TLS on the proxy"`
@@ -71,12 +71,12 @@ type agiCreateCmd struct {
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool                 `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
 	chDirCmd
-	NoVacuumOnFail                bool               `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	NoVacuumOnFail                bool   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	Owner                         string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	uploadAuthorizedContentsGzB64 string
 	Aws                           agiCreateCmdAws    `no-flag:"true"`
 	Gcp                           agiCreateCmdGcp    `no-flag:"true"`
 	Docker                        agiCreateCmdDocker `no-flag:"true"`
-	Owner                         string             `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	uploadAuthorizedContentsGzB64 string
 }
 
 type agiCreateCmdAws struct {

@@ -27,29 +27,29 @@ type clusterCreateCmd struct {
 	CustomToolsFilePath     flags.Filename  `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
 	FeaturesFilePath        flags.Filename  `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool            `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
-	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh"`
+	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh" webchoice:"mesh,mcast,default"`
 	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
 	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    TypeYesNo      `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
+	AutoStartAerospike    TypeYesNo      `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
 	NoOverrideClusterName bool           `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
 	NoSetHostname         bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
 	ScriptEarly           flags.Filename `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
 	ScriptLate            flags.Filename `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
 	parallelThreadsCmd
 	NoVacuumOnFail bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 	Aws            clusterCreateCmdAws    `no-flag:"true"`
 	Gcp            clusterCreateCmdGcp    `no-flag:"true"`
 	Docker         clusterCreateCmdDocker `no-flag:"true"`
-	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 	gcpMeta        map[string]string
 	useAgiFirewall bool
 }
 
 type osSelectorCmd struct {
-	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu"`
-	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest"`
+	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu" webchoice:"debian,ubuntu,centos,amazon"`
+	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest" webchoice:"22.04,20.04,18.04,2023,2,12,11,10,9,8,7"`
 }
 
 type chDirCmd struct {
@@ -59,7 +59,7 @@ type chDirCmd struct {
 type aerospikeVersionCmd struct {
 	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition, or 'f' for federal edition" default:"latest"`
 	Username         string               `long:"username" description:"Required for downloading older enterprise editions"`
-	Password         string               `long:"password" description:"Required for downloading older enterprise editions"`
+	Password         string               `long:"password" description:"Required for downloading older enterprise editions" webtype:"password"`
 }
 
 type aerospikeVersionSelectorCmd struct {

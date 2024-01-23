@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -12,6 +14,7 @@ import (
 	"text/template"
 
 	"github.com/aerospike/aerolab/webui"
+	"github.com/bestmethod/inslice"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -157,43 +160,207 @@ func (c *webCmd) genMenu() error {
 	return nil
 }
 
-func (c *webCmd) getFormItems(urlPath string) []*webui.FormItem {
-	// TODO: generate form
-	return []*webui.FormItem{
-		{
-			Type: webui.FormItemType{
-				Input: true,
-			},
-			Input: webui.FormItemInput{
-				Name:        "Cluster Name",
-				Description: "cool name goes here",
-				ID:          "xxClusterName",
-				Type:        "text",
-				Default:     "mydc",
-			},
-		},
-		{
-			Type: webui.FormItemType{
-				Input: true,
-			},
-			Input: webui.FormItemInput{
-				Name:        "Node Count",
-				Description: "count goes here",
-				ID:          "xxNodes",
-				Type:        "number",
-				Default:     "1",
-			},
-		},
-		{
-			Type: webui.FormItemType{
-				Toggle: true,
-			},
-			Toggle: webui.FormItemToggle{
-				Name:        "StartAerospike",
-				Description: "auto-start aerospike on creation",
-				ID:          "StartAerospike",
-			},
-		},
+func (c *webCmd) getFormItems(urlPath string) ([]*webui.FormItem, error) {
+	cindex, ok := c.commandsIndex[strings.TrimPrefix(urlPath, c.WebRoot)]
+	if !ok {
+		return nil, errors.New("command not found")
+	}
+	command := c.commands[cindex]
+	return c.getFormItemsRecursive(command.Value, "")
+}
+
+func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string) ([]*webui.FormItem, error) {
+	wf := []*webui.FormItem{}
+	for i := 0; i < commandValue.Type().NumField(); i++ {
+		name := commandValue.Type().Field(i).Name
+		kind := commandValue.Field(i).Kind()
+		tags := commandValue.Type().Field(i).Tag
+		if name[0] < 65 || name[0] > 90 {
+			if kind == reflect.Struct {
+				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), prefix)
+				if err != nil {
+					return nil, err
+				}
+				wf = append(wf, wfs...)
+			}
+			continue
+		}
+		switch kind {
+		case reflect.String:
+			// select items - choice/multichoice
+			if tags.Get("webchoice") != "" {
+				multi := false
+				if tags.Get("webmulti") != "" {
+					multi = true
+				}
+				choices := []*webui.FormItemSelectItem{}
+				for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
+					isSelected := false
+					if choice == tags.Get("default") {
+						isSelected = true
+					}
+					choices = append(choices, &webui.FormItemSelectItem{
+						Name:     choice,
+						Value:    choice,
+						Selected: isSelected,
+					})
+				}
+				wf = append(wf, &webui.FormItem{
+					Type: webui.FormItemType{
+						Select: true,
+					},
+					Select: webui.FormItemSelect{
+						Name:        name,
+						ID:          "xx" + prefix + "xx" + name,
+						Description: tags.Get("description"),
+						Multiple:    multi,
+						Items:       choices,
+					},
+				})
+			} else {
+				// input item text (possible multiple types)
+				textType := tags.Get("webtype")
+				if textType == "" {
+					textType = "text"
+				}
+				wf = append(wf, &webui.FormItem{
+					Type: webui.FormItemType{
+						Input: true,
+					},
+					Input: webui.FormItemInput{
+						Name:        name,
+						ID:          "xx" + prefix + "xx" + name,
+						Type:        textType,
+						Default:     tags.Get("default"),
+						Description: tags.Get("description"),
+					},
+				})
+			}
+		case reflect.Float64:
+			fallthrough
+		case reflect.Int:
+			// input item number
+			wf = append(wf, &webui.FormItem{
+				Type: webui.FormItemType{
+					Input: true,
+				},
+				Input: webui.FormItemInput{
+					Name:        name,
+					ID:          "xx" + prefix + "xx" + name,
+					Type:        "number",
+					Default:     tags.Get("default"),
+					Description: tags.Get("description"),
+				},
+			})
+		case reflect.Bool:
+			// toggle on-off
+			wf = append(wf, &webui.FormItem{
+				Type: webui.FormItemType{
+					Toggle: true,
+				},
+				Toggle: webui.FormItemToggle{
+					Name:        name,
+					Description: tags.Get("description"),
+					ID:          "xx" + prefix + "xx" + name,
+				},
+			})
+		case reflect.Struct:
+			// recursion
+			if name == "Help" {
+				continue
+			}
+			if (name == "Aws" && a.opts.Config.Backend.Type == "aws") || (name == "Docker" && a.opts.Config.Backend.Type == "docker") || (name == "Gcp" && a.opts.Config.Backend.Type == "gcp") || (!inslice.HasString([]string{"Aws", "Gcp", "Docker"}, name)) {
+				sep := name
+				if prefix != "" {
+					sep = prefix + "." + name
+				}
+				wf = append(wf, &webui.FormItem{
+					Type: webui.FormItemType{
+						Separator: true,
+					},
+					Separator: webui.FormItemSeparator{
+						Name: sep,
+					},
+				})
+				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), sep)
+				if err != nil {
+					return nil, err
+				}
+				wf = append(wf, wfs...)
+			}
+		case reflect.Slice:
+			// tag input
+			wf = append(wf, &webui.FormItem{
+				Type: webui.FormItemType{
+					Input: true,
+				},
+				Input: webui.FormItemInput{
+					Name:        name,
+					ID:          "xx" + prefix + "xx" + name,
+					Type:        "text",
+					Default:     tags.Get("default"),
+					Description: tags.Get("description"),
+					Tags:        true,
+				},
+			})
+		case reflect.Int64:
+			if commandValue.Field(i).Type().String() == "time.Duration" {
+				// duration
+				wf = append(wf, &webui.FormItem{
+					Type: webui.FormItemType{
+						Input: true,
+					},
+					Input: webui.FormItemInput{
+						Name:        name,
+						ID:          "xx" + prefix + "xx" + name,
+						Type:        "text",
+						Default:     tags.Get("default"),
+						Description: tags.Get("description"),
+					},
+				})
+			} else if commandValue.Field(i).Type().String() == "int64" {
+				// input item number
+				wf = append(wf, &webui.FormItem{
+					Type: webui.FormItemType{
+						Input: true,
+					},
+					Input: webui.FormItemInput{
+						Name:        name,
+						ID:          "xx" + prefix + "xx" + name,
+						Type:        "number",
+						Default:     tags.Get("default"),
+						Description: tags.Get("description"),
+					},
+				})
+			} else {
+				return nil, fmt.Errorf("unknown field type (name=%s kind=%s type=%s)", name, kind.String(), commandValue.Field(i).Type().String())
+			}
+		case reflect.Ptr:
+			if commandValue.Field(i).Type().String() == "*flags.Filename" {
+				// input type text
+				textType := tags.Get("webtype")
+				if textType == "" {
+					textType = "text"
+				}
+				wf = append(wf, &webui.FormItem{
+					Type: webui.FormItemType{
+						Input: true,
+					},
+					Input: webui.FormItemInput{
+						Name:        name,
+						ID:          "xx" + prefix + "xx" + name,
+						Type:        textType,
+						Default:     tags.Get("default"),
+						Description: tags.Get("description"),
+					},
+				})
+			}
+		default:
+			return nil, fmt.Errorf("unknown field type (name=%s kind=%s type=%s)", name, kind.String(), commandValue.Field(i).Type().String())
+		}
+	}
+	return wf, nil
+	/*
 		{
 			Type: webui.FormItemType{
 				Select: true,
@@ -237,7 +404,7 @@ func (c *webCmd) getFormItems(urlPath string) []*webui.FormItem {
 				},
 			},
 		},
-	}
+	*/
 }
 
 func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
@@ -250,7 +417,15 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	title = c.titler.String(strings.ReplaceAll(title, "/", " / "))
 	title = strings.ReplaceAll(title, "-", " ")
 
-	formItems := c.getFormItems(r.URL.Path)
+	var errStr string
+	var errTitle string
+	var isError bool
+	formItems, err := c.getFormItems(r.URL.Path)
+	if err != nil {
+		errStr = err.Error()
+		errTitle = "Failed to generate form items"
+		isError = true
+	}
 
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
@@ -258,6 +433,9 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		FixedFooter:                             true,
 		PendingActionsShowAllUsersToggle:        true,
 		PendingActionsShowAllUsersToggleChecked: false,
+		IsError:                                 isError,
+		ErrorString:                             errStr,
+		ErrorTitle:                              errTitle,
 		IsForm:                                  true,
 		FormItems:                               formItems,
 		FormCommandTitle:                        title,

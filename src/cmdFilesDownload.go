@@ -20,14 +20,14 @@ type filesRestCmd struct {
 }
 
 type filesDownloadCmd struct {
-	ClusterName TypeClusterName     `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes       TypeNodes           `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
-	IsClient    bool                `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
-	Aws         filesDownloadCmdAws `no-flag:"true"`
-	Gcp         filesDownloadCmdAws `no-flag:"true"`
-	Files       filesRestCmd        `positional-args:"true"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
+	IsClient    bool            `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
 	parallelThreadsCmd
-	doLegacy bool // set to do legacy if non-legacy fails
+	Aws      filesDownloadCmdAws `no-flag:"true"`
+	Gcp      filesDownloadCmdAws `no-flag:"true"`
+	Files    filesRestCmd        `positional-args:"true"`
+	doLegacy bool                // set to do legacy if non-legacy fails
 }
 
 type filesDownloadCmdAws struct {
