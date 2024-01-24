@@ -38,10 +38,11 @@ function pendingActionShowAll(id) {
 
 $("#btnRun").click(function(){
     $("#loadingSpinner").show();
+    // TODO below
     document.getElementById("action").value = "run";
     $.post("", $("#mainForm").serialize(), function(data) {
         console.log(data);
-    })
+    }, "json")
     .fail(function(data) {
         console.log(data.responseText);
     }).always(function() {
@@ -55,9 +56,21 @@ function getCommand() {
     $("#loadingSpinner").show();
     document.getElementById("action").value = "show";
     $.post("", $("#mainForm").serialize(), function(data) {
-        document.getElementById("cmdBuilder").innerHTML = data;
-        formCommand = data;
-    })
+        var switches = false;
+        var inner = "";
+        for (let i=0; i<data.length;i++) {
+            if (data[i].startsWith("-")) {
+                switches = true;
+                inner = inner+"<span class=\"na\">"+data[i]+"</span> ";
+            } else if (!switches) {
+                inner = inner+"<span class=\"nv\">"+data[i]+"</span> ";
+            } else {
+                inner = inner+"<span class=\"s\">"+data[i]+"</span> ";
+            }
+        }
+        document.getElementById("cmdBuilder").innerHTML = inner;
+        formCommand = data.join(" ");
+    }, "json")
     .fail(function(data) {
         let body = data.responseText;
         if ((data.status == 0)&&(body == undefined)) {
