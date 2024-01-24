@@ -164,6 +164,8 @@
               <form method="post" id="mainForm">
                 <div class="card-body">
                   <input type="hidden" name="action" value="" id="action">
+                  <input type="hidden" name="useShortSwitches" value="" id="useShortSwitches">
+                  <input type="hidden" name="useBasicDefaults" value="" id="useBasicDefaults">
                   {{ range .FormItems }}
                   {{if .Type.Separator}}
                   <div class="separator"><span class="right badge badge-info">{{.Separator.Name}}</span></div>
@@ -214,8 +216,16 @@
             <div class="card card-default">
               <div class="card-header">
                 <h3 class="card-title">
-                  Command&nbsp;
+                  Command Line
                 </h3>
+                  <div class="card-tools">
+                    <ul class="nav nav-pills ml-auto">
+                    <li class="nav-item">
+                      <div class="custom-control custom-switch" data-toggle="tooltiptop" title="Set to use short-format switches where available"><input type="checkbox" class="custom-control-input" id="shortSwitches" name="shortSwitches"><label class="custom-control-label" for="shortSwitches">Use short switches&nbsp;&nbsp;</label></div>
+                    </li>
+                    </ul>
+                  </div>
+                  <div class="row"><div class="col-12"></div></div>
               </div>
               <div class="highlight"><pre class="highlight"><button type="button" class="btn btn-primary" id="btnShowCommand" data-toggle="tooltiptop" title="Refresh"><span class="fas fa-arrows-rotate"></span></button>&nbsp;<button type="button" class="btn btn-default" id="btnCopyCommand" data-toggle="tooltiptop" title="Copy to clipboard"><span class="fas fa-clipboard"></span></button>&nbsp;<code id="cmdBuilder"></code></pre></div>
           </div>

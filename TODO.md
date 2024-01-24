@@ -1,6 +1,4 @@
 # TODO items before release - WIP notes
-0. allow specifying to show all switches in show-command that differ from defaults-defaults, instead of local defaults (command for external use)
-1. add toggle for short switches
 * new form type: upload file - tmp file upload and fill into form
   * some elements need this, like file upload, download, etc
 * home page, with config options
