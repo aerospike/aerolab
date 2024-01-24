@@ -39,6 +39,7 @@ type commands struct {
 	Web          webCmd          `command:"webui" subcommands-optional:"true" description:"Launch AeroLab Web UI" webicon:"fas fa-globe"`
 	Version      versionCmd      `command:"version" subcommands-optional:"true" description:"Print AeroLab version" webicon:"fas fa-code-branch"`
 	Upgrade      upgradeCmd      `command:"upgrade" subcommands-optional:"true" description:"Upgrade AeroLab binary" webicon:"fas fa-circle-up"`
+	WebRun       webRunCmd       `command:"webrun" subcommands-optional:"true" description:"Upgrade AeroLab binary" hidden:"true"`
 	commandsDefaults
 }
 
