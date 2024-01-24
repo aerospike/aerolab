@@ -27,7 +27,7 @@ type clusterCreateCmd struct {
 	CustomToolsFilePath     flags.Filename  `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
 	FeaturesFilePath        flags.Filename  `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool            `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
-	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh" webchoice:"mesh,mcast,default"`
+	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default" default:"mesh" webchoice:"mesh,mcast,default"`
 	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
 	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
@@ -49,7 +49,7 @@ type clusterCreateCmd struct {
 
 type osSelectorCmd struct {
 	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu" webchoice:"debian,ubuntu,centos,amazon"`
-	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest" webchoice:"22.04,20.04,18.04,2023,2,12,11,10,9,8,7"`
+	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest" webchoice:"latest,22.04,20.04,18.04,2023,2,12,11,10,9,8,7"`
 }
 
 type chDirCmd struct {
