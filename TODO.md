@@ -1,16 +1,18 @@
 # TODO items before release - WIP notes
-
+1. add toggle for short switches
+2. fix tail command build (maybe if already has '--' on it's own, do not add again if this is the value?):
+   * aerolab files upload --threads 40 --verbose --legacy --name 'bon' --nodes '1-2' --client -- 'asdf' -- 'fdsa' 
+   * aerolab attach shell -- asdf -- fdsa
 * new form type: upload file - tmp file upload and fill into form
-* some elements need this, like file upload, download, etc
+  * some elements need this, like file upload, download, etc
 * home page, with config options
-* form submit handler (show command, or run command, show output, fill the actions, show success/fail/in-progress)
+* form submit handler (run command, show output, fill the actions, show success/fail/in-progress)
 * some elements in webui should not be forms but show as "not implemented in webui" - like webui, rest commands
 * support for handling special header - user/owner
 * implement console for all attach commands
 * implement inventory listing as another item, that is not a "command item" at the top, with separator under it, together with common config options item too ("special forms")
 * webconsole and/or login ssh script download from web UI (or maybe aerolab webUI will do the socket->node ssh?)
 * pendingActions modal - allow copy of path where log is and copy of output of aerolab command - log should also contain the yaml of the command executed
-* submit should do a jquery submit and present result, do NOT submit the actual page as all selections will be lost
 * add new tag: required - this should show a star next to required items, and JS should, on submit attempt, check if all required items are filled in
 * allow loading a historical command into the form from previous run/json?
 * implement "simple" mode which will have the list of options greatly reduced, present "simple/full" slider

@@ -595,7 +595,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if action[0] == "show" {
-		w.Write([]byte(strings.Join(cmdline, " ")))
+		json.NewEncoder(w).Encode(cmdline)
 		return
 	}
 	json.NewEncoder(w).Encode(cjson)
