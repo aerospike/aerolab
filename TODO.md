@@ -1,8 +1,6 @@
 # TODO items before release - WIP notes
+0. allow specifying to show all switches in show-command that differ from defaults-defaults, instead of local defaults (command for external use)
 1. add toggle for short switches
-2. fix tail command build (maybe if already has '--' on it's own, do not add again if this is the value?):
-   * aerolab files upload --threads 40 --verbose --legacy --name 'bon' --nodes '1-2' --client -- 'asdf' -- 'fdsa' 
-   * aerolab attach shell -- asdf -- fdsa
 * new form type: upload file - tmp file upload and fill into form
   * some elements need this, like file upload, download, etc
 * home page, with config options
@@ -14,7 +12,7 @@
 * webconsole and/or login ssh script download from web UI (or maybe aerolab webUI will do the socket->node ssh?)
 * pendingActions modal - allow copy of path where log is and copy of output of aerolab command - log should also contain the yaml of the command executed
 * add new tag: required - this should show a star next to required items, and JS should, on submit attempt, check if all required items are filled in
-* allow loading a historical command into the form from previous run/json?
+* allow loading a historical command into the form from previous run/json? or from command-line command?
 * implement "simple" mode which will have the list of options greatly reduced, present "simple/full" slider
 * add option to disable "full mode" and to configure a custom simple mode
 --

@@ -100,6 +100,7 @@ $("#btnCopyCommand").click(function(){
 $(function () {
     $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", boundary: "viewport" });
     $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: "left", boundary: "viewport" });
+    $('[data-toggle="tooltiptop"]').tooltip({ trigger: "hover", placement: "top", boundary: "viewport" });
     $('.select2bs4').select2({
         theme: 'bootstrap4'
     })
