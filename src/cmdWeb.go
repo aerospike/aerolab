@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -24,16 +26,17 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr    string  `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
-	WebRoot       string  `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
-	WebPath       string  `long:"web-path" hidden:"true"`
-	WebNoOverride bool    `long:"web-no-override" hidden:"true"`
-	DebugRequests bool    `long:"debug-requests" hidden:"true"`
-	Help          helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	menuItems     []*webui.MenuItem
-	commands      []*apiCommand
-	commandsIndex map[string]int
-	titler        cases.Caser
+	ListenAddr      string        `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
+	WebRoot         string        `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
+	AbsoluteTimeout time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
+	WebPath         string        `long:"web-path" hidden:"true"`
+	WebNoOverride   bool          `long:"web-no-override" hidden:"true"`
+	DebugRequests   bool          `long:"debug-requests" hidden:"true"`
+	Help            helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	menuItems       []*webui.MenuItem
+	commands        []*apiCommand
+	commandsIndex   map[string]int
+	titler          cases.Caser
 }
 
 func (c *webCmd) Execute(args []string) error {
@@ -308,8 +311,8 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 		case reflect.Slice:
 			// tag input
 			val := []string{}
-			for i := 0; i < commandValue.Field(i).Len(); i++ {
-				val = append(val, commandValue.Field(i).Index(i).String())
+			for j := 0; j < commandValue.Field(i).Len(); j++ {
+				val = append(val, commandValue.Field(i).Index(j).String())
 			}
 			wf = append(wf, &webui.FormItem{
 				Type: webui.FormItemType{
@@ -502,8 +505,8 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// fill command struct
-	tail := []string{"--"}
+	// sort postForm
+	postForm := [][]interface{}{}
 	for k, v := range r.PostForm {
 		if !strings.HasPrefix(k, "xx") {
 			continue
@@ -511,6 +514,63 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		if len(v) == 0 || (len(v) == 1 && v[0] == "") {
 			continue
 		}
+		postForm = append(postForm, []interface{}{k, v})
+	}
+	sort.Slice(postForm, func(i, j int) bool {
+		ki := postForm[i][0].(string)
+		kj := postForm[j][0].(string)
+		kiPath := strings.Split(strings.TrimPrefix(ki, "xx"), "xx")
+		kjPath := strings.Split(strings.TrimPrefix(kj, "xx"), "xx")
+		if len(kiPath) < len(kjPath) {
+			return true
+		}
+		if len(kiPath) > len(kjPath) {
+			return false
+		}
+		for x, pathItem := range kiPath {
+			if x == len(kiPath)-1 {
+				break
+			}
+			if pathItem < kjPath[x] {
+				return true
+			}
+			if pathItem > kjPath[x] {
+				return false
+			}
+		}
+		cmd := reflect.Indirect(command)
+		for i, depth := range kiPath {
+			if i == 0 && depth == "" {
+				continue
+			}
+			if i == len(kiPath)-1 {
+				break
+			}
+			cmd = cmd.FieldByName(depth)
+		}
+		parami := kiPath[len(kiPath)-1]
+		paramj := kjPath[len(kjPath)-1]
+		indexi := -1
+		indexj := -1
+		for x := 0; x < cmd.NumField(); x++ {
+			if cmd.Type().Field(x).Name == parami {
+				indexi = x
+			}
+			if cmd.Type().Field(x).Name == paramj {
+				indexj = x
+			}
+			if indexi >= 0 && indexj >= 0 {
+				break
+			}
+		}
+		return indexi < indexj
+	})
+
+	// fill command struct
+	tail := []string{"--"}
+	for _, kv := range postForm {
+		k := kv[0].(string)
+		v := kv[1].([]string)
 		cmd := reflect.Indirect(command)
 		cj := cjson
 		commandPath := strings.Split(strings.TrimPrefix(k, "xx"), "xx")
@@ -647,6 +707,55 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	json.NewEncoder(w).Encode(cjson)
-	// TODO: do action instead of logging it to browser
+
+	ex, err := os.Executable()
+	if err != nil {
+		http.Error(w, "unable to get path to aerolab executable: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rootDir, err := a.aerolabRootDir()
+	if err != nil {
+		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	os.Mkdir(path.Join(rootDir, "weblog"), 0755)
+	fn := path.Join(rootDir, "weblog", time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
+
+	ctx, cancel := context.WithTimeout(context.Background(), c.AbsoluteTimeout)
+	defer cancel()
+	run := exec.CommandContext(ctx, ex, "webrun")
+	stdin, err := run.StdinPipe()
+	if err != nil {
+		http.Error(w, "unable to get stdin: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	f, err := os.Create(fn)
+	if err != nil {
+		http.Error(w, "unable to create logfile: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	f.WriteString("-=-=-=-=- [path] /" + strings.TrimPrefix(r.URL.Path, c.WebRoot) + " -=-=-=-=-\n")
+	f.WriteString("-=-=-=-=- [cmdline] " + strings.Join(cmdline, " ") + " -=-=-=-=-\n")
+	json.NewEncoder(f).Encode(cjson)
+	f.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
+	run.Stdout = f
+	run.Stderr = f
+
+	go func() {
+		stdin.Write([]byte(strings.TrimPrefix(r.URL.Path, c.WebRoot) + "-=-=-=-"))
+		json.NewEncoder(stdin).Encode(cjson)
+		stdin.Close()
+	}()
+	// TODO: run in background, respond to client with requestID and exit this function
+	// TODO: background should be the one to defer f.Close(), and the one to defer cancel(), it should run.Run()
+	// TODO: we will need endpoints to stream log file output to client
+	// TODO: js: modal with progress output
+	err = run.Run()
+	if err != nil {
+		http.Error(w, "run failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
