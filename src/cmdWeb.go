@@ -487,6 +487,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// fill command struct
+	tail := []string{"--"}
 	for k, v := range r.PostForm {
 		if !strings.HasPrefix(k, "xx") {
 			continue
@@ -517,7 +518,11 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		switch field.Kind() {
 		case reflect.String:
 			if v[0] != field.String() {
-				cmdline = append(cmdline, "--"+tag.Get("long"), "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
+				if tag.Get("long") == "" {
+					tail = append(tail, "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
+				} else {
+					cmdline = append(cmdline, "--"+tag.Get("long"), "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
+				}
 				cj[param] = v[0]
 			}
 		case reflect.Bool:
@@ -537,7 +542,11 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 			if val != int(field.Int()) {
 				cj[param] = val
-				cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+				if tag.Get("long") == "" {
+					tail = append(tail, v[0])
+				} else {
+					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+				}
 			}
 		case reflect.Float64:
 			val, err := strconv.ParseFloat(v[0], 64)
@@ -547,12 +556,20 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 			if val != field.Float() {
 				cj[param] = val
-				cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+				if tag.Get("long") == "" {
+					tail = append(tail, v[0])
+				} else {
+					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+				}
 			}
 		case reflect.Slice:
 			cj[param] = v
-			for _, vv := range v {
-				cmdline = append(cmdline, "--"+tag.Get("long"), vv)
+			if tag.Get("long") == "" {
+				tail = append(tail, v...)
+			} else {
+				for _, vv := range v {
+					cmdline = append(cmdline, "--"+tag.Get("long"), vv)
+				}
 			}
 		case reflect.Int64:
 			if field.Type().String() == "time.Duration" {
@@ -563,7 +580,11 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				}
 				if int64(dur) != field.Int() {
 					cj[param] = dur
-					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+					if tag.Get("long") == "" {
+						tail = append(tail, v[0])
+					} else {
+						cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+					}
 				}
 			} else if field.Type().String() == "int64" {
 				val, err := strconv.Atoi(v[0])
@@ -573,7 +594,11 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				}
 				if val != int(field.Int()) {
 					cj[param] = val
-					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+					if tag.Get("long") == "" {
+						tail = append(tail, v[0])
+					} else {
+						cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+					}
 				}
 			} else {
 				http.Error(w, fmt.Sprintf("field %s not supported", field.Kind().String()), http.StatusBadRequest)
@@ -583,7 +608,11 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			if field.Type().String() == "*flags.Filename" {
 				if v[0] != field.String() {
 					cj[param] = v[0]
-					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+					if tag.Get("long") == "" {
+						tail = append(tail, v[0])
+					} else {
+						cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+					}
 				}
 			} else {
 				http.Error(w, fmt.Sprintf("field %s not supported", field.Kind().String()), http.StatusBadRequest)
@@ -595,7 +624,11 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if action[0] == "show" {
-		json.NewEncoder(w).Encode(cmdline)
+		if len(tail) == 1 {
+			json.NewEncoder(w).Encode(cmdline)
+		} else {
+			json.NewEncoder(w).Encode(append(cmdline, tail...))
+		}
 		return
 	}
 	json.NewEncoder(w).Encode(cjson)
