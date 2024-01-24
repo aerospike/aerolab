@@ -55,6 +55,7 @@ var formCommand = "";
 function getCommand() {
     $("#loadingSpinner").show();
     document.getElementById("action").value = "show";
+    document.getElementById("useShortSwitches").value = document.getElementById("shortSwitches").checked;
     $.post("", $("#mainForm").serialize(), function(data) {
         var switches = false;
         var inner = "";

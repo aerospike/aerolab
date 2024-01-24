@@ -454,6 +454,17 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (c *webCmd) switchName(useShortSwitches bool, tag reflect.StructTag) string {
+	if useShortSwitches {
+		ret := "-" + tag.Get("short")
+		if ret == "-" {
+			ret = "--" + tag.Get("long")
+		}
+		return ret
+	}
+	return "--" + tag.Get("long")
+}
+
 func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	// log method, URI and parameters
 	err := r.ParseForm()
@@ -481,6 +492,11 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	cjson := make(map[string]interface{})
 	cmdline := append([]string{"aerolab"}, c.commands[cindex].pathStack...)
 	action := r.PostForm["action"]
+	useShortSwitchesTmp := r.PostForm["useShortSwitches"]
+	useShortSwitches := false
+	if len(useShortSwitchesTmp) > 0 && useShortSwitchesTmp[0] == "true" {
+		useShortSwitches = true
+	}
 	if len(action) != 1 || (action[0] != "show" && action[0] != "run") {
 		http.Error(w, "invalid action specification in form", http.StatusBadRequest)
 		return
@@ -521,7 +537,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				if tag.Get("long") == "" {
 					tail = append(tail, "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
 				} else {
-					cmdline = append(cmdline, "--"+tag.Get("long"), "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
+					cmdline = append(cmdline, c.switchName(useShortSwitches, tag), "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
 				}
 				cj[param] = v[0]
 			}
@@ -532,7 +548,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 			if val != field.Bool() {
 				cj[param] = true
-				cmdline = append(cmdline, "--"+tag.Get("long"))
+				cmdline = append(cmdline, c.switchName(useShortSwitches, tag))
 			}
 		case reflect.Int:
 			val, err := strconv.Atoi(v[0])
@@ -545,7 +561,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				if tag.Get("long") == "" {
 					tail = append(tail, v[0])
 				} else {
-					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+					cmdline = append(cmdline, c.switchName(useShortSwitches, tag), v[0])
 				}
 			}
 		case reflect.Float64:
@@ -559,7 +575,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				if tag.Get("long") == "" {
 					tail = append(tail, v[0])
 				} else {
-					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+					cmdline = append(cmdline, c.switchName(useShortSwitches, tag), v[0])
 				}
 			}
 		case reflect.Slice:
@@ -568,7 +584,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				tail = append(tail, v...)
 			} else {
 				for _, vv := range v {
-					cmdline = append(cmdline, "--"+tag.Get("long"), vv)
+					cmdline = append(cmdline, c.switchName(useShortSwitches, tag), vv)
 				}
 			}
 		case reflect.Int64:
@@ -583,7 +599,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					if tag.Get("long") == "" {
 						tail = append(tail, v[0])
 					} else {
-						cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+						cmdline = append(cmdline, c.switchName(useShortSwitches, tag), v[0])
 					}
 				}
 			} else if field.Type().String() == "int64" {
@@ -597,7 +613,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					if tag.Get("long") == "" {
 						tail = append(tail, v[0])
 					} else {
-						cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+						cmdline = append(cmdline, c.switchName(useShortSwitches, tag), v[0])
 					}
 				}
 			} else {
@@ -611,7 +627,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					if tag.Get("long") == "" {
 						tail = append(tail, v[0])
 					} else {
-						cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+						cmdline = append(cmdline, c.switchName(useShortSwitches, tag), v[0])
 					}
 				}
 			} else {
