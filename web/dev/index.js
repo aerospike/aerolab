@@ -36,6 +36,54 @@ function pendingActionShowAll(id) {
     console.log(isChecked); // TODO
 }
 
+$("#btnRun").click(function(){
+    $("#loadingSpinner").show();
+    document.getElementById("action").value = "run";
+    $.post("", $("#mainForm").serialize(), function(data) {
+        console.log(data);
+    })
+    .fail(function(data) {
+        console.log(data.responseText);
+    }).always(function() {
+        $("#loadingSpinner").hide();
+    });
+})
+
+var formCommand = "";
+
+function getCommand() {
+    $("#loadingSpinner").show();
+    document.getElementById("action").value = "show";
+    $.post("", $("#mainForm").serialize(), function(data) {
+        document.getElementById("cmdBuilder").innerHTML = data;
+        formCommand = data;
+    })
+    .fail(function(data) {
+        let body = data.responseText;
+        if ((data.status == 0)&&(body == undefined)) {
+            body = "Connection Error";
+        }
+        $(document).Toasts('create', {
+            class: 'bg-danger',
+            title: 'ERROR',
+            subtitle: data.statusText,
+            body: body
+        })
+    })
+    .always(function(data) {
+        $("#loadingSpinner").hide();
+    });
+}
+
+$("#btnShowCommand").click(function(){ 
+    getCommand();
+})
+
+$("#btnCopyCommand").click(function(){ 
+    navigator.clipboard.writeText(formCommand);
+    toastr.success("Copied to clipboard");
+})
+
 $(function () {
     $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", boundary: "viewport" });
     $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: "left", boundary: "viewport" });
@@ -47,5 +95,6 @@ $(function () {
         tags: true,
         tokenSeparators: [',', ' ']
     })
+    getCommand();
   })
 {{end}}

@@ -15,7 +15,9 @@
   <!-- select2 -->
   <link rel="stylesheet" href="{{.WebRoot}}plugins/select2/css/select2.min.css">
   <link rel="stylesheet" href="{{.WebRoot}}plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}plugins/toastr/toastr.min.css">
   <style>{{template "maincss"}}</style>
+  <style>{{template "highlighter"}}</style>
 </head>
 <body class="hold-transition sidebar-mini{{if .FixedFooter}} layout-footer-fixed{{end}}{{if .FixedNavbar}} layout-navbar-fixed{{end}}">
 
@@ -159,8 +161,9 @@
               <div class="card-header">
                 <h3 class="card-title">{{.FormCommandTitle}}</h3>
               </div>
-              <form method="post">
+              <form method="post" id="mainForm">
                 <div class="card-body">
+                  <input type="hidden" name="action" value="" id="action">
                   {{ range .FormItems }}
                   {{if .Type.Separator}}
                   <div class="separator"><span class="right badge badge-info">{{.Separator.Name}}</span></div>
@@ -182,7 +185,7 @@
                   {{if .Type.Toggle}}
                   <div class="form-group">
                     <div class="custom-control custom-switch" data-toggle="tooltipleft" title="{{.Toggle.Description}}">
-                      <input type="checkbox" class="custom-control-input" id="{{.Toggle.ID}}" name="{{.Toggle.ID}}">
+                      <input type="checkbox" class="custom-control-input" id="{{.Toggle.ID}}" name="{{.Toggle.ID}}"{{if .Toggle.On}} checked{{end}}>
                       <label class="custom-control-label" for="{{.Toggle.ID}}">{{.Toggle.Name}}</label>
                     </div>
                   </div>
@@ -200,11 +203,21 @@
                   {{end}}
                 </div>
                 <div class="card-footer">
-                  <button type="submit" class="btn btn-primary">Run</button>
-                  <button type="button" class="btn btn-primary">Show Command</button>
+                  <button type="button" class="btn btn-primary" id="btnRun">Run</button>
                 </div>
               </form>
             </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="language-bash col-md-12 col-sm-12 col-12 highlighter-rouge">
+            <div class="card card-default">
+              <div class="card-header">
+                <h3 class="card-title">
+                  Command&nbsp;
+                </h3>
+              </div>
+              <div class="highlight"><pre class="highlight"><button type="button" class="btn btn-primary" id="btnShowCommand"><span class="fas fa-arrows-rotate"></span></button>&nbsp;<button type="button" class="btn btn-default" id="btnCopyCommand"><span class="fas fa-clipboard"></span></button>&nbsp;<code id="cmdBuilder"></code></pre></div>
           </div>
         </div>
         {{end}}
@@ -232,11 +245,11 @@
   <!-- Main Footer -->
   <footer class="main-footer">
     <!-- To the right -->
-    <div class="float-right d-none d-sm-inline">
+      <div class="float-right d-none d-sm-inline">
       Template by AdminLTE
-    </div>
-    <!-- Default to the left -->
-    <strong>Copyright &copy; 2024 <a href="https://aerospike.com">Aerospike</a>.</strong> All rights reserved.
+      </div>
+      <!-- Default to the left -->
+      <strong>Copyright &copy; 2024 <a href="https://aerospike.com">Aerospike</a>.</strong> All rights reserved.
   </footer>
 </div>
 <!-- ./wrapper -->
@@ -253,6 +266,8 @@
 <script src="{{.WebRoot}}plugins/fontawesome-free/js/all.min.js"></script>
 <!-- select2 -->
 <script src="{{.WebRoot}}plugins/select2/js/select2.full.min.js"></script>
+<!-- toastr -->
+<script src="{{.WebRoot}}plugins/toastr/toastr.min.js"></script>
 <script>{{template "mainjs"}}</script>
 </body>
 </html>

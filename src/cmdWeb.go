@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -10,11 +11,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
+	"github.com/lithammer/shortuuid"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -24,6 +28,7 @@ type webCmd struct {
 	WebRoot       string  `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
 	WebPath       string  `long:"web-path" hidden:"true"`
 	WebNoOverride bool    `long:"web-no-override" hidden:"true"`
+	DebugRequests bool    `long:"debug-requests" hidden:"true"`
 	Help          helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	menuItems     []*webui.MenuItem
 	commands      []*apiCommand
@@ -66,7 +71,6 @@ func (c *webCmd) Execute(args []string) error {
 			}
 		}
 	}
-	http.HandleFunc(c.WebRoot+"api/command", c.command)
 	http.HandleFunc(c.WebRoot+"dist/", c.static)
 	http.HandleFunc(c.WebRoot+"plugins/", c.static)
 	http.HandleFunc(c.WebRoot, c.serve)
@@ -196,7 +200,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				choices := []*webui.FormItemSelectItem{}
 				for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
 					isSelected := false
-					if choice == tags.Get("default") {
+					if choice == commandValue.Field(i).String() {
 						isSelected = true
 					}
 					choices = append(choices, &webui.FormItemSelectItem{
@@ -231,13 +235,25 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name:        name,
 						ID:          "xx" + prefix + "xx" + name,
 						Type:        textType,
-						Default:     tags.Get("default"),
+						Default:     commandValue.Field(i).String(),
 						Description: tags.Get("description"),
 					},
 				})
 			}
 		case reflect.Float64:
-			fallthrough
+			// input item number
+			wf = append(wf, &webui.FormItem{
+				Type: webui.FormItemType{
+					Input: true,
+				},
+				Input: webui.FormItemInput{
+					Name:        name,
+					ID:          "xx" + prefix + "xx" + name,
+					Type:        "number",
+					Default:     strconv.FormatFloat(commandValue.Field(i).Float(), 'f', 4, 64),
+					Description: tags.Get("description"),
+				},
+			})
 		case reflect.Int:
 			// input item number
 			wf = append(wf, &webui.FormItem{
@@ -248,7 +264,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 					Name:        name,
 					ID:          "xx" + prefix + "xx" + name,
 					Type:        "number",
-					Default:     tags.Get("default"),
+					Default:     strconv.Itoa(int(commandValue.Field(i).Int())),
 					Description: tags.Get("description"),
 				},
 			})
@@ -262,6 +278,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 					Name:        name,
 					Description: tags.Get("description"),
 					ID:          "xx" + prefix + "xx" + name,
+					On:          commandValue.Field(i).Bool(),
 				},
 			})
 		case reflect.Struct:
@@ -290,6 +307,10 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 			}
 		case reflect.Slice:
 			// tag input
+			val := []string{}
+			for i := 0; i < commandValue.Field(i).Len(); i++ {
+				val = append(val, commandValue.Field(i).Index(i).String())
+			}
 			wf = append(wf, &webui.FormItem{
 				Type: webui.FormItemType{
 					Input: true,
@@ -298,7 +319,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 					Name:        name,
 					ID:          "xx" + prefix + "xx" + name,
 					Type:        "text",
-					Default:     tags.Get("default"),
+					Default:     strings.Join(val, ","),
 					Description: tags.Get("description"),
 					Tags:        true,
 				},
@@ -314,7 +335,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name:        name,
 						ID:          "xx" + prefix + "xx" + name,
 						Type:        "text",
-						Default:     tags.Get("default"),
+						Default:     time.Duration(commandValue.Field(i).Int()).String(),
 						Description: tags.Get("description"),
 					},
 				})
@@ -328,7 +349,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name:        name,
 						ID:          "xx" + prefix + "xx" + name,
 						Type:        "number",
-						Default:     tags.Get("default"),
+						Default:     strconv.Itoa(int(commandValue.Field(i).Int())),
 						Description: tags.Get("description"),
 					},
 				})
@@ -350,68 +371,34 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name:        name,
 						ID:          "xx" + prefix + "xx" + name,
 						Type:        textType,
-						Default:     tags.Get("default"),
+						Default:     commandValue.Field(i).String(),
 						Description: tags.Get("description"),
 					},
 				})
+			} else {
+				return nil, fmt.Errorf("unknown field type (name=%s kind=%s type=%s)", name, kind.String(), commandValue.Field(i).Type().String())
 			}
 		default:
 			return nil, fmt.Errorf("unknown field type (name=%s kind=%s type=%s)", name, kind.String(), commandValue.Field(i).Type().String())
 		}
 	}
 	return wf, nil
-	/*
-		{
-			Type: webui.FormItemType{
-				Select: true,
-			},
-			Select: webui.FormItemSelect{
-				Name:        "Operating System",
-				Description: "OS to use",
-				ID:          "OperatingSystem",
-				Items: []*webui.FormItemSelectItem{
-					{
-						Name:     "ubuntu",
-						Value:    "ubuntu",
-						Selected: true,
-					},
-					{
-						Name:  "centos",
-						Value: "centos",
-					},
-				},
-			},
-		},
-		{
-			Type: webui.FormItemType{
-				Select: true,
-			},
-			Select: webui.FormItemSelect{
-				Name:        "OS Version",
-				Description: "OS version to use",
-				ID:          "OSVersion",
-				Multiple:    true,
-				Items: []*webui.FormItemSelectItem{
-					{
-						Name:     "22.04",
-						Value:    "22.04",
-						Selected: true,
-					},
-					{
-						Name:  "20.04",
-						Value: "20.04",
-					},
-				},
-			},
-		},
-	*/
 }
 
 func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		// if posting command, run and exit
+		c.command(w, r)
+		return
+	}
+
+	// log method and URI
+	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
+
+	// create webpage
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
-	log.Println(r.RequestURI)
 
 	title := strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot), "\r\n\t /")
 	title = c.titler.String(strings.ReplaceAll(title, "/", " / "))
@@ -457,7 +444,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Menu.Items.Set(r.URL.Path)
 	www := os.DirFS(c.WebPath)
-	t, err := template.ParseFS(www, "index.html", "index.js", "index.css")
+	t, err := template.ParseFS(www, "index.html", "index.js", "index.css", "highlighter.css")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -468,5 +455,149 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
-	// TODO: handle form
+	// log method, URI and parameters
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "error parsing form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// log request
+	requestID := shortuuid.New()
+	log.Printf("[%s] %s:%s", requestID, r.Method, r.RequestURI)
+	if c.DebugRequests {
+		for k, v := range r.PostForm {
+			log.Printf("[%s]    %s=%s", requestID, k, v)
+		}
+	}
+
+	// get command
+	cindex, ok := c.commandsIndex[strings.TrimPrefix(r.URL.Path, c.WebRoot)]
+	if !ok {
+		http.Error(w, "command not found: "+r.URL.Path, http.StatusBadRequest)
+		return
+	}
+	command := c.commands[cindex].Value
+	cjson := make(map[string]interface{})
+	cmdline := append([]string{"aerolab"}, c.commands[cindex].pathStack...)
+	action := r.PostForm["action"]
+	if len(action) != 1 || (action[0] != "show" && action[0] != "run") {
+		http.Error(w, "invalid action specification in form", http.StatusBadRequest)
+		return
+	}
+
+	// fill command struct
+	for k, v := range r.PostForm {
+		if !strings.HasPrefix(k, "xx") {
+			continue
+		}
+		if len(v) == 0 || (len(v) == 1 && v[0] == "") {
+			continue
+		}
+		cmd := reflect.Indirect(command)
+		cj := cjson
+		commandPath := strings.Split(strings.TrimPrefix(k, "xx"), "xx")
+		for i, depth := range commandPath {
+			if i == 0 && depth == "" {
+				continue
+			}
+			if i == len(commandPath)-1 {
+				break
+			}
+			cmd = cmd.FieldByName(depth)
+			if _, ok := cj[depth]; !ok {
+				cj[depth] = make(map[string]interface{})
+			}
+			cj = cj[depth].(map[string]interface{})
+		}
+		param := commandPath[len(commandPath)-1]
+		field := cmd.FieldByName(param)
+		fieldType, _ := cmd.Type().FieldByName(param)
+		tag := fieldType.Tag
+		switch field.Kind() {
+		case reflect.String:
+			if v[0] != field.String() {
+				cmdline = append(cmdline, "--"+tag.Get("long"), "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
+				cj[param] = v[0]
+			}
+		case reflect.Bool:
+			val := false
+			if v[0] == "on" {
+				val = true
+			}
+			if val != field.Bool() {
+				cj[param] = true
+				cmdline = append(cmdline, "--"+tag.Get("long"))
+			}
+		case reflect.Int:
+			val, err := strconv.Atoi(v[0])
+			if err != nil {
+				http.Error(w, fmt.Sprintf("error parsing form item %s: %s", field.Type().Name(), err), http.StatusBadRequest)
+				return
+			}
+			if val != int(field.Int()) {
+				cj[param] = val
+				cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+			}
+		case reflect.Float64:
+			val, err := strconv.ParseFloat(v[0], 64)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("error parsing form item %s: %s", field.Type().Name(), err), http.StatusBadRequest)
+				return
+			}
+			if val != field.Float() {
+				cj[param] = val
+				cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+			}
+		case reflect.Slice:
+			cj[param] = v
+			for _, vv := range v {
+				cmdline = append(cmdline, "--"+tag.Get("long"), vv)
+			}
+		case reflect.Int64:
+			if field.Type().String() == "time.Duration" {
+				dur, err := time.ParseDuration(v[0])
+				if err != nil {
+					http.Error(w, fmt.Sprintf("error parsing form item %s: %s", field.Type().Name(), err), http.StatusBadRequest)
+					return
+				}
+				if int64(dur) != field.Int() {
+					cj[param] = dur
+					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+				}
+			} else if field.Type().String() == "int64" {
+				val, err := strconv.Atoi(v[0])
+				if err != nil {
+					http.Error(w, fmt.Sprintf("error parsing form item %s: %s", field.Type().Name(), err), http.StatusBadRequest)
+					return
+				}
+				if val != int(field.Int()) {
+					cj[param] = val
+					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+				}
+			} else {
+				http.Error(w, fmt.Sprintf("field %s not supported", field.Kind().String()), http.StatusBadRequest)
+				return
+			}
+		case reflect.Ptr:
+			if field.Type().String() == "*flags.Filename" {
+				if v[0] != field.String() {
+					cj[param] = v[0]
+					cmdline = append(cmdline, "--"+tag.Get("long"), v[0])
+				}
+			} else {
+				http.Error(w, fmt.Sprintf("field %s not supported", field.Kind().String()), http.StatusBadRequest)
+				return
+			}
+		default:
+			http.Error(w, fmt.Sprintf("field %s not supported", field.Kind().String()), http.StatusBadRequest)
+			return
+		}
+	}
+	if action[0] == "show" {
+		w.Write([]byte(strings.Join(cmdline, " ")))
+		return
+	}
+	json.NewEncoder(w).Encode(cjson)
+	// TODO: do action instead of logging it to browser
 }

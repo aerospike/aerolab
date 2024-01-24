@@ -36,6 +36,10 @@ cp -a dev/plugins/select2/css/select2.min.css prod/plugins/select2/css/select2.m
 cp -a dev/plugins/select2/js/select2.full.min.js prod/plugins/select2/js/select2.full.min.js
 cp -a dev/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css prod/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css
 
+# toastr
+mkdir -p prod/plugins/toastr
+cp -a dev/plugins/toastr/*min* prod/plugins/toastr/.
+
 # summary
 cd prod
 tar -zcf ../../src/webui/www.tgz *
