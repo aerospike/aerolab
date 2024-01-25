@@ -22,6 +22,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/aerospike/aerolab/jobqueue"
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
@@ -30,18 +31,21 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr      string        `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
-	WebRoot         string        `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
-	AbsoluteTimeout time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
-	WebPath         string        `long:"web-path" hidden:"true"`
-	WebNoOverride   bool          `long:"web-no-override" hidden:"true"`
-	DebugRequests   bool          `long:"debug-requests" hidden:"true"`
-	Help            helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
-	menuItems       []*webui.MenuItem
-	commands        []*apiCommand
-	commandsIndex   map[string]int
-	titler          cases.Caser
-	joblist         *jobTrack
+	ListenAddr        string        `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
+	WebRoot           string        `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
+	AbsoluteTimeout   time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
+	MaxConcurrentJobs int           `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
+	MaxQueuedJobs     int           `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
+	WebPath           string        `long:"web-path" hidden:"true"`
+	WebNoOverride     bool          `long:"web-no-override" hidden:"true"`
+	DebugRequests     bool          `long:"debug-requests" hidden:"true"`
+	Help              helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	menuItems         []*webui.MenuItem
+	commands          []*apiCommand
+	commandsIndex     map[string]int
+	titler            cases.Caser
+	joblist           *jobTrack
+	jobqueue          *jobqueue.Queue
 }
 
 type jobTrack struct {
@@ -68,6 +72,13 @@ func (j *jobTrack) Get(jobID string) *exec.Cmd {
 	return answer
 }
 
+func (j *jobTrack) GetStat() int {
+	j.Lock()
+	defer j.Unlock()
+	count := len(j.j)
+	return count
+}
+
 func (c *webCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
@@ -75,6 +86,21 @@ func (c *webCmd) Execute(args []string) error {
 	c.joblist = &jobTrack{
 		j: make(map[string]*exec.Cmd),
 	}
+	c.jobqueue = jobqueue.New(c.MaxConcurrentJobs, c.MaxQueuedJobs)
+	go func() {
+		var statc, statq, statj int
+		for {
+			nstatj := c.joblist.GetStat()
+			nstatc, nstatq := c.jobqueue.GetSize()
+			if nstatc != statc || nstatq != statq || nstatj != statj {
+				statc = nstatc
+				statq = nstatq
+				statj = nstatj
+				log.Printf("STAT: queue_active_jobs=%d queued_jobs=%d jobs_tracked=%d", statc, statq, statj)
+			}
+			time.Sleep(60 * time.Second)
+		}
+	}()
 	c.WebRoot = "/" + strings.Trim(c.WebRoot, "/") + "/"
 	if c.WebRoot == "//" {
 		c.WebRoot = "/"
@@ -205,7 +231,10 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	for {
 		buf := &bytes.Buffer{}
-		io.Copy(buf, f)
+		if _, err := io.Copy(buf, f); err != nil && err != io.EOF {
+			w.Write([]byte("ERROR receiving data from subprocess: " + err.Error()))
+			break
+		}
 		data := buf.String()
 		w.Write([]byte(data))
 		flusher.Flush()
@@ -837,14 +866,22 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = c.jobqueue.Add()
+	if err != nil {
+		http.Error(w, "job queue full", http.StatusNotAcceptable)
+		return
+	}
+
 	ex, err := os.Executable()
 	if err != nil {
+		c.jobqueue.Remove()
 		http.Error(w, "unable to get path to aerolab executable: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	rootDir, err := a.aerolabRootDir()
 	if err != nil {
+		c.jobqueue.Remove()
 		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -855,6 +892,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	run := exec.CommandContext(ctx, ex, "webrun")
 	stdin, err := run.StdinPipe()
 	if err != nil {
+		c.jobqueue.Remove()
 		http.Error(w, "unable to get stdin: "+err.Error(), http.StatusInternalServerError)
 		cancel()
 		return
@@ -862,6 +900,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 
 	f, err := os.Create(fn)
 	if err != nil {
+		c.jobqueue.Remove()
 		http.Error(w, "unable to create logfile: "+err.Error(), http.StatusInternalServerError)
 		cancel()
 		return
@@ -875,30 +914,39 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	run.Stdout = f
 
 	go func() {
-		stdin.Write([]byte(strings.TrimPrefix(r.URL.Path, c.WebRoot) + "-=-=-=-"))
-		json.NewEncoder(stdin).Encode(cjson)
-		stdin.Close()
-	}()
-
-	err = run.Start()
-	if err != nil {
-		http.Error(w, "run failed: "+err.Error(), http.StatusInternalServerError)
-		f.Close()
-		cancel()
-		return
-	}
-	c.joblist.Add(requestID, run)
-	go func(run *exec.Cmd, requestID string) {
-		err := run.Wait()
-		c.joblist.Delete(requestID)
+		c.jobqueue.Start()
+		err = run.Start()
 		if err != nil {
-			f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\n" + err.Error() + "\n")
-		} else {
-			f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\nsuccess\n")
+			c.jobqueue.End()
+			c.jobqueue.Remove()
+			stdin.Close()
+			f.WriteString("-=-=-=-=- [Subprocess failed to start] -=-=-=-=-\n" + err.Error() + "\n")
+			f.Close()
+			cancel()
+			return
 		}
-		f.WriteString("-=-=-=-=- [END] -=-=-=-=-")
-		f.Close()
-		cancel()
-	}(run, requestID)
+		go func() {
+			stdin.Write([]byte(strings.TrimPrefix(r.URL.Path, c.WebRoot) + "-=-=-=-"))
+			json.NewEncoder(stdin).Encode(cjson)
+			stdin.Close()
+		}()
+
+		c.joblist.Add(requestID, run)
+
+		go func(run *exec.Cmd, requestID string) {
+			err := run.Wait()
+			c.joblist.Delete(requestID)
+			if err != nil {
+				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\n" + err.Error() + "\n")
+			} else {
+				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\nsuccess\n")
+			}
+			f.WriteString("-=-=-=-=- [END] -=-=-=-=-")
+			f.Close()
+			cancel()
+			c.jobqueue.End()
+			c.jobqueue.Remove()
+		}(run, requestID)
+	}()
 	w.Write([]byte(requestID))
 }
