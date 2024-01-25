@@ -6,8 +6,6 @@
 3. add telemetry for webui
 
 ## Required
-* `aerolab config defaults` - why is it so short in the webui
-* `aerolab config defaults` - if change happened, reload the defaults in webui generator
 * Bug with new naming conventions in docker - if old name exists, will attempt to start new name and fail as image not found
 * Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
 * add support for special "owner/user" header to auto-set owner and account the job to a specific user; if header present, do not allow owner edit in webui
