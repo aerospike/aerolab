@@ -17,6 +17,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -39,11 +41,39 @@ type webCmd struct {
 	commands        []*apiCommand
 	commandsIndex   map[string]int
 	titler          cases.Caser
+	joblist         *jobTrack
+}
+
+type jobTrack struct {
+	sync.Mutex
+	j map[string]*exec.Cmd
+}
+
+func (j *jobTrack) Add(jobID string, cmd *exec.Cmd) {
+	j.Lock()
+	defer j.Unlock()
+	j.j[jobID] = cmd
+}
+
+func (j *jobTrack) Delete(jobID string) {
+	j.Lock()
+	defer j.Unlock()
+	delete(j.j, jobID)
+}
+
+func (j *jobTrack) Get(jobID string) *exec.Cmd {
+	j.Lock()
+	defer j.Unlock()
+	answer := j.j[jobID]
+	return answer
 }
 
 func (c *webCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
+	}
+	c.joblist = &jobTrack{
+		j: make(map[string]*exec.Cmd),
 	}
 	c.WebRoot = "/" + strings.Trim(c.WebRoot, "/") + "/"
 	if c.WebRoot == "//" {
@@ -93,17 +123,69 @@ func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path.Join(c.WebPath, strings.TrimPrefix(r.URL.Path, c.WebRoot)))
 }
 
+func (c *webCmd) jobAction(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	requestID := shortuuid.New()
+	log.Printf("[%s] %s:%s", requestID, r.Method, r.RequestURI)
+	if c.DebugRequests {
+		for k, v := range r.PostForm {
+			log.Printf("[%s]    %s=%s", requestID, k, v)
+		}
+	}
+
+	urlParse := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot), "/"), "/")
+	jobID := urlParse[len(urlParse)-1]
+	actions := r.PostForm["action"]
+	if len(actions) == 0 {
+		actions = []string{"sigint"}
+	}
+	run := c.joblist.Get(jobID)
+	if run == nil {
+		http.Error(w, "JobID not found, or job already complete", http.StatusBadRequest)
+		return
+	}
+	if run.ProcessState != nil {
+		http.Error(w, "Job already complete", http.StatusBadRequest)
+		return
+	}
+	if run.Process == nil {
+		http.Error(w, "Job not running", http.StatusBadRequest)
+		return
+	}
+	var err error
+	switch actions[0] {
+	case "sigint":
+		err = run.Process.Signal(os.Interrupt)
+	case "sigterm":
+		err = run.Process.Signal(syscall.SIGTERM)
+	case "sigkill":
+		err = run.Process.Signal(os.Kill)
+	default:
+		http.Error(w, "abort signal type not supported", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		http.Error(w, "Failed to send signal to process: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte("OK"))
+}
+
 func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		c.jobAction(w, r)
+		return
+	}
 	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
+
+	urlParse := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot), "/"), "/")
+	requestID := urlParse[len(urlParse)-1]
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
-
-	urlParse := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot), "/"), "/")
-	requestID := urlParse[len(urlParse)-1]
-
 	rootDir, err := a.aerolabRootDir()
 	if err != nil {
 		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
@@ -805,8 +887,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		cancel()
 		return
 	}
-	go func(run *exec.Cmd) {
+	c.joblist.Add(requestID, run)
+	go func(run *exec.Cmd, requestID string) {
 		err := run.Wait()
+		c.joblist.Delete(requestID)
 		if err != nil {
 			f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\n" + err.Error() + "\n")
 		} else {
@@ -815,6 +899,6 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		f.WriteString("-=-=-=-=- [END] -=-=-=-=-")
 		f.Close()
 		cancel()
-	}(run)
+	}(run, requestID)
 	w.Write([]byte(requestID))
 }
