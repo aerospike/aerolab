@@ -3,7 +3,6 @@
 ## Split required
 1. release single-user version
 2. next release: multi-user support
-3. add telemetry for webui
 
 ## Required
 * Bug with new naming conventions in docker - if old name exists, will attempt to start new name and fail as image not found

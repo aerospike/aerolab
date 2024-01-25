@@ -309,10 +309,15 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	if b != nil {
 		b.WorkOnServers()
 	}
+	log.SetOutput(&tStderr{})
+	// webui call: exit early, webrun will trigger telemetry separately
+	if len(os.Args) >= 1 && os.Args[1] == "webrun" {
+		return false
+	}
+
 	telemetryNoSaveMutex.Lock()
 	expiryTelemetryLock.Lock()
-	log.SetOutput(&tStderr{})
-	go a.telemetry()
+	go a.telemetry("")
 	/*
 		err = a.telemetry()
 		if err != nil {
@@ -348,19 +353,15 @@ func (t *tStderr) Write(b []byte) (int, error) {
 	return os.Stderr.Write(b)
 }
 
-func (a *aerolab) telemetry() error {
+func (a *aerolab) telemetry(webuiData string) error {
 	defer expiryTelemetryLock.Unlock()
 	defer telemetryNoSaveMutex.Unlock()
 	// basic checks
 	if len(os.Args) < 2 {
 		return nil
 	}
-	// disable telemetry on webui - this needs to be done differently in the future (disable if `config defaults`, otherwise enable, but get data from weblog)
-	if len(os.Args) >= 1 && os.Args[1] == "webrun" {
-		return nil
-	}
 	// do not ship config defaults command usage
-	if os.Args[1] == "config" && os.Args[2] == "defaults" {
+	if os.Args[1] == "config" && os.Args[2] == "defaults" { // TODO if config/defaults as part of webui, also return nil
 		return nil
 	}
 	// only enable if a feature file is present and belongs to Aerospike internal users
@@ -447,6 +448,7 @@ func (a *aerolab) telemetry() error {
 	currentTelemetry.CmdLine = os.Args[1:]
 	currentTelemetry.Version = telemetryVersion
 	currentTelemetry.AeroLabVersion = version
+	currentTelemetry.WebUI.Data = webuiData
 
 	// add changed default values to the item
 	ret := make(chan configValueCmd, 1)
@@ -561,6 +563,9 @@ type telemetryItem struct {
 	Error           *string
 	Stderr          []string
 	StderrTruncated bool
+	WebUI           struct {
+		Data string
+	}
 }
 
 type telemetryDefault struct {
