@@ -1,4 +1,5 @@
 # TODO items before release - WIP notes
+* modal with command should have more buttons: namely - abort (sigint), terminate (sigterm) and kill (sigkill)
 * cleanup history files to only store X number of jobs (per user/global?) - never delete running jobs
 * Shannon bug - if old-style name exists, it will attempt to use new-style name and die on docker
 * logfile for cmdWeb - owner; also pass owner to called functions, and set owner based on header; if owner header is set
