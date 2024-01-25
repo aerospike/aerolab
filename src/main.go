@@ -355,6 +355,10 @@ func (a *aerolab) telemetry() error {
 	if len(os.Args) < 2 {
 		return nil
 	}
+	// disable telemetry on webui - this needs to be done differently in the future (disable if `config defaults`, otherwise enable, but get data from weblog)
+	if len(os.Args) >= 1 && os.Args[1] == "webrun" {
+		return nil
+	}
 	// do not ship config defaults command usage
 	if os.Args[1] == "config" && os.Args[2] == "defaults" {
 		return nil

@@ -76,6 +76,7 @@ function showCommandOut(jobId) {
     var last_response_len = false;
     var isLog = false;
     var ntitle = "";
+    var ansi_up = new AnsiUp();
     commandOutXhr = $.ajax("{{.WebRoot}}job/"+jobId, {
         xhrFields: {
             onprogress: function(e)
@@ -92,12 +93,12 @@ function showCommandOut(jobId) {
                     last_response_len = response.length;
                 }
                 if (isLog) {
-                    $("#xlModalBody").append(this_response);
+                    $("#xlModalBody").append(ansi_up.ansi_to_html(this_response));
                 } else {
                     var lines = this_response.split("\n");
                     for(var i = 0;i < lines.length;i++){
                         if (isLog) {
-                            $("#xlModalBody").append(lines[i]+"\n");
+                            $("#xlModalBody").append(ansi_up.ansi_to_html(lines[i])+"\n");
                         } else if (lines[i].includes("-=-=-=-=- [Log] -=-=-=-=-")) {
                             isLog = true;
                             if (lines[i+1] == "") {
@@ -222,4 +223,5 @@ $(function () {
     })
     getCommand();
   })
+{{template "ansiup" .}}
 {{end}}
