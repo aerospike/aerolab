@@ -22,6 +22,9 @@ func (c *webRunCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	telemetryNoSaveMutex.Lock()
+	expiryTelemetryLock.Lock()
+	go a.telemetry(string(j))
 	js := strings.Split(string(j), "-=-=-=-")
 	if len(js) != 2 {
 		return errors.New("malform request")
