@@ -72,9 +72,12 @@ function hideCommandOut() {
 }
 
 function showCommandOut(jobId) {
+    $("#xlModalSpinner").hide();
     $("#modal-xl").modal("show");
     $("#xlModalTitle").html('Loading <div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>');
     $("#xlModalBody").text("");
+    $("#abrtJobId").val(jobId);
+    $("#abrtButton").show();
     var last_response_len = false;
     var isLog = false;
     var ntitle = "";
@@ -130,6 +133,7 @@ function showCommandOut(jobId) {
     .always(function() {
         commandOutXhr = false;
         $("#xlModalTitle").html(ntitle);
+        $("#abrtButton").hide();
     });
 }
 
@@ -183,6 +187,41 @@ $("#btnCopyLog").click(function(){
     navigator.clipboard.writeText($("#xlModalBody").text());
     toastr.success("Copied to clipboard");
 })
+
+$("#abrtSigInt").click(function(){ 
+    abortCommand("sigint");
+})
+
+$("#abrtSigTerm").click(function(){ 
+    abortCommand("sigterm");
+})
+
+$("#abrtSigKill").click(function(){ 
+    abortCommand("sigkill");
+})
+
+function abortCommand(signal) {
+    $("#xlModalSpinner").show();
+    jobId = $("#abrtJobId").val();
+    $.post("{{.WebRoot}}job/"+jobId, "action="+signal,function(data) {
+        console.log(data);
+    }, "text")
+    .fail(function(data) {
+        let body = data.responseText;
+        if ((data.status == 0)&&(body == undefined)) {
+            body = "Connection Error";
+        }
+        $(document).Toasts('create', {
+            class: 'bg-danger',
+            title: 'ERROR',
+            subtitle: data.statusText,
+            body: body
+        })
+    })
+    .always(function(data) {
+        $("#xlModalSpinner").hide();
+    });
+}
 
 $(function () {
     $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", boundary: "viewport" });

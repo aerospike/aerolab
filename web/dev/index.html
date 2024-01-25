@@ -131,6 +131,9 @@
   <div class="modal fade" id="modal-xl">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
       <div class="modal-content">
+        <div class="overlay" id="xlModalSpinner">
+          <i class="fas fa-2x fa-sync fa-spin"></i>
+        </div>
         <div class="modal-header">
           <h4 class="modal-title" id="xlModalTitle"></h4>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="hideCommandOut();">
@@ -140,9 +143,20 @@
         <div class="modal-body">
           <div class="highlight"><pre class="highlight"><code id="xlModalBody"></code></pre></div>
         </div>
+        <input type="hidden" name="abrtJobId" id="abrtJobId">
         <div class="modal-footer justify-content-between">
-          <button type="button" class="btn btn-default" data-dismiss="modal" onclick="hideCommandOut();">Close</button>
-          <button type="button" class="btn btn-default" id="btnCopyLog" data-toggle="tooltip" title="Copy run log to clipboard"><span class="fas fa-clipboard"></span></button>
+          <button type="button" class="btn btn-primary" data-dismiss="modal" onclick="hideCommandOut();">Close</button>
+          <div class="btn-group dropup" id="abrtButton">
+            <button type="button" class="btn btn-danger dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+              Abort
+            </button>
+            <div class="dropdown-menu">
+              <a class="dropdown-item" href="#" id="abrtSigInt">Clean Interrupt</a>
+              <a class="dropdown-item" href="#" id="abrtSigTerm">Terminate</a>
+              <a class="dropdown-item" href="#" id="abrtSigKill">Kill</a>
+            </div>
+          </div>
+          <button type="button" class="btn btn-primary" id="btnCopyLog" data-toggle="tooltip" title="Copy run log to clipboard"><span class="fas fa-clipboard"></span></button>
         </div>
       </div>
     </div>
