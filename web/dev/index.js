@@ -109,7 +109,7 @@ function showCommandOut(jobId) {
                             let ncmdline = lines[i].replace(/^-=-=-=-=- \[cmdline\]/,"").replace(/ -=-=-=-=-$/,"");
                             $("#xlModalBody").append("$" + ncmdline+"\n\n");
                         } else if (lines[i].includes("-=-=-=-=- [command]")) {
-                            ntitle = lines[i].replace(/^-=-=-=-=- \[command\]/,"").replace(/ -=-=-=-=-$/,"");
+                            ntitle = "aerolab " + lines[i].replace(/^-=-=-=-=- \[command\]/,"").replace(/ -=-=-=-=-$/,"");
                             $("#xlModalTitle").html(ntitle+' <div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>');
                         };
                     }
@@ -176,6 +176,11 @@ $("#btnShowCommand").click(function(){
 
 $("#btnCopyCommand").click(function(){ 
     navigator.clipboard.writeText(formCommand);
+    toastr.success("Copied to clipboard");
+})
+
+$("#btnCopyLog").click(function(){ 
+    navigator.clipboard.writeText($("#xlModalBody").text());
     toastr.success("Copied to clipboard");
 })
 
