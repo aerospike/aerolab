@@ -128,6 +128,26 @@
     <!-- /.sidebar -->
   </aside>
 
+  <div class="modal fade" id="modal-xl">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title" id="xlModalTitle"></h4>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="highlight"><pre class="highlight"><code id="xlModalBody"></code></pre></div>
+        </div>
+        <div class="modal-footer justify-content-between">
+          <button type="button" class="btn btn-default" data-dismiss="modal" onclick="hideCommandOut();">Close</button>
+          <button type="button" class="btn btn-default" id="btnCopyLog" data-toggle="tooltip" title="Copy run log to clipboard"><span class="fas fa-clipboard"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Content Wrapper. Contains page content -->
   <div class="content-wrapper">
     &nbsp;
@@ -278,7 +298,7 @@
 <script src="{{.WebRoot}}plugins/select2/js/select2.full.min.js"></script>
 <!-- toastr -->
 <script src="{{.WebRoot}}plugins/toastr/toastr.min.js"></script>
-<script>{{template "mainjs"}}</script>
+<script>{{template "mainjs" .}}</script>
 </body>
 </html>
 {{end}}
