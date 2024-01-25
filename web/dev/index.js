@@ -106,7 +106,10 @@ function showCommandOut(jobId) {
                                 i++;
                             }
                         } else if (lines[i].includes("-=-=-=-=- [cmdline]")) {
-                            ntitle = lines[i].replace(/^-=-=-=-=- \[cmdline\]/,"").replace(/ -=-=-=-=-$/,"");
+                            let ncmdline = lines[i].replace(/^-=-=-=-=- \[cmdline\]/,"").replace(/ -=-=-=-=-$/,"");
+                            $("#xlModalBody").append("$" + ncmdline+"\n\n");
+                        } else if (lines[i].includes("-=-=-=-=- [command]")) {
+                            ntitle = lines[i].replace(/^-=-=-=-=- \[command\]/,"").replace(/ -=-=-=-=-$/,"");
                             $("#xlModalTitle").html(ntitle+' <div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>');
                         };
                     }
