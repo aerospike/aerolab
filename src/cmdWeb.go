@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -76,6 +78,7 @@ func (c *webCmd) Execute(args []string) error {
 	}
 	http.HandleFunc(c.WebRoot+"dist/", c.static)
 	http.HandleFunc(c.WebRoot+"plugins/", c.static)
+	http.HandleFunc(c.WebRoot+"job/", c.jobs)
 	http.HandleFunc(c.WebRoot, c.serve)
 	if c.WebRoot != "/" {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -88,6 +91,50 @@ func (c *webCmd) Execute(args []string) error {
 
 func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path.Join(c.WebPath, strings.TrimPrefix(r.URL.Path, c.WebRoot)))
+}
+
+func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	urlParse := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot), "/"), "/")
+	requestID := urlParse[len(urlParse)-1]
+
+	rootDir, err := a.aerolabRootDir()
+	if err != nil {
+		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fn := path.Join(rootDir, "weblog", requestID+".log")
+	f, err := os.Open(fn)
+	if err != nil {
+		http.Error(w, "job not found", http.StatusBadRequest)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+	start := time.Now()
+	for {
+		buf := &bytes.Buffer{}
+		io.Copy(buf, f)
+		data := buf.String()
+		w.Write([]byte(data))
+		flusher.Flush()
+		if strings.Contains(data, "-=-=-=-=- [END] -=-=-=-=-") {
+			break
+		}
+		if time.Since(start) > c.AbsoluteTimeout {
+			break
+		}
+		time.Sleep(time.Second)
+	}
 }
 
 func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser, commands []*apiCommand, commandsIndex map[string]int, spath string, hiddenItems []string) (ret []*webui.MenuItem) {
@@ -720,42 +767,53 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	os.Mkdir(path.Join(rootDir, "weblog"), 0755)
-	fn := path.Join(rootDir, "weblog", time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
+	fn := path.Join(rootDir, "weblog", requestID+".log") //time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.AbsoluteTimeout)
-	defer cancel()
 	run := exec.CommandContext(ctx, ex, "webrun")
 	stdin, err := run.StdinPipe()
 	if err != nil {
 		http.Error(w, "unable to get stdin: "+err.Error(), http.StatusInternalServerError)
+		cancel()
 		return
 	}
 
 	f, err := os.Create(fn)
 	if err != nil {
 		http.Error(w, "unable to create logfile: "+err.Error(), http.StatusInternalServerError)
+		cancel()
 		return
 	}
-	defer f.Close()
 	f.WriteString("-=-=-=-=- [path] /" + strings.TrimPrefix(r.URL.Path, c.WebRoot) + " -=-=-=-=-\n")
 	f.WriteString("-=-=-=-=- [cmdline] " + strings.Join(cmdline, " ") + " -=-=-=-=-\n")
 	json.NewEncoder(f).Encode(cjson)
 	f.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
-	run.Stdout = f
 	run.Stderr = f
+	run.Stdout = f
 
 	go func() {
 		stdin.Write([]byte(strings.TrimPrefix(r.URL.Path, c.WebRoot) + "-=-=-=-"))
 		json.NewEncoder(stdin).Encode(cjson)
 		stdin.Close()
 	}()
-	// TODO: run in background, respond to client with requestID and exit this function
-	// TODO: background should be the one to defer f.Close(), and the one to defer cancel(), it should run.Run()
-	// TODO: we will need endpoints to stream log file output to client
-	// TODO: js: modal with progress output
-	err = run.Run()
+
+	err = run.Start()
 	if err != nil {
 		http.Error(w, "run failed: "+err.Error(), http.StatusInternalServerError)
+		f.Close()
+		cancel()
 		return
 	}
+	go func(run *exec.Cmd) {
+		err := run.Wait()
+		if err != nil {
+			f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\n" + err.Error() + "\n")
+		} else {
+			f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\nsuccess\n")
+		}
+		f.WriteString("-=-=-=-=- [END] -=-=-=-=-")
+		f.Close()
+		cancel()
+	}(run)
+	w.Write([]byte(requestID))
 }

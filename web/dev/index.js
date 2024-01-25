@@ -36,21 +36,99 @@ function pendingActionShowAll(id) {
     console.log(isChecked); // TODO
 }
 
+var formCommand = "";
+
 $("#btnRun").click(function(){
     $("#loadingSpinner").show();
-    // TODO below
     document.getElementById("action").value = "run";
+    document.getElementById("useShortSwitches").value = document.getElementById("shortSwitches").checked;
     $.post("", $("#mainForm").serialize(), function(data) {
-        console.log(data);
-    }, "json")
+        toastr.success("Job started successfully");
+        showCommandOut(data);
+    })
     .fail(function(data) {
-        console.log(data.responseText);
-    }).always(function() {
+        let body = data.responseText;
+        if ((data.status == 0)&&(body == undefined)) {
+            body = "Connection Error";
+        }
+        $(document).Toasts('create', {
+            class: 'bg-danger',
+            title: 'ERROR',
+            subtitle: data.statusText,
+            body: body
+        })
+    })
+    .always(function() {
         $("#loadingSpinner").hide();
     });
 })
 
-var formCommand = "";
+var commandOutXhr = false;
+
+function hideCommandOut() {
+    if (commandOutXhr != false) {
+        commandOutXhr.abort();
+    }
+}
+
+function showCommandOut(jobId) {
+    $("#modal-xl").modal("show");
+    $("#xlModalTitle").html('Loading <div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>');
+    $("#xlModalBody").text("");
+    var last_response_len = false;
+    var isLog = false;
+    var ntitle = "";
+    commandOutXhr = $.ajax("{{.WebRoot}}job/"+jobId, {
+        xhrFields: {
+            onprogress: function(e)
+            {
+                var this_response, response = e.currentTarget.response;
+                if(last_response_len === false)
+                {
+                    this_response = response;
+                    last_response_len = response.length;
+                }
+                else
+                {
+                    this_response = response.substring(last_response_len);
+                    last_response_len = response.length;
+                }
+                if (isLog) {
+                    $("#xlModalBody").append(this_response);
+                } else {
+                    var lines = this_response.split("\n");
+                    for(var i = 0;i < lines.length;i++){
+                        if (isLog) {
+                            $("#xlModalBody").append(lines[i]+"\n");
+                        } else if (lines[i].includes("-=-=-=-=- [Log] -=-=-=-=-")) {
+                            isLog = true;
+                            if (lines[i+1] == "") {
+                                i++;
+                            }
+                        } else if (lines[i].includes("-=-=-=-=- [cmdline]")) {
+                            ntitle = lines[i].replace(/^-=-=-=-=- \[cmdline\]/,"").replace(/ -=-=-=-=-$/,"");
+                            $("#xlModalTitle").html(ntitle+' <div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>');
+                        };
+                    }
+                };
+            }
+        }
+    }, "text")
+    .fail(function(data) {
+        if (data.statusText == "abort") {
+            return;
+        }
+        let body = data.responseText;
+        if ((data.status == 0)&&(body == undefined)) {
+            body = "Connection Error";
+        }
+        toastr.error("ERROR: "+body);
+    })
+    .always(function() {
+        commandOutXhr = false;
+        $("#xlModalTitle").html(ntitle);
+    });
+}
 
 function getCommand() {
     $("#loadingSpinner").show();

@@ -1,6 +1,6 @@
 # TODO items before release - WIP notes
+* cleanup history files to only store X number of jobs (per user/global?) - never delete running jobs
 * Shannon bug - if old-style name exists, it will attempt to use new-style name and die on docker
-* Shannon bug - v7.0.0.3 docker - doesn't patch logging?
 * logfile for cmdWeb - owner; also pass owner to called functions, and set owner based on header; if owner header is set
 * non-interactive - never attempt to ask user if they are sure, disable `less`...or allow interactive mode?
 * new form type: upload file - tmp file upload and fill into form

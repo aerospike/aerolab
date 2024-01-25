@@ -55,7 +55,7 @@ func (c *webRunCmd) Execute(args []string) error {
 
 	outv := v.Addr().MethodByName("Execute").Call(tail)
 	out := outv[0].Interface()
-	switch out.(type) {
+	switch err := out.(type) {
 	case error:
 		return err
 	}
