@@ -51,12 +51,7 @@ $("#btnRun").click(function(){
         if ((data.status == 0)&&(body == undefined)) {
             body = "Connection Error";
         }
-        $(document).Toasts('create', {
-            class: 'bg-danger',
-            title: 'ERROR',
-            subtitle: data.statusText,
-            body: body
-        })
+        toastr.error(data.statusText+": "+body);
     })
     .always(function() {
         $("#loadingSpinner").hide();
@@ -162,12 +157,7 @@ function getCommand() {
         if ((data.status == 0)&&(body == undefined)) {
             body = "Connection Error";
         }
-        $(document).Toasts('create', {
-            class: 'bg-danger',
-            title: 'ERROR',
-            subtitle: data.statusText,
-            body: body
-        })
+        toastr.error(data.statusText+": "+body);
     })
     .always(function(data) {
         $("#loadingSpinner").hide();
@@ -211,12 +201,7 @@ function abortCommand(signal) {
         if ((data.status == 0)&&(body == undefined)) {
             body = "Connection Error";
         }
-        $(document).Toasts('create', {
-            class: 'bg-danger',
-            title: 'ERROR',
-            subtitle: data.statusText,
-            body: body
-        })
+        toastr.error(data.statusText+": "+body);
     })
     .always(function(data) {
         $("#xlModalSpinner").hide();

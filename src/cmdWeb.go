@@ -626,6 +626,18 @@ func (c *webCmd) switchName(useShortSwitches bool, tag reflect.StructTag) string
 	return "--" + tag.Get("long")
 }
 
+func (c *webCmd) getFieldNames(cmd reflect.Value) []string {
+	fnames := []string{}
+	for x := 0; x < cmd.NumField(); x++ {
+		if !cmd.Type().Field(x).Anonymous {
+			fnames = append(fnames, cmd.Type().Field(x).Name)
+		} else {
+			fnames = append(fnames, c.getFieldNames(cmd.Field(x))...)
+		}
+	}
+	return fnames
+}
+
 func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	// log method, URI and parameters
 	err := r.ParseForm()
@@ -710,11 +722,12 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		paramj := kjPath[len(kjPath)-1]
 		indexi := -1
 		indexj := -1
-		for x := 0; x < cmd.NumField(); x++ {
-			if cmd.Type().Field(x).Name == parami {
+		fieldNames := c.getFieldNames(cmd)
+		for x, name := range fieldNames {
+			if name == parami {
 				indexi = x
 			}
-			if cmd.Type().Field(x).Name == paramj {
+			if name == paramj {
 				indexj = x
 			}
 			if indexi >= 0 && indexj >= 0 {
