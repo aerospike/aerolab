@@ -605,7 +605,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Menu.Items.Set(r.URL.Path)
 	www := os.DirFS(c.WebPath)
-	t, err := template.ParseFS(www, "index.html", "index.js", "index.css", "highlighter.css")
+	t, err := template.ParseFS(www, "index.html", "index.js", "index.css", "highlighter.css", "ansiup.js")
 	if err != nil {
 		log.Fatal(err)
 	}
