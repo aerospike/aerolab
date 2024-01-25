@@ -26,6 +26,7 @@ import (
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
+	flags "github.com/rglonek/jeddevdk-goflags"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -959,6 +960,41 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			cancel()
 			c.jobqueue.End()
 			c.jobqueue.Remove()
+			// TODO: if command was 'config defaults' and contained post form values `xxxReset` or `xxxValue` set, reload aerolab defaults
+			if c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != "")) {
+				log.Printf("[%s] Reloading interface defaults", requestID)
+				a.opts = new(commands)
+				a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+				a.iniParser = flags.NewIniParser(a.parser)
+				a.parseFile()
+				a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+				for command, switchList := range backendSwitches {
+					keys := strings.Split(strings.ToLower(string(command)), ".")
+					var nCmd *flags.Command
+					for i, key := range keys {
+						if i == 0 {
+							nCmd = a.parser.Find(key)
+						} else {
+							nCmd = nCmd.Find(key)
+						}
+					}
+					for backend, switches := range switchList {
+						grp, err := nCmd.AddGroup(string(backend), string(backend), switches)
+						if err != nil {
+							logExit(err)
+						}
+						if string(backend) != a.opts.Config.Backend.Type {
+							grp.Hidden = true
+						}
+					}
+				}
+				a.iniParser = flags.NewIniParser(a.parser)
+				a.early = true
+				a.parseArgs(os.Args[1:])
+				a.parseFile()
+				c.genMenu()
+				log.Printf("[%s] Reloaded interface defaults", requestID)
+			}
 		}(run, requestID)
 	}()
 	w.Write([]byte(requestID))
