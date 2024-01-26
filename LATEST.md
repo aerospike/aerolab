@@ -10,6 +10,7 @@ _Release Date: UNDEF_
 * FIX: The `net list` command does not work when client has same name as server.
 * FIX: The `net loss-delay` feature would fail to activate a python environment.
 * FIX: Docker: Regression - underscores in cluster names are allowed and should work.
+* FIX: Docker: Issue with using new template naming conventions when old templates exist.
 * FIX: AGI: AGI Commands would panic if cluster is not found.
 * FIX: AGI: Default sftp threads to 1 and s3 threads to 4.
 * FIX: AGI: Port 443 on AGI firewall in GCP should not lock to caller's IP by default.
