@@ -136,6 +136,15 @@
         </div>
         <div class="modal-header">
           <h4 class="modal-title" id="xlModalTitle"></h4>
+          <div class="btn-group dropup" id="abrtButton">
+            &nbsp;&nbsp;<button type="button" class="btn btn-danger dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+              Abort
+            </button>
+            <div class="dropdown-menu">
+              <a class="dropdown-item" href="#" id="abrtSigInt">Clean Terminate</a>
+              <a class="dropdown-item" href="#" id="abrtSigKill">Kill</a>
+            </div>
+          </div>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="hideCommandOut();">
             <span aria-hidden="true">&times;</span>
           </button>
@@ -146,15 +155,6 @@
         <input type="hidden" name="abrtJobId" id="abrtJobId">
         <div class="modal-footer justify-content-between">
           <button type="button" class="btn btn-primary" data-dismiss="modal" onclick="hideCommandOut();">Close</button>
-          <div class="btn-group dropup" id="abrtButton">
-            <button type="button" class="btn btn-danger dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
-              Abort
-            </button>
-            <div class="dropdown-menu">
-              <a class="dropdown-item" href="#" id="abrtSigInt">Clean Terminate</a>
-              <a class="dropdown-item" href="#" id="abrtSigKill">Kill</a>
-            </div>
-          </div>
           <button type="button" class="btn btn-primary" id="btnCopyLog" data-toggle="tooltip" title="Copy run log to clipboard"><span class="fas fa-clipboard"></span></button>
         </div>
       </div>
