@@ -988,8 +988,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			cancel()
 			c.jobqueue.End()
 			c.jobqueue.Remove()
-			// TODO: if command was 'config defaults' and contained post form values `xxxReset` or `xxxValue` set, reload aerolab defaults
-			if c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != "")) {
+			if c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != "")) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
 				log.Printf("[%s] Reloading interface defaults", requestID)
 				a.opts = new(commands)
 				a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)

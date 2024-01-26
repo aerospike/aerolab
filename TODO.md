@@ -8,7 +8,6 @@
 * home page, with config options (and getting started page saying "try these 1,2,3..." and/or quick-access common items like cluster create)
 * special inventory page(s) for all list items
 * fill the actions top-level dropdown, show success/fail/in-progress in pending-action section
-* struct tag to mark some elements in webui should not be forms but show as "not implemented in webui" - like webui, rest commands
 * file choice for upload form type: user to select local path, fill that in the edit box
 * check and finish alignments of html (prettify)
 * command line form show element - float in footer; also move the Run button to the command line element, away from the form itself
