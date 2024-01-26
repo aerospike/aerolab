@@ -216,10 +216,24 @@ function abortCommand(signal) {
     });
 }
 
+function getTooltipPlacement() {
+    let formSize = $("#formSize")
+    let pctSize = $(formSize).css("max-width").replace("%","");
+    if (pctSize <= 85) {
+        return "left";
+    }
+    return "top";
+}
+
+$( window ).on( "resize", function() {
+    $('[data-toggle="tooltipleft"]').tooltip('dispose');
+    $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: getTooltipPlacement(), fallbackPlacement:["bottom"], boundary: "viewport" });
+} );
+
 $(function () {
-    $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", boundary: "viewport" });
-    $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: "left", boundary: "viewport" });
-    $('[data-toggle="tooltiptop"]').tooltip({ trigger: "hover", placement: "top", boundary: "viewport" });
+    $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", fallbackPlacement:["bottom","top"], boundary: "viewport" });
+    $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: getTooltipPlacement(), fallbackPlacement:["bottom"], boundary: "viewport" });
+    $('[data-toggle="tooltiptop"]').tooltip({ trigger: "hover", placement: "top", fallbackPlacement:["left","right"], boundary: "viewport" });
     $('.select2bs4').select2({
         theme: 'bootstrap4'
     })
