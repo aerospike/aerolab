@@ -271,7 +271,7 @@ func (c *agiRelabelCmd) Execute(args []string) error {
 type agiAttachCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
 	Detach      bool            `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C"`
-	Tail        []string        `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]"`
+	Tail        []string        `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]" webrequired:"true"`
 	Help        attachCmdHelp   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

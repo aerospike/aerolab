@@ -9,9 +9,8 @@
 * special inventory page(s) for all list items
 * fill the actions top-level dropdown, show success/fail/in-progress in pending-action section
 * struct tag to mark some elements in webui should not be forms but show as "not implemented in webui" - like webui, rest commands
-* disallow attach without tail
-* struct tag: required - this should show a star next to required items, and JS should, on submit attempt, check if all required items are filled in
 * file choice for upload form type: user to select local path, fill that in the edit box
+* check and finish alignments of html (prettify)
 
 ## 7.5.0
 * implement console for all attach commands

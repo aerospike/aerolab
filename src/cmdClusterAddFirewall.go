@@ -19,7 +19,7 @@ type clusterAddFirewallCmd struct {
 
 type clusterAddFirewallCmdGcp struct {
 	NamePrefix []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	Zone       string   `long:"zone" description:"zone name"`
+	Zone       string   `long:"zone" description:"zone name" webrequired:"true"`
 }
 
 type clusterAddFirewallCmdAws struct {

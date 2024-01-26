@@ -70,7 +70,7 @@ type aerospikeVersionSelectorCmd struct {
 
 type clusterCreateCmdAws struct {
 	AMI                 string        `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
-	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:""`
+	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:"" webrequired:"true"`
 	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
@@ -90,10 +90,10 @@ type clusterCreateCmdAws struct {
 
 type clusterCreateCmdGcp struct {
 	Image               string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
-	InstanceType        string        `long:"instance" description:"instance type to use" default:""`
+	InstanceType        string        `long:"instance" description:"instance type to use" default:"" webrequired:"true"`
 	Disks               []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
 	PublicIP            bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
-	Zone                string        `long:"zone" description:"zone name to deploy to"`
+	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	IsArm               bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices     bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`

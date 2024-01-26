@@ -12,7 +12,7 @@ type attachCmdTrino struct {
 	ClientName TypeClientName `short:"n" long:"name" description:"Client group name" default:"client"`
 	Machine    TypeMachines   `short:"l" long:"node" description:"Machine to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
 	Namespace  string         `short:"m" long:"namespace" description:"Namespace to use" default:"test"`
-	Tail       []string       `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]"`
+	Tail       []string       `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]" webrequired:"true"`
 	Help       attachCmdHelp  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
