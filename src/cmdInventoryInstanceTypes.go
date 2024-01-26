@@ -37,7 +37,7 @@ type inventoryInstanceTypesCmd struct {
 }
 
 type inventoryInstanceTypesCmdGcp struct {
-	Zone string `short:"z" long:"zone" description:"zone name to query"`
+	Zone string `short:"z" long:"zone" description:"zone name to query" webrequired:"true"`
 }
 
 func init() {

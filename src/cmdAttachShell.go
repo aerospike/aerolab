@@ -15,7 +15,7 @@ type attachShellCmd struct {
 	Node        TypeNodesPlusAllOption `short:"l" long:"node" description:"Node to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
 	Detach      bool                   `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C, disables parallel"`
 	Parallel    bool                   `long:"parallel" description:"enable parallel execution across all machines"`
-	Tail        []string               `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]"`
+	Tail        []string               `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]" webrequired:"true"`
 	Help        attachCmdHelp          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

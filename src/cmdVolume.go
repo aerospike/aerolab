@@ -65,7 +65,7 @@ func (c *volumeListCmd) Execute(args []string) error {
 
 type volumeResizeCmd struct {
 	Name string  `short:"n" long:"name" description:"EFS Name" default:"agi"`
-	Zone string  `short:"z" long:"zone" description:"Zone name to use"`
+	Zone string  `short:"z" long:"zone" description:"Zone name to use" webrequired:"true"`
 	Size int64   `short:"s" long:"size" description:"Volume SizeGB" default:"100"`
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -188,7 +188,7 @@ type volumeCreateCmd struct {
 }
 
 type volumeCreateGcpCmd struct {
-	Zone        string `short:"z" long:"zone" description:"Zone name to use"`
+	Zone        string `short:"z" long:"zone" description:"Zone name to use" webrequired:"true"`
 	Size        int64  `short:"s" long:"size" description:"Volume SizeGB" default:"100"`
 	Description string `short:"d" long:"description" description:"set the description field"`
 }
@@ -224,7 +224,7 @@ type volumeDetachCmd struct {
 	Name        string `short:"n" long:"name" description:"VOL Name" default:"agi"`
 	ClusterName string `short:"N" long:"cluster-name" description:"Cluster/Client Name from which to detach" default:"agi"`
 	Node        int    `short:"l" long:"node" description:"Node to detach from" default:"1"`
-	Zone        string `short:"z" long:"zone" description:"gcp zone"`
+	Zone        string `short:"z" long:"zone" description:"gcp zone" webrequired:"true"`
 	IsClient    bool   `short:"c" long:"is-client" description:"Specify mounting on client instead of cluster"`
 	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -552,7 +552,7 @@ type volumeDeleteCmd struct {
 }
 
 type volumeDeleteGcpCmd struct {
-	Zone string `short:"z" long:"zone" description:"Zone name to use"`
+	Zone string `short:"z" long:"zone" description:"Zone name to use" webrequired:"true"`
 }
 
 func (c *volumeDeleteCmd) Execute(args []string) error {

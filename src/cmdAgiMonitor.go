@@ -77,7 +77,7 @@ type agiMonitorCreateCmd struct {
 
 type agiMonitorCreateCmdGcp struct {
 	InstanceType string   `long:"gcp-instance" description:"instance type to use" default:"e2-medium"`
-	Zone         string   `long:"zone" description:"zone name to deploy to"`
+	Zone         string   `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	NamePrefix   []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
 	InstanceRole string   `hidden:"true" long:"gcp-role" description:"instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
 }

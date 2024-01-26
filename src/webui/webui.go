@@ -51,6 +51,7 @@ type FormItemInput struct {
 	Type        string
 	Default     string
 	Tags        bool
+	Required    bool
 }
 
 type FormItemSelect struct {
@@ -58,6 +59,7 @@ type FormItemSelect struct {
 	Description string
 	ID          string
 	Multiple    bool
+	Required    bool
 	Items       []*FormItemSelectItem
 }
 

@@ -34,7 +34,7 @@ type clusterAddExpiryCmd struct {
 }
 
 type clusterAddExpiryCmdGcp struct {
-	Zone string `long:"zone" description:"zone name where the nodes are"`
+	Zone string `long:"zone" description:"zone name where the nodes are" webrequired:"true"`
 }
 
 func init() {

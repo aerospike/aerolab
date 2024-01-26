@@ -357,6 +357,10 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 					multi = true
 				}
 				choices := []*webui.FormItemSelectItem{}
+				required := false
+				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
+					required = true
+				}
 				for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
 					isSelected := false
 					if choice == commandValue.Field(i).String() {
@@ -378,6 +382,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Description: tags.Get("description"),
 						Multiple:    multi,
 						Items:       choices,
+						Required:    required,
 					},
 				})
 			} else {
@@ -385,6 +390,10 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				textType := tags.Get("webtype")
 				if textType == "" {
 					textType = "text"
+				}
+				required := false
+				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
+					required = true
 				}
 				wf = append(wf, &webui.FormItem{
 					Type: webui.FormItemType{
@@ -396,6 +405,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Type:        textType,
 						Default:     commandValue.Field(i).String(),
 						Description: tags.Get("description"),
+						Required:    required,
 					},
 				})
 			}
@@ -481,6 +491,10 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 			for j := 0; j < commandValue.Field(i).Len(); j++ {
 				val = append(val, commandValue.Field(i).Index(j).String())
 			}
+			required := false
+			if tags.Get("webrequired") == "true" && len(val) == 0 {
+				required = true
+			}
 			wf = append(wf, &webui.FormItem{
 				Type: webui.FormItemType{
 					Input: true,
@@ -492,6 +506,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 					Default:     strings.Join(val, ","),
 					Description: tags.Get("description"),
 					Tags:        true,
+					Required:    required,
 				},
 			})
 		case reflect.Int64:
@@ -533,6 +548,10 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				if textType == "" {
 					textType = "text"
 				}
+				required := false
+				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
+					required = true
+				}
 				wf = append(wf, &webui.FormItem{
 					Type: webui.FormItemType{
 						Input: true,
@@ -543,6 +562,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Type:        textType,
 						Default:     commandValue.Field(i).String(),
 						Description: tags.Get("description"),
+						Required:    required,
 					},
 				})
 			} else {

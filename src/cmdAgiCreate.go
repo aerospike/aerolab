@@ -100,7 +100,7 @@ type agiCreateCmdAws struct {
 type agiCreateCmdGcp struct {
 	InstanceType        string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
 	Disks               []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
-	Zone                string        `long:"zone" description:"zone name to deploy to"`
+	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"agi-managed-external"`

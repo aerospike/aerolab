@@ -206,14 +206,14 @@
                   {{ if .Type.Input }}
                   {{if .Input.Tags}}
                   <div class="form-group" data-toggle="tooltipleft" title="{{.Input.Description}}">
-                    <label>{{.Input.Name}}</label>
-                    <select class="select2bs4tag" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}">
+                    <label>{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
+                    <select class="select2bs4tag{{if .Input.Required}} aerolab-required{{end}}" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}">
                     </select>
                   </div>
                   {{else}}
                   <div class="form-group">
-                    <label for="{{.Input.ID}}">{{.Input.Name}}</label>
-                    <input type="{{.Input.Type}}" class="form-control" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
+                    <label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
+                    <input type="{{.Input.Type}}" class="form-control{{if .Input.Required}} aerolab-required{{end}}" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
                   </div>
                   {{end}}
                   {{end}}
@@ -227,8 +227,8 @@
                   {{end}}
                   {{if .Type.Select}}
                   <div class="form-group" data-toggle="tooltipleft" title="{{.Select.Description}}">
-                    <label>{{.Select.Name}}</label>
-                    <select class="select2bs4"{{if .Select.Multiple}} multiple="multiple"{{end}} style="width: 100%;" id="{{.Select.ID}}" name="{{.Select.ID}}">
+                    <label>{{if .Select.Required}}* {{end}}{{.Select.Name}}</label>
+                    <select class="select2bs4{{if .Select.Required}} aerolab-required{{end}}"{{if .Select.Multiple}} multiple="multiple"{{end}} style="width: 100%;" id="{{.Select.ID}}" name="{{.Select.ID}}">
                     {{range .Select.Items}}
                     <option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>
                     {{end}}
@@ -319,7 +319,7 @@
 {{ define "menuItems" }}
 {{ range . }}
 <li class="nav-item{{if .HasChildren}} menu {{if .IsActive}}menu-open{{else}}menu-closed{{end}}{{end}}">
-  <a href="{{if .HasChildren}}#{{else}}{{.Href}}{{end}}" class="nav-link{{if .IsActive}} active{{.ActiveColor}}{{end}}" onclick="menuSetActive(this);" data-toggle="tooltip" title="{{.Tooltip}}">
+  <a href="{{if .HasChildren}}#{{else}}{{.Href}}{{end}}" class="nav-link{{if .IsActive}} active{{.ActiveColor}}{{end}}" data-toggle="tooltip" title="{{.Tooltip}}">
     <i class="nav-icon {{.Icon}}"></i>
     <p>
       {{.Name}}
