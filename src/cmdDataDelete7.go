@@ -77,6 +77,10 @@ func (c *dataDeleteCmd) delete7(args []string) error {
 		wg = make(chan int, c.UseMultiThreaded)
 	}
 	startTime := time.Now()
+	esc := "                   \r"
+	if isWebRun {
+		esc = "\n"
+	}
 	go func() {
 		for {
 			nsec := int(time.Since(startTime).Seconds())
@@ -86,7 +90,7 @@ func (c *dataDeleteCmd) delete7(args []string) error {
 			} else {
 				ttkn = deleted / nsec
 			}
-			fmt.Printf("Total records: %d , Deleted: %d , Subthreads running: %d , Records per second: %d                   \r", total, deleted, len(wg), ttkn)
+			fmt.Printf("Total records: %d , Deleted: %d , Subthreads running: %d , Records per second: %d"+esc, total, deleted, len(wg), ttkn)
 			time.Sleep(time.Second)
 		}
 	}()

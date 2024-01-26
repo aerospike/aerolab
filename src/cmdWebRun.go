@@ -10,6 +10,8 @@ import (
 	"strings"
 )
 
+var isWebRun = false
+
 type webRunCmd struct {
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -18,6 +20,7 @@ func (c *webRunCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
 	}
+	isWebRun = true
 	j, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return err

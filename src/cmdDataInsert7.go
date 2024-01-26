@@ -82,6 +82,10 @@ func (c *dataInsertCmd) insert7(args []string) error {
 		wg = make(chan int, c.UseMultiThreaded)
 	}
 	startTime := time.Now()
+	esc := "                   \r"
+	if isWebRun {
+		esc = "\n"
+	}
 	go func() {
 		for {
 			nsec := int(time.Since(startTime).Seconds())
@@ -91,7 +95,7 @@ func (c *dataInsertCmd) insert7(args []string) error {
 			} else {
 				ttkn = inserted / nsec
 			}
-			fmt.Printf("Total records: %d , Inserted: %d , Subthreads running: %d , Records per second: %d                   \r", total, inserted, len(wg), ttkn)
+			fmt.Printf("Total records: %d , Inserted: %d , Subthreads running: %d , Records per second: %d"+esc, total, inserted, len(wg), ttkn)
 			time.Sleep(time.Second)
 		}
 	}()
