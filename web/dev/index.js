@@ -59,7 +59,6 @@ function btnRun() {
     document.getElementById("action").value = "run";
     document.getElementById("useShortSwitches").value = document.getElementById("shortSwitches").checked;
     $.post("", $("#mainForm").serialize(), function(data) {
-        toastr.success("Job started successfully");
         showCommandOut(data);
     })
     .fail(function(data) {
