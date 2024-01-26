@@ -1,16 +1,15 @@
 # TODO for webui
 
 ## 7.4.0
+* command line form show element - float in footer; also move the Run button to the command line element, away from the form itself
 * Bug with new naming conventions in docker - if old name exists, will attempt to start new name and fail as image not found
-* Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
 * history - configurable max-per-user completed history items with background job cleaner (never account in cleaner for active job count); auto max based on day/week count instead of actual job count?
 * clear option should just keep is timestamp of when clear was pressed - don't show items prior to timestamp - cookie so browser-based choice
+* fill the actions top-level dropdown, show success/fail/in-progress in pending-action section
 * home page, with config options (and getting started page saying "try these 1,2,3..." and/or quick-access common items like cluster create)
 * special inventory page(s) for all list items
-* fill the actions top-level dropdown, show success/fail/in-progress in pending-action section
-* file choice for upload form type: user to select local path, fill that in the edit box
 * check and finish alignments of html (prettify)
-* command line form show element - float in footer; also move the Run button to the command line element, away from the form itself
+* Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
 
 ## 7.5.0
 * implement console for all attach commands
@@ -35,6 +34,8 @@
 ## Items to add to gh issues for future
 * allow loading a historical command into the form from previous run log or from command-line command (reverse-form-load)
 * right-sidebar - quick settings and inventory listing
+* local run single-user mode: file choice for upload form type: user to select local path, fill that in the edit box
+  * this will required a file-selector html talking to backend which will need to pass the file lists back to frontend to present a selector
 
 ## WIP Notes
 * pending-action-count: innerText
