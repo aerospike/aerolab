@@ -183,10 +183,6 @@ $("#abrtSigInt").click(function(){
     abortCommand("sigint");
 })
 
-$("#abrtSigTerm").click(function(){ 
-    abortCommand("sigterm");
-})
-
 $("#abrtSigKill").click(function(){ 
     abortCommand("sigkill");
 })
