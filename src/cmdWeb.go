@@ -297,7 +297,7 @@ func (c *webCmd) genMenu() error {
 		if !ok {
 			break
 		}
-		if val.isHidden {
+		if val.isHidden || val.isWebHidden {
 			hiddenItems = append(hiddenItems, val.path)
 			continue
 		}

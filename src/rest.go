@@ -36,6 +36,7 @@ type apiCommand struct {
 	pathStack   []string
 	icon        string
 	isHidden    bool
+	isWebHidden bool
 	Value       reflect.Value
 }
 
