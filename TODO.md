@@ -1,15 +1,8 @@
 # TODO for webui
 
-## Split required
-1. release single-user version
-2. next release: multi-user support
-
-## Required
+## 7.4.0
 * Bug with new naming conventions in docker - if old name exists, will attempt to start new name and fail as image not found
 * Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
-* add support for special "owner/user" header to auto-set owner and account the job to a specific user; if header present, do not allow owner edit in webui
-* change weblog to contain timestamp as well
-  * change path: ./weblog/user-owner/items.log
 * history - configurable max-per-user completed history items with background job cleaner (never account in cleaner for active job count); auto max based on day/week count instead of actual job count?
 * clear option should just keep is timestamp of when clear was pressed - don't show items prior to timestamp - cookie so browser-based choice
 * non-interactive - never attempt to ask user if they are sure, disable `less`
@@ -17,10 +10,17 @@
 * special inventory page(s) for all list items
 * fill the actions top-level dropdown, show success/fail/in-progress in pending-action section
 * struct tag to mark some elements in webui should not be forms but show as "not implemented in webui" - like webui, rest commands
+* disallow attach without tail
+* struct tag: required - this should show a star next to required items, and JS should, on submit attempt, check if all required items are filled in
+* file choice for upload form type: user to select local path, fill that in the edit box
+
+## 7.5.0
 * implement console for all attach commands
   * also add new installable feature - webconsole - featuring ttyd - enabled by default if installed from webui
   * ttyd local on aerolab, and make that run ssh
-* struct tag: required - this should show a star next to required items, and JS should, on submit attempt, check if all required items are filled in
+* add support for special "owner/user" header to auto-set owner and account the job to a specific user; if header present, do not allow owner edit in webui
+* change weblog to contain timestamp as well
+  * change path: ./weblog/user-owner/items.log
 * implement "simple" mode which will have the list of options greatly reduced, present "simple/full" slider
   * definitions should be a list of items, like `aerolab config defaults` without the values
   * should have a sane default selection
@@ -32,12 +32,9 @@
         * -all - remove all default options and start empty
         * +all - add all options to start (+all without any other will be like a full interface)
   * add option to disable full mode  view option toggle altogether
+* file choice for upload form type: user to select local path - upload via aerolab or directly (key share?)
 
-## TBC
-* new form type: upload file - tmp file upload and fill into form
-  * some elements need this, like file upload, download, etc
-
-## Wishlist
+## Items to add to gh issues for future
 * allow loading a historical command into the form from previous run log or from command-line command (reverse-form-load)
 * right-sidebar - quick settings and inventory listing
 
