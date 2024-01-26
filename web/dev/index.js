@@ -41,7 +41,15 @@ function checkRequiredFields() {
 
 var formCommand = "";
 
-$("#btnRun").click(function(){
+$("#btnRun1").click(function(){
+    btnRun();
+})
+
+$("#btnRun2").click(function(){
+    btnRun();
+})
+
+function btnRun() {
     if (!checkRequiredFields()) {
         return;
     }
@@ -62,7 +70,7 @@ $("#btnRun").click(function(){
     .always(function() {
         $("#loadingSpinner").hide();
     });
-})
+}
 
 var commandOutXhr = false;
 
