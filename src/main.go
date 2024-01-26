@@ -361,7 +361,7 @@ func (a *aerolab) telemetry(webuiData string) error {
 		return nil
 	}
 	// do not ship config defaults command usage
-	if os.Args[1] == "config" && os.Args[2] == "defaults" { // TODO if config/defaults as part of webui, also return nil
+	if (os.Args[1] == "config" && os.Args[2] == "defaults") || strings.HasPrefix(webuiData, "inventory/list-=-=-=-") {
 		return nil
 	}
 	// only enable if a feature file is present and belongs to Aerospike internal users
