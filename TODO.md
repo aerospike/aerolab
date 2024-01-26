@@ -1,7 +1,6 @@
 # TODO for webui
 
 ## 7.4.0
-* Bug with new naming conventions in docker - if old name exists, will attempt to start new name and fail as image not found
 * history - configurable max-per-user completed history items with background job cleaner (never account in cleaner for active job count); auto max based on day/week count instead of actual job count?
 * clear option should just keep is timestamp of when clear was pressed - don't show items prior to timestamp - cookie so browser-based choice
 * fill the actions top-level dropdown, show success/fail/in-progress in pending-action section
