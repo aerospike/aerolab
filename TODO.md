@@ -35,6 +35,7 @@
 * right-sidebar - quick settings and inventory listing
 * local run single-user mode: file choice for upload form type: user to select local path, fill that in the edit box
   * this will required a file-selector html talking to backend which will need to pass the file lists back to frontend to present a selector
+* auto-refresh command line (on:keyup/change events->(re)start timeout timer->on-expiry-update-command-line)
 
 ## WIP Notes
 * pending-action-count: innerText
