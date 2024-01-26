@@ -18,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"text/template"
 	"time"
 
@@ -183,8 +182,6 @@ func (c *webCmd) jobAction(w http.ResponseWriter, r *http.Request) {
 	switch actions[0] {
 	case "sigint":
 		err = run.Process.Signal(os.Interrupt)
-	case "sigterm":
-		err = run.Process.Signal(syscall.SIGTERM)
 	case "sigkill":
 		err = run.Process.Signal(os.Kill)
 	default:
