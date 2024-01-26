@@ -23,6 +23,7 @@ $('.aerolab-required').each(function() {
 });
 
 function checkRequiredFields() {
+    var fieldsOk = true;
     $('.aerolab-required').each(function() {
         if ($(this).val() == "") {
             toastr.error($(this).attr("name").replace(/^xx/,"").replaceAll("xx",".").replace(/^\./,"")+" is required")
@@ -33,10 +34,11 @@ function checkRequiredFields() {
                 },
                 500 //speed
             );
+            fieldsOk = false;
             return false;
         }
     });
-    return true;
+    return fieldsOk;
 }
 
 var formCommand = "";
@@ -123,7 +125,7 @@ function showCommandOut(jobId) {
                             $("#xlModalBody").append("$" + ncmdline+"\n\n");
                         } else if (lines[i].includes("-=-=-=-=- [command]")) {
                             ntitle = "aerolab " + lines[i].replace(/^-=-=-=-=- \[command\]/,"").replace(/ -=-=-=-=-$/,"");
-                            $("#xlModalTitle").html(ntitle+' <div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div>');
+                            $("#xlModalTitle").html('<div class="spinner-border" role="status"><span class="sr-only">Loading...</span></div> '+ntitle);
                         };
                     }
                 };
