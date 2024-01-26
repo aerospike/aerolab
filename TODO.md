@@ -11,6 +11,7 @@
 * struct tag to mark some elements in webui should not be forms but show as "not implemented in webui" - like webui, rest commands
 * file choice for upload form type: user to select local path, fill that in the edit box
 * check and finish alignments of html (prettify)
+* command line form show element - float in footer; also move the Run button to the command line element, away from the form itself
 
 ## 7.5.0
 * implement console for all attach commands

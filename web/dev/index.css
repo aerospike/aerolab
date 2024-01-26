@@ -39,4 +39,17 @@
  .separator:not(:empty)::after {
     margin-left: .25em;
  }
+ .modal-xl {
+   max-width: 80%;
+ }
+ @media(max-width: 1850px){
+   .modal-xl {
+     max-width: 90%;
+   }
+}
+ @media(max-width: 992px){
+    .modal-xl {
+      max-width: 99%;
+    }
+}
  {{end}}
