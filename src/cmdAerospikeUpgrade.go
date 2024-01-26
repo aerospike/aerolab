@@ -16,7 +16,7 @@ import (
 type aerospikeUpgradeCmd struct {
 	aerospikeStartSelectorCmd
 	aerospikeVersionSelectorCmd
-	RestartAerospike TypeYesNo `short:"s" long:"restart" description:"Restart aerospike after upgrade (y/n)" default:"y"`
+	RestartAerospike TypeYesNo `short:"s" long:"restart" description:"Restart aerospike after upgrade (y/n)" default:"y" webchoice:"y,n"`
 	parallelThreadsCmd
 	Aws aerospikeUpgradeCmdAws `no-flag:"true"`
 	Gcp aerospikeUpgradeCmdAws `no-flag:"true"`

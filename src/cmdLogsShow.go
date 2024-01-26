@@ -12,7 +12,7 @@ type logsShowCmd struct {
 	Node        TypeNode        `short:"l" long:"node" description:"Node number" default:"1"`
 	Journal     bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
 	LogLocation string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
-	Follow      bool            `short:"f" long:"follow" description:"Follow logs instead of displaying full log"`
+	Follow      bool            `short:"f" long:"follow" description:"Follow logs instead of displaying full log" webdisable:"true"`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

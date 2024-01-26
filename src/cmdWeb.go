@@ -429,15 +429,26 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 			})
 		case reflect.Bool:
 			// toggle on-off
+			paramOn := commandValue.Field(i).Bool()
+			paramDisable := false
+			descriptionHead := ""
+			if tags.Get("webdisable") == "true" {
+				paramDisable = true
+				descriptionHead = "(disabled for webui) "
+			}
+			if tags.Get("webset") == "true" {
+				paramOn = true
+			}
 			wf = append(wf, &webui.FormItem{
 				Type: webui.FormItemType{
 					Toggle: true,
 				},
 				Toggle: webui.FormItemToggle{
 					Name:        name,
-					Description: tags.Get("description"),
+					Description: descriptionHead + tags.Get("description"),
 					ID:          "xx" + prefix + "xx" + name,
-					On:          commandValue.Field(i).Bool(),
+					On:          paramOn,
+					Disabled:    paramDisable,
 				},
 			})
 		case reflect.Struct:

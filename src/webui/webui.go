@@ -72,6 +72,7 @@ type FormItemToggle struct {
 	Description string
 	ID          string
 	On          bool
+	Disabled    bool
 }
 
 type Nav struct {

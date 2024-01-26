@@ -73,6 +73,7 @@ type agiCreateCmd struct {
 	chDirCmd
 	NoVacuumOnFail                bool   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
 	Owner                         string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	NonInteractive                bool   `long:"non-interactive" description:"set to disable interactive mode" webdisable:"true" webset:"true"`
 	uploadAuthorizedContentsGzB64 string
 	Aws                           agiCreateCmdAws    `no-flag:"true"`
 	Gcp                           agiCreateCmdGcp    `no-flag:"true"`
@@ -247,18 +248,24 @@ func (c *agiCreateCmd) Execute(args []string) error {
 				fmt.Printf("==> %s (%s)\n", sftpName, convSize(sftpFile.Size))
 			}
 			log.Println("=-=-=-= End sftp directory listing =-=-=-=")
-			fmt.Println("Press ENTER to continue, or ctrl+c to exit")
-			reader := bufio.NewReader(os.Stdin)
-			_, err := reader.ReadString('\n')
-			if err != nil {
-				logExit(err)
+			if !c.NonInteractive {
+				fmt.Println("Press ENTER to continue, or ctrl+c to exit")
+				reader := bufio.NewReader(os.Stdin)
+				_, err := reader.ReadString('\n')
+				if err != nil {
+					logExit(err)
+				}
 			}
 		} else if len(sftpFiles) == 0 {
-			fmt.Println("WARNING: Directory appears to be empty, press ENTER to continue, ot ctrl+c to exit")
-			reader := bufio.NewReader(os.Stdin)
-			_, err := reader.ReadString('\n')
-			if err != nil {
-				logExit(err)
+			if !c.NonInteractive {
+				fmt.Println("WARNING: Directory appears to be empty, press ENTER to continue, ot ctrl+c to exit")
+				reader := bufio.NewReader(os.Stdin)
+				_, err := reader.ReadString('\n')
+				if err != nil {
+					logExit(err)
+				}
+			} else {
+				fmt.Println("WARNING: Directory appears to be empty!")
 			}
 		}
 	}
