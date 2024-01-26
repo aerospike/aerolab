@@ -310,7 +310,7 @@ type agiRetriggerCmd struct {
 	PatternsFile     *flags.Filename `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
 	IngestLogLevel   *int            `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL"`
 	IngestCpuProfile *bool           `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling"`
-	Force            bool            `long:"force" description:"do not ask for confirmation, just continue"`
+	Force            bool            `long:"force" description:"do not ask for confirmation, just continue" webdisable:"true" webset:"true"`
 	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

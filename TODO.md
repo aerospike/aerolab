@@ -5,7 +5,6 @@
 * Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
 * history - configurable max-per-user completed history items with background job cleaner (never account in cleaner for active job count); auto max based on day/week count instead of actual job count?
 * clear option should just keep is timestamp of when clear was pressed - don't show items prior to timestamp - cookie so browser-based choice
-* non-interactive - never attempt to ask user if they are sure, disable `less`
 * home page, with config options (and getting started page saying "try these 1,2,3..." and/or quick-access common items like cluster create)
 * special inventory page(s) for all list items
 * fill the actions top-level dropdown, show success/fail/in-progress in pending-action section

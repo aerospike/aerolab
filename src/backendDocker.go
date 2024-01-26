@@ -678,6 +678,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 				break
 			}
 		}
+		if !found && len(os.Args) > 0 && os.Args[1] == "webrun" {
+			return fmt.Errorf("network %s not found, choose another network or create one first with: aerolab config docker", extra.network)
+		}
 		if !found {
 			fmt.Printf("Network %s not found! Create (y/n)? ", extra.network)
 			reader := bufio.NewReader(os.Stdin)

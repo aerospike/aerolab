@@ -220,7 +220,7 @@
                   {{if .Type.Toggle}}
                   <div class="form-group">
                     <div class="custom-control custom-switch" data-toggle="tooltipleft" title="{{.Toggle.Description}}">
-                      <input type="checkbox" class="custom-control-input" id="{{.Toggle.ID}}" name="{{.Toggle.ID}}"{{if .Toggle.On}} checked{{end}}>
+                      <input type="checkbox" class="custom-control-input" id="{{.Toggle.ID}}" name="{{.Toggle.ID}}"{{if .Toggle.On}} checked{{end}}{{if .Toggle.Disabled}} disabled{{end}}>
                       <label class="custom-control-label" for="{{.Toggle.ID}}">{{.Toggle.Name}}</label>
                     </div>
                   </div>

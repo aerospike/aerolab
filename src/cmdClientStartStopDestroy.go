@@ -36,7 +36,7 @@ type clientDestroyCmd struct {
 	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	clientStartStopDestroyCmd
 	Parallel bool `short:"p" long:"parallel" description:"if destroying many clients at once, set this to destroy in parallel"`
-	Force    bool `short:"f" long:"force" description:"force stop before destroy"`
+	Force    bool `short:"f" long:"force" description:"force stop before destroy" webdisable:"true" webset:"true"`
 }
 
 func (c *clientStartCmd) Execute(args []string) error {
