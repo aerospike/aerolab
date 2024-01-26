@@ -39,6 +39,7 @@ type webCmd struct {
 	WebPath           string        `long:"web-path" hidden:"true"`
 	WebNoOverride     bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests     bool          `long:"debug-requests" hidden:"true"`
+	Real              bool          `long:"real" hidden:"true"`
 	Help              helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 	menuItems         []*webui.MenuItem
 	commands          []*apiCommand
@@ -79,9 +80,31 @@ func (j *jobTrack) GetStat() int {
 	return count
 }
 
+func (c *webCmd) runLoop(args []string) error {
+	me, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get aerolab executable path: %s", err)
+	}
+	for {
+		args := append(os.Args[1:], "--real")
+		cmd := exec.Command(me, args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		err = cmd.Run()
+		if err != nil {
+			return err
+		}
+		time.Sleep(time.Second)
+	}
+}
+
 func (c *webCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
+	}
+	if !c.Real {
+		return c.runLoop(args)
 	}
 	c.joblist = &jobTrack{
 		j: make(map[string]*exec.Cmd),
@@ -142,7 +165,12 @@ func (c *webCmd) Execute(args []string) error {
 		})
 	}
 	log.Printf("Listening on %s", c.ListenAddr)
-	return http.ListenAndServe(c.ListenAddr, nil)
+	if err = http.ListenAndServe(c.ListenAddr, nil); err != nil {
+		log.Printf("Listen failure, retrying in 1 second (%s)", err)
+		log.Printf("Listening on %s", c.ListenAddr)
+		err = http.ListenAndServe(c.ListenAddr, nil)
+	}
+	return err
 }
 
 func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
@@ -1021,6 +1049,14 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				a.parseFile()
 				c.genMenu()
 				log.Printf("[%s] Reloaded interface defaults", requestID)
+			}
+			if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
+				log.Printf("[%s] Restarting aerolab webui", requestID)
+				time.Sleep(time.Second)
+				for c.joblist.GetStat() > 0 {
+					time.Sleep(time.Second)
+				}
+				os.Exit(0)
 			}
 		}(run, requestID)
 	}()
