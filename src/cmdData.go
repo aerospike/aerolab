@@ -3,8 +3,8 @@ package main
 import "os"
 
 type dataCmd struct {
-	Insert dataInsertCmd `command:"insert" subcommands-optional:"true" description:"Insert data into an Aerospike cluster"`
-	Delete dataDeleteCmd `command:"delete" subcommands-optional:"true" description:"Delete data inserted via AeroLab"`
+	Insert dataInsertCmd `command:"insert" subcommands-optional:"true" description:"Insert data into an Aerospike cluster" webicon:"fas fa-circle-plus"`
+	Delete dataDeleteCmd `command:"delete" subcommands-optional:"true" description:"Delete data inserted via AeroLab" webicon:"fas fa-circle-minus"`
 	Help   helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

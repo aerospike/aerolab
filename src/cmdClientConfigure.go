@@ -9,14 +9,14 @@ import (
 )
 
 type clientConfigureCmd struct {
-	AMS         clientConfigureAMSCmd         `command:"ams" subcommands-optional:"true" description:"change which clusters prometheus points at"`
-	Tools       clientConfigureToolsCmd       `command:"tools" subcommands-optional:"true" description:"add graph monitoring for AMS for asbenchmark"`
-	VSCode      clientConfigureVSCodeCmd      `command:"vscode" subcommands-optional:"true" description:"add languages to VSCode"`
-	Trino       clientConfigureTrinoCmd       `command:"trino" subcommands-optional:"true" description:"change aerospike seed IPs for trino"`
-	RestGateway clientConfigureRestGatewayCmd `command:"rest-gateway" subcommands-optional:"true" description:"change aerospike seed IPs for the rest-gateway"`
-	Firewall    clientConfigureFirewallCmd    `command:"firewall" subcommands-optional:"true" description:"Add firewall rules to existing client machines"`
-	Expiry      clientAddExpiryCmd            `command:"expiry" subcommands-optional:"true" description:"Add or change hours until expiry for a client group (aws|gcp only)"`
-	AeroLab     clientConfigureAerolabCmd     `command:"aerolab" subcommands-optional:"true" description:"Deploy aerolab binary on a client group"`
+	AMS         clientConfigureAMSCmd         `command:"ams" subcommands-optional:"true" description:"change which clusters prometheus points at" webicon:"fas fa-layer-group"`
+	Tools       clientConfigureToolsCmd       `command:"tools" subcommands-optional:"true" description:"add graph monitoring for AMS for asbenchmark" webicon:"fas fa-toolbox"`
+	VSCode      clientConfigureVSCodeCmd      `command:"vscode" subcommands-optional:"true" description:"add languages to VSCode" webicon:"fas fa-code"`
+	Trino       clientConfigureTrinoCmd       `command:"trino" subcommands-optional:"true" description:"change aerospike seed IPs for trino" webicon:"fas fa-tachograph-digital"`
+	RestGateway clientConfigureRestGatewayCmd `command:"rest-gateway" subcommands-optional:"true" description:"change aerospike seed IPs for the rest-gateway" webicon:"fas fa-dungeon"`
+	Firewall    clientConfigureFirewallCmd    `command:"firewall" subcommands-optional:"true" description:"Add firewall rules to existing client machines" webicon:"fas fa-fire"`
+	Expiry      clientAddExpiryCmd            `command:"expiry" subcommands-optional:"true" description:"Add or change hours until expiry for a client group (aws|gcp only)" webicon:"fas fa-user-xmark"`
+	AeroLab     clientConfigureAerolabCmd     `command:"aerolab" subcommands-optional:"true" description:"Deploy aerolab binary on a client group" webicon:"fas fa-flask"`
 	Help        helpCmd                       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

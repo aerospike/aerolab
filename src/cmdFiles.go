@@ -5,10 +5,10 @@ import (
 )
 
 type filesCmd struct {
-	Download filesDownloadCmd `command:"download" alias:"d" subcommands-optional:"true" description:"Download files from a node"`
-	Upload   filesUploadCmd   `command:"upload" alias:"u" subcommands-optional:"true" description:"Upload files to a node"`
-	Edit     filesEditCmd     `command:"edit" subcommands-optional:"true" description:"Download, edit and re-upload a file"`
-	Sync     filesSyncCmd     `command:"sync" subcommands-optional:"true" description:"Sync files or a directory from one node to others"`
+	Download filesDownloadCmd `command:"download" alias:"d" subcommands-optional:"true" description:"Download files from a node" webicon:"fas fa-download"`
+	Upload   filesUploadCmd   `command:"upload" alias:"u" subcommands-optional:"true" description:"Upload files to a node" webicon:"fas fa-upload"`
+	Edit     filesEditCmd     `command:"edit" subcommands-optional:"true" description:"Download, edit and re-upload a file" webicon:"fas fa-pen-to-square"`
+	Sync     filesSyncCmd     `command:"sync" subcommands-optional:"true" description:"Sync files or a directory from one node to others" webicon:"fas fa-rotate"`
 	Help     helpCmd          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

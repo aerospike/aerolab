@@ -12,7 +12,7 @@ import (
 
 type clusterDestroyCmd struct {
 	clusterStopCmd
-	Force    bool `short:"f" long:"force" description:"force stop before destroy"`
+	Force    bool `short:"f" long:"force" description:"force stop before destroy" webdisable:"true" webset:"true"`
 	Parallel bool `short:"p" long:"parallel" description:"if destroying many clusters at once, set this to destroy in parallel"`
 	clusterStartStopDestroyCmd
 }

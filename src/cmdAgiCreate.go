@@ -34,7 +34,7 @@ type agiCreateCmd struct {
 	SftpHost         string          `long:"source-sftp-host" description:"sftp host"`
 	SftpPort         int             `long:"source-sftp-port" description:"sftp port" default:"22"`
 	SftpUser         string          `long:"source-sftp-user" description:"sftp user"`
-	SftpPass         string          `long:"source-sftp-pass" description:"sftp password"`
+	SftpPass         string          `long:"source-sftp-pass" description:"sftp password" webtype:"password"`
 	SftpKey          flags.Filename  `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password"`
 	SftpPath         string          `long:"source-sftp-path" description:"path on sftp to download logs from"`
 	SftpRegex        string          `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^"`
@@ -45,7 +45,7 @@ type agiCreateCmd struct {
 	S3Region         string          `long:"source-s3-region" description:"aws region where the s3 bucket is located"`
 	S3Bucket         string          `long:"source-s3-bucket" description:"s3 bucket name"`
 	S3KeyID          string          `long:"source-s3-key-id" description:"(optional) access key ID"`
-	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key"`
+	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password"`
 	S3path           string          `long:"source-s3-path" description:"path on s3 to download logs from"`
 	S3Regex          string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^"`
 	ProxyDisableSSL  bool            `long:"proxy-ssl-disable" description:"switch to disable TLS on the proxy"`
@@ -71,12 +71,13 @@ type agiCreateCmd struct {
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool                 `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
 	chDirCmd
-	NoVacuumOnFail                bool               `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	NoVacuumOnFail                bool   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	Owner                         string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	NonInteractive                bool   `long:"non-interactive" description:"set to disable interactive mode" webdisable:"true" webset:"true"`
+	uploadAuthorizedContentsGzB64 string
 	Aws                           agiCreateCmdAws    `no-flag:"true"`
 	Gcp                           agiCreateCmdGcp    `no-flag:"true"`
 	Docker                        agiCreateCmdDocker `no-flag:"true"`
-	Owner                         string             `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	uploadAuthorizedContentsGzB64 string
 }
 
 type agiCreateCmdAws struct {
@@ -99,7 +100,7 @@ type agiCreateCmdAws struct {
 type agiCreateCmdGcp struct {
 	InstanceType        string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
 	Disks               []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
-	Zone                string        `long:"zone" description:"zone name to deploy to"`
+	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"agi-managed-external"`
@@ -129,6 +130,9 @@ func init() {
 func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
 	}
 	if a.opts.Config.Backend.Type == "docker" && (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") {
 		return errors.New("AGI monitor is not supported on docker; sizing would not be possible either way")
@@ -232,7 +236,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	})
 
 	// test sftp access and directory
-	if c.SftpEnable || !c.SftpSkipCheck {
+	if c.SftpEnable && !c.SftpSkipCheck {
 		log.Println("Checking sftp access...")
 		sftpFiles, err := ingest.SftpCheckLogin(config, c.SftpFullCheck)
 		if err != nil {
@@ -244,18 +248,24 @@ func (c *agiCreateCmd) Execute(args []string) error {
 				fmt.Printf("==> %s (%s)\n", sftpName, convSize(sftpFile.Size))
 			}
 			log.Println("=-=-=-= End sftp directory listing =-=-=-=")
-			fmt.Println("Press ENTER to continue, or ctrl+c to exit")
-			reader := bufio.NewReader(os.Stdin)
-			_, err := reader.ReadString('\n')
-			if err != nil {
-				logExit(err)
+			if !c.NonInteractive {
+				fmt.Println("Press ENTER to continue, or ctrl+c to exit")
+				reader := bufio.NewReader(os.Stdin)
+				_, err := reader.ReadString('\n')
+				if err != nil {
+					logExit(err)
+				}
 			}
 		} else if len(sftpFiles) == 0 {
-			fmt.Println("WARNING: Directory appears to be empty, press ENTER to continue, ot ctrl+c to exit")
-			reader := bufio.NewReader(os.Stdin)
-			_, err := reader.ReadString('\n')
-			if err != nil {
-				logExit(err)
+			if !c.NonInteractive {
+				fmt.Println("WARNING: Directory appears to be empty, press ENTER to continue, ot ctrl+c to exit")
+				reader := bufio.NewReader(os.Stdin)
+				_, err := reader.ReadString('\n')
+				if err != nil {
+					logExit(err)
+				}
+			} else {
+				fmt.Println("WARNING: Directory appears to be empty!")
 			}
 		}
 	}

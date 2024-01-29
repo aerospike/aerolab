@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -174,6 +175,7 @@ To specify a custom configuration file, set the environment variable:
 `
 
 func (a *aerolab) main(name string, args []string) error {
+	setOwners()
 	defer backendRestoreTerminal()
 	a.createDefaults()
 	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
@@ -232,6 +234,32 @@ func (a *aerolab) main(name string, args []string) error {
 	return err
 }
 
+var currentOwnerUser = ""
+
+func setOwners() {
+	user, err := user.Current()
+	if err != nil {
+		return
+	}
+	uname := ""
+	for _, r := range user.Username {
+		if r < 48 {
+			continue
+		}
+		if r > 57 && r < 65 {
+			continue
+		}
+		if r > 90 && r < 97 {
+			continue
+		}
+		if r > 122 {
+			continue
+		}
+		uname = uname + string(r)
+	}
+	currentOwnerUser = uname
+}
+
 func earlyProcessNoBackend(tail []string) (early bool) {
 	if inslice.HasString(tail, "help") {
 		a.parser.WriteHelp(os.Stderr)
@@ -281,10 +309,15 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	if b != nil {
 		b.WorkOnServers()
 	}
+	log.SetOutput(&tStderr{})
+	// webui call: exit early, webrun will trigger telemetry separately
+	if len(os.Args) >= 1 && os.Args[1] == "webrun" {
+		return false
+	}
+
 	telemetryNoSaveMutex.Lock()
 	expiryTelemetryLock.Lock()
-	log.SetOutput(&tStderr{})
-	go a.telemetry()
+	go a.telemetry("")
 	/*
 		err = a.telemetry()
 		if err != nil {
@@ -320,7 +353,7 @@ func (t *tStderr) Write(b []byte) (int, error) {
 	return os.Stderr.Write(b)
 }
 
-func (a *aerolab) telemetry() error {
+func (a *aerolab) telemetry(webuiData string) error {
 	defer expiryTelemetryLock.Unlock()
 	defer telemetryNoSaveMutex.Unlock()
 	// basic checks
@@ -328,7 +361,7 @@ func (a *aerolab) telemetry() error {
 		return nil
 	}
 	// do not ship config defaults command usage
-	if os.Args[1] == "config" && os.Args[2] == "defaults" {
+	if (os.Args[1] == "config" && os.Args[2] == "defaults") || strings.HasPrefix(webuiData, "inventory/list-=-=-=-") {
 		return nil
 	}
 	// only enable if a feature file is present and belongs to Aerospike internal users
@@ -415,6 +448,7 @@ func (a *aerolab) telemetry() error {
 	currentTelemetry.CmdLine = os.Args[1:]
 	currentTelemetry.Version = telemetryVersion
 	currentTelemetry.AeroLabVersion = version
+	currentTelemetry.WebUI.Data = webuiData
 
 	// add changed default values to the item
 	ret := make(chan configValueCmd, 1)
@@ -529,6 +563,9 @@ type telemetryItem struct {
 	Error           *string
 	Stderr          []string
 	StderrTruncated bool
+	WebUI           struct {
+		Data string
+	}
 }
 
 type telemetryDefault struct {

@@ -10,12 +10,11 @@ import (
 )
 
 type attachClientCmd struct {
-	Trino      attachCmdTrino `command:"trino" subcommands-optional:"true" description:"Attach to trino shell"`
 	ClientName TypeClientName `short:"n" long:"name" description:"Client group name" default:"client"`
 	Machine    TypeMachines   `short:"l" long:"node" description:"Machine to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
 	Detach     bool           `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C, disables parallel"`
 	Parallel   bool           `long:"parallel" description:"enable parallel execution across all machines"`
-	Tail       []string       `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]"`
+	Tail       []string       `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]" webrequired:"true"`
 	Help       attachCmdHelp  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

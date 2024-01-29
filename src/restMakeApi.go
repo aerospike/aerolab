@@ -68,8 +68,21 @@ func (c *restCmd) getCommandsNext(keyField reflect.Value, start string, ret chan
 	if tagCommand == "" {
 		return
 	}
+	isHidden := false
+	if tags.Get("hidden") != "" {
+		isHidden = true
+	}
+	isWebHidden := false
+	if tags.Get("webhidden") != "" {
+		isWebHidden = true
+	}
 	ret <- apiCommand{
 		path:        strings.Join(tagStack, "/"),
+		pathStack:   tagStack,
 		description: tags.Get("description"),
+		isHidden:    isHidden,
+		isWebHidden: isWebHidden,
+		icon:        tags.Get("webicon"),
+		Value:       keyField,
 	}
 }
