@@ -1,20 +1,18 @@
 # TODO for webui
 
 ## 7.4.0
-* fill the actions top-level dropdown, show success/fail/in-progress in pending-action section
-  * clear option should just keep is timestamp of when clear was pressed - don't show items prior to timestamp - cookie so browser-based choice
 * home page, with config options (and getting started page saying "try these 1,2,3..." and/or quick-access common items like cluster create)
 * special inventory page(s) for all list items
 * check and finish alignments of html (prettify)
 * Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
 
 ## 7.5.0
+* jobs list - add "show all users jobs" toggle; add username and email information to each job
 * implement console for all attach commands
   * also add new installable feature - webconsole - featuring ttyd - enabled by default if installed from webui
   * ttyd local on aerolab, and make that run ssh
 * add support for special "owner/user" header to auto-set owner and account the job to a specific user; if header present, do not allow owner edit in webui
-* change weblog to contain timestamp as well
-  * change path: ./weblog/user-owner/items.log
+* change weblog path: ./weblog/user-owner/items.log
 * implement "simple" mode which will have the list of options greatly reduced, present "simple/full" slider
   * definitions should be a list of items, like `aerolab config defaults` without the values
   * should have a sane default selection
