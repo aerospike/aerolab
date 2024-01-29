@@ -4,6 +4,8 @@ import (
 	"strings"
 )
 
+const TruncateTimestampCookieName = "aerolab_history_truncate"
+
 const (
 	ContentTypeForm  = "form"
 	ContentTypeTable = "table"

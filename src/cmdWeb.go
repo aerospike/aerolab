@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -129,7 +131,7 @@ func (c *webCmd) jobCleaner() {
 			if c.joblist.Get(reqID) != nil {
 				return nil
 			}
-			ts, err := time.Parse("2006-01-02_15-04-05_", fnsplit[0]+"_"+fnsplit[1])
+			ts, err := time.ParseInLocation("2006-01-02_15-04-05", fnsplit[0]+"_"+fnsplit[1], time.Local)
 			if err != nil {
 				return nil
 			}
@@ -210,7 +212,8 @@ func (c *webCmd) Execute(args []string) error {
 	}
 	http.HandleFunc(c.WebRoot+"dist/", c.static)
 	http.HandleFunc(c.WebRoot+"plugins/", c.static)
-	http.HandleFunc(c.WebRoot+"job/", c.jobs)
+	http.HandleFunc(c.WebRoot+"job/", c.job)
+	http.HandleFunc(c.WebRoot+"jobs/", c.jobs)
 	http.HandleFunc(c.WebRoot, c.serve)
 	if c.WebRoot != "/" {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -309,6 +312,143 @@ func (c *webCmd) getJobPath(requestID string) (string, error) {
 }
 
 func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
+	// handle truncate timestamp cookie
+	truncate, err := r.Cookie(webui.TruncateTimestampCookieName)
+	truncatestring := ""
+	if err == nil && truncate.Value != "" {
+		truncatestring = truncate.Value
+	}
+	r.ParseForm()
+	if trstr := r.Form.Get(webui.TruncateTimestampCookieName); trstr != "" {
+		truncatestring = trstr
+	}
+	truncatets := time.Time{}
+	if truncatestring != "" {
+		// javscript: new Date().toISOString() == 2021-07-02T13:06:53.422Z
+		trunc, err := time.Parse("2006-01-02T15:04:05.000Z0700", truncatestring)
+		if err == nil {
+			truncatets = trunc
+		}
+	}
+	type jsonJob struct {
+		RequestID      string
+		Command        string
+		StartedWhen    string    // 5 days / 3 hours / 8 mins
+		IsRunning      bool      // is it still running
+		IsFailed       bool      // if it is not running, has it failed with an error instead of success
+		startTimestamp time.Time // for sorting purposes
+	}
+	type jsonJobs struct {
+		Jobs       []*jsonJob
+		HasRunning bool // does the joblist have running jobs in the list
+		HasFailed  bool // does the joblist have failed jobs in the list
+	}
+	var jobs = &jsonJobs{}
+	rootDir, err := a.aerolabRootDir()
+	if err != nil {
+		http.Error(w, "could not get aerolab root directory: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rootDir = path.Join(rootDir, "weblog")
+	os.MkdirAll(rootDir, 0755)
+	err = filepath.Walk(rootDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".log") {
+			return nil
+		}
+		_, fn := filepath.Split(path)
+		fnsplit := strings.Split(fn, "_")
+		if len(fnsplit) != 3 {
+			return nil
+		}
+		ts, err := time.ParseInLocation("2006-01-02_15-04-05", fnsplit[0]+"_"+fnsplit[1], time.Local)
+		if err != nil {
+			return nil
+		}
+		if ts.Before(truncatets) {
+			return nil
+		}
+		reqID := strings.TrimSuffix(fnsplit[2], ".log")
+		startedWhen := ""
+		tsDur := time.Since(ts)
+		if tsDur > 24*time.Hour {
+			days := tsDur.Hours() / 24
+			if days > 365 && days < 730 {
+				startedWhen = "1 year"
+			} else if days > 730 {
+				startedWhen = ">1 year"
+			} else if days < 7 {
+				startedWhen = strconv.Itoa(int(math.Ceil(days))) + " days"
+			} else {
+				startedWhen = strconv.Itoa(int(math.Ceil(days/7))) + " weeks"
+			}
+		} else if tsDur > time.Hour {
+			startedWhen = strconv.Itoa(int(math.Ceil(tsDur.Hours()))) + " hours"
+		} else if tsDur > time.Minute {
+			startedWhen = strconv.Itoa(int(math.Ceil(tsDur.Minutes()))) + " mins"
+		} else {
+			startedWhen = strconv.Itoa(int(math.Ceil(tsDur.Seconds()))) + " secs"
+		}
+		j := &jsonJob{
+			RequestID:      reqID,
+			startTimestamp: ts,
+			StartedWhen:    startedWhen,
+		}
+		runJob := c.joblist.Get(reqID)
+		if runJob != nil {
+			j.IsRunning = true
+			jobs.HasRunning = true
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			log.Printf("Failed to read `%s` for job list: %s", path, err)
+			return nil
+		}
+		defer f.Close()
+		rd := bufio.NewScanner(f)
+		for rd.Scan() {
+			line := strings.Trim(rd.Text(), "\r\n\t ")
+			if strings.HasPrefix(line, "-=-=-=-=- [command] ") && strings.HasSuffix(line, " -=-=-=-=-") {
+				ncmd := strings.TrimSuffix(strings.TrimPrefix(line, "-=-=-=-=- [command] "), " -=-=-=-=-")
+				j.Command = ncmd
+				if runJob != nil {
+					break
+				}
+			}
+			if strings.HasPrefix(line, "-=-=-=-=- [ExitCode] ") && strings.HasSuffix(line, " -=-=-=-=-") {
+				nexitCode := strings.TrimSuffix(strings.TrimPrefix(line, "-=-=-=-=- [ExitCode] "), " -=-=-=-=-")
+				if nexitCode != "0" {
+					j.IsFailed = true
+					jobs.HasFailed = true
+				}
+			}
+		}
+		jobs.Jobs = append(jobs.Jobs, j)
+		return nil
+	})
+	if err != nil {
+		http.Error(w, "could not get job list: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	sort.Slice(jobs.Jobs, func(i, j int) bool {
+		if jobs.Jobs[i].IsRunning && !jobs.Jobs[j].IsRunning {
+			return true
+		}
+		if !jobs.Jobs[i].IsRunning && jobs.Jobs[j].IsRunning {
+			return false
+		}
+		return jobs.Jobs[i].startTimestamp.After(jobs.Jobs[j].startTimestamp)
+	})
+	json.NewEncoder(w).Encode(jobs)
+}
+
+func (c *webCmd) job(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		c.jobAction(w, r)
 		return
