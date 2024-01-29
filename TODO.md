@@ -1,9 +1,8 @@
 # TODO for webui
 
 ## 7.4.0
-* history - configurable max-per-user completed history items with background job cleaner (never account in cleaner for active job count); auto max based on day/week count instead of actual job count?
-* clear option should just keep is timestamp of when clear was pressed - don't show items prior to timestamp - cookie so browser-based choice
 * fill the actions top-level dropdown, show success/fail/in-progress in pending-action section
+  * clear option should just keep is timestamp of when clear was pressed - don't show items prior to timestamp - cookie so browser-based choice
 * home page, with config options (and getting started page saying "try these 1,2,3..." and/or quick-access common items like cluster create)
 * special inventory page(s) for all list items
 * check and finish alignments of html (prettify)
