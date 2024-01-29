@@ -239,20 +239,7 @@
         <br><br><br><br><br><br>
         {{end}}
         {{if .IsInventory}}
-        <div class="row">
-          <div class="col-md-3 col-sm-0">
-          </div>
-          <div class="col-md-6 col-sm-12">
-            <div class="card card-primary">
-              <div class="card-header">
-                <h3 class="card-title">Inventory</h3>
-              </div>
-              <div class="card-body">
-                TODO pretty inventory tables
-              </div>
-            </div>
-          </div>
-        </div>
+        {{template "inventory" . }}
         {{end}}
       </div><!-- /.container-fluid -->
     </div>
@@ -347,4 +334,21 @@
 </li>
 {{if .DrawSeparator}}<div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>{{end}}
 {{end}}
+{{end}}
+
+{{ define "inventory" }}
+<div class="row">
+  <div class="col-md-3 col-sm-0">
+  </div>
+  <div class="col-md-6 col-sm-12">
+    <div class="card card-primary">
+      <div class="card-header">
+        <h3 class="card-title">Inventory</h3>
+      </div>
+      <div class="card-body">
+        TODO pretty inventory tables
+      </div>
+    </div>
+  </div>
+</div>
 {{end}}
