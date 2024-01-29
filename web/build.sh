@@ -40,6 +40,9 @@ cp -a dev/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css prod/plugi
 mkdir -p prod/plugins/toastr
 cp -a dev/plugins/toastr/*min* prod/plugins/toastr/.
 
+# js-cookie
+cp -a dev/plugins/cookie prod/plugins/.
+
 # summary
 cd prod
 tar -zcf ../../src/webui/www.tgz *
