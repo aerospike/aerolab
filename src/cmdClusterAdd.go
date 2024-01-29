@@ -12,10 +12,10 @@ import (
 )
 
 type clusterAddCmd struct {
-	Exporter clusterAddExporterCmd `command:"exporter" subcommands-optional:"true" description:"Install ams exporter in a cluster or clusters"`
-	Firewall clusterAddFirewallCmd `command:"firewall" subcommands-optional:"true" description:"Add firewall rules to an existing cluster"`
-	Expiry   clusterAddExpiryCmd   `command:"expiry" subcommands-optional:"true" description:"Add or change hours until expiry for a cluster (aws|gcp only)"`
-	AeroLab  clusterAddAerolabCmd  `command:"aerolab" subcommands-optional:"true" description:"Deploy aerolab binary on a cluster"`
+	Exporter clusterAddExporterCmd `command:"exporter" subcommands-optional:"true" description:"Install ams exporter in a cluster or clusters" webicon:"fas fa-layer-group"`
+	Firewall clusterAddFirewallCmd `command:"firewall" subcommands-optional:"true" description:"Add firewall rules to an existing cluster" webicon:"fas fa-fire"`
+	Expiry   clusterAddExpiryCmd   `command:"expiry" subcommands-optional:"true" description:"Add or change hours until expiry for a cluster (aws|gcp only)" webicon:"fas fa-user-xmark"`
+	AeroLab  clusterAddAerolabCmd  `command:"aerolab" subcommands-optional:"true" description:"Deploy aerolab binary on a cluster" webicon:"fas fa-flask"`
 	Help     helpCmd               `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -34,7 +34,7 @@ type clusterAddExpiryCmd struct {
 }
 
 type clusterAddExpiryCmdGcp struct {
-	Zone string `long:"zone" description:"zone name where the nodes are"`
+	Zone string `long:"zone" description:"zone name where the nodes are" webrequired:"true"`
 }
 
 func init() {

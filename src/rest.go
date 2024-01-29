@@ -33,6 +33,11 @@ type restCmd struct {
 type apiCommand struct {
 	path        string
 	description string
+	pathStack   []string
+	icon        string
+	isHidden    bool
+	isWebHidden bool
+	Value       reflect.Value
 }
 
 func (c *restCmd) Execute(args []string) error {

@@ -7,10 +7,10 @@ import (
 )
 
 type clusterPartitionCmd struct {
-	Create clusterPartitionCreateCmd `command:"create" subcommands-optional:"true" description:"Blkdiscard disks and/or create partitions on disks"`
-	Mkfs   clusterPartitionMkfsCmd   `command:"mkfs" subcommands-optional:"true" description:"Make filesystems on partitions and mount - for allflash"`
-	Conf   clusterPartitionConfCmd   `command:"conf" subcommands-optional:"true" description:"Adjust Aerospike configuration files on nodes to use created partitions"`
-	List   clusterPartitionListCmd   `command:"list" subcommands-optional:"true" description:"List disks and partitions"`
+	Create clusterPartitionCreateCmd `command:"create" subcommands-optional:"true" description:"Blkdiscard disks and/or create partitions on disks" webicon:"fas fa-circle-plus"`
+	Mkfs   clusterPartitionMkfsCmd   `command:"mkfs" subcommands-optional:"true" description:"Make filesystems on partitions and mount - for allflash" webicon:"fas fa-folder-tree"`
+	Conf   clusterPartitionConfCmd   `command:"conf" subcommands-optional:"true" description:"Adjust Aerospike configuration files on nodes to use created partitions" webicon:"fas fa-gear"`
+	List   clusterPartitionListCmd   `command:"list" subcommands-optional:"true" description:"List disks and partitions" webicon:"fas fa-list"`
 	Help   helpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

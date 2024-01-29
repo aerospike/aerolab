@@ -15,17 +15,17 @@ import (
 )
 
 type clientCreateBaseCmd struct {
-	ClientName    TypeClientName         `short:"n" long:"group-name" description:"Client group name" default:"client"`
-	ClientCount   int                    `short:"c" long:"count" description:"Number of clients" default:"1"`
-	NoSetHostname bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
-	StartScript   flags.Filename         `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
-	Aws           clusterCreateCmdAws    `no-flag:"true"`
-	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
-	Docker        clusterCreateCmdDocker `no-flag:"true"`
+	ClientName    TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
+	ClientCount   int            `short:"c" long:"count" description:"Number of clients" default:"1"`
+	NoSetHostname bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
+	StartScript   flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	osSelectorCmd
 	parallelThreadsCmd
-	PriceOnly bool   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
-	Owner     string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	PriceOnly bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Owner     string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	Aws       clusterCreateCmdAws    `no-flag:"true"`
+	Gcp       clusterCreateCmdGcp    `no-flag:"true"`
+	Docker    clusterCreateCmdDocker `no-flag:"true"`
 }
 
 func (c *clientCreateBaseCmd) isGrow() bool {
@@ -51,6 +51,9 @@ func (c *clientCreateBaseCmd) Execute(args []string) error {
 }
 
 func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []int, err error) {
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
 	if !c.isGrow() {
 		fmt.Println("Running client.create." + nt)
 	} else {

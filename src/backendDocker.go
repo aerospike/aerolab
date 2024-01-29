@@ -678,6 +678,9 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 				break
 			}
 		}
+		if !found && len(os.Args) > 0 && os.Args[1] == "webrun" {
+			return fmt.Errorf("network %s not found, choose another network or create one first with: aerolab config docker", extra.network)
+		}
 		if !found {
 			fmt.Printf("Network %s not found! Create (y/n)? ", extra.network)
 			reader := bufio.NewReader(os.Stdin)
@@ -799,6 +802,28 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		}
 	}
 	exposeFreeListNext := -1
+	arch := "amd64"
+	if v.isArm {
+		arch = "arm64"
+	}
+	tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s_%s:%s", v.distroName, v.distroVersion, arch, v.aerospikeVersion)
+	// NOTE: eventually remve this code block up to the for loop - it is used in transition between old and new image naming formats
+	repoCheck, err := exec.Command("docker", "image", "list", "--format", "{{json .Repository}}").CombinedOutput()
+	if err != nil {
+		return err
+	}
+	newTmpl := false
+	ss := bufio.NewScanner(bytes.NewReader(repoCheck))
+	for ss.Scan() {
+		if strings.Trim(ss.Text(), "\r\n\t \"") == tmplName {
+			newTmpl = true
+			break
+		}
+	}
+	if !newTmpl {
+		tmplName = fmt.Sprintf(dockerNameHeader+"%s_%s:%s", v.distroName, v.distroVersion, v.aerospikeVersion)
+	}
+	//END remove NOTE
 	for node := highestNode; node < nodeCount+highestNode; node = node + 1 {
 		exposeFreeListNext++
 		var out []byte
@@ -809,11 +834,6 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 		for _, newlabel := range extra.labels {
 			exposeList = append(exposeList, "--label", newlabel)
 		}
-		arch := "amd64"
-		if v.isArm {
-			arch = "arm64"
-		}
-		tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s_%s:%s", v.distroName, v.distroVersion, arch, v.aerospikeVersion)
 		if d.client {
 			tmplName = d.imageNaming(v)
 		}

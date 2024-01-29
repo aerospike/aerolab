@@ -28,8 +28,8 @@ import (
 )
 
 type agiMonitorCmd struct {
-	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener"`
-	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands"`
+	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener" webicon:"fas fa-headset"`
+	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands" webicon:"fas fa-circle-plus"`
 	Help   helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -77,7 +77,7 @@ type agiMonitorCreateCmd struct {
 
 type agiMonitorCreateCmdGcp struct {
 	InstanceType string   `long:"gcp-instance" description:"instance type to use" default:"e2-medium"`
-	Zone         string   `long:"zone" description:"zone name to deploy to"`
+	Zone         string   `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	NamePrefix   []string `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
 	InstanceRole string   `hidden:"true" long:"gcp-role" description:"instance role to assign to the instance; the role must allow at least compute access; and must be manually precreated" default:"agimonitor"`
 }
@@ -98,6 +98,9 @@ func init() {
 func (c *agiMonitorCreateCmd) Execute(args []string) error {
 	if earlyProcessV2(args, true) {
 		return nil
+	}
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
 	}
 	return c.create(args)
 }
@@ -535,6 +538,7 @@ func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEv
 	a.opts.AGI.Create.Aws.SpotInstance = false
 	a.opts.AGI.Create.Gcp.SpotInstance = false
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = event.SSHAuthorizedKeysFileGzB64
+	a.opts.AGI.Create.SftpSkipCheck = true
 	err = a.opts.AGI.Create.Execute(nil)
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
@@ -598,6 +602,7 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 		a.opts.AGI.Create.NoDIM = true
 	}
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = event.SSHAuthorizedKeysFileGzB64
+	a.opts.AGI.Create.SftpSkipCheck = true
 	err = a.opts.AGI.Create.Execute(nil)
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {

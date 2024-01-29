@@ -12,9 +12,10 @@ import (
 
 type PassThru struct {
 	io.Reader
-	total     int64 // Total # of bytes transferred
-	filetotal int64
-	startTime time.Time
+	total         int64 // Total # of bytes transferred
+	filetotal     int64
+	startTime     time.Time
+	lastPrintTime time.Time
 }
 
 var abortDownload = make(chan int, 1)
@@ -35,9 +36,16 @@ func (pt *PassThru) Read(p []byte) (int, error) {
 	} else {
 		speed = 0
 	}
-	fmt.Printf("\rProgress: %d%% (%s of %s @ %s / s)                    ", percent, convSize(pt.total), convSize(pt.filetotal), convSize(speed))
-	if err != nil {
-		fmt.Print("\n")
+	if !isWebRun {
+		fmt.Printf("\rProgress: %d%% (%s of %s @ %s / s)                    ", percent, convSize(pt.total), convSize(pt.filetotal), convSize(speed))
+		if err != nil {
+			fmt.Print("\n")
+		}
+	} else {
+		if pt.lastPrintTime.IsZero() || time.Since(pt.lastPrintTime) > time.Second {
+			fmt.Printf("Progress: %d%% (%s of %s @ %s / s)\n", percent, convSize(pt.total), convSize(pt.filetotal), convSize(speed))
+			pt.lastPrintTime = time.Now()
+		}
 	}
 	return n, err
 }

@@ -24,12 +24,12 @@ func init() {
 }
 
 type volumeCmd struct {
-	Create  volumeCreateCmd    `command:"create" subcommands-optional:"true" description:"Create a volume"`
-	List    volumeListCmd      `command:"list" subcommands-optional:"true" description:"List volumes"`
-	Mount   volumeMountCmd     `command:"mount" subcommands-optional:"true" description:"Mount a volume on a node"`
-	Delete  volumeDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete a volume"`
-	Resize  volumeResizeCmd    `command:"grow" subcommands-optional:"true" description:"GCP only: grow a volume; if the volume is not attached, the filesystem will not be resized automatically"`
-	Detach  volumeDetachCmd    `command:"detach" subcommands-optional:"true" description:"GCP only: detach a volume for an instance"`
+	Create  volumeCreateCmd    `command:"create" subcommands-optional:"true" description:"Create a volume" webicon:"fas fa-circle-plus"`
+	List    volumeListCmd      `command:"list" subcommands-optional:"true" description:"List volumes" webicon:"fas fa-list"`
+	Mount   volumeMountCmd     `command:"mount" subcommands-optional:"true" description:"Mount a volume on a node" webicon:"fas fa-hard-drive"`
+	Delete  volumeDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete a volume" webicon:"fas fa-trash"`
+	Resize  volumeResizeCmd    `command:"grow" subcommands-optional:"true" description:"GCP only: grow a volume; if the volume is not attached, the filesystem will not be resized automatically" webicon:"fas fa-expand"`
+	Detach  volumeDetachCmd    `command:"detach" subcommands-optional:"true" description:"GCP only: detach a volume for an instance" webicon:"fas fa-square-minus"`
 	DoMount volumeExecMountCmd `command:"exec-mount" hidden:"true" subcommands-optional:"true" description:"Execute actual mounting operation"`
 	Help    helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -65,7 +65,7 @@ func (c *volumeListCmd) Execute(args []string) error {
 
 type volumeResizeCmd struct {
 	Name string  `short:"n" long:"name" description:"EFS Name" default:"agi"`
-	Zone string  `short:"z" long:"zone" description:"Zone name to use"`
+	Zone string  `short:"z" long:"zone" description:"Zone name to use" webrequired:"true"`
 	Size int64   `short:"s" long:"size" description:"Volume SizeGB" default:"100"`
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -188,7 +188,7 @@ type volumeCreateCmd struct {
 }
 
 type volumeCreateGcpCmd struct {
-	Zone        string `short:"z" long:"zone" description:"Zone name to use"`
+	Zone        string `short:"z" long:"zone" description:"Zone name to use" webrequired:"true"`
 	Size        int64  `short:"s" long:"size" description:"Volume SizeGB" default:"100"`
 	Description string `short:"d" long:"description" description:"set the description field"`
 }
@@ -200,6 +200,9 @@ type volumeCreateAwsCmd struct {
 func (c *volumeCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
 	}
 	log.Println("Creating volume")
 	if c.Owner != "" {
@@ -221,7 +224,7 @@ type volumeDetachCmd struct {
 	Name        string `short:"n" long:"name" description:"VOL Name" default:"agi"`
 	ClusterName string `short:"N" long:"cluster-name" description:"Cluster/Client Name from which to detach" default:"agi"`
 	Node        int    `short:"l" long:"node" description:"Node to detach from" default:"1"`
-	Zone        string `short:"z" long:"zone" description:"gcp zone"`
+	Zone        string `short:"z" long:"zone" description:"gcp zone" webrequired:"true"`
 	IsClient    bool   `short:"c" long:"is-client" description:"Specify mounting on client instead of cluster"`
 	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -549,7 +552,7 @@ type volumeDeleteCmd struct {
 }
 
 type volumeDeleteGcpCmd struct {
-	Zone string `short:"z" long:"zone" description:"Zone name to use"`
+	Zone string `short:"z" long:"zone" description:"Zone name to use" webrequired:"true"`
 }
 
 func (c *volumeDeleteCmd) Execute(args []string) error {

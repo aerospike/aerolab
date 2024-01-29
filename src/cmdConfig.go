@@ -18,11 +18,11 @@ import (
 )
 
 type configCmd struct {
-	Backend  configBackendCmd  `command:"backend" subcommands-optional:"true" description:"Show or change backend"`
-	Defaults configDefaultsCmd `command:"defaults" subcommands-optional:"true" description:"Show or change defaults in the configuration file"`
-	Aws      configAwsCmd      `command:"aws" subcommands-optional:"true" description:"AWS-only related management commands"`
-	Docker   configDockerCmd   `command:"docker" subcommands-optional:"true" description:"DOCKER-only related management commands"`
-	Gcp      configGcpCmd      `command:"gcp" subcommands-optional:"true" description:"GCP-only related management commands"`
+	Backend  configBackendCmd  `command:"backend" subcommands-optional:"true" description:"Show or change backend" webicon:"fas fa-vials"`
+	Defaults configDefaultsCmd `command:"defaults" subcommands-optional:"true" description:"Show or change defaults in the configuration file" webicon:"fas fa-arrow-right-to-city"`
+	Aws      configAwsCmd      `command:"aws" subcommands-optional:"true" description:"AWS-only related management commands" webicon:"fa-brands fa-aws"`
+	Docker   configDockerCmd   `command:"docker" subcommands-optional:"true" description:"DOCKER-only related management commands" webicon:"fa-brands fa-docker"`
+	Gcp      configGcpCmd      `command:"gcp" subcommands-optional:"true" description:"GCP-only related management commands" webicon:"fa-brands fa-google"`
 	Help     helpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -33,7 +33,7 @@ func (c *configCmd) Execute(args []string) error {
 }
 
 type configBackendCmd struct {
-	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:""`
+	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:"" webchoice:"aws,gcp,docker"`
 	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS and GCP backends: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
 	Region     string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
 	AWSProfile string         `short:"P" long:"aws-profile" description:"AWS backend: provide a profile to use; setting this ignores the AWS_PROFILE env variable"`

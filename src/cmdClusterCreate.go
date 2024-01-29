@@ -27,29 +27,29 @@ type clusterCreateCmd struct {
 	CustomToolsFilePath     flags.Filename  `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
 	FeaturesFilePath        flags.Filename  `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool            `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
-	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default. Default:don't touch" default:"mesh"`
+	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default" default:"mesh" webchoice:"mesh,mcast,default"`
 	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
 	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    TypeYesNo      `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y"`
+	AutoStartAerospike    TypeYesNo      `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
 	NoOverrideClusterName bool           `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
 	NoSetHostname         bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
 	ScriptEarly           flags.Filename `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
 	ScriptLate            flags.Filename `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
 	parallelThreadsCmd
 	NoVacuumOnFail bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
+	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
+	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 	Aws            clusterCreateCmdAws    `no-flag:"true"`
 	Gcp            clusterCreateCmdGcp    `no-flag:"true"`
 	Docker         clusterCreateCmdDocker `no-flag:"true"`
-	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
 	gcpMeta        map[string]string
 	useAgiFirewall bool
 }
 
 type osSelectorCmd struct {
-	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu"`
-	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest"`
+	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu" webchoice:"debian,ubuntu,centos,amazon"`
+	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest" webchoice:"latest,22.04,20.04,18.04,2023,2,12,11,10,9,8,7"`
 }
 
 type chDirCmd struct {
@@ -59,7 +59,7 @@ type chDirCmd struct {
 type aerospikeVersionCmd struct {
 	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition, or 'f' for federal edition" default:"latest"`
 	Username         string               `long:"username" description:"Required for downloading older enterprise editions"`
-	Password         string               `long:"password" description:"Required for downloading older enterprise editions"`
+	Password         string               `long:"password" description:"Required for downloading older enterprise editions" webtype:"password"`
 }
 
 type aerospikeVersionSelectorCmd struct {
@@ -70,7 +70,7 @@ type aerospikeVersionSelectorCmd struct {
 
 type clusterCreateCmdAws struct {
 	AMI                 string        `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
-	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:""`
+	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:"" webrequired:"true"`
 	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
@@ -90,10 +90,10 @@ type clusterCreateCmdAws struct {
 
 type clusterCreateCmdGcp struct {
 	Image               string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
-	InstanceType        string        `long:"instance" description:"instance type to use" default:""`
+	InstanceType        string        `long:"instance" description:"instance type to use" default:"" webrequired:"true"`
 	Disks               []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
 	PublicIP            bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
-	Zone                string        `long:"zone" description:"zone name to deploy to"`
+	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	IsArm               bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
 	NoBestPractices     bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
 	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
@@ -226,6 +226,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 	}
 
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
 	if !isGrow {
 		log.Println("Running cluster.create")
 	} else {
