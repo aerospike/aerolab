@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -36,6 +37,7 @@ type webCmd struct {
 	AbsoluteTimeout   time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
 	MaxConcurrentJobs int           `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
 	MaxQueuedJobs     int           `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
+	JobHistoryExpiry  time.Duration `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
 	WebPath           string        `long:"web-path" hidden:"true"`
 	WebNoOverride     bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests     bool          `long:"debug-requests" hidden:"true"`
@@ -99,6 +101,56 @@ func (c *webCmd) runLoop(args []string) error {
 	}
 }
 
+func (c *webCmd) jobCleaner() {
+	rootDir, err := a.aerolabRootDir()
+	if err != nil {
+		log.Printf("ERROR: CLEANER: failed to get aerolab root dir, cleaner will not run: %s", err)
+		return
+	}
+	rootDir = path.Join(rootDir, "weblog")
+	os.MkdirAll(rootDir, 0755)
+	for {
+		err = filepath.Walk(rootDir, func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if !strings.HasSuffix(path, ".log") {
+				return nil
+			}
+			_, fn := filepath.Split(path)
+			fnsplit := strings.Split(fn, "_")
+			if len(fnsplit) != 3 {
+				return nil
+			}
+			reqID := strings.TrimSuffix(fnsplit[2], ".log")
+			if c.joblist.Get(reqID) != nil {
+				return nil
+			}
+			ts, err := time.Parse("2006-01-02_15-04-05_", fnsplit[0]+"_"+fnsplit[1])
+			if err != nil {
+				return nil
+			}
+			if time.Since(ts) < c.JobHistoryExpiry {
+				return nil
+			}
+			err = os.Remove(path)
+			if err != nil {
+				log.Printf("CLEANER: WARN: Failed to remove history item %s: %s", fn, err)
+			} else if c.DebugRequests {
+				log.Printf("Removing history item %s", fn)
+			}
+			return nil
+		})
+		if err != nil {
+			log.Printf("ERROR: CLEANER: failed to walk job history directory: %s", err)
+		}
+		time.Sleep(time.Minute)
+	}
+}
+
 func (c *webCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
@@ -110,6 +162,7 @@ func (c *webCmd) Execute(args []string) error {
 		j: make(map[string]*exec.Cmd),
 	}
 	c.jobqueue = jobqueue.New(c.MaxConcurrentJobs, c.MaxQueuedJobs)
+	go c.jobCleaner()
 	go func() {
 		var statc, statq, statj int
 		for {
@@ -223,6 +276,38 @@ func (c *webCmd) jobAction(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+var ErrSuccess = errors.New("success")
+
+func (c *webCmd) getJobPath(requestID string) (string, error) {
+	rootDir, err := a.aerolabRootDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get root aerolab dir: %s", err)
+	}
+	fileSuffix := "_" + requestID + ".log"
+	rootDir = path.Join(rootDir, "weblog")
+	answer := ""
+	err = filepath.Walk(rootDir, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, fileSuffix) {
+			answer = path
+			return ErrSuccess
+		}
+		return nil
+	})
+	if err != nil && err == ErrSuccess {
+		return answer, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("failed to walk weblog dir: %s", err)
+	}
+	return "", errors.New("job not found")
+}
+
 func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		c.jobAction(w, r)
@@ -238,15 +323,14 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	rootDir, err := a.aerolabRootDir()
-	if err != nil {
-		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	fn := path.Join(rootDir, "weblog", requestID+".log")
-	f, err := os.Open(fn)
+	fn, err := c.getJobPath(requestID)
 	if err != nil {
 		http.Error(w, "job not found", http.StatusBadRequest)
+		return
+	}
+	f, err := os.Open(fn)
+	if err != nil {
+		http.Error(w, "job file read error: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 	defer f.Close()
@@ -956,7 +1040,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	os.Mkdir(path.Join(rootDir, "weblog"), 0755)
-	fn := path.Join(rootDir, "weblog", requestID+".log") //time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
+	fn := path.Join(rootDir, "weblog", time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.AbsoluteTimeout)
 	run := exec.CommandContext(ctx, ex, "webrun")
