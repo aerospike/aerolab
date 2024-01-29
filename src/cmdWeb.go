@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -28,6 +29,7 @@ import (
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
+	"github.com/pkg/browser"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -41,6 +43,7 @@ type webCmd struct {
 	MaxQueuedJobs       int           `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
 	JobHistoryExpiry    time.Duration `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
 	ShowMaxHistoryItems int           `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
+	NoBrowser           bool          `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
@@ -86,12 +89,16 @@ func (j *jobTrack) GetStat() int {
 }
 
 func (c *webCmd) runLoop(args []string) error {
+	firstRun := true
 	me, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get aerolab executable path: %s", err)
 	}
 	for {
 		args := append(os.Args[1:], "--real")
+		if !firstRun && !inslice.HasString(args, "--nobrowser") {
+			args = append(args, "--nobrowser")
+		}
 		cmd := exec.Command(me, args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -100,6 +107,7 @@ func (c *webCmd) runLoop(args []string) error {
 		if err != nil {
 			return err
 		}
+		firstRun = false
 		time.Sleep(time.Second)
 	}
 }
@@ -222,12 +230,18 @@ func (c *webCmd) Execute(args []string) error {
 		})
 	}
 	log.Printf("Listening on %s", c.ListenAddr)
-	if err = http.ListenAndServe(c.ListenAddr, nil); err != nil {
-		log.Printf("Listen failure, retrying in 1 second (%s)", err)
-		log.Printf("Listening on %s", c.ListenAddr)
-		err = http.ListenAndServe(c.ListenAddr, nil)
+	l, err := net.Listen("tcp", c.ListenAddr)
+	if err != nil {
+		time.Sleep(time.Second)
+		l, err = net.Listen("tcp", c.ListenAddr)
+		if err != nil {
+			return err
+		}
 	}
-	return err
+	if !c.NoBrowser {
+		browser.OpenURL("http://" + c.ListenAddr)
+	}
+	return http.Serve(l, nil)
 }
 
 func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
