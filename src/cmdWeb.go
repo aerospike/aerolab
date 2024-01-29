@@ -240,7 +240,8 @@ func (c *webCmd) Execute(args []string) error {
 		}
 	}
 	if !c.NoBrowser {
-		browser.OpenURL("http://" + c.ListenAddr)
+		openurl := strings.ReplaceAll(c.ListenAddr, "0.0.0.0", "127.0.0.1")
+		browser.OpenURL("http://" + openurl)
 	}
 	return http.Serve(l, nil)
 }
