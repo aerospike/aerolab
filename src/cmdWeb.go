@@ -34,23 +34,24 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr        string        `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
-	WebRoot           string        `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
-	AbsoluteTimeout   time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
-	MaxConcurrentJobs int           `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
-	MaxQueuedJobs     int           `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
-	JobHistoryExpiry  time.Duration `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
-	WebPath           string        `long:"web-path" hidden:"true"`
-	WebNoOverride     bool          `long:"web-no-override" hidden:"true"`
-	DebugRequests     bool          `long:"debug-requests" hidden:"true"`
-	Real              bool          `long:"real" hidden:"true"`
-	Help              helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
-	menuItems         []*webui.MenuItem
-	commands          []*apiCommand
-	commandsIndex     map[string]int
-	titler            cases.Caser
-	joblist           *jobTrack
-	jobqueue          *jobqueue.Queue
+	ListenAddr          string        `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
+	WebRoot             string        `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
+	AbsoluteTimeout     time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
+	MaxConcurrentJobs   int           `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
+	MaxQueuedJobs       int           `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
+	JobHistoryExpiry    time.Duration `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
+	ShowMaxHistoryItems int           `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
+	WebPath             string        `long:"web-path" hidden:"true"`
+	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
+	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
+	Real                bool          `long:"real" hidden:"true"`
+	Help                helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	menuItems           []*webui.MenuItem
+	commands            []*apiCommand
+	commandsIndex       map[string]int
+	titler              cases.Caser
+	joblist             *jobTrack
+	jobqueue            *jobqueue.Queue
 }
 
 type jobTrack struct {
@@ -332,6 +333,7 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	type jsonJob struct {
+		Icon           string
 		RequestID      string
 		Command        string
 		StartedWhen    string    // 5 days / 3 hours / 8 mins
@@ -340,9 +342,10 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		startTimestamp time.Time // for sorting purposes
 	}
 	type jsonJobs struct {
-		Jobs       []*jsonJob
-		HasRunning bool // does the joblist have running jobs in the list
-		HasFailed  bool // does the joblist have failed jobs in the list
+		Jobs         []*jsonJob
+		HasRunning   bool // does the joblist have running jobs in the list
+		HasFailed    bool // does the joblist have failed jobs in the list
+		RunningCount int
 	}
 	var jobs = &jsonJobs{}
 	rootDir, err := a.aerolabRootDir()
@@ -404,6 +407,7 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		if runJob != nil {
 			j.IsRunning = true
 			jobs.HasRunning = true
+			jobs.RunningCount++
 		}
 		f, err := os.Open(path)
 		if err != nil {
@@ -429,6 +433,12 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		for _, comm := range c.commands {
+			if comm.path == strings.Join(strings.Split(j.Command, " "), "/") {
+				j.Icon = comm.icon
+				break
+			}
+		}
 		jobs.Jobs = append(jobs.Jobs, j)
 		return nil
 	})
@@ -445,6 +455,9 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		}
 		return jobs.Jobs[i].startTimestamp.After(jobs.Jobs[j].startTimestamp)
 	})
+	if len(jobs.Jobs)-jobs.RunningCount > c.ShowMaxHistoryItems {
+		jobs.Jobs = jobs.Jobs[0:(jobs.RunningCount + c.ShowMaxHistoryItems)]
+	}
 	json.NewEncoder(w).Encode(jobs)
 }
 
@@ -860,7 +873,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
-		PendingActionsShowAllUsersToggle:        true,
+		PendingActionsShowAllUsersToggle:        false,
 		PendingActionsShowAllUsersToggleChecked: false,
 		IsError:                                 isError,
 		ErrorString:                             errStr,
@@ -873,10 +886,6 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 				{
 					Name: "Home",
 					Href: c.WebRoot,
-				},
-				{
-					Name: "Logout",
-					Href: c.WebRoot + "logout",
 				},
 			},
 		},

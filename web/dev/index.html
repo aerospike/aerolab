@@ -53,9 +53,9 @@
     <ul class="navbar-nav ml-auto">
       <!-- Notifications Dropdown Menu -->
       <li class="nav-item dropdown">
-        <a class="nav-link" data-toggle="dropdown" href="#">
+        <a class="nav-link" data-toggle="dropdown" href="#" onclick="updateJobList();">
           <i class="far fa-bell fa-lg" id="pending-action-icon"></i>
-          <span class="badge badge-warning navbar-badge" id="pending-action-count">15</span>
+          <span class="badge badge-warning navbar-badge" id="pending-action-count">0</span>
         </a>
         <div class="dropdown-menu dropdown-menu-xl dropdown-menu-right" id="pending-user-action-list">
           {{if .PendingActionsShowAllUsersToggle}}
@@ -76,26 +76,16 @@
             {{end}}
           </span>
           {{end}}
+          <div class="jobslist">
+            <div class="dropdown-divider"></div>
+            <a href="#" class="dropdown-item">
+              <i class="fas fa-spinner fa-spin mr-2"></i> Loading list...
+              <span class="float-right text-muted text-sm">now</span>
+              <!--<br><span class="text-muted text-sm">username</span><span class="text-muted float-right text-sm">user email</span>-->
+            </a>  
+          </div>
           <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-envelope mr-2"></i> cluster create
-            <span class="float-right text-muted text-sm">3 mins</span>
-            <br><span class="text-muted text-sm">Robert Glonek</span><span class="text-muted float-right text-sm">rglonek@aerospike.com</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-users mr-2"></i> client create vscode
-            <span class="float-right text-muted text-sm">12 hours</span>
-            <br><span class="text-muted text-sm">Robert Glonek</span><span class="text-muted float-right text-sm">rglonek@aerospike.com</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item">
-            <i class="fas fa-file mr-2"></i> cluster stop
-            <span class="float-right text-muted text-sm">2 days</span>
-            <br><span class="text-muted text-sm">Robert Glonek</span><span class="text-muted float-right text-sm">rglonek@aerospike.com</span>
-          </a>
-          <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer">Clear Notifications</a>
+          <a href="#" class="dropdown-item dropdown-footer" onclick="clearNotifications();">Clear Notifications</a>
         </div>
       </li>
       <!--
@@ -313,6 +303,8 @@
 <script src="{{.WebRoot}}plugins/select2/js/select2.full.min.js"></script>
 <!-- toastr -->
 <script src="{{.WebRoot}}plugins/toastr/toastr.min.js"></script>
+<!-- jscookie -->
+<script src="{{.WebRoot}}plugins/cookie/js.cookie.min.js"></script>
 <script>{{template "mainjs" .}}</script>
 </body>
 </html>
