@@ -219,10 +219,11 @@ func (c *webCmd) Execute(args []string) error {
 			}
 		}
 	}
-	http.HandleFunc(c.WebRoot+"dist/", c.static)
-	http.HandleFunc(c.WebRoot+"plugins/", c.static)
-	http.HandleFunc(c.WebRoot+"job/", c.job)
-	http.HandleFunc(c.WebRoot+"jobs/", c.jobs)
+	http.HandleFunc(c.WebRoot+"www/dist/", c.static)
+	http.HandleFunc(c.WebRoot+"www/plugins/", c.static)
+	http.HandleFunc(c.WebRoot+"www/api/job/", c.job)
+	http.HandleFunc(c.WebRoot+"www/api/jobs/", c.jobs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
 	http.HandleFunc(c.WebRoot, c.serve)
 	if c.WebRoot != "/" {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -245,7 +246,7 @@ func (c *webCmd) Execute(args []string) error {
 }
 
 func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, path.Join(c.WebPath, strings.TrimPrefix(r.URL.Path, c.WebRoot)))
+	http.ServeFile(w, r, path.Join(c.WebPath, strings.TrimPrefix(r.URL.Path, c.WebRoot+"www/")))
 }
 
 func (c *webCmd) jobAction(w http.ResponseWriter, r *http.Request) {
@@ -594,7 +595,14 @@ func (c *webCmd) genMenu() error {
 		}
 	}
 	titler := cases.Title(language.English)
-	c.menuItems = c.fillMenu(commandMap, titler, commands, commandsIndex, "", hiddenItems)
+	c.menuItems = append([]*webui.MenuItem{
+		{
+			Icon:          "fas fa-list",
+			Name:          "Inventory",
+			Href:          c.WebRoot,
+			DrawSeparator: true,
+		},
+	}, c.fillMenu(commandMap, titler, commands, commandsIndex, "", hiddenItems)...)
 	c.sortMenu(c.menuItems, commandsIndex)
 	c.commands = commands
 	c.commandsIndex = commandsIndex
@@ -854,14 +862,14 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 	return wf, nil
 }
 
-func (c *webCmd) homepage(w http.ResponseWriter, r *http.Request) {
+func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
 		PendingActionsShowAllUsersToggle:        false,
 		PendingActionsShowAllUsersToggleChecked: false,
-		IsHomepage:                              true,
+		IsInventory:                             true,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
@@ -874,7 +882,7 @@ func (c *webCmd) homepage(w http.ResponseWriter, r *http.Request) {
 			Items: c.menuItems,
 		},
 	}
-	p.Menu.Items.Set(r.URL.Path)
+	p.Menu.Items.Set(r.URL.Path, c.WebRoot)
 	www := os.DirFS(c.WebPath)
 	t, err := template.ParseFS(www, "index.html", "index.js", "index.css", "highlighter.css", "ansiup.js")
 	if err != nil {
@@ -903,7 +911,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 
 	// homepage
 	if r.URL.Path == c.WebRoot {
-		c.homepage(w, r)
+		c.inventory(w, r)
 		return
 	}
 
@@ -945,7 +953,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			Items: c.menuItems,
 		},
 	}
-	p.Menu.Items.Set(r.URL.Path)
+	p.Menu.Items.Set(r.URL.Path, c.WebRoot)
 	www := os.DirFS(c.WebPath)
 	t, err := template.ParseFS(www, "index.html", "index.js", "index.css", "highlighter.css", "ansiup.js")
 	if err != nil {

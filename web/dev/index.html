@@ -4,18 +4,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="{{.WebRoot}}dist/img/favicon.ico">
+  <link rel="icon" type="image/x-icon" href="{{.WebRoot}}www/dist/img/favicon.ico">
   <title>AeroLab Web UI</title>
   <!-- Google Font: Source Sans Pro -->
-  <link rel="stylesheet" href="{{.WebRoot}}dist/fonts/sourcesans.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/dist/fonts/sourcesans.css">
   <!-- Font Awesome Icons -->
-  <link rel="stylesheet" href="{{.WebRoot}}plugins/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/fontawesome-free/css/all.min.css">
   <!-- Theme style -->
-  <link rel="stylesheet" href="{{.WebRoot}}dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/dist/css/adminlte.min.css">
   <!-- select2 -->
-  <link rel="stylesheet" href="{{.WebRoot}}plugins/select2/css/select2.min.css">
-  <link rel="stylesheet" href="{{.WebRoot}}plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
-  <link rel="stylesheet" href="{{.WebRoot}}plugins/toastr/toastr.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/select2/css/select2.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/toastr/toastr.min.css">
   <style>{{template "maincss"}}</style>
   <style>{{template "highlighter"}}</style>
 </head>
@@ -103,7 +103,7 @@
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <!-- Brand Logo -->
     <a href="{{.WebRoot}}" class="brand-link">
-      <img src="{{.WebRoot}}dist/img/aerolab.png" alt="A" class="brand-image img-circle elevation-3" style="opacity: .8">
+      <img src="{{.WebRoot}}www/dist/img/aerolab.png" alt="A" class="brand-image img-circle elevation-3" style="opacity: .8">
       <span class="brand-text font-weight-light">AeroLab</span>
     </a>
 
@@ -238,17 +238,17 @@
         </div>
         <br><br><br><br><br><br>
         {{end}}
-        {{if .IsHomepage}}
+        {{if .IsInventory}}
         <div class="row">
           <div class="col-md-3 col-sm-0">
           </div>
           <div class="col-md-6 col-sm-12">
             <div class="card card-primary">
               <div class="card-header">
-                <h3 class="card-title">Homepage</h3>
+                <h3 class="card-title">Inventory</h3>
               </div>
               <div class="card-body">
-                TODO something useful here. For now, pick an item from the left-side menu.
+                TODO pretty inventory tables
               </div>
             </div>
           </div>
@@ -310,19 +310,19 @@
 <!-- REQUIRED SCRIPTS -->
 
 <!-- jQuery -->
-<script src="{{.WebRoot}}plugins/jquery/jquery.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/jquery/jquery.min.js"></script>
 <!-- Bootstrap 4 -->
-<script src="{{.WebRoot}}plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
-<script src="{{.WebRoot}}dist/js/adminlte.min.js"></script>
+<script src="{{.WebRoot}}www/dist/js/adminlte.min.js"></script>
 <!-- fontawesome -->
-<script src="{{.WebRoot}}plugins/fontawesome-free/js/all.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/fontawesome-free/js/all.min.js"></script>
 <!-- select2 -->
-<script src="{{.WebRoot}}plugins/select2/js/select2.full.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/select2/js/select2.full.min.js"></script>
 <!-- toastr -->
-<script src="{{.WebRoot}}plugins/toastr/toastr.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/toastr/toastr.min.js"></script>
 <!-- jscookie -->
-<script src="{{.WebRoot}}plugins/cookie/js.cookie.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/cookie/js.cookie.min.js"></script>
 <script>{{template "mainjs" .}}</script>
 </body>
 </html>
@@ -345,5 +345,6 @@
   </ul>
   {{end}}
 </li>
+{{if .DrawSeparator}}<div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>{{end}}
 {{end}}
 {{end}}

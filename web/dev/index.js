@@ -99,7 +99,7 @@ function showCommandOut(jobId, runningJob=true) {
     var isLog = false;
     var ntitle = "";
     var ansi_up = new AnsiUp();
-    commandOutXhr = $.ajax("{{.WebRoot}}job/"+jobId, {
+    commandOutXhr = $.ajax("{{.WebRoot}}www/api/job/"+jobId, {
         xhrFields: {
             onprogress: function(e)
             {
@@ -220,7 +220,7 @@ $("#abrtSigKill").click(function(){
 function abortCommand(signal) {
     $("#xlModalSpinner").show();
     jobId = $("#abrtJobId").val();
-    $.post("{{.WebRoot}}job/"+jobId, "action="+signal,function(data) {
+    $.post("{{.WebRoot}}www/api/job/"+jobId, "action="+signal,function(data) {
         console.log(data);
     }, "text")
     .fail(function(data) {
@@ -250,7 +250,7 @@ $( window ).on( "resize", function() {
 } );
 
 function updateJobList(setTimer = false) {
-    $.getJSON("{{.WebRoot}}jobs/", function(data) {
+    $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
         document.getElementById("pending-action-count").innerText = data["RunningCount"];
         if (data["HasRunning"]) {
             $("#pending-action-icon").removeClass("fa-bell");
