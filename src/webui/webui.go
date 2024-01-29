@@ -19,6 +19,7 @@ type Page struct {
 	WebRoot                                 string
 	FormCommandTitle                        string
 	IsForm                                  bool
+	IsHomepage                              bool
 	IsError                                 bool
 	ErrorString                             string
 	ErrorTitle                              string
