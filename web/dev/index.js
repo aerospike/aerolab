@@ -357,7 +357,7 @@ $(function () {
         tags: true,
         tokenSeparators: [',', ' ']
     })
-    getCommand(true);
+    {{if .IsForm}}getCommand(true);{{end}}
     updateJobList(true);
   })
 {{template "ansiup" .}}

@@ -236,8 +236,24 @@
             </div>
           </div>
         </div>
-        {{end}}
         <br><br><br><br><br><br>
+        {{end}}
+        {{if .IsHomepage}}
+        <div class="row">
+          <div class="col-md-3 col-sm-0">
+          </div>
+          <div class="col-md-6 col-sm-12">
+            <div class="card card-primary">
+              <div class="card-header">
+                <h3 class="card-title">Homepage</h3>
+              </div>
+              <div class="card-body">
+                TODO something useful here. For now, pick an item from the left-side menu.
+              </div>
+            </div>
+          </div>
+        </div>
+        {{end}}
       </div><!-- /.container-fluid -->
     </div>
     <!-- /.content -->
@@ -260,6 +276,7 @@
 
   <!-- Main Footer -->
   <footer class="main-footer">
+    {{if .IsForm}}
     <div class="row">
       <div class="language-bash col-md-12 col-sm-12 col-12 highlighter-rouge">
         <div class="card card-default">
@@ -279,6 +296,7 @@
           <div class="highlight"><pre class="highlight"><button type="button" class="btn btn-primary" id="btnRun2" data-toggle="tooltiptop" title="Run"><span class="fas fa-play"></span></button>&nbsp;<button type="button" class="btn btn-default" id="btnCopyCommand" data-toggle="tooltiptop" title="Copy to clipboard"><span class="fas fa-clipboard"></span></button>&nbsp;<button type="button" class="btn btn-success" id="btnShowCommand" data-toggle="tooltiptop" title="Refresh"><span class="fas fa-arrows-rotate"></span></button>&nbsp;<code id="cmdBuilder"></code></pre></div>
       </div>
     </div>
+    {{end}}
     <!-- To the right -->
       <div class="float-right d-none d-sm-inline">
       Template by AdminLTE
