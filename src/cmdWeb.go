@@ -44,6 +44,7 @@ type webCmd struct {
 	JobHistoryExpiry    time.Duration `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
 	ShowMaxHistoryItems int           `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
 	NoBrowser           bool          `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
+	RefreshInterval     time.Duration `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
@@ -55,6 +56,8 @@ type webCmd struct {
 	titler              cases.Caser
 	joblist             *jobTrack
 	jobqueue            *jobqueue.Queue
+	cache               *inventoryCache
+	inventoryNames      map[string]*webui.InventoryItem
 }
 
 type jobTrack struct {
@@ -174,6 +177,17 @@ func (c *webCmd) Execute(args []string) error {
 	}
 	c.jobqueue = jobqueue.New(c.MaxConcurrentJobs, c.MaxQueuedJobs)
 	go c.jobCleaner()
+	c.cache = &inventoryCache{
+		RefreshInterval: c.RefreshInterval,
+		runLock:         new(sync.Mutex),
+	}
+	c.inventoryNames = c.getInventoryNames()
+	log.Print("Getting initial inventory state")
+	err := c.cache.Start()
+	if err != nil {
+		return err
+	}
+	log.Print("Inventory obtained, continuing load")
 	go func() {
 		var statc, statq, statj int
 		for {
@@ -192,7 +206,7 @@ func (c *webCmd) Execute(args []string) error {
 	if c.WebRoot == "//" {
 		c.WebRoot = "/"
 	}
-	err := c.genMenu()
+	err = c.genMenu()
 	if err != nil {
 		return err
 	}
@@ -223,7 +237,7 @@ func (c *webCmd) Execute(args []string) error {
 	http.HandleFunc(c.WebRoot+"www/plugins/", c.static)
 	http.HandleFunc(c.WebRoot+"www/api/job/", c.job)
 	http.HandleFunc(c.WebRoot+"www/api/jobs/", c.jobs)
-	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
+	c.addInventoryHandlers()
 	http.HandleFunc(c.WebRoot, c.serve)
 	if c.WebRoot != "/" {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -253,7 +267,7 @@ func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
 func (c *webCmd) jobAction(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	requestID := shortuuid.New()
-	log.Printf("[%s] %s:%s", requestID, r.Method, r.RequestURI)
+	log.Printf("[%s] %s %s:%s", requestID, r.RemoteAddr, r.Method, r.RequestURI)
 	if c.DebugRequests {
 		for k, v := range r.PostForm {
 			log.Printf("[%s]    %s=%s", requestID, k, v)
@@ -329,7 +343,6 @@ func (c *webCmd) getJobPath(requestID string) (string, error) {
 }
 
 func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
 	// handle truncate timestamp cookie
 	truncate, err := r.Cookie(webui.TruncateTimestampCookieName)
 	truncatestring := ""
@@ -482,7 +495,6 @@ func (c *webCmd) job(w http.ResponseWriter, r *http.Request) {
 		c.jobAction(w, r)
 		return
 	}
-	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
 
 	urlParse := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot), "/"), "/")
 	requestID := urlParse[len(urlParse)-1]
@@ -870,9 +882,6 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// log method and URI
-	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
-
 	// create webpage
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Pragma", "no-cache")
@@ -967,7 +976,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 
 	// log request
 	requestID := shortuuid.New()
-	log.Printf("[%s] %s:%s", requestID, r.Method, r.RequestURI)
+	log.Printf("[%s] %s %s:%s", requestID, r.RemoteAddr, r.Method, r.RequestURI)
 	if c.DebugRequests {
 		for k, v := range r.PostForm {
 			log.Printf("[%s]    %s=%s", requestID, k, v)
@@ -1309,7 +1318,15 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				a.early = true
 				a.parseArgs(os.Args[1:])
 				a.parseFile()
+				a.early = false
 				c.genMenu()
+				if c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "" {
+					log.Printf("[%s] Forcing Inventory Refresh", requestID)
+					err = c.cache.run()
+					if err != nil {
+						log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
+					}
+				}
 				log.Printf("[%s] Reloaded interface defaults", requestID)
 			}
 			if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {

@@ -43,6 +43,9 @@ cp -a dev/plugins/toastr/*min* prod/plugins/toastr/.
 # js-cookie
 cp -a dev/plugins/cookie prod/plugins/.
 
+# datatables
+cp -a dev/plugins/datatables-full prod/plugins/.
+
 # summary
 cd prod
 tar -zcf ../../src/webui/www.tgz *
