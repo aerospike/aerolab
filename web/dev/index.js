@@ -418,7 +418,7 @@ function initDatatable() {
         columns: [{{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}{ data: '{{.Name}}' },{{end}}]
     });
     $('#invexpiry').DataTable({
-        fixedColumns: {left: 1},
+        //fixedColumns: {left: 1},
         buttons: [{extend: 'reload',className: 'btn btn-info',}],
         ajax: {url:'{{.WebRoot}}www/api/inventory/expiry',dataSrc:""},
         columns: [{{$expirysystem := index .Inventory "ExpirySystem"}}{{range $expirysystem.Fields}}{ data: '{{.Name}}' },{{end}}]
