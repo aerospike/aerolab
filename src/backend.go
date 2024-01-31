@@ -363,9 +363,9 @@ type inventoryClient struct {
 }
 
 type inventoryTemplate struct {
-	AerospikeVersion string `row:"Aerospike Version"`
+	AerospikeVersion string `row:"AsdVersion"`
 	Distribution     string
-	OSVersion        string `row:"Distro Version"`
+	OSVersion        string `row:"DistroVersion"`
 	Arch             string
 	Region           string
 }

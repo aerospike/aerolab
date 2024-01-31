@@ -78,9 +78,60 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 	return out
 }
 
+func (c *webCmd) inventoryLogFile(requestID string) (*os.File, error) {
+	rootDir, err := a.aerolabRootDir()
+	if err != nil {
+		return nil, err
+	}
+	rootDir = path.Join(rootDir, "weblog")
+	os.MkdirAll(rootDir, 0755)
+	fn := path.Join(rootDir, time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
+	return os.Create(fn)
+}
+
+func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
+	p := &webui.Page{
+		WebRoot:                                 c.WebRoot,
+		FixedNavbar:                             true,
+		FixedFooter:                             true,
+		PendingActionsShowAllUsersToggle:        false,
+		PendingActionsShowAllUsersToggleChecked: false,
+		IsInventory:                             true,
+		Inventory:                               c.inventoryNames,
+		Navigation: &webui.Nav{
+			Top: []*webui.NavTop{
+				{
+					Name: "Home",
+					Href: c.WebRoot,
+				},
+			},
+		},
+		Menu: &webui.MainMenu{
+			Items: c.menuItems,
+		},
+	}
+	p.Menu.Items.Set(r.URL.Path, c.WebRoot)
+	www := os.DirFS(c.WebPath)
+	t, err := template.ParseFS(www, "*.html", "*.js", "*.css")
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = t.ExecuteTemplate(w, "main", p)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func (c *webCmd) addInventoryHandlers() {
+	http.HandleFunc(c.WebRoot+"www/api/inventory/expiry", c.inventoryExpiry)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/templates", c.inventoryTemplates)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
+}
+
+func (c *webCmd) inventoryExpiry(w http.ResponseWriter, r *http.Request) {
+	c.cache.RLock()
+	defer c.cache.RUnlock()
+	json.NewEncoder(w).Encode(c.cache.inv.ExpirySystem)
 }
 
 func (c *webCmd) inventoryTemplates(w http.ResponseWriter, r *http.Request) {
@@ -91,17 +142,6 @@ func (c *webCmd) inventoryTemplates(w http.ResponseWriter, r *http.Request) {
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.Templates)
-}
-
-func (c *webCmd) inventoryLogFile(requestID string) (*os.File, error) {
-	rootDir, err := a.aerolabRootDir()
-	if err != nil {
-		return nil, err
-	}
-	rootDir = path.Join(rootDir, "weblog")
-	os.MkdirAll(rootDir, 0755)
-	fn := path.Join(rootDir, time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
-	return os.Create(fn)
 }
 
 func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request) {
@@ -167,37 +207,4 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		go c.cache.run()
 	}()
 	w.Write([]byte(reqID))
-}
-
-func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
-	p := &webui.Page{
-		WebRoot:                                 c.WebRoot,
-		FixedNavbar:                             true,
-		FixedFooter:                             true,
-		PendingActionsShowAllUsersToggle:        false,
-		PendingActionsShowAllUsersToggleChecked: false,
-		IsInventory:                             true,
-		Inventory:                               c.inventoryNames,
-		Navigation: &webui.Nav{
-			Top: []*webui.NavTop{
-				{
-					Name: "Home",
-					Href: c.WebRoot,
-				},
-			},
-		},
-		Menu: &webui.MainMenu{
-			Items: c.menuItems,
-		},
-	}
-	p.Menu.Items.Set(r.URL.Path, c.WebRoot)
-	www := os.DirFS(c.WebPath)
-	t, err := template.ParseFS(www, "*.html", "*.js", "*.css")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = t.ExecuteTemplate(w, "main", p)
-	if err != nil {
-		log.Fatal(err)
-	}
 }
