@@ -345,6 +345,73 @@ function clearNotifications() {
     updateJobList();
 }
 
+{{if .IsInventory}}
+function initDatatable() {
+    $.fn.dataTable.ext.errMode = 'alert';
+    $.fn.dataTable.ext.buttons.reload = {
+        text: 'Refresh',
+        action: function ( e, dt, node, config ) {
+            dt.ajax.reload(callback = function () {
+                toastr.success("Table data refreshed");
+            });
+        }
+    };
+    $('#invtemplates').DataTable({
+        paging: false,
+        scrollCollapse: true,
+        scrollY: '25vh',
+        scrollX: true,
+        stateSave: true,
+        fixedHeader: true,
+        fixedColumns: {
+            left: 1
+        },
+        select: true,
+        dom: 'Bfrtip',
+        buttons: [ 'csv', 'print', 'reload', {
+            text: 'Delete',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr}
+                if (confirm("Remove "+arr.length+" templates")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/templates", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }}],
+        ajax: {
+            url:'{{.WebRoot}}www/api/inventory/templates',
+            dataSrc:""
+        },
+        columns: [
+            {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}{ data: '{{.Name}}' },{{end}}
+        ]
+    });
+}
+{{else}}
+function initDatatable() {
+}
+{{end}}
+
 $(function () {
     $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", fallbackPlacement:["bottom","top"], boundary: "viewport" });
     $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: getTooltipPlacement(), fallbackPlacement:["bottom"], boundary: "viewport" });
@@ -359,6 +426,7 @@ $(function () {
     })
     {{if .IsForm}}getCommand(true);{{end}}
     updateJobList(true);
+    initDatatable();
   })
 {{template "ansiup" .}}
 {{end}}

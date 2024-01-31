@@ -26,6 +26,16 @@ type Page struct {
 	Navigation                              *Nav
 	Menu                                    *MainMenu
 	FormItems                               []*FormItem
+	Inventory                               map[string]*InventoryItem
+}
+
+type InventoryItem struct {
+	Fields []*InventoryItemField
+}
+
+type InventoryItemField struct {
+	Name         string
+	FriendlyName string
 }
 
 type FormItem struct {

@@ -15,7 +15,13 @@
   <!-- select2 -->
   <link rel="stylesheet" href="{{.WebRoot}}www/plugins/select2/css/select2.min.css">
   <link rel="stylesheet" href="{{.WebRoot}}www/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
+  <!-- toastr -->
   <link rel="stylesheet" href="{{.WebRoot}}www/plugins/toastr/toastr.min.css">
+  <!-- datatables -->
+  {{if .IsInventory}}
+  <link href="{{.WebRoot}}www/plugins/datatables-full/datatables.min.css" rel="stylesheet">
+  {{end}}
+  <!-- builtin -->
   <style>{{template "maincss"}}</style>
   <style>{{template "highlighter"}}</style>
 </head>
@@ -310,6 +316,11 @@
 <script src="{{.WebRoot}}www/plugins/toastr/toastr.min.js"></script>
 <!-- jscookie -->
 <script src="{{.WebRoot}}www/plugins/cookie/js.cookie.min.js"></script>
+<!-- datatables -->
+{{if .IsInventory}}
+<script src="{{.WebRoot}}www/plugins/datatables-full/datatables.min.js"></script>
+{{end}}
+<!-- builtin -->
 <script>{{template "mainjs" .}}</script>
 </body>
 </html>
@@ -338,15 +349,27 @@
 
 {{ define "inventory" }}
 <div class="row">
-  <div class="col-md-3 col-sm-0">
-  </div>
-  <div class="col-md-6 col-sm-12">
+  <div class="col-xl-6 col-12">
     <div class="card card-primary">
-      <div class="card-header">
-        <h3 class="card-title">Inventory</h3>
+      <div class="card-header" data-card-widget="collapse">
+        <h3 class="card-title">Templates</h3>
+        <div class="card-tools">
+          <button type="button" class="btn btn-tool" data-card-widget="collapse">
+          <i class="fas fa-minus"></i>
+          </button>
+        </div>
       </div>
       <div class="card-body">
-        TODO pretty inventory tables
+        <table id="invtemplates" class="table table-hover" style="width:100%">
+          <thead>
+            {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+          </thead>
+          <tbody>
+          </tbody>
+          <tfoot>
+            {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+          </tfoot>
+        </table>
       </div>
     </div>
   </div>
