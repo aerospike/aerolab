@@ -346,6 +346,21 @@ function clearNotifications() {
 }
 
 {{if .IsInventory}}
+$('a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
+    var tab = $(e.target).attr("href") // activated tab
+    let tables = $(tab).find('table');
+    for (let i = 0; i < tables.length; i++) {
+        if ($(tables[i]).attr("id") == undefined) {
+            continue;
+        }
+        let dt = $(tables[i]).DataTable();
+        if (dt.ajax == undefined) {
+            continue;
+        }
+        dt.ajax.reload();
+    }
+});
+
 function initDatatable() {
     $.fn.dataTable.ext.errMode = 'alert';
     $.fn.dataTable.ext.buttons.reload = {
@@ -356,28 +371,19 @@ function initDatatable() {
             });
         }
     };
-    $('#invtemplates').DataTable({
+    Object.assign(DataTable.defaults, {
         paging: false,
         scrollCollapse: true,
-        scrollY: '25vh',
+        scrollY: '70vh',
         scrollX: true,
         stateSave: true,
         fixedHeader: true,
-        fixedColumns: {
-            left: 1
-        },
         select: true,
         dom: 'Bfrtip',
-        buttons: [ {
-            extend: 'csv',
-            className: 'btn btn-default',
-        },{
-            extend: 'print', 
-            className: 'btn btn-default',
-        },{
-            extend: 'reload',
-            className: 'btn btn-info',
-        },{
+    });
+    $('#invtemplates').DataTable({
+        fixedColumns: {left: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',},{
             className: 'btn btn-danger',
             text: 'Delete',
             action: function ( e, dt, node, config ) {
@@ -408,13 +414,14 @@ function initDatatable() {
                     });
                 }
             }}],
-        ajax: {
-            url:'{{.WebRoot}}www/api/inventory/templates',
-            dataSrc:""
-        },
-        columns: [
-            {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}{ data: '{{.Name}}' },{{end}}
-        ]
+        ajax: { url:'{{.WebRoot}}www/api/inventory/templates', dataSrc:"" },
+        columns: [{{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}{ data: '{{.Name}}' },{{end}}]
+    });
+    $('#invexpiry').DataTable({
+        fixedColumns: {left: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/expiry',dataSrc:""},
+        columns: [{{$expirysystem := index .Inventory "ExpirySystem"}}{{range $expirysystem.Fields}}{ data: '{{.Name}}' },{{end}}]
     });
 }
 {{else}}

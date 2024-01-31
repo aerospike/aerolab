@@ -349,27 +349,50 @@
 
 {{ define "inventory" }}
 <div class="row">
-  <div class="col-xl-6 col-12">
-    <div class="card card-primary">
-      <div class="card-header" data-card-widget="collapse">
-        <h3 class="card-title">Templates</h3>
-        <div class="card-tools">
-          <button type="button" class="btn btn-tool" data-card-widget="collapse">
-          <i class="fas fa-minus"></i>
-          </button>
-        </div>
+  <div class="col-12">
+    <div class="card card-primary card-tabs">
+      <div class="card-header p-0 pt-1">
+
+        <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
+          <li class="nav-item">
+          <a class="nav-link active inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="true">Templates</a>
+          </li>
+          <li class="nav-item">
+          <a class="nav-link inventoryTab" id="inventoryTabExpirySystem-tab" data-toggle="pill" href="#inventoryTabExpirySystem" role="tab" aria-controls="inventoryTabExpirySystem" aria-selected="false">ExpirySystem</a>
+          </li>
+        </ul>
+
       </div>
       <div class="card-body">
-        <table id="invtemplates" class="table table-hover" style="width:100%">
-          <thead>
-            {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
-          </thead>
-          <tbody>
-          </tbody>
-          <tfoot>
-            {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
-          </tfoot>
-        </table>
+        <div class="tab-content" id="custom-tabs-one-tabContent">
+
+          <div class="tab-pane fade show active" id="inventoryTabTemplates" role="tabpanel" aria-labelledby="inventoryTabTemplates-tab">
+            <table id="invtemplates" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="tab-pane fade" id="inventoryTabExpirySystem" role="tabpanel" aria-labelledby="inventoryTabExpirySystem-tab">
+            <table id="invexpiry" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$templates := index .Inventory "ExpirySystem"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$templates := index .Inventory "ExpirySystem"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+        </div>
       </div>
     </div>
   </div>
