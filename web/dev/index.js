@@ -368,7 +368,17 @@ function initDatatable() {
         },
         select: true,
         dom: 'Bfrtip',
-        buttons: [ 'csv', 'print', 'reload', {
+        buttons: [ {
+            extend: 'csv',
+            className: 'btn btn-default',
+        },{
+            extend: 'print', 
+            className: 'btn btn-default',
+        },{
+            extend: 'reload',
+            className: 'btn btn-info',
+        },{
+            className: 'btn btn-danger',
             text: 'Delete',
             action: function ( e, dt, node, config ) {
                 let arr = [];
