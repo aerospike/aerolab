@@ -9,11 +9,13 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
 
 	"github.com/aerospike/aerolab/webui"
+	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
 )
 
@@ -65,12 +67,37 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 	for i := 0; i < m.NumField(); i++ {
 		out[m.Field(i).Name] = &webui.InventoryItem{}
 		for j := 0; j < m.Field(i).Type.Elem().NumField(); j++ {
+			name := m.Field(i).Type.Elem().Field(j).Name
+			ntype := m.Field(i).Type.Elem().Field(j).Type
+			if ntype.Kind() == reflect.Ptr {
+				ntype = m.Field(i).Type.Elem().Field(j).Type.Elem()
+			}
+			if ntype.Kind() == reflect.Struct && inslice.HasString([]string{"AWS", "GCP", "Docker"}, name) {
+				backend := name + "."
+				if strings.ToLower(name) != a.opts.Config.Backend.Type {
+					continue
+				}
+				// get data from underneath
+				for x := 0; x < ntype.NumField(); x++ {
+					name := ntype.Field(x).Name
+					fname := ntype.Field(x).Tag.Get("row")
+					if fname == "" {
+						fname = name
+					}
+					out[m.Field(i).Name].Fields = append(out[m.Field(i).Name].Fields, &webui.InventoryItemField{
+						Name:         name,
+						FriendlyName: fname,
+						Backend:      backend,
+					})
+				}
+				continue
+			}
 			fname := m.Field(i).Type.Elem().Field(j).Tag.Get("row")
 			if fname == "" {
-				fname = m.Field(i).Type.Elem().Field(j).Name
+				fname = name
 			}
 			out[m.Field(i).Name].Fields = append(out[m.Field(i).Name].Fields, &webui.InventoryItemField{
-				Name:         m.Field(i).Type.Elem().Field(j).Name,
+				Name:         name,
 				FriendlyName: fname,
 			})
 		}
@@ -91,6 +118,7 @@ func (c *webCmd) inventoryLogFile(requestID string) (*os.File, error) {
 
 func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 	p := &webui.Page{
+		Backend:                                 a.opts.Config.Backend.Type,
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
@@ -123,15 +151,36 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *webCmd) addInventoryHandlers() {
+	http.HandleFunc(c.WebRoot+"www/api/inventory/volumes", c.inventoryVolumes)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/firewalls", c.inventoryFirewalls)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/expiry", c.inventoryExpiry)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/subnets", c.inventorySubnets)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/templates", c.inventoryTemplates)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
+}
+
+func (c *webCmd) inventoryFirewalls(w http.ResponseWriter, r *http.Request) {
+	c.cache.RLock()
+	defer c.cache.RUnlock()
+	json.NewEncoder(w).Encode(c.cache.inv.FirewallRules)
 }
 
 func (c *webCmd) inventoryExpiry(w http.ResponseWriter, r *http.Request) {
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.ExpirySystem)
+}
+
+func (c *webCmd) inventorySubnets(w http.ResponseWriter, r *http.Request) {
+	c.cache.RLock()
+	defer c.cache.RUnlock()
+	json.NewEncoder(w).Encode(c.cache.inv.Subnets)
+}
+
+func (c *webCmd) inventoryVolumes(w http.ResponseWriter, r *http.Request) {
+	c.cache.RLock()
+	defer c.cache.RUnlock()
+	json.NewEncoder(w).Encode(c.cache.inv.Volumes)
 }
 
 func (c *webCmd) inventoryTemplates(w http.ResponseWriter, r *http.Request) {

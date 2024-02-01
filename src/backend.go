@@ -185,25 +185,33 @@ type inventoryJson struct {
 }
 
 type inventoryVolume struct {
-	AvailabilityZoneId   string
-	AvailabilityZoneName string
-	CreationTime         time.Time
-	CreationToken        string
-	Encrypted            bool
-	FileSystemArn        string
-	FileSystemId         string
-	LifeCycleState       string
 	Name                 string
-	NumberOfMountTargets int
-	AWSOwnerId           string
-	PerformanceMode      string
-	ThroughputMode       string
+	GCP                  inventoryVolumeGcp
+	FileSystemId         string
+	AvailabilityZoneName string
+	AvailabilityZoneId   string
+	CreationTime         time.Time
 	SizeBytes            int
-	Tags                 map[string]string
-	MountTargets         []inventoryMountTarget
 	Owner                string
-	GCPAttachedTo        []string
-	GCPDescription       string
+	LifeCycleState       string
+	Tags                 map[string]string
+	AWS                  inventoryVolumeAws
+}
+
+type inventoryVolumeAws struct {
+	CreationToken        string                 // aws
+	Encrypted            bool                   // aws
+	FileSystemArn        string                 // aws
+	NumberOfMountTargets int                    // aws
+	AWSOwnerId           string                 // aws
+	PerformanceMode      string                 // aws
+	ThroughputMode       string                 // aws
+	MountTargets         []inventoryMountTarget // aws
+}
+
+type inventoryVolumeGcp struct {
+	AttachedTo  []string // gcp
+	Description string   // gcp
 }
 
 type inventoryMountTarget struct {
@@ -221,11 +229,11 @@ type inventoryMountTarget struct {
 }
 
 type inventoryExpiry struct {
+	Schedule     string
 	IAMScheduler string
 	IAMFunction  string
 	Scheduler    string
 	Function     string
-	Schedule     string
 	SourceBucket string
 }
 
@@ -239,9 +247,9 @@ type inventorySubnetAWS struct {
 	VpcCidr          string
 	AvailabilityZone string
 	SubnetId         string
+	SubnetName       string
 	SubnetCidr       string
 	IsAzDefault      bool
-	SubnetName       string
 	AutoPublicIP     bool
 }
 

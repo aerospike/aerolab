@@ -96,8 +96,8 @@ func (c *volumeResizeCmd) Execute(args []string) error {
 	}
 	var ClusterName *string
 	var NodeId int
-	if volume.GCPAttachedTo != nil {
-		node := strings.Split(volume.GCPAttachedTo[0], "-")
+	if volume.GCP.AttachedTo != nil {
+		node := strings.Split(volume.GCP.AttachedTo[0], "-")
 		clusterName := strings.Join(node[0:len(node)-1], "-")
 		nodeId := node[len(node)-1]
 		b.WorkOnServers()
@@ -323,7 +323,7 @@ func (c *volumeMountCmd) Execute(args []string) error {
 	}
 	if a.opts.Config.Backend.Type == "aws" {
 		var mountTarget *inventoryMountTarget
-		for _, mt := range volume.MountTargets {
+		for _, mt := range volume.AWS.MountTargets {
 			if mt.SubnetId == subnet {
 				mountTarget = &mt
 				break
