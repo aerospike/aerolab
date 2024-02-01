@@ -1326,6 +1326,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					if err != nil {
 						log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
 					}
+					c.inventoryNames = c.getInventoryNames()
 				}
 				log.Printf("[%s] Reloaded interface defaults", requestID)
 			}

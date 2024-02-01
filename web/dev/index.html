@@ -355,11 +355,26 @@
 
         <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
           <li class="nav-item">
-          <a class="nav-link active inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="true">Templates</a>
+            <a class="nav-link active inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="true">Templates</a>
           </li>
+          {{ if ne .Backend "docker" }}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryVolumes-tab" data-toggle="pill" href="#inventoryVolumes" role="tab" aria-controls="inventoryVolumes" aria-selected="false">{{if eq .Backend "aws"}}EFS{{end}}{{if eq .Backend "gcp"}}Volumes{{end}}</a>
+          </li>
+          {{end}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabFirewalls-tab" data-toggle="pill" href="#inventoryTabFirewalls" role="tab" aria-controls="inventoryTabFirewalls" aria-selected="false">{{if eq .Backend "aws"}}SecurityGroups{{end}}{{if eq .Backend "gcp"}}Firewalls{{end}}{{if eq .Backend "docker"}}Networks{{end}}</a>
+          </li>
+          {{ if ne .Backend "docker" }}
           <li class="nav-item">
           <a class="nav-link inventoryTab" id="inventoryTabExpirySystem-tab" data-toggle="pill" href="#inventoryTabExpirySystem" role="tab" aria-controls="inventoryTabExpirySystem" aria-selected="false">ExpirySystem</a>
           </li>
+          {{end}}
+          {{if eq .Backend "aws"}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabSubnets-tab" data-toggle="pill" href="#inventoryTabSubnets" role="tab" aria-controls="inventoryTabSubnets" aria-selected="false">Subnets</a>
+          </li>
+          {{end}}
         </ul>
 
       </div>
@@ -379,6 +394,35 @@
             </table>
           </div>
 
+          {{ if ne .Backend "docker" }}
+          <div class="tab-pane fade" id="inventoryVolumes" role="tabpanel" aria-labelledby="inventoryVolumes-tab">
+            <table id="invvolumes" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+          {{end}}
+
+          <div class="tab-pane fade" id="inventoryTabFirewalls" role="tabpanel" aria-labelledby="inventoryTabFirewalls-tab">
+            <table id="invfirewalls" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$fw := index .Inventory "FirewallRules"}}{{range $fw.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$fw := index .Inventory "FirewallRules"}}{{range $fw.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          {{ if ne .Backend "docker" }}
           <div class="tab-pane fade" id="inventoryTabExpirySystem" role="tabpanel" aria-labelledby="inventoryTabExpirySystem-tab">
             <table id="invexpiry" class="table table-hover inventoryTable" style="width:100%">
               <thead>
@@ -391,6 +435,22 @@
               </tfoot>
             </table>
           </div>
+          {{end}}
+
+          {{if eq .Backend "aws"}}
+          <div class="tab-pane fade" id="inventoryTabSubnets" role="tabpanel" aria-labelledby="inventoryTabSubnets-tab">
+            <table id="invsubnets" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+          {{end}}
 
         </div>
       </div>

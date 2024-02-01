@@ -27,6 +27,7 @@ type Page struct {
 	Menu                                    *MainMenu
 	FormItems                               []*FormItem
 	Inventory                               map[string]*InventoryItem
+	Backend                                 string
 }
 
 type InventoryItem struct {
@@ -36,6 +37,7 @@ type InventoryItem struct {
 type InventoryItemField struct {
 	Name         string
 	FriendlyName string
+	Backend      string
 }
 
 type FormItem struct {

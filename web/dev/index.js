@@ -417,12 +417,36 @@ function initDatatable() {
         ajax: { url:'{{.WebRoot}}www/api/inventory/templates', dataSrc:"" },
         columns: [{{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}{ data: '{{.Name}}' },{{end}}]
     });
+    {{ if ne .Backend "docker" }}
+    $('#invvolumes').DataTable({
+        //fixedColumns: {left: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/volumes',dataSrc:""},
+        columns: [{{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+    });
+    {{end}}
+    $('#invfirewalls').DataTable({
+        //fixedColumns: {left: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/firewalls',dataSrc:""},
+        columns: [{{$fw := index .Inventory "FirewallRules"}}{{range $fw.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+    });
+    {{ if ne .Backend "docker" }}
     $('#invexpiry').DataTable({
         //fixedColumns: {left: 1},
         buttons: [{extend: 'reload',className: 'btn btn-info',}],
         ajax: {url:'{{.WebRoot}}www/api/inventory/expiry',dataSrc:""},
         columns: [{{$expirysystem := index .Inventory "ExpirySystem"}}{{range $expirysystem.Fields}}{ data: '{{.Name}}' },{{end}}]
     });
+    {{end}}
+    {{if eq .Backend "aws"}}
+    $('#invsubnets').DataTable({
+        //fixedColumns: {left: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/subnets',dataSrc:""},
+        columns: [{{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+    });
+    {{end}}
 }
 {{else}}
 function initDatatable() {

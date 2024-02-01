@@ -149,9 +149,9 @@ func (d *backendAws) DeleteVolume(name string, zone string) error {
 		if vol.Name != name {
 			continue
 		}
-		if vol.NumberOfMountTargets > 0 {
+		if vol.AWS.NumberOfMountTargets > 0 {
 			log.Println("Deleting mount targets")
-			for _, mt := range vol.MountTargets {
+			for _, mt := range vol.AWS.MountTargets {
 				_, err = d.efs.DeleteMountTarget(&efs.DeleteMountTargetInput{
 					MountTargetId: aws.String(mt.MountTargetId),
 				})
@@ -1253,21 +1253,23 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					AvailabilityZoneId:   aws.StringValue(volume.AvailabilityZoneId),
 					AvailabilityZoneName: aws.StringValue(volume.AvailabilityZoneName),
 					CreationTime:         aws.TimeValue(volume.CreationTime),
-					CreationToken:        aws.StringValue(volume.CreationToken),
-					Encrypted:            aws.BoolValue(volume.Encrypted),
-					FileSystemArn:        aws.StringValue(volume.FileSystemArn),
-					FileSystemId:         aws.StringValue(volume.FileSystemId),
-					LifeCycleState:       aws.StringValue(volume.LifeCycleState),
-					Name:                 aws.StringValue(volume.Name),
-					NumberOfMountTargets: int(aws.Int64Value(volume.NumberOfMountTargets)),
-					AWSOwnerId:           aws.StringValue(volume.OwnerId),
-					PerformanceMode:      aws.StringValue(volume.PerformanceMode),
-					ThroughputMode:       aws.StringValue(volume.ThroughputMode),
-					SizeBytes:            int(aws.Int64Value(volume.SizeInBytes.Value)),
-					Owner:                tags["aerolab7owner"],
-					Tags:                 tags,
+					AWS: inventoryVolumeAws{
+						CreationToken:        aws.StringValue(volume.CreationToken),
+						Encrypted:            aws.BoolValue(volume.Encrypted),
+						FileSystemArn:        aws.StringValue(volume.FileSystemArn),
+						NumberOfMountTargets: int(aws.Int64Value(volume.NumberOfMountTargets)),
+						AWSOwnerId:           aws.StringValue(volume.OwnerId),
+						PerformanceMode:      aws.StringValue(volume.PerformanceMode),
+						ThroughputMode:       aws.StringValue(volume.ThroughputMode),
+					},
+					FileSystemId:   aws.StringValue(volume.FileSystemId),
+					LifeCycleState: aws.StringValue(volume.LifeCycleState),
+					Name:           aws.StringValue(volume.Name),
+					SizeBytes:      int(aws.Int64Value(volume.SizeInBytes.Value)),
+					Owner:          tags["aerolab7owner"],
+					Tags:           tags,
 				}
-				if vol.NumberOfMountTargets > 0 {
+				if vol.AWS.NumberOfMountTargets > 0 {
 					mt, err := d.efs.DescribeMountTargets(&efs.DescribeMountTargetsInput{
 						FileSystemId: aws.String(vol.FileSystemId),
 					})
@@ -1287,7 +1289,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							}
 							sg = aws.StringValueSlice(secGroups.SecurityGroups)
 						}
-						vol.MountTargets = append(vol.MountTargets, inventoryMountTarget{
+						vol.AWS.MountTargets = append(vol.AWS.MountTargets, inventoryMountTarget{
 							AvailabilityZoneId:   aws.StringValue(target.AvailabilityZoneId),
 							AvailabilityZoneName: aws.StringValue(target.AvailabilityZoneName),
 							FileSystemId:         aws.StringValue(target.FileSystemId),
