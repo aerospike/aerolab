@@ -1275,20 +1275,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		c.joblist.Add(requestID, run)
 
 		go func(run *exec.Cmd, requestID string) {
-			err := run.Wait()
-			c.joblist.Delete(requestID)
-			if err != nil {
-				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\n" + err.Error() + "\n")
-			} else {
-				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\nsuccess\n")
-			}
-			f.WriteString("-=-=-=-=- [END] -=-=-=-=-")
-			f.Close()
-			cancel()
-			c.jobqueue.End()
-			c.jobqueue.Remove()
+			runerr := run.Wait()
 			if c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != "")) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
 				log.Printf("[%s] Reloading interface defaults", requestID)
+				f.WriteString("\n->Reloading interface defaults\n")
 				a.opts = new(commands)
 				a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
 				a.iniParser = flags.NewIniParser(a.parser)
@@ -1321,15 +1311,30 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				a.early = false
 				c.genMenu()
 				if c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "" {
+					f.WriteString("\n->Reloading interface inventory map\n")
+					c.inventoryNames = c.getInventoryNames()
 					log.Printf("[%s] Forcing Inventory Refresh", requestID)
+					f.WriteString("\n->Forcing inventory cache refresh\n")
 					err = c.cache.run()
 					if err != nil {
 						log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
+						f.WriteString("\nERROR: " + err.Error() + "\n")
 					}
-					c.inventoryNames = c.getInventoryNames()
 				}
 				log.Printf("[%s] Reloaded interface defaults", requestID)
+				f.WriteString("\n->Reload finished\n")
 			}
+			c.joblist.Delete(requestID)
+			if runerr != nil {
+				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\n" + runerr.Error() + "\n")
+			} else {
+				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\nsuccess\n")
+			}
+			f.WriteString("-=-=-=-=- [END] -=-=-=-=-")
+			f.Close()
+			cancel()
+			c.jobqueue.End()
+			c.jobqueue.Remove()
 			if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
 				log.Printf("[%s] Restarting aerolab webui", requestID)
 				time.Sleep(time.Second)

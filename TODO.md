@@ -4,7 +4,6 @@
 * add inventory clients
 * add inventory agi - special page joining AGI volumes and AGI clusters
 * if backend or defaults changed via cli, find a way to provide a reload in the browser. probably this: on backend/defaults change, safe timestamp of last change in file. webui inventory refresh system: check timestamp of last change. if exists and is newer than what we remember from start, reload.
-* when switching backend, force inventory refresh and force-clear all datatables plus early-update inventory listing names
 * when switching to a backend that doesn't work, what happens? need errors popping up!
 * latest build still has "old name new name" bug! need to fix - docker; also cannot delete old template?
 * inventory templates - add "create" option that takes us to template create
