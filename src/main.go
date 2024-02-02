@@ -589,6 +589,7 @@ func writeConfigFile() error {
 	if err != nil {
 		return err
 	}
+	os.WriteFile(cfgFile+".ts", []byte(time.Now().Format(time.RFC3339)), 0644)
 	return nil
 }
 

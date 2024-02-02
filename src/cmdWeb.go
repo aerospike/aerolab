@@ -58,6 +58,7 @@ type webCmd struct {
 	jobqueue            *jobqueue.Queue
 	cache               *inventoryCache
 	inventoryNames      map[string]*webui.InventoryItem
+	cfgTs               time.Time
 }
 
 type jobTrack struct {
@@ -165,6 +166,29 @@ func (c *webCmd) jobCleaner() {
 	}
 }
 
+func (c *webCmd) CheckUpdateTs() error {
+	cfgFile, _, err := a.configFileName()
+	if err != nil {
+		return err
+	}
+	tsTmp, err := os.ReadFile(cfgFile + ".ts")
+	if err != nil {
+		return err
+	}
+	lastChangeTs, err := time.Parse(time.RFC3339, string(tsTmp))
+	if err != nil {
+		return err
+	}
+	if !lastChangeTs.After(c.cfgTs) {
+		return nil
+	}
+	log.Println("Config file changed, refreshing settings")
+	c.defaultsRefresh()
+	c.inventoryNames = c.getInventoryNames()
+	c.cfgTs = lastChangeTs
+	return nil
+}
+
 func (c *webCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
@@ -172,6 +196,7 @@ func (c *webCmd) Execute(args []string) error {
 	if !c.Real {
 		return c.runLoop(args)
 	}
+	c.cfgTs = time.Now()
 	c.joblist = &jobTrack{
 		j: make(map[string]*exec.Cmd),
 	}
@@ -183,7 +208,7 @@ func (c *webCmd) Execute(args []string) error {
 	}
 	c.inventoryNames = c.getInventoryNames()
 	log.Print("Getting initial inventory state")
-	err := c.cache.Start()
+	err := c.cache.Start(c.CheckUpdateTs)
 	if err != nil {
 		return err
 	}
@@ -1279,47 +1304,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			if c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != "")) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
 				log.Printf("[%s] Reloading interface defaults", requestID)
 				f.WriteString("\n->Reloading interface defaults\n")
-				a.opts = new(commands)
-				a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
-				a.iniParser = flags.NewIniParser(a.parser)
-				a.parseFile()
-				a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
-				for command, switchList := range backendSwitches {
-					keys := strings.Split(strings.ToLower(string(command)), ".")
-					var nCmd *flags.Command
-					for i, key := range keys {
-						if i == 0 {
-							nCmd = a.parser.Find(key)
-						} else {
-							nCmd = nCmd.Find(key)
-						}
-					}
-					for backend, switches := range switchList {
-						grp, err := nCmd.AddGroup(string(backend), string(backend), switches)
-						if err != nil {
-							logExit(err)
-						}
-						if string(backend) != a.opts.Config.Backend.Type {
-							grp.Hidden = true
-						}
-					}
-				}
-				a.iniParser = flags.NewIniParser(a.parser)
-				a.early = true
-				a.parseArgs(os.Args[1:])
-				a.parseFile()
-				a.early = false
-				c.genMenu()
-				if c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "" {
-					f.WriteString("\n->Reloading interface inventory map\n")
-					c.inventoryNames = c.getInventoryNames()
-					log.Printf("[%s] Forcing Inventory Refresh", requestID)
-					f.WriteString("\n->Forcing inventory cache refresh\n")
-					err = c.cache.run()
-					if err != nil {
-						log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
-						f.WriteString("\nERROR: " + err.Error() + "\n")
-					}
+				err = c.cache.run()
+				if err != nil {
+					log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
+					f.WriteString("\nERROR: " + err.Error() + "\n")
 				}
 				log.Printf("[%s] Reloaded interface defaults", requestID)
 				f.WriteString("\n->Reload finished\n")
@@ -1346,4 +1334,38 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}(run, requestID)
 	}()
 	w.Write([]byte(requestID))
+}
+
+func (c *webCmd) defaultsRefresh() {
+	a.opts = new(commands)
+	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+	a.iniParser = flags.NewIniParser(a.parser)
+	a.parseFile()
+	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+	for command, switchList := range backendSwitches {
+		keys := strings.Split(strings.ToLower(string(command)), ".")
+		var nCmd *flags.Command
+		for i, key := range keys {
+			if i == 0 {
+				nCmd = a.parser.Find(key)
+			} else {
+				nCmd = nCmd.Find(key)
+			}
+		}
+		for backend, switches := range switchList {
+			grp, err := nCmd.AddGroup(string(backend), string(backend), switches)
+			if err != nil {
+				logExit(err)
+			}
+			if string(backend) != a.opts.Config.Backend.Type {
+				grp.Hidden = true
+			}
+		}
+	}
+	a.iniParser = flags.NewIniParser(a.parser)
+	a.early = true
+	a.parseArgs(os.Args[1:])
+	a.parseFile()
+	a.early = false
+	c.genMenu()
 }
