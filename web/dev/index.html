@@ -211,7 +211,7 @@
                   {{else}}
                   <div class="form-group">
                     <label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
-                    <input type="{{.Input.Type}}" class="form-control{{if .Input.Required}} aerolab-required{{end}}" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
+                    <input type="{{.Input.Type}}" class="form-control{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
                   </div>
                   {{end}}
                   {{end}}

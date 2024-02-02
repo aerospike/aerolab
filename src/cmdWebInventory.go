@@ -172,11 +172,98 @@ func (c *webCmd) addInventoryHandlers() {
 }
 
 func (c *webCmd) inventoryFirewalls(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		c.inventoryFirewallsAction(w, r)
+		return
+	}
 	c.cache.ilcMutex.RLock()
 	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.FirewallRules)
+}
+
+func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request) {
+	reqID := shortuuid.New()
+	log.Printf("[%s] %s %s:%s", reqID, r.RemoteAddr, r.Method, r.RequestURI)
+	data := make(map[string][]inventoryFirewallRule)
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		http.Error(w, "could not read request: %s"+err.Error(), http.StatusBadRequest)
+		return
+	}
+	rules := data["list"]
+	if len(rules) == 0 {
+		http.Error(w, "received empty request", http.StatusBadRequest)
+		return
+	}
+	c.jobqueue.Add()
+	c.joblist.Add(reqID, &exec.Cmd{})
+	invlog, err := c.inventoryLogFile(reqID)
+	if err != nil {
+		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	comm := ""
+	switch a.opts.Config.Backend.Type {
+	case "aws":
+		comm = "config aws delete-security-groups"
+	case "gcp":
+		comm = "config gcp delete-firewall-rules"
+	case "docker":
+		comm = "config docker delete-network"
+	}
+	invlog.WriteString("-=-=-=-=- [path] /" + strings.ReplaceAll(comm, " ", "/") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [command] " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
+	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d rules\n", reqID, len(rules)))
+	log.Printf("[%s] DELETE %d rules", reqID, len(rules))
+	go func() {
+		c.jobqueue.Start()
+		defer c.jobqueue.Remove()
+		defer c.jobqueue.End()
+		defer c.joblist.Delete(reqID)
+		defer invlog.Close()
+		isError := false
+		for _, rule := range rules {
+			var genRule interface{}
+			switch a.opts.Config.Backend.Type {
+			case "aws":
+				genRule = rule.AWS
+				a.opts.Config.Aws.DestroySecGroups.NamePrefix = strings.Split(rule.AWS.SecurityGroupName, "-")[0]
+				a.opts.Config.Aws.DestroySecGroups.VPC = rule.AWS.VPC
+				a.opts.Config.Aws.DestroySecGroups.Internal = false
+				err = a.opts.Config.Aws.DestroySecGroups.Execute(nil)
+			case "gcp":
+				genRule = rule.GCP
+				a.opts.Config.Gcp.DestroySecGroups.NamePrefix = rule.GCP.FirewallName
+				a.opts.Config.Gcp.DestroySecGroups.Internal = false
+				err = a.opts.Config.Gcp.DestroySecGroups.Execute(nil)
+			case "docker":
+				genRule = rule.Docker
+				a.opts.Config.Docker.DeleteNetwork.Name = rule.Docker.NetworkName
+				err = a.opts.Config.Docker.DeleteNetwork.Execute(nil)
+			}
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, genRule))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, rule)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, genRule))
+				log.Printf("[%s] DELETED (%v)", reqID, genRule)
+			}
+		}
+		invlog.WriteString("\n->Refreshing inventory cache\n")
+		c.cache.run()
+		if isError {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
+		} else {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 0 -=-=-=-=-\nsuccess\n")
+		}
+		invlog.WriteString("-=-=-=-=- [END] -=-=-=-=-")
+	}()
+	w.Write([]byte(reqID))
 }
 
 func (c *webCmd) inventoryExpiry(w http.ResponseWriter, r *http.Request) {
@@ -269,13 +356,14 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 				log.Printf("[%s] DELETED (%v)", reqID, template)
 			}
 		}
+		invlog.WriteString("\n->Refreshing inventory cache\n")
+		c.cache.run()
 		if isError {
 			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
 		} else {
 			invlog.WriteString("\n-=-=-=-=- [ExitCode] 0 -=-=-=-=-\nsuccess\n")
 		}
 		invlog.WriteString("-=-=-=-=- [END] -=-=-=-=-")
-		go c.cache.run()
 	}()
 	w.Write([]byte(reqID))
 }
