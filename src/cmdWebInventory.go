@@ -20,14 +20,14 @@ import (
 )
 
 type inventoryCache struct {
-	update          func() error
+	update          func() (bool, error)
 	runLock         *sync.Mutex
 	RefreshInterval time.Duration
 	inv             *inventoryJson
 	sync.RWMutex
 }
 
-func (i *inventoryCache) Start(update func() error) error {
+func (i *inventoryCache) Start(update func() (bool, error)) error {
 	i.update = update
 	err := i.run()
 	if err != nil {
@@ -48,9 +48,17 @@ func (i *inventoryCache) Start(update func() error) error {
 func (i *inventoryCache) run() error {
 	i.runLock.Lock()
 	defer i.runLock.Unlock()
-	i.update()
+	isUpdated, err := i.update()
+	if err != nil {
+		log.Printf("INVENTORY CACHE: WARNING: %s", err)
+	}
 	out, err := exec.Command("aerolab", "inventory", "list", "-j", "-p").CombinedOutput()
 	if err != nil {
+		if isUpdated {
+			i.Lock()
+			i.inv = &inventoryJson{}
+			i.Unlock()
+		}
 		return fmt.Errorf("%s: %s", err, string(out))
 	}
 	inv := &inventoryJson{}

@@ -166,27 +166,27 @@ func (c *webCmd) jobCleaner() {
 	}
 }
 
-func (c *webCmd) CheckUpdateTs() error {
+func (c *webCmd) CheckUpdateTs() (updated bool, err error) {
 	cfgFile, _, err := a.configFileName()
 	if err != nil {
-		return err
+		return false, err
 	}
 	tsTmp, err := os.ReadFile(cfgFile + ".ts")
 	if err != nil {
-		return err
+		return false, nil
 	}
 	lastChangeTs, err := time.Parse(time.RFC3339, string(tsTmp))
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !lastChangeTs.After(c.cfgTs) {
-		return nil
+		return false, nil
 	}
 	log.Println("Config file changed, refreshing settings")
 	c.defaultsRefresh()
 	c.inventoryNames = c.getInventoryNames()
 	c.cfgTs = lastChangeTs
-	return nil
+	return true, nil
 }
 
 func (c *webCmd) Execute(args []string) error {
@@ -1301,22 +1301,28 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 
 		go func(run *exec.Cmd, requestID string) {
 			runerr := run.Wait()
+			exitCode := run.ProcessState.ExitCode()
 			if c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != "")) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
 				log.Printf("[%s] Reloading interface defaults", requestID)
 				f.WriteString("\n->Reloading interface defaults\n")
 				err = c.cache.run()
 				if err != nil {
 					log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
-					f.WriteString("\nERROR: " + err.Error() + "\n")
+					if runerr == nil {
+						runerr = err
+					} else {
+						runerr = fmt.Errorf("%s\n%s", runerr, err)
+					}
+					exitCode = 1
 				}
 				log.Printf("[%s] Reloaded interface defaults", requestID)
 				f.WriteString("\n->Reload finished\n")
 			}
 			c.joblist.Delete(requestID)
 			if runerr != nil {
-				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\n" + runerr.Error() + "\n")
+				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(exitCode) + " -=-=-=-=-\n" + runerr.Error() + "\n")
 			} else {
-				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\nsuccess\n")
+				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(exitCode) + " -=-=-=-=-\nsuccess\n")
 			}
 			f.WriteString("-=-=-=-=- [END] -=-=-=-=-")
 			f.Close()
