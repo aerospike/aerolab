@@ -1,7 +1,7 @@
 # TODO for 7.4.0 to be ready
 
-* inventory templates - add "create" option that takes us to template create
-* inventory firewalls - add "create" and "delete" options to take us to relevant config/backend/...
+* on any 'create/grow' commands, should we trigger inventory cache refresh in the background? We already trigger on delete run from the inventory pages. We /could/ trigger on any action completion instead, but that might be a lot (and we'd need a resettable timer for timed refresh)
+  * maybe a struct tag for commands that require an inventory refresh and if they are triggered, inventory refresh should happen
 * 'enable services' in gcp needs special handling (some sort of button present in inventory)
 * inventory expiry system - add buttons to install, delete, change frequency
 * inventory volumes - adjust what we show and how we show it in tables - match cli
