@@ -26,13 +26,13 @@ func init() {
 
 type agiCmd struct {
 	List      agiListCmd      `command:"list" subcommands-optional:"true" description:"List AGI instances" webicon:"fas fa-list"`
-	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance" webicon:"fas fa-circle-plus"`
+	Create    agiCreateCmd    `command:"create" subcommands-optional:"true" description:"Create AGI instance" webicon:"fas fa-circle-plus" invwebforce:"true"`
 	Start     agiStartCmd     `command:"start" subcommands-optional:"true" description:"Start AGI instance" webicon:"fas fa-play"`
 	Stop      agiStopCmd      `command:"stop" subcommands-optional:"true" description:"Stop AGI instance" webicon:"fas fa-stop"`
 	Status    agiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show status of an AGI instance" webicon:"fas fa-circle-question"`
 	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance" webicon:"fas fa-circle-info"`
-	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance" webicon:"fas fa-trash"`
-	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name" webicon:"fas fa-dumpster"`
+	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance" webicon:"fas fa-trash" invwebforce:"true"`
+	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name" webicon:"fas fa-dumpster" invwebforce:"true"`
 	Relabel   agiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change instance name label" webicon:"fas fa-tag"`
 	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)" webicon:"fas fa-water"`
 	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance" webicon:"fas fa-terminal"`

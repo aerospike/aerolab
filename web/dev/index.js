@@ -184,8 +184,8 @@ function getCommand(supressError=false) {
         if (!checkRequiredFields()) {
             return;
         }
+        $("#loadingSpinner").show();
     }
-    $("#loadingSpinner").show();
     document.getElementById("action").value = "show";
     document.getElementById("useShortSwitches").value = document.getElementById("shortSwitches").checked;
     $.post("", $("#mainForm").serialize(), function(data) {
@@ -529,7 +529,40 @@ function initDatatable() {
     {{ if ne .Backend "docker" }}
     $('#invexpiry').DataTable({
         //fixedColumns: {left: 1},
-        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        buttons: [{
+            className: 'btn btn-success',
+            text: 'Create',
+            action: function ( e, dt, node, config ) {
+                {{if eq .Backend "aws"}}
+                let url = "{{.WebRoot}}config/aws/expiry-install";
+                {{end}}
+                {{if eq .Backend "gcp"}}
+                let url = "{{.WebRoot}}config/gcp/expiry-install";
+                {{end}}
+                window.location.href = url;
+            }},{
+                className: 'btn btn-info',
+                text: 'Change Frequency',
+                action: function ( e, dt, node, config ) {
+                    {{if eq .Backend "aws"}}
+                    let url = "{{.WebRoot}}config/aws/expiry-run-frequency";
+                    {{end}}
+                    {{if eq .Backend "gcp"}}
+                    let url = "{{.WebRoot}}config/gcp/expiry-run-frequency";
+                    {{end}}
+                    window.location.href = url;
+            }},{extend: 'reload',className: 'btn btn-info',},{
+                className: 'btn btn-danger',
+                text: 'Remove',
+                action: function ( e, dt, node, config ) {
+                    {{if eq .Backend "aws"}}
+                    let url = "{{.WebRoot}}config/aws/expiry-remove";
+                    {{end}}
+                    {{if eq .Backend "gcp"}}
+                    let url = "{{.WebRoot}}config/gcp/expiry-remove";
+                    {{end}}
+                    window.location.href = url;
+            }}],
         ajax: {url:'{{.WebRoot}}www/api/inventory/expiry',dataSrc:""},
         columns: [{{$expirysystem := index .Inventory "ExpirySystem"}}{{range $expirysystem.Fields}}{ data: '{{.Name}}' },{{end}}]
     });
