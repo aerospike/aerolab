@@ -1,7 +1,5 @@
 # TODO for 7.4.0 to be ready
 
-* latest build still has "old name new name" bug! need to fix - docker; also cannot delete old template?
-
 * inventory templates - add "create" option that takes us to template create
 * inventory firewalls - add "create" and "delete" options to take us to relevant config/backend/...
 * 'enable services' in gcp needs special handling (some sort of button present in inventory)
