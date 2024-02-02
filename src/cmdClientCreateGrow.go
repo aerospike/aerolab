@@ -3,14 +3,14 @@ package main
 import "os"
 
 type clientCreateCmd struct {
-	None          clientCreateNoneCmd          `command:"none" subcommands-optional:"true" description:"vanilla OS image with no package modifications" webicon:"fas fa-file"`
-	Base          clientCreateBaseCmd          `command:"base" subcommands-optional:"true" description:"simple base image" webicon:"fas fa-grip-lines"`
-	Tools         clientCreateToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools" webicon:"fas fa-toolbox"`
-	AMS           clientCreateAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter" webicon:"fas fa-layer-group"`
-	VSCode        clientCreateVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client" webicon:"fas fa-code"`
-	Trino         clientCreateTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)" webicon:"fas fa-tachograph-digital"`
-	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike" webicon:"fas fa-magnifying-glass"`
-	RestGateway   clientCreateRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine" webicon:"fas fa-dungeon"`
+	None          clientCreateNoneCmd          `command:"none" subcommands-optional:"true" description:"vanilla OS image with no package modifications" webicon:"fas fa-file" invwebforce:"true"`
+	Base          clientCreateBaseCmd          `command:"base" subcommands-optional:"true" description:"simple base image" webicon:"fas fa-grip-lines" invwebforce:"true"`
+	Tools         clientCreateToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools" webicon:"fas fa-toolbox" invwebforce:"true"`
+	AMS           clientCreateAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter" webicon:"fas fa-layer-group" invwebforce:"true"`
+	VSCode        clientCreateVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client" webicon:"fas fa-code" invwebforce:"true"`
+	Trino         clientCreateTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)" webicon:"fas fa-tachograph-digital" invwebforce:"true"`
+	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike" webicon:"fas fa-magnifying-glass" invwebforce:"true"`
+	RestGateway   clientCreateRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine" webicon:"fas fa-dungeon" invwebforce:"true"`
 	// NEW_CLIENTS_CREATE
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }

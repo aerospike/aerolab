@@ -12,7 +12,7 @@ type clientCmd struct {
 	Start     clientStartCmd     `command:"start" subcommands-optional:"true" description:"Start a client machine group" webicon:"fas fa-play"`
 	Stop      clientStopCmd      `command:"stop" subcommands-optional:"true" description:"Stop a client machine group" webicon:"fas fa-stop"`
 	Grow      clientGrowCmd      `command:"grow" subcommands-optional:"true" description:"Grow a client machine group" webicon:"fas fa-circle-plus"`
-	Destroy   clientDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy client(s)" webicon:"fas fa-trash"`
+	Destroy   clientDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy client(s)" webicon:"fas fa-trash" invwebforce:"true"`
 	Attach    attachClientCmd    `command:"attach" subcommands-optional:"true" description:"symlink to: attach client" webicon:"fas fa-terminal"`
 	Share     clientShareCmd     `command:"share" subcommands-optional:"true" description:"share a client with other users - wrapper around ssh-copy-id" webicon:"fas fa-share"`
 	Help      helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`

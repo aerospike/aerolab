@@ -1,9 +1,17 @@
 # TODO for 7.4.0 to be ready
 
-* on any 'create/grow' commands, should we trigger inventory cache refresh in the background? We already trigger on delete run from the inventory pages. We /could/ trigger on any action completion instead, but that might be a lot (and we'd need a resettable timer for timed refresh)
-  * maybe a struct tag for commands that require an inventory refresh and if they are triggered, inventory refresh should happen
-* 'enable services' in gcp needs special handling (some sort of button present in inventory)
-* inventory expiry system - add buttons to install, delete, change frequency
+```
+// TODO for cache updater, add MinimumInterval option to ensure we do not do more than 1 refresh per MinimumInterval
+/*
+we should have a nextRun time.Time updated as now().Add(RefreshInterval)
+we should have a lastRun time.Time updated as now()
+we should sleep a second minimumInterval and check if nextRun is before now(). if so, do a run. if not, sleep minimumInterval
+a forced run() should update nextRun to be now().add(minimumInterval-(now()-lastRun)) ... and somehow wait for the action to complete
+we should have a runNow() for backend/defaults changes, which WILL run now (and update nextRun to be in minimumInterval)
+ ... we should really be having a way to update the inventory tables when we update the cache ...
+*/
+```
+
 * inventory volumes - adjust what we show and how we show it in tables - match cli
 * inventory volumes - add buttons for create/mount/delete/grow/detach (show each only for relevant backend, part-fill the form using get vars)
 

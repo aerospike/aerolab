@@ -8,14 +8,14 @@ import (
 )
 
 type configAwsCmd struct {
-	DestroySecGroups destroySecGroupsCmd `command:"delete-security-groups" subcommands-optional:"true" description:"delete aerolab-managed security groups" webicon:"fas fa-trash"`
-	LockSecGroups    lockSecGroupsCmd    `command:"lock-security-groups" subcommands-optional:"true" description:"lock the client security groups so that AMS/vscode are only accessible from a set IP" webicon:"fas fa-lock"`
-	CreateSecGroups  createSecGroupsCmd  `command:"create-security-groups" subcommands-optional:"true" description:"create AeroLab-managed security groups in a given VPC" webicon:"fas fa-circle-plus"`
+	DestroySecGroups destroySecGroupsCmd `command:"delete-security-groups" subcommands-optional:"true" description:"delete aerolab-managed security groups" webicon:"fas fa-trash" invwebforce:"true"`
+	LockSecGroups    lockSecGroupsCmd    `command:"lock-security-groups" subcommands-optional:"true" description:"lock the client security groups so that AMS/vscode are only accessible from a set IP" webicon:"fas fa-lock" invwebforce:"true"`
+	CreateSecGroups  createSecGroupsCmd  `command:"create-security-groups" subcommands-optional:"true" description:"create AeroLab-managed security groups in a given VPC" webicon:"fas fa-circle-plus" invwebforce:"true"`
 	ListSecGroups    listSecGroupsCmd    `command:"list-security-groups" subcommands-optional:"true" description:"list current aerolab-managed security groups" webicon:"fas fa-list"`
 	ListSubnets      listSubnetsCmd      `command:"list-subnets" subcommands-optional:"true" description:"list VPCs and subnets in the current region" webicon:"fas fa-list-ol"`
-	ExpiryInstall    expiryInstallCmd    `command:"expiry-install" subcommands-optional:"true" description:"install the expiry system scheduler and lambda with the required IAM roles" webicon:"fas fa-plus"`
-	ExpiryRemove     expiryRemoveCmd     `command:"expiry-remove" subcommands-optional:"true" description:"remove the expiry system scheduler, lambda and created IAM roles" webicon:"fas fa-minus"`
-	ExpiryCheckFreq  expiryCheckFreqCmd  `command:"expiry-run-frequency" subcommands-optional:"true" description:"adjust how often the scheduler runs the expiry check lambda" webicon:"fas fa-gauge"`
+	ExpiryInstall    expiryInstallCmd    `command:"expiry-install" subcommands-optional:"true" description:"install the expiry system scheduler and lambda with the required IAM roles" webicon:"fas fa-plus" invwebforce:"true"`
+	ExpiryRemove     expiryRemoveCmd     `command:"expiry-remove" subcommands-optional:"true" description:"remove the expiry system scheduler, lambda and created IAM roles" webicon:"fas fa-minus" invwebforce:"true"`
+	ExpiryCheckFreq  expiryCheckFreqCmd  `command:"expiry-run-frequency" subcommands-optional:"true" description:"adjust how often the scheduler runs the expiry check lambda" webicon:"fas fa-gauge" invwebforce:"true"`
 	Help             helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

@@ -76,6 +76,10 @@ func (c *restCmd) getCommandsNext(keyField reflect.Value, start string, ret chan
 	if tags.Get("webhidden") != "" {
 		isWebHidden = true
 	}
+	isReload := false
+	if tags.Get("invwebforce") != "" {
+		isReload = true
+	}
 	ret <- apiCommand{
 		path:        strings.Join(tagStack, "/"),
 		pathStack:   tagStack,
@@ -84,5 +88,6 @@ func (c *restCmd) getCommandsNext(keyField reflect.Value, start string, ret chan
 		isWebHidden: isWebHidden,
 		icon:        tags.Get("webicon"),
 		Value:       keyField,
+		reload:      isReload,
 	}
 }
