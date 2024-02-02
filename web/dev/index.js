@@ -37,10 +37,20 @@ $('.checkForGetParams').each(function() {
     }
     label = label[0].innerText.replace("* ","");
     var labelParam = $.urlParam(label);
-    if (labelParam == null) {
-        return;
-    }
-    $(this).val(labelParam);
+    var inputItem = this;
+    if (labelParam != null) {
+        if (labelParam == "discover-caller-ip") {
+            $.getJSON("https://api.ipify.org?format=json",
+            function (data) {
+                $(inputItem).val(data.ip);
+            })
+            .fail(function() {
+                $(inputItem).val(labelParam);
+            });
+        } else {
+            $(this).val(labelParam);
+        };
+    };
 });
 
 function checkRequiredFields() {
@@ -485,10 +495,10 @@ function initDatatable() {
                     }
                     let data = arr[0];
                     {{if eq .Backend "aws"}}
-                    let url = "{{.WebRoot}}config/aws/lock-security-groups?NamePrefix="+data["AWS"]["SecurityGroupName"]+"&VPC="+data["AWS"]["VPC"];
+                    let url = "{{.WebRoot}}config/aws/lock-security-groups?NamePrefix="+data["AWS"]["SecurityGroupName"]+"&VPC="+data["AWS"]["VPC"]+"&IP=discover-caller-ip";
                     {{end}}
                     {{if eq .Backend "gcp"}}
-                    let url = "{{.WebRoot}}config/gcp/lock-firewall-rules?NamePrefix="+data["GCP"]["FirewallName"];
+                    let url = "{{.WebRoot}}config/gcp/lock-firewall-rules?NamePrefix="+data["GCP"]["FirewallName"]+"&IP=discover-caller-ip";
                     {{end}}
                     window.location.href = url;
                 }}{{end}},{extend: 'reload',className: 'btn btn-info',},{
