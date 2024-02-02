@@ -1,6 +1,5 @@
 # TODO for 7.4.0 to be ready
 
-* when switching to a backend that doesn't work, what happens? need errors popping up!
 * latest build still has "old name new name" bug! need to fix - docker; also cannot delete old template?
 
 * inventory templates - add "create" option that takes us to template create
