@@ -21,3 +21,12 @@ we should have a runNow() for backend/defaults changes, which WILL run now (and 
 
 * Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
 * telemetry - report the command run properly somehow
+
+-=-=-=-=-
+
+other items (future)
+
+* gh issue: add links in eg security groups so that we can be taken straight to gcp/aws console section with this
+* aerolab bootstrap eksctl container
+* aerolab - add asbench UI
+* gh issue - recipe option like jupiter notebooks
