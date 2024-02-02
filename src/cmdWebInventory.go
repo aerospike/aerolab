@@ -25,6 +25,7 @@ type inventoryCache struct {
 	RefreshInterval time.Duration
 	inv             *inventoryJson
 	sync.RWMutex
+	ilcMutex *sync.RWMutex
 }
 
 func (i *inventoryCache) Start(update func() (bool, error)) error {
@@ -171,24 +172,32 @@ func (c *webCmd) addInventoryHandlers() {
 }
 
 func (c *webCmd) inventoryFirewalls(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.FirewallRules)
 }
 
 func (c *webCmd) inventoryExpiry(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.ExpirySystem)
 }
 
 func (c *webCmd) inventorySubnets(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.Subnets)
 }
 
 func (c *webCmd) inventoryVolumes(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.Volumes)
@@ -199,6 +208,8 @@ func (c *webCmd) inventoryTemplates(w http.ResponseWriter, r *http.Request) {
 		c.inventoryTemplatesAction(w, r)
 		return
 	}
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.Templates)

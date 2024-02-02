@@ -205,14 +205,21 @@ func (c *webCmd) Execute(args []string) error {
 	c.cache = &inventoryCache{
 		RefreshInterval: c.RefreshInterval,
 		runLock:         new(sync.Mutex),
+		inv:             &inventoryJson{},
+		ilcMutex:        new(sync.RWMutex),
 	}
 	c.inventoryNames = c.getInventoryNames()
-	log.Print("Getting initial inventory state")
-	err := c.cache.Start(c.CheckUpdateTs)
-	if err != nil {
-		return err
-	}
-	log.Print("Inventory obtained, continuing load")
+	c.cache.ilcMutex.Lock()
+	go func() {
+		defer c.cache.ilcMutex.Unlock()
+		log.Print("Getting initial inventory state")
+		err := c.cache.Start(c.CheckUpdateTs)
+		if err != nil {
+			log.Printf("WARNING: Inventory query failure: %s", err)
+		} else {
+			log.Print("Initial Inventory obtained")
+		}
+	}()
 	go func() {
 		var statc, statq, statj int
 		for {
@@ -231,7 +238,7 @@ func (c *webCmd) Execute(args []string) error {
 	if c.WebRoot == "//" {
 		c.WebRoot = "/"
 	}
-	err = c.genMenu()
+	err := c.genMenu()
 	if err != nil {
 		return err
 	}
