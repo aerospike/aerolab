@@ -296,7 +296,6 @@ function updateCurrentInventoryPage() {
                 continue;
             }
             dt.ajax.reload();
-            console.log(tables[i]);
         }
     })
 }

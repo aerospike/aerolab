@@ -1,6 +1,5 @@
 # TODO for 7.4.0 to be ready
 
-* export command history option /command or command + output/
 * inventory volumes - adjust what we show and how we show it in tables - match cli
 * inventory volumes - add buttons for create/mount/delete/grow/detach (show each only for relevant backend, part-fill the form using get vars)
 
