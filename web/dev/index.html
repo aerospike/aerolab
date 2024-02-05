@@ -82,6 +82,13 @@
             {{end}}
           </span>
           {{end}}
+          <div class="dropdown-divider"></div>
+          <form>
+            <span class="dropdown-header">
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commands" download="commands.sh">Export command script</a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandh" download="commands.md">Export command history</a>
+            </span>
+          </form>
           <div class="jobslist">
             <div class="dropdown-divider"></div>
             <a href="#" class="dropdown-item">
@@ -91,7 +98,7 @@
             </a>  
           </div>
           <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer" onclick="clearNotifications();">Clear Notifications</a>
+          <a href="#" class="dropdown-item dropdown-footer" onclick="clearNotifications();">Clear History</a>
         </div>
       </li>
       <!--

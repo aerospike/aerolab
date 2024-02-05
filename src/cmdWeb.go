@@ -271,6 +271,9 @@ func (c *webCmd) Execute(args []string) error {
 	http.HandleFunc(c.WebRoot+"www/plugins/", c.static)
 	http.HandleFunc(c.WebRoot+"www/api/job/", c.job)
 	http.HandleFunc(c.WebRoot+"www/api/jobs/", c.jobs)
+	http.HandleFunc(c.WebRoot+"www/api/commands", c.commandScript)
+	http.HandleFunc(c.WebRoot+"www/api/commandh", c.commandHistory)
+
 	c.addInventoryHandlers()
 	http.HandleFunc(c.WebRoot, c.serve)
 	if c.WebRoot != "/" {
@@ -292,6 +295,14 @@ func (c *webCmd) Execute(args []string) error {
 		browser.OpenURL("http://" + openurl)
 	}
 	return http.Serve(l, nil)
+}
+
+func (c *webCmd) commandScript(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionSCRIPT)
+}
+
+func (c *webCmd) commandHistory(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionHIST)
 }
 
 func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
@@ -377,6 +388,16 @@ func (c *webCmd) getJobPath(requestID string) (string, error) {
 }
 
 func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionJOBS)
+}
+
+const (
+	WebUIJobsActionJOBS   = 1
+	WebUIJobsActionSCRIPT = 2
+	WebUIJobsActionHIST   = 3
+)
+
+func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType int) {
 	// handle truncate timestamp cookie
 	truncate, err := r.Cookie(webui.TruncateTimestampCookieName)
 	truncatestring := ""
@@ -403,6 +424,8 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		IsRunning      bool      // is it still running
 		IsFailed       bool      // if it is not running, has it failed with an error instead of success
 		startTimestamp time.Time // for sorting purposes
+		CmdLine        string
+		FilePath       string
 	}
 	type jsonJobs struct {
 		Jobs         []*jsonJob
@@ -465,6 +488,7 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 			RequestID:      reqID,
 			startTimestamp: ts,
 			StartedWhen:    startedWhen,
+			FilePath:       path,
 		}
 		runJob := c.joblist.Get(reqID)
 		if runJob != nil {
@@ -484,7 +508,14 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 			if strings.HasPrefix(line, "-=-=-=-=- [command] ") && strings.HasSuffix(line, " -=-=-=-=-") {
 				ncmd := strings.TrimSuffix(strings.TrimPrefix(line, "-=-=-=-=- [command] "), " -=-=-=-=-")
 				j.Command = ncmd
-				if runJob != nil {
+				if runJob != nil && j.CmdLine != "" {
+					break
+				}
+			}
+			if strings.HasPrefix(line, "-=-=-=-=- [cmdline] ") && strings.HasSuffix(line, " -=-=-=-=-") {
+				ncmd := strings.TrimSuffix(strings.TrimPrefix(line, "-=-=-=-=- [cmdline] "), " -=-=-=-=-")
+				j.CmdLine = ncmd
+				if runJob != nil && j.Command != "" {
 					break
 				}
 			}
@@ -509,19 +540,91 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not get job list: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	sort.Slice(jobs.Jobs, func(i, j int) bool {
-		if jobs.Jobs[i].IsRunning && !jobs.Jobs[j].IsRunning {
-			return true
+
+	switch jobType {
+	case WebUIJobsActionHIST:
+		sort.Slice(jobs.Jobs, func(i, j int) bool {
+			return jobs.Jobs[i].startTimestamp.Before(jobs.Jobs[j].startTimestamp)
+		})
+		w.Write([]byte("# AeroLab Command History\n\n" + time.Now().Format(time.RFC1123) + "\n\n## Command List\n\nCommand | Start Time | Status\n--- | --- | ---\n"))
+		for _, job := range jobs.Jobs {
+			jobStatus := "SUCCESS"
+			if job.IsFailed {
+				jobStatus = "FAILED"
+			} else if job.IsRunning {
+				jobStatus = "RUNNING"
+			}
+			w.Write([]byte("[`" + job.CmdLine + "`](#JOBID-" + job.RequestID + ") | " + job.startTimestamp.Format(time.RFC3339) + " | " + jobStatus + "\n")) //[`aerolab inventory list`](#inventory-list) | 22:04:57 | RUNNING
 		}
-		if !jobs.Jobs[i].IsRunning && jobs.Jobs[j].IsRunning {
-			return false
+		w.Write([]byte("\n## Command Details\n\n"))
+		for _, job := range jobs.Jobs {
+			fc, err := os.ReadFile(job.FilePath)
+			if err != nil {
+				fc = []byte("-=-=-=-=- [Log] -=-=-=-=-\n" + err.Error())
+			}
+			ans := strings.ReplaceAll(string(fc), "```", "`'`")
+			ansLog := strings.Split(ans, "-=-=-=-=- [Log] -=-=-=-=-\n")
+			nLog := ""
+			exitCode := ""
+			if len(ansLog) > 1 {
+				ansCode := strings.Split(ansLog[1], "-=-=-=-=- [ExitCode]")
+				nLog = strings.TrimRight(ansCode[0], "\n")
+				if len(ansCode) > 1 {
+					exitCode = "-=-=-=-=- [ExitCode]" + strings.TrimRight(strings.TrimSuffix(ansCode[1], "-=-=-=-=- [END] -=-=-=-=-"), "\n")
+				}
+			}
+			w.Write([]byte("### " + job.Command + "\n\n#### JOBID-" + job.RequestID + "\n\n#### Command\n\n" + "```\n" + job.CmdLine + "\n```\n\n#### Output\n\n```\n" + nLog))
+			w.Write([]byte("\n```\n\n"))
+			if job.IsRunning {
+				w.Write([]byte("#### Job still running\n\n"))
+			} else {
+				w.Write([]byte("#### Exit Code\n\n```\n" + exitCode))
+				w.Write([]byte("\n```\n\n"))
+			}
 		}
-		return jobs.Jobs[i].startTimestamp.After(jobs.Jobs[j].startTimestamp)
-	})
-	if len(jobs.Jobs)-jobs.RunningCount > c.ShowMaxHistoryItems {
-		jobs.Jobs = jobs.Jobs[0:(jobs.RunningCount + c.ShowMaxHistoryItems)]
+	case WebUIJobsActionSCRIPT:
+		sort.Slice(jobs.Jobs, func(i, j int) bool {
+			return jobs.Jobs[i].startTimestamp.Before(jobs.Jobs[j].startTimestamp)
+		})
+		script := "# [ALL_JOBS_SUCCEEDED]\n"
+		if jobs.HasFailed && jobs.HasRunning {
+			script = "# [HAS_FAILED_JOBS] [HAS_RUNNING_JOBS]\n"
+		} else if jobs.HasFailed {
+			script = "# [HAS_FAILED_JOBS]\n"
+		} else if jobs.HasRunning {
+			script = "# [HAS_RUNNING_JOBS]\n"
+		}
+		w.Write([]byte(script))
+		for _, job := range jobs.Jobs {
+			script := "\n" + job.CmdLine + "\n"
+			script = script + "# " + job.startTimestamp.Format(time.RFC3339)
+			if job.IsFailed {
+				script = script + " [FAILED]"
+			} else if job.IsRunning {
+				script = script + " [RUNNING]"
+			} else {
+				script = script + " [SUCCESS]"
+			}
+			script = script + " [LOG:" + job.FilePath + "]\n"
+			w.Write([]byte(script))
+		}
+	case WebUIJobsActionJOBS:
+		fallthrough
+	default:
+		sort.Slice(jobs.Jobs, func(i, j int) bool {
+			if jobs.Jobs[i].IsRunning && !jobs.Jobs[j].IsRunning {
+				return true
+			}
+			if !jobs.Jobs[i].IsRunning && jobs.Jobs[j].IsRunning {
+				return false
+			}
+			return jobs.Jobs[i].startTimestamp.After(jobs.Jobs[j].startTimestamp)
+		})
+		if len(jobs.Jobs)-jobs.RunningCount > c.ShowMaxHistoryItems {
+			jobs.Jobs = jobs.Jobs[0:(jobs.RunningCount + c.ShowMaxHistoryItems)]
+		}
+		json.NewEncoder(w).Encode(jobs)
 	}
-	json.NewEncoder(w).Encode(jobs)
 }
 
 func (c *webCmd) job(w http.ResponseWriter, r *http.Request) {
