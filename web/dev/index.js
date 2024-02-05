@@ -280,7 +280,31 @@ $( window ).on( "resize", function() {
     $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: getTooltipPlacement(), fallbackPlacement:["bottom"], boundary: "viewport" });
 } );
 
-function updateJobList(setTimer = false) {
+{{if .IsInventory}}
+function updateCurrentInventoryPage() {
+    $("#custom-tabs-one-tabContent").find(".tab-pane").each(function(index, item) {
+        if (!$(item).hasClass("active")) {
+            return;
+        }
+        let tables = $(item).find('table');
+        for (let i = 0; i < tables.length; i++) {
+            if ($(tables[i]).attr("id") == undefined) {
+                continue;
+            }
+            let dt = $(tables[i]).DataTable();
+            if (dt.ajax == undefined) {
+                continue;
+            }
+            dt.ajax.reload();
+            console.log(tables[i]);
+        }
+    })
+}
+{{else}}
+function updateCurrentInventoryPage() {}
+{{end}}
+
+function updateJobList(setTimer = false, firstRun = false) {
     $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
         document.getElementById("pending-action-count").innerText = data["RunningCount"];
         if (data["HasRunning"]) {
@@ -354,6 +378,9 @@ function updateJobList(setTimer = false) {
                 jobid="'"+data.Jobs[i]["RequestID"]+"',"+data.Jobs[i]["IsRunning"];
                 $(jl).append(ln1+jobid+ln2+lnicon+ln3+data.Jobs[i]["Command"]+ln4+data.Jobs[i]["StartedWhen"]+ln5);
             }
+        };
+        if (!firstRun) {
+            updateCurrentInventoryPage();
         };
     })
     .fail(function(data) {
@@ -604,7 +631,7 @@ $(function () {
         tokenSeparators: [',', ' ']
     })
     {{if .IsForm}}getCommand(true);{{end}}
-    updateJobList(true);
+    updateJobList(true, true);
     initDatatable();
   })
 {{template "ansiup" .}}

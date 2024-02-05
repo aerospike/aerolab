@@ -25,19 +25,21 @@ type inventoryCache struct {
 	RefreshInterval time.Duration
 	inv             *inventoryJson
 	sync.RWMutex
-	ilcMutex *sync.RWMutex
+	ilcMutex        *sync.RWMutex
+	MinimumInterval time.Duration
+	lastRun         time.Time
 }
 
 func (i *inventoryCache) Start(update func() (bool, error)) error {
 	i.update = update
-	err := i.run()
+	err := i.run(time.Time{})
 	if err != nil {
 		return err
 	}
 	go func() {
 		for {
 			time.Sleep(i.RefreshInterval)
-			err = i.run()
+			err = i.run(time.Time{})
 			if err != nil {
 				log.Printf("ERROR: Inventory refresh failure: %s", err)
 			}
@@ -46,13 +48,26 @@ func (i *inventoryCache) Start(update func() (bool, error)) error {
 	return nil
 }
 
-func (i *inventoryCache) run() error {
+func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 	i.runLock.Lock()
 	defer i.runLock.Unlock()
 	isUpdated, err := i.update()
 	if err != nil {
 		log.Printf("INVENTORY CACHE: WARNING: %s", err)
 	}
+	if !jobEndTimestamp.IsZero() && i.lastRun.After(jobEndTimestamp) && !isUpdated {
+		return nil
+	}
+	if i.lastRun.Add(i.MinimumInterval).After(time.Now()) {
+		if jobEndTimestamp.IsZero() {
+			return nil
+		}
+		sleepTimer := time.Until(i.lastRun.Add(i.MinimumInterval))
+		if sleepTimer > 0 {
+			time.Sleep(sleepTimer)
+		}
+	}
+	i.lastRun = time.Now()
 	out, err := exec.Command("aerolab", "inventory", "list", "-j", "-p").CombinedOutput()
 	if err != nil {
 		if isUpdated {
@@ -255,7 +270,7 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 			}
 		}
 		invlog.WriteString("\n->Refreshing inventory cache\n")
-		c.cache.run()
+		c.cache.run(time.Now())
 		if isError {
 			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
 		} else {
@@ -357,7 +372,7 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 			}
 		}
 		invlog.WriteString("\n->Refreshing inventory cache\n")
-		c.cache.run()
+		c.cache.run(time.Now())
 		if isError {
 			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
 		} else {

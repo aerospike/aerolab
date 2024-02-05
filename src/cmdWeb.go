@@ -45,6 +45,7 @@ type webCmd struct {
 	ShowMaxHistoryItems int           `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
 	NoBrowser           bool          `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
 	RefreshInterval     time.Duration `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
+	MinInterval         time.Duration `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
@@ -204,6 +205,7 @@ func (c *webCmd) Execute(args []string) error {
 	go c.jobCleaner()
 	c.cache = &inventoryCache{
 		RefreshInterval: c.RefreshInterval,
+		MinimumInterval: c.MinInterval,
 		runLock:         new(sync.Mutex),
 		inv:             &inventoryJson{},
 		ilcMutex:        new(sync.RWMutex),
@@ -1312,7 +1314,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			if c.commands[cindex].reload || (c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != ""))) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
 				log.Printf("[%s] Reloading interface defaults", requestID)
 				f.WriteString("\n->Reloading interface defaults\n")
-				err = c.cache.run()
+				err = c.cache.run(time.Now())
 				if err != nil {
 					log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
 					if runerr == nil {
