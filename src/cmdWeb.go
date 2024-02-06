@@ -651,7 +651,14 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		}
 		w.Write([]byte(script))
 		for _, job := range jobs.Jobs {
-			script := "\n" + job.CmdLine + "\n"
+			script := "\n" + job.CmdLine
+			if job.IsFailed {
+				script = script + " #FAILED"
+			}
+			if job.IsRunning {
+				script = script + " #RUNNING"
+			}
+			script = script + "\n"
 			script = script + "# " + job.startTimestamp.Format(time.RFC3339)
 			if job.IsFailed {
 				script = script + " [FAILED]"
