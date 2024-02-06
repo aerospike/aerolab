@@ -100,6 +100,9 @@ func handleExit() {
 			for i := 0; i < beepCount; i++ {
 				fmt.Printf("\a")
 			}
+			if _, ok := os.LookupEnv("JPY_SESSION_NAME"); ok {
+				fmt.Printf("\nERROR EXIT_CODE=%d\n", exit.Code)
+			}
 			os.Exit(exit.Code)
 		}
 		panic(e)
@@ -589,6 +592,7 @@ func writeConfigFile() error {
 	if err != nil {
 		return err
 	}
+	os.WriteFile(cfgFile+".ts", []byte(time.Now().Format(time.RFC3339)), 0644)
 	return nil
 }
 

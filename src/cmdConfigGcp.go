@@ -7,13 +7,13 @@ import (
 
 type configGcpCmd struct {
 	EnableServices   enableServicesCmd  `command:"enable-services" subcommands-optional:"true" description:"enable GCP cloud APIs and services required for AeroLab" webicon:"fas fa-check"`
-	DestroySecGroups destroyFirewallCmd `command:"delete-firewall-rules" subcommands-optional:"true" description:"delete aerolab-managed firewall rules" webicon:"fas fa-trash"`
-	LockSecGroups    lockFirewallCmd    `command:"lock-firewall-rules" subcommands-optional:"true" description:"lock the client firewall rules so that AMS/vscode are only accessible from a set IP" webicon:"fas fa-lock"`
-	CreateSecGroups  createFirewallCmd  `command:"create-firewall-rules" subcommands-optional:"true" description:"create AeroLab-managed firewall rules" webicon:"fas fa-circle-plus"`
+	DestroySecGroups destroyFirewallCmd `command:"delete-firewall-rules" subcommands-optional:"true" description:"delete aerolab-managed firewall rules" webicon:"fas fa-trash" invwebforce:"true"`
+	LockSecGroups    lockFirewallCmd    `command:"lock-firewall-rules" subcommands-optional:"true" description:"lock the client firewall rules so that AMS/vscode are only accessible from a set IP" webicon:"fas fa-lock" invwebforce:"true"`
+	CreateSecGroups  createFirewallCmd  `command:"create-firewall-rules" subcommands-optional:"true" description:"create AeroLab-managed firewall rules" webicon:"fas fa-circle-plus" invwebforce:"true"`
 	ListSecGroups    listFirewallCmd    `command:"list-firewall-rules" subcommands-optional:"true" description:"list current aerolab-managed firewall rules" webicon:"fas fa-list"`
-	ExpiryInstall    expiryInstallCmd   `command:"expiry-install" subcommands-optional:"true" description:"install the expiry system scheduler and lambda with the required IAM roles" webicon:"fas fa-plus"`
-	ExpiryRemove     expiryRemoveCmd    `command:"expiry-remove" subcommands-optional:"true" description:"remove the expiry system scheduler, lambda and created IAM roles" webicon:"fas fa-minus"`
-	ExpiryCheckFreq  expiryCheckFreqCmd `command:"expiry-run-frequency" subcommands-optional:"true" description:"adjust how often the scheduler runs the expiry check lambda" webicon:"fas fa-gauge"`
+	ExpiryInstall    expiryInstallCmd   `command:"expiry-install" subcommands-optional:"true" description:"install the expiry system scheduler and lambda with the required IAM roles" webicon:"fas fa-plus" invwebforce:"true"`
+	ExpiryRemove     expiryRemoveCmd    `command:"expiry-remove" subcommands-optional:"true" description:"remove the expiry system scheduler, lambda and created IAM roles" webicon:"fas fa-minus" invwebforce:"true"`
+	ExpiryCheckFreq  expiryCheckFreqCmd `command:"expiry-run-frequency" subcommands-optional:"true" description:"adjust how often the scheduler runs the expiry check lambda" webicon:"fas fa-gauge" invwebforce:"true"`
 	Help             helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

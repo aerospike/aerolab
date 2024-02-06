@@ -1553,8 +1553,10 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						SizeBytes:            int(*pair.SizeGb) * 1024 * 1024 * 1024,
 						Tags:                 pair.Labels,
 						Owner:                pair.Labels["aerolab7owner"],
-						GCPAttachedTo:        attachedTo,
-						GCPDescription:       pair.GetDescription(),
+						GCP: inventoryVolumeGcp{
+							AttachedTo:  attachedTo,
+							Description: pair.GetDescription(),
+						},
 					})
 					lock.Unlock()
 				}

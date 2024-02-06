@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -25,9 +26,11 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/jobqueue"
+	"github.com/aerospike/aerolab/jupyter"
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
+	"github.com/pkg/browser"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -41,6 +44,9 @@ type webCmd struct {
 	MaxQueuedJobs       int           `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
 	JobHistoryExpiry    time.Duration `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
 	ShowMaxHistoryItems int           `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
+	NoBrowser           bool          `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
+	RefreshInterval     time.Duration `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
+	MinInterval         time.Duration `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
@@ -52,6 +58,9 @@ type webCmd struct {
 	titler              cases.Caser
 	joblist             *jobTrack
 	jobqueue            *jobqueue.Queue
+	cache               *inventoryCache
+	inventoryNames      map[string]*webui.InventoryItem
+	cfgTs               time.Time
 }
 
 type jobTrack struct {
@@ -86,12 +95,16 @@ func (j *jobTrack) GetStat() int {
 }
 
 func (c *webCmd) runLoop(args []string) error {
+	firstRun := true
 	me, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get aerolab executable path: %s", err)
 	}
 	for {
 		args := append(os.Args[1:], "--real")
+		if !firstRun && !inslice.HasString(args, "--nobrowser") {
+			args = append(args, "--nobrowser")
+		}
 		cmd := exec.Command(me, args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -100,6 +113,7 @@ func (c *webCmd) runLoop(args []string) error {
 		if err != nil {
 			return err
 		}
+		firstRun = false
 		time.Sleep(time.Second)
 	}
 }
@@ -154,6 +168,29 @@ func (c *webCmd) jobCleaner() {
 	}
 }
 
+func (c *webCmd) CheckUpdateTs() (updated bool, err error) {
+	cfgFile, _, err := a.configFileName()
+	if err != nil {
+		return false, err
+	}
+	tsTmp, err := os.ReadFile(cfgFile + ".ts")
+	if err != nil {
+		return false, nil
+	}
+	lastChangeTs, err := time.Parse(time.RFC3339, string(tsTmp))
+	if err != nil {
+		return false, err
+	}
+	if !lastChangeTs.After(c.cfgTs) {
+		return false, nil
+	}
+	log.Println("Config file changed, refreshing settings")
+	c.defaultsRefresh()
+	c.inventoryNames = c.getInventoryNames()
+	c.cfgTs = lastChangeTs
+	return true, nil
+}
+
 func (c *webCmd) Execute(args []string) error {
 	if earlyProcessNoBackend(args) {
 		return nil
@@ -161,11 +198,31 @@ func (c *webCmd) Execute(args []string) error {
 	if !c.Real {
 		return c.runLoop(args)
 	}
+	c.cfgTs = time.Now()
 	c.joblist = &jobTrack{
 		j: make(map[string]*exec.Cmd),
 	}
 	c.jobqueue = jobqueue.New(c.MaxConcurrentJobs, c.MaxQueuedJobs)
 	go c.jobCleaner()
+	c.cache = &inventoryCache{
+		RefreshInterval: c.RefreshInterval,
+		MinimumInterval: c.MinInterval,
+		runLock:         new(sync.Mutex),
+		inv:             &inventoryJson{},
+		ilcMutex:        new(sync.RWMutex),
+	}
+	c.inventoryNames = c.getInventoryNames()
+	c.cache.ilcMutex.Lock()
+	go func() {
+		defer c.cache.ilcMutex.Unlock()
+		log.Print("Getting initial inventory state")
+		err := c.cache.Start(c.CheckUpdateTs)
+		if err != nil {
+			log.Printf("WARNING: Inventory query failure: %s", err)
+		} else {
+			log.Print("Initial Inventory obtained")
+		}
+	}()
 	go func() {
 		var statc, statq, statj int
 		for {
@@ -211,10 +268,16 @@ func (c *webCmd) Execute(args []string) error {
 			}
 		}
 	}
-	http.HandleFunc(c.WebRoot+"dist/", c.static)
-	http.HandleFunc(c.WebRoot+"plugins/", c.static)
-	http.HandleFunc(c.WebRoot+"job/", c.job)
-	http.HandleFunc(c.WebRoot+"jobs/", c.jobs)
+	http.HandleFunc(c.WebRoot+"www/dist/", c.static)
+	http.HandleFunc(c.WebRoot+"www/plugins/", c.static)
+	http.HandleFunc(c.WebRoot+"www/api/job/", c.job)
+	http.HandleFunc(c.WebRoot+"www/api/jobs/", c.jobs)
+	http.HandleFunc(c.WebRoot+"www/api/commands", c.commandScript)
+	http.HandleFunc(c.WebRoot+"www/api/commandh", c.commandHistory)
+	http.HandleFunc(c.WebRoot+"www/api/commandjb", c.commandJupyterBash)
+	http.HandleFunc(c.WebRoot+"www/api/commandjm", c.commandJupyterMagic)
+
+	c.addInventoryHandlers()
 	http.HandleFunc(c.WebRoot, c.serve)
 	if c.WebRoot != "/" {
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -222,22 +285,45 @@ func (c *webCmd) Execute(args []string) error {
 		})
 	}
 	log.Printf("Listening on %s", c.ListenAddr)
-	if err = http.ListenAndServe(c.ListenAddr, nil); err != nil {
-		log.Printf("Listen failure, retrying in 1 second (%s)", err)
-		log.Printf("Listening on %s", c.ListenAddr)
-		err = http.ListenAndServe(c.ListenAddr, nil)
+	l, err := net.Listen("tcp", c.ListenAddr)
+	if err != nil {
+		time.Sleep(time.Second)
+		l, err = net.Listen("tcp", c.ListenAddr)
+		if err != nil {
+			return err
+		}
 	}
-	return err
+	if !c.NoBrowser {
+		openurl := strings.ReplaceAll(c.ListenAddr, "0.0.0.0", "127.0.0.1")
+		browser.OpenURL("http://" + openurl)
+	}
+	return http.Serve(l, nil)
+}
+
+func (c *webCmd) commandScript(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionSCRIPT)
+}
+
+func (c *webCmd) commandHistory(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionHIST)
+}
+
+func (c *webCmd) commandJupyterBash(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionBash)
+}
+
+func (c *webCmd) commandJupyterMagic(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionMagic)
 }
 
 func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, path.Join(c.WebPath, strings.TrimPrefix(r.URL.Path, c.WebRoot)))
+	http.ServeFile(w, r, path.Join(c.WebPath, strings.TrimPrefix(r.URL.Path, c.WebRoot+"www/")))
 }
 
 func (c *webCmd) jobAction(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	requestID := shortuuid.New()
-	log.Printf("[%s] %s:%s", requestID, r.Method, r.RequestURI)
+	log.Printf("[%s] %s %s:%s", requestID, r.RemoteAddr, r.Method, r.RequestURI)
 	if c.DebugRequests {
 		for k, v := range r.PostForm {
 			log.Printf("[%s]    %s=%s", requestID, k, v)
@@ -313,7 +399,18 @@ func (c *webCmd) getJobPath(requestID string) (string, error) {
 }
 
 func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
-	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
+	c.jobsAndCommands(w, r, WebUIJobsActionJOBS)
+}
+
+const (
+	WebUIJobsActionJOBS   = 1
+	WebUIJobsActionSCRIPT = 2
+	WebUIJobsActionHIST   = 3
+	WebUIJobsActionBash   = 4
+	WebUIJobsActionMagic  = 5
+)
+
+func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType int) {
 	// handle truncate timestamp cookie
 	truncate, err := r.Cookie(webui.TruncateTimestampCookieName)
 	truncatestring := ""
@@ -340,6 +437,8 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		IsRunning      bool      // is it still running
 		IsFailed       bool      // if it is not running, has it failed with an error instead of success
 		startTimestamp time.Time // for sorting purposes
+		CmdLine        string
+		FilePath       string
 	}
 	type jsonJobs struct {
 		Jobs         []*jsonJob
@@ -402,6 +501,7 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 			RequestID:      reqID,
 			startTimestamp: ts,
 			StartedWhen:    startedWhen,
+			FilePath:       path,
 		}
 		runJob := c.joblist.Get(reqID)
 		if runJob != nil {
@@ -421,7 +521,14 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 			if strings.HasPrefix(line, "-=-=-=-=- [command] ") && strings.HasSuffix(line, " -=-=-=-=-") {
 				ncmd := strings.TrimSuffix(strings.TrimPrefix(line, "-=-=-=-=- [command] "), " -=-=-=-=-")
 				j.Command = ncmd
-				if runJob != nil {
+				if runJob != nil && j.CmdLine != "" {
+					break
+				}
+			}
+			if strings.HasPrefix(line, "-=-=-=-=- [cmdline] ") && strings.HasSuffix(line, " -=-=-=-=-") {
+				ncmd := strings.TrimSuffix(strings.TrimPrefix(line, "-=-=-=-=- [cmdline] "), " -=-=-=-=-")
+				j.CmdLine = ncmd
+				if runJob != nil && j.Command != "" {
 					break
 				}
 			}
@@ -446,19 +553,140 @@ func (c *webCmd) jobs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not get job list: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	sort.Slice(jobs.Jobs, func(i, j int) bool {
-		if jobs.Jobs[i].IsRunning && !jobs.Jobs[j].IsRunning {
-			return true
+
+	jupyterType := jupyter.TypeBash
+	switch jobType {
+	case WebUIJobsActionMagic:
+		jupyterType = jupyter.TypeMagic
+		fallthrough
+	case WebUIJobsActionBash:
+		j := jupyter.New(jupyterType)
+		for _, job := range jobs.Jobs {
+			jobStatus := "SUCCESS exitCode"
+			errorCode := 0
+			if job.IsFailed {
+				jobStatus = "FAILED exitCode"
+				errorCode = 1
+			} else if job.IsRunning {
+				jobStatus = "RUNNING exitCode"
+				errorCode = 255
+			}
+			fc, err := os.ReadFile(job.FilePath)
+			if err != nil {
+				fc = []byte("-=-=-=-=- [Log] -=-=-=-=-\n" + err.Error())
+			}
+			ansLog := strings.Split(string(fc), "-=-=-=-=- [Log] -=-=-=-=-\n")
+			nLog := ""
+			exitCode := ""
+			if len(ansLog) > 1 {
+				ansCode := strings.Split(ansLog[1], "-=-=-=-=- [ExitCode]")
+				nLog = strings.TrimRight(ansCode[0], "\n")
+				if len(ansCode) > 1 {
+					ansCode = strings.Split(ansCode[1], " -=-=-=-=-")
+					exitCode = strings.TrimRight(ansCode[0], "\n ")
+				}
+			}
+			if job.IsFailed && exitCode != "0" {
+				errorCode, err = strconv.Atoi(exitCode)
+				if err != nil {
+					errorCode = 1
+				}
+			}
+			j.AddCell(job.CmdLine, nLog, errorCode, jobStatus)
 		}
-		if !jobs.Jobs[i].IsRunning && jobs.Jobs[j].IsRunning {
-			return false
+		je := json.NewEncoder(w)
+		je.SetIndent("", "  ")
+		je.Encode(j)
+	case WebUIJobsActionHIST:
+		sort.Slice(jobs.Jobs, func(i, j int) bool {
+			return jobs.Jobs[i].startTimestamp.Before(jobs.Jobs[j].startTimestamp)
+		})
+		w.Write([]byte("# AeroLab Command History\n\n" + time.Now().Format(time.RFC1123) + "\n\n## Command List\n\nCommand | Start Time | Status\n--- | --- | ---\n"))
+		for _, job := range jobs.Jobs {
+			jobStatus := "SUCCESS"
+			if job.IsFailed {
+				jobStatus = "FAILED"
+			} else if job.IsRunning {
+				jobStatus = "RUNNING"
+			}
+			w.Write([]byte("[`" + job.CmdLine + "`](#JOBID-" + job.RequestID + ") | " + job.startTimestamp.Format(time.RFC3339) + " | " + jobStatus + "\n")) //[`aerolab inventory list`](#inventory-list) | 22:04:57 | RUNNING
 		}
-		return jobs.Jobs[i].startTimestamp.After(jobs.Jobs[j].startTimestamp)
-	})
-	if len(jobs.Jobs)-jobs.RunningCount > c.ShowMaxHistoryItems {
-		jobs.Jobs = jobs.Jobs[0:(jobs.RunningCount + c.ShowMaxHistoryItems)]
+		w.Write([]byte("\n## Command Details\n\n"))
+		for _, job := range jobs.Jobs {
+			fc, err := os.ReadFile(job.FilePath)
+			if err != nil {
+				fc = []byte("-=-=-=-=- [Log] -=-=-=-=-\n" + err.Error())
+			}
+			ans := strings.ReplaceAll(string(fc), "```", "`'`")
+			ansLog := strings.Split(ans, "-=-=-=-=- [Log] -=-=-=-=-\n")
+			nLog := ""
+			exitCode := ""
+			if len(ansLog) > 1 {
+				ansCode := strings.Split(ansLog[1], "-=-=-=-=- [ExitCode]")
+				nLog = strings.TrimRight(ansCode[0], "\n")
+				if len(ansCode) > 1 {
+					exitCode = "-=-=-=-=- [ExitCode]" + strings.TrimRight(strings.TrimSuffix(ansCode[1], "-=-=-=-=- [END] -=-=-=-=-"), "\n")
+				}
+			}
+			w.Write([]byte("### " + job.Command + "\n\n#### JOBID-" + job.RequestID + "\n\n#### Command\n\n" + "```\n" + job.CmdLine + "\n```\n\n#### Output\n\n```\n" + nLog))
+			w.Write([]byte("\n```\n\n"))
+			if job.IsRunning {
+				w.Write([]byte("#### Job still running\n\n"))
+			} else {
+				w.Write([]byte("#### Exit Code\n\n```\n" + exitCode))
+				w.Write([]byte("\n```\n\n"))
+			}
+		}
+	case WebUIJobsActionSCRIPT:
+		sort.Slice(jobs.Jobs, func(i, j int) bool {
+			return jobs.Jobs[i].startTimestamp.Before(jobs.Jobs[j].startTimestamp)
+		})
+		script := "# [ALL_JOBS_SUCCEEDED]\n"
+		if jobs.HasFailed && jobs.HasRunning {
+			script = "# [HAS_FAILED_JOBS] [HAS_RUNNING_JOBS]\n"
+		} else if jobs.HasFailed {
+			script = "# [HAS_FAILED_JOBS]\n"
+		} else if jobs.HasRunning {
+			script = "# [HAS_RUNNING_JOBS]\n"
+		}
+		w.Write([]byte(script))
+		for _, job := range jobs.Jobs {
+			script := "\n" + job.CmdLine
+			if job.IsFailed {
+				script = script + " #FAILED"
+			}
+			if job.IsRunning {
+				script = script + " #RUNNING"
+			}
+			script = script + "\n"
+			script = script + "# " + job.startTimestamp.Format(time.RFC3339)
+			if job.IsFailed {
+				script = script + " [FAILED]"
+			} else if job.IsRunning {
+				script = script + " [RUNNING]"
+			} else {
+				script = script + " [SUCCESS]"
+			}
+			script = script + " [LOG:" + job.FilePath + "]\n"
+			w.Write([]byte(script))
+		}
+	case WebUIJobsActionJOBS:
+		fallthrough
+	default:
+		sort.Slice(jobs.Jobs, func(i, j int) bool {
+			if jobs.Jobs[i].IsRunning && !jobs.Jobs[j].IsRunning {
+				return true
+			}
+			if !jobs.Jobs[i].IsRunning && jobs.Jobs[j].IsRunning {
+				return false
+			}
+			return jobs.Jobs[i].startTimestamp.After(jobs.Jobs[j].startTimestamp)
+		})
+		if len(jobs.Jobs)-jobs.RunningCount > c.ShowMaxHistoryItems {
+			jobs.Jobs = jobs.Jobs[0:(jobs.RunningCount + c.ShowMaxHistoryItems)]
+		}
+		json.NewEncoder(w).Encode(jobs)
 	}
-	json.NewEncoder(w).Encode(jobs)
 }
 
 func (c *webCmd) job(w http.ResponseWriter, r *http.Request) {
@@ -466,7 +694,6 @@ func (c *webCmd) job(w http.ResponseWriter, r *http.Request) {
 		c.jobAction(w, r)
 		return
 	}
-	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
 
 	urlParse := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot), "/"), "/")
 	requestID := urlParse[len(urlParse)-1]
@@ -580,7 +807,14 @@ func (c *webCmd) genMenu() error {
 		}
 	}
 	titler := cases.Title(language.English)
-	c.menuItems = c.fillMenu(commandMap, titler, commands, commandsIndex, "", hiddenItems)
+	c.menuItems = append([]*webui.MenuItem{
+		{
+			Icon:          "fas fa-list",
+			Name:          "Inventory",
+			Href:          c.WebRoot,
+			DrawSeparator: true,
+		},
+	}, c.fillMenu(commandMap, titler, commands, commandsIndex, "", hiddenItems)...)
 	c.sortMenu(c.menuItems, commandsIndex)
 	c.commands = commands
 	c.commandsIndex = commandsIndex
@@ -840,47 +1074,12 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 	return wf, nil
 }
 
-func (c *webCmd) homepage(w http.ResponseWriter, r *http.Request) {
-	p := &webui.Page{
-		WebRoot:                                 c.WebRoot,
-		FixedNavbar:                             true,
-		FixedFooter:                             true,
-		PendingActionsShowAllUsersToggle:        false,
-		PendingActionsShowAllUsersToggleChecked: false,
-		IsHomepage:                              true,
-		Navigation: &webui.Nav{
-			Top: []*webui.NavTop{
-				{
-					Name: "Home",
-					Href: c.WebRoot,
-				},
-			},
-		},
-		Menu: &webui.MainMenu{
-			Items: c.menuItems,
-		},
-	}
-	p.Menu.Items.Set(r.URL.Path)
-	www := os.DirFS(c.WebPath)
-	t, err := template.ParseFS(www, "index.html", "index.js", "index.css", "highlighter.css", "ansiup.js")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = t.ExecuteTemplate(w, "main", p)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// if posting command, run and exit
 		c.command(w, r)
 		return
 	}
-
-	// log method and URI
-	log.Printf("[%s] %s:%s", shortuuid.New(), r.Method, r.RequestURI)
 
 	// create webpage
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
@@ -889,7 +1088,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 
 	// homepage
 	if r.URL.Path == c.WebRoot {
-		c.homepage(w, r)
+		c.inventory(w, r)
 		return
 	}
 
@@ -931,9 +1130,9 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			Items: c.menuItems,
 		},
 	}
-	p.Menu.Items.Set(r.URL.Path)
+	p.Menu.Items.Set(r.URL.Path, c.WebRoot)
 	www := os.DirFS(c.WebPath)
-	t, err := template.ParseFS(www, "index.html", "index.js", "index.css", "highlighter.css", "ansiup.js")
+	t, err := template.ParseFS(www, "*.html", "*.js", "*.css")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -976,7 +1175,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 
 	// log request
 	requestID := shortuuid.New()
-	log.Printf("[%s] %s:%s", requestID, r.Method, r.RequestURI)
+	log.Printf("[%s] %s %s:%s", requestID, r.RemoteAddr, r.Method, r.RequestURI)
 	if c.DebugRequests {
 		for k, v := range r.PostForm {
 			log.Printf("[%s]    %s=%s", requestID, k, v)
@@ -1275,52 +1474,35 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		c.joblist.Add(requestID, run)
 
 		go func(run *exec.Cmd, requestID string) {
-			err := run.Wait()
+			runerr := run.Wait()
+			exitCode := run.ProcessState.ExitCode()
+			if c.commands[cindex].reload || (c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != ""))) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
+				log.Printf("[%s] Reloading interface defaults", requestID)
+				f.WriteString("\n->Reloading interface defaults\n")
+				err = c.cache.run(time.Now())
+				if err != nil {
+					log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
+					if runerr == nil {
+						runerr = err
+					} else {
+						runerr = fmt.Errorf("%s\n%s", runerr, err)
+					}
+					exitCode = 1
+				}
+				log.Printf("[%s] Reloaded interface defaults", requestID)
+				f.WriteString("\n->Reload finished\n")
+			}
 			c.joblist.Delete(requestID)
-			if err != nil {
-				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\n" + err.Error() + "\n")
+			if runerr != nil {
+				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(exitCode) + " -=-=-=-=-\n" + runerr.Error() + "\n")
 			} else {
-				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(run.ProcessState.ExitCode()) + " -=-=-=-=-\nsuccess\n")
+				f.WriteString("\n-=-=-=-=- [ExitCode] " + strconv.Itoa(exitCode) + " -=-=-=-=-\nsuccess\n")
 			}
 			f.WriteString("-=-=-=-=- [END] -=-=-=-=-")
 			f.Close()
 			cancel()
 			c.jobqueue.End()
 			c.jobqueue.Remove()
-			if c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != "")) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
-				log.Printf("[%s] Reloading interface defaults", requestID)
-				a.opts = new(commands)
-				a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
-				a.iniParser = flags.NewIniParser(a.parser)
-				a.parseFile()
-				a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
-				for command, switchList := range backendSwitches {
-					keys := strings.Split(strings.ToLower(string(command)), ".")
-					var nCmd *flags.Command
-					for i, key := range keys {
-						if i == 0 {
-							nCmd = a.parser.Find(key)
-						} else {
-							nCmd = nCmd.Find(key)
-						}
-					}
-					for backend, switches := range switchList {
-						grp, err := nCmd.AddGroup(string(backend), string(backend), switches)
-						if err != nil {
-							logExit(err)
-						}
-						if string(backend) != a.opts.Config.Backend.Type {
-							grp.Hidden = true
-						}
-					}
-				}
-				a.iniParser = flags.NewIniParser(a.parser)
-				a.early = true
-				a.parseArgs(os.Args[1:])
-				a.parseFile()
-				c.genMenu()
-				log.Printf("[%s] Reloaded interface defaults", requestID)
-			}
 			if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
 				log.Printf("[%s] Restarting aerolab webui", requestID)
 				time.Sleep(time.Second)
@@ -1332,4 +1514,38 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}(run, requestID)
 	}()
 	w.Write([]byte(requestID))
+}
+
+func (c *webCmd) defaultsRefresh() {
+	a.opts = new(commands)
+	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+	a.iniParser = flags.NewIniParser(a.parser)
+	a.parseFile()
+	a.parser = flags.NewParser(a.opts, flags.HelpFlag|flags.PassDoubleDash)
+	for command, switchList := range backendSwitches {
+		keys := strings.Split(strings.ToLower(string(command)), ".")
+		var nCmd *flags.Command
+		for i, key := range keys {
+			if i == 0 {
+				nCmd = a.parser.Find(key)
+			} else {
+				nCmd = nCmd.Find(key)
+			}
+		}
+		for backend, switches := range switchList {
+			grp, err := nCmd.AddGroup(string(backend), string(backend), switches)
+			if err != nil {
+				logExit(err)
+			}
+			if string(backend) != a.opts.Config.Backend.Type {
+				grp.Hidden = true
+			}
+		}
+	}
+	a.iniParser = flags.NewIniParser(a.parser)
+	a.early = true
+	a.parseArgs(os.Args[1:])
+	a.parseFile()
+	a.early = false
+	c.genMenu()
 }

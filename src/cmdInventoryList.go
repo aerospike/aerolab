@@ -296,6 +296,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
 		isColor = false
 	}
+	if _, ok := os.LookupEnv("JPY_SESSION_NAME"); ok {
+		isColor = false
+	}
 	pipeLess := c.Pager
 	isTerminal := false
 	if isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()) {
@@ -335,15 +338,17 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 	}
 
-	if !pipeLess && isTerminal {
-		width, _, err := term.GetSize(int(os.Stdout.Fd()))
-		if err != nil || width < 1 {
-			fmt.Fprintf(os.Stderr, "Couldn't get terminal width (int:%v): %v", width, err)
-		} else {
-			if width < 40 {
-				width = 40
+	if _, ok := os.LookupEnv("JPY_SESSION_NAME"); !ok {
+		if !pipeLess && isTerminal {
+			width, _, err := term.GetSize(int(os.Stdout.Fd()))
+			if err != nil || width < 1 {
+				fmt.Fprintf(os.Stderr, "Couldn't get terminal width (int:%v): %v", width, err)
+			} else {
+				if width < 40 {
+					width = 40
+				}
+				t.SetAllowedRowLength(width)
 			}
-			t.SetAllowedRowLength(width)
 		}
 	}
 
@@ -582,7 +587,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						}
 					}
 				}
-				for _, m := range v.MountTargets {
+				for _, m := range v.AWS.MountTargets {
 					vv := table.Row{
 						v.Name,
 						v.AvailabilityZoneName,
@@ -590,7 +595,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						v.CreationTime.Format(time.RFC822),
 						convSize(int64(v.SizeBytes)),
 						expiry,
-						strconv.Itoa(v.NumberOfMountTargets),
+						strconv.Itoa(v.AWS.NumberOfMountTargets),
 						m.MountTargetId,
 						m.AvailabilityZoneId,
 						v.Owner,
@@ -598,7 +603,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 					}
 					t.AppendRow(vv)
 				}
-				if len(v.MountTargets) == 0 {
+				if len(v.AWS.MountTargets) == 0 {
 					vv := table.Row{
 						v.Name,
 						v.AvailabilityZoneName,
@@ -606,7 +611,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 						v.CreationTime.Format(time.RFC822),
 						convSize(int64(v.SizeBytes)),
 						expiry,
-						strconv.Itoa(v.NumberOfMountTargets),
+						strconv.Itoa(v.AWS.NumberOfMountTargets),
 						"N/A",
 						"N/A",
 						v.Owner,
@@ -648,7 +653,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				vv := table.Row{
 					v.Name,
 					v.AvailabilityZoneName,
-					strings.Join(v.GCPAttachedTo, ","),
+					strings.Join(v.GCP.AttachedTo, ","),
 					v.CreationTime.Format(time.RFC822),
 					convSize(int64(v.SizeBytes)),
 					expiry,
