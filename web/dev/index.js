@@ -22,6 +22,37 @@ $('.aerolab-required').each(function() {
     handleRequiredFieldColor(this);
 });
 
+$.urlParam = function(name){
+    var results = new RegExp('[\?&]' + name + '=([^&#]*)').exec(window.location.href);
+    if (results==null) {
+       return null;
+    }
+    return decodeURI(results[1]) || 0;
+}
+
+$('.checkForGetParams').each(function() {
+    var label = $("label[for='" + $(this).attr('id') + "']");
+    if (label.length < 1) {
+        return;
+    }
+    label = label[0].innerText.replace("* ","");
+    var labelParam = $.urlParam(label);
+    var inputItem = this;
+    if (labelParam != null) {
+        if (labelParam == "discover-caller-ip") {
+            $.getJSON("https://api.ipify.org?format=json",
+            function (data) {
+                $(inputItem).val(data.ip);
+            })
+            .fail(function() {
+                $(inputItem).val(labelParam);
+            });
+        } else {
+            $(this).val(labelParam);
+        };
+    };
+});
+
 function checkRequiredFields() {
     var fieldsOk = true;
     $('.aerolab-required').each(function() {
@@ -99,7 +130,7 @@ function showCommandOut(jobId, runningJob=true) {
     var isLog = false;
     var ntitle = "";
     var ansi_up = new AnsiUp();
-    commandOutXhr = $.ajax("{{.WebRoot}}job/"+jobId, {
+    commandOutXhr = $.ajax("{{.WebRoot}}www/api/job/"+jobId, {
         xhrFields: {
             onprogress: function(e)
             {
@@ -163,8 +194,8 @@ function getCommand(supressError=false) {
         if (!checkRequiredFields()) {
             return;
         }
+        $("#loadingSpinner").show();
     }
-    $("#loadingSpinner").show();
     document.getElementById("action").value = "show";
     document.getElementById("useShortSwitches").value = document.getElementById("shortSwitches").checked;
     $.post("", $("#mainForm").serialize(), function(data) {
@@ -220,7 +251,7 @@ $("#abrtSigKill").click(function(){
 function abortCommand(signal) {
     $("#xlModalSpinner").show();
     jobId = $("#abrtJobId").val();
-    $.post("{{.WebRoot}}job/"+jobId, "action="+signal,function(data) {
+    $.post("{{.WebRoot}}www/api/job/"+jobId, "action="+signal,function(data) {
         console.log(data);
     }, "text")
     .fail(function(data) {
@@ -249,8 +280,31 @@ $( window ).on( "resize", function() {
     $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: getTooltipPlacement(), fallbackPlacement:["bottom"], boundary: "viewport" });
 } );
 
-function updateJobList(setTimer = false) {
-    $.getJSON("{{.WebRoot}}jobs/", function(data) {
+{{if .IsInventory}}
+function updateCurrentInventoryPage() {
+    $("#custom-tabs-one-tabContent").find(".tab-pane").each(function(index, item) {
+        if (!$(item).hasClass("active")) {
+            return;
+        }
+        let tables = $(item).find('table');
+        for (let i = 0; i < tables.length; i++) {
+            if ($(tables[i]).attr("id") == undefined) {
+                continue;
+            }
+            let dt = $(tables[i]).DataTable();
+            if (dt.ajax == undefined) {
+                continue;
+            }
+            dt.ajax.reload();
+        }
+    })
+}
+{{else}}
+function updateCurrentInventoryPage() {}
+{{end}}
+
+function updateJobList(setTimer = false, firstRun = false) {
+    $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
         document.getElementById("pending-action-count").innerText = data["RunningCount"];
         if (data["HasRunning"]) {
             $("#pending-action-icon").removeClass("fa-bell");
@@ -324,6 +378,9 @@ function updateJobList(setTimer = false) {
                 $(jl).append(ln1+jobid+ln2+lnicon+ln3+data.Jobs[i]["Command"]+ln4+data.Jobs[i]["StartedWhen"]+ln5);
             }
         };
+        if (!firstRun) {
+            updateCurrentInventoryPage();
+        };
     })
     .fail(function(data) {
         let body = data.responseText;
@@ -345,6 +402,221 @@ function clearNotifications() {
     updateJobList();
 }
 
+{{if .IsInventory}}
+$('a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
+    var tab = $(e.target).attr("href") // activated tab
+    let tables = $(tab).find('table');
+    for (let i = 0; i < tables.length; i++) {
+        if ($(tables[i]).attr("id") == undefined) {
+            continue;
+        }
+        let dt = $(tables[i]).DataTable();
+        if (dt.ajax == undefined) {
+            continue;
+        }
+        dt.ajax.reload();
+    }
+});
+
+function initDatatable() {
+    $.fn.dataTable.ext.errMode = 'alert';
+    $.fn.dataTable.ext.buttons.reload = {
+        text: 'Refresh',
+        action: function ( e, dt, node, config ) {
+            dt.ajax.reload(callback = function () {
+                toastr.success("Table data refreshed");
+            });
+        }
+    };
+    Object.assign(DataTable.defaults, {
+        paging: false,
+        scrollCollapse: true,
+        scrollY: '70vh',
+        scrollX: true,
+        stateSave: true,
+        fixedHeader: true,
+        select: true,
+        dom: 'Bfrtip',
+    });
+    $('#invtemplates').DataTable({
+        fixedColumns: {left: 1},
+        buttons: [{
+            className: 'btn btn-success',
+            text: 'Create',
+            action: function ( e, dt, node, config ) {
+                let url = "{{.WebRoot}}template/create";
+                window.location.href = url;
+            }},
+            {extend: 'reload',className: 'btn btn-info',},
+            {
+            className: 'btn btn-danger',
+            text: 'Delete',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr}
+                if (confirm("Remove "+arr.length+" templates")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/templates", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }}],
+        ajax: { url:'{{.WebRoot}}www/api/inventory/templates', dataSrc:"" },
+        columns: [{{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}{ data: '{{.Name}}' },{{end}}]
+    });
+    {{ if ne .Backend "docker" }}
+    $('#invvolumes').DataTable({
+        //fixedColumns: {left: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/volumes',dataSrc:""},
+        columns: [{{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+    });
+    {{end}}
+    $('#invfirewalls').DataTable({
+        //fixedColumns: {left: 1},
+        buttons: [{
+            className: 'btn btn-success',
+            text: 'Create',
+            action: function ( e, dt, node, config ) {
+                {{if eq .Backend "aws"}}
+                let url = "{{.WebRoot}}config/aws/create-security-groups";
+                {{end}}
+                {{if eq .Backend "gcp"}}
+                let url = "{{.WebRoot}}config/gcp/create-firewall-rules";
+                {{end}}
+                {{if eq .Backend "docker"}}
+                let url = "{{.WebRoot}}config/docker/create-network";
+                {{end}}
+                window.location.href = url;
+            }}{{if ne .Backend "docker"}},{
+                className: 'btn btn-warning',
+                text: 'Lock IP',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length != 1) {
+                        toastr.error("Select one row.");
+                        return;
+                    }
+                    let data = arr[0];
+                    {{if eq .Backend "aws"}}
+                    let url = "{{.WebRoot}}config/aws/lock-security-groups?NamePrefix="+data["AWS"]["SecurityGroupName"]+"&VPC="+data["AWS"]["VPC"]+"&IP=discover-caller-ip";
+                    {{end}}
+                    {{if eq .Backend "gcp"}}
+                    let url = "{{.WebRoot}}config/gcp/lock-firewall-rules?NamePrefix="+data["GCP"]["FirewallName"]+"&IP=discover-caller-ip";
+                    {{end}}
+                    window.location.href = url;
+                }}{{end}},{extend: 'reload',className: 'btn btn-info',},{
+                className: 'btn btn-danger',
+                text: 'Delete',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length == 0) {
+                        toastr.error("Select one or more rows first");
+                        return;
+                    }
+                    let data = {"list": arr}
+                    if (confirm("Remove "+arr.length+" templates")) {
+                        $("#loadingSpinner").show();
+                        $.post("{{.WebRoot}}www/api/inventory/firewalls", JSON.stringify(data), function(data) {
+                            showCommandOut(data);
+                        })
+                        .fail(function(data) {
+                            let body = data.responseText;
+                            if ((data.status == 0)&&(body == undefined)) {
+                                body = "Connection Error";
+                            }
+                            toastr.error(data.statusText+": "+body);
+                        })
+                        .always(function() {
+                            $("#loadingSpinner").hide();
+                        });
+                    }
+                }}
+            ],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/firewalls',dataSrc:""},
+        columns: [{{$fw := index .Inventory "FirewallRules"}}{{range $fw.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+    });
+    {{ if ne .Backend "docker" }}
+    $('#invexpiry').DataTable({
+        //fixedColumns: {left: 1},
+        buttons: [{
+            className: 'btn btn-success',
+            text: 'Create',
+            action: function ( e, dt, node, config ) {
+                {{if eq .Backend "aws"}}
+                let url = "{{.WebRoot}}config/aws/expiry-install";
+                {{end}}
+                {{if eq .Backend "gcp"}}
+                let url = "{{.WebRoot}}config/gcp/expiry-install";
+                {{end}}
+                window.location.href = url;
+            }},{
+                className: 'btn btn-info',
+                text: 'Change Frequency',
+                action: function ( e, dt, node, config ) {
+                    {{if eq .Backend "aws"}}
+                    let url = "{{.WebRoot}}config/aws/expiry-run-frequency";
+                    {{end}}
+                    {{if eq .Backend "gcp"}}
+                    let url = "{{.WebRoot}}config/gcp/expiry-run-frequency";
+                    {{end}}
+                    window.location.href = url;
+            }},{extend: 'reload',className: 'btn btn-info',},{
+                className: 'btn btn-danger',
+                text: 'Remove',
+                action: function ( e, dt, node, config ) {
+                    {{if eq .Backend "aws"}}
+                    let url = "{{.WebRoot}}config/aws/expiry-remove";
+                    {{end}}
+                    {{if eq .Backend "gcp"}}
+                    let url = "{{.WebRoot}}config/gcp/expiry-remove";
+                    {{end}}
+                    window.location.href = url;
+            }}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/expiry',dataSrc:""},
+        columns: [{{$expirysystem := index .Inventory "ExpirySystem"}}{{range $expirysystem.Fields}}{ data: '{{.Name}}' },{{end}}]
+    });
+    {{end}}
+    {{if eq .Backend "aws"}}
+    $('#invsubnets').DataTable({
+        //fixedColumns: {left: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/subnets',dataSrc:""},
+        columns: [{{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+    });
+    {{end}}
+}
+{{else}}
+function initDatatable() {
+}
+{{end}}
+
 $(function () {
     $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", fallbackPlacement:["bottom","top"], boundary: "viewport" });
     $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: getTooltipPlacement(), fallbackPlacement:["bottom"], boundary: "viewport" });
@@ -358,7 +630,8 @@ $(function () {
         tokenSeparators: [',', ' ']
     })
     {{if .IsForm}}getCommand(true);{{end}}
-    updateJobList(true);
+    updateJobList(true, true);
+    initDatatable();
   })
 {{template "ansiup" .}}
 {{end}}

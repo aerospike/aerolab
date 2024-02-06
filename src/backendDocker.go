@@ -808,14 +808,14 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 	}
 	tmplName := fmt.Sprintf(dockerNameHeader+"%s_%s_%s:%s", v.distroName, v.distroVersion, arch, v.aerospikeVersion)
 	// NOTE: eventually remve this code block up to the for loop - it is used in transition between old and new image naming formats
-	repoCheck, err := exec.Command("docker", "image", "list", "--format", "{{json .Repository}}").CombinedOutput()
+	repoCheck, err := exec.Command("docker", "image", "list", "--format", "{{json .Repository}},{{json .Tag}}").CombinedOutput()
 	if err != nil {
 		return err
 	}
 	newTmpl := false
 	ss := bufio.NewScanner(bytes.NewReader(repoCheck))
 	for ss.Scan() {
-		if strings.Trim(ss.Text(), "\r\n\t \"") == tmplName {
+		if strings.Trim(strings.ReplaceAll(ss.Text(), "\",\"", ":"), "\r\n\t \"") == tmplName {
 			newTmpl = true
 			break
 		}

@@ -52,4 +52,23 @@
       max-width: 99%;
     }
 }
- {{end}}
+div .dataTables_wrapper .dt-bootstrap4 .dt-buttons .btn-group {
+   float: left;
+   z-index: 99;
+}
+div .dataTables_filter {
+   float: right;
+   margin-right: 5px;
+   position: relative;
+   z-index: 99;
+   text-align: right;
+}
+div .dataTables_filter input {
+   width: 70%;
+   display: inline-block;
+   margin-left: 2px;
+}
+div .dataTables_scrollBody {
+   border-right: 1px solid #ddd !important;
+}
+{{end}}

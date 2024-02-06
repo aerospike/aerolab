@@ -29,7 +29,7 @@ import (
 
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener" webicon:"fas fa-headset"`
-	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands" webicon:"fas fa-circle-plus"`
+	Create agiMonitorCreateCmd `command:"create" subcommands-optional:"true" description:"Create a client instance and run AGI monitor on it; the instance profile must allow it to run aerolab commands" webicon:"fas fa-circle-plus" invwebforce:"true"`
 	Help   helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

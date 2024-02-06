@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/bestmethod/inslice"
+	"golang.org/x/term"
 
 	isatty "github.com/mattn/go-isatty"
 
@@ -196,32 +197,38 @@ func (c *inventoryInstanceTypesCmd) Execute(args []string) error {
 		isColor = false
 	}
 	pipeLess := !c.NoPaginate
+	if _, ok := os.LookupEnv("JPY_SESSION_NAME"); ok {
+		isColor = false
+		pipeLess = false
+	}
+	isTerminal := false
+	if isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+		isTerminal = true
+	} else {
+		pipeLess = false
+	}
 
 	t := table.NewWriter()
-	// For now, don't set the allowed row lenght, wrapping is better
-	// until we do something more clever...
-	if isatty.IsTerminal(os.Stdout.Fd()) && isColor {
-		// fmt.Println("Is Terminal")
+	if isTerminal && isColor {
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
-
-		// s, err := tsize.GetSize()
-		if err != nil {
-			fmt.Println("Couldn't get terminal width")
-		}
-		// t.SetAllowedRowLength(s.Width)
-	} else if isatty.IsCygwinTerminal(os.Stdout.Fd()) && isColor {
-		// fmt.Println("Is Cygwin/MSYS2 Terminal")
-		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
-
-		// s, err := tsize.GetSize()
-		if err != nil {
-			fmt.Println("Couldn't get terminal width")
-		}
-		// t.SetAllowedRowLength(s.Width)
-	} else {
+	}
+	if !isTerminal {
 		pipeLess = false
 		fmt.Fprintln(os.Stderr, "aerolab does not have a stable CLI interface. Use with caution in scripts.\nIn scripts, the JSON output should be used for stability.")
 		t.SetStyle(table.StyleDefault)
+	}
+	if _, ok := os.LookupEnv("JPY_SESSION_NAME"); !ok {
+		if !pipeLess && isTerminal {
+			width, _, err := term.GetSize(int(os.Stdout.Fd()))
+			if err != nil || width < 1 {
+				fmt.Fprintf(os.Stderr, "Couldn't get terminal width (int:%v): %v", width, err)
+			} else {
+				if width < 40 {
+					width = 40
+				}
+				t.SetAllowedRowLength(width)
+			}
+		}
 	}
 
 	lessCmd := ""

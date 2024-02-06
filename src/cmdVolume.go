@@ -24,10 +24,10 @@ func init() {
 }
 
 type volumeCmd struct {
-	Create  volumeCreateCmd    `command:"create" subcommands-optional:"true" description:"Create a volume" webicon:"fas fa-circle-plus"`
+	Create  volumeCreateCmd    `command:"create" subcommands-optional:"true" description:"Create a volume" webicon:"fas fa-circle-plus" invwebforce:"true"`
 	List    volumeListCmd      `command:"list" subcommands-optional:"true" description:"List volumes" webicon:"fas fa-list"`
 	Mount   volumeMountCmd     `command:"mount" subcommands-optional:"true" description:"Mount a volume on a node" webicon:"fas fa-hard-drive"`
-	Delete  volumeDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete a volume" webicon:"fas fa-trash"`
+	Delete  volumeDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete a volume" webicon:"fas fa-trash" invwebforce:"true"`
 	Resize  volumeResizeCmd    `command:"grow" subcommands-optional:"true" description:"GCP only: grow a volume; if the volume is not attached, the filesystem will not be resized automatically" webicon:"fas fa-expand"`
 	Detach  volumeDetachCmd    `command:"detach" subcommands-optional:"true" description:"GCP only: detach a volume for an instance" webicon:"fas fa-square-minus"`
 	DoMount volumeExecMountCmd `command:"exec-mount" hidden:"true" subcommands-optional:"true" description:"Execute actual mounting operation"`
@@ -96,8 +96,8 @@ func (c *volumeResizeCmd) Execute(args []string) error {
 	}
 	var ClusterName *string
 	var NodeId int
-	if volume.GCPAttachedTo != nil {
-		node := strings.Split(volume.GCPAttachedTo[0], "-")
+	if volume.GCP.AttachedTo != nil {
+		node := strings.Split(volume.GCP.AttachedTo[0], "-")
 		clusterName := strings.Join(node[0:len(node)-1], "-")
 		nodeId := node[len(node)-1]
 		b.WorkOnServers()
@@ -323,7 +323,7 @@ func (c *volumeMountCmd) Execute(args []string) error {
 	}
 	if a.opts.Config.Backend.Type == "aws" {
 		var mountTarget *inventoryMountTarget
-		for _, mt := range volume.MountTargets {
+		for _, mt := range volume.AWS.MountTargets {
 			if mt.SubnetId == subnet {
 				mountTarget = &mt
 				break

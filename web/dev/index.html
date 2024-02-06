@@ -4,18 +4,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" type="image/x-icon" href="{{.WebRoot}}dist/img/favicon.ico">
+  <link rel="icon" type="image/x-icon" href="{{.WebRoot}}www/dist/img/favicon.ico">
   <title>AeroLab Web UI</title>
   <!-- Google Font: Source Sans Pro -->
-  <link rel="stylesheet" href="{{.WebRoot}}dist/fonts/sourcesans.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/dist/fonts/sourcesans.css">
   <!-- Font Awesome Icons -->
-  <link rel="stylesheet" href="{{.WebRoot}}plugins/fontawesome-free/css/all.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/fontawesome-free/css/all.min.css">
   <!-- Theme style -->
-  <link rel="stylesheet" href="{{.WebRoot}}dist/css/adminlte.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/dist/css/adminlte.min.css">
   <!-- select2 -->
-  <link rel="stylesheet" href="{{.WebRoot}}plugins/select2/css/select2.min.css">
-  <link rel="stylesheet" href="{{.WebRoot}}plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
-  <link rel="stylesheet" href="{{.WebRoot}}plugins/toastr/toastr.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/select2/css/select2.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
+  <!-- toastr -->
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/toastr/toastr.min.css">
+  <!-- datatables -->
+  {{if .IsInventory}}
+  <link href="{{.WebRoot}}www/plugins/datatables-full/datatables.min.css" rel="stylesheet">
+  {{end}}
+  <!-- builtin -->
   <style>{{template "maincss"}}</style>
   <style>{{template "highlighter"}}</style>
 </head>
@@ -76,6 +82,15 @@
             {{end}}
           </span>
           {{end}}
+          <div class="dropdown-divider"></div>
+          <form>
+            <span class="dropdown-header">
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commands" download="commands.sh" data-toggle="tooltipleft" title="Export commands to a shell script"><i class="fa-solid fa-terminal"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandh" download="commands.md" data-toggle="tooltipleft" title="Export history to a markdown file"><i class="fa-brands fa-markdown"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandjb" download="commands-bash.ipynb" data-toggle="tooltipleft" title="Export history to a jupyter file (bash kernel)"><i class="fa-regular fa-floppy-disk"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandjm" download="commands-magic.ipynb" data-toggle="tooltipleft" title="Export history to a jupyter file (ipython kernel)"><i class="fa-brands fa-python"></i></a>
+            </span>
+          </form>
           <div class="jobslist">
             <div class="dropdown-divider"></div>
             <a href="#" class="dropdown-item">
@@ -85,7 +100,7 @@
             </a>  
           </div>
           <div class="dropdown-divider"></div>
-          <a href="#" class="dropdown-item dropdown-footer" onclick="clearNotifications();">Clear Notifications</a>
+          <a href="#" class="dropdown-item dropdown-footer" onclick="clearNotifications();">Clear History</a>
         </div>
       </li>
       <!--
@@ -103,7 +118,7 @@
   <aside class="main-sidebar sidebar-dark-primary elevation-4">
     <!-- Brand Logo -->
     <a href="{{.WebRoot}}" class="brand-link">
-      <img src="{{.WebRoot}}dist/img/aerolab.png" alt="A" class="brand-image img-circle elevation-3" style="opacity: .8">
+      <img src="{{.WebRoot}}www/dist/img/aerolab.png" alt="A" class="brand-image img-circle elevation-3" style="opacity: .8">
       <span class="brand-text font-weight-light">AeroLab</span>
     </a>
 
@@ -205,7 +220,7 @@
                   {{else}}
                   <div class="form-group">
                     <label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
-                    <input type="{{.Input.Type}}" class="form-control{{if .Input.Required}} aerolab-required{{end}}" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
+                    <input type="{{.Input.Type}}" class="form-control{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
                   </div>
                   {{end}}
                   {{end}}
@@ -238,21 +253,8 @@
         </div>
         <br><br><br><br><br><br>
         {{end}}
-        {{if .IsHomepage}}
-        <div class="row">
-          <div class="col-md-3 col-sm-0">
-          </div>
-          <div class="col-md-6 col-sm-12">
-            <div class="card card-primary">
-              <div class="card-header">
-                <h3 class="card-title">Homepage</h3>
-              </div>
-              <div class="card-body">
-                TODO something useful here. For now, pick an item from the left-side menu.
-              </div>
-            </div>
-          </div>
-        </div>
+        {{if .IsInventory}}
+        {{template "inventory" . }}
         {{end}}
       </div><!-- /.container-fluid -->
     </div>
@@ -310,19 +312,24 @@
 <!-- REQUIRED SCRIPTS -->
 
 <!-- jQuery -->
-<script src="{{.WebRoot}}plugins/jquery/jquery.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/jquery/jquery.min.js"></script>
 <!-- Bootstrap 4 -->
-<script src="{{.WebRoot}}plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
-<script src="{{.WebRoot}}dist/js/adminlte.min.js"></script>
+<script src="{{.WebRoot}}www/dist/js/adminlte.min.js"></script>
 <!-- fontawesome -->
-<script src="{{.WebRoot}}plugins/fontawesome-free/js/all.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/fontawesome-free/js/all.min.js"></script>
 <!-- select2 -->
-<script src="{{.WebRoot}}plugins/select2/js/select2.full.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/select2/js/select2.full.min.js"></script>
 <!-- toastr -->
-<script src="{{.WebRoot}}plugins/toastr/toastr.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/toastr/toastr.min.js"></script>
 <!-- jscookie -->
-<script src="{{.WebRoot}}plugins/cookie/js.cookie.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/cookie/js.cookie.min.js"></script>
+<!-- datatables -->
+{{if .IsInventory}}
+<script src="{{.WebRoot}}www/plugins/datatables-full/datatables.min.js"></script>
+{{end}}
+<!-- builtin -->
 <script>{{template "mainjs" .}}</script>
 </body>
 </html>
@@ -345,5 +352,118 @@
   </ul>
   {{end}}
 </li>
+{{if .DrawSeparator}}<div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>{{end}}
 {{end}}
+{{end}}
+
+{{ define "inventory" }}
+<div class="row">
+  <div class="col-12">
+    <div class="card card-primary card-tabs">
+      <div class="card-header p-0 pt-1">
+
+        <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
+          <li class="nav-item">
+            <a class="nav-link active inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="true">Templates</a>
+          </li>
+          {{ if ne .Backend "docker" }}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryVolumes-tab" data-toggle="pill" href="#inventoryVolumes" role="tab" aria-controls="inventoryVolumes" aria-selected="false">{{if eq .Backend "aws"}}EFS{{end}}{{if eq .Backend "gcp"}}Volumes{{end}}</a>
+          </li>
+          {{end}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabFirewalls-tab" data-toggle="pill" href="#inventoryTabFirewalls" role="tab" aria-controls="inventoryTabFirewalls" aria-selected="false">{{if eq .Backend "aws"}}SecurityGroups{{end}}{{if eq .Backend "gcp"}}Firewalls{{end}}{{if eq .Backend "docker"}}Networks{{end}}</a>
+          </li>
+          {{ if ne .Backend "docker" }}
+          <li class="nav-item">
+          <a class="nav-link inventoryTab" id="inventoryTabExpirySystem-tab" data-toggle="pill" href="#inventoryTabExpirySystem" role="tab" aria-controls="inventoryTabExpirySystem" aria-selected="false">ExpirySystem</a>
+          </li>
+          {{end}}
+          {{if eq .Backend "aws"}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabSubnets-tab" data-toggle="pill" href="#inventoryTabSubnets" role="tab" aria-controls="inventoryTabSubnets" aria-selected="false">Subnets</a>
+          </li>
+          {{end}}
+        </ul>
+
+      </div>
+      <div class="card-body">
+        <div class="tab-content" id="custom-tabs-one-tabContent">
+
+          <div class="tab-pane fade show active" id="inventoryTabTemplates" role="tabpanel" aria-labelledby="inventoryTabTemplates-tab">
+            <table id="invtemplates" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          {{ if ne .Backend "docker" }}
+          <div class="tab-pane fade" id="inventoryVolumes" role="tabpanel" aria-labelledby="inventoryVolumes-tab">
+            <table id="invvolumes" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+          {{end}}
+
+          <div class="tab-pane fade" id="inventoryTabFirewalls" role="tabpanel" aria-labelledby="inventoryTabFirewalls-tab">
+            <table id="invfirewalls" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$fw := index .Inventory "FirewallRules"}}{{range $fw.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$fw := index .Inventory "FirewallRules"}}{{range $fw.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          {{ if ne .Backend "docker" }}
+          <div class="tab-pane fade" id="inventoryTabExpirySystem" role="tabpanel" aria-labelledby="inventoryTabExpirySystem-tab">
+            <table id="invexpiry" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$templates := index .Inventory "ExpirySystem"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$templates := index .Inventory "ExpirySystem"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+          {{end}}
+
+          {{if eq .Backend "aws"}}
+          <div class="tab-pane fade" id="inventoryTabSubnets" role="tabpanel" aria-labelledby="inventoryTabSubnets-tab">
+            <table id="invsubnets" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+          {{end}}
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {{end}}

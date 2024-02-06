@@ -19,13 +19,25 @@ type Page struct {
 	WebRoot                                 string
 	FormCommandTitle                        string
 	IsForm                                  bool
-	IsHomepage                              bool
+	IsInventory                             bool
 	IsError                                 bool
 	ErrorString                             string
 	ErrorTitle                              string
 	Navigation                              *Nav
 	Menu                                    *MainMenu
 	FormItems                               []*FormItem
+	Inventory                               map[string]*InventoryItem
+	Backend                                 string
+}
+
+type InventoryItem struct {
+	Fields []*InventoryItemField
+}
+
+type InventoryItemField struct {
+	Name         string
+	FriendlyName string
+	Backend      string
 }
 
 type FormItem struct {
@@ -107,15 +119,16 @@ const (
 )
 
 type MenuItem struct {
-	HasChildren bool
-	Icon        string
-	Name        string
-	Href        string
-	IsActive    bool
-	ActiveColor string
-	Badge       MenuItemBadge
-	Items       MenuItems
-	Tooltip     string
+	HasChildren   bool
+	Icon          string
+	Name          string
+	Href          string
+	IsActive      bool
+	ActiveColor   string
+	Badge         MenuItemBadge
+	Items         MenuItems
+	Tooltip       string
+	DrawSeparator bool
 }
 
 type MenuItemBadge struct {
@@ -124,9 +137,9 @@ type MenuItemBadge struct {
 	Text string
 }
 
-func (m MenuItems) Set(path string) {
+func (m MenuItems) Set(path string, webroot string) {
 	m.SetTemplate()
-	m.MakeActive(path)
+	m.MakeActive(path, webroot)
 }
 
 func (m MenuItems) SetTemplate() {
@@ -143,15 +156,15 @@ func (m MenuItems) SetTemplate() {
 	}
 }
 
-func (m MenuItems) MakeActive(path string) {
+func (m MenuItems) MakeActive(path string, webroot string) {
 	for i := range m {
 		if m[i].Href == path {
 			m[i].IsActive = true
 			return
 		}
-		if strings.HasPrefix(path, strings.TrimSuffix(m[i].Href, "/")+"/") {
+		if m[i].Href != webroot && strings.HasPrefix(path, strings.TrimSuffix(m[i].Href, "/")+"/") {
 			m[i].IsActive = true
-			m[i].Items.MakeActive(path)
+			m[i].Items.MakeActive(path, webroot)
 		}
 	}
 }

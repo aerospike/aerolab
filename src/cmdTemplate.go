@@ -7,8 +7,8 @@ import (
 
 type templateCmd struct {
 	List   templateListCmd   `command:"list" subcommands-optional:"true" description:"List available templates" webicon:"fas fa-list"`
-	Delete templateDeleteCmd `command:"destroy" subcommands-optional:"true" description:"Delete a template image" webicon:"fas fa-trash"`
-	Create templateCreateCmd `command:"create" subcommands-optional:"true" description:"Create a new template" webicon:"fas fa-circle-plus"`
+	Delete templateDeleteCmd `command:"destroy" subcommands-optional:"true" description:"Delete a template image" webicon:"fas fa-trash" invwebforce:"true"`
+	Create templateCreateCmd `command:"create" subcommands-optional:"true" description:"Create a new template" webicon:"fas fa-circle-plus" invwebforce:"true"`
 	Vacuum templateVacuumCmd `command:"vacuum" subcommands-optional:"true" description:"Remove danging unfinished templates left over on failure" webicon:"fas fa-broom"`
 	Help   helpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
