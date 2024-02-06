@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/jobqueue"
+	"github.com/aerospike/aerolab/jupyter"
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
@@ -273,6 +274,8 @@ func (c *webCmd) Execute(args []string) error {
 	http.HandleFunc(c.WebRoot+"www/api/jobs/", c.jobs)
 	http.HandleFunc(c.WebRoot+"www/api/commands", c.commandScript)
 	http.HandleFunc(c.WebRoot+"www/api/commandh", c.commandHistory)
+	http.HandleFunc(c.WebRoot+"www/api/commandjb", c.commandJupyterBash)
+	http.HandleFunc(c.WebRoot+"www/api/commandjm", c.commandJupyterMagic)
 
 	c.addInventoryHandlers()
 	http.HandleFunc(c.WebRoot, c.serve)
@@ -303,6 +306,14 @@ func (c *webCmd) commandScript(w http.ResponseWriter, r *http.Request) {
 
 func (c *webCmd) commandHistory(w http.ResponseWriter, r *http.Request) {
 	c.jobsAndCommands(w, r, WebUIJobsActionHIST)
+}
+
+func (c *webCmd) commandJupyterBash(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionBash)
+}
+
+func (c *webCmd) commandJupyterMagic(w http.ResponseWriter, r *http.Request) {
+	c.jobsAndCommands(w, r, WebUIJobsActionMagic)
 }
 
 func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
@@ -395,6 +406,8 @@ const (
 	WebUIJobsActionJOBS   = 1
 	WebUIJobsActionSCRIPT = 2
 	WebUIJobsActionHIST   = 3
+	WebUIJobsActionBash   = 4
+	WebUIJobsActionMagic  = 5
 )
 
 func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType int) {
@@ -541,7 +554,49 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		return
 	}
 
+	jupyterType := jupyter.TypeBash
 	switch jobType {
+	case WebUIJobsActionMagic:
+		jupyterType = jupyter.TypeMagic
+		fallthrough
+	case WebUIJobsActionBash:
+		j := jupyter.New(jupyterType)
+		for _, job := range jobs.Jobs {
+			jobStatus := "SUCCESS exitCode"
+			errorCode := 0
+			if job.IsFailed {
+				jobStatus = "FAILED exitCode"
+				errorCode = 1
+			} else if job.IsRunning {
+				jobStatus = "RUNNING exitCode"
+				errorCode = 255
+			}
+			fc, err := os.ReadFile(job.FilePath)
+			if err != nil {
+				fc = []byte("-=-=-=-=- [Log] -=-=-=-=-\n" + err.Error())
+			}
+			ansLog := strings.Split(string(fc), "-=-=-=-=- [Log] -=-=-=-=-\n")
+			nLog := ""
+			exitCode := ""
+			if len(ansLog) > 1 {
+				ansCode := strings.Split(ansLog[1], "-=-=-=-=- [ExitCode]")
+				nLog = strings.TrimRight(ansCode[0], "\n")
+				if len(ansCode) > 1 {
+					ansCode = strings.Split(ansCode[1], " -=-=-=-=-")
+					exitCode = strings.TrimRight(ansCode[0], "\n ")
+				}
+			}
+			if job.IsFailed && exitCode != "0" {
+				errorCode, err = strconv.Atoi(exitCode)
+				if err != nil {
+					errorCode = 1
+				}
+			}
+			j.AddCell(job.CmdLine, nLog, errorCode, jobStatus)
+		}
+		je := json.NewEncoder(w)
+		je.SetIndent("", "  ")
+		je.Encode(j)
 	case WebUIJobsActionHIST:
 		sort.Slice(jobs.Jobs, func(i, j int) bool {
 			return jobs.Jobs[i].startTimestamp.Before(jobs.Jobs[j].startTimestamp)

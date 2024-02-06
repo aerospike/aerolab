@@ -296,6 +296,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
 		isColor = false
 	}
+	if _, ok := os.LookupEnv("JPY_SESSION_NAME"); ok {
+		isColor = false
+	}
 	pipeLess := c.Pager
 	isTerminal := false
 	if isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()) {
@@ -335,15 +338,17 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 	}
 
-	if !pipeLess && isTerminal {
-		width, _, err := term.GetSize(int(os.Stdout.Fd()))
-		if err != nil || width < 1 {
-			fmt.Fprintf(os.Stderr, "Couldn't get terminal width (int:%v): %v", width, err)
-		} else {
-			if width < 40 {
-				width = 40
+	if _, ok := os.LookupEnv("JPY_SESSION_NAME"); !ok {
+		if !pipeLess && isTerminal {
+			width, _, err := term.GetSize(int(os.Stdout.Fd()))
+			if err != nil || width < 1 {
+				fmt.Fprintf(os.Stderr, "Couldn't get terminal width (int:%v): %v", width, err)
+			} else {
+				if width < 40 {
+					width = 40
+				}
+				t.SetAllowedRowLength(width)
 			}
-			t.SetAllowedRowLength(width)
 		}
 	}
 
