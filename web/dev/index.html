@@ -85,8 +85,10 @@
           <div class="dropdown-divider"></div>
           <form>
             <span class="dropdown-header">
-                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commands" download="commands.sh">Export command script</a>
-                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandh" download="commands.md">Export command history</a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commands" download="commands.sh" data-toggle="tooltipleft" title="Export commands to a shell script"><i class="fa-solid fa-terminal"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandh" download="commands.md" data-toggle="tooltipleft" title="Export history to a markdown file"><i class="fa-brands fa-markdown"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandjb" download="commands-bash.ipynb" data-toggle="tooltipleft" title="Export history to a jupyter file (bash kernel)"><i class="fa-regular fa-floppy-disk"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandjm" download="commands-magic.ipynb" data-toggle="tooltipleft" title="Export history to a jupyter file (ipython kernel)"><i class="fa-brands fa-python"></i></a>
             </span>
           </form>
           <div class="jobslist">
