@@ -404,6 +404,10 @@ function clearNotifications() {
 
 {{if .IsInventory}}
 $('a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
+    if (tabInit) {
+        tabInit = false;
+        return;
+    }
     Cookies.set('aerolab_inventory_tab', $(e.target).attr("id"), { expires: 360, path: '{{.WebRoot}}' })
     var tab = $(e.target).attr("href") // activated tab
     let tables = $(tab).find('table');
@@ -618,11 +622,14 @@ function initDatatable() {
 }
 {{end}}
 
+var tabInit = true;
 $(function () {
     {{if .IsInventory}}
     var selTab = Cookies.get('aerolab_inventory_tab');
     if (selTab != null && selTab != undefined && selTab != "" && !$("#"+selTab).hasClass("active")) {
         $("#"+selTab).tab("show");
+    } else {
+        $($("#inventoryTabs").find(".inventoryTab")[0]).tab("show");
     }
     {{end}}
     $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", fallbackPlacement:["bottom","top"], boundary: "viewport" });
