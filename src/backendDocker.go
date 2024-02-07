@@ -351,7 +351,7 @@ func (d *backendDocker) Arch() TypeArch {
 	return TypeArchAmd
 }
 
-func (d *backendDocker) AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool) error {
+func (d *backendDocker) AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool) error {
 	return nil
 }
 

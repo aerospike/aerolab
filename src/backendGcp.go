@@ -2741,7 +2741,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall)
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall, true)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}
@@ -2988,10 +2988,10 @@ func (d *backendGcp) ListSubnets() error {
 	return errors.New("not implemented")
 }
 
-func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool) error {
+func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool, performLocking bool) error {
 	ctx := context.Background()
 	for _, name := range names {
-		if err := d.createSecurityGroupsIfNotExist(name, false); err != nil {
+		if err := d.createSecurityGroupsIfNotExist(name, false, performLocking); err != nil {
 			return err
 		}
 	}
@@ -3055,7 +3055,7 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 }
 
 func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error {
-	return d.createSecurityGroupsIfNotExist(namePrefix, isAgi)
+	return d.createSecurityGroupsIfNotExist(namePrefix, isAgi, true)
 }
 
 func (d *backendGcp) createSecurityGroupExternal(namePrefix string, isAgi bool) error {
@@ -3311,7 +3311,7 @@ func (d *backendGcp) ListSecurityGroups() error {
 	return nil
 }
 
-func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi bool) error {
+func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi bool, performLocking bool) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -3326,7 +3326,7 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi boo
 	it := firewallsClient.List(ctx, req)
 	existInternal := false
 	existExternal := false
-	needsLock := true
+	needsLock := performLocking
 	for {
 		firewallRule, err := it.Next()
 		if err == iterator.Done {
@@ -3534,7 +3534,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall)
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall, true)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}

@@ -597,7 +597,8 @@ func (d *backendAws) deleteSecGroups(vpc string, namePrefix string, internal boo
 	return nerr
 }
 
-func (d *backendAws) AssignSecurityGroups(clusterName string, names []string, vpc string, remove bool) error {
+// ignoring performLocking as this command already does what it's supposed to
+func (d *backendAws) AssignSecurityGroups(clusterName string, names []string, vpc string, remove bool, performLocking bool) error {
 	var instIds []*ec2.Instance
 	var secGroupIds []string
 	// find all instanceIds for a given cluster; if 0 found, error
