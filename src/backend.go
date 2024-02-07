@@ -186,32 +186,37 @@ type inventoryJson struct {
 
 type inventoryVolume struct {
 	Name                 string
-	GCP                  inventoryVolumeGcp
-	FileSystemId         string
-	AvailabilityZoneName string
-	AvailabilityZoneId   string
-	CreationTime         time.Time
-	SizeBytes            int
-	Owner                string
-	LifeCycleState       string
-	Tags                 map[string]string
+	FileSystemId         string    `row:"FsID"`
+	AvailabilityZoneName string    `row:"Zone"`
+	CreationTime         time.Time `row:"Created"`
+	SizeBytes            int       `hidden:"true"`
+	SizeString           string    `row:"Size"`       // only used by webform
+	ExpiresIn            string    `row:"Expires In"` // only used by webform
 	AWS                  inventoryVolumeAws
+	GCP                  inventoryVolumeGcp
+	Owner                string
+	AGIVolume            bool              // only used by webform
+	AgiLabel             string            // only used by webform
+	AvailabilityZoneId   string            `hidden:"true"`
+	LifeCycleState       string            `hidden:"true"`
+	Tags                 map[string]string `hidden:"true"`
 }
 
 type inventoryVolumeAws struct {
-	CreationToken        string                 // aws
-	Encrypted            bool                   // aws
-	FileSystemArn        string                 // aws
-	NumberOfMountTargets int                    // aws
-	AWSOwnerId           string                 // aws
-	PerformanceMode      string                 // aws
-	ThroughputMode       string                 // aws
-	MountTargets         []inventoryMountTarget // aws
+	NumberOfMountTargets int                    `row:"MountTargets"`
+	CreationToken        string                 `hidden:"true"`
+	Encrypted            bool                   `hidden:"true"`
+	FileSystemArn        string                 `hidden:"true"`
+	AWSOwnerId           string                 `hidden:"true"`
+	PerformanceMode      string                 `hidden:"true"`
+	ThroughputMode       string                 `hidden:"true"`
+	MountTargets         []inventoryMountTarget `hidden:"true"`
 }
 
 type inventoryVolumeGcp struct {
-	AttachedTo  []string // gcp
-	Description string   // gcp
+	AttachedToString string   `row:"Attached To"` // only used by webform
+	AttachedTo       []string `hidden:"true"`
+	Description      string   `hidden:"true"`
 }
 
 type inventoryMountTarget struct {
