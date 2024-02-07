@@ -9,11 +9,13 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
+	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
@@ -103,6 +105,12 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 			if m.Field(i).Type.Elem().Field(j).Tag.Get("hidden") != "" {
 				continue
 			}
+			if m.Field(i).Type.Elem().Field(j).Tag.Get("backends") != "" {
+				backends := strings.Split(m.Field(i).Type.Elem().Field(j).Tag.Get("backends"), ",")
+				if !inslice.HasString(backends, a.opts.Config.Backend.Type) {
+					continue
+				}
+			}
 			name := m.Field(i).Type.Elem().Field(j).Name
 			ntype := m.Field(i).Type.Elem().Field(j).Type
 			if ntype.Kind() == reflect.Ptr {
@@ -118,7 +126,16 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 					if ntype.Field(x).Tag.Get("hidden") != "" {
 						continue
 					}
+					if ntype.Field(x).Tag.Get("backends") != "" {
+						backends := strings.Split(ntype.Field(x).Tag.Get("backends"), ",")
+						if !inslice.HasString(backends, a.opts.Config.Backend.Type) {
+							continue
+						}
+					}
 					name := ntype.Field(x).Name
+					if name[0] >= 'a' && name[0] <= 'z' { // do not process parameters which start from lowercase - these will not be exported
+						continue
+					}
 					fname := ntype.Field(x).Tag.Get("row")
 					if fname == "" {
 						fname = name
@@ -129,6 +146,9 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 						Backend:      backend,
 					})
 				}
+				continue
+			}
+			if name[0] >= 'a' && name[0] <= 'z' { // do not process parameters which start from lowercase - these will not be exported
 				continue
 			}
 			fname := m.Field(i).Type.Elem().Field(j).Tag.Get("row")
@@ -195,6 +215,9 @@ func (c *webCmd) addInventoryHandlers() {
 	http.HandleFunc(c.WebRoot+"www/api/inventory/expiry", c.inventoryExpiry)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/subnets", c.inventorySubnets)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/templates", c.inventoryTemplates)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/clusters", c.inventoryClusters)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/clients", c.inventoryClients)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/agi", c.inventoryAGI)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
 }
 
@@ -457,4 +480,163 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		invlog.WriteString("-=-=-=-=- [END] -=-=-=-=-")
 	}()
 	w.Write([]byte(reqID))
+}
+
+func (c *webCmd) inventoryClusters(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
+	c.cache.RLock()
+	defer c.cache.RUnlock()
+	clusters := []inventoryCluster{}
+	for _, cluster := range c.cache.inv.Clusters {
+		if cluster.Features&ClusterFeatureAGI > 0 {
+			continue
+		}
+		clusters = append(clusters, cluster)
+	}
+	json.NewEncoder(w).Encode(clusters)
+}
+
+func (c *webCmd) inventoryClients(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
+	c.cache.RLock()
+	defer c.cache.RUnlock()
+	json.NewEncoder(w).Encode(c.cache.inv.Clients)
+}
+
+func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	c.cache.RLock()
+	inv := []inventoryWebAGI{}
+	agiVolNames := make(map[string]int) // map[agiName] = indexOf(inv)
+	for _, vol := range c.cache.inv.Volumes {
+		if !vol.AGIVolume {
+			continue
+		}
+		agiVolNames[vol.Name] = len(inv)
+		inv = append(inv, inventoryWebAGI{
+			Name:         vol.Name,
+			VolOwner:     vol.Owner,
+			AGILabel:     vol.AgiLabel,
+			VolSize:      vol.SizeString,
+			VolExpires:   vol.ExpiresIn,
+			Zone:         vol.AvailabilityZoneName,
+			VolID:        vol.FileSystemId,
+			CreationTime: vol.CreationTime,
+		})
+	}
+	for _, inst := range c.cache.inv.Clusters {
+		if inst.Features&ClusterFeatureAGI <= 0 {
+			continue
+		}
+		if idx, ok := agiVolNames[inst.ClusterName]; ok {
+			inv[idx].State = inst.State
+			inv[idx].Expires = inst.Expires
+			inv[idx].Owner = inst.Owner
+			inv[idx].AccessURL = inst.AccessUrl
+			inv[idx].AGILabel = inst.AGILabel
+			inv[idx].RunningCost = inst.InstanceRunningCost
+			inv[idx].PublicIP = inst.PublicIp
+			inv[idx].PrivateIP = inst.PrivateIp
+			inv[idx].Firewalls = inst.Firewalls
+			inv[idx].Zone = inst.Zone
+			inv[idx].InstanceID = inst.InstanceId
+			inv[idx].ImageID = inst.ImageId
+			inv[idx].InstanceType = inst.InstanceType
+			inv[idx].CreationTime = time.Time{} // TODO
+		} else {
+			inv = append(inv, inventoryWebAGI{
+				Name:         inst.ClusterName,
+				State:        inst.State,
+				Expires:      inst.Expires,
+				Owner:        inst.Owner,
+				AccessURL:    inst.AccessUrl,
+				AGILabel:     inst.AGILabel,
+				RunningCost:  inst.InstanceRunningCost,
+				PublicIP:     inst.PublicIp,
+				PrivateIP:    inst.PrivateIp,
+				Firewalls:    inst.Firewalls,
+				Zone:         inst.Zone,
+				InstanceID:   inst.InstanceId,
+				ImageID:      inst.ImageId,
+				InstanceType: inst.InstanceType,
+				CreationTime: time.Time{}, // TODO
+			})
+		}
+	}
+	c.cache.RUnlock()
+	c.cache.ilcMutex.RUnlock()
+	// get statuses for instances running
+	updateLock := new(sync.Mutex)
+	workers := new(sync.WaitGroup)
+	statusThreads := make(chan int, 5)
+	for i := range inv {
+		if inv[i].PublicIP == "" && inv[i].PrivateIP == "" {
+			continue
+		}
+		workers.Add(1)
+		statusThreads <- 1
+		go func(i int, v inventoryWebAGI) {
+			defer workers.Done()
+			defer func() {
+				<-statusThreads
+			}()
+			statusMsg := "unknown"
+			if (v.PublicIP != "") || (a.opts.Config.Backend.Type == "docker" && v.PublicIP != "") {
+				out, err := b.RunCommands(v.Name, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
+				if err == nil {
+					clusterStatus := &ingest.IngestStatusStruct{}
+					err = json.Unmarshal(out[0], clusterStatus)
+					if err == nil {
+						if !clusterStatus.AerospikeRunning {
+							statusMsg = "ERR: ASD DOWN"
+						} else if !clusterStatus.GrafanaHelperRunning {
+							statusMsg = "ERR: GRAFANAFIX DOWN"
+						} else if !clusterStatus.PluginRunning {
+							statusMsg = "ERR: PLUGIN DOWN"
+						} else if !clusterStatus.Ingest.CompleteSteps.Init {
+							statusMsg = "(1/6) INIT"
+						} else if !clusterStatus.Ingest.CompleteSteps.Download {
+							statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
+						} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
+							statusMsg = "(3/6) UNPACK"
+						} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
+							statusMsg = "(4/6) PRE-PROCESS"
+						} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
+							statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
+						} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
+							statusMsg = "(6/6) COLLECTINFO"
+						} else {
+							statusMsg = "READY"
+						}
+						if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+							statusMsg = "ERR: INGEST DOWN"
+						}
+					}
+				}
+			} else {
+				statusMsg = ""
+			}
+			updateLock.Lock()
+			inv[i].Status = statusMsg
+			updateLock.Unlock()
+		}(i, inv[i])
+	}
+	workers.Wait()
+	// sort
+	sort.Slice(inv, func(i, j int) bool {
+		if inv[i].InstanceID != "" && inv[j].InstanceID == "" {
+			return true
+		}
+		if inv[i].InstanceID == "" && inv[j].InstanceID != "" {
+			return false
+		}
+		if inv[i].InstanceID == "" && inv[j].InstanceID == "" {
+			return inv[i].CreationTime.After(inv[i].CreationTime)
+		}
+		return inv[i].Name < inv[j].Name
+	})
+	// send
+	json.NewEncoder(w).Encode(inv)
 }

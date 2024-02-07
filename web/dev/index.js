@@ -445,7 +445,41 @@ function initDatatable() {
         select: true,
         dom: 'Bfrtip',
     });
+    $('#invclusters').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [[0,"asc"],[1,"asc"]];
+        },
+        order: [[0,"asc"],[1,"asc"]],
+        fixedColumns: {left: 2, right: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
+        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+    });
+    $('#invclients').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [[0,"asc"],[1,"asc"]];
+        },
+        order: [[0,"asc"],[1,"asc"]],
+        fixedColumns: {left: 2, right: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
+        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+    });
+    $('#invagi').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [];
+        },
+        order: [],
+        fixedColumns: {left: 2, right: 1},
+        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
+        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}],
+    });
     $('#invtemplates').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]];
+        },
+        order: [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]],
         fixedColumns: {left: 1},
         buttons: [{
             className: 'btn btn-success',
@@ -491,6 +525,10 @@ function initDatatable() {
     });
     {{ if ne .Backend "docker" }}
     $('#invvolumes').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [0,"asc"];
+        },
+        order: [0,"asc"],
         fixedColumns: {left: 1},
         buttons: [
             {
@@ -591,7 +629,10 @@ function initDatatable() {
     });
     {{end}}
     $('#invfirewalls').DataTable({
-        //fixedColumns: {left: 1},
+        "stateSaveParams": function (settings, data) {
+            data.order = [[0,"asc"],[1,"asc"]];
+        },
+        order: [[0,"asc"],[1,"asc"]],
         buttons: [{
             className: 'btn btn-success',
             text: 'Create',
@@ -664,7 +705,10 @@ function initDatatable() {
     });
     {{ if ne .Backend "docker" }}
     $('#invexpiry').DataTable({
-        //fixedColumns: {left: 1},
+        "stateSaveParams": function (settings, data) {
+            data.order = [0,"asc"];
+        },
+        order: [0,"asc"],
         buttons: [{
             className: 'btn btn-success',
             text: 'Create',
@@ -705,7 +749,10 @@ function initDatatable() {
     {{end}}
     {{if eq .Backend "aws"}}
     $('#invsubnets').DataTable({
-        //fixedColumns: {left: 1},
+        "stateSaveParams": function (settings, data) {
+            data.order = [[3,"asc"],[6,"asc"]];
+        },
+        order: [[3,"asc"],[6,"asc"]],
         buttons: [{extend: 'reload',className: 'btn btn-info',}],
         ajax: {url:'{{.WebRoot}}www/api/inventory/subnets',dataSrc:""},
         columns: [{{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]

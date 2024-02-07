@@ -182,6 +182,30 @@ type inventoryJson struct {
 	Subnets       []inventorySubnet
 	ExpirySystem  []inventoryExpiry
 	Volumes       []inventoryVolume
+	AGI           []inventoryWebAGI
+}
+
+type inventoryWebAGI struct {
+	Name         string
+	State        string
+	Status       string
+	Expires      string `backends:"gcp,aws"`
+	VolOwner     string `backends:"gcp,aws"`
+	Owner        string
+	AccessURL    string
+	AGILabel     string
+	VolSize      string  `backends:"gcp,aws"`
+	VolExpires   string  `backends:"gcp,aws"`
+	RunningCost  float64 `backends:"gcp,aws"`
+	PublicIP     string
+	PrivateIP    string
+	Firewalls    []string `backends:"gcp,aws"`
+	Zone         string   `backends:"gcp,aws"`
+	VolID        string   `backends:"aws"`
+	InstanceID   string
+	ImageID      string    `backends:"docker"`
+	InstanceType string    `backends:"gcp,aws"`
+	CreationTime time.Time `hidden:"true"`
 }
 
 type inventoryVolume struct {
@@ -261,26 +285,28 @@ type inventorySubnetAWS struct {
 type inventoryCluster struct {
 	ClusterName            string
 	NodeNo                 string
-	PrivateIp              string
-	PublicIp               string
-	InstanceId             string
-	ImageId                string
+	Expires                string `backends:"aws,gcp"`
 	State                  string
-	Arch                   string
-	Distribution           string
-	OSVersion              string
-	AerospikeVersion       string
-	Firewalls              []string
-	Zone                   string
-	InstanceRunningCost    float64
+	PublicIp               string
+	PrivateIp              string
+	DockerExposePorts      string `row:"ExposedPort" backends:"docker"`
+	DockerInternalPort     string `hidden:"true"`
 	Owner                  string
-	DockerExposePorts      string
-	DockerInternalPort     string
-	Expires                string
-	AccessUrl              string
-	Features               FeatureSystem
-	AGILabel               string
-	InstanceType           string
+	AerospikeVersion       string   `row:"AsdVer"`
+	InstanceRunningCost    float64  `row:"RunningCost" backends:"aws,gcp"`
+	Firewalls              []string `backends:"aws,gcp"`
+	Arch                   string
+	Distribution           string `row:"Distro"`
+	OSVersion              string `row:"DistroVer"`
+	Zone                   string `backends:"aws,gcp"`
+	InstanceId             string
+	ImageId                string        `backends:"docker"`
+	InstanceType           string        `backends:"aws,gcp"`
+	AwsIsSpot              bool          `row:"Spot" backends:"aws"`
+	GcpIsSpot              bool          `row:"Spot" backends:"gcp"`
+	AccessUrl              string        `hidden:"true"`
+	Features               FeatureSystem `hidden:"true"`
+	AGILabel               string        `hidden:"true"`
 	gcpLabelFingerprint    string
 	gcpLabels              map[string]string
 	gcpMetadataFingerprint string
@@ -289,8 +315,6 @@ type inventoryCluster struct {
 	dockerLabels           map[string]string
 	awsSubnet              string
 	awsSecGroups           []string
-	AwsIsSpot              bool
-	GcpIsSpot              bool
 }
 
 type FeatureSystem int64
@@ -343,26 +367,28 @@ const (
 type inventoryClient struct {
 	ClientName             string
 	NodeNo                 string
-	PrivateIp              string
-	PublicIp               string
-	InstanceId             string
-	ImageId                string
+	Expires                string `backends:"aws,gcp"`
 	State                  string
-	Arch                   string
-	Distribution           string
-	OSVersion              string
-	AerospikeVersion       string
+	PublicIp               string
+	PrivateIp              string
 	ClientType             string
 	AccessUrl              string
 	AccessPort             string
-	Firewalls              []string
-	Zone                   string
-	InstanceRunningCost    float64
 	Owner                  string
-	DockerExposePorts      string
-	DockerInternalPort     string
-	Expires                string
-	InstanceType           string
+	AerospikeVersion       string   `row:"AsdVer"`
+	InstanceRunningCost    float64  `row:"RunningCost" backends:"aws,gcp"`
+	Firewalls              []string `backends:"aws,gcp"`
+	Arch                   string
+	Distribution           string `row:"Distro"`
+	OSVersion              string `row:"DistroVer"`
+	Zone                   string `backends:"aws,gcp"`
+	InstanceId             string
+	ImageId                string `backends:"docker"`
+	InstanceType           string `backends:"aws,gcp"`
+	DockerExposePorts      string `backends:"docker" row:"ExposePorts"`
+	DockerInternalPort     string `hidden:"true"`
+	AwsIsSpot              bool   `backends:"aws" row:"Spot"`
+	GcpIsSpot              bool   `backends:"gcp" row:"Spot"`
 	gcpLabelFingerprint    string
 	gcpLabels              map[string]string
 	gcpMeta                map[string]string
@@ -371,8 +397,6 @@ type inventoryClient struct {
 	dockerLabels           map[string]string
 	awsSubnet              string
 	awsSecGroups           []string
-	AwsIsSpot              bool
-	GcpIsSpot              bool
 }
 
 type inventoryTemplate struct {
