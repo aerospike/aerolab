@@ -310,11 +310,75 @@ func (c *webCmd) inventorySubnets(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *webCmd) inventoryVolumes(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		c.inventoryVolumesAction(w, r)
+		return
+	}
 	c.cache.ilcMutex.RLock()
 	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.Volumes)
+}
+
+func (c *webCmd) inventoryVolumesAction(w http.ResponseWriter, r *http.Request) {
+	reqID := shortuuid.New()
+	log.Printf("[%s] %s %s:%s", reqID, r.RemoteAddr, r.Method, r.RequestURI)
+	data := make(map[string][]inventoryVolume)
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		http.Error(w, "could not read request: %s"+err.Error(), http.StatusBadRequest)
+		return
+	}
+	vols := data["list"]
+	if len(vols) == 0 {
+		http.Error(w, "received empty request", http.StatusBadRequest)
+		return
+	}
+	c.jobqueue.Add()
+	c.joblist.Add(reqID, &exec.Cmd{})
+	invlog, err := c.inventoryLogFile(reqID)
+	if err != nil {
+		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	comm := "volume delete"
+	invlog.WriteString("-=-=-=-=- [path] /" + strings.ReplaceAll(comm, " ", "/") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [command] " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
+	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d volumes\n", reqID, len(vols)))
+	log.Printf("[%s] DELETE %d volumes", reqID, len(vols))
+	go func() {
+		c.jobqueue.Start()
+		defer c.jobqueue.Remove()
+		defer c.jobqueue.End()
+		defer c.joblist.Delete(reqID)
+		defer invlog.Close()
+		isError := false
+		for _, vol := range vols {
+			a.opts.Volume.Delete.Name = vol.Name
+			a.opts.Volume.Delete.Gcp.Zone = vol.AvailabilityZoneName
+			err = a.opts.Volume.Delete.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, vol.Name))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, vol.Name)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, vol.Name))
+				log.Printf("[%s] DELETED (%v)", reqID, vol.Name)
+			}
+		}
+		invlog.WriteString("\n->Refreshing inventory cache\n")
+		c.cache.run(time.Now())
+		if isError {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
+		} else {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 0 -=-=-=-=-\nsuccess\n")
+		}
+		invlog.WriteString("-=-=-=-=- [END] -=-=-=-=-")
+	}()
+	w.Write([]byte(reqID))
 }
 
 func (c *webCmd) inventoryTemplates(w http.ResponseWriter, r *http.Request) {
