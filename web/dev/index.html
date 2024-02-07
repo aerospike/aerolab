@@ -364,6 +364,15 @@
 
         <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
           <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabClusters-tab" data-toggle="pill" href="#inventoryTabClusters" role="tab" aria-controls="inventoryTabClusters" aria-selected="false">Clusters</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabClients-tab" data-toggle="pill" href="#inventoryTabClients" role="tab" aria-controls="inventoryTabClients" aria-selected="false">Clients</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabAGI-tab" data-toggle="pill" href="#inventoryTabAGI" role="tab" aria-controls="inventoryTabAGI" aria-selected="false">AGI</a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="false">Templates</a>
           </li>
           {{ if ne .Backend "docker" }}
@@ -389,6 +398,45 @@
       </div>
       <div class="card-body">
         <div class="tab-content" id="custom-tabs-one-tabContent">
+
+          <div class="tab-pane fade" id="inventoryTabClusters" role="tabpanel" aria-labelledby="inventoryTabClusters-tab">
+            <table id="invclusters" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="tab-pane fade" id="inventoryTabClients" role="tabpanel" aria-labelledby="inventoryTabClients-tab">
+            <table id="invclients" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="tab-pane fade" id="inventoryTabAGI" role="tabpanel" aria-labelledby="inventoryTabAGI-tab">
+            <table id="invagi" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
 
           <div class="tab-pane fade" id="inventoryTabTemplates" role="tabpanel" aria-labelledby="inventoryTabTemplates-tab">
             <table id="invtemplates" class="table table-hover inventoryTable" style="width:100%">
