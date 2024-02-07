@@ -43,12 +43,14 @@ $('.checkForGetParams').each(function() {
             $.getJSON("https://api.ipify.org?format=json",
             function (data) {
                 $(inputItem).val(data.ip);
+                handleRequiredFieldColor(inputItem);
             })
             .fail(function() {
                 $(inputItem).val(labelParam);
             });
         } else {
             $(this).val(labelParam);
+            handleRequiredFieldColor(this);
         };
     };
 });
@@ -489,8 +491,101 @@ function initDatatable() {
     });
     {{ if ne .Backend "docker" }}
     $('#invvolumes').DataTable({
-        //fixedColumns: {left: 1},
-        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        fixedColumns: {left: 1},
+        buttons: [
+            {
+                className: 'btn btn-success',
+                text: 'Create',
+                action: function ( e, dt, node, config ) {
+                    let url = "{{.WebRoot}}volume/create";
+                    window.location.href = url;
+                }
+            },{
+                className: 'btn btn-warn',
+                text: 'Mount',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length != 1) {
+                        toastr.error("Select one row.");
+                        return;
+                    }
+                    let data = arr[0];
+                    let url = "{{.WebRoot}}volume/mount?Name="+data["Name"];
+                    window.location.href = url;
+                }
+            }{{if eq .Backend "gcp"}},{
+                className: 'btn btn-info',
+                text: 'Grow',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length != 1) {
+                        toastr.error("Select one row.");
+                        return;
+                    }
+                    let data = arr[0];
+                    let url = "{{.WebRoot}}volume/grow?Name="+data["Name"]+"&Zone="+data["AvailabilityZoneName"];
+                    window.location.href = url;
+                }
+            }{{end}},{
+                extend: 'reload',className: 'btn btn-info',
+            }{{if eq .Backend "gcp"}},{
+                className: 'btn btn-warning',
+                text: 'Detach',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length != 1) {
+                        toastr.error("Select one row.");
+                        return;
+                    }
+                    let data = arr[0];
+                    let url = "{{.WebRoot}}volume/detach?Name="+data["Name"]+"&Zone="+data["AvailabilityZoneName"];
+                    window.location.href = url;
+                }
+            }{{end}},{
+                className: 'btn btn-danger',
+                text: 'Delete',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length == 0) {
+                        toastr.error("Select one or more rows first");
+                        return;
+                    }
+                    let data = {"list": arr}
+                    if (confirm("Remove "+arr.length+" templates")) {
+                        $("#loadingSpinner").show();
+                        $.post("{{.WebRoot}}www/api/inventory/volumes", JSON.stringify(data), function(data) {
+                            showCommandOut(data);
+                        })
+                        .fail(function(data) {
+                            let body = data.responseText;
+                            if ((data.status == 0)&&(body == undefined)) {
+                                body = "Connection Error";
+                            }
+                            toastr.error(data.statusText+": "+body);
+                        })
+                        .always(function() {
+                            $("#loadingSpinner").hide();
+                        });
+                    }
+                }
+            }
+        ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/volumes',dataSrc:""},
         columns: [{{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
     });

@@ -1,6 +1,5 @@
 # TODO for 7.4.0 to be ready
 
-* inventory volumes - GCP and AWS buttons
 * inventory clusters
 * inventory clients
 * inventory agi - special page joining AGI volumes and AGI clusters
