@@ -1249,6 +1249,28 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 				if tag, ok := tags[awsTagEFSKey]; !ok || tag != awsTagEFSValue {
 					continue
 				}
+				agiVolume := false
+				if tags["aerolab4features"] == "4" {
+					agiVolume = true
+				}
+				// expiry
+				expiry := ""
+				if lastUsed, ok := tags["lastUsed"]; ok {
+					lastUsed = strings.ToUpper(strings.ReplaceAll(lastUsed, "_", ":"))
+					if expireDuration, ok := tags["expireDuration"]; ok {
+						expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
+						lu, err := time.Parse(time.RFC3339, lastUsed)
+						if err == nil {
+							ed, err := time.ParseDuration(expireDuration)
+							if err == nil {
+								expiresTime := lu.Add(ed)
+								expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+								expiry = expiresIn.Round(time.Minute).String()
+							}
+						}
+					}
+				}
+				// expiry end
 				vol := inventoryVolume{
 					AvailabilityZoneId:   aws.StringValue(volume.AvailabilityZoneId),
 					AvailabilityZoneName: aws.StringValue(volume.AvailabilityZoneName),
@@ -1266,8 +1288,12 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					LifeCycleState: aws.StringValue(volume.LifeCycleState),
 					Name:           aws.StringValue(volume.Name),
 					SizeBytes:      int(aws.Int64Value(volume.SizeInBytes.Value)),
+					SizeString:     convSize(aws.Int64Value(volume.SizeInBytes.Value)),
+					AgiLabel:       tags["agiLabel"],
 					Owner:          tags["aerolab7owner"],
+					AGIVolume:      agiVolume,
 					Tags:           tags,
+					ExpiresIn:      expiry,
 				}
 				if vol.AWS.NumberOfMountTargets > 0 {
 					mt, err := d.efs.DescribeMountTargets(&efs.DescribeMountTargetsInput{

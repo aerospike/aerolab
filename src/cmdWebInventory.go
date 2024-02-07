@@ -28,11 +28,17 @@ type inventoryCache struct {
 	ilcMutex        *sync.RWMutex
 	MinimumInterval time.Duration
 	lastRun         time.Time
+	executable      string
 }
 
 func (i *inventoryCache) Start(update func() (bool, error)) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	i.executable = executable
 	i.update = update
-	err := i.run(time.Time{})
+	err = i.run(time.Time{})
 	if err != nil {
 		return err
 	}
@@ -68,7 +74,7 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		}
 	}
 	i.lastRun = time.Now()
-	out, err := exec.Command("aerolab", "inventory", "list", "-j", "-p").CombinedOutput()
+	out, err := exec.Command(i.executable, "inventory", "list", "-j", "-p").CombinedOutput()
 	if err != nil {
 		if isUpdated {
 			i.Lock()
@@ -94,6 +100,9 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 	for i := 0; i < m.NumField(); i++ {
 		out[m.Field(i).Name] = &webui.InventoryItem{}
 		for j := 0; j < m.Field(i).Type.Elem().NumField(); j++ {
+			if m.Field(i).Type.Elem().Field(j).Tag.Get("hidden") != "" {
+				continue
+			}
 			name := m.Field(i).Type.Elem().Field(j).Name
 			ntype := m.Field(i).Type.Elem().Field(j).Type
 			if ntype.Kind() == reflect.Ptr {
@@ -106,6 +115,9 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 				}
 				// get data from underneath
 				for x := 0; x < ntype.NumField(); x++ {
+					if ntype.Field(x).Tag.Get("hidden") != "" {
+						continue
+					}
 					name := ntype.Field(x).Name
 					fname := ntype.Field(x).Tag.Get("row")
 					if fname == "" {

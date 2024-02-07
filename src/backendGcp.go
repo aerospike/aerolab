@@ -1543,20 +1543,46 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						userx := strings.Split(user, "/")
 						attachedTo = append(attachedTo, strings.TrimPrefix(userx[len(userx)-1], "aerolab4-"))
 					}
+					agiVolume := false
+					if pair.Labels["aerolab4features"] == "4" {
+						agiVolume = true
+					}
+					// expiry
+					expiry := ""
+					if lastUsed, ok := pair.Labels["lastused"]; ok {
+						lastUsed = strings.ToUpper(strings.ReplaceAll(lastUsed, "_", ":"))
+						if expireDuration, ok := pair.Labels["expireduration"]; ok {
+							expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
+							lu, err := time.Parse(time.RFC3339, lastUsed)
+							if err == nil {
+								ed, err := time.ParseDuration(expireDuration)
+								if err == nil {
+									expiresTime := lu.Add(ed)
+									expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+									expiry = expiresIn.Round(time.Minute).String()
+								}
+							}
+						}
+					}
+					// expiry end
 					ij.Volumes = append(ij.Volumes, inventoryVolume{
 						AvailabilityZoneId:   *pair.Zone,
 						AvailabilityZoneName: nzone[len(nzone)-1],
-						FileSystemId:         *pair.Name,
 						CreationTime:         ts,
 						LifeCycleState:       *pair.Status,
 						Name:                 *pair.Name,
 						SizeBytes:            int(*pair.SizeGb) * 1024 * 1024 * 1024,
+						SizeString:           convSize(*pair.SizeGb * 1024 * 1024 * 1024),
+						AgiLabel:             gcplabels.UnpackNoErr(pair.Labels, "agilabel"),
 						Tags:                 pair.Labels,
 						Owner:                pair.Labels["aerolab7owner"],
+						AGIVolume:            agiVolume,
 						GCP: inventoryVolumeGcp{
-							AttachedTo:  attachedTo,
-							Description: pair.GetDescription(),
+							AttachedTo:       attachedTo,
+							AttachedToString: strings.Join(attachedTo, ", "),
+							Description:      pair.GetDescription(),
 						},
+						ExpiresIn: expiry,
 					})
 					lock.Unlock()
 				}
