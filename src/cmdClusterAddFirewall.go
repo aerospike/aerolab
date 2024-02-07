@@ -71,7 +71,7 @@ func (c *clusterAddFirewallCmd) Execute(args []string) error {
 			np = c.Aws.NamePrefix
 			nz = ""
 		}
-		err = b.AssignSecurityGroups(cluster, np, nz, c.Remove)
+		err = b.AssignSecurityGroups(cluster, np, nz, c.Remove, false)
 		if err != nil {
 			return err
 		}

@@ -156,7 +156,7 @@ type backend interface {
 	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error
 	// may implement
 	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error
-	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool) error
+	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool) error
 	// may implement
 	ListSecurityGroups() error
 	// may implement
