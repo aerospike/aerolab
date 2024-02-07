@@ -364,7 +364,7 @@
 
         <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
           <li class="nav-item">
-            <a class="nav-link active inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="true">Templates</a>
+            <a class="nav-link inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="false">Templates</a>
           </li>
           {{ if ne .Backend "docker" }}
           <li class="nav-item">
@@ -390,7 +390,7 @@
       <div class="card-body">
         <div class="tab-content" id="custom-tabs-one-tabContent">
 
-          <div class="tab-pane fade show active" id="inventoryTabTemplates" role="tabpanel" aria-labelledby="inventoryTabTemplates-tab">
+          <div class="tab-pane fade" id="inventoryTabTemplates" role="tabpanel" aria-labelledby="inventoryTabTemplates-tab">
             <table id="invtemplates" class="table table-hover inventoryTable" style="width:100%">
               <thead>
                 {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
