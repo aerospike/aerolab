@@ -1,7 +1,7 @@
 {{define "mainjs"}}
 function pendingActionShowAll(id) {
     let isChecked = $(id).is(":checked");
-    console.log(isChecked); // TODO
+    console.log(isChecked); // not implemented in this version
 }
 
 $('.aerolab-required').on("change",function() {
@@ -435,6 +435,11 @@ function initDatatable() {
             });
         }
     };
+    $.fn.dataTable.ext.buttons.myspacer = {
+        extend: 'spacer',
+        text: '&nbsp;',
+        style: 'empty', // empty|bar
+    };
     Object.assign(DataTable.defaults, {
         paging: false,
         scrollCollapse: true,
@@ -451,8 +456,122 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
-        buttons: [
+        buttons: [{
+            className: 'btn btn-success',
+            text: 'Create',
+            action: function ( e, dt, node, config ) {
+                let url = "{{.WebRoot}}cluster/create";
+                window.location.href = url;
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-success',
+            text: 'Grow',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length != 1) {
+                    toastr.error("Select one row.");
+                    return;
+                }
+                let data = arr[0];
+                let url = "{{.WebRoot}}cluster/grow?ClusterName="+data["ClusterName"];
+                window.location.href = url;
+            }},
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-warn',
+                text: 'Nodes',
+                buttons: [
+                    {
+                        text: 'Start',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Stop',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                ]
+            },
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-warn',
+                text: 'Aerospike',
+                buttons: [
+                    {
+                        text: 'Start',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Stop',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Restart',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Status',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                ]
+            },
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-warn',
+                text: 'Configure',
+                buttons: [
+                    {
+                        text: 'Rack ID',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Namespace Memory',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Fix HB Mesh',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                ]
+            },
+            {{if ne .Backend "docker"}}
+            {extend: 'myspacer'},
+            {
+                className: 'btn btn-warning',
+                text: 'Extend Expiry',
+                action: function ( e, dt, node, config ) {
+                    // TODO
+                }
+            },    
+            {{end}}
+            {extend: 'myspacer'},
             {extend: 'reload',className: 'btn btn-info',},
+            {extend: 'myspacer'},
             {
             className: 'btn btn-danger',
             text: 'Destroy',
@@ -495,7 +614,174 @@ function initDatatable() {
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
         buttons: [
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-success',
+                text: 'Create',
+                buttons: [
+                    {
+                        text: 'Vanilla',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/none";
+                        }
+                    },
+                    {
+                        text: 'Base',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/base";
+                        }
+                    },
+                    {
+                        text: 'AerospikeTools',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/tools";
+                        }
+                    },
+                    {
+                        text: 'AMS',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/ams";
+                        }
+                    },
+                    {
+                        text: 'VSCode',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/vscode";
+                        }
+                    },
+                    {
+                        text: 'Trino',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/trino";
+                        }
+                    },
+                    {
+                        text: 'ElasticSearch',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/elasticsearch";
+                        }
+                    },
+                    {
+                        text: 'RestGateway',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/rest-gateway";
+                        }
+                    },
+                ]
+            },
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-success',
+                text: 'Grow',
+                buttons: [
+                    {
+                        text: 'Vanilla',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/none?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'Base',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/base?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'AerospikeTools',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/tools?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'AMS',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/ams?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'VSCode',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/vscode?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'Trino',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/trino?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'ElasticSearch',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/elasticsearch?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'RestGateway',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/rest-gateway?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                ]
+            },
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-warn',
+                text: 'Nodes',
+                buttons: [
+                    {
+                        text: 'Start',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Stop',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                ]
+            },
+            {{if ne .Backend "docker"}}
+            {extend: 'myspacer'},
+            {
+                className: 'btn btn-warning',
+                text: 'Extend Expiry',
+                action: function ( e, dt, node, config ) {
+                    // TODO
+                }
+            },    
+            {{end}}
+            {extend: 'myspacer'},
             {extend: 'reload',className: 'btn btn-info',},
+            {extend: 'myspacer'},
             {
             className: 'btn btn-danger',
             text: 'Destroy',
@@ -538,7 +824,30 @@ function initDatatable() {
         order: [],
         fixedColumns: {left: 2, right: 1},
         buttons: [
+            {
+            className: 'btn btn-success',
+            text: 'Create',
+            action: function ( e, dt, node, config ) {
+                let url = "{{.WebRoot}}agi/create";
+                window.location.href = url;
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-warn',
+            text: 'Start',
+            action: function ( e, dt, node, config ) {
+                // TODO
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-warn',
+            text: 'Stop',
+            action: function ( e, dt, node, config ) {
+                // TODO
+            }},            
+            {extend: 'myspacer'},
             {extend: 'reload',className: 'btn btn-info',},
+            {extend: 'myspacer'},
             {
             className: 'btn btn-danger',
             text: 'Destroy',
@@ -569,7 +878,9 @@ function initDatatable() {
                         $("#loadingSpinner").hide();
                     });
                 }
-            }},{
+            }},
+            {extend: 'myspacer'},
+            {
             className: 'btn btn-danger',
             text: 'Delete',
             action: function ( e, dt, node, config ) {
@@ -617,7 +928,9 @@ function initDatatable() {
                 let url = "{{.WebRoot}}template/create";
                 window.location.href = url;
             }},
+            {extend: 'myspacer'},
             {extend: 'reload',className: 'btn btn-info',},
+            {extend: 'myspacer'},
             {
             className: 'btn btn-danger',
             text: 'Delete',
@@ -667,7 +980,9 @@ function initDatatable() {
                     let url = "{{.WebRoot}}volume/create";
                     window.location.href = url;
                 }
-            },{
+            },
+            {extend: 'myspacer'},
+            {
                 className: 'btn btn-warn',
                 text: 'Mount',
                 action: function ( e, dt, node, config ) {
@@ -684,7 +999,7 @@ function initDatatable() {
                     let url = "{{.WebRoot}}volume/mount?Name="+data["Name"];
                     window.location.href = url;
                 }
-            }{{if eq .Backend "gcp"}},{
+            }{{if eq .Backend "gcp"}},{extend: 'myspacer'},{
                 className: 'btn btn-info',
                 text: 'Grow',
                 action: function ( e, dt, node, config ) {
@@ -701,9 +1016,9 @@ function initDatatable() {
                     let url = "{{.WebRoot}}volume/grow?Name="+data["Name"]+"&Zone="+data["AvailabilityZoneName"];
                     window.location.href = url;
                 }
-            }{{end}},{
+            }{{end}},{extend: 'myspacer'},{
                 extend: 'reload',className: 'btn btn-info',
-            }{{if eq .Backend "gcp"}},{
+            }{{if eq .Backend "gcp"}},{extend: 'myspacer'},{
                 className: 'btn btn-warning',
                 text: 'Detach',
                 action: function ( e, dt, node, config ) {
@@ -720,7 +1035,7 @@ function initDatatable() {
                     let url = "{{.WebRoot}}volume/detach?Name="+data["Name"]+"&Zone="+data["AvailabilityZoneName"];
                     window.location.href = url;
                 }
-            }{{end}},{
+            }{{end}},{extend: 'myspacer'},{
                 className: 'btn btn-danger',
                 text: 'Delete',
                 action: function ( e, dt, node, config ) {
@@ -776,7 +1091,7 @@ function initDatatable() {
                 let url = "{{.WebRoot}}config/docker/create-network";
                 {{end}}
                 window.location.href = url;
-            }}{{if ne .Backend "docker"}},{
+            }}{{if ne .Backend "docker"}},{extend: 'myspacer'},{
                 className: 'btn btn-warning',
                 text: 'Lock IP',
                 action: function ( e, dt, node, config ) {
@@ -797,7 +1112,7 @@ function initDatatable() {
                     let url = "{{.WebRoot}}config/gcp/lock-firewall-rules?NamePrefix="+data["GCP"]["FirewallName"]+"&IP=discover-caller-ip";
                     {{end}}
                     window.location.href = url;
-                }}{{end}},{extend: 'reload',className: 'btn btn-info',},{
+                }}{{end}},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',},{extend: 'myspacer'},{
                 className: 'btn btn-danger',
                 text: 'Delete',
                 action: function ( e, dt, node, config ) {
@@ -849,7 +1164,7 @@ function initDatatable() {
                 let url = "{{.WebRoot}}config/gcp/expiry-install";
                 {{end}}
                 window.location.href = url;
-            }},{
+            }},{extend: 'myspacer'},{
                 className: 'btn btn-info',
                 text: 'Change Frequency',
                 action: function ( e, dt, node, config ) {
@@ -860,7 +1175,7 @@ function initDatatable() {
                     let url = "{{.WebRoot}}config/gcp/expiry-run-frequency";
                     {{end}}
                     window.location.href = url;
-            }},{extend: 'reload',className: 'btn btn-info',},{
+            }},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',},{extend: 'myspacer'},{
                 className: 'btn btn-danger',
                 text: 'Remove',
                 action: function ( e, dt, node, config ) {
