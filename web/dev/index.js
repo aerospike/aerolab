@@ -451,7 +451,40 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
-        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        buttons: [
+            {extend: 'reload',className: 'btn btn-info',},
+            {
+            className: 'btn btn-danger',
+            text: 'Destroy',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr,"action":"destroy","type":"cluster"};
+                if (confirm("Remove "+arr.length+" nodes")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }}
+        ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
         columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
     });
@@ -461,7 +494,40 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
-        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        buttons: [
+            {extend: 'reload',className: 'btn btn-info',},
+            {
+            className: 'btn btn-danger',
+            text: 'Destroy',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr,"action":"destroy","type":"client"};
+                if (confirm("Remove "+arr.length+" machines")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }}
+        ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
         columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
     });
@@ -471,7 +537,70 @@ function initDatatable() {
         },
         order: [],
         fixedColumns: {left: 2, right: 1},
-        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        buttons: [
+            {extend: 'reload',className: 'btn btn-info',},
+            {
+            className: 'btn btn-danger',
+            text: 'Destroy',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr,"action":"destroy","type":"agi"};
+                if (confirm("Remove "+arr.length+" agi")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }},{
+            className: 'btn btn-danger',
+            text: 'Delete',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr,"action":"delete","type":"agi"};
+                if (confirm("Remove "+arr.length+" agi and delete their persistent volumes")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }}
+        ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
         columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}],
     });
