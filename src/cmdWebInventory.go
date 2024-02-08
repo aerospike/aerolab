@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -218,6 +219,7 @@ func (c *webCmd) addInventoryHandlers() {
 	http.HandleFunc(c.WebRoot+"www/api/inventory/clusters", c.inventoryClusters)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/clients", c.inventoryClients)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/agi", c.inventoryAGI)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/nodes", c.inventoryNodesAction)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
 }
 
@@ -639,4 +641,214 @@ func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
 	})
 	// send
 	json.NewEncoder(w).Encode(inv)
+}
+
+func (c *webCmd) inventoryNodesAction(w http.ResponseWriter, r *http.Request) {
+	data := make(map[string]interface{})
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		http.Error(w, "could not read request: %s"+err.Error(), http.StatusBadRequest)
+		return
+	}
+	action := ""
+	switch a := data["action"].(type) {
+	case string:
+		action = a
+	default:
+		http.Error(w, "invalid request (action)", http.StatusBadRequest)
+		return
+	}
+	reqID := shortuuid.New()
+	log.Printf("[%s] %s %s:%s action:%s", reqID, r.RemoteAddr, r.Method, r.RequestURI, action)
+	if action == "" {
+		http.Error(w, "received empty request", http.StatusBadRequest)
+		return
+	}
+	switch action {
+	case "destroy":
+		c.inventoryNodesActionDestroy(w, r, reqID, data, action)
+	case "delete":
+		c.inventoryNodesActionDestroy(w, r, reqID, data, action)
+	default:
+		http.Error(w, "invalid action: "+action, http.StatusBadRequest)
+	}
+}
+
+func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Request, reqID string, data map[string]interface{}, action string) {
+	ntype := ""
+	switch a := data["type"].(type) {
+	case string:
+		ntype = a
+	default:
+		http.Error(w, "invalid request (type)", http.StatusBadRequest)
+		return
+	}
+	switch ntype {
+	case "cluster", "client", "agi":
+	default:
+		http.Error(w, "invalid type", http.StatusBadRequest)
+		return
+	}
+	if ntype != "agi" && action == "delete" {
+		http.Error(w, "invalid action for type", http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			http.Error(w, "malformed request", http.StatusBadRequest)
+			return
+		}
+	}()
+	list := data["list"].([]interface{})
+	c.jobqueue.Add()
+	c.joblist.Add(reqID, &exec.Cmd{})
+	invlog, err := c.inventoryLogFile(reqID)
+	if err != nil {
+		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	invlog.WriteString("-=-=-=-=- [path] /" + ntype + "/destroy -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + ntype + " destroy -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [command] " + ntype + " destroy -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
+	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d "+ntype+"s\n", reqID, len(list)))
+	log.Printf("[%s] DELETE %d "+ntype+"s", reqID, len(list))
+	go func() {
+		c.jobqueue.Start()
+		defer c.jobqueue.Remove()
+		defer c.jobqueue.End()
+		defer c.joblist.Delete(reqID)
+		defer invlog.Close()
+		isError := false
+		for _, item := range list {
+			switch item.(type) {
+			case map[string]interface{}:
+			default:
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "item type invalid"))
+				log.Printf("[%s] ERROR %s", reqID, "item type invalid")
+				continue
+			}
+			switch ntype {
+			case "cluster":
+				clusterName := ""
+				nodeNo := ""
+				i := item.(map[string]interface{})
+				clusterName, err = getString(i["ClusterName"])
+				if err != nil || clusterName == "" {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "clusterName undefined"))
+					log.Printf("[%s] ERROR %s", reqID, "clusterName undefined")
+					continue
+				}
+				nodeNo, err = getString(i["NodeNo"])
+				if err != nil || nodeNo == "" {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "nodeNo undefined"))
+					log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
+					continue
+				}
+				a.opts.Cluster.Destroy.Force = true
+				a.opts.Cluster.Destroy.ClusterName = TypeClusterName(clusterName)
+				a.opts.Cluster.Destroy.Nodes = TypeNodes(nodeNo)
+				a.opts.Cluster.Destroy.Parallel = true
+				err = a.opts.Cluster.Destroy.Execute(nil)
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
+					log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+				}
+			case "client":
+				clientName := ""
+				nodeNo := ""
+				i := item.(map[string]interface{})
+				clientName, err = getString(i["ClientName"])
+				if err != nil || clientName == "" {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "clientName undefined"))
+					log.Printf("[%s] ERROR %s", reqID, "clientName undefined")
+					continue
+				}
+				nodeNo, err = getString(i["NodeNo"])
+				if err != nil || nodeNo == "" {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "nodeNo undefined"))
+					log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
+					continue
+				}
+				a.opts.Client.Destroy.Force = true
+				a.opts.Client.Destroy.ClientName = TypeClientName(clientName)
+				a.opts.Client.Destroy.Machines = TypeMachines(nodeNo)
+				a.opts.Client.Destroy.Parallel = true
+				err = a.opts.Client.Destroy.Execute(nil)
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clientName+":"+nodeNo))
+					log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
+				}
+			case "agi":
+				agiName := ""
+				i := item.(map[string]interface{})
+				agiName, err = getString(i["Name"])
+				if err != nil || agiName == "" {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiName undefined"))
+					log.Printf("[%s] ERROR %s", reqID, "agiName undefined")
+					continue
+				}
+				if action == "destroy" {
+					a.opts.AGI.Destroy.Force = true
+					a.opts.AGI.Destroy.ClusterName = TypeClusterName(agiName)
+					a.opts.AGI.Destroy.Parallel = true
+					err = a.opts.AGI.Destroy.Execute(nil)
+				} else {
+					agiZone := ""
+					agiZone, err = getString(i["Zone"])
+					if err != nil {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiZone undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "agiZone undefined")
+						continue
+					}
+					a.opts.AGI.Delete.ClusterName = TypeClusterName(agiName)
+					a.opts.AGI.Delete.Force = true
+					a.opts.AGI.Delete.Parallel = true
+					a.opts.AGI.Delete.Gcp.Zone = agiZone
+					err = a.opts.AGI.Delete.Execute(nil)
+				}
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
+					log.Printf("[%s] DELETED (%v)", reqID, agiName)
+				}
+			}
+		}
+		invlog.WriteString("\n->Refreshing inventory cache\n")
+		c.cache.run(time.Now())
+		if isError {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
+		} else {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 0 -=-=-=-=-\nsuccess\n")
+		}
+		invlog.WriteString("-=-=-=-=- [END] -=-=-=-=-")
+	}()
+	w.Write([]byte(reqID))
+}
+
+func getString(item interface{}) (string, error) {
+	switch i := item.(type) {
+	case string:
+		return i, nil
+	default:
+		return "", errors.New("not a string")
+	}
 }
