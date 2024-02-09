@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -148,7 +149,7 @@ func (c *confRackIdCmd) Execute(args []string) error {
 			a.opts.Aerospike.Restart.ClusterName = c.ClusterName
 			a.opts.Aerospike.Restart.Nodes = ""
 			a.opts.Aerospike.Restart.ParallelThreads = c.ParallelThreads
-			err = a.opts.Aerospike.Restart.run(args, "restart")
+			err = a.opts.Aerospike.Restart.run(args, "restart", os.Stdout)
 			if err != nil {
 				log.Printf("ERROR running 'aerospike restart': %s", err)
 			}
@@ -169,7 +170,7 @@ func (c *confRackIdCmd) Execute(args []string) error {
 			a.opts.Aerospike.Restart.ClusterName = c.ClusterName
 			a.opts.Aerospike.Restart.Nodes = ""
 			a.opts.Aerospike.Restart.ParallelThreads = c.ParallelThreads
-			err = a.opts.Aerospike.Restart.run(args, "restart")
+			err = a.opts.Aerospike.Restart.run(args, "restart", os.Stdout)
 			if err != nil {
 				log.Printf("ERROR running 'aerospike restart': %s", err)
 			}

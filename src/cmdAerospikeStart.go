@@ -1,5 +1,7 @@
 package main
 
+import "os"
+
 type aerospikeStartCmd struct {
 	aerospikeStartSelectorCmd
 	parallelThreadsCmd
@@ -12,5 +14,5 @@ type aerospikeStartSelectorCmd struct {
 }
 
 func (c *aerospikeStartCmd) Execute(args []string) error {
-	return c.run(args, "start")
+	return c.run(args, "start", os.Stdout)
 }

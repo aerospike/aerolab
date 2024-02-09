@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,7 +12,7 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
-func (c *aerospikeStartCmd) run(args []string, command string) error {
+func (c *aerospikeStartCmd) run(args []string, command string, stdout *os.File) error {
 	if earlyProcess(args) {
 		return nil
 	}
@@ -71,16 +72,17 @@ func (c *aerospikeStartCmd) run(args []string, command string) error {
 			commands = append(commands, []string{"bash", "-c", "ps -ef |grep asd |grep -v grep || exit 0"})
 			for _, node := range nodes {
 				out, err = b.RunCommands(string(c.ClusterName), commands, []int{node})
-				fmt.Printf("--- %s:%d ---\n", string(c.ClusterName), node)
+				fmt.Fprintf(stdout, "--- %s:%d ---\n", string(c.ClusterName), node)
 				if err != nil {
-					fmt.Println(err, " :: ", string(out[0]))
+					fmt.Fprintln(stdout, err, " :: ", string(out[0]))
 				} else {
 					if len(out[0]) == 0 {
-						fmt.Println("stopped")
+						fmt.Fprintln(stdout, "stopped")
 					} else {
-						fmt.Print(string(out[0]))
+						fmt.Fprint(stdout, string(out[0]))
 					}
 				}
+				stdout.Sync()
 			}
 			return nil
 		}
@@ -95,7 +97,7 @@ func (c *aerospikeStartCmd) run(args []string, command string) error {
 		for _, node := range nodes {
 			parallel <- 1
 			wait.Add(1)
-			go c.aerospikeParallel(command, node, parallel, wait, hasError)
+			go c.aerospikeParallel(command, node, parallel, wait, hasError, stdout)
 		}
 		wait.Wait()
 		if len(hasError) > 0 {
@@ -107,7 +109,7 @@ func (c *aerospikeStartCmd) run(args []string, command string) error {
 	return nil
 }
 
-func (c *aerospikeStartCmd) aerospikeParallel(command string, node int, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+func (c *aerospikeStartCmd) aerospikeParallel(command string, node int, parallel chan int, wait *sync.WaitGroup, hasError chan bool, stdout *os.File) {
 	var err error
 	defer func() {
 		<-parallel
@@ -134,14 +136,14 @@ func (c *aerospikeStartCmd) aerospikeParallel(command string, node int, parallel
 		commands = append(commands, []string{"bash", "-c", "ps -ef |grep asd |grep -v grep || exit 0"})
 		for _, node := range nodes {
 			out, err = b.RunCommands(string(c.ClusterName), commands, []int{node})
-			fmt.Printf("--- %s:%d ---\n", string(c.ClusterName), node)
+			fmt.Fprintf(stdout, "--- %s:%d ---\n", string(c.ClusterName), node)
 			if err != nil {
-				fmt.Println(err, " :: ", string(out[0]))
+				fmt.Fprintln(stdout, err, " :: ", string(out[0]))
 			} else {
 				if len(out[0]) == 0 {
-					fmt.Println("stopped")
+					fmt.Fprintln(stdout, "stopped")
 				} else {
-					fmt.Print(string(out[0]))
+					fmt.Fprint(stdout, string(out[0]))
 				}
 			}
 		}
