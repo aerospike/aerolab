@@ -490,13 +490,29 @@ function initDatatable() {
                     {
                         text: 'Start',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"start","type":"cluster"};
+                            if (confirm("Start "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
                         }
                     },
                     {
                         text: 'Stop',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"stop","type":"cluster"};
+                            if (confirm("Start "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
                         }
                     },
                 ]
@@ -510,19 +526,43 @@ function initDatatable() {
                     {
                         text: 'Start',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"aerospikeStart","type":"cluster"};
+                            if (confirm("Start "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
                         }
                     },
                     {
                         text: 'Stop',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"aerospikeStop","type":"cluster"};
+                            if (confirm("Start "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
                         }
                     },
                     {
                         text: 'Restart',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"aerospikeRestart","type":"cluster"};
+                            if (confirm("Start "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
                         }
                     },
                     {
@@ -605,7 +645,13 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
-        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
+            let disabledString = 'success"';
+            if (!data) {
+                disabledString = 'default" disabled';
+            }
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"'cluster','"+row["ClusterName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">Attach</button>';
+        }{{end}} },{{end}}]
     });
     $('#invclients').DataTable({
         "stateSaveParams": function (settings, data) {
@@ -758,13 +804,29 @@ function initDatatable() {
                     {
                         text: 'Start',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"start","type":"client"};
+                            if (confirm("Start "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
                         }
                     },
                     {
                         text: 'Stop',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"stop","type":"client"};
+                            if (confirm("Start "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
                         }
                     },
                 ]
@@ -815,7 +877,13 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
-        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
+        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "IsRunning"}}, render: function (data, type, row) {
+            let disabledString = 'success"';
+            if (!data) {
+                disabledString = 'default" disabled';
+            }
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"'client','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">Attach</button>';
+        }{{end}} },{{end}}]
     });
     $('#invagi').DataTable({
         "stateSaveParams": function (settings, data) {
@@ -836,14 +904,30 @@ function initDatatable() {
             className: 'btn btn-warn',
             text: 'Start',
             action: function ( e, dt, node, config ) {
-                // TODO
+                let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                let data = {"list": arr,"action":"start","type":"agi"};
+                if (confirm("Start "+arr.length+" nodes")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
+                }
             }},
             {extend: 'myspacer'},
             {
             className: 'btn btn-warn',
             text: 'Stop',
             action: function ( e, dt, node, config ) {
-                // TODO
+                let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                let data = {"list": arr,"action":"stop","type":"agi"};
+                if (confirm("Start "+arr.length+" nodes")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
+                }
             }},            
             {extend: 'myspacer'},
             {extend: 'reload',className: 'btn btn-info',},
@@ -910,10 +994,59 @@ function initDatatable() {
                         $("#loadingSpinner").hide();
                     });
                 }
-            }}
+            }},
+            {
+                extend: 'spacer',
+                text: '',
+                style: 'bar', // empty|bar
+            },
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-info',
+                text: 'Node',
+                buttons: [
+                    {
+                        text: 'Status',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Details',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Get share link',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Change label',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                    {
+                        text: 'Rerun ingest',
+                        action: function ( e, dt, node, config ) {
+                            // TODO
+                        }
+                    },
+                ]
+            },
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
-        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}],
+        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
+            console.log(data);
+            let disabledString = 'success"';
+            if (!data) {
+                disabledString = 'default" disabled';
+            }
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"'agi','"+row["Name"]+"','1'"+","+meta.row+');">Connect</button>';
+        }{{end}} },{{end}}],
     });
     $('#invtemplates').DataTable({
         "stateSaveParams": function (settings, data) {
@@ -1207,6 +1340,29 @@ function initDatatable() {
 function initDatatable() {
 }
 {{end}}
+
+function xRunAttach(target, name, node, row) {
+    // workaround - prevent selection on button click
+    let table = "";
+    switch (target) {
+        case "cluster":
+            table = '#invclusters';
+            break;
+        case "client":
+            table = '#invclients';
+            break;
+        case "agi":
+            table = '#invagi';
+            break;
+    }
+    let t = $(table).DataTable();
+    if (t.row(row).selected()) { t.row(row).deselect() } else { t.row(row).select() };
+    // TODO this function
+    // TODO remember: on cluster, client - we need the shell
+    // TODO remember: on agi - we simply need to get share link URL (if we don't have one yet) and redirect the user to it
+    // TODO the share links should be cached either on aerolab or browser side
+    console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row);
+}
 
 var tabInit = true;
 $(function () {
