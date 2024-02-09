@@ -717,9 +717,40 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	invlog.WriteString("-=-=-=-=- [path] /" + ntype + "/destroy -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + ntype + " destroy -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [command] " + ntype + " destroy -=-=-=-=-\n")
+	ncmd := []string{ntype}
+	if strings.HasPrefix(action, "aerospike") {
+		ncmd = []string{"aerospike"}
+	}
+	switch action {
+	case "start":
+		ncmd = append(ncmd, action)
+	case "stop":
+		ncmd = append(ncmd, action)
+	case "aerospikeStart":
+		ncmd = append(ncmd, "start")
+	case "aerospikeStop":
+		ncmd = append(ncmd, "stop")
+	case "aerospikeRestart":
+		ncmd = append(ncmd, "restart")
+	case "aerospikeStatus":
+		ncmd = append(ncmd, "status")
+	case "delete":
+		ncmd = append(ncmd, action)
+	case "destroy":
+		ncmd = append(ncmd, action)
+	case "extendExpiry":
+		if ntype == "cluster" {
+			ncmd = []string{"cluster", "add", "expiry"}
+		} else {
+			ncmd = []string{"client", "configure", "expiry"}
+		}
+	default:
+		http.Error(w, "invalid action: "+action, http.StatusBadRequest)
+		return
+	}
+	invlog.WriteString("-=-=-=-=- [path] /" + strings.Join(ncmd, "/") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [command] " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	xtype := ntype
 	if xtype == "cluster" {
@@ -735,6 +766,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 		defer invlog.Close()
 		isError := false
 		clist := make(map[string][]string)
+		zoneclist := make(map[string]map[string][]string)
 		for _, item := range list {
 			switch i := item.(type) {
 			case map[string]interface{}:
@@ -742,6 +774,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 				case "cluster":
 					clusterName := ""
 					nodeNo := ""
+					zone := ""
 					clusterName, err = getString(i["ClusterName"])
 					if err != nil || clusterName == "" {
 						isError = true
@@ -756,13 +789,28 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
 						continue
 					}
+					zone, err = getString(i["Zone"])
+					if err != nil || zone == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "zone undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "zone undefined")
+						continue
+					}
 					if _, ok := clist[clusterName]; !ok {
 						clist[clusterName] = []string{}
 					}
 					clist[clusterName] = append(clist[clusterName], nodeNo)
+					if _, ok := zoneclist[zone]; !ok {
+						zoneclist[zone] = make(map[string][]string)
+					}
+					if _, ok := zoneclist[zone][clusterName]; !ok {
+						zoneclist[zone][clusterName] = []string{}
+					}
+					zoneclist[zone][clusterName] = append(zoneclist[zone][clusterName], zone)
 				case "client":
 					clientName := ""
 					nodeNo := ""
+					zone := ""
 					i := item.(map[string]interface{})
 					clientName, err = getString(i["ClientName"])
 					if err != nil || clientName == "" {
@@ -778,10 +826,24 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
 						continue
 					}
+					zone, err = getString(i["Zone"])
+					if err != nil || zone == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "zone undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "zone undefined")
+						continue
+					}
 					if _, ok := clist[clientName]; !ok {
 						clist[clientName] = []string{}
 					}
 					clist[clientName] = append(clist[clientName], nodeNo)
+					if _, ok := zoneclist[zone]; !ok {
+						zoneclist[zone] = make(map[string][]string)
+					}
+					if _, ok := zoneclist[zone][clientName]; !ok {
+						zoneclist[zone][clientName] = []string{}
+					}
+					zoneclist[zone][clientName] = append(zoneclist[zone][clientName], zone)
 				case "agi":
 					agiName := ""
 					agiName, err = getString(i["Name"])
@@ -839,6 +901,11 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 			}
 		case "aerospikeStatus":
 			hasError := c.inventoryNodesActionAerospikeStatus(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "extendExpiry":
+			hasError := c.inventoryNodesActionExtendExpiry(w, r, reqID, action, invlog, clist, ntype, data["expiry"].(string), zoneclist)
 			if hasError {
 				isError = true
 			}
@@ -1160,6 +1227,66 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 			} else {
 				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
 				log.Printf("[%s] DELETED (%v)", reqID, agiName)
+			}
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string, expStr string, zones map[string]map[string][]string) (isError bool) {
+	expiry, err := time.ParseDuration(expStr)
+	if err != nil {
+		isError = true
+		err = fmt.Errorf("invalid duration format: %s", err)
+		invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, err))
+		log.Printf("[%s] ERROR %s", reqID, err)
+		return
+	}
+	// zones do not matter in aws
+	if a.opts.Config.Backend.Type == "aws" {
+		zones = make(map[string]map[string][]string)
+		zones["aws"] = clist
+	}
+	for zone, nlist := range zones {
+		for name, nodes := range nlist {
+			nodeNo := strings.Join(nodes, ",")
+			switch ntype {
+			case "cluster":
+				clusterName := name
+				a.opts.Cluster.Add.Expiry.ClusterName = TypeClusterName(clusterName)
+				a.opts.Cluster.Add.Expiry.Nodes = TypeNodes(nodeNo)
+				a.opts.Cluster.Add.Expiry.Expires = expiry
+				a.opts.Cluster.Add.Expiry.Gcp.Zone = zone
+				err = a.opts.Cluster.Add.Expiry.Execute(nil)
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] Extend Expiry (%v)\n", reqID, clusterName+":"+nodeNo))
+					log.Printf("[%s] Extend Expiry (%v)", reqID, clusterName+":"+nodeNo)
+				}
+			case "client":
+				clusterName := name
+				a.opts.Client.Configure.Expiry.ClusterName = TypeClientName(clusterName)
+				a.opts.Client.Configure.Expiry.Nodes = TypeMachines(nodeNo)
+				a.opts.Client.Configure.Expiry.Expires = expiry
+				a.opts.Client.Configure.Expiry.Gcp.Zone = zone
+				err = a.opts.Client.Configure.Expiry.Execute(nil)
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] Extend Expiry (%v)\n", reqID, clusterName+":"+nodeNo))
+					log.Printf("[%s] Extend Expiry (%v)", reqID, clusterName+":"+nodeNo)
+				}
+			case "agi":
+				agiName := name
+				isError = true
+				err = errors.New("cannot extend expiry on agi nodes")
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
 			}
 		}
 	}
