@@ -681,17 +681,10 @@ func (c *webCmd) inventoryNodesAction(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "received empty request", http.StatusBadRequest)
 		return
 	}
-	switch action {
-	case "destroy":
-		c.inventoryNodesActionDestroy(w, r, reqID, data, action)
-	case "delete":
-		c.inventoryNodesActionDestroy(w, r, reqID, data, action)
-	default:
-		http.Error(w, "invalid action: "+action, http.StatusBadRequest)
-	}
+	c.inventoryNodesActionDo(w, r, reqID, data, action)
 }
 
-func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Request, reqID string, data map[string]interface{}, action string) {
+func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, reqID string, data map[string]interface{}, action string) {
 	ntype := ""
 	switch a := data["type"].(type) {
 	case string:
@@ -818,63 +811,41 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 				continue
 			}
 		}
-		for name, nodes := range clist {
-			nodeNo := strings.Join(nodes, ",")
-			switch ntype {
-			case "cluster":
-				clusterName := name
-				a.opts.Cluster.Destroy.Force = true
-				a.opts.Cluster.Destroy.ClusterName = TypeClusterName(clusterName)
-				a.opts.Cluster.Destroy.Nodes = TypeNodes(nodeNo)
-				a.opts.Cluster.Destroy.Parallel = true
-				err = a.opts.Cluster.Destroy.Execute(nil)
-				if err != nil {
-					isError = true
-					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
-					log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
-				} else {
-					invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
-					log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
-				}
-			case "client":
-				clientName := name
-				a.opts.Client.Destroy.Force = true
-				a.opts.Client.Destroy.ClientName = TypeClientName(clientName)
-				a.opts.Client.Destroy.Machines = TypeMachines(nodeNo)
-				a.opts.Client.Destroy.Parallel = true
-				err = a.opts.Client.Destroy.Execute(nil)
-				if err != nil {
-					isError = true
-					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
-					log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
-				} else {
-					invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clientName+":"+nodeNo))
-					log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
-				}
-			case "agi":
-				agiName := name
-				if action == "destroy" {
-					a.opts.AGI.Destroy.Force = true
-					a.opts.AGI.Destroy.ClusterName = TypeClusterName(agiName)
-					a.opts.AGI.Destroy.Parallel = true
-					err = a.opts.AGI.Destroy.Execute(nil)
-				} else {
-					agiZone := nodes[0]
-					a.opts.AGI.Delete.ClusterName = TypeClusterName(agiName)
-					a.opts.AGI.Delete.Force = true
-					a.opts.AGI.Delete.Parallel = true
-					a.opts.AGI.Delete.Gcp.Zone = agiZone
-					err = a.opts.AGI.Delete.Execute(nil)
-				}
-				if err != nil {
-					isError = true
-					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
-					log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
-				} else {
-					invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
-					log.Printf("[%s] DELETED (%v)", reqID, agiName)
-				}
+		switch action {
+		case "start":
+			hasError := c.inventoryNodesActionStart(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
 			}
+		case "stop":
+			hasError := c.inventoryNodesActionStop(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "aerospikeStart":
+			hasError := c.inventoryNodesActionAerospikeStart(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "aerospikeStop":
+			hasError := c.inventoryNodesActionAerospikeStop(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "aerospikeRestart":
+			hasError := c.inventoryNodesActionAerospikeRestart(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "delete":
+			fallthrough
+		case "destroy":
+			hasError := c.inventoryNodesActionDestroy(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		default:
+			http.Error(w, "invalid action: "+action, http.StatusBadRequest)
 		}
 		invlog.WriteString("\n->Refreshing inventory cache\n")
 		c.cache.run(time.Now())
@@ -886,6 +857,270 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 		invlog.WriteString("-=-=-=-=- [END] -=-=-=-=-")
 	}()
 	w.Write([]byte(reqID))
+}
+
+func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			a.opts.Cluster.Start.ClusterName = TypeClusterName(clusterName)
+			a.opts.Cluster.Start.Nodes = TypeNodes(nodeNo)
+			err = a.opts.Cluster.Start.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			a.opts.Client.Start.ClientName = TypeClientName(clientName)
+			a.opts.Client.Start.Machines = TypeMachines(nodeNo)
+			err = a.opts.Client.Start.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clientName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
+			}
+		case "agi":
+			agiName := name
+			a.opts.AGI.Start.ClusterName = TypeClusterName(agiName)
+			err = a.opts.AGI.Start.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
+				log.Printf("[%s] DELETED (%v)", reqID, agiName)
+			}
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			a.opts.Cluster.Stop.ClusterName = TypeClusterName(clusterName)
+			a.opts.Cluster.Stop.Nodes = TypeNodes(nodeNo)
+			err = a.opts.Cluster.Stop.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			a.opts.Client.Stop.ClientName = TypeClientName(clientName)
+			a.opts.Client.Stop.Machines = TypeMachines(nodeNo)
+			err = a.opts.Client.Stop.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clientName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
+			}
+		case "agi":
+			agiName := name
+			a.opts.AGI.Stop.ClusterName = TypeClusterName(agiName)
+			err = a.opts.AGI.Stop.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
+				log.Printf("[%s] DELETED (%v)", reqID, agiName)
+			}
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionAerospikeStart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			a.opts.Aerospike.Start.ClusterName = TypeClusterName(clusterName)
+			a.opts.Aerospike.Start.Nodes = TypeNodes(nodeNo)
+			err = a.opts.Aerospike.Start.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on client nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+		case "agi":
+			agiName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on agi nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionAerospikeStop(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			a.opts.Aerospike.Stop.ClusterName = TypeClusterName(clusterName)
+			a.opts.Aerospike.Stop.Nodes = TypeNodes(nodeNo)
+			err = a.opts.Aerospike.Stop.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on client nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+		case "agi":
+			agiName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on agi nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionAerospikeRestart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			a.opts.Aerospike.Restart.ClusterName = TypeClusterName(clusterName)
+			a.opts.Aerospike.Restart.Nodes = TypeNodes(nodeNo)
+			err = a.opts.Aerospike.Restart.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on client nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+		case "agi":
+			agiName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on agi nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			a.opts.Cluster.Destroy.Force = true
+			a.opts.Cluster.Destroy.ClusterName = TypeClusterName(clusterName)
+			a.opts.Cluster.Destroy.Nodes = TypeNodes(nodeNo)
+			a.opts.Cluster.Destroy.Parallel = true
+			err = a.opts.Cluster.Destroy.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			a.opts.Client.Destroy.Force = true
+			a.opts.Client.Destroy.ClientName = TypeClientName(clientName)
+			a.opts.Client.Destroy.Machines = TypeMachines(nodeNo)
+			a.opts.Client.Destroy.Parallel = true
+			err = a.opts.Client.Destroy.Execute(nil)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clientName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
+			}
+		case "agi":
+			agiName := name
+			if action == "destroy" {
+				a.opts.AGI.Destroy.Force = true
+				a.opts.AGI.Destroy.ClusterName = TypeClusterName(agiName)
+				a.opts.AGI.Destroy.Parallel = true
+				err = a.opts.AGI.Destroy.Execute(nil)
+			} else {
+				agiZone := nodes[0]
+				a.opts.AGI.Delete.ClusterName = TypeClusterName(agiName)
+				a.opts.AGI.Delete.Force = true
+				a.opts.AGI.Delete.Parallel = true
+				a.opts.AGI.Delete.Gcp.Zone = agiZone
+				err = a.opts.AGI.Delete.Execute(nil)
+			}
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
+				log.Printf("[%s] DELETED (%v)", reqID, agiName)
+			}
+		}
+	}
+	return
 }
 
 func getString(item interface{}) (string, error) {
