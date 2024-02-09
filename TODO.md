@@ -3,7 +3,8 @@
 * AGI Extended action buttons (status, details, etc)
 * attach command buttons
 * Inventory actions - actions use a filler of a.opts; this means one action at a time; make either a lock or move to using webrun in order to make parallel actions possible
-  
+* Abort does not work on inventory actions (will this be fixed when we move to using webrun?)
+
 * AGI Improvements
   * Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
   * Agi - consider adding graphs for security.c log message aggregations (like warnings/errors dashboard)
