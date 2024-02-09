@@ -91,6 +91,21 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 	if err != nil {
 		return err
 	}
+	for i := range inv.Clusters {
+		if strings.ToLower(inv.Clusters[i].State) == "running" || strings.HasPrefix(inv.Clusters[i].State, "Up_") {
+			inv.Clusters[i].IsRunning = true
+		}
+	}
+	for i := range inv.Clients {
+		if strings.ToLower(inv.Clients[i].State) == "running" || strings.HasPrefix(inv.Clients[i].State, "Up_") {
+			inv.Clients[i].IsRunning = true
+		}
+	}
+	for i := range inv.AGI {
+		if strings.ToLower(inv.AGI[i].State) == "running" || strings.HasPrefix(inv.AGI[i].State, "Up_") {
+			inv.AGI[i].IsRunning = true
+		}
+	}
 	i.Lock()
 	i.inv = inv
 	i.Unlock()
@@ -547,6 +562,7 @@ func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
 			inv[idx].ImageID = inst.ImageId
 			inv[idx].InstanceType = inst.InstanceType
 			inv[idx].CreationTime = time.Time{} // TODO
+			inv[idx].IsRunning = inst.IsRunning
 		} else {
 			inv = append(inv, inventoryWebAGI{
 				Name:         inst.ClusterName,
@@ -564,6 +580,7 @@ func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
 				ImageID:      inst.ImageId,
 				InstanceType: inst.InstanceType,
 				CreationTime: time.Time{}, // TODO
+				IsRunning:    inst.IsRunning,
 			})
 		}
 	}
@@ -711,8 +728,12 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + ntype + " destroy -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] " + ntype + " destroy -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
-	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d "+ntype+"s\n", reqID, len(list)))
-	log.Printf("[%s] DELETE %d "+ntype+"s", reqID, len(list))
+	xtype := ntype
+	if xtype == "cluster" {
+		xtype = "node"
+	}
+	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d "+xtype+"s\n", reqID, len(list)))
+	log.Printf("[%s] DELETE %d "+xtype+"s", reqID, len(list))
 	go func() {
 		c.jobqueue.Start()
 		defer c.jobqueue.Remove()

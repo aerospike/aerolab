@@ -206,6 +206,7 @@ type inventoryWebAGI struct {
 	ImageID      string    `backends:"docker"`
 	InstanceType string    `backends:"gcp,aws"`
 	CreationTime time.Time `hidden:"true"`
+	IsRunning    bool      `row:"Action"`
 }
 
 type inventoryVolume struct {
@@ -307,6 +308,7 @@ type inventoryCluster struct {
 	AccessUrl              string        `hidden:"true"`
 	Features               FeatureSystem `hidden:"true"`
 	AGILabel               string        `hidden:"true"`
+	IsRunning              bool          `row:"Action"`
 	gcpLabelFingerprint    string
 	gcpLabels              map[string]string
 	gcpMetadataFingerprint string
@@ -389,6 +391,7 @@ type inventoryClient struct {
 	DockerInternalPort     string `hidden:"true"`
 	AwsIsSpot              bool   `backends:"aws" row:"Spot"`
 	GcpIsSpot              bool   `backends:"gcp" row:"Spot"`
+	IsRunning              bool   `row:"Action"`
 	gcpLabelFingerprint    string
 	gcpLabels              map[string]string
 	gcpMeta                map[string]string
