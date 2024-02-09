@@ -590,19 +590,46 @@ function initDatatable() {
                     {
                         text: 'Rack ID',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                            var cname = arr[0]["ClusterName"];
+                            var nodes = [];
+                            for (let i=0;i<arr.length;i++) {
+                                if (arr[i]["ClusterName"] != cname) {toastr.error("All selected nodes must belong to the same cluster for this action.");return;};
+                                nodes.push(arr[i]["NodeNo"]);
+                            }
+                            window.location.href = "{{.WebRoot}}conf/rackid?ClusterName="+arr[0]["ClusterName"]+"&Nodes="+nodes.join(',');
                         }
                     },
                     {
                         text: 'Namespace Memory',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                            var cname = arr[0]["ClusterName"];
+                            var nodes = [];
+                            for (let i=0;i<arr.length;i++) {
+                                if (arr[i]["ClusterName"] != cname) {toastr.error("All selected nodes must belong to the same cluster for this action.");return;};
+                                nodes.push(arr[i]["NodeNo"]);
+                            }
+                            window.location.href = "{{.WebRoot}}conf/namespace-memory?ClusterName="+arr[0]["ClusterName"]+"&Nodes="+nodes.join(',');
                         }
                     },
                     {
                         text: 'Fix HB Mesh',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                            var cname = arr[0]["ClusterName"];
+                            var nodes = [];
+                            for (let i=0;i<arr.length;i++) {
+                                if (arr[i]["ClusterName"] != cname) {toastr.error("All selected nodes must belong to the same cluster for this action.");return;};
+                                nodes.push(arr[i]["NodeNo"]);
+                            }
+                            window.location.href = "{{.WebRoot}}conf/fix-mesh?ClusterName="+arr[0]["ClusterName"]+"&Nodes="+nodes.join(',');
                         }
                     },
                 ]
@@ -613,7 +640,18 @@ function initDatatable() {
                 className: 'btn btn-warning',
                 text: 'Extend Expiry',
                 action: function ( e, dt, node, config ) {
-                    // TODO
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                    if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                    let ans = prompt("New Expiry","30h0m0s");
+                    if (ans == null) {
+                        return;
+                    }
+                    let data = {"list": arr,"action":"extendExpiry","type":"cluster","expiry":ans};
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
                 }
             },    
             {{end}}
@@ -653,7 +691,10 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
-        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
+        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+            console.log("cost");
+            return "$" + Math.round(data*10000)/10000;
+        }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
             if (!data) {
                 disabledString = 'default" disabled';
@@ -845,7 +886,18 @@ function initDatatable() {
                 className: 'btn btn-warning',
                 text: 'Extend Expiry',
                 action: function ( e, dt, node, config ) {
-                    // TODO
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                    if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                    let ans = prompt("New Expiry","30h0m0s");
+                    if (ans == null) {
+                        return;
+                    }
+                    let data = {"list": arr,"action":"extendExpiry","type":"client","expiry":ans};
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
                 }
             },    
             {{end}}
@@ -885,7 +937,10 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
-        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "IsRunning"}}, render: function (data, type, row) {
+        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+            console.log("cost");
+            return "$" + Math.round(data*10000)/10000;
+        }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row) {
             let disabledString = 'success"';
             if (!data) {
                 disabledString = 'default" disabled';
@@ -1047,7 +1102,10 @@ function initDatatable() {
             },
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
-        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
+        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+            console.log("cost");
+            return "$" + Math.round(data*10000)/10000;
+        }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             console.log(data);
             let disabledString = 'success"';
             if (!data) {

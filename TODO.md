@@ -1,6 +1,8 @@
 # TODO for 7.4.0 to be ready
 
-* UI - TODO button actions in index.js (ensure buttons are smart to combine calls for each cluster set of nodes into a single call, filling NodeNo accordingly)
+* AGI Extended action buttons (status, details, etc)
+* attach command buttons
+* Inventory actions - actions use a filler of a.opts; this means one action at a time; make either a lock or move to using webrun in order to make parallel actions possible
   
 * AGI Improvements
   * Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
