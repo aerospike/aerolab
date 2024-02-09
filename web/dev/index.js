@@ -692,7 +692,6 @@ function initDatatable() {
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
         columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
-            console.log("cost");
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -938,7 +937,6 @@ function initDatatable() {
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
         columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
-            console.log("cost");
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row) {
             let disabledString = 'success"';
@@ -1103,10 +1101,8 @@ function initDatatable() {
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
         columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
-            console.log("cost");
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
-            console.log(data);
             let disabledString = 'success"';
             if (!data) {
                 disabledString = 'default" disabled';
