@@ -507,7 +507,7 @@ function initDatatable() {
                             let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
                             let data = {"list": arr,"action":"stop","type":"cluster"};
-                            if (confirm("Start "+arr.length+" nodes")) {
+                            if (confirm("Stop "+arr.length+" nodes")) {
                                 $("#loadingSpinner").show();
                                 $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
                                 .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
@@ -529,7 +529,7 @@ function initDatatable() {
                             let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
                             let data = {"list": arr,"action":"aerospikeStart","type":"cluster"};
-                            if (confirm("Start "+arr.length+" nodes")) {
+                            if (confirm("Start aerospike on "+arr.length+" nodes")) {
                                 $("#loadingSpinner").show();
                                 $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
                                 .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
@@ -543,7 +543,7 @@ function initDatatable() {
                             let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
                             let data = {"list": arr,"action":"aerospikeStop","type":"cluster"};
-                            if (confirm("Start "+arr.length+" nodes")) {
+                            if (confirm("Stop aerospike on "+arr.length+" nodes")) {
                                 $("#loadingSpinner").show();
                                 $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
                                 .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
@@ -557,7 +557,7 @@ function initDatatable() {
                             let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
                             let data = {"list": arr,"action":"aerospikeRestart","type":"cluster"};
-                            if (confirm("Start "+arr.length+" nodes")) {
+                            if (confirm("Restart aerospike on "+arr.length+" nodes")) {
                                 $("#loadingSpinner").show();
                                 $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
                                 .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
@@ -568,7 +568,15 @@ function initDatatable() {
                     {
                         text: 'Status',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"aerospikeStatus","type":"cluster"};
+                            if (confirm("Status of aerospike on "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
                         }
                     },
                 ]
@@ -807,7 +815,7 @@ function initDatatable() {
                             let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
                             let data = {"list": arr,"action":"start","type":"client"};
-                            if (confirm("Start "+arr.length+" nodes")) {
+                            if (confirm("Start "+arr.length+" clients")) {
                                 $("#loadingSpinner").show();
                                 $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
                                 .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
@@ -821,7 +829,7 @@ function initDatatable() {
                             let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
                             let data = {"list": arr,"action":"stop","type":"client"};
-                            if (confirm("Start "+arr.length+" nodes")) {
+                            if (confirm("Stop "+arr.length+" clients")) {
                                 $("#loadingSpinner").show();
                                 $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
                                 .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
@@ -907,7 +915,7 @@ function initDatatable() {
                 let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                 if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
                 let data = {"list": arr,"action":"start","type":"agi"};
-                if (confirm("Start "+arr.length+" nodes")) {
+                if (confirm("Start "+arr.length+" agi")) {
                     $("#loadingSpinner").show();
                     $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
                     .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
@@ -922,7 +930,7 @@ function initDatatable() {
                 let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                 if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
                 let data = {"list": arr,"action":"stop","type":"agi"};
-                if (confirm("Start "+arr.length+" nodes")) {
+                if (confirm("Stop "+arr.length+" agi")) {
                     $("#loadingSpinner").show();
                     $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
                     .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})

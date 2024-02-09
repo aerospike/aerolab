@@ -725,8 +725,8 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 	if xtype == "cluster" {
 		xtype = "node"
 	}
-	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d "+xtype+"s\n", reqID, len(list)))
-	log.Printf("[%s] DELETE %d "+xtype+"s", reqID, len(list))
+	invlog.WriteString(fmt.Sprintf("[%s] RUN ON %d "+xtype+"s\n", reqID, len(list)))
+	log.Printf("[%s] RUN ON %d "+xtype+"s", reqID, len(list))
 	go func() {
 		c.jobqueue.Start()
 		defer c.jobqueue.Remove()
@@ -837,6 +837,11 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 			if hasError {
 				isError = true
 			}
+		case "aerospikeStatus":
+			hasError := c.inventoryNodesActionAerospikeStatus(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
 		case "delete":
 			fallthrough
 		case "destroy":
@@ -847,8 +852,10 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 		default:
 			http.Error(w, "invalid action: "+action, http.StatusBadRequest)
 		}
-		invlog.WriteString("\n->Refreshing inventory cache\n")
-		c.cache.run(time.Now())
+		if !strings.HasPrefix(action, "aerospike") {
+			invlog.WriteString("\n->Refreshing inventory cache\n")
+			c.cache.run(time.Now())
+		}
 		if isError {
 			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
 		} else {
@@ -874,8 +881,8 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
-				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+				invlog.WriteString(fmt.Sprintf("[%s] Started (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Started (%v)", reqID, clusterName+":"+nodeNo)
 			}
 		case "client":
 			clientName := name
@@ -887,8 +894,8 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clientName+":"+nodeNo))
-				log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
+				invlog.WriteString(fmt.Sprintf("[%s] Started (%v)\n", reqID, clientName+":"+nodeNo))
+				log.Printf("[%s] Started (%v)", reqID, clientName+":"+nodeNo)
 			}
 		case "agi":
 			agiName := name
@@ -899,8 +906,8 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
-				log.Printf("[%s] DELETED (%v)", reqID, agiName)
+				invlog.WriteString(fmt.Sprintf("[%s] Started (%v)\n", reqID, agiName))
+				log.Printf("[%s] Started (%v)", reqID, agiName)
 			}
 		}
 	}
@@ -922,8 +929,8 @@ func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
-				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+				invlog.WriteString(fmt.Sprintf("[%s] Stopped (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Stopped (%v)", reqID, clusterName+":"+nodeNo)
 			}
 		case "client":
 			clientName := name
@@ -935,8 +942,8 @@ func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clientName+":"+nodeNo))
-				log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
+				invlog.WriteString(fmt.Sprintf("[%s] Stopped (%v)\n", reqID, clientName+":"+nodeNo))
+				log.Printf("[%s] Stopped (%v)", reqID, clientName+":"+nodeNo)
 			}
 		case "agi":
 			agiName := name
@@ -947,8 +954,8 @@ func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
-				log.Printf("[%s] DELETED (%v)", reqID, agiName)
+				invlog.WriteString(fmt.Sprintf("[%s] Stopped (%v)\n", reqID, agiName))
+				log.Printf("[%s] Stopped (%v)", reqID, agiName)
 			}
 		}
 	}
@@ -970,8 +977,8 @@ func (c *webCmd) inventoryNodesActionAerospikeStart(w http.ResponseWriter, r *ht
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
-				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+				invlog.WriteString(fmt.Sprintf("[%s] Aerospike Started (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Aerospike Started (%v)", reqID, clusterName+":"+nodeNo)
 			}
 		case "client":
 			clientName := name
@@ -1005,8 +1012,8 @@ func (c *webCmd) inventoryNodesActionAerospikeStop(w http.ResponseWriter, r *htt
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
-				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+				invlog.WriteString(fmt.Sprintf("[%s] Aerospike Stopped (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Aerospike Stopped (%v)", reqID, clusterName+":"+nodeNo)
 			}
 		case "client":
 			clientName := name
@@ -1040,8 +1047,8 @@ func (c *webCmd) inventoryNodesActionAerospikeRestart(w http.ResponseWriter, r *
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
 				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
 			} else {
-				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
-				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+				invlog.WriteString(fmt.Sprintf("[%s] Aerospike Restarted (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Aerospike Restarted (%v)", reqID, clusterName+":"+nodeNo)
 			}
 		case "client":
 			clientName := name
@@ -1053,6 +1060,42 @@ func (c *webCmd) inventoryNodesActionAerospikeRestart(w http.ResponseWriter, r *
 			agiName := name
 			isError = true
 			err = errors.New("cannot start/stop aerospike on agi nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionAerospikeStatus(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			a.opts.Aerospike.Status.ClusterName = TypeClusterName(clusterName)
+			a.opts.Aerospike.Status.Nodes = TypeNodes(nodeNo)
+			err = a.opts.Aerospike.Status.run(nil, "status", invlog)
+			invlog.WriteString("\n")
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Aerospike Status (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Aerospike Status (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			isError = true
+			err = errors.New("cannot status aerospike on client nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+		case "agi":
+			agiName := name
+			isError = true
+			err = errors.New("cannot status aerospike on agi nodes")
 			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
 			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
 		}
