@@ -741,34 +741,88 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 		defer c.joblist.Delete(reqID)
 		defer invlog.Close()
 		isError := false
+		clist := make(map[string][]string)
 		for _, item := range list {
-			switch item.(type) {
+			switch i := item.(type) {
 			case map[string]interface{}:
+				switch ntype {
+				case "cluster":
+					clusterName := ""
+					nodeNo := ""
+					clusterName, err = getString(i["ClusterName"])
+					if err != nil || clusterName == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "clusterName undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "clusterName undefined")
+						continue
+					}
+					nodeNo, err = getString(i["NodeNo"])
+					if err != nil || nodeNo == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "nodeNo undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
+						continue
+					}
+					if _, ok := clist[clusterName]; !ok {
+						clist[clusterName] = []string{}
+					}
+					clist[clusterName] = append(clist[clusterName], nodeNo)
+				case "client":
+					clientName := ""
+					nodeNo := ""
+					i := item.(map[string]interface{})
+					clientName, err = getString(i["ClientName"])
+					if err != nil || clientName == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "clientName undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "clientName undefined")
+						continue
+					}
+					nodeNo, err = getString(i["NodeNo"])
+					if err != nil || nodeNo == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "nodeNo undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
+						continue
+					}
+					if _, ok := clist[clientName]; !ok {
+						clist[clientName] = []string{}
+					}
+					clist[clientName] = append(clist[clientName], nodeNo)
+				case "agi":
+					agiName := ""
+					agiName, err = getString(i["Name"])
+					if err != nil || agiName == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiName undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "agiName undefined")
+						continue
+					}
+					agiZone := ""
+					agiZone, err = getString(i["Zone"])
+					if err != nil {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiZone undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "agiZone undefined")
+						continue
+					}
+					if _, ok := clist[agiName]; !ok {
+						clist[agiName] = []string{}
+					}
+					clist[agiName] = append(clist[agiName], agiZone)
+				}
 			default:
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "item type invalid"))
 				log.Printf("[%s] ERROR %s", reqID, "item type invalid")
 				continue
 			}
+		}
+		for name, nodes := range clist {
+			nodeNo := strings.Join(nodes, ",")
 			switch ntype {
 			case "cluster":
-				clusterName := ""
-				nodeNo := ""
-				i := item.(map[string]interface{})
-				clusterName, err = getString(i["ClusterName"])
-				if err != nil || clusterName == "" {
-					isError = true
-					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "clusterName undefined"))
-					log.Printf("[%s] ERROR %s", reqID, "clusterName undefined")
-					continue
-				}
-				nodeNo, err = getString(i["NodeNo"])
-				if err != nil || nodeNo == "" {
-					isError = true
-					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "nodeNo undefined"))
-					log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
-					continue
-				}
+				clusterName := name
 				a.opts.Cluster.Destroy.Force = true
 				a.opts.Cluster.Destroy.ClusterName = TypeClusterName(clusterName)
 				a.opts.Cluster.Destroy.Nodes = TypeNodes(nodeNo)
@@ -783,23 +837,7 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 					log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
 				}
 			case "client":
-				clientName := ""
-				nodeNo := ""
-				i := item.(map[string]interface{})
-				clientName, err = getString(i["ClientName"])
-				if err != nil || clientName == "" {
-					isError = true
-					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "clientName undefined"))
-					log.Printf("[%s] ERROR %s", reqID, "clientName undefined")
-					continue
-				}
-				nodeNo, err = getString(i["NodeNo"])
-				if err != nil || nodeNo == "" {
-					isError = true
-					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "nodeNo undefined"))
-					log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
-					continue
-				}
+				clientName := name
 				a.opts.Client.Destroy.Force = true
 				a.opts.Client.Destroy.ClientName = TypeClientName(clientName)
 				a.opts.Client.Destroy.Machines = TypeMachines(nodeNo)
@@ -814,29 +852,14 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 					log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
 				}
 			case "agi":
-				agiName := ""
-				i := item.(map[string]interface{})
-				agiName, err = getString(i["Name"])
-				if err != nil || agiName == "" {
-					isError = true
-					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiName undefined"))
-					log.Printf("[%s] ERROR %s", reqID, "agiName undefined")
-					continue
-				}
+				agiName := name
 				if action == "destroy" {
 					a.opts.AGI.Destroy.Force = true
 					a.opts.AGI.Destroy.ClusterName = TypeClusterName(agiName)
 					a.opts.AGI.Destroy.Parallel = true
 					err = a.opts.AGI.Destroy.Execute(nil)
 				} else {
-					agiZone := ""
-					agiZone, err = getString(i["Zone"])
-					if err != nil {
-						isError = true
-						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiZone undefined"))
-						log.Printf("[%s] ERROR %s", reqID, "agiZone undefined")
-						continue
-					}
+					agiZone := nodes[0]
 					a.opts.AGI.Delete.ClusterName = TypeClusterName(agiName)
 					a.opts.AGI.Delete.Force = true
 					a.opts.AGI.Delete.Parallel = true
