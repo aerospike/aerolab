@@ -1244,7 +1244,7 @@ function initDatatable() {
                         return;
                     }
                     let data = {"list": arr}
-                    if (confirm("Remove "+arr.length+" templates")) {
+                    if (confirm("Remove "+arr.length+" volumes")) {
                         $("#loadingSpinner").show();
                         $.post("{{.WebRoot}}www/api/inventory/volumes", JSON.stringify(data), function(data) {
                             showCommandOut(data);
@@ -1321,7 +1321,7 @@ function initDatatable() {
                         return;
                     }
                     let data = {"list": arr}
-                    if (confirm("Remove "+arr.length+" templates")) {
+                    if (confirm("Remove "+arr.length+" firewall-rules")) {
                         $("#loadingSpinner").show();
                         $.post("{{.WebRoot}}www/api/inventory/firewalls", JSON.stringify(data), function(data) {
                             showCommandOut(data);
