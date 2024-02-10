@@ -1477,8 +1477,8 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			runerr := run.Wait()
 			exitCode := run.ProcessState.ExitCode()
 			if c.commands[cindex].reload || (c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != ""))) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
-				log.Printf("[%s] Reloading interface defaults", requestID)
-				f.WriteString("\n->Reloading interface defaults\n")
+				log.Printf("[%s] Refreshing interface data", requestID)
+				f.WriteString("\n->Refreshing interface data\n")
 				err = c.cache.run(time.Now())
 				if err != nil {
 					log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)
@@ -1489,8 +1489,8 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					}
 					exitCode = 1
 				}
-				log.Printf("[%s] Reloaded interface defaults", requestID)
-				f.WriteString("\n->Reload finished\n")
+				log.Printf("[%s] Refreshed interface data", requestID)
+				f.WriteString("\n->Refresh finished\n")
 			}
 			c.joblist.Delete(requestID)
 			if runerr != nil {
