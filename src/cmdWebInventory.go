@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"path"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -238,6 +240,42 @@ func (c *webCmd) addInventoryHandlers() {
 	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
 }
 
+func (c *webCmd) runInvCmd(reqID string, npath string, cjson map[string]interface{}, f *os.File) error {
+	ex, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), c.AbsoluteTimeout)
+	defer cancel()
+	run := exec.CommandContext(ctx, ex, "webrun")
+	c.joblist.Add(reqID, run)
+	defer c.joblist.Delete(reqID)
+	stdin, err := run.StdinPipe()
+	if err != nil {
+		return err
+	}
+	run.Stderr = f
+	run.Stdout = f
+	err = run.Start()
+	if err != nil {
+		return err
+	}
+	go func() {
+		stdin.Write([]byte(npath + "-=-=-=-"))
+		json.NewEncoder(stdin).Encode(cjson)
+		stdin.Close()
+	}()
+	runerr := run.Wait()
+	if runerr != nil {
+		return runerr
+	}
+	exitCode := run.ProcessState.ExitCode()
+	if exitCode != 0 {
+		return errors.New("code:" + strconv.Itoa(exitCode))
+	}
+	return nil
+}
+
 func (c *webCmd) inventoryFirewalls(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		c.inventoryFirewallsAction(w, r)
@@ -265,7 +303,6 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	c.jobqueue.Add()
-	c.joblist.Add(reqID, &exec.Cmd{})
 	invlog, err := c.inventoryLogFile(reqID)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
@@ -290,7 +327,6 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 		c.jobqueue.Start()
 		defer c.jobqueue.Remove()
 		defer c.jobqueue.End()
-		defer c.joblist.Delete(reqID)
 		defer invlog.Close()
 		isError := false
 		for _, rule := range rules {
@@ -298,19 +334,25 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 			switch a.opts.Config.Backend.Type {
 			case "aws":
 				genRule = rule.AWS
-				a.opts.Config.Aws.DestroySecGroups.NamePrefix = strings.Split(rule.AWS.SecurityGroupName, "-")[0]
-				a.opts.Config.Aws.DestroySecGroups.VPC = rule.AWS.VPC
-				a.opts.Config.Aws.DestroySecGroups.Internal = false
-				err = a.opts.Config.Aws.DestroySecGroups.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"NamePrefix": strings.Split(rule.AWS.SecurityGroupName, "-")[0],
+					"VPC":        rule.AWS.VPC,
+					"Internal":   false,
+				}
+				err = c.runInvCmd(reqID, "/"+strings.ReplaceAll(comm, " ", "/"), cmdJson, invlog)
 			case "gcp":
 				genRule = rule.GCP
-				a.opts.Config.Gcp.DestroySecGroups.NamePrefix = rule.GCP.FirewallName
-				a.opts.Config.Gcp.DestroySecGroups.Internal = false
-				err = a.opts.Config.Gcp.DestroySecGroups.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"NamePrefix": rule.GCP.FirewallName,
+					"Internal":   false,
+				}
+				err = c.runInvCmd(reqID, "/"+strings.ReplaceAll(comm, " ", "/"), cmdJson, invlog)
 			case "docker":
 				genRule = rule.Docker
-				a.opts.Config.Docker.DeleteNetwork.Name = rule.Docker.NetworkName
-				err = a.opts.Config.Docker.DeleteNetwork.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"Name": rule.Docker.NetworkName,
+				}
+				err = c.runInvCmd(reqID, "/"+strings.ReplaceAll(comm, " ", "/"), cmdJson, invlog)
 			}
 			if err != nil {
 				isError = true
@@ -376,7 +418,6 @@ func (c *webCmd) inventoryVolumesAction(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	c.jobqueue.Add()
-	c.joblist.Add(reqID, &exec.Cmd{})
 	invlog, err := c.inventoryLogFile(reqID)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
@@ -393,13 +434,16 @@ func (c *webCmd) inventoryVolumesAction(w http.ResponseWriter, r *http.Request) 
 		c.jobqueue.Start()
 		defer c.jobqueue.Remove()
 		defer c.jobqueue.End()
-		defer c.joblist.Delete(reqID)
 		defer invlog.Close()
 		isError := false
 		for _, vol := range vols {
-			a.opts.Volume.Delete.Name = vol.Name
-			a.opts.Volume.Delete.Gcp.Zone = vol.AvailabilityZoneName
-			err = a.opts.Volume.Delete.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"Name": vol.Name,
+				"GCP": map[string]interface{}{
+					"Zone": vol.AvailabilityZoneName,
+				},
+			}
+			err = c.runInvCmd(reqID, "/"+strings.ReplaceAll(comm, " ", "/"), cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, vol.Name))
@@ -448,7 +492,6 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	c.jobqueue.Add()
-	c.joblist.Add(reqID, &exec.Cmd{})
 	invlog, err := c.inventoryLogFile(reqID)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
@@ -464,20 +507,25 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		c.jobqueue.Start()
 		defer c.jobqueue.Remove()
 		defer c.jobqueue.End()
-		defer c.joblist.Delete(reqID)
 		defer invlog.Close()
 		isError := false
 		for _, template := range templates {
-			a.opts.Template.Delete.AerospikeVersion = TypeAerospikeVersion(template.AerospikeVersion)
-			a.opts.Template.Delete.DistroName = TypeDistro(template.Distribution)
-			a.opts.Template.Delete.DistroVersion = TypeDistroVersion(template.OSVersion)
 			isArm := true
 			if template.Arch == "amd64" {
 				isArm = false
 			}
-			a.opts.Template.Delete.Aws.IsArm = isArm
-			a.opts.Template.Delete.Gcp.IsArm = isArm
-			err = a.opts.Template.Delete.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"AerospikeVersion": template.AerospikeVersion,
+				"DistroName":       template.Distribution,
+				"DistroVersion":    template.OSVersion,
+				"AWS": map[string]interface{}{
+					"IsArm": isArm,
+				},
+				"GCP": map[string]interface{}{
+					"IsArm": isArm,
+				},
+			}
+			err = c.runInvCmd(reqID, "/template/destroy", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, template))
@@ -711,7 +759,6 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 	}()
 	list := data["list"].([]interface{})
 	c.jobqueue.Add()
-	c.joblist.Add(reqID, &exec.Cmd{})
 	invlog, err := c.inventoryLogFile(reqID)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
@@ -762,7 +809,6 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 		c.jobqueue.Start()
 		defer c.jobqueue.Remove()
 		defer c.jobqueue.End()
-		defer c.joblist.Delete(reqID)
 		defer invlog.Close()
 		isError := false
 		clist := make(map[string][]string)
@@ -789,12 +835,14 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
 						continue
 					}
-					zone, err = getString(i["Zone"])
-					if err != nil || zone == "" {
-						isError = true
-						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "zone undefined"))
-						log.Printf("[%s] ERROR %s", reqID, "zone undefined")
-						continue
+					if a.opts.Config.Backend.Type != "docker" {
+						zone, err = getString(i["Zone"])
+						if err != nil || zone == "" {
+							isError = true
+							invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "zone undefined"))
+							log.Printf("[%s] ERROR %s", reqID, "zone undefined")
+							continue
+						}
 					}
 					if _, ok := clist[clusterName]; !ok {
 						clist[clusterName] = []string{}
@@ -826,12 +874,14 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
 						continue
 					}
-					zone, err = getString(i["Zone"])
-					if err != nil || zone == "" {
-						isError = true
-						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "zone undefined"))
-						log.Printf("[%s] ERROR %s", reqID, "zone undefined")
-						continue
+					if a.opts.Config.Backend.Type != "docker" {
+						zone, err = getString(i["Zone"])
+						if err != nil || zone == "" {
+							isError = true
+							invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "zone undefined"))
+							log.Printf("[%s] ERROR %s", reqID, "zone undefined")
+							continue
+						}
 					}
 					if _, ok := clist[clientName]; !ok {
 						clist[clientName] = []string{}
@@ -854,12 +904,14 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						continue
 					}
 					agiZone := ""
-					agiZone, err = getString(i["Zone"])
-					if err != nil {
-						isError = true
-						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiZone undefined"))
-						log.Printf("[%s] ERROR %s", reqID, "agiZone undefined")
-						continue
+					if a.opts.Config.Backend.Type != "docker" {
+						agiZone, err = getString(i["Zone"])
+						if err != nil {
+							isError = true
+							invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiZone undefined"))
+							log.Printf("[%s] ERROR %s", reqID, "agiZone undefined")
+							continue
+						}
 					}
 					if _, ok := clist[agiName]; !ok {
 						clist[agiName] = []string{}
@@ -940,9 +992,11 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 		switch ntype {
 		case "cluster":
 			clusterName := name
-			a.opts.Cluster.Start.ClusterName = TypeClusterName(clusterName)
-			a.opts.Cluster.Start.Nodes = TypeNodes(nodeNo)
-			err = a.opts.Cluster.Start.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/cluster/start", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
@@ -953,9 +1007,11 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 			}
 		case "client":
 			clientName := name
-			a.opts.Client.Start.ClientName = TypeClientName(clientName)
-			a.opts.Client.Start.Machines = TypeMachines(nodeNo)
-			err = a.opts.Client.Start.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClientName": clientName,
+				"Machines":   nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/client/start", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
@@ -966,8 +1022,10 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 			}
 		case "agi":
 			agiName := name
-			a.opts.AGI.Start.ClusterName = TypeClusterName(agiName)
-			err = a.opts.AGI.Start.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClusterName": agiName,
+			}
+			err = c.runInvCmd(reqID, "/agi/start", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
@@ -988,9 +1046,11 @@ func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request
 		switch ntype {
 		case "cluster":
 			clusterName := name
-			a.opts.Cluster.Stop.ClusterName = TypeClusterName(clusterName)
-			a.opts.Cluster.Stop.Nodes = TypeNodes(nodeNo)
-			err = a.opts.Cluster.Stop.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/cluster/stop", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
@@ -1001,9 +1061,11 @@ func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request
 			}
 		case "client":
 			clientName := name
-			a.opts.Client.Stop.ClientName = TypeClientName(clientName)
-			a.opts.Client.Stop.Machines = TypeMachines(nodeNo)
-			err = a.opts.Client.Stop.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClientName": clientName,
+				"Machines":   nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/client/stop", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
@@ -1014,8 +1076,10 @@ func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request
 			}
 		case "agi":
 			agiName := name
-			a.opts.AGI.Stop.ClusterName = TypeClusterName(agiName)
-			err = a.opts.AGI.Stop.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClusterName": agiName,
+			}
+			err = c.runInvCmd(reqID, "/agi/stop", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
@@ -1036,9 +1100,11 @@ func (c *webCmd) inventoryNodesActionAerospikeStart(w http.ResponseWriter, r *ht
 		switch ntype {
 		case "cluster":
 			clusterName := name
-			a.opts.Aerospike.Start.ClusterName = TypeClusterName(clusterName)
-			a.opts.Aerospike.Start.Nodes = TypeNodes(nodeNo)
-			err = a.opts.Aerospike.Start.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/aerospike/start", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
@@ -1071,9 +1137,11 @@ func (c *webCmd) inventoryNodesActionAerospikeStop(w http.ResponseWriter, r *htt
 		switch ntype {
 		case "cluster":
 			clusterName := name
-			a.opts.Aerospike.Stop.ClusterName = TypeClusterName(clusterName)
-			a.opts.Aerospike.Stop.Nodes = TypeNodes(nodeNo)
-			err = a.opts.Aerospike.Stop.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/aerospike/stop", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
@@ -1106,9 +1174,11 @@ func (c *webCmd) inventoryNodesActionAerospikeRestart(w http.ResponseWriter, r *
 		switch ntype {
 		case "cluster":
 			clusterName := name
-			a.opts.Aerospike.Restart.ClusterName = TypeClusterName(clusterName)
-			a.opts.Aerospike.Restart.Nodes = TypeNodes(nodeNo)
-			err = a.opts.Aerospike.Restart.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/aerospike/restart", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
@@ -1141,9 +1211,11 @@ func (c *webCmd) inventoryNodesActionAerospikeStatus(w http.ResponseWriter, r *h
 		switch ntype {
 		case "cluster":
 			clusterName := name
-			a.opts.Aerospike.Status.ClusterName = TypeClusterName(clusterName)
-			a.opts.Aerospike.Status.Nodes = TypeNodes(nodeNo)
-			err = a.opts.Aerospike.Status.run(nil, "status", invlog)
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/aerospike/status", cmdJson, invlog)
 			invlog.WriteString("\n")
 			if err != nil {
 				isError = true
@@ -1177,11 +1249,13 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 		switch ntype {
 		case "cluster":
 			clusterName := name
-			a.opts.Cluster.Destroy.Force = true
-			a.opts.Cluster.Destroy.ClusterName = TypeClusterName(clusterName)
-			a.opts.Cluster.Destroy.Nodes = TypeNodes(nodeNo)
-			a.opts.Cluster.Destroy.Parallel = true
-			err = a.opts.Cluster.Destroy.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+				"Force":       true,
+				"Parallel":    true,
+			}
+			err = c.runInvCmd(reqID, "/cluster/destroy", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
@@ -1192,11 +1266,13 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 			}
 		case "client":
 			clientName := name
-			a.opts.Client.Destroy.Force = true
-			a.opts.Client.Destroy.ClientName = TypeClientName(clientName)
-			a.opts.Client.Destroy.Machines = TypeMachines(nodeNo)
-			a.opts.Client.Destroy.Parallel = true
-			err = a.opts.Client.Destroy.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"ClientName": clientName,
+				"Machines":   nodeNo,
+				"Force":      true,
+				"Parallel":   true,
+			}
+			err = c.runInvCmd(reqID, "/client/destroy", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
@@ -1208,17 +1284,23 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 		case "agi":
 			agiName := name
 			if action == "destroy" {
-				a.opts.AGI.Destroy.Force = true
-				a.opts.AGI.Destroy.ClusterName = TypeClusterName(agiName)
-				a.opts.AGI.Destroy.Parallel = true
-				err = a.opts.AGI.Destroy.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"ClusterName": agiName,
+					"Force":       true,
+					"Parallel":    true,
+				}
+				err = c.runInvCmd(reqID, "/agi/destroy", cmdJson, invlog)
 			} else {
 				agiZone := nodes[0]
-				a.opts.AGI.Delete.ClusterName = TypeClusterName(agiName)
-				a.opts.AGI.Delete.Force = true
-				a.opts.AGI.Delete.Parallel = true
-				a.opts.AGI.Delete.Gcp.Zone = agiZone
-				err = a.opts.AGI.Delete.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"ClusterName": agiName,
+					"Force":       true,
+					"Parallel":    true,
+					"Gcp": map[string]interface{}{
+						"Zone": agiZone,
+					},
+				}
+				err = c.runInvCmd(reqID, "/agi/delete", cmdJson, invlog)
 			}
 			if err != nil {
 				isError = true
@@ -1253,11 +1335,15 @@ func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http
 			switch ntype {
 			case "cluster":
 				clusterName := name
-				a.opts.Cluster.Add.Expiry.ClusterName = TypeClusterName(clusterName)
-				a.opts.Cluster.Add.Expiry.Nodes = TypeNodes(nodeNo)
-				a.opts.Cluster.Add.Expiry.Expires = expiry
-				a.opts.Cluster.Add.Expiry.Gcp.Zone = zone
-				err = a.opts.Cluster.Add.Expiry.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"ClusterName": clusterName,
+					"Nodes":       nodeNo,
+					"Expires":     expiry.String(),
+					"Gcp": map[string]interface{}{
+						"Zone": zone,
+					},
+				}
+				err = c.runInvCmd(reqID, "/cluster/add/expiry", cmdJson, invlog)
 				if err != nil {
 					isError = true
 					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
@@ -1268,11 +1354,15 @@ func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http
 				}
 			case "client":
 				clusterName := name
-				a.opts.Client.Configure.Expiry.ClusterName = TypeClientName(clusterName)
-				a.opts.Client.Configure.Expiry.Nodes = TypeMachines(nodeNo)
-				a.opts.Client.Configure.Expiry.Expires = expiry
-				a.opts.Client.Configure.Expiry.Gcp.Zone = zone
-				err = a.opts.Client.Configure.Expiry.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"ClusterName": clusterName,
+					"Nodes":       nodeNo,
+					"Expires":     expiry.String(),
+					"Gcp": map[string]interface{}{
+						"Zone": zone,
+					},
+				}
+				err = c.runInvCmd(reqID, "/client/configure/expiry", cmdJson, invlog)
 				if err != nil {
 					isError = true
 					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
