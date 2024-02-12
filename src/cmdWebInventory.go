@@ -638,59 +638,66 @@ func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
 	updateLock := new(sync.Mutex)
 	workers := new(sync.WaitGroup)
 	statusThreads := make(chan int, 5)
-	for i := range inv {
-		if inv[i].PublicIP == "" && inv[i].PrivateIP == "" {
-			continue
-		}
-		workers.Add(1)
-		statusThreads <- 1
-		go func(i int, v inventoryWebAGI) {
-			defer workers.Done()
-			defer func() {
-				<-statusThreads
-			}()
-			statusMsg := "unknown"
-			if (v.PublicIP != "") || (a.opts.Config.Backend.Type == "docker" && v.PublicIP != "") {
-				out, err := b.RunCommands(v.Name, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
-				if err == nil {
-					clusterStatus := &ingest.IngestStatusStruct{}
-					err = json.Unmarshal(out[0], clusterStatus)
+	ex, err := os.Executable()
+	if err != nil {
+		log.Printf("ERROR could not get link for self: %s", err)
+	} else {
+		for i := range inv {
+			if inv[i].PublicIP == "" && inv[i].PrivateIP == "" {
+				continue
+			}
+			workers.Add(1)
+			statusThreads <- 1
+			go func(i int, v inventoryWebAGI) {
+				defer workers.Done()
+				defer func() {
+					<-statusThreads
+				}()
+				statusMsg := "unknown"
+				if (v.PublicIP != "") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIP != "") {
+					ctx, ctxCancel := context.WithTimeout(context.Background(), 10*time.Second)
+					defer ctxCancel()
+					out, err := exec.CommandContext(ctx, ex, "attach", "shell", "-n", v.Name, "--", "aerolab", "agi", "exec", "ingest-status").CombinedOutput()
 					if err == nil {
-						if !clusterStatus.AerospikeRunning {
-							statusMsg = "ERR: ASD DOWN"
-						} else if !clusterStatus.GrafanaHelperRunning {
-							statusMsg = "ERR: GRAFANAFIX DOWN"
-						} else if !clusterStatus.PluginRunning {
-							statusMsg = "ERR: PLUGIN DOWN"
-						} else if !clusterStatus.Ingest.CompleteSteps.Init {
-							statusMsg = "(1/6) INIT"
-						} else if !clusterStatus.Ingest.CompleteSteps.Download {
-							statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
-						} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
-							statusMsg = "(3/6) UNPACK"
-						} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
-							statusMsg = "(4/6) PRE-PROCESS"
-						} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
-							statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
-						} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
-							statusMsg = "(6/6) COLLECTINFO"
-						} else {
-							statusMsg = "READY"
-						}
-						if statusMsg != "READY" && !clusterStatus.Ingest.Running {
-							statusMsg = "ERR: INGEST DOWN"
+						clusterStatus := &ingest.IngestStatusStruct{}
+						err = json.Unmarshal(out, clusterStatus)
+						if err == nil {
+							if !clusterStatus.AerospikeRunning {
+								statusMsg = "ERR: ASD DOWN"
+							} else if !clusterStatus.GrafanaHelperRunning {
+								statusMsg = "ERR: GRAFANAFIX DOWN"
+							} else if !clusterStatus.PluginRunning {
+								statusMsg = "ERR: PLUGIN DOWN"
+							} else if !clusterStatus.Ingest.CompleteSteps.Init {
+								statusMsg = "(1/6) INIT"
+							} else if !clusterStatus.Ingest.CompleteSteps.Download {
+								statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
+							} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
+								statusMsg = "(3/6) UNPACK"
+							} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
+								statusMsg = "(4/6) PRE-PROCESS"
+							} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
+								statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
+							} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
+								statusMsg = "(6/6) COLLECTINFO"
+							} else {
+								statusMsg = "READY"
+							}
+							if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+								statusMsg = "ERR: INGEST DOWN"
+							}
 						}
 					}
+				} else {
+					statusMsg = ""
 				}
-			} else {
-				statusMsg = ""
-			}
-			updateLock.Lock()
-			inv[i].Status = statusMsg
-			updateLock.Unlock()
-		}(i, inv[i])
+				updateLock.Lock()
+				inv[i].Status = statusMsg
+				updateLock.Unlock()
+			}(i, inv[i])
+		}
+		workers.Wait()
 	}
-	workers.Wait()
 	// sort
 	sort.Slice(inv, func(i, j int) bool {
 		if inv[i].InstanceID != "" && inv[j].InstanceID == "" {
