@@ -1,8 +1,9 @@
 # TODO for 7.4.0 to be ready
 
-* AGI Extended action buttons (status, details, etc)
+* AGI Details button
 * attach command buttons
-* tooltips on hover over buttons in inventory list view
+  * AGI
+  * Cluster/Client
 
 * AGI Improvements
   * Agi - after it stopped, on restart, will it remember which instance size was used for a given volume? If not, will it be aware of need to size, and will it ask the monitor to size (like a file on the volume with sizing information)?
