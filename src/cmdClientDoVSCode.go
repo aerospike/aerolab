@@ -13,7 +13,7 @@ import (
 type clientCreateVSCodeCmd struct {
 	clientCreateBaseCmd
 	Kernels  string `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
-	JustDoIt bool   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
+	JustDoIt bool   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	chDirCmd
 }
 

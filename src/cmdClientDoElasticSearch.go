@@ -15,7 +15,7 @@ import (
 type clientCreateElasticSearchCmd struct {
 	clientCreateBaseCmd
 	RamLimit int  `long:"mem-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
-	JustDoIt bool `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
+	JustDoIt bool `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 }
 
 type clientAddElasticSearchCmd struct {
