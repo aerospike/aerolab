@@ -60,6 +60,24 @@ $('.checkForGetParams').each(function() {
     };
 });
 
+$('.checkForGetParamsToggle').each(function() {
+    var label = $("label[for='" + $(this).attr('id') + "']");
+    if (label.length < 1) {
+        return;
+    }
+    label = label[0].innerText.replace("* ","");
+    var labelParam = $.urlParam(label);
+    var inputItem = this;
+    if (labelParam != null) {
+        if (labelParam == "on") {
+            $(this).attr('checked','checked');
+        } else if (labelParam == "off") {
+            $(this).removeAttr('checked');
+        };
+        $(this).val(labelParam);
+    };
+});
+
 function checkRequiredFields() {
     var fieldsOk = true;
     $('.aerolab-required').each(function() {
@@ -434,6 +452,8 @@ function initDatatable() {
     $.fn.dataTable.ext.errMode = 'alert';
     $.fn.dataTable.ext.buttons.reload = {
         text: 'Refresh',
+        titleAttr: 'Refresh table list from server',
+        className: 'dtTooltip',
         action: function ( e, dt, node, config ) {
             dt.ajax.reload(callback = function () {
                 toastr.success("Table data refreshed");
@@ -462,7 +482,8 @@ function initDatatable() {
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
         buttons: [{
-            className: 'btn btn-success',
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Go to form: Create New Cluster',
             text: 'Create',
             action: function ( e, dt, node, config ) {
                 let url = "{{.WebRoot}}cluster/create";
@@ -470,7 +491,8 @@ function initDatatable() {
             }},
             {extend: 'myspacer'},
             {
-            className: 'btn btn-success',
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Go to form: Grow Cluster',
             text: 'Grow',
             action: function ( e, dt, node, config ) {
                 let arr = [];
@@ -489,10 +511,12 @@ function initDatatable() {
             {extend: 'myspacer'},
             {
                 extend: 'collection',
-                className: 'custom-html-collection btn-warn',
+                className: 'custom-html-collection btn-warn dtTooltip',
+                titleAttr: 'Start / stop instance(s) and aerospike',
                 text: 'Nodes',
                 buttons: [
                     {
+                        className: 'dtTooltip',
                         text: 'Start',
                         action: function ( e, dt, node, config ) {
                             let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
@@ -525,7 +549,8 @@ function initDatatable() {
             {extend: 'myspacer'},
             {
                 extend: 'collection',
-                className: 'custom-html-collection btn-warn',
+                className: 'custom-html-collection btn-warn dtTooltip',
+                titleAttr: 'Perform aerospike service actions on node(s)',
                 text: 'Aerospike',
                 buttons: [
                     {
@@ -589,7 +614,8 @@ function initDatatable() {
             {extend: 'myspacer'},
             {
                 extend: 'collection',
-                className: 'custom-html-collection btn-warn',
+                className: 'custom-html-collection btn-warn dtTooltip',
+                titleAttr: 'Open forms for common configuration actions',
                 text: 'Configure',
                 buttons: [
                     {
@@ -642,7 +668,8 @@ function initDatatable() {
             {{if ne .Backend "docker"}}
             {extend: 'myspacer'},
             {
-                className: 'btn btn-warning',
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Open form: Extend node(s) expiry time',
                 text: 'Extend Expiry',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -664,7 +691,8 @@ function initDatatable() {
             {extend: 'reload',className: 'btn btn-info',},
             {extend: 'myspacer'},
             {
-            className: 'btn btn-danger',
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Destroy node instance(s)',
             text: 'Destroy',
             action: function ( e, dt, node, config ) {
                 let arr = [];
@@ -715,7 +743,8 @@ function initDatatable() {
         buttons: [
             {
                 extend: 'collection',
-                className: 'custom-html-collection btn-success',
+                className: 'custom-html-collection btn-success dtTooltip',
+                titleAttr: 'Go to form: create new client machine of given type',
                 text: 'Create',
                 buttons: [
                     {
@@ -771,7 +800,8 @@ function initDatatable() {
             {extend: 'myspacer'},
             {
                 extend: 'collection',
-                className: 'custom-html-collection btn-success',
+                className: 'custom-html-collection btn-success dtTooltip',
+                titleAttr: 'Got to form: grow client machine set, adding a given machine type',
                 text: 'Grow',
                 buttons: [
                     {
@@ -851,7 +881,8 @@ function initDatatable() {
             {extend: 'myspacer'},
             {
                 extend: 'collection',
-                className: 'custom-html-collection btn-warn',
+                className: 'custom-html-collection btn-warn dtTooltip',
+                titleAttr: 'Start/Stop given instance(s)',
                 text: 'Nodes',
                 buttons: [
                     {
@@ -887,7 +918,8 @@ function initDatatable() {
             {{if ne .Backend "docker"}}
             {extend: 'myspacer'},
             {
-                className: 'btn btn-warning',
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Go to form: extend expiry of instance(s)',
                 text: 'Extend Expiry',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -909,7 +941,8 @@ function initDatatable() {
             {extend: 'reload',className: 'btn btn-info',},
             {extend: 'myspacer'},
             {
-            className: 'btn btn-danger',
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Destroy instance(s)',
             text: 'Destroy',
             action: function ( e, dt, node, config ) {
                 let arr = [];
@@ -943,7 +976,7 @@ function initDatatable() {
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
         columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             return "$" + Math.round(data*10000)/10000;
-        }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row) {
+        }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
             if (!data) {
                 disabledString = 'default" disabled';
@@ -959,7 +992,8 @@ function initDatatable() {
         fixedColumns: {left: 2, right: 1},
         buttons: [
             {
-            className: 'btn btn-success',
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Got to form: Create a new AGI instance',
             text: 'Create',
             action: function ( e, dt, node, config ) {
                 let url = "{{.WebRoot}}agi/create";
@@ -967,7 +1001,8 @@ function initDatatable() {
             }},
             {extend: 'myspacer'},
             {
-            className: 'btn btn-warn',
+            className: 'btn btn-warn dtTooltip',
+            titleAttr: 'Start a stopped AGI instance',
             text: 'Start',
             action: function ( e, dt, node, config ) {
                 let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
@@ -982,7 +1017,8 @@ function initDatatable() {
             }},
             {extend: 'myspacer'},
             {
-            className: 'btn btn-warn',
+            className: 'btn btn-warn dtTooltip',
+            titleAttr: 'Stop a running AGI instance',
             text: 'Stop',
             action: function ( e, dt, node, config ) {
                 let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
@@ -999,7 +1035,8 @@ function initDatatable() {
             {extend: 'reload',className: 'btn btn-info',},
             {extend: 'myspacer'},
             {
-            className: 'btn btn-danger',
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Remove an existing AGI instance',
             text: 'Destroy',
             action: function ( e, dt, node, config ) {
                 let arr = [];
@@ -1031,7 +1068,8 @@ function initDatatable() {
             }},
             {extend: 'myspacer'},
             {
-            className: 'btn btn-danger',
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Remove an existing AGI instance and delete an existing AGI persistent data volume',
             text: 'Delete',
             action: function ( e, dt, node, config ) {
                 let arr = [];
@@ -1068,37 +1106,83 @@ function initDatatable() {
             },
             {
                 extend: 'collection',
-                className: 'custom-html-collection btn-info',
+                className: 'custom-html-collection btn-info dtTooltip',
+                titleAttr: 'AGI instance actions',
                 text: 'Node',
                 buttons: [
                     {
                         text: 'Status',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            let url = "{{.WebRoot}}agi/status?ClusterName="+data["Name"];
+                            window.location.href = url;            
                         }
                     },
                     {
                         text: 'Details',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            // TODO background run and report in a nice way: including old-new-name mapping, errors, etc
+                            alert('not implemented yet');
                         }
                     },
                     {
                         text: 'Get share link',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            let url = "{{.WebRoot}}agi/add-auth-token?ClusterName="+data["Name"]+"&GenURL=on";
+                            window.location.href = url;  
                         }
                     },
                     {
                         text: 'Change label',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            let url = "{{.WebRoot}}agi/change-label?ClusterName="+data["Name"]+"&Gcpzone="+data["Zone"];
+                            window.location.href = url;            
                         }
                     },
                     {
                         text: 'Rerun ingest',
                         action: function ( e, dt, node, config ) {
-                            // TODO
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            let url = "{{.WebRoot}}agi/run-ingest?ClusterName="+data["Name"];
+                            window.location.href = url;            
                         }
                     },
                 ]
@@ -1122,7 +1206,8 @@ function initDatatable() {
         order: [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]],
         fixedColumns: {left: 1},
         buttons: [{
-            className: 'btn btn-success',
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Create a template without running CreateCluster',
             text: 'Create',
             action: function ( e, dt, node, config ) {
                 let url = "{{.WebRoot}}template/create";
@@ -1132,7 +1217,8 @@ function initDatatable() {
             {extend: 'reload',className: 'btn btn-info',},
             {extend: 'myspacer'},
             {
-            className: 'btn btn-danger',
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Delete template(s)',
             text: 'Delete',
             action: function ( e, dt, node, config ) {
                 let arr = [];
@@ -1174,7 +1260,8 @@ function initDatatable() {
         fixedColumns: {left: 1},
         buttons: [
             {
-                className: 'btn btn-success',
+                className: 'btn btn-success dtTooltip',
+                titleAttr: 'Got to form: new volume',
                 text: 'Create',
                 action: function ( e, dt, node, config ) {
                     let url = "{{.WebRoot}}volume/create";
@@ -1183,7 +1270,8 @@ function initDatatable() {
             },
             {extend: 'myspacer'},
             {
-                className: 'btn btn-warn',
+                className: 'btn btn-warn dtTooltip',
+                titleAttr: 'Go to form: mount volume to instance',
                 text: 'Mount',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -1200,7 +1288,8 @@ function initDatatable() {
                     window.location.href = url;
                 }
             }{{if eq .Backend "gcp"}},{extend: 'myspacer'},{
-                className: 'btn btn-info',
+                className: 'btn btn-info dtTooltip',
+                titleAttr: 'Grow given volume size',
                 text: 'Grow',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -1219,7 +1308,8 @@ function initDatatable() {
             }{{end}},{extend: 'myspacer'},{
                 extend: 'reload',className: 'btn btn-info',
             }{{if eq .Backend "gcp"}},{extend: 'myspacer'},{
-                className: 'btn btn-warning',
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Go to form: detach volume from instance',
                 text: 'Detach',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -1236,7 +1326,8 @@ function initDatatable() {
                     window.location.href = url;
                 }
             }{{end}},{extend: 'myspacer'},{
-                className: 'btn btn-danger',
+                className: 'btn btn-danger dtTooltip',
+                titleAttr: 'Delete a volume',
                 text: 'Delete',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -1278,8 +1369,17 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"]],
         buttons: [{
-            className: 'btn btn-success',
+            className: 'btn btn-success dtTooltip',
             text: 'Create',
+            {{if eq .Backend "aws"}}
+            titleAttr: 'Go to form: New Security Group',
+            {{end}}
+            {{if eq .Backend "gcp"}}
+            titleAttr: 'Go to form: New Firewall Rule',
+            {{end}}
+            {{if eq .Backend "docker"}}
+            titleAttr: 'Go to form: New Network',
+            {{end}}
             action: function ( e, dt, node, config ) {
                 {{if eq .Backend "aws"}}
                 let url = "{{.WebRoot}}config/aws/create-security-groups";
@@ -1292,7 +1392,8 @@ function initDatatable() {
                 {{end}}
                 window.location.href = url;
             }}{{if ne .Backend "docker"}},{extend: 'myspacer'},{
-                className: 'btn btn-warning',
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Lock incoming IP of a firewall',
                 text: 'Lock IP',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -1313,7 +1414,8 @@ function initDatatable() {
                     {{end}}
                     window.location.href = url;
                 }}{{end}},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',},{extend: 'myspacer'},{
-                className: 'btn btn-danger',
+                className: 'btn btn-danger dtTooltip',
+                titleAttr: 'Delete selected item(s)',
                 text: 'Delete',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -1326,7 +1428,7 @@ function initDatatable() {
                         return;
                     }
                     let data = {"list": arr}
-                    if (confirm("Remove "+arr.length+" firewall-rules")) {
+                    if (confirm("Remove "+arr.length+" items")) {
                         $("#loadingSpinner").show();
                         $.post("{{.WebRoot}}www/api/inventory/firewalls", JSON.stringify(data), function(data) {
                             showCommandOut(data);
@@ -1354,7 +1456,8 @@ function initDatatable() {
         },
         order: [0,"asc"],
         buttons: [{
-            className: 'btn btn-success',
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Create and install an automated instance expiry system',
             text: 'Create',
             action: function ( e, dt, node, config ) {
                 {{if eq .Backend "aws"}}
@@ -1365,7 +1468,8 @@ function initDatatable() {
                 {{end}}
                 window.location.href = url;
             }},{extend: 'myspacer'},{
-                className: 'btn btn-info',
+                className: 'btn btn-info dtTooltip',
+                titleAttr: 'Change run frequency of expiry checker',
                 text: 'Change Frequency',
                 action: function ( e, dt, node, config ) {
                     {{if eq .Backend "aws"}}
@@ -1376,7 +1480,8 @@ function initDatatable() {
                     {{end}}
                     window.location.href = url;
             }},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',},{extend: 'myspacer'},{
-                className: 'btn btn-danger',
+                className: 'btn btn-danger dtTooltip',
+                titleAttr: 'Remove automated instance expiry system',
                 text: 'Remove',
                 action: function ( e, dt, node, config ) {
                     {{if eq .Backend "aws"}}
@@ -1455,6 +1560,7 @@ $(function () {
     {{if .IsForm}}getCommand(true);{{end}}
     updateJobList(true, true);
     initDatatable();
+    $('.dtTooltip').tooltip({ trigger: "hover", placement: "bottom", fallbackPlacement:["right","top"], boundary: "viewport" });
   })
 {{template "ansiup" .}}
 {{end}}
