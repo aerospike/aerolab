@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/bestmethod/inslice"
+	"github.com/mattn/go-isatty"
 )
 
 type backendDocker struct {
@@ -1143,6 +1144,9 @@ func (d *backendDocker) RunCustomOut(clusterName string, node int, command []str
 	termMode := "-t"
 	if isInteractive {
 		termMode = "-ti"
+	}
+	if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+		termMode = "-t"
 	}
 	head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), termMode, name}
 	if len(command) == 0 {
