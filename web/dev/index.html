@@ -213,24 +213,44 @@
                   {{ if .Type.Input }}
                   {{if .Input.Tags}}
                   <div class="form-group" data-toggle="tooltipleft" title="{{.Input.Description}}">
-                    <label>{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
-                    <select class="select2bs4tag{{if .Input.Required}} aerolab-required{{end}}" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}">
+                    {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label>{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
+                    <select class="select2bs4tag{{if .Input.Required}} aerolab-required{{end}}" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
                     </select>
+                    {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>
                   {{else}}
                   <div class="form-group">
-                    <label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
-                    <input type="{{.Input.Type}}" class="form-control{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}">
+                    {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
+                    <input type="{{.Input.Type}}" class="form-control{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                    {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>
                   {{end}}
                   {{end}}
                   {{if .Type.Toggle}}
+                  {{if .Toggle.Optional}}
+                  <div class="form-group">
+                    <label>{{.Toggle.Name}}</label>
+                    <br>
+                    <div class="btn-group" data-toggle="buttons">
+                      <label class="btn btn-default" >
+                        <input type="radio"  name="{{.Toggle.ID}}" id="{{.Toggle.ID}}-on" value="on"> ON
+                      </label>
+                      <label class="btn btn-default active" >
+                        <input type="radio" name="{{.Toggle.ID}}" id="{{.Toggle.ID}}-unset" value="unset" checked="checked"> UNSET
+                      </label>
+                      <label class="btn btn-default" >
+                        <input type="radio"  name="{{.Toggle.ID}}" id="{{.Toggle.ID}}-off" value="off"> OFF
+                      </label>
+                    </div>
+                  </div>
+                  {{else}}
                   <div class="form-group">
                     <div class="custom-control custom-switch" data-toggle="tooltipleft" title="{{.Toggle.Description}}">
                       <input type="checkbox" class="custom-control-input" id="{{.Toggle.ID}}" name="{{.Toggle.ID}}"{{if .Toggle.On}} checked{{end}}{{if .Toggle.Disabled}} disabled{{end}}>
                       <label class="custom-control-label" for="{{.Toggle.ID}}">{{.Toggle.Name}}</label>
                     </div>
                   </div>
+                  {{end}}
                   {{end}}
                   {{if .Type.Select}}
                   <div class="form-group" data-toggle="tooltipleft" title="{{.Select.Description}}">

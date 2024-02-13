@@ -38,7 +38,12 @@ $('.checkForGetParams').each(function() {
     label = label[0].innerText.replace("* ","");
     var labelParam = $.urlParam(label);
     var inputItem = this;
+    var inputOptional = $('#isSet-' + $(this).attr('id'));
     if (labelParam != null) {
+        $(inputItem).removeAttr("hidden");
+        if (inputOptional.length > 0) {
+            inputOptional.val('yes');
+        }
         if (labelParam == "discover-caller-ip") {
             $.getJSON("https://api.ipify.org?format=json",
             function (data) {

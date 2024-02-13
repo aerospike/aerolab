@@ -1042,13 +1042,17 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 			}
 		case reflect.Ptr:
 			if commandValue.Field(i).Type().String() == "*flags.Filename" {
+				defStr := ""
+				if !commandValue.Field(i).IsNil() {
+					defStr = commandValue.Field(i).Elem().String()
+				}
 				// input type text
 				textType := tags.Get("webtype")
 				if textType == "" {
 					textType = "text"
 				}
 				required := false
-				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
+				if tags.Get("webrequired") == "true" && defStr == "" {
 					required = true
 				}
 				wf = append(wf, &webui.FormItem{
@@ -1059,11 +1063,125 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name:        name,
 						ID:          "xx" + prefix + "xx" + name,
 						Type:        textType,
-						Default:     commandValue.Field(i).String(),
+						Default:     defStr,
 						Description: tags.Get("description"),
 						Required:    required,
+						Optional:    true,
 					},
 				})
+			} else if commandValue.Field(i).Type().String() == "*bool" {
+				// toggle on-off - special - allow setting on/off/unset
+				paramOn := false
+				if !commandValue.Field(i).IsNil() {
+					paramOn = commandValue.Field(i).Elem().Bool()
+				}
+				paramDisable := false
+				descriptionHead := ""
+				if tags.Get("webdisable") == "true" {
+					paramDisable = true
+					descriptionHead = "(disabled for webui) "
+				}
+				if tags.Get("webset") == "true" {
+					paramOn = true
+				}
+				wf = append(wf, &webui.FormItem{
+					Type: webui.FormItemType{
+						Toggle: true,
+					},
+					Toggle: webui.FormItemToggle{
+						Name:        name,
+						Description: descriptionHead + tags.Get("description"),
+						ID:          "xx" + prefix + "xx" + name,
+						On:          paramOn,
+						Disabled:    paramDisable,
+						Optional:    true,
+					},
+				})
+			} else if commandValue.Field(i).Type().String() == "*int" {
+				// input item number - special - allow no setting if it's empty
+				noDef := ""
+				if !commandValue.Field(i).IsZero() {
+					noDef = strconv.Itoa(int(commandValue.Field(i).Elem().Int()))
+				}
+				wf = append(wf, &webui.FormItem{
+					Type: webui.FormItemType{
+						Input: true,
+					},
+					Input: webui.FormItemInput{
+						Name:        name,
+						ID:          "xx" + prefix + "xx" + name,
+						Type:        "number",
+						Default:     noDef,
+						Description: tags.Get("description"),
+						Optional:    true,
+					},
+				})
+			} else if commandValue.Field(i).Type().String() == "*string" {
+				// select items - choice/multichoice - special - allow not setting
+				strDef := ""
+				if !commandValue.Field(i).IsNil() {
+					strDef = commandValue.Field(i).Elem().String()
+				}
+				if tags.Get("webchoice") != "" {
+					multi := false
+					if tags.Get("webmulti") != "" {
+						multi = true
+					}
+					choices := []*webui.FormItemSelectItem{}
+					required := false
+					if tags.Get("webrequired") == "true" && strDef == "" {
+						required = true
+					}
+					for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
+						isSelected := false
+						if choice == strDef {
+							isSelected = true
+						}
+						choices = append(choices, &webui.FormItemSelectItem{
+							Name:     choice,
+							Value:    choice,
+							Selected: isSelected,
+						})
+					}
+					wf = append(wf, &webui.FormItem{
+						Type: webui.FormItemType{
+							Select: true,
+						},
+						Select: webui.FormItemSelect{
+							Name:        name,
+							ID:          "xx" + prefix + "xx" + name,
+							Description: tags.Get("description"),
+							Multiple:    multi,
+							Items:       choices,
+							Required:    required,
+							Optional:    true,
+						},
+					})
+				} else {
+					// input item text (possible multiple types)
+					textType := tags.Get("webtype")
+					if textType == "" {
+						textType = "text"
+					}
+					required := false
+					if tags.Get("webrequired") == "true" && strDef == "" {
+						required = true
+					}
+					wf = append(wf, &webui.FormItem{
+						Type: webui.FormItemType{
+							Input: true,
+						},
+						Input: webui.FormItemInput{
+							Name:        name,
+							ID:          "xx" + prefix + "xx" + name,
+							Type:        textType,
+							Default:     strDef,
+							Description: tags.Get("description"),
+							Required:    required,
+							Optional:    true,
+						},
+					})
+				}
 			} else {
 				return nil, fmt.Errorf("unknown field type (name=%s kind=%s type=%s)", name, kind.String(), commandValue.Field(i).Type().String())
 			}
@@ -1380,12 +1498,54 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 		case reflect.Ptr:
 			if field.Type().String() == "*flags.Filename" {
-				if v[0] != field.String() {
+				if v[0] != field.Elem().String() {
 					cj[param] = v[0]
 					if tag.Get("long") == "" {
 						tail = append(tail, v[0])
 					} else {
 						cmdline = append(cmdline, c.switchName(useShortSwitches, tag), v[0])
+					}
+				}
+			} else if field.Type().String() == "*bool" {
+				if v[0] != "unset" {
+					val := false
+					if v[0] == "on" {
+						val = true
+					}
+					if field.IsNil() || val != field.Elem().Bool() {
+						cj[param] = val
+						if val {
+							cmdline = append(cmdline, c.switchName(useShortSwitches, tag))
+						}
+					}
+				}
+			} else if field.Type().String() == "*int" {
+				isSet := r.PostForm["isSet-"+k]
+				if len(isSet) > 0 && isSet[0] == "yes" {
+					val, err := strconv.Atoi(v[0])
+					if err != nil {
+						http.Error(w, fmt.Sprintf("error parsing form item %s: %s", field.Type().Name(), err), http.StatusBadRequest)
+						return
+					}
+					if field.IsNil() || val != int(field.Elem().Int()) {
+						cj[param] = val
+						if tag.Get("long") == "" {
+							tail = append(tail, v[0])
+						} else {
+							cmdline = append(cmdline, c.switchName(useShortSwitches, tag), v[0])
+						}
+					}
+				}
+			} else if field.Type().String() == "*string" {
+				isSet := r.PostForm["isSet-"+k]
+				if len(isSet) > 0 && isSet[0] == "yes" {
+					if field.IsNil() || v[0] != field.Elem().String() {
+						if tag.Get("long") == "" {
+							tail = append(tail, "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
+						} else {
+							cmdline = append(cmdline, c.switchName(useShortSwitches, tag), "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
+						}
+						cj[param] = v[0]
 					}
 				}
 			} else {
