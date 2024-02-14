@@ -2,7 +2,6 @@
 
 * AGI Details button
 * attach command buttons
-  * AGI
   * Cluster/Client
 
 * AGI Improvements

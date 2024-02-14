@@ -236,6 +236,7 @@ func (c *webCmd) addInventoryHandlers() {
 	http.HandleFunc(c.WebRoot+"www/api/inventory/clusters", c.inventoryClusters)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/clients", c.inventoryClients)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/agi", c.inventoryAGI)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/agi/connect", c.inventoryAGIConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/nodes", c.inventoryNodesAction)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
 }
@@ -570,6 +571,17 @@ func (c *webCmd) inventoryClients(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(c.cache.inv.Clients)
 }
 
+func (c *webCmd) inventoryAGIConnect(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	name := r.FormValue("name")
+	token, err := c.agiTokens.GetToken(name)
+	if err != nil {
+		http.Error(w, "could not get token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(token))
+}
+
 func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
 	c.cache.ilcMutex.RLock()
 	c.cache.RLock()
@@ -637,7 +649,7 @@ func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
 	// get statuses for instances running
 	updateLock := new(sync.Mutex)
 	workers := new(sync.WaitGroup)
-	statusThreads := make(chan int, 5)
+	statusThreads := make(chan int, 10)
 	ex, err := os.Executable()
 	if err != nil {
 		log.Printf("ERROR could not get link for self: %s", err)

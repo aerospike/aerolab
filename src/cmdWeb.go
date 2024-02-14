@@ -60,6 +60,7 @@ type webCmd struct {
 	jobqueue            *jobqueue.Queue
 	cache               *inventoryCache
 	inventoryNames      map[string]*webui.InventoryItem
+	agiTokens           *agiWebTokens
 	cfgTs               time.Time
 }
 
@@ -198,6 +199,7 @@ func (c *webCmd) Execute(args []string) error {
 	if !c.Real {
 		return c.runLoop(args)
 	}
+	c.agiTokens = NewAgiWebTokenHandler()
 	c.cfgTs = time.Now()
 	c.joblist = &jobTrack{
 		j: make(map[string]*exec.Cmd),
