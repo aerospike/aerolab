@@ -256,7 +256,7 @@
                   {{if .Type.Select}}
                   <div class="form-group" data-toggle="tooltipleft" title="{{.Select.Description}}">
                     <label>{{if .Select.Required}}* {{end}}{{.Select.Name}}</label>
-                    <select class="select2bs4{{if .Select.Required}} aerolab-required{{end}}"{{if .Select.Multiple}} multiple="multiple"{{end}} style="width: 100%;" id="{{.Select.ID}}" name="{{.Select.ID}}">
+                    <select class="select2bs4 checkForGetParamsSelect{{if .Select.Required}} aerolab-required{{end}}"{{if .Select.Multiple}} multiple="multiple"{{end}} style="width: 100%;" id="{{.Select.ID}}" name="{{.Select.ID}}" valname="{{.Select.Name}}">
                     {{range .Select.Items}}
                     <option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>
                     {{end}}

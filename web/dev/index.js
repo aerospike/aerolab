@@ -30,6 +30,16 @@ $.urlParam = function(name){
     return decodeURI(results[1]) || 0;
 }
 
+$('.checkForGetParamsSelect').each(function() {
+    var valname = $(this).attr("valname");
+    var paramVal = $.urlParam(valname);
+    if (paramVal == null) {
+        return;
+    }
+    var item = this;
+    $(item).val([paramVal]);
+});
+
 $('.checkForGetParams').each(function() {
     var label = $("label[for='" + $(this).attr('id') + "']");
     if (label.length < 1) {
@@ -1208,7 +1218,26 @@ function initDatatable() {
         buttons: [{
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Create a template without running CreateCluster',
-            text: 'Create',
+            text: 'Create Cluster',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length != 1) {
+                    toastr.error("Select one row.");
+                    return;
+                }
+                let data = arr[0];
+                let url = "{{.WebRoot}}cluster/create?AerospikeVersion="+data["AerospikeVersion"]+"&DistroName="+data["Distribution"]+"&DistroVersion="+data["OSVersion"];
+                window.location.href = url;
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Create a template without running CreateCluster',
+            text: 'Create Template',
             action: function ( e, dt, node, config ) {
                 let url = "{{.WebRoot}}template/create";
                 window.location.href = url;
@@ -1552,7 +1581,7 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
         });
         return;
     }
-    // TODO this function; on cluster, client - we need the shell
+    window.open('{{.WebRoot}}www/api/inventory/'+target+'/connect?name='+name+"&node="+node, '_blank').focus();
 }
 
 var tabInit = true;

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -20,6 +21,8 @@ import (
 
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
+	"github.com/creack/pty"
+	"github.com/gorilla/websocket"
 	"github.com/lithammer/shortuuid"
 )
 
@@ -227,6 +230,10 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *webCmd) addInventoryHandlers() {
+	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/ws", c.inventoryClusterWs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/client/ws", c.inventoryClientWs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/connect", c.inventoryClusterConnect)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/client/connect", c.inventoryClientConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/volumes", c.inventoryVolumes)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/firewalls", c.inventoryFirewalls)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/expiry", c.inventoryExpiry)
@@ -1288,3 +1295,275 @@ func getString(item interface{}) (string, error) {
 		return "", errors.New("not a string")
 	}
 }
+
+func (c *webCmd) inventoryClusterConnect(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientConnect(w, r, "cluster")
+}
+
+func (c *webCmd) inventoryClientConnect(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientConnect(w, r, "client")
+}
+
+func (c *webCmd) inventoryClusterWs(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientWs(w, r, "cluster")
+}
+
+func (c *webCmd) inventoryClientWs(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientWs(w, r, "client")
+}
+
+type windowSize struct {
+	Rows uint16 `json:"rows"`
+	Cols uint16 `json:"cols"`
+	X    uint16
+	Y    uint16
+}
+
+type wsCounters struct {
+	sync.RWMutex
+	cmdReaders      int
+	connections     int
+	lastCmdReaders  int
+	lastConnections int
+}
+
+func (ws *wsCounters) Print() {
+	ws.RLock()
+	defer ws.RUnlock()
+	if ws.cmdReaders != ws.lastCmdReaders || ws.connections != ws.lastConnections {
+		log.Printf("WebSocket stat: local-processes:%d ws-connections:%d", ws.cmdReaders, ws.connections)
+		ws.lastCmdReaders = ws.cmdReaders
+		ws.lastConnections = ws.connections
+	}
+}
+
+func (ws *wsCounters) PrintTimer(interval time.Duration) {
+	for {
+		ws.Print()
+		time.Sleep(interval)
+	}
+}
+
+func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request, target string) {
+	r.ParseForm()
+	name := r.FormValue("name")
+	node := r.FormValue("node")
+	var upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Unable to upgrade connection to websocket: %s", err)
+		return
+	}
+	ex, err := os.Executable()
+	if err != nil {
+		log.Printf("Unable to get self: %s", err)
+		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+		return
+	}
+	attachCmd := "shell"
+	if target == "client" {
+		attachCmd = "client"
+	}
+	cmd := exec.Command(ex, "attach", attachCmd, "-n", name, "-l", node)
+	cmd.Env = append(os.Environ(), "TERM=xterm")
+	tty, err := pty.Start(cmd)
+	if err != nil {
+		log.Printf("Unable to start pty/cmd: %s", err)
+		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+		return
+	}
+	defer func() {
+		cmd.Process.Kill()
+		cmd.Process.Wait()
+		tty.Close()
+		conn.Close()
+	}()
+
+	isExit := make(chan struct{}, 1)
+	go func() {
+		c.wsCount.Lock()
+		c.wsCount.cmdReaders++
+		c.wsCount.Unlock()
+		defer func() {
+			c.wsCount.Lock()
+			c.wsCount.cmdReaders--
+			c.wsCount.Unlock()
+		}()
+		firstRead := true
+		for {
+			buf := make([]byte, 1024)
+			read, err := tty.Read(buf)
+			if err != nil {
+				if firstRead {
+					conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+					log.Printf("Unable to read from pty/cmd: %s", err)
+				}
+				isExit <- struct{}{}
+				conn.Close()
+				return
+			}
+			conn.WriteMessage(websocket.BinaryMessage, buf[:read])
+			firstRead = false
+		}
+	}()
+
+	c.wsCount.Lock()
+	c.wsCount.connections++
+	c.wsCount.Unlock()
+	defer func() {
+		c.wsCount.Lock()
+		c.wsCount.connections--
+		c.wsCount.Unlock()
+	}()
+	for {
+		if len(isExit) > 0 {
+			close(isExit)
+			log.Print("Exiting")
+			return
+		}
+		messageType, reader, err := conn.NextReader()
+		if err != nil {
+			if len(isExit) == 0 && !strings.Contains(err.Error(), "(going away)") {
+				log.Printf("Unable to grab next reader: %s", err)
+			}
+			return
+		}
+
+		if messageType == websocket.TextMessage {
+			log.Print("Unexpected text message")
+			conn.WriteMessage(websocket.TextMessage, []byte("Unexpected text message"))
+			continue
+		}
+
+		dataTypeBuf := make([]byte, 1)
+		read, err := reader.Read(dataTypeBuf)
+		if err != nil {
+			log.Printf("Unable to read message type from reader: %s", err)
+			conn.WriteMessage(websocket.TextMessage, []byte("Unable to read message type from reader"))
+			return
+		}
+
+		if read != 1 {
+			log.Printf("Unexpected number of bytes read: %d", read)
+			return
+		}
+
+		switch dataTypeBuf[0] {
+		case 0:
+			copied, err := io.Copy(tty, reader)
+			if err != nil {
+				log.Printf("Error after copying %d bytes: %s", copied, err)
+			}
+		case 1:
+			decoder := json.NewDecoder(reader)
+			resizeMessage := windowSize{}
+			err := decoder.Decode(&resizeMessage)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Error decoding resize message: "+err.Error()))
+				continue
+			}
+			log.Printf("resizeMessage: %v", resizeMessage)
+			errno := sysResizeWindow(tty, resizeMessage)
+			if errno != 0 {
+				log.Printf("Cannot resize terminal: syscall Error: %d", errno)
+			}
+		default:
+			log.Printf("Unknown data type: %v", dataTypeBuf[0])
+		}
+	}
+}
+
+func (c *webCmd) inventoryClusterClientConnect(w http.ResponseWriter, r *http.Request, target string) {
+	r.ParseForm()
+	name := r.FormValue("name")
+	node := r.FormValue("node")
+	w.Write([]byte(fmt.Sprintf(xterm, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, target, name, node)))
+}
+
+var xterm = `<!doctype html>
+<html>
+  <head>
+	<link rel="stylesheet" href="%swww/plugins/xtermjs/xterm.css" />
+	<script src="%swww/plugins/xtermjs/xterm.js"></script>
+	<script src="%swww/plugins/xtermjs/addon-attach.js"></script>
+	<script src="%swww/plugins/xtermjs/addon-fit.js"></script>
+	<style>
+	html, body {
+		margin:0px;
+		height:100vh;
+		width:100vw;
+	  }
+	  .terminal {
+		background:black;
+		height:100vh;
+		width:100vw;
+	  }
+	</style>
+  </head>
+  <body>
+	<div id="terminal"></div>
+	<script>
+	var prot = "ws://";
+	if (window.location.protocol == "https:") {
+		prot = "wss://";
+	}
+	var websocket = new WebSocket(prot + window.location.hostname + ":" + window.location.port + "%swww/api/inventory/%s/ws?name=%s&node=%s");
+	//var attachAddon = new AttachAddon(socket);
+	//term.loadAddon(attachAddon);
+	//term.open(document.getElementById('terminal'));
+	websocket.binaryType = "arraybuffer";
+	function ab2str(buf) {
+		return String.fromCharCode.apply(null, new Uint8Array(buf));
+	}
+	websocket.onopen = function(evt) {
+		term = new Terminal({
+			screenKeys: true,
+			useStyle: true,
+			cursorBlink: true,
+		});
+		var fitAddon = new FitAddon.FitAddon();
+		term.loadAddon(fitAddon);
+
+		term.onData(function(data) {
+			websocket.send(new TextEncoder().encode("\x00" + data));
+		});
+
+		term.onResize(function(evt) {
+			websocket.send(new TextEncoder().encode("\x01" + JSON.stringify({cols: evt.cols, rows: evt.rows})))
+		});
+
+		term.onTitleChange(function(title) {
+			document.title = title;
+		});
+
+		term.open(document.getElementById('terminal'));
+			fitAddon.fit();
+			websocket.onmessage = function(evt) {
+			if (evt.data instanceof ArrayBuffer) {
+				term.write(ab2str(evt.data));
+			} else {
+				alert(evt.data)
+			}
+		}
+
+		window.addEventListener('resize', function (e) {
+			fitAddon.fit();
+		})
+
+		websocket.onclose = function(evt) {
+			term.write("Session terminated");
+			term.destroy();
+		}
+
+		websocket.onerror = function(evt) {
+			if (typeof console.log == "function") {
+				alert(evt);
+			}
+		}
+	}
+	</script>
+  </body>
+</html>`

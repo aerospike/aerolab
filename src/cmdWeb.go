@@ -62,6 +62,7 @@ type webCmd struct {
 	inventoryNames      map[string]*webui.InventoryItem
 	agiTokens           *agiWebTokens
 	cfgTs               time.Time
+	wsCount             *wsCounters
 }
 
 type jobTrack struct {
@@ -200,6 +201,8 @@ func (c *webCmd) Execute(args []string) error {
 		return c.runLoop(args)
 	}
 	c.agiTokens = NewAgiWebTokenHandler()
+	c.wsCount = new(wsCounters)
+	go c.wsCount.PrintTimer(time.Second)
 	c.cfgTs = time.Now()
 	c.joblist = &jobTrack{
 		j: make(map[string]*exec.Cmd),
