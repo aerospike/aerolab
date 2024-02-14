@@ -59,7 +59,7 @@ type xdrConnectRealCmd struct {
 	prevAwsRegion           string
 	isConnector             bool
 	parallelLimit           int
-	Version                 TypeXDRVersion `short:"V" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto"`
+	Version                 TypeXDRVersion `short:"V" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto" webchoice:"auto,5,4"`
 	Restart                 TypeYesNo      `short:"T" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y" webchoice:"y,n"`
 	Namespaces              string         `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
 	xDestinations           []string

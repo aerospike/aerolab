@@ -1,7 +1,7 @@
 {{define "mainjs"}}
 function pendingActionShowAll(id) {
     let isChecked = $(id).is(":checked");
-    console.log(isChecked); // TODO
+    console.log(isChecked); // not implemented in this version
 }
 
 $('.aerolab-required').on("change",function() {
@@ -30,6 +30,16 @@ $.urlParam = function(name){
     return decodeURI(results[1]) || 0;
 }
 
+$('.checkForGetParamsSelect').each(function() {
+    var valname = $(this).attr("valname");
+    var paramVal = $.urlParam(valname);
+    if (paramVal == null) {
+        return;
+    }
+    var item = this;
+    $(item).val([paramVal]);
+});
+
 $('.checkForGetParams').each(function() {
     var label = $("label[for='" + $(this).attr('id') + "']");
     if (label.length < 1) {
@@ -38,18 +48,43 @@ $('.checkForGetParams').each(function() {
     label = label[0].innerText.replace("* ","");
     var labelParam = $.urlParam(label);
     var inputItem = this;
+    var inputOptional = $('#isSet-' + $(this).attr('id'));
     if (labelParam != null) {
+        $(inputItem).removeAttr("hidden");
+        if (inputOptional.length > 0) {
+            inputOptional.val('yes');
+        }
         if (labelParam == "discover-caller-ip") {
             $.getJSON("https://api.ipify.org?format=json",
             function (data) {
                 $(inputItem).val(data.ip);
+                handleRequiredFieldColor(inputItem);
             })
             .fail(function() {
                 $(inputItem).val(labelParam);
             });
         } else {
             $(this).val(labelParam);
+            handleRequiredFieldColor(this);
         };
+    };
+});
+
+$('.checkForGetParamsToggle').each(function() {
+    var label = $("label[for='" + $(this).attr('id') + "']");
+    if (label.length < 1) {
+        return;
+    }
+    label = label[0].innerText.replace("* ","");
+    var labelParam = $.urlParam(label);
+    var inputItem = this;
+    if (labelParam != null) {
+        if (labelParam == "on") {
+            $(this).attr('checked','checked');
+        } else if (labelParam == "off") {
+            $(this).removeAttr('checked');
+        };
+        $(this).val(labelParam);
     };
 });
 
@@ -404,6 +439,11 @@ function clearNotifications() {
 
 {{if .IsInventory}}
 $('a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
+    if (tabInit) {
+        tabInit = false;
+        return;
+    }
+    Cookies.set('aerolab_inventory_tab', $(e.target).attr("id"), { expires: 360, path: '{{.WebRoot}}' })
     var tab = $(e.target).attr("href") // activated tab
     let tables = $(tab).find('table');
     for (let i = 0; i < tables.length; i++) {
@@ -422,11 +462,18 @@ function initDatatable() {
     $.fn.dataTable.ext.errMode = 'alert';
     $.fn.dataTable.ext.buttons.reload = {
         text: 'Refresh',
+        titleAttr: 'Refresh table list from server',
+        className: 'dtTooltip',
         action: function ( e, dt, node, config ) {
             dt.ajax.reload(callback = function () {
                 toastr.success("Table data refreshed");
             });
         }
+    };
+    $.fn.dataTable.ext.buttons.myspacer = {
+        extend: 'spacer',
+        text: '&nbsp;',
+        style: 'empty', // empty|bar
     };
     Object.assign(DataTable.defaults, {
         paging: false,
@@ -438,18 +485,769 @@ function initDatatable() {
         select: true,
         dom: 'Bfrtip',
     });
+    $('#invclusters').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [[0,"asc"],[1,"asc"]];
+        },
+        order: [[0,"asc"],[1,"asc"]],
+        fixedColumns: {left: 2, right: 1},
+        buttons: [{
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Go to form: Create New Cluster',
+            text: 'Create',
+            action: function ( e, dt, node, config ) {
+                let url = "{{.WebRoot}}cluster/create";
+                window.location.href = url;
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Go to form: Grow Cluster',
+            text: 'Grow',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length != 1) {
+                    toastr.error("Select one row.");
+                    return;
+                }
+                let data = arr[0];
+                let url = "{{.WebRoot}}cluster/grow?ClusterName="+data["ClusterName"];
+                window.location.href = url;
+            }},
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-warn dtTooltip',
+                titleAttr: 'Start / stop instance(s) and aerospike',
+                text: 'Nodes',
+                buttons: [
+                    {
+                        className: 'dtTooltip',
+                        text: 'Start',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"start","type":"cluster"};
+                            if (confirm("Start "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
+                        }
+                    },
+                    {
+                        text: 'Stop',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"stop","type":"cluster"};
+                            if (confirm("Stop "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
+                        }
+                    },
+                ]
+            },
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-warn dtTooltip',
+                titleAttr: 'Perform aerospike service actions on node(s)',
+                text: 'Aerospike',
+                buttons: [
+                    {
+                        text: 'Start',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"aerospikeStart","type":"cluster"};
+                            if (confirm("Start aerospike on "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
+                        }
+                    },
+                    {
+                        text: 'Stop',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"aerospikeStop","type":"cluster"};
+                            if (confirm("Stop aerospike on "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
+                        }
+                    },
+                    {
+                        text: 'Restart',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"aerospikeRestart","type":"cluster"};
+                            if (confirm("Restart aerospike on "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
+                        }
+                    },
+                    {
+                        text: 'Status',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"aerospikeStatus","type":"cluster"};
+                            if (confirm("Status of aerospike on "+arr.length+" nodes")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
+                        }
+                    },
+                ]
+            },
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-warn dtTooltip',
+                titleAttr: 'Open forms for common configuration actions',
+                text: 'Configure',
+                buttons: [
+                    {
+                        text: 'Rack ID',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                            var cname = arr[0]["ClusterName"];
+                            var nodes = [];
+                            for (let i=0;i<arr.length;i++) {
+                                if (arr[i]["ClusterName"] != cname) {toastr.error("All selected nodes must belong to the same cluster for this action.");return;};
+                                nodes.push(arr[i]["NodeNo"]);
+                            }
+                            window.location.href = "{{.WebRoot}}conf/rackid?ClusterName="+arr[0]["ClusterName"]+"&Nodes="+nodes.join(',');
+                        }
+                    },
+                    {
+                        text: 'Namespace Memory',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                            var cname = arr[0]["ClusterName"];
+                            var nodes = [];
+                            for (let i=0;i<arr.length;i++) {
+                                if (arr[i]["ClusterName"] != cname) {toastr.error("All selected nodes must belong to the same cluster for this action.");return;};
+                                nodes.push(arr[i]["NodeNo"]);
+                            }
+                            window.location.href = "{{.WebRoot}}conf/namespace-memory?ClusterName="+arr[0]["ClusterName"]+"&Nodes="+nodes.join(',');
+                        }
+                    },
+                    {
+                        text: 'Fix HB Mesh',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                            var cname = arr[0]["ClusterName"];
+                            var nodes = [];
+                            for (let i=0;i<arr.length;i++) {
+                                if (arr[i]["ClusterName"] != cname) {toastr.error("All selected nodes must belong to the same cluster for this action.");return;};
+                                nodes.push(arr[i]["NodeNo"]);
+                            }
+                            window.location.href = "{{.WebRoot}}conf/fix-mesh?ClusterName="+arr[0]["ClusterName"]+"&Nodes="+nodes.join(',');
+                        }
+                    },
+                ]
+            },
+            {{if ne .Backend "docker"}}
+            {extend: 'myspacer'},
+            {
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Open form: Extend node(s) expiry time',
+                text: 'Extend Expiry',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                    if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                    let ans = prompt("New Expiry","30h0m0s");
+                    if (ans == null) {
+                        return;
+                    }
+                    let data = {"list": arr,"action":"extendExpiry","type":"cluster","expiry":ans};
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
+                }
+            },    
+            {{end}}
+            {extend: 'myspacer'},
+            {extend: 'reload',className: 'btn btn-info',},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Destroy node instance(s)',
+            text: 'Destroy',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr,"action":"destroy","type":"cluster"};
+                if (confirm("Remove "+arr.length+" nodes")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }}
+        ],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
+        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+            return "$" + Math.round(data*10000)/10000;
+        }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
+            let disabledString = 'success"';
+            if (!data) {
+                disabledString = 'default" disabled';
+            }
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'cluster','"+row["ClusterName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">Attach</button>';
+        }{{end}} },{{end}}]
+    });
+    $('#invclients').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [[0,"asc"],[1,"asc"]];
+        },
+        order: [[0,"asc"],[1,"asc"]],
+        fixedColumns: {left: 2, right: 1},
+        buttons: [
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-success dtTooltip',
+                titleAttr: 'Go to form: create new client machine of given type',
+                text: 'Create',
+                buttons: [
+                    {
+                        text: 'Vanilla',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/none";
+                        }
+                    },
+                    {
+                        text: 'Base',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/base";
+                        }
+                    },
+                    {
+                        text: 'AerospikeTools',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/tools";
+                        }
+                    },
+                    {
+                        text: 'AMS',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/ams";
+                        }
+                    },
+                    {
+                        text: 'VSCode',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/vscode";
+                        }
+                    },
+                    {
+                        text: 'Trino',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/trino";
+                        }
+                    },
+                    {
+                        text: 'ElasticSearch',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/elasticsearch";
+                        }
+                    },
+                    {
+                        text: 'RestGateway',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/rest-gateway";
+                        }
+                    },
+                ]
+            },
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-success dtTooltip',
+                titleAttr: 'Got to form: grow client machine set, adding a given machine type',
+                text: 'Grow',
+                buttons: [
+                    {
+                        text: 'Vanilla',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/none?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'Base',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/base?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'AerospikeTools',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/tools?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'AMS',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/ams?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'VSCode',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/vscode?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'Trino',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/trino?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'ElasticSearch',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/elasticsearch?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'RestGateway',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/create/rest-gateway?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                ]
+            },
+            {extend: 'myspacer'},
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-warn dtTooltip',
+                titleAttr: 'Start/Stop given instance(s)',
+                text: 'Nodes',
+                buttons: [
+                    {
+                        text: 'Start',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"start","type":"client"};
+                            if (confirm("Start "+arr.length+" clients")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
+                        }
+                    },
+                    {
+                        text: 'Stop',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                            let data = {"list": arr,"action":"stop","type":"client"};
+                            if (confirm("Stop "+arr.length+" clients")) {
+                                $("#loadingSpinner").show();
+                                $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                                .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                                .always(function() {$("#loadingSpinner").hide();});
+                            }
+                        }
+                    },
+                ]
+            },
+            {{if ne .Backend "docker"}}
+            {extend: 'myspacer'},
+            {
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Go to form: extend expiry of instance(s)',
+                text: 'Extend Expiry',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                    if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                    let ans = prompt("New Expiry","30h0m0s");
+                    if (ans == null) {
+                        return;
+                    }
+                    let data = {"list": arr,"action":"extendExpiry","type":"client","expiry":ans};
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
+                }
+            },    
+            {{end}}
+            {extend: 'myspacer'},
+            {extend: 'reload',className: 'btn btn-info',},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Destroy instance(s)',
+            text: 'Destroy',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr,"action":"destroy","type":"client"};
+                if (confirm("Remove "+arr.length+" machines")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }}
+        ],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
+        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+            return "$" + Math.round(data*10000)/10000;
+        }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
+            let disabledString = 'success"';
+            if (!data) {
+                disabledString = 'default" disabled';
+            }
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'client','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">Attach</button>';
+        }{{end}} },{{end}}]
+    });
+    $('#invagi').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [];
+        },
+        order: [],
+        fixedColumns: {left: 2, right: 1},
+        buttons: [
+            {
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Got to form: Create a new AGI instance',
+            text: 'Create',
+            action: function ( e, dt, node, config ) {
+                let url = "{{.WebRoot}}agi/create";
+                window.location.href = url;
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-warn dtTooltip',
+            titleAttr: 'Start a stopped AGI instance',
+            text: 'Start',
+            action: function ( e, dt, node, config ) {
+                let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                let data = {"list": arr,"action":"start","type":"agi"};
+                if (confirm("Start "+arr.length+" agi")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
+                }
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-warn dtTooltip',
+            titleAttr: 'Stop a running AGI instance',
+            text: 'Stop',
+            action: function ( e, dt, node, config ) {
+                let arr = [];dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                if (arr.length == 0) {toastr.error("Select one or more rows first");return;}
+                let data = {"list": arr,"action":"stop","type":"agi"};
+                if (confirm("Stop "+arr.length+" agi")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
+                }
+            }},            
+            {extend: 'myspacer'},
+            {extend: 'reload',className: 'btn btn-info',},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Remove an existing AGI instance',
+            text: 'Destroy',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr,"action":"destroy","type":"agi"};
+                if (confirm("Remove "+arr.length+" agi")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Remove an existing AGI instance and delete an existing AGI persistent data volume',
+            text: 'Delete',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length == 0) {
+                    toastr.error("Select one or more rows first");
+                    return;
+                }
+                let data = {"list": arr,"action":"delete","type":"agi"};
+                if (confirm("Remove "+arr.length+" agi and delete their persistent volumes")) {
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {
+                        showCommandOut(data);
+                    })
+                    .fail(function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        toastr.error(data.statusText+": "+body);
+                    })
+                    .always(function() {
+                        $("#loadingSpinner").hide();
+                    });
+                }
+            }},
+            {
+                extend: 'spacer',
+                text: '',
+                style: 'bar', // empty|bar
+            },
+            {
+                extend: 'collection',
+                className: 'custom-html-collection btn-info dtTooltip',
+                titleAttr: 'AGI instance actions',
+                text: 'Node',
+                buttons: [
+                    {
+                        text: 'Status',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            let url = "{{.WebRoot}}agi/status?ClusterName="+data["Name"];
+                            window.location.href = url;            
+                        }
+                    },
+                    {
+                        text: 'Details',
+                        action: function ( e, dt, node, config ) {
+                            // TODO background run and report in a nice way: including old-new-name mapping, errors, etc
+                            alert('not implemented yet');
+                        }
+                    },
+                    {
+                        text: 'Get share link',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            let url = "{{.WebRoot}}agi/add-auth-token?ClusterName="+data["Name"]+"&GenURL=on";
+                            window.location.href = url;  
+                        }
+                    },
+                    {
+                        text: 'Change label',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            let url = "{{.WebRoot}}agi/change-label?ClusterName="+data["Name"]+"&Gcpzone="+data["Zone"];
+                            window.location.href = url;            
+                        }
+                    },
+                    {
+                        text: 'Rerun ingest',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            let url = "{{.WebRoot}}agi/run-ingest?ClusterName="+data["Name"];
+                            window.location.href = url;            
+                        }
+                    },
+                ]
+            },
+        ],
+        ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
+        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+            return "$" + Math.round(data*10000)/10000;
+        }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
+            let disabledString = 'success"';
+            if (!data) {
+                disabledString = 'default" disabled';
+            }
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'agi','"+row["Name"]+"','1'"+","+meta.row+",'"+row["AccessURL"]+"'"+');">Connect</button>';
+        }{{end}} },{{end}}],
+    });
     $('#invtemplates').DataTable({
+        "stateSaveParams": function (settings, data) {
+            data.order = [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]];
+        },
+        order: [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]],
         fixedColumns: {left: 1},
         buttons: [{
-            className: 'btn btn-success',
-            text: 'Create',
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Create a template without running CreateCluster',
+            text: 'Create Cluster',
+            action: function ( e, dt, node, config ) {
+                let arr = [];
+                dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                    let data = this.data();
+                    arr.push(data);
+                });
+                if (arr.length != 1) {
+                    toastr.error("Select one row.");
+                    return;
+                }
+                let data = arr[0];
+                let url = "{{.WebRoot}}cluster/create?AerospikeVersion="+data["AerospikeVersion"]+"&DistroName="+data["Distribution"]+"&DistroVersion="+data["OSVersion"];
+                window.location.href = url;
+            }},
+            {extend: 'myspacer'},
+            {
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Create a template without running CreateCluster',
+            text: 'Create Template',
             action: function ( e, dt, node, config ) {
                 let url = "{{.WebRoot}}template/create";
                 window.location.href = url;
             }},
+            {extend: 'myspacer'},
             {extend: 'reload',className: 'btn btn-info',},
+            {extend: 'myspacer'},
             {
-            className: 'btn btn-danger',
+            className: 'btn btn-danger dtTooltip',
+            titleAttr: 'Delete template(s)',
             text: 'Delete',
             action: function ( e, dt, node, config ) {
                 let arr = [];
@@ -484,17 +1282,133 @@ function initDatatable() {
     });
     {{ if ne .Backend "docker" }}
     $('#invvolumes').DataTable({
-        //fixedColumns: {left: 1},
-        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        "stateSaveParams": function (settings, data) {
+            data.order = [0,"asc"];
+        },
+        order: [0,"asc"],
+        fixedColumns: {left: 1},
+        buttons: [
+            {
+                className: 'btn btn-success dtTooltip',
+                titleAttr: 'Got to form: new volume',
+                text: 'Create',
+                action: function ( e, dt, node, config ) {
+                    let url = "{{.WebRoot}}volume/create";
+                    window.location.href = url;
+                }
+            },
+            {extend: 'myspacer'},
+            {
+                className: 'btn btn-warn dtTooltip',
+                titleAttr: 'Go to form: mount volume to instance',
+                text: 'Mount',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length != 1) {
+                        toastr.error("Select one row.");
+                        return;
+                    }
+                    let data = arr[0];
+                    let url = "{{.WebRoot}}volume/mount?Name="+data["Name"];
+                    window.location.href = url;
+                }
+            }{{if eq .Backend "gcp"}},{extend: 'myspacer'},{
+                className: 'btn btn-info dtTooltip',
+                titleAttr: 'Grow given volume size',
+                text: 'Grow',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length != 1) {
+                        toastr.error("Select one row.");
+                        return;
+                    }
+                    let data = arr[0];
+                    let url = "{{.WebRoot}}volume/grow?Name="+data["Name"]+"&Zone="+data["AvailabilityZoneName"];
+                    window.location.href = url;
+                }
+            }{{end}},{extend: 'myspacer'},{
+                extend: 'reload',className: 'btn btn-info',
+            }{{if eq .Backend "gcp"}},{extend: 'myspacer'},{
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Go to form: detach volume from instance',
+                text: 'Detach',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length != 1) {
+                        toastr.error("Select one row.");
+                        return;
+                    }
+                    let data = arr[0];
+                    let url = "{{.WebRoot}}volume/detach?Name="+data["Name"]+"&Zone="+data["AvailabilityZoneName"];
+                    window.location.href = url;
+                }
+            }{{end}},{extend: 'myspacer'},{
+                className: 'btn btn-danger dtTooltip',
+                titleAttr: 'Delete a volume',
+                text: 'Delete',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                        let data = this.data();
+                        arr.push(data);
+                    });
+                    if (arr.length == 0) {
+                        toastr.error("Select one or more rows first");
+                        return;
+                    }
+                    let data = {"list": arr}
+                    if (confirm("Remove "+arr.length+" volumes")) {
+                        $("#loadingSpinner").show();
+                        $.post("{{.WebRoot}}www/api/inventory/volumes", JSON.stringify(data), function(data) {
+                            showCommandOut(data);
+                        })
+                        .fail(function(data) {
+                            let body = data.responseText;
+                            if ((data.status == 0)&&(body == undefined)) {
+                                body = "Connection Error";
+                            }
+                            toastr.error(data.statusText+": "+body);
+                        })
+                        .always(function() {
+                            $("#loadingSpinner").hide();
+                        });
+                    }
+                }
+            }
+        ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/volumes',dataSrc:""},
         columns: [{{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
     });
     {{end}}
     $('#invfirewalls').DataTable({
-        //fixedColumns: {left: 1},
+        "stateSaveParams": function (settings, data) {
+            data.order = [[0,"asc"],[1,"asc"]];
+        },
+        order: [[0,"asc"],[1,"asc"]],
         buttons: [{
-            className: 'btn btn-success',
+            className: 'btn btn-success dtTooltip',
             text: 'Create',
+            {{if eq .Backend "aws"}}
+            titleAttr: 'Go to form: New Security Group',
+            {{end}}
+            {{if eq .Backend "gcp"}}
+            titleAttr: 'Go to form: New Firewall Rule',
+            {{end}}
+            {{if eq .Backend "docker"}}
+            titleAttr: 'Go to form: New Network',
+            {{end}}
             action: function ( e, dt, node, config ) {
                 {{if eq .Backend "aws"}}
                 let url = "{{.WebRoot}}config/aws/create-security-groups";
@@ -506,8 +1420,9 @@ function initDatatable() {
                 let url = "{{.WebRoot}}config/docker/create-network";
                 {{end}}
                 window.location.href = url;
-            }}{{if ne .Backend "docker"}},{
-                className: 'btn btn-warning',
+            }}{{if ne .Backend "docker"}},{extend: 'myspacer'},{
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Lock incoming IP of a firewall',
                 text: 'Lock IP',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -527,8 +1442,9 @@ function initDatatable() {
                     let url = "{{.WebRoot}}config/gcp/lock-firewall-rules?NamePrefix="+data["GCP"]["FirewallName"]+"&IP=discover-caller-ip";
                     {{end}}
                     window.location.href = url;
-                }}{{end}},{extend: 'reload',className: 'btn btn-info',},{
-                className: 'btn btn-danger',
+                }}{{end}},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',},{extend: 'myspacer'},{
+                className: 'btn btn-danger dtTooltip',
+                titleAttr: 'Delete selected item(s)',
                 text: 'Delete',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
@@ -541,7 +1457,7 @@ function initDatatable() {
                         return;
                     }
                     let data = {"list": arr}
-                    if (confirm("Remove "+arr.length+" templates")) {
+                    if (confirm("Remove "+arr.length+" items")) {
                         $("#loadingSpinner").show();
                         $.post("{{.WebRoot}}www/api/inventory/firewalls", JSON.stringify(data), function(data) {
                             showCommandOut(data);
@@ -564,9 +1480,13 @@ function initDatatable() {
     });
     {{ if ne .Backend "docker" }}
     $('#invexpiry').DataTable({
-        //fixedColumns: {left: 1},
+        "stateSaveParams": function (settings, data) {
+            data.order = [0,"asc"];
+        },
+        order: [0,"asc"],
         buttons: [{
-            className: 'btn btn-success',
+            className: 'btn btn-success dtTooltip',
+            titleAttr: 'Create and install an automated instance expiry system',
             text: 'Create',
             action: function ( e, dt, node, config ) {
                 {{if eq .Backend "aws"}}
@@ -576,8 +1496,9 @@ function initDatatable() {
                 let url = "{{.WebRoot}}config/gcp/expiry-install";
                 {{end}}
                 window.location.href = url;
-            }},{
-                className: 'btn btn-info',
+            }},{extend: 'myspacer'},{
+                className: 'btn btn-info dtTooltip',
+                titleAttr: 'Change run frequency of expiry checker',
                 text: 'Change Frequency',
                 action: function ( e, dt, node, config ) {
                     {{if eq .Backend "aws"}}
@@ -587,8 +1508,9 @@ function initDatatable() {
                     let url = "{{.WebRoot}}config/gcp/expiry-run-frequency";
                     {{end}}
                     window.location.href = url;
-            }},{extend: 'reload',className: 'btn btn-info',},{
-                className: 'btn btn-danger',
+            }},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',},{extend: 'myspacer'},{
+                className: 'btn btn-danger dtTooltip',
+                titleAttr: 'Remove automated instance expiry system',
                 text: 'Remove',
                 action: function ( e, dt, node, config ) {
                     {{if eq .Backend "aws"}}
@@ -605,7 +1527,10 @@ function initDatatable() {
     {{end}}
     {{if eq .Backend "aws"}}
     $('#invsubnets').DataTable({
-        //fixedColumns: {left: 1},
+        "stateSaveParams": function (settings, data) {
+            data.order = [[3,"asc"],[6,"asc"]];
+        },
+        order: [[3,"asc"],[6,"asc"]],
         buttons: [{extend: 'reload',className: 'btn btn-info',}],
         ajax: {url:'{{.WebRoot}}www/api/inventory/subnets',dataSrc:""},
         columns: [{{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
@@ -617,7 +1542,58 @@ function initDatatable() {
 }
 {{end}}
 
+function xRunAttach(tbutton, target, name, node, row, accessURL="") {
+    // workaround - prevent selection on button click
+    let table = "";
+    switch (target) {
+        case "cluster":
+            table = '#invclusters';
+            break;
+        case "client":
+            table = '#invclients';
+            break;
+        case "agi":
+            table = '#invagi';
+            break;
+    }
+    let t = $(table).DataTable();
+    if (t.row(row).selected()) { t.row(row).deselect() } else { t.row(row).select() };
+    console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row+" accessURL:"+accessURL);
+
+    if (target == "agi") {
+        $(tbutton).addClass("disabled");
+        var tbText = $(tbutton).text();
+        $(tbutton).html('<span class="fa-solid fa-circle-notch fa-spin"></span>');
+        $.post("{{.WebRoot}}www/api/inventory/agi/connect", "name="+name, function(data) {
+            var url = accessURL+"?AGI_TOKEN="+data
+            window.open(url, '_blank').focus();
+        })
+        .fail(function(data) {
+            let body = data.responseText;
+            if ((data.status == 0)&&(body == undefined)) {
+                body = "Connection Error";
+            }
+            toastr.error(data.statusText+": "+body);
+        })
+        .always(function() {
+            $(tbutton).removeClass("disabled");
+            $(tbutton).text(tbText);
+        });
+        return;
+    }
+    window.open('{{.WebRoot}}www/api/inventory/'+target+'/connect?name='+name+"&node="+node, '_blank').focus();
+}
+
+var tabInit = true;
 $(function () {
+    {{if .IsInventory}}
+    var selTab = Cookies.get('aerolab_inventory_tab');
+    if (selTab != null && selTab != undefined && selTab != "" && !$("#"+selTab).hasClass("active")) {
+        $("#"+selTab).tab("show");
+    } else {
+        $($("#inventoryTabs").find(".inventoryTab")[0]).tab("show");
+    }
+    {{end}}
     $('[data-toggle="tooltip"]').tooltip({ trigger: "hover", placement: "right", fallbackPlacement:["bottom","top"], boundary: "viewport" });
     $('[data-toggle="tooltipleft"]').tooltip({ trigger: "hover", placement: getTooltipPlacement(), fallbackPlacement:["bottom"], boundary: "viewport" });
     $('[data-toggle="tooltiptop"]').tooltip({ trigger: "hover", placement: "top", fallbackPlacement:["left","right"], boundary: "viewport" });
@@ -632,6 +1608,7 @@ $(function () {
     {{if .IsForm}}getCommand(true);{{end}}
     updateJobList(true, true);
     initDatatable();
+    $('.dtTooltip').tooltip({ trigger: "hover", placement: "bottom", fallbackPlacement:["right","top"], boundary: "viewport" });
   })
 {{template "ansiup" .}}
 {{end}}

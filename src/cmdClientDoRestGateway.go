@@ -21,7 +21,7 @@ type clientCreateRestGatewayCmd struct {
 	ClusterName TypeClusterName        `short:"C" long:"cluster-name" description:"cluster name to connect to" default:"mydc"`
 	User        string                 `long:"user" description:"connect username"`
 	Pass        string                 `long:"pass" description:"connect password"`
-	JustDoIt    bool                   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
+	JustDoIt    bool                   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	chDirCmd
 }
 

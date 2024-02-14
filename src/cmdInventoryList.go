@@ -24,14 +24,15 @@ import (
 )
 
 type inventoryListCmd struct {
-	Owner      string   `long:"owner" description:"Only show resources tagged with this owner"`
-	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
-	SortBy     []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
-	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
-	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
-	AWSFull    bool     `long:"aws-full" description:"set to iterate through all regions and provide full output"`
-	RenderType string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
-	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Owner        string   `long:"owner" description:"Only show resources tagged with this owner"`
+	Pager        bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	SortBy       []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
+	Json         bool     `short:"j" long:"json" description:"Provide output in json format"`
+	JsonPretty   bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
+	AWSFull      bool     `long:"aws-full" description:"set to iterate through all regions and provide full output"`
+	RenderType   string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
+	GetAGIStatus bool     `long:"with-agi" description:"also get status of AGI ingests" hidden:"true"`
+	Help         helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *inventoryListCmd) Execute(args []string) error {
@@ -45,6 +46,130 @@ const inventoryShowExpirySystem = 1
 const inventoryShowAGI = 2
 const inventoryShowAGIStatus = 4
 const inventoryShowVolumes = 8
+
+func (c *inventoryListCmd) getAGIStatus(inv *inventoryJson) {
+	updateLock := new(sync.Mutex)
+	workers := new(sync.WaitGroup)
+	statusThreads := make(chan int, 10)
+	b.WorkOnServers()
+	for i := range inv.AGI {
+		if inv.AGI[i].PublicIP == "" && inv.AGI[i].PrivateIP == "" {
+			continue
+		}
+		workers.Add(1)
+		statusThreads <- 1
+		go func(i int, v inventoryWebAGI) {
+			defer workers.Done()
+			defer func() {
+				<-statusThreads
+			}()
+			statusMsg := "unknown"
+			if (v.PublicIP != "" && strings.ToLower(v.State) == "running") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIP != "" && strings.HasPrefix(v.State, "Up")) {
+				outx, err := b.RunCommands(v.Name, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
+				out := outx[0]
+				if err == nil {
+					clusterStatus := &ingest.IngestStatusStruct{}
+					err = json.Unmarshal(out, clusterStatus)
+					if err == nil {
+						if !clusterStatus.AerospikeRunning {
+							statusMsg = "ERR: ASD DOWN"
+						} else if !clusterStatus.GrafanaHelperRunning {
+							statusMsg = "ERR: GRAFANAFIX DOWN"
+						} else if !clusterStatus.PluginRunning {
+							statusMsg = "ERR: PLUGIN DOWN"
+						} else if !clusterStatus.Ingest.CompleteSteps.Init {
+							statusMsg = "(1/6) INIT"
+						} else if !clusterStatus.Ingest.CompleteSteps.Download {
+							statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
+						} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
+							statusMsg = "(3/6) UNPACK"
+						} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
+							statusMsg = "(4/6) PRE-PROCESS"
+						} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
+							statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
+						} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
+							statusMsg = "(6/6) COLLECTINFO"
+						} else {
+							statusMsg = "READY"
+						}
+						if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+							statusMsg = "ERR: INGEST DOWN"
+						}
+					}
+				}
+			} else {
+				statusMsg = ""
+			}
+			updateLock.Lock()
+			inv.AGI[i].Status = statusMsg
+			updateLock.Unlock()
+		}(i, inv.AGI[i])
+	}
+	workers.Wait()
+}
+
+func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
+	inva := []inventoryWebAGI{}
+	agiVolNames := make(map[string]int) // map[agiName] = indexOf(inv)
+	for _, vol := range inv.Volumes {
+		if !vol.AGIVolume {
+			continue
+		}
+		agiVolNames[vol.Name] = len(inva)
+		inva = append(inva, inventoryWebAGI{
+			Name:         vol.Name,
+			VolOwner:     vol.Owner,
+			AGILabel:     vol.AgiLabel,
+			VolSize:      vol.SizeString,
+			VolExpires:   vol.ExpiresIn,
+			Zone:         vol.AvailabilityZoneName,
+			VolID:        vol.FileSystemId,
+			CreationTime: vol.CreationTime,
+		})
+	}
+	for _, inst := range inv.Clusters {
+		if inst.Features&ClusterFeatureAGI <= 0 {
+			continue
+		}
+		if idx, ok := agiVolNames[inst.ClusterName]; ok {
+			inva[idx].State = inst.State
+			inva[idx].Expires = inst.Expires
+			inva[idx].Owner = inst.Owner
+			inva[idx].AccessURL = inst.AccessUrl
+			inva[idx].AGILabel = inst.AGILabel
+			inva[idx].RunningCost = inst.InstanceRunningCost
+			inva[idx].PublicIP = inst.PublicIp
+			inva[idx].PrivateIP = inst.PrivateIp
+			inva[idx].Firewalls = inst.Firewalls
+			inva[idx].Zone = inst.Zone
+			inva[idx].InstanceID = inst.InstanceId
+			inva[idx].ImageID = inst.ImageId
+			inva[idx].InstanceType = inst.InstanceType
+			inva[idx].CreationTime = time.Time{} // TODO
+			inva[idx].IsRunning = inst.IsRunning
+		} else {
+			inva = append(inva, inventoryWebAGI{
+				Name:         inst.ClusterName,
+				State:        inst.State,
+				Expires:      inst.Expires,
+				Owner:        inst.Owner,
+				AccessURL:    inst.AccessUrl,
+				AGILabel:     inst.AGILabel,
+				RunningCost:  inst.InstanceRunningCost,
+				PublicIP:     inst.PublicIp,
+				PrivateIP:    inst.PrivateIp,
+				Firewalls:    inst.Firewalls,
+				Zone:         inst.Zone,
+				InstanceID:   inst.InstanceId,
+				ImageID:      inst.ImageId,
+				InstanceType: inst.InstanceType,
+				CreationTime: time.Time{}, // TODO
+				IsRunning:    inst.IsRunning,
+			})
+		}
+	}
+	inv.AGI = inva
+}
 
 func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool, showOthers ...int) error {
 	if c.JsonPretty {
@@ -168,10 +293,14 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 	}
 
+	c.fillAGIStruct(&inv)
 	if c.Json {
 		enc := json.NewEncoder(os.Stdout)
 		if c.JsonPretty {
 			enc.SetIndent("", "    ")
+		}
+		if c.GetAGIStatus {
+			c.getAGIStatus(&inv)
 		}
 		if showClusters && showClients && showTemplates && showFirewalls && showSubnets {
 			err = enc.Encode(inv)

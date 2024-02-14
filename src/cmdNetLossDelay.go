@@ -17,7 +17,7 @@ type netLossDelayCmd struct {
 	DestinationClusterName TypeClusterName   `short:"d" long:"destination" description:"Destination Cluster name/Client group" default:"mydc-xdr"`
 	DestinationNodeList    TypeNodes         `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
 	IsDestinationClient    bool              `short:"C" long:"destination-client" description:"set to indicate the destination is a client group"`
-	Action                 TypeNetLossAction `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show"`
+	Action                 TypeNetLossAction `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show" webchoice:"show,set,del,delall"`
 	ShowNames              bool              `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output"`
 	Delay                  string            `short:"D" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
 	Loss                   string            `short:"L" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`

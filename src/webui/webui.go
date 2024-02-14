@@ -67,6 +67,7 @@ type FormItemInput struct {
 	Default     string
 	Tags        bool
 	Required    bool
+	Optional    bool
 }
 
 type FormItemSelect struct {
@@ -76,6 +77,7 @@ type FormItemSelect struct {
 	Multiple    bool
 	Required    bool
 	Items       []*FormItemSelectItem
+	Optional    bool
 }
 
 type FormItemSelectItem struct {
@@ -90,6 +92,7 @@ type FormItemToggle struct {
 	ID          string
 	On          bool
 	Disabled    bool
+	Optional    bool
 }
 
 type Nav struct {
