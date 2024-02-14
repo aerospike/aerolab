@@ -109,7 +109,16 @@ func handleExit() {
 	}
 }
 
+type logWriter struct {
+}
+
+func (writer logWriter) Write(bytes []byte) (int, error) {
+	return fmt.Fprintf(os.Stderr, time.Now().Format("2006/01/02 15:04:05 -0700")+" "+string(bytes))
+}
+
 func main() {
+	log.SetFlags(0)
+	log.SetOutput(new(logWriter))
 	if installSelf() {
 		return
 	}
@@ -312,6 +321,7 @@ func earlyProcessV2(tail []string, initBackend bool) (early bool) {
 	if b != nil {
 		b.WorkOnServers()
 	}
+	log.SetFlags(0)
 	log.SetOutput(&tStderr{})
 	// webui call: exit early, webrun will trigger telemetry separately
 	if len(os.Args) >= 1 && os.Args[1] == "webrun" {
@@ -353,7 +363,11 @@ func (t *tStderr) Write(b []byte) (int, error) {
 	}
 	currentTelemetry.Stderr = append(currentTelemetry.Stderr, string(b))
 	t.OutSize++
-	return os.Stderr.Write(b)
+	bb := make([]byte, 0, 26+len(b))
+	bb = append(bb, []byte(time.Now().Format("2006/01/02 15:04:05 -0700"))...)
+	bb = append(bb, ' ')
+	bb = append(bb, b...)
+	return os.Stderr.Write(bb)
 }
 
 func (a *aerolab) telemetry(webuiData string) error {
