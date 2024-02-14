@@ -22,6 +22,7 @@
 * ENHANCEMENT: Tested and documented podman backend support.
 * ENHANCEMENT: AGI: Check sftp access and file count in directory prior to creating anything.
 * ENHANCEMENT: AGI: (gcp/aws) Always check if the selected instance type is large enough.
+* ENHANCEMENT: logging adds timezone now.
 
 #### 7.3.0
 * Volume command supports mounts on centos/amazon.
