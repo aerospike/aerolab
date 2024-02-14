@@ -1196,7 +1196,7 @@ function initDatatable() {
             if (!data) {
                 disabledString = 'default" disabled';
             }
-            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"'agi','"+row["Name"]+"','1'"+","+meta.row+');">Connect</button>';
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"'agi','"+row["Name"]+"','1'"+","+meta.row+",'"+row["AccessURL"]+"'"+');">Connect</button>';
         }{{end}} },{{end}}],
     });
     $('#invtemplates').DataTable({
@@ -1513,7 +1513,7 @@ function initDatatable() {
 }
 {{end}}
 
-function xRunAttach(target, name, node, row) {
+function xRunAttach(target, name, node, row, accessURL="") {
     // workaround - prevent selection on button click
     let table = "";
     switch (target) {
@@ -1529,11 +1529,25 @@ function xRunAttach(target, name, node, row) {
     }
     let t = $(table).DataTable();
     if (t.row(row).selected()) { t.row(row).deselect() } else { t.row(row).select() };
-    // TODO this function
-    // TODO remember: on cluster, client - we need the shell
-    // TODO remember: on agi - we simply need to get share link URL (if we don't have one yet) and redirect the user to it
-    // TODO the share links should be cached either on aerolab or browser side
-    console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row);
+    console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row+" accessURL:"+accessURL);
+
+    if (target == "agi") {
+        $.post("{{.WebRoot}}www/api/inventory/agi/connect", "name="+name, function(data) {
+            var url = accessURL+"?AGI_TOKEN="+data
+            window.open(url, '_blank').focus();
+        })
+        .fail(function(data) {
+            let body = data.responseText;
+            if ((data.status == 0)&&(body == undefined)) {
+                body = "Connection Error";
+            }
+            toastr.error(data.statusText+": "+body);
+        })
+        .always(function() {
+        });
+        return;
+    }
+    // TODO this function; on cluster, client - we need the shell
 }
 
 var tabInit = true;
