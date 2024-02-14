@@ -1543,20 +1543,46 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						userx := strings.Split(user, "/")
 						attachedTo = append(attachedTo, strings.TrimPrefix(userx[len(userx)-1], "aerolab4-"))
 					}
+					agiVolume := false
+					if pair.Labels["aerolab4features"] == "4" {
+						agiVolume = true
+					}
+					// expiry
+					expiry := ""
+					if lastUsed, ok := pair.Labels["lastused"]; ok {
+						lastUsed = strings.ToUpper(strings.ReplaceAll(lastUsed, "_", ":"))
+						if expireDuration, ok := pair.Labels["expireduration"]; ok {
+							expireDuration = strings.ReplaceAll(expireDuration, "_", ".")
+							lu, err := time.Parse(time.RFC3339, lastUsed)
+							if err == nil {
+								ed, err := time.ParseDuration(expireDuration)
+								if err == nil {
+									expiresTime := lu.Add(ed)
+									expiresIn := expiresTime.Sub(time.Now().In(expiresTime.Location()))
+									expiry = expiresIn.Round(time.Minute).String()
+								}
+							}
+						}
+					}
+					// expiry end
 					ij.Volumes = append(ij.Volumes, inventoryVolume{
 						AvailabilityZoneId:   *pair.Zone,
 						AvailabilityZoneName: nzone[len(nzone)-1],
-						FileSystemId:         *pair.Name,
 						CreationTime:         ts,
 						LifeCycleState:       *pair.Status,
 						Name:                 *pair.Name,
 						SizeBytes:            int(*pair.SizeGb) * 1024 * 1024 * 1024,
+						SizeString:           convSize(*pair.SizeGb * 1024 * 1024 * 1024),
+						AgiLabel:             gcplabels.UnpackNoErr(pair.Labels, "agilabel"),
 						Tags:                 pair.Labels,
 						Owner:                pair.Labels["aerolab7owner"],
+						AGIVolume:            agiVolume,
 						GCP: inventoryVolumeGcp{
-							AttachedTo:  attachedTo,
-							Description: pair.GetDescription(),
+							AttachedTo:       attachedTo,
+							AttachedToString: strings.Join(attachedTo, ", "),
+							Description:      pair.GetDescription(),
 						},
+						ExpiresIn: expiry,
 					})
 					lock.Unlock()
 				}
@@ -2715,7 +2741,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall)
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall, true)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}
@@ -2962,10 +2988,10 @@ func (d *backendGcp) ListSubnets() error {
 	return errors.New("not implemented")
 }
 
-func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool) error {
+func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool, performLocking bool) error {
 	ctx := context.Background()
 	for _, name := range names {
-		if err := d.createSecurityGroupsIfNotExist(name, false); err != nil {
+		if err := d.createSecurityGroupsIfNotExist(name, false, performLocking); err != nil {
 			return err
 		}
 	}
@@ -3029,7 +3055,7 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 }
 
 func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error {
-	return d.createSecurityGroupsIfNotExist(namePrefix, isAgi)
+	return d.createSecurityGroupsIfNotExist(namePrefix, isAgi, true)
 }
 
 func (d *backendGcp) createSecurityGroupExternal(namePrefix string, isAgi bool) error {
@@ -3285,7 +3311,7 @@ func (d *backendGcp) ListSecurityGroups() error {
 	return nil
 }
 
-func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi bool) error {
+func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi bool, performLocking bool) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -3300,7 +3326,7 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi boo
 	it := firewallsClient.List(ctx, req)
 	existInternal := false
 	existExternal := false
-	needsLock := true
+	needsLock := performLocking
 	for {
 		firewallRule, err := it.Next()
 		if err == iterator.Done {
@@ -3508,7 +3534,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall)
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall, true)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}

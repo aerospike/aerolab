@@ -156,7 +156,7 @@ type backend interface {
 	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error
 	// may implement
 	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error
-	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool) error
+	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool) error
 	// may implement
 	ListSecurityGroups() error
 	// may implement
@@ -182,36 +182,66 @@ type inventoryJson struct {
 	Subnets       []inventorySubnet
 	ExpirySystem  []inventoryExpiry
 	Volumes       []inventoryVolume
+	AGI           []inventoryWebAGI
+}
+
+type inventoryWebAGI struct {
+	Name         string
+	State        string
+	Status       string
+	Expires      string `backends:"gcp,aws"`
+	VolOwner     string `backends:"gcp,aws"`
+	Owner        string
+	AccessURL    string
+	AGILabel     string
+	VolSize      string  `backends:"gcp,aws"`
+	VolExpires   string  `backends:"gcp,aws"`
+	RunningCost  float64 `backends:"gcp,aws"`
+	PublicIP     string
+	PrivateIP    string
+	Firewalls    []string `backends:"gcp,aws"`
+	Zone         string   `backends:"gcp,aws"`
+	VolID        string   `backends:"aws"`
+	InstanceID   string
+	ImageID      string    `backends:"docker"`
+	InstanceType string    `backends:"gcp,aws"`
+	CreationTime time.Time `hidden:"true"`
+	IsRunning    bool      `row:"Action"`
 }
 
 type inventoryVolume struct {
 	Name                 string
-	GCP                  inventoryVolumeGcp
-	FileSystemId         string
-	AvailabilityZoneName string
-	AvailabilityZoneId   string
-	CreationTime         time.Time
-	SizeBytes            int
-	Owner                string
-	LifeCycleState       string
-	Tags                 map[string]string
+	FileSystemId         string    `row:"FsID"`
+	AvailabilityZoneName string    `row:"Zone"`
+	CreationTime         time.Time `row:"Created"`
+	SizeBytes            int       `hidden:"true"`
+	SizeString           string    `row:"Size"`       // only used by webform
+	ExpiresIn            string    `row:"Expires In"` // only used by webform
 	AWS                  inventoryVolumeAws
+	GCP                  inventoryVolumeGcp
+	Owner                string
+	AGIVolume            bool              // only used by webform
+	AgiLabel             string            // only used by webform
+	AvailabilityZoneId   string            `hidden:"true"`
+	LifeCycleState       string            `hidden:"true"`
+	Tags                 map[string]string `hidden:"true"`
 }
 
 type inventoryVolumeAws struct {
-	CreationToken        string                 // aws
-	Encrypted            bool                   // aws
-	FileSystemArn        string                 // aws
-	NumberOfMountTargets int                    // aws
-	AWSOwnerId           string                 // aws
-	PerformanceMode      string                 // aws
-	ThroughputMode       string                 // aws
-	MountTargets         []inventoryMountTarget // aws
+	NumberOfMountTargets int                    `row:"MountTargets"`
+	CreationToken        string                 `hidden:"true"`
+	Encrypted            bool                   `hidden:"true"`
+	FileSystemArn        string                 `hidden:"true"`
+	AWSOwnerId           string                 `hidden:"true"`
+	PerformanceMode      string                 `hidden:"true"`
+	ThroughputMode       string                 `hidden:"true"`
+	MountTargets         []inventoryMountTarget `hidden:"true"`
 }
 
 type inventoryVolumeGcp struct {
-	AttachedTo  []string // gcp
-	Description string   // gcp
+	AttachedToString string   `row:"Attached To"` // only used by webform
+	AttachedTo       []string `hidden:"true"`
+	Description      string   `hidden:"true"`
 }
 
 type inventoryMountTarget struct {
@@ -256,26 +286,29 @@ type inventorySubnetAWS struct {
 type inventoryCluster struct {
 	ClusterName            string
 	NodeNo                 string
-	PrivateIp              string
-	PublicIp               string
-	InstanceId             string
-	ImageId                string
+	Expires                string `backends:"aws,gcp"`
 	State                  string
-	Arch                   string
-	Distribution           string
-	OSVersion              string
-	AerospikeVersion       string
-	Firewalls              []string
-	Zone                   string
-	InstanceRunningCost    float64
+	PublicIp               string
+	PrivateIp              string
+	DockerExposePorts      string `row:"ExposedPort" backends:"docker"`
+	DockerInternalPort     string `hidden:"true"`
 	Owner                  string
-	DockerExposePorts      string
-	DockerInternalPort     string
-	Expires                string
-	AccessUrl              string
-	Features               FeatureSystem
-	AGILabel               string
-	InstanceType           string
+	AerospikeVersion       string   `row:"AsdVer"`
+	InstanceRunningCost    float64  `row:"RunningCost" backends:"aws,gcp"`
+	Firewalls              []string `backends:"aws,gcp"`
+	Arch                   string
+	Distribution           string `row:"Distro"`
+	OSVersion              string `row:"DistroVer"`
+	Zone                   string `backends:"aws,gcp"`
+	InstanceId             string
+	ImageId                string        `backends:"docker"`
+	InstanceType           string        `backends:"aws,gcp"`
+	AwsIsSpot              bool          `row:"Spot" backends:"aws"`
+	GcpIsSpot              bool          `row:"Spot" backends:"gcp"`
+	AccessUrl              string        `hidden:"true"`
+	Features               FeatureSystem `hidden:"true"`
+	AGILabel               string        `hidden:"true"`
+	IsRunning              bool          `row:"Action"`
 	gcpLabelFingerprint    string
 	gcpLabels              map[string]string
 	gcpMetadataFingerprint string
@@ -284,8 +317,6 @@ type inventoryCluster struct {
 	dockerLabels           map[string]string
 	awsSubnet              string
 	awsSecGroups           []string
-	AwsIsSpot              bool
-	GcpIsSpot              bool
 }
 
 type FeatureSystem int64
@@ -338,26 +369,29 @@ const (
 type inventoryClient struct {
 	ClientName             string
 	NodeNo                 string
-	PrivateIp              string
-	PublicIp               string
-	InstanceId             string
-	ImageId                string
+	Expires                string `backends:"aws,gcp"`
 	State                  string
-	Arch                   string
-	Distribution           string
-	OSVersion              string
-	AerospikeVersion       string
+	PublicIp               string
+	PrivateIp              string
 	ClientType             string
 	AccessUrl              string
 	AccessPort             string
-	Firewalls              []string
-	Zone                   string
-	InstanceRunningCost    float64
 	Owner                  string
-	DockerExposePorts      string
-	DockerInternalPort     string
-	Expires                string
-	InstanceType           string
+	AerospikeVersion       string   `row:"AsdVer"`
+	InstanceRunningCost    float64  `row:"RunningCost" backends:"aws,gcp"`
+	Firewalls              []string `backends:"aws,gcp"`
+	Arch                   string
+	Distribution           string `row:"Distro"`
+	OSVersion              string `row:"DistroVer"`
+	Zone                   string `backends:"aws,gcp"`
+	InstanceId             string
+	ImageId                string `backends:"docker"`
+	InstanceType           string `backends:"aws,gcp"`
+	DockerExposePorts      string `backends:"docker" row:"ExposePorts"`
+	DockerInternalPort     string `hidden:"true"`
+	AwsIsSpot              bool   `backends:"aws" row:"Spot"`
+	GcpIsSpot              bool   `backends:"gcp" row:"Spot"`
+	IsRunning              bool   `row:"Action"`
 	gcpLabelFingerprint    string
 	gcpLabels              map[string]string
 	gcpMeta                map[string]string
@@ -366,8 +400,6 @@ type inventoryClient struct {
 	dockerLabels           map[string]string
 	awsSubnet              string
 	awsSecGroups           []string
-	AwsIsSpot              bool
-	GcpIsSpot              bool
 }
 
 type inventoryTemplate struct {

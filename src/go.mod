@@ -11,10 +11,12 @@ require (
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
 	github.com/containerd/console v1.0.3
+	github.com/creack/pty v1.1.21
 	github.com/creasty/defaults v1.7.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gabriel-vasile/mimetype v1.4.3
 	github.com/google/uuid v1.5.0
+	github.com/gorilla/websocket v1.5.1
 	github.com/jedib0t/go-pretty/v6 v6.4.9
 	github.com/jroimartin/gocui v0.5.0
 	github.com/lithammer/shortuuid v3.0.0+incompatible

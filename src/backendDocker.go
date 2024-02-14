@@ -16,12 +16,14 @@ import (
 	"time"
 
 	"github.com/bestmethod/inslice"
+	"github.com/mattn/go-isatty"
 )
 
 type backendDocker struct {
-	server bool
-	client bool
-	isArm  bool
+	server    bool
+	client    bool
+	isArm     bool
+	dockerCmd string
 }
 
 func init() {
@@ -351,7 +353,7 @@ func (d *backendDocker) Arch() TypeArch {
 	return TypeArchAmd
 }
 
-func (d *backendDocker) AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool) error {
+func (d *backendDocker) AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool) error {
 	return nil
 }
 
@@ -484,6 +486,20 @@ func (d *backendDocker) WorkOnServers() {
 	dockerNameHeader = "aerolab-"
 }
 
+func (d *backendDocker) initIsPodman() string {
+	ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer ctxCancel()
+	ret := "docker"
+	out, err := exec.CommandContext(ctx, "docker", "version").CombinedOutput()
+	if err != nil {
+		return ret
+	}
+	if strings.Contains(string(out), "Podman Engine") {
+		ret = "podman"
+	}
+	return ret
+}
+
 func (d *backendDocker) Init() error {
 	ctx, ctxCancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer ctxCancel()
@@ -509,6 +525,7 @@ func (d *backendDocker) Init() error {
 			break
 		}
 	}
+	d.dockerCmd = d.initIsPodman()
 	d.WorkOnServers()
 	return nil
 }
@@ -622,7 +639,7 @@ func (d *backendDocker) DeployTemplate(v backendVersion, script string, files []
 	}
 	// docker container commit container_name dist_ver:aeroVer
 	templImg := fmt.Sprintf(dockerNameHeader+"%s_%s_%s:%s", v.distroName, v.distroVersion, arch, v.aerospikeVersion)
-	out, err = exec.Command("docker", "container", "commit", templName, templImg).CombinedOutput()
+	out, err = exec.Command(d.dockerCmd, "container", "commit", templName, templImg).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to commit container to image: %s;%s", out, err)
 	}
@@ -815,7 +832,7 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 	newTmpl := false
 	ss := bufio.NewScanner(bytes.NewReader(repoCheck))
 	for ss.Scan() {
-		if strings.Trim(strings.ReplaceAll(ss.Text(), "\",\"", ":"), "\r\n\t \"") == tmplName {
+		if strings.TrimPrefix(strings.Trim(strings.ReplaceAll(ss.Text(), "\",\"", ":"), "\r\n\t \""), "localhost/") == tmplName {
 			newTmpl = true
 			break
 		}
@@ -1143,6 +1160,9 @@ func (d *backendDocker) RunCustomOut(clusterName string, node int, command []str
 	termMode := "-t"
 	if isInteractive {
 		termMode = "-ti"
+	}
+	if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+		termMode = "-t"
 	}
 	head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), termMode, name}
 	if len(command) == 0 {

@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"reflect"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -16,6 +21,8 @@ import (
 
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
+	"github.com/creack/pty"
+	"github.com/gorilla/websocket"
 	"github.com/lithammer/shortuuid"
 )
 
@@ -28,11 +35,17 @@ type inventoryCache struct {
 	ilcMutex        *sync.RWMutex
 	MinimumInterval time.Duration
 	lastRun         time.Time
+	executable      string
 }
 
 func (i *inventoryCache) Start(update func() (bool, error)) error {
+	executable, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	i.executable = executable
 	i.update = update
-	err := i.run(time.Time{})
+	err = i.run(time.Time{})
 	if err != nil {
 		return err
 	}
@@ -68,7 +81,7 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		}
 	}
 	i.lastRun = time.Now()
-	out, err := exec.Command("aerolab", "inventory", "list", "-j", "-p").CombinedOutput()
+	out, err := exec.Command(i.executable, "inventory", "list", "-j", "-p", "--with-agi").CombinedOutput()
 	if err != nil {
 		if isUpdated {
 			i.Lock()
@@ -82,6 +95,21 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 	if err != nil {
 		return err
 	}
+	for i := range inv.Clusters {
+		if strings.ToLower(inv.Clusters[i].State) == "running" || strings.HasPrefix(inv.Clusters[i].State, "Up_") {
+			inv.Clusters[i].IsRunning = true
+		}
+	}
+	for i := range inv.Clients {
+		if strings.ToLower(inv.Clients[i].State) == "running" || strings.HasPrefix(inv.Clients[i].State, "Up_") {
+			inv.Clients[i].IsRunning = true
+		}
+	}
+	for i := range inv.AGI {
+		if strings.ToLower(inv.AGI[i].State) == "running" || strings.HasPrefix(inv.AGI[i].State, "Up_") {
+			inv.AGI[i].IsRunning = true
+		}
+	}
 	i.Lock()
 	i.inv = inv
 	i.Unlock()
@@ -94,6 +122,15 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 	for i := 0; i < m.NumField(); i++ {
 		out[m.Field(i).Name] = &webui.InventoryItem{}
 		for j := 0; j < m.Field(i).Type.Elem().NumField(); j++ {
+			if m.Field(i).Type.Elem().Field(j).Tag.Get("hidden") != "" {
+				continue
+			}
+			if m.Field(i).Type.Elem().Field(j).Tag.Get("backends") != "" {
+				backends := strings.Split(m.Field(i).Type.Elem().Field(j).Tag.Get("backends"), ",")
+				if !inslice.HasString(backends, a.opts.Config.Backend.Type) {
+					continue
+				}
+			}
 			name := m.Field(i).Type.Elem().Field(j).Name
 			ntype := m.Field(i).Type.Elem().Field(j).Type
 			if ntype.Kind() == reflect.Ptr {
@@ -106,7 +143,19 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 				}
 				// get data from underneath
 				for x := 0; x < ntype.NumField(); x++ {
+					if ntype.Field(x).Tag.Get("hidden") != "" {
+						continue
+					}
+					if ntype.Field(x).Tag.Get("backends") != "" {
+						backends := strings.Split(ntype.Field(x).Tag.Get("backends"), ",")
+						if !inslice.HasString(backends, a.opts.Config.Backend.Type) {
+							continue
+						}
+					}
 					name := ntype.Field(x).Name
+					if name[0] >= 'a' && name[0] <= 'z' { // do not process parameters which start from lowercase - these will not be exported
+						continue
+					}
 					fname := ntype.Field(x).Tag.Get("row")
 					if fname == "" {
 						fname = name
@@ -117,6 +166,9 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 						Backend:      backend,
 					})
 				}
+				continue
+			}
+			if name[0] >= 'a' && name[0] <= 'z' { // do not process parameters which start from lowercase - these will not be exported
 				continue
 			}
 			fname := m.Field(i).Type.Elem().Field(j).Tag.Get("row")
@@ -178,12 +230,57 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *webCmd) addInventoryHandlers() {
+	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/ws", c.inventoryClusterWs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/client/ws", c.inventoryClientWs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/connect", c.inventoryClusterConnect)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/client/connect", c.inventoryClientConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/volumes", c.inventoryVolumes)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/firewalls", c.inventoryFirewalls)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/expiry", c.inventoryExpiry)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/subnets", c.inventorySubnets)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/templates", c.inventoryTemplates)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/clusters", c.inventoryClusters)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/clients", c.inventoryClients)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/agi", c.inventoryAGI)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/agi/connect", c.inventoryAGIConnect)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/nodes", c.inventoryNodesAction)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/", c.inventory)
+}
+
+func (c *webCmd) runInvCmd(reqID string, npath string, cjson map[string]interface{}, f *os.File) error {
+	ex, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), c.AbsoluteTimeout)
+	defer cancel()
+	run := exec.CommandContext(ctx, ex, "webrun")
+	c.joblist.Add(reqID, run)
+	defer c.joblist.Delete(reqID)
+	stdin, err := run.StdinPipe()
+	if err != nil {
+		return err
+	}
+	run.Stderr = f
+	run.Stdout = f
+	err = run.Start()
+	if err != nil {
+		return err
+	}
+	go func() {
+		stdin.Write([]byte(npath + "-=-=-=-"))
+		json.NewEncoder(stdin).Encode(cjson)
+		stdin.Close()
+	}()
+	runerr := run.Wait()
+	if runerr != nil {
+		return runerr
+	}
+	exitCode := run.ProcessState.ExitCode()
+	if exitCode != 0 {
+		return errors.New("code:" + strconv.Itoa(exitCode))
+	}
+	return nil
 }
 
 func (c *webCmd) inventoryFirewalls(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +310,6 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	c.jobqueue.Add()
-	c.joblist.Add(reqID, &exec.Cmd{})
 	invlog, err := c.inventoryLogFile(reqID)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
@@ -238,7 +334,6 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 		c.jobqueue.Start()
 		defer c.jobqueue.Remove()
 		defer c.jobqueue.End()
-		defer c.joblist.Delete(reqID)
 		defer invlog.Close()
 		isError := false
 		for _, rule := range rules {
@@ -246,19 +341,25 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 			switch a.opts.Config.Backend.Type {
 			case "aws":
 				genRule = rule.AWS
-				a.opts.Config.Aws.DestroySecGroups.NamePrefix = strings.Split(rule.AWS.SecurityGroupName, "-")[0]
-				a.opts.Config.Aws.DestroySecGroups.VPC = rule.AWS.VPC
-				a.opts.Config.Aws.DestroySecGroups.Internal = false
-				err = a.opts.Config.Aws.DestroySecGroups.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"NamePrefix": strings.Split(rule.AWS.SecurityGroupName, "-")[0],
+					"VPC":        rule.AWS.VPC,
+					"Internal":   false,
+				}
+				err = c.runInvCmd(reqID, "/"+strings.ReplaceAll(comm, " ", "/"), cmdJson, invlog)
 			case "gcp":
 				genRule = rule.GCP
-				a.opts.Config.Gcp.DestroySecGroups.NamePrefix = rule.GCP.FirewallName
-				a.opts.Config.Gcp.DestroySecGroups.Internal = false
-				err = a.opts.Config.Gcp.DestroySecGroups.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"NamePrefix": rule.GCP.FirewallName,
+					"Internal":   false,
+				}
+				err = c.runInvCmd(reqID, "/"+strings.ReplaceAll(comm, " ", "/"), cmdJson, invlog)
 			case "docker":
 				genRule = rule.Docker
-				a.opts.Config.Docker.DeleteNetwork.Name = rule.Docker.NetworkName
-				err = a.opts.Config.Docker.DeleteNetwork.Execute(nil)
+				cmdJson := map[string]interface{}{
+					"Name": rule.Docker.NetworkName,
+				}
+				err = c.runInvCmd(reqID, "/"+strings.ReplaceAll(comm, " ", "/"), cmdJson, invlog)
 			}
 			if err != nil {
 				isError = true
@@ -298,11 +399,77 @@ func (c *webCmd) inventorySubnets(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *webCmd) inventoryVolumes(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		c.inventoryVolumesAction(w, r)
+		return
+	}
 	c.cache.ilcMutex.RLock()
 	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
 	json.NewEncoder(w).Encode(c.cache.inv.Volumes)
+}
+
+func (c *webCmd) inventoryVolumesAction(w http.ResponseWriter, r *http.Request) {
+	reqID := shortuuid.New()
+	log.Printf("[%s] %s %s:%s", reqID, r.RemoteAddr, r.Method, r.RequestURI)
+	data := make(map[string][]inventoryVolume)
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		http.Error(w, "could not read request: %s"+err.Error(), http.StatusBadRequest)
+		return
+	}
+	vols := data["list"]
+	if len(vols) == 0 {
+		http.Error(w, "received empty request", http.StatusBadRequest)
+		return
+	}
+	c.jobqueue.Add()
+	invlog, err := c.inventoryLogFile(reqID)
+	if err != nil {
+		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	comm := "volume delete"
+	invlog.WriteString("-=-=-=-=- [path] /" + strings.ReplaceAll(comm, " ", "/") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [command] " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
+	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d volumes\n", reqID, len(vols)))
+	log.Printf("[%s] DELETE %d volumes", reqID, len(vols))
+	go func() {
+		c.jobqueue.Start()
+		defer c.jobqueue.Remove()
+		defer c.jobqueue.End()
+		defer invlog.Close()
+		isError := false
+		for _, vol := range vols {
+			cmdJson := map[string]interface{}{
+				"Name": vol.Name,
+				"GCP": map[string]interface{}{
+					"Zone": vol.AvailabilityZoneName,
+				},
+			}
+			err = c.runInvCmd(reqID, "/"+strings.ReplaceAll(comm, " ", "/"), cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, vol.Name))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, vol.Name)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, vol.Name))
+				log.Printf("[%s] DELETED (%v)", reqID, vol.Name)
+			}
+		}
+		invlog.WriteString("\n->Refreshing inventory cache\n")
+		c.cache.run(time.Now())
+		if isError {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
+		} else {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 0 -=-=-=-=-\nsuccess\n")
+		}
+		invlog.WriteString("-=-=-=-=- [END] -=-=-=-=-")
+	}()
+	w.Write([]byte(reqID))
 }
 
 func (c *webCmd) inventoryTemplates(w http.ResponseWriter, r *http.Request) {
@@ -332,7 +499,6 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	c.jobqueue.Add()
-	c.joblist.Add(reqID, &exec.Cmd{})
 	invlog, err := c.inventoryLogFile(reqID)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
@@ -348,20 +514,25 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		c.jobqueue.Start()
 		defer c.jobqueue.Remove()
 		defer c.jobqueue.End()
-		defer c.joblist.Delete(reqID)
 		defer invlog.Close()
 		isError := false
 		for _, template := range templates {
-			a.opts.Template.Delete.AerospikeVersion = TypeAerospikeVersion(template.AerospikeVersion)
-			a.opts.Template.Delete.DistroName = TypeDistro(template.Distribution)
-			a.opts.Template.Delete.DistroVersion = TypeDistroVersion(template.OSVersion)
 			isArm := true
 			if template.Arch == "amd64" {
 				isArm = false
 			}
-			a.opts.Template.Delete.Aws.IsArm = isArm
-			a.opts.Template.Delete.Gcp.IsArm = isArm
-			err = a.opts.Template.Delete.Execute(nil)
+			cmdJson := map[string]interface{}{
+				"AerospikeVersion": template.AerospikeVersion,
+				"DistroName":       template.Distribution,
+				"DistroVersion":    template.OSVersion,
+				"AWS": map[string]interface{}{
+					"IsArm": isArm,
+				},
+				"GCP": map[string]interface{}{
+					"IsArm": isArm,
+				},
+			}
+			err = c.runInvCmd(reqID, "/template/destroy", cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, template))
@@ -382,3 +553,1017 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 	}()
 	w.Write([]byte(reqID))
 }
+
+func (c *webCmd) inventoryClusters(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
+	c.cache.RLock()
+	defer c.cache.RUnlock()
+	clusters := []inventoryCluster{}
+	for _, cluster := range c.cache.inv.Clusters {
+		if cluster.Features&ClusterFeatureAGI > 0 {
+			continue
+		}
+		clusters = append(clusters, cluster)
+	}
+	json.NewEncoder(w).Encode(clusters)
+}
+
+func (c *webCmd) inventoryClients(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	defer c.cache.ilcMutex.RUnlock()
+	c.cache.RLock()
+	defer c.cache.RUnlock()
+	json.NewEncoder(w).Encode(c.cache.inv.Clients)
+}
+
+func (c *webCmd) inventoryAGIConnect(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	name := r.FormValue("name")
+	token, err := c.agiTokens.GetToken(name)
+	if err != nil {
+		http.Error(w, "could not get token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(token))
+}
+
+func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
+	c.cache.ilcMutex.RLock()
+	c.cache.RLock()
+	inv := []inventoryWebAGI{}
+	inv = append(inv, c.cache.inv.AGI...)
+	c.cache.RUnlock()
+	c.cache.ilcMutex.RUnlock()
+	// sort
+	sort.Slice(inv, func(i, j int) bool {
+		if inv[i].InstanceID != "" && inv[j].InstanceID == "" {
+			return true
+		}
+		if inv[i].InstanceID == "" && inv[j].InstanceID != "" {
+			return false
+		}
+		if inv[i].InstanceID == "" && inv[j].InstanceID == "" {
+			return inv[i].CreationTime.After(inv[i].CreationTime)
+		}
+		return inv[i].Name < inv[j].Name
+	})
+	// send
+	json.NewEncoder(w).Encode(inv)
+}
+
+func (c *webCmd) inventoryNodesAction(w http.ResponseWriter, r *http.Request) {
+	data := make(map[string]interface{})
+	err := json.NewDecoder(r.Body).Decode(&data)
+	if err != nil {
+		http.Error(w, "could not read request: %s"+err.Error(), http.StatusBadRequest)
+		return
+	}
+	action := ""
+	switch a := data["action"].(type) {
+	case string:
+		action = a
+	default:
+		http.Error(w, "invalid request (action)", http.StatusBadRequest)
+		return
+	}
+	reqID := shortuuid.New()
+	log.Printf("[%s] %s %s:%s action:%s", reqID, r.RemoteAddr, r.Method, r.RequestURI, action)
+	if action == "" {
+		http.Error(w, "received empty request", http.StatusBadRequest)
+		return
+	}
+	c.inventoryNodesActionDo(w, r, reqID, data, action)
+}
+
+func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, reqID string, data map[string]interface{}, action string) {
+	ntype := ""
+	switch a := data["type"].(type) {
+	case string:
+		ntype = a
+	default:
+		http.Error(w, "invalid request (type)", http.StatusBadRequest)
+		return
+	}
+	switch ntype {
+	case "cluster", "client", "agi":
+	default:
+		http.Error(w, "invalid type", http.StatusBadRequest)
+		return
+	}
+	if ntype != "agi" && action == "delete" {
+		http.Error(w, "invalid action for type", http.StatusBadRequest)
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			http.Error(w, "malformed request", http.StatusBadRequest)
+			return
+		}
+	}()
+	list := data["list"].([]interface{})
+	c.jobqueue.Add()
+	invlog, err := c.inventoryLogFile(reqID)
+	if err != nil {
+		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	ncmd := []string{ntype}
+	if strings.HasPrefix(action, "aerospike") {
+		ncmd = []string{"aerospike"}
+	}
+	switch action {
+	case "start":
+		ncmd = append(ncmd, action)
+	case "stop":
+		ncmd = append(ncmd, action)
+	case "aerospikeStart":
+		ncmd = append(ncmd, "start")
+	case "aerospikeStop":
+		ncmd = append(ncmd, "stop")
+	case "aerospikeRestart":
+		ncmd = append(ncmd, "restart")
+	case "aerospikeStatus":
+		ncmd = append(ncmd, "status")
+	case "delete":
+		ncmd = append(ncmd, action)
+	case "destroy":
+		ncmd = append(ncmd, action)
+	case "extendExpiry":
+		if ntype == "cluster" {
+			ncmd = []string{"cluster", "add", "expiry"}
+		} else {
+			ncmd = []string{"client", "configure", "expiry"}
+		}
+	default:
+		http.Error(w, "invalid action: "+action, http.StatusBadRequest)
+		return
+	}
+	invlog.WriteString("-=-=-=-=- [path] /" + strings.Join(ncmd, "/") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [command] " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
+	xtype := ntype
+	if xtype == "cluster" {
+		xtype = "node"
+	}
+	invlog.WriteString(fmt.Sprintf("[%s] RUN ON %d "+xtype+"s\n", reqID, len(list)))
+	log.Printf("[%s] RUN ON %d "+xtype+"s", reqID, len(list))
+	go func() {
+		c.jobqueue.Start()
+		defer c.jobqueue.Remove()
+		defer c.jobqueue.End()
+		defer invlog.Close()
+		isError := false
+		clist := make(map[string][]string)
+		zoneclist := make(map[string]map[string][]string)
+		for _, item := range list {
+			switch i := item.(type) {
+			case map[string]interface{}:
+				switch ntype {
+				case "cluster":
+					clusterName := ""
+					nodeNo := ""
+					zone := ""
+					clusterName, err = getString(i["ClusterName"])
+					if err != nil || clusterName == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "clusterName undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "clusterName undefined")
+						continue
+					}
+					nodeNo, err = getString(i["NodeNo"])
+					if err != nil || nodeNo == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "nodeNo undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
+						continue
+					}
+					if a.opts.Config.Backend.Type != "docker" {
+						zone, err = getString(i["Zone"])
+						if err != nil || zone == "" {
+							isError = true
+							invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "zone undefined"))
+							log.Printf("[%s] ERROR %s", reqID, "zone undefined")
+							continue
+						}
+					}
+					if _, ok := clist[clusterName]; !ok {
+						clist[clusterName] = []string{}
+					}
+					clist[clusterName] = append(clist[clusterName], nodeNo)
+					if _, ok := zoneclist[zone]; !ok {
+						zoneclist[zone] = make(map[string][]string)
+					}
+					if _, ok := zoneclist[zone][clusterName]; !ok {
+						zoneclist[zone][clusterName] = []string{}
+					}
+					zoneclist[zone][clusterName] = append(zoneclist[zone][clusterName], zone)
+				case "client":
+					clientName := ""
+					nodeNo := ""
+					zone := ""
+					i := item.(map[string]interface{})
+					clientName, err = getString(i["ClientName"])
+					if err != nil || clientName == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "clientName undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "clientName undefined")
+						continue
+					}
+					nodeNo, err = getString(i["NodeNo"])
+					if err != nil || nodeNo == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "nodeNo undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "nodeNo undefined")
+						continue
+					}
+					if a.opts.Config.Backend.Type != "docker" {
+						zone, err = getString(i["Zone"])
+						if err != nil || zone == "" {
+							isError = true
+							invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "zone undefined"))
+							log.Printf("[%s] ERROR %s", reqID, "zone undefined")
+							continue
+						}
+					}
+					if _, ok := clist[clientName]; !ok {
+						clist[clientName] = []string{}
+					}
+					clist[clientName] = append(clist[clientName], nodeNo)
+					if _, ok := zoneclist[zone]; !ok {
+						zoneclist[zone] = make(map[string][]string)
+					}
+					if _, ok := zoneclist[zone][clientName]; !ok {
+						zoneclist[zone][clientName] = []string{}
+					}
+					zoneclist[zone][clientName] = append(zoneclist[zone][clientName], zone)
+				case "agi":
+					agiName := ""
+					agiName, err = getString(i["Name"])
+					if err != nil || agiName == "" {
+						isError = true
+						invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiName undefined"))
+						log.Printf("[%s] ERROR %s", reqID, "agiName undefined")
+						continue
+					}
+					agiZone := ""
+					if a.opts.Config.Backend.Type != "docker" {
+						agiZone, err = getString(i["Zone"])
+						if err != nil {
+							isError = true
+							invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "agiZone undefined"))
+							log.Printf("[%s] ERROR %s", reqID, "agiZone undefined")
+							continue
+						}
+					}
+					if _, ok := clist[agiName]; !ok {
+						clist[agiName] = []string{}
+					}
+					clist[agiName] = append(clist[agiName], agiZone)
+				}
+			default:
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, "item type invalid"))
+				log.Printf("[%s] ERROR %s", reqID, "item type invalid")
+				continue
+			}
+		}
+		switch action {
+		case "start":
+			hasError := c.inventoryNodesActionStart(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "stop":
+			hasError := c.inventoryNodesActionStop(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "aerospikeStart":
+			hasError := c.inventoryNodesActionAerospikeStart(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "aerospikeStop":
+			hasError := c.inventoryNodesActionAerospikeStop(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "aerospikeRestart":
+			hasError := c.inventoryNodesActionAerospikeRestart(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "aerospikeStatus":
+			hasError := c.inventoryNodesActionAerospikeStatus(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		case "extendExpiry":
+			hasError := c.inventoryNodesActionExtendExpiry(w, r, reqID, action, invlog, clist, ntype, data["expiry"].(string), zoneclist)
+			if hasError {
+				isError = true
+			}
+		case "delete":
+			fallthrough
+		case "destroy":
+			hasError := c.inventoryNodesActionDestroy(w, r, reqID, action, invlog, clist, ntype)
+			if hasError {
+				isError = true
+			}
+		default:
+			http.Error(w, "invalid action: "+action, http.StatusBadRequest)
+		}
+		if !strings.HasPrefix(action, "aerospike") {
+			invlog.WriteString("\n->Refreshing inventory cache\n")
+			c.cache.run(time.Now())
+		}
+		if isError {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 1 -=-=-=-=-\nerror\n")
+		} else {
+			invlog.WriteString("\n-=-=-=-=- [ExitCode] 0 -=-=-=-=-\nsuccess\n")
+		}
+		invlog.WriteString("-=-=-=-=- [END] -=-=-=-=-")
+	}()
+	w.Write([]byte(reqID))
+}
+
+func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/cluster/start", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Started (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Started (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			cmdJson := map[string]interface{}{
+				"ClientName": clientName,
+				"Machines":   nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/client/start", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Started (%v)\n", reqID, clientName+":"+nodeNo))
+				log.Printf("[%s] Started (%v)", reqID, clientName+":"+nodeNo)
+			}
+		case "agi":
+			agiName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": agiName,
+			}
+			err = c.runInvCmd(reqID, "/agi/start", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Started (%v)\n", reqID, agiName))
+				log.Printf("[%s] Started (%v)", reqID, agiName)
+			}
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/cluster/stop", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Stopped (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Stopped (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			cmdJson := map[string]interface{}{
+				"ClientName": clientName,
+				"Machines":   nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/client/stop", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Stopped (%v)\n", reqID, clientName+":"+nodeNo))
+				log.Printf("[%s] Stopped (%v)", reqID, clientName+":"+nodeNo)
+			}
+		case "agi":
+			agiName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": agiName,
+			}
+			err = c.runInvCmd(reqID, "/agi/stop", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Stopped (%v)\n", reqID, agiName))
+				log.Printf("[%s] Stopped (%v)", reqID, agiName)
+			}
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionAerospikeStart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/aerospike/start", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Aerospike Started (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Aerospike Started (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on client nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+		case "agi":
+			agiName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on agi nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionAerospikeStop(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/aerospike/stop", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Aerospike Stopped (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Aerospike Stopped (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on client nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+		case "agi":
+			agiName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on agi nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionAerospikeRestart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/aerospike/restart", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Aerospike Restarted (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Aerospike Restarted (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on client nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+		case "agi":
+			agiName := name
+			isError = true
+			err = errors.New("cannot start/stop aerospike on agi nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionAerospikeStatus(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+			}
+			err = c.runInvCmd(reqID, "/aerospike/status", cmdJson, invlog)
+			invlog.WriteString("\n")
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] Aerospike Status (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] Aerospike Status (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			isError = true
+			err = errors.New("cannot status aerospike on client nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+		case "agi":
+			agiName := name
+			isError = true
+			err = errors.New("cannot status aerospike on agi nodes")
+			invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+			log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+	var err error
+	for name, nodes := range clist {
+		nodeNo := strings.Join(nodes, ",")
+		switch ntype {
+		case "cluster":
+			clusterName := name
+			cmdJson := map[string]interface{}{
+				"ClusterName": clusterName,
+				"Nodes":       nodeNo,
+				"Force":       true,
+				"Parallel":    true,
+			}
+			err = c.runInvCmd(reqID, "/cluster/destroy", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clusterName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clusterName+":"+nodeNo)
+			}
+		case "client":
+			clientName := name
+			cmdJson := map[string]interface{}{
+				"ClientName": clientName,
+				"Machines":   nodeNo,
+				"Force":      true,
+				"Parallel":   true,
+			}
+			err = c.runInvCmd(reqID, "/client/destroy", cmdJson, invlog)
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clientName+":"+nodeNo))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, clientName+":"+nodeNo)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, clientName+":"+nodeNo))
+				log.Printf("[%s] DELETED (%v)", reqID, clientName+":"+nodeNo)
+			}
+		case "agi":
+			agiName := name
+			if action == "destroy" {
+				cmdJson := map[string]interface{}{
+					"ClusterName": agiName,
+					"Force":       true,
+					"Parallel":    true,
+				}
+				err = c.runInvCmd(reqID, "/agi/destroy", cmdJson, invlog)
+			} else {
+				agiZone := nodes[0]
+				cmdJson := map[string]interface{}{
+					"ClusterName": agiName,
+					"Force":       true,
+					"Parallel":    true,
+					"Gcp": map[string]interface{}{
+						"Zone": agiZone,
+					},
+				}
+				err = c.runInvCmd(reqID, "/agi/delete", cmdJson, invlog)
+			}
+			if err != nil {
+				isError = true
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+			} else {
+				invlog.WriteString(fmt.Sprintf("[%s] DELETED (%v)\n", reqID, agiName))
+				log.Printf("[%s] DELETED (%v)", reqID, agiName)
+			}
+		}
+	}
+	return
+}
+
+func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string, expStr string, zones map[string]map[string][]string) (isError bool) {
+	expiry, err := time.ParseDuration(expStr)
+	if err != nil {
+		isError = true
+		err = fmt.Errorf("invalid duration format: %s", err)
+		invlog.WriteString(fmt.Sprintf("[%s] ERROR %s\n", reqID, err))
+		log.Printf("[%s] ERROR %s", reqID, err)
+		return
+	}
+	// zones do not matter in aws
+	if a.opts.Config.Backend.Type == "aws" {
+		zones = make(map[string]map[string][]string)
+		zones["aws"] = clist
+	}
+	for zone, nlist := range zones {
+		for name, nodes := range nlist {
+			nodeNo := strings.Join(nodes, ",")
+			switch ntype {
+			case "cluster":
+				clusterName := name
+				cmdJson := map[string]interface{}{
+					"ClusterName": clusterName,
+					"Nodes":       nodeNo,
+					"Expires":     expiry.String(),
+					"Gcp": map[string]interface{}{
+						"Zone": zone,
+					},
+				}
+				err = c.runInvCmd(reqID, "/cluster/add/expiry", cmdJson, invlog)
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] Extend Expiry (%v)\n", reqID, clusterName+":"+nodeNo))
+					log.Printf("[%s] Extend Expiry (%v)", reqID, clusterName+":"+nodeNo)
+				}
+			case "client":
+				clusterName := name
+				cmdJson := map[string]interface{}{
+					"ClusterName": clusterName,
+					"Nodes":       nodeNo,
+					"Expires":     expiry.String(),
+					"Gcp": map[string]interface{}{
+						"Zone": zone,
+					},
+				}
+				err = c.runInvCmd(reqID, "/client/configure/expiry", cmdJson, invlog)
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] Extend Expiry (%v)\n", reqID, clusterName+":"+nodeNo))
+					log.Printf("[%s] Extend Expiry (%v)", reqID, clusterName+":"+nodeNo)
+				}
+			case "agi":
+				agiName := name
+				isError = true
+				err = errors.New("cannot extend expiry on agi nodes")
+				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
+				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+			}
+		}
+	}
+	return
+}
+
+func getString(item interface{}) (string, error) {
+	switch i := item.(type) {
+	case string:
+		return i, nil
+	default:
+		return "", errors.New("not a string")
+	}
+}
+
+func (c *webCmd) inventoryClusterConnect(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientConnect(w, r, "cluster")
+}
+
+func (c *webCmd) inventoryClientConnect(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientConnect(w, r, "client")
+}
+
+func (c *webCmd) inventoryClusterWs(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientWs(w, r, "cluster")
+}
+
+func (c *webCmd) inventoryClientWs(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientWs(w, r, "client")
+}
+
+type windowSize struct {
+	Rows uint16 `json:"rows"`
+	Cols uint16 `json:"cols"`
+	X    uint16
+	Y    uint16
+}
+
+type wsCounters struct {
+	sync.RWMutex
+	cmdReaders      int
+	connections     int
+	lastCmdReaders  int
+	lastConnections int
+}
+
+func (ws *wsCounters) Print() {
+	ws.RLock()
+	defer ws.RUnlock()
+	if ws.cmdReaders != ws.lastCmdReaders || ws.connections != ws.lastConnections {
+		log.Printf("WebSocket stat: local-processes:%d ws-connections:%d", ws.cmdReaders, ws.connections)
+		ws.lastCmdReaders = ws.cmdReaders
+		ws.lastConnections = ws.connections
+	}
+}
+
+func (ws *wsCounters) PrintTimer(interval time.Duration) {
+	for {
+		ws.Print()
+		time.Sleep(interval)
+	}
+}
+
+func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request, target string) {
+	r.ParseForm()
+	name := r.FormValue("name")
+	node := r.FormValue("node")
+	var upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Unable to upgrade connection to websocket: %s", err)
+		return
+	}
+	ex, err := os.Executable()
+	if err != nil {
+		log.Printf("Unable to get self: %s", err)
+		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+		return
+	}
+	attachCmd := "shell"
+	if target == "client" {
+		attachCmd = "client"
+	}
+	cmd := exec.Command(ex, "attach", attachCmd, "-n", name, "-l", node)
+	cmd.Env = append(os.Environ(), "TERM=xterm")
+	tty, err := pty.Start(cmd)
+	if err != nil {
+		log.Printf("Unable to start pty/cmd: %s", err)
+		conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+		return
+	}
+	defer func() {
+		cmd.Process.Kill()
+		cmd.Process.Wait()
+		tty.Close()
+		conn.Close()
+	}()
+
+	isExit := make(chan struct{}, 1)
+	go func() {
+		c.wsCount.Lock()
+		c.wsCount.cmdReaders++
+		c.wsCount.Unlock()
+		defer func() {
+			c.wsCount.Lock()
+			c.wsCount.cmdReaders--
+			c.wsCount.Unlock()
+		}()
+		firstRead := true
+		for {
+			buf := make([]byte, 1024)
+			read, err := tty.Read(buf)
+			if err != nil {
+				if firstRead {
+					conn.WriteMessage(websocket.TextMessage, []byte(err.Error()))
+					log.Printf("Unable to read from pty/cmd: %s", err)
+				}
+				isExit <- struct{}{}
+				conn.Close()
+				return
+			}
+			conn.WriteMessage(websocket.BinaryMessage, buf[:read])
+			firstRead = false
+		}
+	}()
+
+	c.wsCount.Lock()
+	c.wsCount.connections++
+	c.wsCount.Unlock()
+	defer func() {
+		c.wsCount.Lock()
+		c.wsCount.connections--
+		c.wsCount.Unlock()
+	}()
+	for {
+		if len(isExit) > 0 {
+			close(isExit)
+			log.Print("Exiting")
+			return
+		}
+		messageType, reader, err := conn.NextReader()
+		if err != nil {
+			if len(isExit) == 0 && !strings.Contains(err.Error(), "(going away)") {
+				log.Printf("Unable to grab next reader: %s", err)
+			}
+			return
+		}
+
+		if messageType == websocket.TextMessage {
+			log.Print("Unexpected text message")
+			conn.WriteMessage(websocket.TextMessage, []byte("Unexpected text message"))
+			continue
+		}
+
+		dataTypeBuf := make([]byte, 1)
+		read, err := reader.Read(dataTypeBuf)
+		if err != nil {
+			log.Printf("Unable to read message type from reader: %s", err)
+			conn.WriteMessage(websocket.TextMessage, []byte("Unable to read message type from reader"))
+			return
+		}
+
+		if read != 1 {
+			log.Printf("Unexpected number of bytes read: %d", read)
+			return
+		}
+
+		switch dataTypeBuf[0] {
+		case 0:
+			copied, err := io.Copy(tty, reader)
+			if err != nil {
+				log.Printf("Error after copying %d bytes: %s", copied, err)
+			}
+		case 1:
+			decoder := json.NewDecoder(reader)
+			resizeMessage := windowSize{}
+			err := decoder.Decode(&resizeMessage)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Error decoding resize message: "+err.Error()))
+				continue
+			}
+			log.Printf("resizeMessage: %v", resizeMessage)
+			errno := sysResizeWindow(tty, resizeMessage)
+			if errno != 0 {
+				log.Printf("Cannot resize terminal: syscall Error: %d", errno)
+			}
+		default:
+			log.Printf("Unknown data type: %v", dataTypeBuf[0])
+		}
+	}
+}
+
+func (c *webCmd) inventoryClusterClientConnect(w http.ResponseWriter, r *http.Request, target string) {
+	r.ParseForm()
+	name := r.FormValue("name")
+	node := r.FormValue("node")
+	w.Write([]byte(fmt.Sprintf(xterm, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, target, name, node)))
+}
+
+var xterm = `<!doctype html>
+<html>
+  <head>
+	<link rel="stylesheet" href="%swww/plugins/xtermjs/xterm.css" />
+	<script src="%swww/plugins/xtermjs/xterm.js"></script>
+	<script src="%swww/plugins/xtermjs/addon-attach.js"></script>
+	<script src="%swww/plugins/xtermjs/addon-fit.js"></script>
+	<style>
+	html, body {
+		margin:0px;
+		height:100vh;
+		width:100vw;
+	  }
+	  .terminal {
+		background:black;
+		height:100vh;
+		width:100vw;
+	  }
+	</style>
+  </head>
+  <body>
+	<div id="terminal"></div>
+	<script>
+	var prot = "ws://";
+	if (window.location.protocol == "https:") {
+		prot = "wss://";
+	}
+	var websocket = new WebSocket(prot + window.location.hostname + ":" + window.location.port + "%swww/api/inventory/%s/ws?name=%s&node=%s");
+	//var attachAddon = new AttachAddon(socket);
+	//term.loadAddon(attachAddon);
+	//term.open(document.getElementById('terminal'));
+	websocket.binaryType = "arraybuffer";
+	function ab2str(buf) {
+		return String.fromCharCode.apply(null, new Uint8Array(buf));
+	}
+	websocket.onopen = function(evt) {
+		term = new Terminal({
+			screenKeys: true,
+			useStyle: true,
+			cursorBlink: true,
+		});
+		var fitAddon = new FitAddon.FitAddon();
+		term.loadAddon(fitAddon);
+
+		term.onData(function(data) {
+			websocket.send(new TextEncoder().encode("\x00" + data));
+		});
+
+		term.onResize(function(evt) {
+			websocket.send(new TextEncoder().encode("\x01" + JSON.stringify({cols: evt.cols, rows: evt.rows})))
+		});
+
+		term.onTitleChange(function(title) {
+			document.title = title;
+		});
+
+		term.open(document.getElementById('terminal'));
+			fitAddon.fit();
+			websocket.onmessage = function(evt) {
+			if (evt.data instanceof ArrayBuffer) {
+				term.write(ab2str(evt.data));
+			} else {
+				alert(evt.data)
+			}
+		}
+
+		window.addEventListener('resize', function (e) {
+			fitAddon.fit();
+		})
+
+		websocket.onclose = function(evt) {
+			term.write("Session terminated");
+			term.destroy();
+		}
+
+		websocket.onerror = function(evt) {
+			if (typeof console.log == "function") {
+				alert(evt);
+			}
+		}
+	}
+	</script>
+  </body>
+</html>`

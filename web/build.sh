@@ -46,6 +46,9 @@ cp -a dev/plugins/cookie prod/plugins/.
 # datatables
 cp -a dev/plugins/datatables-full prod/plugins/.
 
+# xtermjs
+cp -a dev/plugins/xtermjs prod/plugins/.
+
 # summary
 cd prod
 tar -zcf ../../src/webui/www.tgz *

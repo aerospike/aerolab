@@ -25,7 +25,7 @@ type clientCreateAMSCmd struct {
 	ConnectClusters TypeClusterName `short:"s" long:"clusters" default:"mydc" description:"comma-separated list of clusters to configure as source for this AMS"`
 	Dashboards      flags.Filename  `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
 	DebugDashboards bool            `long:"debug-dashboards" hidden:"true"`
-	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue"`
+	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	chDirCmd
 }
 
