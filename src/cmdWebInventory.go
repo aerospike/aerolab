@@ -18,7 +18,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
@@ -79,7 +78,7 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		}
 	}
 	i.lastRun = time.Now()
-	out, err := exec.Command(i.executable, "inventory", "list", "-j", "-p").CombinedOutput()
+	out, err := exec.Command(i.executable, "inventory", "list", "-j", "-p", "--with-agi").CombinedOutput()
 	if err != nil {
 		if isUpdated {
 			i.Lock()
@@ -586,130 +585,9 @@ func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
 	c.cache.ilcMutex.RLock()
 	c.cache.RLock()
 	inv := []inventoryWebAGI{}
-	agiVolNames := make(map[string]int) // map[agiName] = indexOf(inv)
-	for _, vol := range c.cache.inv.Volumes {
-		if !vol.AGIVolume {
-			continue
-		}
-		agiVolNames[vol.Name] = len(inv)
-		inv = append(inv, inventoryWebAGI{
-			Name:         vol.Name,
-			VolOwner:     vol.Owner,
-			AGILabel:     vol.AgiLabel,
-			VolSize:      vol.SizeString,
-			VolExpires:   vol.ExpiresIn,
-			Zone:         vol.AvailabilityZoneName,
-			VolID:        vol.FileSystemId,
-			CreationTime: vol.CreationTime,
-		})
-	}
-	for _, inst := range c.cache.inv.Clusters {
-		if inst.Features&ClusterFeatureAGI <= 0 {
-			continue
-		}
-		if idx, ok := agiVolNames[inst.ClusterName]; ok {
-			inv[idx].State = inst.State
-			inv[idx].Expires = inst.Expires
-			inv[idx].Owner = inst.Owner
-			inv[idx].AccessURL = inst.AccessUrl
-			inv[idx].AGILabel = inst.AGILabel
-			inv[idx].RunningCost = inst.InstanceRunningCost
-			inv[idx].PublicIP = inst.PublicIp
-			inv[idx].PrivateIP = inst.PrivateIp
-			inv[idx].Firewalls = inst.Firewalls
-			inv[idx].Zone = inst.Zone
-			inv[idx].InstanceID = inst.InstanceId
-			inv[idx].ImageID = inst.ImageId
-			inv[idx].InstanceType = inst.InstanceType
-			inv[idx].CreationTime = time.Time{} // TODO
-			inv[idx].IsRunning = inst.IsRunning
-		} else {
-			inv = append(inv, inventoryWebAGI{
-				Name:         inst.ClusterName,
-				State:        inst.State,
-				Expires:      inst.Expires,
-				Owner:        inst.Owner,
-				AccessURL:    inst.AccessUrl,
-				AGILabel:     inst.AGILabel,
-				RunningCost:  inst.InstanceRunningCost,
-				PublicIP:     inst.PublicIp,
-				PrivateIP:    inst.PrivateIp,
-				Firewalls:    inst.Firewalls,
-				Zone:         inst.Zone,
-				InstanceID:   inst.InstanceId,
-				ImageID:      inst.ImageId,
-				InstanceType: inst.InstanceType,
-				CreationTime: time.Time{}, // TODO
-				IsRunning:    inst.IsRunning,
-			})
-		}
-	}
+	inv = append(inv, c.cache.inv.AGI...)
 	c.cache.RUnlock()
 	c.cache.ilcMutex.RUnlock()
-	// get statuses for instances running
-	updateLock := new(sync.Mutex)
-	workers := new(sync.WaitGroup)
-	statusThreads := make(chan int, 10)
-	ex, err := os.Executable()
-	if err != nil {
-		log.Printf("ERROR could not get link for self: %s", err)
-	} else {
-		for i := range inv {
-			if inv[i].PublicIP == "" && inv[i].PrivateIP == "" {
-				continue
-			}
-			workers.Add(1)
-			statusThreads <- 1
-			go func(i int, v inventoryWebAGI) {
-				defer workers.Done()
-				defer func() {
-					<-statusThreads
-				}()
-				statusMsg := "unknown"
-				if (v.PublicIP != "") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIP != "") {
-					ctx, ctxCancel := context.WithTimeout(context.Background(), 10*time.Second)
-					defer ctxCancel()
-					out, err := exec.CommandContext(ctx, ex, "attach", "shell", "-n", v.Name, "--", "aerolab", "agi", "exec", "ingest-status").CombinedOutput()
-					if err == nil {
-						clusterStatus := &ingest.IngestStatusStruct{}
-						err = json.Unmarshal(out, clusterStatus)
-						if err == nil {
-							if !clusterStatus.AerospikeRunning {
-								statusMsg = "ERR: ASD DOWN"
-							} else if !clusterStatus.GrafanaHelperRunning {
-								statusMsg = "ERR: GRAFANAFIX DOWN"
-							} else if !clusterStatus.PluginRunning {
-								statusMsg = "ERR: PLUGIN DOWN"
-							} else if !clusterStatus.Ingest.CompleteSteps.Init {
-								statusMsg = "(1/6) INIT"
-							} else if !clusterStatus.Ingest.CompleteSteps.Download {
-								statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
-							} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
-								statusMsg = "(3/6) UNPACK"
-							} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
-								statusMsg = "(4/6) PRE-PROCESS"
-							} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
-								statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
-							} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
-								statusMsg = "(6/6) COLLECTINFO"
-							} else {
-								statusMsg = "READY"
-							}
-							if statusMsg != "READY" && !clusterStatus.Ingest.Running {
-								statusMsg = "ERR: INGEST DOWN"
-							}
-						}
-					}
-				} else {
-					statusMsg = ""
-				}
-				updateLock.Lock()
-				inv[i].Status = statusMsg
-				updateLock.Unlock()
-			}(i, inv[i])
-		}
-		workers.Wait()
-	}
 	// sort
 	sort.Slice(inv, func(i, j int) bool {
 		if inv[i].InstanceID != "" && inv[j].InstanceID == "" {

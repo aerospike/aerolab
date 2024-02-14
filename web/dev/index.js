@@ -731,7 +731,7 @@ function initDatatable() {
             if (!data) {
                 disabledString = 'default" disabled';
             }
-            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"'cluster','"+row["ClusterName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">Attach</button>';
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'cluster','"+row["ClusterName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">Attach</button>';
         }{{end}} },{{end}}]
     });
     $('#invclients').DataTable({
@@ -981,7 +981,7 @@ function initDatatable() {
             if (!data) {
                 disabledString = 'default" disabled';
             }
-            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"'client','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">Attach</button>';
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'client','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">Attach</button>';
         }{{end}} },{{end}}]
     });
     $('#invagi').DataTable({
@@ -1196,7 +1196,7 @@ function initDatatable() {
             if (!data) {
                 disabledString = 'default" disabled';
             }
-            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"'agi','"+row["Name"]+"','1'"+","+meta.row+",'"+row["AccessURL"]+"'"+');">Connect</button>';
+            return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'agi','"+row["Name"]+"','1'"+","+meta.row+",'"+row["AccessURL"]+"'"+');">Connect</button>';
         }{{end}} },{{end}}],
     });
     $('#invtemplates').DataTable({
@@ -1513,7 +1513,7 @@ function initDatatable() {
 }
 {{end}}
 
-function xRunAttach(target, name, node, row, accessURL="") {
+function xRunAttach(tbutton, target, name, node, row, accessURL="") {
     // workaround - prevent selection on button click
     let table = "";
     switch (target) {
@@ -1532,6 +1532,9 @@ function xRunAttach(target, name, node, row, accessURL="") {
     console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row+" accessURL:"+accessURL);
 
     if (target == "agi") {
+        $(tbutton).addClass("disabled");
+        var tbText = $(tbutton).text();
+        $(tbutton).html('<span class="fa-solid fa-circle-notch fa-spin"></span>');
         $.post("{{.WebRoot}}www/api/inventory/agi/connect", "name="+name, function(data) {
             var url = accessURL+"?AGI_TOKEN="+data
             window.open(url, '_blank').focus();
@@ -1544,6 +1547,8 @@ function xRunAttach(target, name, node, row, accessURL="") {
             toastr.error(data.statusText+": "+body);
         })
         .always(function() {
+            $(tbutton).removeClass("disabled");
+            $(tbutton).text(tbText);
         });
         return;
     }
