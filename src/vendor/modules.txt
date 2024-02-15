@@ -116,9 +116,6 @@ github.com/bestmethod/logger
 # github.com/containerd/console v1.0.3
 ## explicit; go 1.13
 github.com/containerd/console
-# github.com/creack/pty v1.1.21
-## explicit; go 1.13
-github.com/creack/pty
 # github.com/creasty/defaults v1.7.0
 ## explicit; go 1.14
 github.com/creasty/defaults
@@ -128,6 +125,9 @@ github.com/felixge/httpsnoop
 # github.com/fsnotify/fsnotify v1.7.0
 ## explicit; go 1.17
 github.com/fsnotify/fsnotify
+# github.com/gabemarshall/pty v0.0.0-20220927143247-d84f0bb0c17e
+## explicit; go 1.13
+github.com/gabemarshall/pty
 # github.com/gabriel-vasile/mimetype v1.4.3
 ## explicit; go 1.20
 github.com/gabriel-vasile/mimetype

@@ -21,7 +21,7 @@ import (
 
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
-	"github.com/creack/pty"
+	"github.com/gabemarshall/pty"
 	"github.com/gorilla/websocket"
 	"github.com/lithammer/shortuuid"
 )
