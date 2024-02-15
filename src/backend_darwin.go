@@ -4,7 +4,9 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
@@ -70,6 +72,16 @@ func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Write
 			return err
 		}
 	}
+	go func() {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGWINCH)
+		defer signal.Stop(sigs)
+		for range sigs {
+			if _, err := ssh_client.session.SendRequest("window-change", false, termSize(os.Stdin.Fd())); err != nil {
+				log.Print(err)
+			}
+		}
+	}()
 	err = ssh_client.session.Run(cmd)
 	return err
 }
