@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -1382,7 +1383,7 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 		conn.Close()
 	}()
 
-	isExit := make(chan struct{}, 1)
+	isExit := make(chan struct{}, 2)
 	go func() {
 		c.wsCount.Lock()
 		c.wsCount.cmdReaders++
@@ -1402,6 +1403,7 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 					log.Printf("Unable to read from pty/cmd: %s", err)
 				}
 				isExit <- struct{}{}
+				cmd.Process.Kill()
 				conn.Close()
 				return
 			}
@@ -1480,7 +1482,23 @@ func (c *webCmd) inventoryClusterClientConnect(w http.ResponseWriter, r *http.Re
 	r.ParseForm()
 	name := r.FormValue("name")
 	node := r.FormValue("node")
-	w.Write([]byte(fmt.Sprintf(xterm, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, target, name, node)))
+	wPty := ""
+	if runtime.GOOS == "windows" {
+		buildNo, err := getWindowsBuild()
+		if err == nil {
+			wPty = `windowsPty: {
+			backend: 'conpty',
+			buildNumber: ` + buildNo + `,
+		},
+			fontFamily: 'monospace',
+			fontWeight: 400,
+			fontWeightBold: 600,
+		`
+		} else {
+			log.Printf("could not get windows build: %s", err)
+		}
+	}
+	w.Write([]byte(fmt.Sprintf(xterm, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, target, name, node, wPty)))
 }
 
 var xterm = `<!doctype html>
@@ -1517,9 +1535,8 @@ var xterm = `<!doctype html>
 	}
 	websocket.onopen = function(evt) {
 		term = new Terminal({
-			screenKeys: true,
-			useStyle: true,
 			cursorBlink: true,
+			%s
 		});
 		var fitAddon = new FitAddon.FitAddon();
 		term.loadAddon(fitAddon);

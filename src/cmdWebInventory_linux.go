@@ -17,3 +17,7 @@ func sysResizeWindow(tty pty.Pty, resizeMessage windowSize) (errno int) {
 	errno = int(errnox)
 	return errno
 }
+
+func getWindowsBuild() (string, error) {
+	return "", nil
+}
