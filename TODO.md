@@ -6,3 +6,4 @@
 
 * Other
   * telemetry - report the command run properly somehow
+  * gcp expiries - tokens changing in scheduler --> multi-user reinstalls gcloud (solution? use a bucket to store expiries system installed status, version, and region)
