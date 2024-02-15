@@ -11,9 +11,9 @@ require (
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
 	github.com/containerd/console v1.0.3
-	github.com/creack/pty v1.1.21
 	github.com/creasty/defaults v1.7.0
 	github.com/fsnotify/fsnotify v1.7.0
+	github.com/gabemarshall/pty v0.0.0-20220927143247-d84f0bb0c17e
 	github.com/gabriel-vasile/mimetype v1.4.3
 	github.com/google/uuid v1.5.0
 	github.com/gorilla/websocket v1.5.1
@@ -30,7 +30,7 @@ require (
 	github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
 	github.com/rglonek/sbs v1.0.1
 	golang.org/x/crypto v0.17.0
-	golang.org/x/sys v0.15.0
+	golang.org/x/sys v0.17.0
 	golang.org/x/term v0.15.0
 	golang.org/x/text v0.14.0
 	google.golang.org/api v0.154.0

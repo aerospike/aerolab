@@ -1,12 +1,13 @@
 package main
 
 import (
-	"os"
 	"syscall"
 	"unsafe"
+
+	"github.com/gabemarshall/pty"
 )
 
-func sysResizeWindow(tty *os.File, resizeMessage windowSize) (errno int) {
+func sysResizeWindow(tty pty.Pty, resizeMessage windowSize) (errno int) {
 	_, _, errnox := syscall.Syscall(
 		syscall.SYS_IOCTL,
 		tty.Fd(),
@@ -15,4 +16,8 @@ func sysResizeWindow(tty *os.File, resizeMessage windowSize) (errno int) {
 	)
 	errno = int(errnox)
 	return errno
+}
+
+func getWindowsBuild() (string, error) {
+	return "", nil
 }

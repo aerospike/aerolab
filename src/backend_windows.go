@@ -2,8 +2,10 @@ package main
 
 import (
 	"io"
+	"log"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/containerd/console"
 	"golang.org/x/crypto/ssh"
@@ -72,6 +74,32 @@ func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Write
 		}
 		current.Resize(ws)
 		restoreTerminalState = &current
+		isExit := make(chan struct{}, 1)
+		defer func() {
+			isExit <- struct{}{}
+		}()
+		go func() {
+			var oldSize console.WinSize
+			for {
+				time.Sleep(time.Second)
+				winSize, err := current.Size()
+				if err != nil {
+					continue
+				}
+				if oldSize.Height == 0 && oldSize.Width == 0 {
+					oldSize = winSize
+					continue
+				}
+				if oldSize.Height == winSize.Height && oldSize.Width == winSize.Width {
+					continue
+				}
+				if _, err := ssh_client.session.SendRequest("window-change", false, termSize(os.Stdout.Fd())); err != nil {
+					log.Print(err)
+				} else {
+					oldSize = winSize
+				}
+			}
+		}()
 	}
 	restoreTerminalLock.Unlock()
 	err = ssh_client.session.Run(cmd)
