@@ -66,7 +66,10 @@ func (c *inventoryListCmd) getAGIStatus(inv *inventoryJson) {
 			statusMsg := "unknown"
 			if (v.PublicIP != "" && strings.ToLower(v.State) == "running") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIP != "" && strings.HasPrefix(v.State, "Up")) {
 				outx, err := b.RunCommands(v.Name, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
-				out := outx[0]
+				var out []byte
+				if len(outx) > 0 {
+					out = outx[0]
+				}
 				if err == nil {
 					clusterStatus := &ingest.IngestStatusStruct{}
 					err = json.Unmarshal(out, clusterStatus)

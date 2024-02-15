@@ -1,10 +1,21 @@
 package main
 
 import (
-	"os"
+	"log"
+
+	"github.com/gabemarshall/pty"
 )
 
-// not implemented
-func sysResizeWindow(tty *os.File, resizeMessage windowSize) (errno int) {
-	return -1
+func sysResizeWindow(tty pty.Pty, resizeMessage windowSize) (errno int) {
+	err := pty.Setsize(tty, &pty.Winsize{
+		Rows: resizeMessage.Rows,
+		Cols: resizeMessage.Cols,
+		X:    resizeMessage.X,
+		Y:    resizeMessage.Y,
+	})
+	if err != nil {
+		log.Print(err)
+		return -1
+	}
+	return 0
 }
