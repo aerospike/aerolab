@@ -77,7 +77,6 @@ func (ssh_client *SSH) Connect(mode int) error {
 		_ = client.Close()
 		return err
 	}
-
 	ssh_client.session = session
 	ssh_client.client = client
 	return nil
