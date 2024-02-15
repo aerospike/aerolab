@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"io"
 	"os/exec"
 	"syscall"
 	"time"
+
+	"golang.org/x/term"
 )
 
 var backends = make(map[string]backend)
@@ -477,3 +480,19 @@ var InventoryItemExpirySystem = 5
 var InventoryItemAGI = 6
 var InventoryItemAWSAllRegions = 7
 var InventoryItemVolumes = 8
+
+func termSize(fd uintptr) []byte {
+	size := make([]byte, 16)
+
+	w, h, err := term.GetSize(int(fd))
+	if err != nil {
+		binary.BigEndian.PutUint32(size, uint32(80))
+		binary.BigEndian.PutUint32(size[4:], uint32(24))
+		return size
+	}
+
+	binary.BigEndian.PutUint32(size, uint32(w))
+	binary.BigEndian.PutUint32(size[4:], uint32(h))
+
+	return size
+}

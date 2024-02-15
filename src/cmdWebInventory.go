@@ -1511,9 +1511,6 @@ var xterm = `<!doctype html>
 		prot = "wss://";
 	}
 	var websocket = new WebSocket(prot + window.location.hostname + ":" + window.location.port + "%swww/api/inventory/%s/ws?name=%s&node=%s");
-	//var attachAddon = new AttachAddon(socket);
-	//term.loadAddon(attachAddon);
-	//term.open(document.getElementById('terminal'));
 	websocket.binaryType = "arraybuffer";
 	function ab2str(buf) {
 		return String.fromCharCode.apply(null, new Uint8Array(buf));
