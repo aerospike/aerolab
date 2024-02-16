@@ -32,6 +32,7 @@ type inventoryListCmd struct {
 	AWSFull      bool     `long:"aws-full" description:"set to iterate through all regions and provide full output"`
 	RenderType   string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
 	GetAGIStatus bool     `long:"with-agi" description:"also get status of AGI ingests" hidden:"true"`
+	WebUICall    bool     `long:"webui" description:"set to indicate one was called by webui" hidden:"true"`
 	Help         helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
