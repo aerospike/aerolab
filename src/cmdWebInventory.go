@@ -62,6 +62,8 @@ func (i *inventoryCache) Start(update func() (bool, error)) error {
 	return nil
 }
 
+var webuiInventoryListParams = []string{"inventory", "list", "-j", "-p", "--with-agi", "--webui"}
+
 func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 	i.runLock.Lock()
 	defer i.runLock.Unlock()
@@ -82,7 +84,7 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		}
 	}
 	i.lastRun = time.Now()
-	out, err := exec.Command(i.executable, "inventory", "list", "-j", "-p", "--with-agi").CombinedOutput()
+	out, err := exec.Command(i.executable, webuiInventoryListParams...).CombinedOutput()
 	if err != nil {
 		if isUpdated {
 			i.Lock()
