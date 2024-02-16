@@ -50,6 +50,7 @@ func newGrpcScanPartitionCommand(
 	}
 	cmd.tracker = partitionTracker
 	cmd.terminationErrorType = types.SCAN_TERMINATED
+	cmd.nodePartitions = newNodePartitions(nil, _PARTITIONS)
 
 	return cmd
 }
@@ -113,6 +114,10 @@ func (cmd *grpcScanPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 	cmd.commandWasSent = true
 
 	readCallback := func() ([]byte, Error) {
+		if cmd.grpcEOS {
+			return nil, errGRPCStreamEnd
+		}
+
 		res, gerr := streamRes.Recv()
 		if gerr != nil {
 			e := newGrpcError(gerr)
@@ -120,14 +125,12 @@ func (cmd *grpcScanPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 			return nil, e
 		}
 
+		cmd.grpcEOS = !res.HasNext
+
 		if res.Status != 0 {
 			e := newGrpcStatusError(res)
 			cmd.recordset.sendError(e)
 			return res.Payload, e
-		}
-
-		if !res.HasNext {
-			return nil, errGRPCStreamEnd
 		}
 
 		return res.Payload, nil
@@ -138,6 +141,15 @@ func (cmd *grpcScanPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 	if err != nil && err != errGRPCStreamEnd {
 		cmd.recordset.sendError(err)
 		return err
+	}
+
+	done, err := cmd.tracker.isComplete(false, &cmd.policy.BasePolicy, []*nodePartitions{cmd.nodePartitions})
+	if !cmd.recordset.IsActive() || done || err != nil {
+		// Query is complete.
+		if err != nil {
+			cmd.tracker.partitionError()
+			cmd.recordset.sendError(err)
+		}
 	}
 
 	clnt.returnGrpcConnToPool(conn)

@@ -1,6 +1,25 @@
 # Change History
 
-## December 11 2023: v7
+## January 25 2023: v7.1.0
+
+- **New Features**
+  - Add `TaskId()` to `ExecuteTask`.
+  - [CLIENT-2721] Make `PartitionFilter.Retry` public.
+
+- **Improvements**
+
+  - Clean up documentation and remove dependency of examples to the v6 version of the client.
+
+- **Fixes**
+
+  - [CLIENT-2725] `QueryExecute` (background query) doesn't work without operations.
+  - [CLIENT-2726] Proxy doesn't handle invalid filter expression error in query.
+  - [CLIENT-2727] Go proxy: Query Pagination never complete.
+  - [CLIENT-2728] Fix an issue where Bin names were ignored if a FilterExpression was passed to the Query.
+  - [CLIENT-2732] Go proxy: Not able to multiple query calls with the same statement.
+  - [CLIENT-2759] Go proxy: Background query with Expression doesn't filter records.
+
+## December 11 2023: v7.0.0
 
 > [!CAUTION]
 > This is a breaking release. It is required to allow upgrading your programs to the Aerospike Server v7. This program upgrade process required as a prerequisite to upgrading your cluster, otherwise seemless cluster upgrade will not be possible. The changes and their rationale are documented in the following section.
@@ -59,6 +78,8 @@
   - [CLIENT-2434] Use 'sindex-exists' command in `DropIndexTask`.
   - [CLIENT-2573] Support `ExpRecordSize()`.
   - [CLIENT-2588] SINDEX Support for 'Blob' Type Elements.
+  - [CLIENT-2721] Make PartitionFilter.Retry public.
+  - Add TaskId() to ExecuteTask.
 
 - **Improvements**
   - [CLIENT-2694] Use RawURLEncoding instead of RawStdEncoding in proxy authenticator.
