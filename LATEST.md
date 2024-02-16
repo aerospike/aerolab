@@ -8,8 +8,10 @@ _Release Date: January 2, 2024_
 * FIX: GCP: Many commands would fail during template creation, making parallel use imposible. Fixed.
 * FIX: GCP: Delete `arm` templates was not working at all.
 * FIX: GCP: `client configure firewall` and `cluster add firewall` should not be locking the rules being added.
+* FIX: GCP: Expiry system now stores information in a bucket to allow for multi-tenancy usage scenarios.
 * FIX: The `net list` command does not work when client has same name as server.
 * FIX: The `net loss-delay` feature would fail to activate a python environment.
+* Fix: Support for `all` in `ClusterName` was broken when node expander was implemented.
 * FIX: Docker: Regression - underscores in cluster names are allowed and should work.
 * FIX: Docker: Issue with using new template naming conventions when old templates exist.
 * FIX: AGI: AGI Commands would panic if cluster is not found.

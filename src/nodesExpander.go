@@ -47,7 +47,14 @@ func expandNodes(nodes string, clusterName string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	clusterNames := strings.Split(clusterName, ",")
+
+	var clusterNames []string
+	if clusterName != "all" && clusterName != "ALL" {
+		clusterNames = strings.Split(clusterName, ",")
+	} else {
+		clusterNames = clusters
+	}
+
 	for _, n := range clusterNames {
 		if !inslice.HasString(clusters, n) {
 			return "", fmt.Errorf("cluster `%s' does not exist", n)
