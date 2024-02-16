@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -378,7 +379,7 @@ func (a *aerolab) telemetry(webuiData string) error {
 		return nil
 	}
 	// do not ship config defaults command usage
-	if (os.Args[1] == "config" && os.Args[2] == "defaults") || strings.HasPrefix(webuiData, "inventory/list-=-=-=-") {
+	if (os.Args[1] == "config" && os.Args[2] == "defaults") || (os.Args[1] == "webrun" && webuiData == "") || (slices.Equal(os.Args[1:], webuiInventoryListParams)) {
 		return nil
 	}
 	// only enable if a feature file is present and belongs to Aerospike internal users
@@ -465,7 +466,16 @@ func (a *aerolab) telemetry(webuiData string) error {
 	currentTelemetry.CmdLine = os.Args[1:]
 	currentTelemetry.Version = telemetryVersion
 	currentTelemetry.AeroLabVersion = version
-	currentTelemetry.WebUI.Data = webuiData
+	webCmdParams := strings.Split(webuiData, "-=-=-=-")
+	currentTelemetry.WebRun.Command = strings.Split(strings.Trim(webCmdParams[0], "/"), "/")
+	if len(webCmdParams) > 0 {
+		webParams := make(map[string]interface{})
+		err = json.Unmarshal([]byte(webCmdParams[1]), &webParams)
+		if err != nil {
+			webParams["ERROR-UNMARSHAL"] = err.Error()
+		}
+		currentTelemetry.WebRun.Params = webParams
+	}
 
 	// add changed default values to the item
 	ret := make(chan configValueCmd, 1)
@@ -580,8 +590,9 @@ type telemetryItem struct {
 	Error           *string
 	Stderr          []string
 	StderrTruncated bool
-	WebUI           struct {
-		Data string
+	WebRun          struct {
+		Command []string
+		Params  map[string]interface{}
 	}
 }
 
