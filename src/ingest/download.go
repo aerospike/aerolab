@@ -373,7 +373,7 @@ func sftpDownload(sclient *sftp.Client, f string, dstDir string) error {
 	}
 	defer dst.Close()
 	logger.Detail("sftp start copy for %s", f)
-	_, err = io.Copy(dst, src)
+	_, err = src.WriteTo(dst)
 	if err != nil {
 		return fmt.Errorf("sftp failed to download file: %s", err)
 	}
