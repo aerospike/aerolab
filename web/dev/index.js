@@ -334,6 +334,9 @@ function updateCurrentInventoryPage() {
         }
     })
 }
+$(window).on('focus', function () {
+    updateCurrentInventoryPage();
+});
 {{else}}
 function updateCurrentInventoryPage() {}
 {{end}}
@@ -490,8 +493,11 @@ function initDatatable() {
             data.order = [[0,"asc"],[1,"asc"]];
         },
         order: [[0,"asc"],[1,"asc"]],
+        rowGroup: {
+            dataSrc: 'ClusterName',
+        },
         fixedColumns: {left: 2, right: 1},
-        buttons: [{
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Go to form: Create New Cluster',
             text: 'Create',
@@ -750,7 +756,7 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
-        buttons: [
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},
             {
                 extend: 'collection',
                 className: 'custom-html-collection btn-success dtTooltip',
@@ -984,7 +990,9 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
-        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "AccessUrl"}}, render: function (data, type, row, meta) {
+            return '<a href="'+data+'" target="_blank">'+data+'</a>';
+        }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -1000,7 +1008,7 @@ function initDatatable() {
         },
         order: [],
         fixedColumns: {left: 2, right: 1},
-        buttons: [
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},
             {
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Got to form: Create a new AGI instance',
@@ -1199,7 +1207,21 @@ function initDatatable() {
             },
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
-        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Status"}}, render: function (data, type, row, meta) {
+            if (data == 'READY, HasErrors') {
+                return '<span style="color: #fac400;"><i class="fa-solid fa-check"></i><i class="fa-solid fa-triangle-exclamation"></i>&nbsp;</span>';
+            }
+            if (data == 'READY') {
+                return '<i class="fa-solid fa-check" style="color: #00c000;"></i>&nbsp;';
+            }
+            if (data.startsWith('ERR:')) {
+                return '<span style="color: #ff0000;"><i class="fa-solid fa-xmark"></i>&nbsp;'+data+'</span>';
+            }
+            if (data == '') {
+                return '&nbsp;';
+            }
+            return data;
+        }{{end}}{{if eq .Name "RunningCost"}}, render: function (data, type, row, meta) {
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -1215,7 +1237,7 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]],
         fixedColumns: {left: 1},
-        buttons: [{
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Create a template without running CreateCluster',
             text: 'Create Cluster',
@@ -1287,7 +1309,7 @@ function initDatatable() {
         },
         order: [0,"asc"],
         fixedColumns: {left: 1},
-        buttons: [
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},
             {
                 className: 'btn btn-success dtTooltip',
                 titleAttr: 'Got to form: new volume',
@@ -1397,7 +1419,7 @@ function initDatatable() {
             data.order = [[0,"asc"],[1,"asc"]];
         },
         order: [[0,"asc"],[1,"asc"]],
-        buttons: [{
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
             text: 'Create',
             {{if eq .Backend "aws"}}
@@ -1484,7 +1506,7 @@ function initDatatable() {
             data.order = [0,"asc"];
         },
         order: [0,"asc"],
-        buttons: [{
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Create and install an automated instance expiry system',
             text: 'Create',
@@ -1531,7 +1553,7 @@ function initDatatable() {
             data.order = [[3,"asc"],[6,"asc"]];
         },
         order: [[3,"asc"],[6,"asc"]],
-        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',}],
         ajax: {url:'{{.WebRoot}}www/api/inventory/subnets',dataSrc:""},
         columns: [{{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
     });
@@ -1541,6 +1563,27 @@ function initDatatable() {
 function initDatatable() {
 }
 {{end}}
+
+var cliTimer = null;
+
+function timedUpdateCommand() {
+    if (cliTimer != null) {
+        clearTimeout(cliTimer);
+    };
+    cliTimer = setTimeout(refreshCliCommand, 1500);
+}
+
+function refreshCliCommand() {
+    getCommand(true);
+}
+
+$('.updateCommandCli').on('change', function() {
+    timedUpdateCommand();
+})
+
+$('.updateCommandCli').on('keyup', function() {
+    timedUpdateCommand();
+})
 
 function xRunAttach(tbutton, target, name, node, row, accessURL="") {
     // workaround - prevent selection on button click
@@ -1606,8 +1649,8 @@ $(function () {
         tokenSeparators: [',', ' ']
     })
     {{if .IsForm}}getCommand(true);{{end}}
-    updateJobList(true, true);
     initDatatable();
+    updateJobList(true, false);
     $('.dtTooltip').tooltip({ trigger: "hover", placement: "bottom", fallbackPlacement:["right","top"], boundary: "viewport" });
   })
 {{template "ansiup" .}}

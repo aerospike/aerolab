@@ -468,7 +468,7 @@ func (a *aerolab) telemetry(webuiData string) error {
 	currentTelemetry.AeroLabVersion = version
 	webCmdParams := strings.Split(webuiData, "-=-=-=-")
 	currentTelemetry.WebRun.Command = strings.Split(strings.Trim(webCmdParams[0], "/"), "/")
-	if len(webCmdParams) > 0 {
+	if len(webCmdParams) > 1 {
 		webParams := make(map[string]interface{})
 		err = json.Unmarshal([]byte(webCmdParams[1]), &webParams)
 		if err != nil {
