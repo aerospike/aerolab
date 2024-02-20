@@ -493,9 +493,6 @@ function initDatatable() {
             data.order = [[0,"asc"],[1,"asc"]];
         },
         order: [[0,"asc"],[1,"asc"]],
-        rowGroup: {
-            dataSrc: 'ClusterName',
-        },
         fixedColumns: {left: 2, right: 1},
         buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
@@ -740,7 +737,9 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
-        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
+            return data.join("<br>");
+        }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -990,7 +989,9 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
-        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "AccessUrl"}}, render: function (data, type, row, meta) {
+        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
+            return data.join("<br>");
+        }{{end}}{{if eq .Name "AccessUrl"}}, render: function (data, type, row, meta) {
             return '<a href="'+data+'" target="_blank">'+data+'</a>';
         }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             return "$" + Math.round(data*10000)/10000;
@@ -1207,7 +1208,9 @@ function initDatatable() {
             },
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
-        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Status"}}, render: function (data, type, row, meta) {
+        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
+            return data.join("<br>");
+        }{{end}}{{if eq .Name "Status"}}, render: function (data, type, row, meta) {
             if (data == 'READY, HasErrors') {
                 return '<span style="color: #fac400;"><i class="fa-solid fa-check"></i><i class="fa-solid fa-triangle-exclamation"></i>&nbsp;</span>';
             }
@@ -1650,7 +1653,7 @@ $(function () {
     })
     {{if .IsForm}}getCommand(true);{{end}}
     initDatatable();
-    updateJobList(true, false);
+    updateJobList(true, true);
     $('.dtTooltip').tooltip({ trigger: "hover", placement: "bottom", fallbackPlacement:["right","top"], boundary: "viewport" });
   })
 {{template "ansiup" .}}
