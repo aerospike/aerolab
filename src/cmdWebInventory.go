@@ -106,15 +106,27 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		if strings.ToLower(inv.Clusters[i].State) == "running" || strings.HasPrefix(inv.Clusters[i].State, "Up_") {
 			inv.Clusters[i].IsRunning = true
 		}
+		expDate, err := time.Parse(time.RFC3339, inv.Clusters[i].Expires)
+		if err == nil {
+			inv.Clusters[i].Expires = time.Until(expDate).Truncate(time.Second).String()
+		}
 	}
 	for i := range inv.Clients {
 		if strings.ToLower(inv.Clients[i].State) == "running" || strings.HasPrefix(inv.Clients[i].State, "Up_") {
 			inv.Clients[i].IsRunning = true
 		}
+		expDate, err := time.Parse(time.RFC3339, inv.Clients[i].Expires)
+		if err == nil {
+			inv.Clients[i].Expires = time.Until(expDate).Truncate(time.Second).String()
+		}
 	}
 	for i := range inv.AGI {
 		if strings.ToLower(inv.AGI[i].State) == "running" || strings.HasPrefix(inv.AGI[i].State, "Up_") {
 			inv.AGI[i].IsRunning = true
+		}
+		expDate, err := time.Parse(time.RFC3339, inv.AGI[i].Expires)
+		if err == nil {
+			inv.AGI[i].Expires = time.Until(expDate).Truncate(time.Second).String()
 		}
 	}
 	agiList := []*agiWebTokenRequest{}
