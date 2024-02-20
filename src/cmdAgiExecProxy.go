@@ -360,7 +360,7 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 
 // form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
 func (c *agiExecProxyCmd) handleIngestDetail(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
+	if !c.checkAuthOnly(w, r) {
 		return
 	}
 	fname := r.FormValue("detail")
@@ -405,7 +405,7 @@ func (c *agiExecProxyCmd) handleIngestDetail(w http.ResponseWriter, r *http.Requ
 }
 
 func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
+	if !c.checkAuthOnly(w, r) {
 		return
 	}
 	logger.Info("Listener: status request from %s", r.RemoteAddr)
@@ -422,7 +422,7 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *agiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
+	if !c.checkAuthOnly(w, r) {
 		return
 	}
 	logger.Info("Listener: shutdown request from %s", r.RemoteAddr)
@@ -443,7 +443,7 @@ func (c *agiExecProxyCmd) handleShutdown(w http.ResponseWriter, r *http.Request)
 }
 
 func (c *agiExecProxyCmd) handlePoweroff(w http.ResponseWriter, r *http.Request) {
-	if !c.checkAuth(w, r) {
+	if !c.checkAuthOnly(w, r) {
 		return
 	}
 	logger.Info("Listener: shutdown request from %s", r.RemoteAddr)
@@ -833,7 +833,12 @@ func (c *agiExecProxyCmd) checkAuthOnly(w http.ResponseWriter, r *http.Request) 
 			return false
 		}
 	}
+	// note: cookies are state, while everything else is valid for this request only
+	// if user is trying to auth, first step is to set a cookie and refresh (redirect to self)
+	// then auth actually happens based on cookie value
 	if c.isTokenAuth {
+		// if token is provided as form value, set cookie with token value and redirect to self
+		r.ParseForm()
 		t := r.FormValue(c.TokenName)
 		if t != "" {
 			http.SetCookie(w, &http.Cookie{
@@ -845,14 +850,17 @@ func (c *agiExecProxyCmd) checkAuthOnly(w http.ResponseWriter, r *http.Request) 
 			http.Redirect(w, r, r.URL.Path, http.StatusFound)
 			return false
 		}
+		// get token cookie value
 		tc, err := r.Cookie(c.TokenName)
 		if err == nil {
 			t = tc.Value
 		}
+		// no token cookie, show auth form
 		if t == "" {
 			c.displayAuthTokenRequest(w, r)
 			return false
 		}
+		// actually try to authenticate
 		c.tokens.RLock()
 		if !inslice.HasString(c.tokens.tokens, t) {
 			c.tokens.RUnlock()

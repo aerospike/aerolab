@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/gabemarshall/pty"
@@ -37,6 +39,8 @@ type inventoryCache struct {
 	MinimumInterval time.Duration
 	lastRun         time.Time
 	executable      string
+	agiStatusLock   *sync.Mutex
+	c               *webCmd
 }
 
 func (i *inventoryCache) Start(update func() (bool, error)) error {
@@ -62,7 +66,7 @@ func (i *inventoryCache) Start(update func() (bool, error)) error {
 	return nil
 }
 
-var webuiInventoryListParams = []string{"inventory", "list", "-j", "-p", "--with-agi", "--webui"}
+var webuiInventoryListParams = []string{"inventory", "list", "-j", "-p", "--webui"}
 
 func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 	i.runLock.Lock()
@@ -113,10 +117,146 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 			inv.AGI[i].IsRunning = true
 		}
 	}
+	agiList := []*agiWebTokenRequest{}
+	for _, i := range inv.AGI {
+		if !i.IsRunning {
+			continue
+		}
+		if i.PublicIP != "" {
+			agiList = append(agiList, &agiWebTokenRequest{
+				Name:         i.Name,
+				PublicIP:     i.PublicIP,
+				PrivateIP:    i.PrivateIP,
+				AccessProtIP: i.AccessProtocol + i.PublicIP,
+				InstanceID:   i.InstanceID,
+			})
+			continue
+		}
+		if i.PrivateIP != "" {
+			agiList = append(agiList, &agiWebTokenRequest{
+				Name:         i.Name,
+				PublicIP:     i.PublicIP,
+				PrivateIP:    i.PrivateIP,
+				AccessProtIP: i.AccessProtocol + i.PrivateIP,
+				InstanceID:   i.InstanceID,
+			})
+			continue
+		}
+	}
 	i.Lock()
 	i.inv = inv
+	go i.asyncGetAGIStatus(agiList)
 	i.Unlock()
 	return nil
+}
+
+func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
+	// only one run at a time, abandon if previous is still running
+	if !i.agiStatusLock.TryLock() {
+		return
+	}
+	defer i.agiStatusLock.Unlock()
+	threads := make(chan struct{}, 20)
+	wg := new(sync.WaitGroup)
+	for _, agis := range agiList {
+		threads <- struct{}{}
+		wg.Add(1)
+		go func(agis *agiWebTokenRequest) {
+			defer func() {
+				<-threads
+				wg.Done()
+			}()
+			ip := agis.AccessProtIP
+			token, err := i.c.agiTokens.GetToken(*agis)
+			if err != nil {
+				if i.c.DebugRequests {
+					log.Printf("error getting token for %s with ip %s: %s", agis.Name, ip, err)
+				}
+				return
+			}
+			tr := &http.Transport{
+				DisableKeepAlives: true,
+				IdleConnTimeout:   10 * time.Second,
+				TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			}
+			client := &http.Client{
+				Timeout:   10 * time.Second,
+				Transport: tr,
+			}
+			defer client.CloseIdleConnections()
+			req, err := http.NewRequest("GET", ip+"/agi/status", nil)
+			if err != nil {
+				if i.c.DebugRequests {
+					log.Printf("error getting agi status request for %s with ip %s: %s", agis.Name, ip, err)
+				}
+				return
+			}
+			req.AddCookie(&http.Cookie{Name: "AGI_TOKEN", Value: token})
+			response, err := client.Do(req)
+			if err != nil {
+				if i.c.DebugRequests {
+					log.Printf("error getting agi status for %s with ip %s: %s", agis.Name, ip, err)
+				}
+				return
+			}
+			defer response.Body.Close()
+			if response.StatusCode != 200 {
+				if i.c.DebugRequests {
+					body, _ := io.ReadAll(response.Body)
+					err = fmt.Errorf("exit code (%d), message: %s", response.StatusCode, string(body))
+					log.Printf("error getting agi status for %s with ip %s: %s", agis.Name, ip, err)
+				}
+				return
+			}
+			statusMsg := "unknown"
+			clusterStatus := &ingest.IngestStatusStruct{}
+			err = json.NewDecoder(response.Body).Decode(clusterStatus)
+			if err == nil {
+				hasErrors := false
+				if len(clusterStatus.Ingest.Errors) > 0 {
+					hasErrors = true
+				}
+				if !clusterStatus.AerospikeRunning {
+					statusMsg = "ERR: ASD DOWN"
+				} else if !clusterStatus.GrafanaHelperRunning {
+					statusMsg = "ERR: GRAFANAFIX DOWN"
+				} else if !clusterStatus.PluginRunning {
+					statusMsg = "ERR: PLUGIN DOWN"
+				} else if !clusterStatus.Ingest.CompleteSteps.Init {
+					statusMsg = "(1/6) INIT"
+				} else if !clusterStatus.Ingest.CompleteSteps.Download {
+					statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
+				} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
+					statusMsg = "(3/6) UNPACK"
+				} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
+					statusMsg = "(4/6) PRE-PROCESS"
+				} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
+					statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
+				} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
+					statusMsg = "(6/6) COLLECTINFO"
+				} else {
+					statusMsg = "READY"
+					if hasErrors {
+						statusMsg = "READY, HasErrors"
+					}
+				}
+				if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+					statusMsg = "ERR: INGEST DOWN"
+				}
+			} else if i.c.DebugRequests {
+				log.Print(err)
+			}
+			i.Lock()
+			for ni := range i.inv.AGI {
+				if i.inv.AGI[ni].Name == agis.Name {
+					i.inv.AGI[ni].Status = statusMsg
+					break
+				}
+			}
+			i.Unlock()
+		}(agis)
+	}
+	wg.Wait()
 }
 
 func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
@@ -583,7 +723,23 @@ func (c *webCmd) inventoryClients(w http.ResponseWriter, r *http.Request) {
 func (c *webCmd) inventoryAGIConnect(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	name := r.FormValue("name")
-	token, err := c.agiTokens.GetToken(name)
+	req := agiWebTokenRequest{}
+	c.cache.ilcMutex.RLock()
+	c.cache.RLock()
+	for _, agi := range c.cache.inv.AGI {
+		if agi.Name == name {
+			req = agiWebTokenRequest{
+				Name:       agi.Name,
+				PublicIP:   agi.PublicIP,
+				PrivateIP:  agi.PrivateIP,
+				InstanceID: agi.InstanceID,
+			}
+			break
+		}
+	}
+	c.cache.RUnlock()
+	c.cache.ilcMutex.RUnlock()
+	token, err := c.agiTokens.GetToken(req)
 	if err != nil {
 		http.Error(w, "could not get token: "+err.Error(), http.StatusInternalServerError)
 		return

@@ -215,6 +215,8 @@ func (c *webCmd) Execute(args []string) error {
 		runLock:         new(sync.Mutex),
 		inv:             &inventoryJson{},
 		ilcMutex:        new(sync.RWMutex),
+		agiStatusLock:   new(sync.Mutex),
+		c:               c,
 	}
 	c.inventoryNames = c.getInventoryNames()
 	c.cache.ilcMutex.Lock()
@@ -842,6 +844,9 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 		name := commandValue.Type().Field(i).Name
 		kind := commandValue.Field(i).Kind()
 		tags := commandValue.Type().Field(i).Tag
+		if tags.Get("hidden") == "true" {
+			continue
+		}
 		if name[0] < 65 || name[0] > 90 {
 			if kind == reflect.Struct {
 				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), prefix)
