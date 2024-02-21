@@ -335,7 +335,7 @@ function updateCurrentInventoryPage() {
     })
 }
 $(window).on('focus', function () {
-    updateCurrentInventoryPage();
+    updateJobList(false, false);
 });
 {{else}}
 function updateCurrentInventoryPage() {}
@@ -429,7 +429,7 @@ function updateJobList(setTimer = false, firstRun = false) {
     })
     .always(function(data) {
         if (setTimer) {
-            setTimeout(updateJobList, 60000);
+            setTimeout(updateJobList, 10000);
         };
     });
 }
