@@ -283,6 +283,8 @@ func (c *webCmd) Execute(args []string) error {
 	http.HandleFunc(c.WebRoot+"www/api/commandh", c.commandHistory)
 	http.HandleFunc(c.WebRoot+"www/api/commandjb", c.commandJupyterBash)
 	http.HandleFunc(c.WebRoot+"www/api/commandjm", c.commandJupyterMagic)
+	http.HandleFunc(c.WebRoot+"www/api/ls", c.ls)
+	http.HandleFunc(c.WebRoot+"www/api/homedir", c.homedir)
 
 	c.addInventoryHandlers()
 	http.HandleFunc(c.WebRoot, c.serve)
@@ -305,6 +307,63 @@ func (c *webCmd) Execute(args []string) error {
 		browser.OpenURL("http://" + openurl)
 	}
 	return http.Serve(l, nil)
+}
+
+func (c *webCmd) homedir(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	npath := r.FormValue("path")
+	if npath == "" {
+		h, e := os.UserHomeDir()
+		if e != nil {
+			http.Error(w, e.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write([]byte(h + "/"))
+		return
+	}
+	p, e := os.Stat(npath)
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusNotFound)
+		return
+	}
+	if !p.IsDir() {
+		ndir, _ := filepath.Split(npath)
+		w.Write([]byte(ndir))
+		return
+	}
+	w.Write([]byte(npath))
+}
+
+func (c *webCmd) ls(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+	npath := r.FormValue("path")
+	if npath == "" {
+		http.Error(w, "path cannot be empty", http.StatusBadRequest)
+		return
+	}
+	s, e := os.Stat(npath)
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusNotFound)
+		return
+	}
+	out := make(map[string]interface{})
+	if !s.IsDir() {
+		w.Write([]byte("GOUP"))
+		return
+	}
+	entries, err := os.ReadDir(npath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			out[e.Name()] = struct{}{}
+			continue
+		}
+		out[e.Name()] = path.Join(npath, e.Name())
+	}
+	json.NewEncoder(w).Encode(out)
 }
 
 func (c *webCmd) commandScript(w http.ResponseWriter, r *http.Request) {
@@ -896,6 +955,10 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				})
 			} else {
 				// input item text (possible multiple types)
+				isFile := false
+				if commandValue.Field(i).Type().String() == "flags.Filename" {
+					isFile = true
+				}
 				textType := tags.Get("webtype")
 				if textType == "" {
 					textType = "text"
@@ -915,6 +978,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Default:     commandValue.Field(i).String(),
 						Description: tags.Get("description"),
 						Required:    required,
+						IsFile:      isFile,
 					},
 				})
 			}
@@ -1077,6 +1141,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Description: tags.Get("description"),
 						Required:    required,
 						Optional:    true,
+						IsFile:      true,
 					},
 				})
 			} else if commandValue.Field(i).Type().String() == "*bool" {
@@ -1262,11 +1327,13 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	www := os.DirFS(c.WebPath)
 	t, err := template.ParseFS(www, "*.html", "*.js", "*.css")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	err = t.ExecuteTemplate(w, "main", p)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 }
 

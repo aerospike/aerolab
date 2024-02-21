@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" type="image/x-icon" href="{{.WebRoot}}www/dist/img/favicon.ico">
   <title>AeroLab Web UI</title>
+  <!-- filebrowser widget -->
+  <link href="{{.WebRoot}}www/plugins/jquery-ui/jquery-ui.min.css" rel="stylesheet"/>
+  <link href="{{.WebRoot}}www/plugins/filebrowser/filebrowser.css" rel="stylesheet">
   <!-- Google Font: Source Sans Pro -->
   <link rel="stylesheet" href="{{.WebRoot}}www/dist/fonts/sourcesans.css">
   <!-- Font Awesome Icons -->
@@ -26,7 +29,7 @@
   <style>{{template "highlighter"}}</style>
 </head>
 <body class="hold-transition sidebar-mini{{if .FixedFooter}} layout-footer-fixed{{end}}{{if .FixedNavbar}} layout-navbar-fixed{{end}}">
-
+<div id="filebrowser-wrapper"></div>
 <!-- spinner -->
 <div class="overlay-disable" id="loadingSpinner">
   <div class="overlay-spinner">
@@ -222,7 +225,7 @@
                   {{else}}
                   <div class="form-group">
                     {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
-                    <input type="{{.Input.Type}}" class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                    <input type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
                     {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>
                   {{end}}
@@ -334,6 +337,9 @@
 
 <!-- jQuery -->
 <script src="{{.WebRoot}}www/plugins/jquery/jquery.min.js"></script>
+<!-- filebrowser widget -->
+<script src="{{.WebRoot}}www/plugins/jquery-ui/jquery-ui.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/filebrowser/filebrowser.js"></script>
 <!-- Bootstrap 4 -->
 <script src="{{.WebRoot}}www/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
