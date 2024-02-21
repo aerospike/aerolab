@@ -61,6 +61,7 @@ namespace agi {
         filesize %dG
         %s
         %s
+        %s
     }
 }
 EOF

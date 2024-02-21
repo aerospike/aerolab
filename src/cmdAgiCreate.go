@@ -711,7 +711,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	nver := strings.Split(c.AerospikeVersion.String(), ".")[0]
 	//memory-size %dG
-	var memSizeStr, storEngine, dimStr, rpcStr string
+	var memSizeStr, storEngine, dimStr, rpcStr, wbs string
 	var fileSizeInt int
 	if inslice.HasString([]string{"6", "5", "4", "3"}, nver) {
 		memSizeStr = "memory-size " + strconv.Itoa(memSize/1024/1024/1024) + "G"
@@ -724,6 +724,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		}
 		dimStr = fmt.Sprintf("data-in-memory %t", !c.NoDIM)
 		rpcStr = fmt.Sprintf("read-page-cache %t", c.NoDIM)
+		wbs = "write-block-size 8M"
 	} else {
 		if c.NoDIM {
 			storEngine = "device"
@@ -732,6 +733,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 				fileSizeInt = c.NoDIMFileSize
 			}
 			rpcStr = fmt.Sprintf("read-page-cache %t", c.NoDIM)
+			wbs = "write-block-size 8M"
 		} else {
 			storEngine = "memory"
 			fileSizeInt = int(float64(memSize/1024/1024/1024) / 1.25)
@@ -749,7 +751,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 
 	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	} else {
 		shutdownCmd := "/sbin/poweroff"
 		if a.opts.Config.Backend.Type == "aws" && c.Aws.TerminateOnPoweroff {
@@ -757,7 +759,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		} else if a.opts.Config.Backend.Type == "gcp" && c.Gcp.TerminateOnPoweroff {
 			shutdownCmd = "/bin/bash /sbin/poweroff"
 		}
-		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, c.ClusterName, shutdownCmd, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, c.ClusterName, shutdownCmd, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 

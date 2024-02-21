@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"os"
@@ -27,7 +28,20 @@ func NewAgiWebTokenHandler() *agiWebTokens {
 	}
 }
 
-func (t *agiWebTokens) GetToken(name string) (token string, err error) {
+type agiWebTokenRequest struct {
+	Name         string
+	PublicIP     string
+	PrivateIP    string
+	InstanceID   string
+	AccessProtIP string
+}
+
+func (t *agiWebTokenRequest) GetUniqueValue() string {
+	return fmt.Sprintf("%x", sha1.Sum([]byte(t.Name+t.PublicIP+t.PrivateIP+t.InstanceID)))
+}
+
+func (t *agiWebTokens) GetToken(req agiWebTokenRequest) (token string, err error) {
+	name := req.GetUniqueValue()
 	// if token exists, serve it
 	t.l.RLock()
 	if v, ok := t.tokens[name]; ok {
@@ -65,7 +79,7 @@ func (t *agiWebTokens) GetToken(name string) (token string, err error) {
 	}()
 
 	// get new token here
-	token, err = t.getNewToken(name)
+	token, err = t.getNewToken(req.Name)
 	if err != nil {
 		// error, exit
 		return "", err

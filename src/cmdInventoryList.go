@@ -31,7 +31,7 @@ type inventoryListCmd struct {
 	JsonPretty   bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	AWSFull      bool     `long:"aws-full" description:"set to iterate through all regions and provide full output"`
 	RenderType   string   `long:"render" description:"different output rendering; supported: text,csv,tsv,html,markdown" default:"text"`
-	GetAGIStatus bool     `long:"with-agi" description:"also get status of AGI ingests" hidden:"true"`
+	GetAGIStatus bool     `long:"with-agi" description:"when using json output, also get status of AGI ingests"`
 	WebUICall    bool     `long:"webui" description:"set to indicate one was called by webui" hidden:"true"`
 	Help         helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -151,24 +151,26 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 			inva[idx].InstanceType = inst.InstanceType
 			inva[idx].CreationTime = time.Time{} // TODO
 			inva[idx].IsRunning = inst.IsRunning
+			inva[idx].AccessProtocol = inst.AccessProtocol
 		} else {
 			inva = append(inva, inventoryWebAGI{
-				Name:         inst.ClusterName,
-				State:        inst.State,
-				Expires:      inst.Expires,
-				Owner:        inst.Owner,
-				AccessURL:    inst.AccessUrl,
-				AGILabel:     inst.AGILabel,
-				RunningCost:  inst.InstanceRunningCost,
-				PublicIP:     inst.PublicIp,
-				PrivateIP:    inst.PrivateIp,
-				Firewalls:    inst.Firewalls,
-				Zone:         inst.Zone,
-				InstanceID:   inst.InstanceId,
-				ImageID:      inst.ImageId,
-				InstanceType: inst.InstanceType,
-				CreationTime: time.Time{}, // TODO
-				IsRunning:    inst.IsRunning,
+				Name:           inst.ClusterName,
+				State:          inst.State,
+				Expires:        inst.Expires,
+				Owner:          inst.Owner,
+				AccessURL:      inst.AccessUrl,
+				AGILabel:       inst.AGILabel,
+				RunningCost:    inst.InstanceRunningCost,
+				PublicIP:       inst.PublicIp,
+				PrivateIP:      inst.PrivateIp,
+				Firewalls:      inst.Firewalls,
+				Zone:           inst.Zone,
+				InstanceID:     inst.InstanceId,
+				ImageID:        inst.ImageId,
+				InstanceType:   inst.InstanceType,
+				CreationTime:   time.Time{}, // TODO
+				IsRunning:      inst.IsRunning,
+				AccessProtocol: inst.AccessProtocol,
 			})
 		}
 	}
@@ -255,6 +257,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			prot = "https://"
 		}
 		if v.Features&ClusterFeatureAGI > 0 {
+			inv.Clusters[vi].AccessProtocol = prot
 			inv.Clusters[vi].AccessUrl = prot + nip + port + "/agi/menu"
 		}
 	}

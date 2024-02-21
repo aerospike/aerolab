@@ -56,19 +56,30 @@ div .dataTables_wrapper .dt-bootstrap4 .dt-buttons .btn-group {
    float: left;
    z-index: 99;
 }
-div .dataTables_filter {
+div .dt-search {
    float: right;
    margin-right: 5px;
    position: relative;
    z-index: 99;
    text-align: right;
 }
-div .dataTables_filter input {
+div .dt-search input {
    width: 70%;
    display: inline-block;
    margin-left: 2px;
 }
-div .dataTables_scrollBody {
-   border-right: 1px solid #ddd !important;
+.browser-widget .content .selection {
+   border-color: #fff;
+}
+.filebrowser-destroy {
+   border: none;
+   position: absolute;
+   right: 0.3em;
+   top: 50%;
+   width: 20px;
+   margin: -10px 0 0 0;
+   padding: 1px;
+   height: 20px;
+   background-color: transparent;
 }
 {{end}}

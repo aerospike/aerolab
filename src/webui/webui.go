@@ -68,6 +68,7 @@ type FormItemInput struct {
 	Tags        bool
 	Required    bool
 	Optional    bool
+	IsFile      bool
 }
 
 type FormItemSelect struct {

@@ -279,6 +279,14 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 	if err != nil {
 		return newName, fmt.Errorf("aerospike.NewKey: %s", err)
 	}
+	totalLen := len(string(ct.sysinfo)) + len(string(ct.confFile)) + len(ct.health) + len(ct.summary) + len(fname)
+	if totalLen >= 8387584 { // 8M-1K
+		ct.health = "<removed, record too big>"
+		totalLen = len(string(ct.sysinfo)) + len(string(ct.confFile)) + len(ct.health) + len(ct.summary) + len(fname)
+		if totalLen >= 8387584 { // 8M-1K
+			ct.sysinfo = []byte("<removed, record too big>")
+		}
+	}
 	binSysinfo := aerospike.NewBin("sysinfo", string(ct.sysinfo))
 	binConfFile := aerospike.NewBin("conffile", string(ct.confFile))
 	binHealth := aerospike.NewBin("health", ct.health)
