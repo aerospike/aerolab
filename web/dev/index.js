@@ -334,6 +334,9 @@ function updateCurrentInventoryPage() {
         }
     })
 }
+$(window).on('focus', function () {
+    updateCurrentInventoryPage();
+});
 {{else}}
 function updateCurrentInventoryPage() {}
 {{end}}
@@ -491,7 +494,7 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
-        buttons: [{
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Go to form: Create New Cluster',
             text: 'Create',
@@ -734,7 +737,9 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
-        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+        columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
+            return data.join("<br>");
+        }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -750,7 +755,7 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
-        buttons: [
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},
             {
                 extend: 'collection',
                 className: 'custom-html-collection btn-success dtTooltip',
@@ -984,7 +989,11 @@ function initDatatable() {
             }}
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
-        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+        columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
+            return data.join("<br>");
+        }{{end}}{{if eq .Name "AccessUrl"}}, render: function (data, type, row, meta) {
+            return '<a href="'+data+'" target="_blank">'+data+'</a>';
+        }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -1000,7 +1009,7 @@ function initDatatable() {
         },
         order: [],
         fixedColumns: {left: 2, right: 1},
-        buttons: [
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},
             {
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Got to form: Create a new AGI instance',
@@ -1199,7 +1208,23 @@ function initDatatable() {
             },
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
-        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+        columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
+            return data.join("<br>");
+        }{{end}}{{if eq .Name "Status"}}, render: function (data, type, row, meta) {
+            if (data == 'READY, HasErrors') {
+                return '<span style="color: #fac400;"><i class="fa-solid fa-check"></i><i class="fa-solid fa-triangle-exclamation"></i>&nbsp;</span>';
+            }
+            if (data == 'READY') {
+                return '<i class="fa-solid fa-check" style="color: #00c000;"></i>&nbsp;';
+            }
+            if (data.startsWith('ERR:')) {
+                return '<span style="color: #ff0000;"><i class="fa-solid fa-xmark"></i>&nbsp;'+data+'</span>';
+            }
+            if (data == '') {
+                return '&nbsp;';
+            }
+            return data;
+        }{{end}}{{if eq .Name "RunningCost"}}, render: function (data, type, row, meta) {
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -1215,7 +1240,7 @@ function initDatatable() {
         },
         order: [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]],
         fixedColumns: {left: 1},
-        buttons: [{
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Create a template without running CreateCluster',
             text: 'Create Cluster',
@@ -1287,7 +1312,7 @@ function initDatatable() {
         },
         order: [0,"asc"],
         fixedColumns: {left: 1},
-        buttons: [
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},
             {
                 className: 'btn btn-success dtTooltip',
                 titleAttr: 'Got to form: new volume',
@@ -1397,7 +1422,7 @@ function initDatatable() {
             data.order = [[0,"asc"],[1,"asc"]];
         },
         order: [[0,"asc"],[1,"asc"]],
-        buttons: [{
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
             text: 'Create',
             {{if eq .Backend "aws"}}
@@ -1484,7 +1509,7 @@ function initDatatable() {
             data.order = [0,"asc"];
         },
         order: [0,"asc"],
-        buttons: [{
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
             className: 'btn btn-success dtTooltip',
             titleAttr: 'Create and install an automated instance expiry system',
             text: 'Create',
@@ -1531,7 +1556,7 @@ function initDatatable() {
             data.order = [[3,"asc"],[6,"asc"]];
         },
         order: [[3,"asc"],[6,"asc"]],
-        buttons: [{extend: 'reload',className: 'btn btn-info',}],
+        buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',}],
         ajax: {url:'{{.WebRoot}}www/api/inventory/subnets',dataSrc:""},
         columns: [{{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}{ data: '{{.Backend}}{{.Name}}' },{{end}}]
     });
@@ -1541,6 +1566,27 @@ function initDatatable() {
 function initDatatable() {
 }
 {{end}}
+
+var cliTimer = null;
+
+function timedUpdateCommand() {
+    if (cliTimer != null) {
+        clearTimeout(cliTimer);
+    };
+    cliTimer = setTimeout(refreshCliCommand, 1500);
+}
+
+function refreshCliCommand() {
+    getCommand(true);
+}
+
+$('.updateCommandCli').on('change', function() {
+    timedUpdateCommand();
+})
+
+$('.updateCommandCli').on('keyup', function() {
+    timedUpdateCommand();
+})
 
 function xRunAttach(tbutton, target, name, node, row, accessURL="") {
     // workaround - prevent selection on button click
@@ -1606,9 +1652,126 @@ $(function () {
         tokenSeparators: [',', ' ']
     })
     {{if .IsForm}}getCommand(true);{{end}}
-    updateJobList(true, true);
     initDatatable();
+    updateJobList(true, true);
     $('.dtTooltip').tooltip({ trigger: "hover", placement: "bottom", fallbackPlacement:["right","top"], boundary: "viewport" });
   })
+
+// filebrowser - server-side
+    function getHomeDir(path = '') {
+        var homedir = {};
+        $.ajax({
+            async: false,
+            type: 'GET',
+            data: {
+                'path': path,
+            },
+            url: '{{.WebRoot}}www/api/homedir',
+            success: function(data) {
+                homedir = data;
+            }
+        });
+        return homedir;
+    }
+    function getPathItems(path) {
+        var items = {};
+        $.ajax({
+            async: false,
+            type: 'GET',
+            dataType: "json",
+            data: {
+                'path': path,
+            },
+            url: '{{.WebRoot}}www/api/ls',
+            success: function(data) {
+                items = data;
+            },
+            error: function(data) {
+                if (data.responseText == "GOUP") {
+                    setTimeout(browser[1].up, 100);
+                    return items;
+                }
+            }
+        });
+        return items;
+    }
+    var browser = null;
+    $(".filebrowser-destroy").click(destroyBrowser);
+    function getBrowser(inputbox, inputTitle) {
+        if (browser != null) {
+            destroyBrowser();
+        }
+        $("#filebrowser-wrapper").html('<div id="filebrowser" title="'+inputTitle+'"></div>');
+        browser = [$('#filebrowser').dialog({
+            width: 600,
+            height: 480
+        })];
+        $(".ui-dialog-titlebar-close").addClass('filebrowser-destroy').removeClass("ui-dialog-titlebar-close").html('<span class="fa-solid fa-xmark"></span>');
+        browser.push(browser[0].browse({
+            root: '/',
+            separator: '/',
+            contextmenu: true,
+            menu: function(type) {
+                if (type == 'li') {
+                    return {
+                        'alert': function($li) {
+                            alert('alert for item "' + $li.text() + '"');
+                        }
+                    }
+                }
+            },
+            dir: function(path) {
+                return new Promise(function(resolve, reject) {
+                    dir = getPathItems(path);
+                    if ($.isPlainObject(dir)) {
+                        var result = {files:[], dirs: []};
+                        Object.keys(dir).forEach(function(key) {
+                            if (typeof dir[key] == 'string') {
+                                result.files.push(key);
+                            } else if ($.isPlainObject(dir[key])) {
+                                result.dirs.push(key);
+                            }
+                        });
+                        resolve(result);
+                    } else {
+                        reject();
+                    }
+                });
+            },
+            exists: function(path) {
+                return typeof getPathItems(path) != 'undefined';
+            },
+            error: function(message) {
+                alert(message);
+            },
+            open: function(filename) {
+                browserFileSelected(filename, inputbox);
+            },
+            on_change: function() {
+                $('#path').val(this.path());
+            }
+        }));
+        setTimeout(function() {
+            let nval = ''
+            if ($(inputbox).val() != "") {
+                nval = $(inputbox).val();
+            } else if ($(inputbox).attr('placeholder') != "") {
+                nval = $(inputbox).attr('placeholder');
+            }
+            browser[1].show(getHomeDir(nval));
+        },10);
+    };
+    function destroyBrowser() {
+        if (browser != null) {
+            browser[1].destroy();
+            browser[0].dialog('destroy').remove();
+            browser = null;
+        }
+    }
+    function browserFileSelected(f, inputbox) {
+        $(inputbox).val(f);
+        destroyBrowser();
+    }
+
 {{template "ansiup" .}}
 {{end}}

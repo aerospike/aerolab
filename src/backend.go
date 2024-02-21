@@ -189,27 +189,28 @@ type inventoryJson struct {
 }
 
 type inventoryWebAGI struct {
-	Name         string
-	State        string
-	Status       string
-	Expires      string `backends:"gcp,aws"`
-	VolOwner     string `backends:"gcp,aws"`
-	Owner        string
-	AccessURL    string
-	AGILabel     string
-	VolSize      string  `backends:"gcp,aws"`
-	VolExpires   string  `backends:"gcp,aws"`
-	RunningCost  float64 `backends:"gcp,aws"`
-	PublicIP     string
-	PrivateIP    string
-	Firewalls    []string `backends:"gcp,aws"`
-	Zone         string   `backends:"gcp,aws"`
-	VolID        string   `backends:"aws"`
-	InstanceID   string
-	ImageID      string    `backends:"docker"`
-	InstanceType string    `backends:"gcp,aws"`
-	CreationTime time.Time `hidden:"true"`
-	IsRunning    bool      `row:"Action"`
+	Name           string
+	State          string
+	Status         string
+	Expires        string `backends:"gcp,aws"`
+	VolOwner       string `backends:"gcp,aws"`
+	Owner          string
+	AccessURL      string `hidden:"true"`
+	AGILabel       string
+	VolSize        string  `backends:"gcp,aws"`
+	VolExpires     string  `backends:"gcp,aws"`
+	RunningCost    float64 `backends:"gcp,aws"`
+	PublicIP       string
+	PrivateIP      string
+	Firewalls      []string `backends:"gcp,aws"`
+	Zone           string   `backends:"gcp,aws"`
+	VolID          string   `backends:"aws"`
+	InstanceID     string
+	ImageID        string    `backends:"docker"`
+	InstanceType   string    `backends:"gcp,aws"`
+	CreationTime   time.Time `hidden:"true"`
+	IsRunning      bool      `row:"Action"`
+	AccessProtocol string    `hidden:"true"` // http:// https://
 }
 
 type inventoryVolume struct {
@@ -320,6 +321,7 @@ type inventoryCluster struct {
 	dockerLabels           map[string]string
 	awsSubnet              string
 	awsSecGroups           []string
+	AccessProtocol         string `hidden:"true"`
 }
 
 type FeatureSystem int64

@@ -47,6 +47,8 @@ type webCmd struct {
 	NoBrowser           bool          `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
 	RefreshInterval     time.Duration `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
 	MinInterval         time.Duration `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
+	BlockServerLs       bool          `long:"block-server-ls" description:"block file exploration on the server altogether"`
+	AllowLsEverywhere   bool          `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
@@ -215,6 +217,8 @@ func (c *webCmd) Execute(args []string) error {
 		runLock:         new(sync.Mutex),
 		inv:             &inventoryJson{},
 		ilcMutex:        new(sync.RWMutex),
+		agiStatusLock:   new(sync.Mutex),
+		c:               c,
 	}
 	c.inventoryNames = c.getInventoryNames()
 	c.cache.ilcMutex.Lock()
@@ -281,6 +285,10 @@ func (c *webCmd) Execute(args []string) error {
 	http.HandleFunc(c.WebRoot+"www/api/commandh", c.commandHistory)
 	http.HandleFunc(c.WebRoot+"www/api/commandjb", c.commandJupyterBash)
 	http.HandleFunc(c.WebRoot+"www/api/commandjm", c.commandJupyterMagic)
+	if !c.BlockServerLs {
+		http.HandleFunc(c.WebRoot+"www/api/ls", c.ls)
+		http.HandleFunc(c.WebRoot+"www/api/homedir", c.homedir)
+	}
 
 	c.addInventoryHandlers()
 	http.HandleFunc(c.WebRoot, c.serve)
@@ -303,6 +311,89 @@ func (c *webCmd) Execute(args []string) error {
 		browser.OpenURL("http://" + openurl)
 	}
 	return http.Serve(l, nil)
+}
+
+func (c *webCmd) allowls(r *http.Request) bool {
+	if c.BlockServerLs {
+		return false // blocked everywhere
+	}
+	if c.AllowLsEverywhere {
+		return true // allowed everywhere
+	}
+	if (strings.HasPrefix(r.Host, "127.0.0.1") || strings.HasPrefix(r.Host, "localhost") || strings.HasPrefix(r.Host, "[::1]")) && (strings.HasPrefix(r.RemoteAddr, "127.0.0.1") || strings.HasPrefix(r.RemoteAddr, "localhost") || strings.HasPrefix(r.RemoteAddr, "[::1]")) {
+		if r.Header.Get("X-Real-IP") != "" || r.Header.Get("X-Forwarded-For") != "" {
+			return false // localhost, but using proxy, blocked
+		}
+		return true // localhost, no proxy detected, allowed
+	}
+	return false // not localhost, blocked
+}
+
+func (c *webCmd) homedir(w http.ResponseWriter, r *http.Request) {
+	allowls := c.allowls(r)
+	if !allowls {
+		http.Error(w, "not allowed", http.StatusForbidden)
+		return
+	}
+	r.ParseForm()
+	npath := r.FormValue("path")
+	if npath == "" {
+		h, e := os.UserHomeDir()
+		if e != nil {
+			http.Error(w, e.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write([]byte(h + "/"))
+		return
+	}
+	p, e := os.Stat(npath)
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusNotFound)
+		return
+	}
+	if !p.IsDir() {
+		ndir, _ := filepath.Split(npath)
+		w.Write([]byte(ndir))
+		return
+	}
+	w.Write([]byte(npath))
+}
+
+func (c *webCmd) ls(w http.ResponseWriter, r *http.Request) {
+	allowls := c.allowls(r)
+	if !allowls {
+		http.Error(w, "not allowed", http.StatusForbidden)
+		return
+	}
+	r.ParseForm()
+	npath := r.FormValue("path")
+	if npath == "" {
+		http.Error(w, "path cannot be empty", http.StatusBadRequest)
+		return
+	}
+	s, e := os.Stat(npath)
+	if e != nil {
+		http.Error(w, e.Error(), http.StatusNotFound)
+		return
+	}
+	out := make(map[string]interface{})
+	if !s.IsDir() {
+		w.Write([]byte("GOUP"))
+		return
+	}
+	entries, err := os.ReadDir(npath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			out[e.Name()] = struct{}{}
+			continue
+		}
+		out[e.Name()] = path.Join(npath, e.Name())
+	}
+	json.NewEncoder(w).Encode(out)
 }
 
 func (c *webCmd) commandScript(w http.ResponseWriter, r *http.Request) {
@@ -827,24 +918,28 @@ func (c *webCmd) genMenu() error {
 	return nil
 }
 
-func (c *webCmd) getFormItems(urlPath string) ([]*webui.FormItem, error) {
+func (c *webCmd) getFormItems(urlPath string, r *http.Request) ([]*webui.FormItem, error) {
 	cindex, ok := c.commandsIndex[strings.TrimPrefix(urlPath, c.WebRoot)]
 	if !ok {
 		return nil, errors.New("command not found")
 	}
 	command := c.commands[cindex]
-	return c.getFormItemsRecursive(command.Value, "")
+	return c.getFormItemsRecursive(command.Value, "", r)
 }
 
-func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string) ([]*webui.FormItem, error) {
+func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string, r *http.Request) ([]*webui.FormItem, error) {
+	allowedLs := c.allowls(r)
 	wf := []*webui.FormItem{}
 	for i := 0; i < commandValue.Type().NumField(); i++ {
 		name := commandValue.Type().Field(i).Name
 		kind := commandValue.Field(i).Kind()
 		tags := commandValue.Type().Field(i).Tag
+		if tags.Get("hidden") == "true" {
+			continue
+		}
 		if name[0] < 65 || name[0] > 90 {
 			if kind == reflect.Struct {
-				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), prefix)
+				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), prefix, r)
 				if err != nil {
 					return nil, err
 				}
@@ -891,6 +986,10 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				})
 			} else {
 				// input item text (possible multiple types)
+				isFile := false
+				if allowedLs && commandValue.Field(i).Type().String() == "flags.Filename" {
+					isFile = true
+				}
 				textType := tags.Get("webtype")
 				if textType == "" {
 					textType = "text"
@@ -910,6 +1009,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Default:     commandValue.Field(i).String(),
 						Description: tags.Get("description"),
 						Required:    required,
+						IsFile:      isFile,
 					},
 				})
 			}
@@ -983,7 +1083,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name: sep,
 					},
 				})
-				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), sep)
+				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), sep, r)
 				if err != nil {
 					return nil, err
 				}
@@ -1072,6 +1172,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Description: tags.Get("description"),
 						Required:    required,
 						Optional:    true,
+						IsFile:      allowedLs,
 					},
 				})
 			} else if commandValue.Field(i).Type().String() == "*bool" {
@@ -1222,7 +1323,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	var errStr string
 	var errTitle string
 	var isError bool
-	formItems, err := c.getFormItems(r.URL.Path)
+	formItems, err := c.getFormItems(r.URL.Path, r)
 	if err != nil {
 		errStr = err.Error()
 		errTitle = "Failed to generate form items"
@@ -1257,11 +1358,13 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	www := os.DirFS(c.WebPath)
 	t, err := template.ParseFS(www, "*.html", "*.js", "*.css")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	err = t.ExecuteTemplate(w, "main", p)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 }
 

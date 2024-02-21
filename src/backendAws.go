@@ -1694,7 +1694,11 @@ func (d *backendAws) CopyFilesToClusterReader(name string, files []fileListReade
 		return fmt.Errorf("could not get key: %s", err)
 	}
 	for _, node := range nodes {
-		err = scp("root", fmt.Sprintf("%s:22", nodeIps[node]), keypath, files)
+		nip, ok := nodeIps[node]
+		if !ok {
+			return fmt.Errorf("IP not found for node %d", node)
+		}
+		err = scp("root", fmt.Sprintf("%s:22", nip), keypath, files)
 		if err != nil {
 			return fmt.Errorf("scp failed: %s", err)
 		}

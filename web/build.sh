@@ -49,6 +49,12 @@ cp -a dev/plugins/datatables-full prod/plugins/.
 # xtermjs
 cp -a dev/plugins/xtermjs prod/plugins/.
 
+# filebrowser + jquery-ui
+mkdir -p prod/plugins/jquery-ui
+cp -a dev/plugins/jquery-ui/jquery-ui.min.css prod/plugins/jquery-ui/.
+cp -a dev/plugins/jquery-ui/jquery-ui.min.js prod/plugins/jquery-ui/.
+cp -a dev/plugins/filebrowser prod/plugins/.
+
 # summary
 cd prod
 tar -zcf ../../src/webui/www.tgz *
