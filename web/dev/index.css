@@ -68,4 +68,18 @@ div .dt-search input {
    display: inline-block;
    margin-left: 2px;
 }
+.browser-widget .content .selection {
+   border-color: #fff;
+}
+.filebrowser-destroy {
+   border: none;
+   position: absolute;
+   right: 0.3em;
+   top: 50%;
+   width: 20px;
+   margin: -10px 0 0 0;
+   padding: 1px;
+   height: 20px;
+   background-color: transparent;
+}
 {{end}}

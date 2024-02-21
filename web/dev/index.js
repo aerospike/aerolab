@@ -1656,5 +1656,122 @@ $(function () {
     updateJobList(true, true);
     $('.dtTooltip').tooltip({ trigger: "hover", placement: "bottom", fallbackPlacement:["right","top"], boundary: "viewport" });
   })
+
+// filebrowser - server-side
+    function getHomeDir(path = '') {
+        var homedir = {};
+        $.ajax({
+            async: false,
+            type: 'GET',
+            data: {
+                'path': path,
+            },
+            url: '{{.WebRoot}}www/api/homedir',
+            success: function(data) {
+                homedir = data;
+            }
+        });
+        return homedir;
+    }
+    function getPathItems(path) {
+        var items = {};
+        $.ajax({
+            async: false,
+            type: 'GET',
+            dataType: "json",
+            data: {
+                'path': path,
+            },
+            url: '{{.WebRoot}}www/api/ls',
+            success: function(data) {
+                items = data;
+            },
+            error: function(data) {
+                if (data.responseText == "GOUP") {
+                    setTimeout(browser[1].up, 100);
+                    return items;
+                }
+            }
+        });
+        return items;
+    }
+    var browser = null;
+    $(".filebrowser-destroy").click(destroyBrowser);
+    function getBrowser(inputbox, inputTitle) {
+        if (browser != null) {
+            destroyBrowser();
+        }
+        $("#filebrowser-wrapper").html('<div id="filebrowser" title="'+inputTitle+'"></div>');
+        browser = [$('#filebrowser').dialog({
+            width: 600,
+            height: 480
+        })];
+        $(".ui-dialog-titlebar-close").addClass('filebrowser-destroy').removeClass("ui-dialog-titlebar-close").html('<span class="fa-solid fa-xmark"></span>');
+        browser.push(browser[0].browse({
+            root: '/',
+            separator: '/',
+            contextmenu: true,
+            menu: function(type) {
+                if (type == 'li') {
+                    return {
+                        'alert': function($li) {
+                            alert('alert for item "' + $li.text() + '"');
+                        }
+                    }
+                }
+            },
+            dir: function(path) {
+                return new Promise(function(resolve, reject) {
+                    dir = getPathItems(path);
+                    if ($.isPlainObject(dir)) {
+                        var result = {files:[], dirs: []};
+                        Object.keys(dir).forEach(function(key) {
+                            if (typeof dir[key] == 'string') {
+                                result.files.push(key);
+                            } else if ($.isPlainObject(dir[key])) {
+                                result.dirs.push(key);
+                            }
+                        });
+                        resolve(result);
+                    } else {
+                        reject();
+                    }
+                });
+            },
+            exists: function(path) {
+                return typeof getPathItems(path) != 'undefined';
+            },
+            error: function(message) {
+                alert(message);
+            },
+            open: function(filename) {
+                browserFileSelected(filename, inputbox);
+            },
+            on_change: function() {
+                $('#path').val(this.path());
+            }
+        }));
+        setTimeout(function() {
+            let nval = ''
+            if ($(inputbox).val() != "") {
+                nval = $(inputbox).val();
+            } else if ($(inputbox).attr('placeholder') != "") {
+                nval = $(inputbox).attr('placeholder');
+            }
+            browser[1].show(getHomeDir(nval));
+        },10);
+    };
+    function destroyBrowser() {
+        if (browser != null) {
+            browser[1].destroy();
+            browser[0].dialog('destroy').remove();
+            browser = null;
+        }
+    }
+    function browserFileSelected(f, inputbox) {
+        $(inputbox).val(f);
+        destroyBrowser();
+    }
+
 {{template "ansiup" .}}
 {{end}}

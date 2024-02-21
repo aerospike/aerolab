@@ -22,7 +22,7 @@ var version = "v" + strings.Trim(vBranch, "\t\r\n ") + "-" + strings.Trim(vCommi
 
 var telemetryVersion = "5"
 
-var webuiVersion = "5"
+var webuiVersion = "6"
 
 var simulateArmInstaller = false
 
