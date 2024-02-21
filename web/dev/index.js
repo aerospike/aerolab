@@ -363,7 +363,7 @@ class Mutex {
 }
 
 var jobListMutex = new Mutex();
-async function updateJobList(setTimer = false, firstRun = false) {
+async function updateJobList(setTimer = false, noInventoryUpdate = false) {
     var mutexunlock = await jobListMutex.lock();
     $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
         document.getElementById("pending-action-count").innerText = data["RunningCount"];
@@ -439,7 +439,7 @@ async function updateJobList(setTimer = false, firstRun = false) {
                 $(jl).append(ln1+jobid+ln2+lnicon+ln3+data.Jobs[i]["Command"]+ln4+data.Jobs[i]["StartedWhen"]+ln5);
             }
         };
-        if (!firstRun) {
+        if (!noInventoryUpdate) {
             updateCurrentInventoryPage();
         };
     })
@@ -452,7 +452,7 @@ async function updateJobList(setTimer = false, firstRun = false) {
     })
     .always(function(data) {
         if (setTimer) {
-            setTimeout(updateJobList, 10000);
+            setTimeout(updateJobList, 10000, true, true);
         };
         mutexunlock();
     });
