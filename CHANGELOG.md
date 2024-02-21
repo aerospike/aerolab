@@ -25,6 +25,7 @@
 * ENHANCEMENT: AGI: Check sftp access and file count in directory prior to creating anything.
 * ENHANCEMENT: AGI: (gcp/aws) Always check if the selected instance type is large enough.
 * ENHANCEMENT: AGI: Improve sftp source download speed by using sftp package concurrency.
+* ENHANCEMENT: AGI: Change `write-block-size` to `8M` to allow for large `collectinfo` imports. Handle imports larger than 8M by trimming data.
 * ENHANCEMENT: logging adds timezone now.
 
 #### 7.3.0
