@@ -335,13 +335,36 @@ function updateCurrentInventoryPage() {
     })
 }
 $(window).on('focus', function () {
-    updateCurrentInventoryPage();
+    updateJobList(false, false);
 });
 {{else}}
 function updateCurrentInventoryPage() {}
 {{end}}
 
-function updateJobList(setTimer = false, firstRun = false) {
+class Mutex {
+    constructor() {
+      this._locking = Promise.resolve();
+      this._locked = false;
+    }
+  
+    isLocked() {
+      return this._locked;
+    }
+  
+    lock() {
+      this._locked = true;
+      let unlockNext;
+      let willLock = new Promise(resolve => unlockNext = resolve);
+      willLock.then(() => this._locked = false);
+      let willUnlock = this._locking.then(() => unlockNext);
+      this._locking = this._locking.then(() => willLock);
+      return willUnlock;
+    }
+}
+
+var jobListMutex = new Mutex();
+async function updateJobList(setTimer = false, noInventoryUpdate = false) {
+    var mutexunlock = await jobListMutex.lock();
     $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
         document.getElementById("pending-action-count").innerText = data["RunningCount"];
         if (data["HasRunning"]) {
@@ -416,7 +439,7 @@ function updateJobList(setTimer = false, firstRun = false) {
                 $(jl).append(ln1+jobid+ln2+lnicon+ln3+data.Jobs[i]["Command"]+ln4+data.Jobs[i]["StartedWhen"]+ln5);
             }
         };
-        if (!firstRun) {
+        if (!noInventoryUpdate) {
             updateCurrentInventoryPage();
         };
     })
@@ -429,8 +452,9 @@ function updateJobList(setTimer = false, firstRun = false) {
     })
     .always(function(data) {
         if (setTimer) {
-            setTimeout(updateJobList, 60000);
+            setTimeout(updateJobList, 10000, true, true);
         };
+        mutexunlock();
     });
 }
 
@@ -1568,12 +1592,14 @@ function initDatatable() {
 {{end}}
 
 var cliTimer = null;
-
-function timedUpdateCommand() {
+var cliMutex = new Mutex();
+async function timedUpdateCommand() {
+    var mutexunlock = await jobListMutex.lock();
     if (cliTimer != null) {
         clearTimeout(cliTimer);
     };
     cliTimer = setTimeout(refreshCliCommand, 1500);
+    mutexunlock();
 }
 
 function refreshCliCommand() {
