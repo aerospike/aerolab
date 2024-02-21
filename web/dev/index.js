@@ -341,7 +341,30 @@ $(window).on('focus', function () {
 function updateCurrentInventoryPage() {}
 {{end}}
 
+class Mutex {
+    constructor() {
+      this._locking = Promise.resolve();
+      this._locked = false;
+    }
+  
+    isLocked() {
+      return this._locked;
+    }
+  
+    lock() {
+      this._locked = true;
+      let unlockNext;
+      let willLock = new Promise(resolve => unlockNext = resolve);
+      willLock.then(() => this._locked = false);
+      let willUnlock = this._locking.then(() => unlockNext);
+      this._locking = this._locking.then(() => willLock);
+      return willUnlock;
+    }
+}
+
+var jobListMutex = new Mutex();
 function updateJobList(setTimer = false, firstRun = false) {
+    mutexunlock = jobListMutex.lock();
     $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
         document.getElementById("pending-action-count").innerText = data["RunningCount"];
         if (data["HasRunning"]) {
@@ -431,6 +454,7 @@ function updateJobList(setTimer = false, firstRun = false) {
         if (setTimer) {
             setTimeout(updateJobList, 10000);
         };
+        mutexunlock();
     });
 }
 
