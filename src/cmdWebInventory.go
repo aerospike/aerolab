@@ -1637,7 +1637,7 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 				conn.WriteMessage(websocket.TextMessage, []byte("Error decoding resize message: "+err.Error()))
 				continue
 			}
-			log.Printf("resizeMessage: %v", resizeMessage)
+			// log.Printf("resizeMessage: %v", resizeMessage) // used for debugging only
 			errno := sysResizeWindow(tty, resizeMessage)
 			if errno != 0 {
 				log.Printf("Cannot resize terminal: syscall Error: %d", errno)
