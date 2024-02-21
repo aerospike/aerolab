@@ -33,11 +33,6 @@ func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[stri
 	i.progress.LogProcessor.wasRunning = true
 	i.progress.LogProcessor.StartTime = time.Now()
 	i.progress.Unlock()
-	defer func() {
-		i.progress.Lock()
-		i.progress.LogProcessor.running = false
-		i.progress.Unlock()
-	}()
 	// find node prefix->nodeID from log files
 	logger.Debug("Process Logs: enumerating log files")
 	foundLogs = make(map[string]*LogFile) //cluster,nodeid,prefix
@@ -106,9 +101,17 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 		var err error
 		foundLogs, meta, err = i.ProcessLogsPrep()
 		if err != nil {
+			i.progress.Lock()
+			i.progress.LogProcessor.running = false
+			i.progress.Unlock()
 			return err
 		}
 	}
+	defer func() {
+		i.progress.Lock()
+		i.progress.LogProcessor.running = false
+		i.progress.Unlock()
+	}()
 	metaLock := new(sync.Mutex)
 	// process
 	resultsChan := make(chan *processResult)
