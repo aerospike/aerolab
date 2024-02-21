@@ -363,8 +363,8 @@ class Mutex {
 }
 
 var jobListMutex = new Mutex();
-function updateJobList(setTimer = false, firstRun = false) {
-    mutexunlock = jobListMutex.lock();
+async function updateJobList(setTimer = false, firstRun = false) {
+    var mutexunlock = await jobListMutex.lock();
     $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
         document.getElementById("pending-action-count").innerText = data["RunningCount"];
         if (data["HasRunning"]) {
@@ -1592,12 +1592,14 @@ function initDatatable() {
 {{end}}
 
 var cliTimer = null;
-
-function timedUpdateCommand() {
+var cliMutex = new Mutex();
+async function timedUpdateCommand() {
+    var mutexunlock = await jobListMutex.lock();
     if (cliTimer != null) {
         clearTimeout(cliTimer);
     };
     cliTimer = setTimeout(refreshCliCommand, 1500);
+    mutexunlock();
 }
 
 function refreshCliCommand() {
