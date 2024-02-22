@@ -318,6 +318,36 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			return fmt.Errorf("%s is not accessible: %s", fn, err)
 		}
 	}
+	log.Println("Getting volume information")
+	if (a.opts.Config.Backend.Type == "aws" && c.Aws.InstanceType == "") || (a.opts.Config.Backend.Type == "gcp" && c.Gcp.InstanceType == "c2d-highmem-4") {
+		inv, err := b.Inventory("", []int{InventoryItemVolumes})
+		if err != nil {
+			return err
+		}
+		var foundVol *inventoryVolume
+		for _, vol := range inv.Volumes {
+			if vol.Name != string(c.ClusterName) {
+				continue
+			}
+			foundVol = &vol
+			break
+		}
+		if foundVol != nil {
+			c.Aws.InstanceType = foundVol.Tags["agiinstance"]
+			c.Gcp.InstanceType = foundVol.Tags["agiinstance"]
+			if foundVol.Tags["aginodim"] == "true" {
+				c.NoDIM = true
+			}
+			if foundVol.Tags["termonpow"] == "true" {
+				c.Aws.TerminateOnPoweroff = true
+				c.Gcp.TerminateOnPoweroff = true
+			}
+			if foundVol.Tags["isspot"] == "true" {
+				c.Aws.SpotInstance = true
+				c.Gcp.SpotInstance = true
+			}
+		}
+	}
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.InstanceType == "" {
 		log.Println("Resolving supported Instance Type")
 		sup := make([]bool, 8)
@@ -443,7 +473,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.Ebs = c.Aws.Ebs
 	a.opts.Cluster.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 	a.opts.Cluster.Create.Aws.SubnetID = c.Aws.SubnetID
-	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), fmt.Sprintf("agiLabel=%s", c.AGILabel))
+	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), fmt.Sprintf("agiLabel=%s", c.AGILabel), fmt.Sprintf("agiinstance=%s", c.Aws.InstanceType), fmt.Sprintf("aginodim=%t", c.NoDIM), fmt.Sprintf("termonpow=%t", c.Aws.TerminateOnPoweroff), fmt.Sprintf("isspot=%t", c.Aws.SpotInstance))
 	a.opts.Cluster.Create.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Cluster.Create.Aws.Expires = c.Aws.Expires
 	a.opts.Cluster.Create.Aws.PublicIP = false
@@ -455,6 +485,21 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		a.opts.Cluster.Create.Aws.EFSOneZone = !c.Aws.EFSMultiZone
 		a.opts.Cluster.Create.Aws.EFSMount = c.Aws.EFSName + ":" + c.Aws.EFSPath + ":" + "/opt/agi"
 		a.opts.Cluster.Create.Aws.EFSExpires = c.Aws.EFSExpires
+	}
+	if a.opts.Config.Backend.Type == "aws" {
+		a.opts.Cluster.Create.volExtraTags = map[string]string{
+			"agiinstance": c.Aws.InstanceType,
+			"aginodim":    fmt.Sprintf("%t", c.NoDIM),
+			"termonpow":   fmt.Sprintf("%t", c.Aws.TerminateOnPoweroff),
+			"isspot":      fmt.Sprintf("%t", c.Aws.SpotInstance),
+		}
+	} else if a.opts.Config.Backend.Type == "gcp" {
+		a.opts.Cluster.Create.volExtraTags = map[string]string{
+			"agiinstance": c.Gcp.InstanceType,
+			"aginodim":    fmt.Sprintf("%t", c.NoDIM),
+			"termonpow":   fmt.Sprintf("%t", c.Gcp.TerminateOnPoweroff),
+			"isspot":      fmt.Sprintf("%t", c.Gcp.SpotInstance),
+		}
 	}
 	if c.Gcp.WithVol {
 		c.Gcp.VolName = strings.ReplaceAll(c.Aws.EFSName, "{AGI_NAME}", string(c.ClusterName))
@@ -478,7 +523,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.gcpMeta = map[string]string{
 		"agiLabel": c.AGILabel,
 	}
-	a.opts.Cluster.Create.Gcp.VolLabels = append(gcplabels.PackToKV("agilabel", c.AGILabel), "agilabel=set")
+	a.opts.Cluster.Create.Gcp.VolLabels = append(gcplabels.PackToKV("agilabel", c.AGILabel), "agilabel=set", fmt.Sprintf("agiinstance=%s", c.Gcp.InstanceType), fmt.Sprintf("aginodim=%t", c.NoDIM), fmt.Sprintf("termonpow=%t", c.Gcp.TerminateOnPoweroff), fmt.Sprintf("isspot=%t", c.Gcp.SpotInstance))
 	a.opts.Cluster.Create.Gcp.VolDescription = c.AGILabel
 	a.opts.Cluster.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
 	a.opts.Cluster.Create.Gcp.Expires = c.Gcp.Expires
