@@ -330,6 +330,10 @@ func (c *webCmd) allowls(r *http.Request) bool {
 }
 
 func (c *webCmd) homedir(w http.ResponseWriter, r *http.Request) {
+	if a.opts.Config.Backend.Type == "" {
+		http.Error(w, "pick config->backend first", http.StatusBadRequest)
+		return
+	}
 	allowls := c.allowls(r)
 	if !allowls {
 		http.Error(w, "not allowed", http.StatusForbidden)
@@ -360,6 +364,10 @@ func (c *webCmd) homedir(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *webCmd) ls(w http.ResponseWriter, r *http.Request) {
+	if a.opts.Config.Backend.Type == "" {
+		http.Error(w, "pick config->backend first", http.StatusBadRequest)
+		return
+	}
 	allowls := c.allowls(r)
 	if !allowls {
 		http.Error(w, "not allowed", http.StatusForbidden)
@@ -417,6 +425,10 @@ func (c *webCmd) static(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *webCmd) jobAction(w http.ResponseWriter, r *http.Request) {
+	if a.opts.Config.Backend.Type == "" {
+		http.Error(w, "pick config->backend first", http.StatusBadRequest)
+		return
+	}
 	r.ParseForm()
 	requestID := shortuuid.New()
 	log.Printf("[%s] %s %s:%s", requestID, r.RemoteAddr, r.Method, r.RequestURI)
@@ -1302,6 +1314,11 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// if posting command, run and exit
 		c.command(w, r)
+		return
+	}
+
+	if a.opts.Config.Backend.Type == "" && r.URL.Path != c.WebRoot+"config/backend" {
+		http.Redirect(w, r, c.WebRoot+"config/backend", http.StatusTemporaryRedirect)
 		return
 	}
 
