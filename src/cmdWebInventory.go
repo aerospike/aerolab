@@ -95,12 +95,12 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 			i.inv = &inventoryJson{}
 			i.Unlock()
 		}
-		return fmt.Errorf("%s: %s", err, string(out))
+		return fmt.Errorf("data.Get(1):%s: %s", err, string(out))
 	}
 	inv := &inventoryJson{}
 	err = json.Unmarshal(out, inv)
 	if err != nil {
-		return err
+		return fmt.Errorf("json.Unmarshal:1:%s:%s", err, string(out))
 	}
 	for i := range inv.Clusters {
 		if strings.ToLower(inv.Clusters[i].State) == "running" || strings.HasPrefix(inv.Clusters[i].State, "Up_") {
@@ -204,12 +204,41 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 				return
 			}
 			req.AddCookie(&http.Cookie{Name: "AGI_TOKEN", Value: token})
+			req.AddCookie(&http.Cookie{Name: "X-AGI-CALLER", Value: "webui"})
 			response, err := client.Do(req)
 			if err != nil {
 				if i.c.DebugRequests {
 					log.Printf("error getting agi status for %s with ip %s: %s", agis.Name, ip, err)
 				}
 				return
+			}
+			if response.StatusCode == http.StatusUnauthorized {
+				if i.c.DebugRequests {
+					log.Printf("error getting agi status for %s with ip %s: %s", agis.Name, ip, "got unauthorized, attempting to invalidate token and try again")
+				}
+				token, err = i.c.agiTokens.GetNewToken(*agis)
+				if err != nil {
+					if i.c.DebugRequests {
+						log.Printf("error getting new token for %s with ip %s: %s", agis.Name, ip, err)
+					}
+					return
+				}
+				req, err = http.NewRequest("GET", ip+"/agi/status", nil)
+				if err != nil {
+					if i.c.DebugRequests {
+						log.Printf("error getting agi status request for %s with ip %s: %s", agis.Name, ip, err)
+					}
+					return
+				}
+				req.AddCookie(&http.Cookie{Name: "AGI_TOKEN", Value: token})
+				req.AddCookie(&http.Cookie{Name: "X-AGI-CALLER", Value: "webui"})
+				response, err = client.Do(req)
+				if err != nil {
+					if i.c.DebugRequests {
+						log.Printf("error getting agi status for %s with ip %s: %s", agis.Name, ip, err)
+					}
+					return
+				}
 			}
 			defer response.Body.Close()
 			if response.StatusCode != 200 {
@@ -222,41 +251,49 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 			}
 			statusMsg := "unknown"
 			clusterStatus := &ingest.IngestStatusStruct{}
-			err = json.NewDecoder(response.Body).Decode(clusterStatus)
-			if err == nil {
-				hasErrors := false
-				if len(clusterStatus.Ingest.Errors) > 0 {
-					hasErrors = true
+			respb, err := io.ReadAll(response.Body)
+			if err != nil {
+				if i.c.DebugRequests {
+					log.Printf("Failed to read response body of 200: %s", err)
 				}
-				if !clusterStatus.AerospikeRunning {
-					statusMsg = "ERR: ASD DOWN"
-				} else if !clusterStatus.GrafanaHelperRunning {
-					statusMsg = "ERR: GRAFANAFIX DOWN"
-				} else if !clusterStatus.PluginRunning {
-					statusMsg = "ERR: PLUGIN DOWN"
-				} else if !clusterStatus.Ingest.CompleteSteps.Init {
-					statusMsg = "(1/6) INIT"
-				} else if !clusterStatus.Ingest.CompleteSteps.Download {
-					statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
-				} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
-					statusMsg = "(3/6) UNPACK"
-				} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
-					statusMsg = "(4/6) PRE-PROCESS"
-				} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
-					statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
-				} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
-					statusMsg = "(6/6) COLLECTINFO"
-				} else {
-					statusMsg = "READY"
-					if hasErrors {
-						statusMsg = "READY, HasErrors"
+			} else {
+				err = json.Unmarshal(respb, clusterStatus)
+				if err == nil {
+					hasErrors := false
+					if len(clusterStatus.Ingest.Errors) > 0 {
+						hasErrors = true
 					}
+					if !clusterStatus.AerospikeRunning {
+						statusMsg = "ERR: ASD DOWN"
+					} else if !clusterStatus.GrafanaHelperRunning {
+						statusMsg = "ERR: GRAFANAFIX DOWN"
+					} else if !clusterStatus.PluginRunning {
+						statusMsg = "ERR: PLUGIN DOWN"
+					} else if !clusterStatus.Ingest.CompleteSteps.Init {
+						statusMsg = "(1/6) INIT"
+					} else if !clusterStatus.Ingest.CompleteSteps.Download {
+						statusMsg = fmt.Sprintf("(2/6) DOWNLOAD %d%%", clusterStatus.Ingest.DownloaderCompletePct)
+					} else if !clusterStatus.Ingest.CompleteSteps.Unpack {
+						statusMsg = "(3/6) UNPACK"
+					} else if !clusterStatus.Ingest.CompleteSteps.PreProcess {
+						statusMsg = "(4/6) PRE-PROCESS"
+					} else if !clusterStatus.Ingest.CompleteSteps.ProcessLogs {
+						statusMsg = fmt.Sprintf("(5/6) PROCESS %d%%", clusterStatus.Ingest.LogProcessorCompletePct)
+					} else if !clusterStatus.Ingest.CompleteSteps.ProcessCollectInfo {
+						statusMsg = "(6/6) COLLECTINFO"
+					} else {
+						statusMsg = "READY"
+						if hasErrors {
+							statusMsg = "READY, HasErrors"
+						}
+					}
+					if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+						statusMsg = "ERR: INGEST DOWN"
+					}
+				} else if i.c.DebugRequests {
+					log.Printf("json.Unmarshal:2:%s:%s", err, string(respb))
+					log.Printf("curl -k -X GET --cookie=\"AGI_TOKEN=%s\" %s", token, ip+"/agi/status")
 				}
-				if statusMsg != "READY" && !clusterStatus.Ingest.Running {
-					statusMsg = "ERR: INGEST DOWN"
-				}
-			} else if i.c.DebugRequests {
-				log.Print(err)
 			}
 			i.Lock()
 			for ni := range i.inv.AGI {
@@ -978,6 +1015,8 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						log.Printf("[%s] ERROR %s", reqID, "agiName undefined")
 						continue
 					}
+					agiInstanceExists := ""
+					agiInstanceExists, _ = getString(i["InstanceType"])
 					agiZone := ""
 					if a.opts.Config.Backend.Type != "docker" {
 						agiZone, err = getString(i["Zone"])
@@ -991,7 +1030,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 					if _, ok := clist[agiName]; !ok {
 						clist[agiName] = []string{}
 					}
-					clist[agiName] = append(clist[agiName], agiZone)
+					clist[agiName] = append(clist[agiName], agiZone, agiInstanceExists)
 				}
 			default:
 				isError = true
@@ -1100,7 +1139,18 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 			cmdJson := map[string]interface{}{
 				"ClusterName": agiName,
 			}
-			err = c.runInvCmd(reqID, "/agi/start", cmdJson, invlog)
+			ncmd := "/agi/start"
+			if len(nodes) > 1 && nodes[1] == "" {
+				ncmd = "/agi/create"
+				cmdJson["Gcp"] = map[string]interface{}{
+					"Zone":    nodes[0],
+					"WithVol": true,
+				}
+				cmdJson["Aws"] = map[string]interface{}{
+					"WithEFS": true,
+				}
+			}
+			err = c.runInvCmd(reqID, ncmd, cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))

@@ -881,6 +881,13 @@ func (c *agiExecProxyCmd) checkAuth(w http.ResponseWriter, r *http.Request) bool
 }
 
 func (c *agiExecProxyCmd) displayAuthTokenRequest(w http.ResponseWriter, r *http.Request) {
+	tc, err := r.Cookie("X-AGI-CALLER")
+	if err == nil {
+		if tc.Value == "webui" {
+			http.Error(w, "token invalid", http.StatusUnauthorized)
+			return
+		}
+	}
 	w.Write([]byte(`<html><head><title>authenticate</title></head><body><form>Authentication Token: <input type=text name="` + c.TokenName + `"><input type=Submit name="Login" value="Login"></form></body></html>`))
 }
 
