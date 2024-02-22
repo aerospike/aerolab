@@ -45,6 +45,7 @@ type clusterCreateCmd struct {
 	Docker         clusterCreateCmdDocker `no-flag:"true"`
 	gcpMeta        map[string]string
 	useAgiFirewall bool
+	volExtraTags   map[string]string
 }
 
 type osSelectorCmd struct {
@@ -301,6 +302,14 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 						c.Aws.Tags[ii] = "agiLabel=" + agiLabel
 					}
 				}
+				if c.volExtraTags != nil {
+					for ek, ev := range c.volExtraTags {
+						err = b.TagVolume(foundVol.FileSystemId, ek, ev, foundVol.AvailabilityZoneName)
+						if err != nil {
+							return err
+						}
+					}
+				}
 			}
 		}
 		b.WorkOnServers()
@@ -349,6 +358,14 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				if _, ok := c.gcpMeta["agiLabel"]; ok {
 					if agiLabel, err := gcplabels.Unpack(foundVol.Tags, "agilabel"); err == nil {
 						c.gcpMeta["agiLabel"] = agiLabel
+					}
+				}
+				if c.volExtraTags != nil {
+					for ek, ev := range c.volExtraTags {
+						err = b.TagVolume(foundVol.FileSystemId, ek, ev, foundVol.AvailabilityZoneName)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
