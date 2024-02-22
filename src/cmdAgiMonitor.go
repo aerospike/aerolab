@@ -176,13 +176,17 @@ TimeoutStopSec=600
 Restart=on-failure
 User=root
 RestartSec=10
-ExecStartPre=/usr/local/bin/aerolab config backend -t %s -r %s -o %s
+ExecStartPre=/usr/local/bin/aerolab config backend -t %s %s
 ExecStart=/usr/local/bin/aerolab agi monitor listen
 
 [Install]
 WantedBy=multi-user.target
 `
-	agiSystemd = fmt.Sprintf(agiSystemd, a.opts.Config.Backend.Type, a.opts.Config.Backend.Region, a.opts.Config.Backend.Project)
+	if a.opts.Config.Backend.Type == "gcp" {
+		agiSystemd = fmt.Sprintf(agiSystemd, a.opts.Config.Backend.Type, "-o "+a.opts.Config.Backend.Project)
+	} else {
+		agiSystemd = fmt.Sprintf(agiSystemd, a.opts.Config.Backend.Type, "-r "+a.opts.Config.Backend.Region)
+	}
 	err = b.CopyFilesToClusterReader(c.Name, []fileListReader{{"/usr/lib/systemd/system/agimonitor.service", strings.NewReader(agiSystemd), len(agiSystemd)}, {"/etc/agimonitor.yaml", bytes.NewReader(agiConfigYaml), len(agiConfigYaml)}}, []int{1})
 	if err != nil {
 		return err
