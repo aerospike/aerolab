@@ -1015,6 +1015,8 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						log.Printf("[%s] ERROR %s", reqID, "agiName undefined")
 						continue
 					}
+					agiInstanceExists := ""
+					agiInstanceExists, _ = getString(i["InstanceType"])
 					agiZone := ""
 					if a.opts.Config.Backend.Type != "docker" {
 						agiZone, err = getString(i["Zone"])
@@ -1028,7 +1030,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 					if _, ok := clist[agiName]; !ok {
 						clist[agiName] = []string{}
 					}
-					clist[agiName] = append(clist[agiName], agiZone)
+					clist[agiName] = append(clist[agiName], agiZone, agiInstanceExists)
 				}
 			default:
 				isError = true
@@ -1137,7 +1139,18 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 			cmdJson := map[string]interface{}{
 				"ClusterName": agiName,
 			}
-			err = c.runInvCmd(reqID, "/agi/start", cmdJson, invlog)
+			ncmd := "/agi/start"
+			if len(nodes) > 1 && nodes[1] == "" {
+				ncmd = "/agi/create"
+				cmdJson["Gcp"] = map[string]interface{}{
+					"Zone":    nodes[0],
+					"WithVol": true,
+				}
+				cmdJson["Aws"] = map[string]interface{}{
+					"WithEFS": true,
+				}
+			}
+			err = c.runInvCmd(reqID, ncmd, cmdJson, invlog)
 			if err != nil {
 				isError = true
 				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
