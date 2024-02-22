@@ -17,11 +17,24 @@ import (
 
 	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
-	"github.com/aerospike/aerolab/notifier"
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"gopkg.in/yaml.v3"
 )
+
+// copy of notier.HTTPSNotify
+type hTTPSNotify struct {
+	AGIMonitorUrl        string   `long:"agi-monitor-url" description:"AWS/GCP: AGI Monitor endpoint url to send the notifications to for sizing" yaml:"agiMonitor"`
+	AGIMonitorCertIgnore bool     `long:"agi-monitor-ignore-cert" description:"set to make https calls ignore invalid server certificate"`
+	Endpoint             string   `long:"notify-web-endpoint" description:"http(s) URL to contact with a notification" yaml:"endpoint"`
+	Headers              []string `long:"notify-web-header" description:"a header to set for notification; for example to use Authorization tokens; format: Name=value" yaml:"headers"`
+	AbortOnFail          bool     `long:"notify-web-abort-on-fail" description:"if set, ingest will be aborted if the notification system receives an error response or no response" yaml:"abortOnFail"`
+	AbortOnCode          []int    `long:"notify-web-abort-code" description:"set to status codes on which to abort the operation" yaml:"abortStatusCodes"`
+	IgnoreInvalidCert    bool     `long:"notify-web-ignore-cert" description:"set to make https calls ignore invalid server certificate"`
+	SlackToken           string   `long:"notify-slack-token" description:"set to enable slack notifications for events"`
+	SlackChannel         string   `long:"notify-slack-channel" description:"set to the channel to notify to"`
+	SlackEvents          string   `long:"notify-slack-events" description:"comma-separated list of events to notify for" default:"INGEST_FINISHED,SERVICE_DOWN,SERVICE_UP,MAX_AGE_REACHED,MAX_INACTIVITY_REACHED,SPOT_INSTANCE_CAPACITY_SHUTDOWN"`
+}
 
 type agiCreateCmd struct {
 	ClusterName      TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
@@ -64,7 +77,7 @@ type agiCreateCmd struct {
 	PluginLogLevel   int             `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4"`
 	NoConfigOverride bool            `long:"no-config-override" description:"if set, existing configuration will not be overridden; useful when restarting EFS-based AGIs"`
 	NoToolsOverride  bool            `long:"no-tools-override" description:"by default agi will install the latest tools package; set this to disable tools package upgrade"`
-	notifier.HTTPSNotify
+	hTTPSNotify
 	WithAGIMonitorAuto      bool                 `long:"with-monitor" description:"if set, system will look for agimonitor client; if not present, one will be created; will also auto-fill the monitor URL"`
 	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
 	Distro                  TypeDistro           `short:"d" long:"distro" description:"Custom distro" default:"ubuntu"`
@@ -134,13 +147,13 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if c.Owner == "" {
 		c.Owner = currentOwnerUser
 	}
-	if a.opts.Config.Backend.Type == "docker" && (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") {
+	if a.opts.Config.Backend.Type == "docker" && (c.WithAGIMonitorAuto || c.hTTPSNotify.AGIMonitorUrl != "") {
 		return errors.New("AGI monitor is not supported on docker; sizing would not be possible either way")
 	}
-	if (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "aws" && !c.Aws.WithEFS {
+	if (c.WithAGIMonitorAuto || c.hTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "aws" && !c.Aws.WithEFS {
 		return errors.New("AGI monitor can only be enabled for instances with EFS storage enabled (use --aws-with-efs)")
 	}
-	if (c.WithAGIMonitorAuto || c.HTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "gcp" && !c.Gcp.WithVol {
+	if (c.WithAGIMonitorAuto || c.hTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "gcp" && !c.Gcp.WithVol {
 		return errors.New("AGI monitor can only be enabled for instances with extra Volume storage enabled (use --gcp-with-vol)")
 	}
 
@@ -749,7 +762,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	proxyMaxInactive := c.ProxyMaxInactive.String()
 	proxyMaxUptime := c.ProxyMaxUptime.String()
 	installScript := ""
-	notifierYaml, _ := yaml.Marshal(c.HTTPSNotify)
+	notifierYaml, _ := yaml.Marshal(c.hTTPSNotify)
 	override := "1"
 	if c.NoConfigOverride {
 		override = "0"
