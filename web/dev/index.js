@@ -363,9 +363,15 @@ class Mutex {
 }
 
 var jobListMutex = new Mutex();
+var updateJobListLastSuccess = true;
+var updateJobListConnErrCount = 0;
 async function updateJobList(setTimer = false, noInventoryUpdate = false) {
     var mutexunlock = await jobListMutex.lock();
     $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
+        if (!updateJobListLastSuccess) {
+            updateJobListLastSuccess = true;
+        }
+        updateJobListConnErrCount = 0;
         document.getElementById("pending-action-count").innerText = data["RunningCount"];
         if (data["HasRunning"]) {
             $("#pending-action-icon").removeClass("fa-bell");
@@ -447,12 +453,26 @@ async function updateJobList(setTimer = false, noInventoryUpdate = false) {
         let body = data.responseText;
         if ((data.status == 0)&&(body == undefined)) {
             body = "Connection Error";
+            if (setTimer) {
+                updateJobListConnErrCount=updateJobListConnErrCount+1;
+            };
+            if (updateJobListLastSuccess) {
+                updateJobListLastSuccess = false;
+                toastr.error(data.statusText+": "+body);
+            };
+            return;
         }
         toastr.error(data.statusText+": "+body);
     })
     .always(function(data) {
         if (setTimer) {
-            setTimeout(updateJobList, 10000, true, true);
+            if (updateJobListConnErrCount < 6) { // for first minute try every 10 seconds
+                setTimeout(updateJobList, 10000, true, true);
+            } else if (updateJobListConnErrCount >= 6 && updateJobListConnErrCount < 14) { // for the next 4 minutes (total 5) try every 30 seconds
+                setTimeout(updateJobList, 30000, true, true);
+            } else {
+                setTimeout(updateJobList, 60000, true, true); // if we were timing out for the last 5 minutes, decrease the retries to every 1 minute
+            };
         };
         mutexunlock();
     });
@@ -762,8 +782,14 @@ function initDatatable() {
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clusters',dataSrc:""},
         columns: [{{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
-            return data.join("<br>");
+            if (data != null) {
+                return data.join("<br>");
+            }
+            return "&nbsp;";
         }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+            if (data == null || data == 0) {
+                return "-";
+            }
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -1014,10 +1040,16 @@ function initDatatable() {
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/clients',dataSrc:""},
         columns: [{{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
-            return data.join("<br>");
+            if (data != null) {
+                return data.join("<br>");
+            }
+            return "&nbsp;";
         }{{end}}{{if eq .Name "AccessUrl"}}, render: function (data, type, row, meta) {
             return '<a href="'+data+'" target="_blank">'+data+'</a>';
         }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
+            if (data == null || data == 0) {
+                return "-";
+            }
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';
@@ -1233,7 +1265,10 @@ function initDatatable() {
         ],
         ajax: {url:'{{.WebRoot}}www/api/inventory/agi',dataSrc:""},
         columns: [{{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}{ data: '{{.Backend}}{{.Name}}'{{if eq .Name "Firewalls"}}, render: function (data, type, row, meta) {
-            return data.join("<br>");
+            if (data != null) {
+                return data.join("<br>");
+            }
+            return "&nbsp;";
         }{{end}}{{if eq .Name "Status"}}, render: function (data, type, row, meta) {
             if (data == 'READY, HasErrors') {
                 return '<span style="color: #fac400;"><i class="fa-solid fa-check"></i><i class="fa-solid fa-triangle-exclamation"></i>&nbsp;</span>';
@@ -1249,6 +1284,9 @@ function initDatatable() {
             }
             return data;
         }{{end}}{{if eq .Name "RunningCost"}}, render: function (data, type, row, meta) {
+            if (data == null || data == 0) {
+                return "-";
+            }
             return "$" + Math.round(data*10000)/10000;
         }{{end}}{{if eq .Name "IsRunning"}}, render: function (data, type, row, meta) {
             let disabledString = 'success"';

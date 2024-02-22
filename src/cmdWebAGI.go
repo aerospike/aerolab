@@ -40,6 +40,16 @@ func (t *agiWebTokenRequest) GetUniqueValue() string {
 	return fmt.Sprintf("%x", sha1.Sum([]byte(t.Name+t.PublicIP+t.PrivateIP+t.InstanceID)))
 }
 
+// invalidate existing token and get a new one
+func (t *agiWebTokens) GetNewToken(req agiWebTokenRequest) (token string, err error) {
+	name := req.GetUniqueValue()
+	t.l.Lock()
+	delete(t.tokens, name)
+	t.l.Unlock()
+	return t.GetToken(req)
+}
+
+// get an existing token, or request a new one if current does not exist
 func (t *agiWebTokens) GetToken(req agiWebTokenRequest) (token string, err error) {
 	name := req.GetUniqueValue()
 	// if token exists, serve it
