@@ -239,7 +239,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 
 	inv, err := b.Inventory(c.Owner, inventoryItems)
 	if err != nil {
-		return err
+		return fmt.Errorf("b.Inventory: %s", err)
 	}
 
 	for vi, v := range inv.Clusters {
