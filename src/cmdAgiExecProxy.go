@@ -349,8 +349,11 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
 	}
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Add("Pragma", "no-cache")
+	w.Header().Add("Expires", "0")
 	w.WriteHeader(http.StatusOK)
-	out := []byte(`<html><head><title>AGI URLs</title></head><body><center>
+	out := []byte(`<html><head><title>AGI URLs</title><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" /><meta http-equiv="Pragma" content="no-cache" /><meta http-equiv="Expires" content="0" /></head><body><center>
 	<a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
 	<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
 	<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
