@@ -1731,7 +1731,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.WriteString("-=-=-=-=- [path] /" + strings.TrimPrefix(r.URL.Path, c.WebRoot) + " -=-=-=-=-\n")
-	f.WriteString("-=-=-=-=- [cmdline] " + strings.Join(cmdline, " ") + " -=-=-=-=-\n")
+	f.WriteString("-=-=-=-=- [cmdline] " + strings.Join(append(cmdline, tail...), " ") + " -=-=-=-=-\n")
 	f.WriteString("-=-=-=-=- [command] " + strings.Join(c.commands[cindex].pathStack, " ") + " -=-=-=-=-\n")
 	json.NewEncoder(f).Encode(cjson)
 	f.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")

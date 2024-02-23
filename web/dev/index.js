@@ -706,6 +706,21 @@ function initDatatable() {
                         }
                     },
                     {
+                        text: 'Adjust conf',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                            var cname = arr[0]["ClusterName"];
+                            var nodes = [];
+                            for (let i=0;i<arr.length;i++) {
+                                if (arr[i]["ClusterName"] != cname) {toastr.error("All selected nodes must belong to the same cluster for this action.");return;};
+                                nodes.push(arr[i]["NodeNo"]);
+                            }
+                            window.location.href = "{{.WebRoot}}conf/adjust?ClusterName="+arr[0]["ClusterName"]+"&Nodes="+nodes.join(',');
+                        }
+                    },
+                    {
                         text: 'Fix HB Mesh',
                         action: function ( e, dt, node, config ) {
                             let arr = [];
@@ -1200,13 +1215,6 @@ function initDatatable() {
                             let data = arr[0];
                             let url = "{{.WebRoot}}agi/status?ClusterName="+data["Name"];
                             window.location.href = url;            
-                        }
-                    },
-                    {
-                        text: 'Details',
-                        action: function ( e, dt, node, config ) {
-                            // TODO background run and report in a nice way: including old-new-name mapping, errors, etc
-                            alert('not implemented yet');
                         }
                     },
                     {
@@ -1713,7 +1721,7 @@ $(function () {
     $(".select2bs4tag").select2({
         theme: 'bootstrap4',
         tags: true,
-        tokenSeparators: [',', ' ']
+        //tokenSeparators: [',', ' '] // this won't work for commands and parameters which contain a comma or a space, disabling
     })
     {{if .IsForm}}getCommand(true);{{end}}
     initDatatable();
