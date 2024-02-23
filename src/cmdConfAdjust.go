@@ -17,6 +17,9 @@ type confAdjustCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Path        string          `short:"p" long:"path" description:"Path to aerospike.conf on the remote nodes" default:"/etc/aerospike/aerospike.conf"`
+	Command     string          `short:"c" long:"command" description:"command to run, get|set|create|delete" webchoice:"create,set,delete,get"`
+	Key         string          `short:"k" long:"key" description:"the key to work on; eg 'namespace bar.storage-engine device.write-block-size'"`
+	Values      []string        `short:"v" long:"value" description:"value to set a key to when using set option; can be specified multiple times"`
 	parallelThreadsCmd
 }
 
@@ -25,8 +28,12 @@ func (c *confAdjustCmd) Execute(args []string) error {
 		return nil
 	}
 	if len(args) < 1 {
-		c.help()
-		return nil
+		if c.Command != "" || c.Key != "" || len(c.Values) > 0 {
+			args = append([]string{c.Command, c.Key}, c.Values...)
+		} else {
+			c.help()
+			return nil
+		}
 	}
 	command := args[0]
 	path := ""
@@ -209,7 +216,7 @@ func (c *confAdjustCmd) help() {
 	create - create a new stanza`)
 	fmt.Println("\n" + `PATH: path.to.item or path.to.stanza, e.g. network.heartbeat`)
 	fmt.Println("\n" + `SET-VALUE: for the 'set' command - used to specify value of parameter; leave empty to crete no-value param`)
-	fmt.Println("\n" + `To specify a literal dot in the configuraiton path, use .. (double-dot)`)
+	fmt.Println("\n" + `To specify a literal dot in the configuration path, use .. (double-dot)`)
 	fmt.Printf("\n"+`EXAMPLES:
 	%s -n mydc create network.heartbeat
 	%s -n mydc set network.heartbeat.mode mesh
