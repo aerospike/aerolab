@@ -18,7 +18,7 @@ type confAdjustCmd struct {
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Path        string          `short:"p" long:"path" description:"Path to aerospike.conf on the remote nodes" default:"/etc/aerospike/aerospike.conf"`
 	Command     string          `short:"c" long:"command" description:"command to run, get|set|create|delete" webchoice:"create,set,delete,get"`
-	Key         string          `short:"k" long:"key" description:"the key to work on; eg 'namespace bar.storage-engine device.write-block-size'"`
+	Key         string          `short:"k" long:"key" description:"the key to work on; eg 'namespace bar.storage-engine device.write-block-size'" webrequired:"true"`
 	Values      []string        `short:"v" long:"value" description:"value to set a key to when using set option; can be specified multiple times"`
 	parallelThreadsCmd
 }
