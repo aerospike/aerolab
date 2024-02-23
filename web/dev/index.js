@@ -1713,7 +1713,7 @@ $(function () {
     $(".select2bs4tag").select2({
         theme: 'bootstrap4',
         tags: true,
-        tokenSeparators: [',', ' ']
+        //tokenSeparators: [',', ' '] // this won't work for commands and parameters which contain a comma or a space, disabling
     })
     {{if .IsForm}}getCommand(true);{{end}}
     initDatatable();
