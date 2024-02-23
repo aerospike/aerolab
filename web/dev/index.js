@@ -1203,13 +1203,6 @@ function initDatatable() {
                         }
                     },
                     {
-                        text: 'Details',
-                        action: function ( e, dt, node, config ) {
-                            // TODO background run and report in a nice way: including old-new-name mapping, errors, etc
-                            alert('not implemented yet');
-                        }
-                    },
-                    {
                         text: 'Get share link',
                         action: function ( e, dt, node, config ) {
                             let arr = [];
