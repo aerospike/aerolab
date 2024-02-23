@@ -706,6 +706,21 @@ function initDatatable() {
                         }
                     },
                     {
+                        text: 'Adjust conf',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                            var cname = arr[0]["ClusterName"];
+                            var nodes = [];
+                            for (let i=0;i<arr.length;i++) {
+                                if (arr[i]["ClusterName"] != cname) {toastr.error("All selected nodes must belong to the same cluster for this action.");return;};
+                                nodes.push(arr[i]["NodeNo"]);
+                            }
+                            window.location.href = "{{.WebRoot}}conf/adjust?ClusterName="+arr[0]["ClusterName"]+"&Nodes="+nodes.join(',');
+                        }
+                    },
+                    {
                         text: 'Fix HB Mesh',
                         action: function ( e, dt, node, config ) {
                             let arr = [];
