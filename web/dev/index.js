@@ -1564,7 +1564,7 @@ function initDatatable() {
                     }
                     let data = arr[0];
                     {{if eq .Backend "aws"}}
-                    let url = "{{.WebRoot}}config/aws/lock-security-groups?NamePrefix="+data["AWS"]["SecurityGroupName"]+"&VPC="+data["AWS"]["VPC"]+"&IP=discover-caller-ip";
+                    let url = "{{.WebRoot}}config/aws/lock-security-groups?NamePrefix="+data["AWS"]["SecurityGroupName"].split('-')[0]+"&VPC="+data["AWS"]["VPC"]+"&IP=discover-caller-ip";
                     {{end}}
                     {{if eq .Backend "gcp"}}
                     let url = "{{.WebRoot}}config/gcp/lock-firewall-rules?NamePrefix="+data["GCP"]["FirewallName"]+"&IP=discover-caller-ip";
