@@ -134,26 +134,25 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		if !i.IsRunning {
 			continue
 		}
-		if i.PublicIP != "" {
-			agiList = append(agiList, &agiWebTokenRequest{
-				Name:         i.Name,
-				PublicIP:     i.PublicIP,
-				PrivateIP:    i.PrivateIP,
-				AccessProtIP: i.AccessProtocol + i.PublicIP,
-				InstanceID:   i.InstanceID,
-			})
-			continue
+		apipsplit := strings.Split(i.AccessURL, "/")
+		accessProtIP := ""
+		if len(apipsplit) >= 3 {
+			accessProtIP = strings.Join(apipsplit[0:3], "/")
 		}
-		if i.PrivateIP != "" {
-			agiList = append(agiList, &agiWebTokenRequest{
-				Name:         i.Name,
-				PublicIP:     i.PublicIP,
-				PrivateIP:    i.PrivateIP,
-				AccessProtIP: i.AccessProtocol + i.PrivateIP,
-				InstanceID:   i.InstanceID,
-			})
-			continue
+		if a.opts.Config.Backend.Type != "docker" || accessProtIP == "" {
+			if i.PublicIP != "" {
+				accessProtIP = i.AccessProtocol + i.PublicIP
+			} else if i.PrivateIP != "" {
+				accessProtIP = i.AccessProtocol + i.PrivateIP
+			}
 		}
+		agiList = append(agiList, &agiWebTokenRequest{
+			Name:         i.Name,
+			PublicIP:     i.PublicIP,
+			PrivateIP:    i.PrivateIP,
+			AccessProtIP: accessProtIP,
+			InstanceID:   i.InstanceID,
+		})
 	}
 	i.Lock()
 	i.inv = inv
