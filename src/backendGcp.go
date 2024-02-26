@@ -1329,6 +1329,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						CreationTime:         ts,
 						LifeCycleState:       *pair.Status,
 						Name:                 *pair.Name,
+						FileSystemId:         *pair.Name,
 						SizeBytes:            int(*pair.SizeGb) * 1024 * 1024 * 1024,
 						SizeString:           convSize(*pair.SizeGb * 1024 * 1024 * 1024),
 						AgiLabel:             gcplabels.UnpackNoErr(pair.Labels, "agilabel"),
