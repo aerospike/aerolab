@@ -379,6 +379,7 @@ func (c *volumeMountCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
+		log.Print("Volume attached, mounting")
 	}
 	return c.doMount(volume, c.Gcp.Node)
 }
