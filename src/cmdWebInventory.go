@@ -756,6 +756,8 @@ func (c *webCmd) inventoryClusters(w http.ResponseWriter, r *http.Request) {
 		if cluster.Features&ClusterFeatureAGI > 0 {
 			continue
 		}
+		itypes := strings.Split(cluster.InstanceType, "/")
+		cluster.InstanceType = itypes[len(itypes)-1]
 		clusters = append(clusters, cluster)
 	}
 	json.NewEncoder(w).Encode(clusters)
@@ -766,7 +768,13 @@ func (c *webCmd) inventoryClients(w http.ResponseWriter, r *http.Request) {
 	defer c.cache.ilcMutex.RUnlock()
 	c.cache.RLock()
 	defer c.cache.RUnlock()
-	json.NewEncoder(w).Encode(c.cache.inv.Clients)
+	clients := []inventoryClient{}
+	for _, client := range c.cache.inv.Clients {
+		itypes := strings.Split(client.InstanceType, "/")
+		client.InstanceType = itypes[len(itypes)-1]
+		clients = append(clients, client)
+	}
+	json.NewEncoder(w).Encode(clients)
 }
 
 func (c *webCmd) inventoryAGIConnect(w http.ResponseWriter, r *http.Request) {
@@ -800,7 +808,11 @@ func (c *webCmd) inventoryAGI(w http.ResponseWriter, r *http.Request) {
 	c.cache.ilcMutex.RLock()
 	c.cache.RLock()
 	inv := []inventoryWebAGI{}
-	inv = append(inv, c.cache.inv.AGI...)
+	for _, i := range c.cache.inv.AGI {
+		itypes := strings.Split(i.InstanceType, "/")
+		i.InstanceType = itypes[len(itypes)-1]
+		inv = append(inv, i)
+	}
 	c.cache.RUnlock()
 	c.cache.ilcMutex.RUnlock()
 	// sort
@@ -966,7 +978,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 					if _, ok := zoneclist[zone][clusterName]; !ok {
 						zoneclist[zone][clusterName] = []string{}
 					}
-					zoneclist[zone][clusterName] = append(zoneclist[zone][clusterName], zone)
+					zoneclist[zone][clusterName] = append(zoneclist[zone][clusterName], nodeNo)
 				case "client":
 					clientName := ""
 					nodeNo := ""
@@ -1005,7 +1017,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 					if _, ok := zoneclist[zone][clientName]; !ok {
 						zoneclist[zone][clientName] = []string{}
 					}
-					zoneclist[zone][clientName] = append(zoneclist[zone][clientName], zone)
+					zoneclist[zone][clientName] = append(zoneclist[zone][clientName], nodeNo)
 				case "agi":
 					agiName := ""
 					agiName, err = getString(i["Name"])
@@ -1463,7 +1475,7 @@ func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http
 				cmdJson := map[string]interface{}{
 					"ClusterName": clusterName,
 					"Nodes":       nodeNo,
-					"Expires":     expiry.String(),
+					"Expires":     int64(expiry),
 					"Gcp": map[string]interface{}{
 						"Zone": zone,
 					},
@@ -1482,7 +1494,7 @@ func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http
 				cmdJson := map[string]interface{}{
 					"ClusterName": clusterName,
 					"Nodes":       nodeNo,
-					"Expires":     expiry.String(),
+					"Expires":     int64(expiry),
 					"Gcp": map[string]interface{}{
 						"Zone": zone,
 					},
