@@ -1682,6 +1682,19 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	if len(cmdline) > 3 && cmdline[1] == "config" && cmdline[2] == "backend" {
+		found := false
+		for _, ncmd1 := range cmdline {
+			if strings.HasPrefix(ncmd1, "--type") || ncmd1 == "-t" {
+				found = true
+			}
+		}
+		if !found {
+			cmdline = append(cmdline, "-t", a.opts.Config.Backend.Type)
+			cjson["Type"] = a.opts.Config.Backend.Type
+		}
+	}
 	if action[0] == "show" {
 		if len(tail) == 1 {
 			json.NewEncoder(w).Encode(cmdline)
@@ -1730,8 +1743,12 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		cancel()
 		return
 	}
+	cmdlineprint := cmdline
+	if len(tail) > 1 {
+		cmdlineprint = append(cmdline, tail...)
+	}
 	f.WriteString("-=-=-=-=- [path] /" + strings.TrimPrefix(r.URL.Path, c.WebRoot) + " -=-=-=-=-\n")
-	f.WriteString("-=-=-=-=- [cmdline] " + strings.Join(append(cmdline, tail...), " ") + " -=-=-=-=-\n")
+	f.WriteString("-=-=-=-=- [cmdline] " + strings.Join(cmdlineprint, " ") + " -=-=-=-=-\n")
 	f.WriteString("-=-=-=-=- [command] " + strings.Join(c.commands[cindex].pathStack, " ") + " -=-=-=-=-\n")
 	json.NewEncoder(f).Encode(cjson)
 	f.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")

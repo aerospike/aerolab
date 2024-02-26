@@ -335,7 +335,11 @@ function updateCurrentInventoryPage() {
     })
 }
 $(window).on('focus', function () {
-    updateJobList(false, false);
+    if ($("#noConnectOverlay").is(":visible")) {
+        reconnect();
+    } else {
+        updateJobList(false, false);
+    };
 });
 {{else}}
 function updateCurrentInventoryPage() {}
@@ -365,7 +369,7 @@ class Mutex {
 var jobListMutex = new Mutex();
 var updateJobListLastSuccess = true;
 var updateJobListConnErrCount = 0;
-async function updateJobList(setTimer = false, noInventoryUpdate = false) {
+async function updateJobList(setTimer = false, noInventoryUpdate = false, hideOverlay = false) {
     var mutexunlock = await jobListMutex.lock();
     $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
         if (!updateJobListLastSuccess) {
@@ -448,6 +452,9 @@ async function updateJobList(setTimer = false, noInventoryUpdate = false) {
         if (!noInventoryUpdate) {
             updateCurrentInventoryPage();
         };
+        if (hideOverlay) {
+            $("#noConnectOverlay").hide();
+        }
     })
     .fail(function(data) {
         let body = data.responseText;
@@ -459,23 +466,33 @@ async function updateJobList(setTimer = false, noInventoryUpdate = false) {
             if (updateJobListLastSuccess) {
                 updateJobListLastSuccess = false;
                 toastr.error(data.statusText+": "+body);
-            };
+            } else if (hideOverlay) {
+                toastr.error(data.statusText+": "+body);
+            }
             return;
         }
         toastr.error(data.statusText+": "+body);
     })
     .always(function(data) {
+        if (hideOverlay) {
+            $("#reconnect").prop('disabled', false);
+        }
         if (setTimer) {
-            if (updateJobListConnErrCount < 6) { // for first minute try every 10 seconds
-                setTimeout(updateJobList, 10000, true, true);
-            } else if (updateJobListConnErrCount >= 6 && updateJobListConnErrCount < 14) { // for the next 4 minutes (total 5) try every 30 seconds
-                setTimeout(updateJobList, 30000, true, true);
+            if (updateJobListConnErrCount > 2) {
+                if (!hideOverlay) {
+                    $("#noConnectOverlay").show();
+                };
             } else {
-                setTimeout(updateJobList, 60000, true, true); // if we were timing out for the last 5 minutes, decrease the retries to every 1 minute
-            };
+                setTimeout(updateJobList, 10000, true, true);
+            }
         };
         mutexunlock();
     });
+}
+
+function reconnect() {
+    $("#reconnect").prop('disabled', true);
+    updateJobList(true, false, true);
 }
 
 function clearNotifications() {
@@ -1268,6 +1285,22 @@ function initDatatable() {
                             window.location.href = url;            
                         }
                     },
+                    {
+                        text: 'Attach',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            window.open('{{.WebRoot}}www/api/inventory/cluster/connect?name='+data["Name"]+"&node=1", '_blank').focus();
+                        }
+                    },
                 ]
             },
         ],
@@ -1531,7 +1564,7 @@ function initDatatable() {
                     }
                     let data = arr[0];
                     {{if eq .Backend "aws"}}
-                    let url = "{{.WebRoot}}config/aws/lock-security-groups?NamePrefix="+data["AWS"]["SecurityGroupName"]+"&VPC="+data["AWS"]["VPC"]+"&IP=discover-caller-ip";
+                    let url = "{{.WebRoot}}config/aws/lock-security-groups?NamePrefix="+data["AWS"]["SecurityGroupName"].split('-')[0]+"&VPC="+data["AWS"]["VPC"]+"&IP=discover-caller-ip";
                     {{end}}
                     {{if eq .Backend "gcp"}}
                     let url = "{{.WebRoot}}config/gcp/lock-firewall-rules?NamePrefix="+data["GCP"]["FirewallName"]+"&IP=discover-caller-ip";

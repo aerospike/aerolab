@@ -39,12 +39,24 @@
   <div class="overlay-spinner">
     <div class="d-flex justify-content-center">  
       <div class="spinner-border text-primary" role="status" style="width: 6rem; height: 6rem; z-index: 20;">
-        <span class="sr-only">Loading...</span>
+        <<span class="sr-only">Loading...</span>>
       </div>
     </div>
   </div>
 </div>
 <!-- /spinner -->
+<!-- no connection -->
+<div class="overlay-disable" id="noConnectOverlay">
+  <div class="overlay-spinner">
+    <div class="d-flex justify-content-center">  
+      <div class="text-primary" role="status" style="width: 20rem; height: 6rem; z-index: 20; text-align: center;">
+        <span class="" style="font-weight: 900; font-size: x-large; color: black;">Connectivity to aerolab lost!</span>
+        <button onclick="reconnect();" id="reconnect">Reconnect</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /no connection -->
 
 <div class="wrapper">
 
