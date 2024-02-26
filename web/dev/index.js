@@ -1285,6 +1285,22 @@ function initDatatable() {
                             window.location.href = url;            
                         }
                     },
+                    {
+                        text: 'Attach',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {
+                                let data = this.data();
+                                arr.push(data);
+                            });
+                            if (arr.length != 1) {
+                                toastr.error("Select one row.");
+                                return;
+                            }
+                            let data = arr[0];
+                            window.open('{{.WebRoot}}www/api/inventory/cluster/connect?name='+data["Name"]+"&node=1", '_blank').focus();
+                        }
+                    },
                 ]
             },
         ],
