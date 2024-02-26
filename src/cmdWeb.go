@@ -1682,6 +1682,19 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
+	if len(cmdline) > 3 && cmdline[1] == "config" && cmdline[2] == "backend" {
+		found := false
+		for _, ncmd1 := range cmdline {
+			if strings.HasPrefix(ncmd1, "--type") || ncmd1 == "-t" {
+				found = true
+			}
+		}
+		if !found {
+			cmdline = append(cmdline, "-t", a.opts.Config.Backend.Type)
+			cjson["Type"] = a.opts.Config.Backend.Type
+		}
+	}
 	if action[0] == "show" {
 		if len(tail) == 1 {
 			json.NewEncoder(w).Encode(cmdline)
