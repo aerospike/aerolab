@@ -1302,7 +1302,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						attachedTo = append(attachedTo, strings.TrimPrefix(userx[len(userx)-1], "aerolab4-"))
 					}
 					agiVolume := false
-					if pair.Labels["aerolab4features"] == "4" {
+					if _, ok := pair.Labels["aginodim"]; ok {
 						agiVolume = true
 					}
 					// expiry
