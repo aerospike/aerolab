@@ -34,6 +34,7 @@ type agiWebTokenRequest struct {
 	PrivateIP    string
 	InstanceID   string
 	AccessProtIP string
+	AccessURL    string
 }
 
 func (t *agiWebTokenRequest) GetUniqueValue() string {
