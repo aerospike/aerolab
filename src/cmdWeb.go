@@ -271,7 +271,7 @@ func (c *webCmd) Execute(args []string) error {
 			if err != nil {
 				return err
 			}
-			err = webui.InstallWebsite(c.WebPath)
+			err = webui.InstallWebsite(c.WebPath, webui.Website)
 			if err != nil {
 				return err
 			}
