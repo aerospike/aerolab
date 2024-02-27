@@ -14,8 +14,8 @@ import (
 var Website []byte
 
 // Install will install the website in dst/www
-func InstallWebsite(dst string) error {
-	br := bytes.NewReader(Website)
+func InstallWebsite(dst string, website []byte) error {
+	br := bytes.NewReader(website)
 	r, err := gzip.NewReader(br)
 	if err != nil {
 		return err

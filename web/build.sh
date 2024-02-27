@@ -59,3 +59,8 @@ cp -a dev/plugins/filebrowser prod/plugins/.
 cd prod
 tar -zcf ../../src/webui/www.tgz *
 cd ..
+
+# agiproxy
+cd agiproxy
+tar -zcf ../../src/agiproxy.tgz *
+cd ..

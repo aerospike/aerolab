@@ -1,0 +1,293 @@
+{{define "index"}}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta http-equiv="Pragma" content="no-cache" />
+        <meta http-equiv="Expires" content="0" />      
+        <link rel="stylesheet" href="dist/bs/bootstrap.min.css" />
+        <link rel="stylesheet" href="dist/fa/fontawesome.min.css" />
+        <link href="dist/datatables/jquery-ui.min.css" rel="stylesheet">
+        <link href="dist/datatables/datatables.min.css" rel="stylesheet">
+        <title>{{.Title}}</title>
+        <style>
+            .local-btn-pushable {
+              margin-bottom: 10px;
+              position: relative;
+              border: none;
+              background: transparent;
+              padding: 0;
+              cursor: pointer;
+              outline-offset: 4px;
+              transition: filter 250ms;
+              width: 12em;
+            }
+            .local-btn-shadow {
+              position: absolute;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              border-radius: 12px;
+              background: hsl(0deg 0% 0% / 0.25);
+              will-change: transform;
+              transform: translateY(2px);
+              transition:
+                transform
+                600ms
+                cubic-bezier(.3, .7, .4, 1);
+            }
+            .local-btn-edge {
+              position: absolute;
+              top: 0;
+              left: 0;
+              width: 100%;
+              height: 100%;
+              border-radius: 12px;
+              background: linear-gradient(
+                to left,
+                hsl(233, 100%, 16%) 0%,
+                hsl(231, 100%, 32%) 8%,
+                hsl(249, 100%, 32%) 92%,
+                hsl(226, 100%, 16%) 100%
+              );
+            }
+            .local-btn-front {
+              display: block;
+              position: relative;
+              padding: 12px 42px;
+              border-radius: 12px;
+              font-size: 1.25rem;
+              color: white;
+              background: hsl(240, 100%, 47%);
+              will-change: transform;
+              transform: translateY(-4px);
+              transition:
+                transform
+                600ms
+                cubic-bezier(.3, .7, .4, 1);
+            }
+            .local-btn-pushable:hover {
+              filter: brightness(110%);
+            }
+            .local-btn-pushable:hover .local-btn-front {
+              transform: translateY(-6px);
+              transition:
+                transform
+                250ms
+                cubic-bezier(.3, .7, .4, 1.5);
+            }
+            .local-btn-pushable:active .local-btn-front {
+              transform: translateY(-2px);
+              transition: transform 34ms;
+            }
+            .local-btn-pushable:hover .local-btn-shadow {
+              transform: translateY(4px);
+              transition:
+                transform
+                250ms
+                cubic-bezier(.3, .7, .4, 1.5);
+            }
+            .local-btn-pushable:active .local-btn-shadow {
+              transform: translateY(1px);
+              transition: transform 34ms;
+            }
+            .local-btn-pushable:focus:not(:focus-visible) {
+              outline: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container-fluid text-center">
+            <!-- title -->
+            <div class="row">
+                <div class="col">
+                    <h1>{{.Title}}</h1>
+                    {{.Description}}
+                </div>
+            </div>
+            <!-- break -->
+            <div class="row">
+                <div class="col">
+                    <hr>
+                </div>
+            </div>
+            <!-- navigation buttons -->
+            <div class="row">
+                <div class="col-xl-3 col-lg-0">
+                </div>
+                <div class="col-xl-2 col-lg-4">
+                    <button class="local-btn-pushable" onclick="window.open('/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1','_blank');">
+                        <span class="local-btn-shadow"></span>
+                        <span class="local-btn-edge"></span>
+                        <span class="local-btn-front">
+                            <i class="fa-solid fa-chart-line fa-5x"></i><br />Grafana
+                        </span>
+                    </button>
+                </div>
+                <div class="col-xl-2 col-lg-4">
+                    <button class="local-btn-pushable" onclick="window.open('/agi/ttyd','_blank');">
+                        <span class="local-btn-shadow"></span>
+                        <span class="local-btn-edge"></span>
+                        <span class="local-btn-front">
+                            <i class="fa-solid fa-terminal fa-5x"></i><br />Terminal
+                        </span>
+                    </button>
+                </div>
+                <div class="col-xl-2 col-lg-4">
+                    <button class="local-btn-pushable" onclick="window.open('/agi/filebrowser','_blank');">
+                        <span class="local-btn-shadow"></span>
+                        <span class="local-btn-edge"></span>
+                        <span class="local-btn-front">
+                            <i class="fa-solid fa-folder-open fa-5x"></i><br />File Browser
+                        </span>
+                    </button>
+                </div>
+                <div class="col-xl-3 col-lg-0">
+                </div>
+            </div>
+            <!-- break -->
+            <div class="row">
+                <div class="col">
+                    <hr>
+                </div>
+            </div>
+            <!-- details -->
+            <div class="row" hidden="true">
+                <div class="col">
+                    <div class="card">
+                        <div class="card-header">
+                            <ul class="nav nav-tabs card-header-tabs" id="mainNav" data-bs-tabs="tabs"> <!-- class="nav nav-pills" -->
+                                <li class="nav-item">
+                                    <a class="nav-link navMemory" data-bs-toggle="tab" href="#status">Status</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link navMemory" data-bs-toggle="tab" href="#filemap">Progress</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link navMemory" data-bs-toggle="tab" href="#ingestwarns">Errors</a>
+                                </li>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">Instance</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#sysos">Operating System</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsasd">Aerospike Logs</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsproxy">Proxy Logs</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsingest">Ingest Logs</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsplugin">Plugin Logs</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#logsgfix">Grafanafix Logs</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#dmesg">Dmesg</a></li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        <form class="card-body tab-content">
+                            <div class="tab-pane" id="status">
+                                <p class="card-text">agi status nicely formatted</p>
+                            </div>
+                            <div class="tab-pane" id="filemap" aria-labelledby="#filemap">
+                                <p class="card-text">
+                                    <table id="progress" class="hover compact cell-border" style="width: 100%;">
+                                        <thead>
+                                            <tr>
+                                                <th>Something</th>
+                                                <th>Bob</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>is</td>
+                                                <td>it</td>
+                                            </tr>
+                                            <tr>
+                                                <td>is</td>
+                                                <td>it</td>
+                                            </tr>
+                                        </tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <th>Something</th>
+                                                <th>Bob</th>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </p>
+                            </div>
+                            <div class="tab-pane" id="ingestwarns">
+                                <p class=" card-text">file processing/downloading/unzipping/preprocessing errors</p>
+                            </div>
+                            <div class="tab-pane" id="sysos">
+                                <p class=" card-text">OS stats - free disk space, RAM, load, etc</p>
+                            </div>
+                            <div class="tab-pane" id="logsasd">
+                                <p class=" card-text">logs</p>
+                            </div>
+                            <div class="tab-pane" id="logsproxy">
+                                <p class=" card-text">logs</p>
+                            </div>
+                            <div class="tab-pane" id="logsingest">
+                                <p class=" card-text">logs</p>
+                            </div>
+                            <div class="tab-pane" id="logsplugin">
+                                <p class=" card-text">logs</p>
+                            </div>
+                            <div class="tab-pane" id="logsgfix">
+                                <p class=" card-text">logs</p>
+                            </div>
+                            <div class="tab-pane" id="dmesg">
+                                <p class=" card-text">dmesg</p>
+                            </div>
+                            <!-- placeholder: non-tabbed content goes here -->
+                        </form>
+                   </div>
+                </div>
+            </div>
+        </div>
+    </body>
+    <script src="dist/bs/bootstrap.bundle.min.js"></script>
+    <script src="dist/fa/fontawesome.min.js"></script>
+    <script src="dist/datatables/jquery.min.js"></script>
+    <script src="dist/datatables/jquery-ui.min.js"></script>
+    <script src="dist/datatables/datatables.min.js"></script>
+    <script>
+        $(function() {
+            // on load, if activeTab is saved, go there
+            $( document ).ready(function() {
+                var activeTab = localStorage.getItem("activeTab");
+                // if activeTab is unset, set first tab as active
+                if (activeTab == null) {
+                    $('.navMemory').each(function(i,elem) {
+                        $(elem).addClass("active");
+                        var id = $(elem).attr('href');
+                        $(id).addClass("active");
+                        return false;
+                    });
+                    return;
+                }
+                // set saved tab as active
+                $(activeTab).addClass('active');
+                $('.navMemory').each(function(i,elem) {
+                    if ($(elem).attr('href') == activeTab) {
+                        $(elem).addClass("active");
+                        // handle dropdowns
+                        if ($(elem).hasClass('dropdown-item')) {
+                            $($(elem).parent('li').parent('ul').parent('li').children('a')[0]).addClass('active');
+                        }
+                        return false;
+                    };
+                })
+            });
+
+            // on click of nav item, store location
+            $('.navMemory').click(function(obj) {
+                localStorage.setItem("activeTab", $(obj.target).attr('href'));
+            })
+
+            // TODO: load log info/data
+            // TODO: load datatables
+            $('#progress').DataTable();
+        });
+    </script>
+</html>
+{{end}}

@@ -23,16 +23,23 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
+
+	_ "embed"
 
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/notifier"
+	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 	"github.com/fsnotify/fsnotify"
 	ps "github.com/mitchellh/go-ps"
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed agiproxy.tgz
+var proxyweb []byte
 
 type agiExecProxyCmd struct {
 	AGIName              string        `long:"agi-name"`
@@ -76,6 +83,7 @@ type agiExecProxyCmd struct {
 	isDim                bool
 	notifyJSON           bool
 	deployJson           string
+	wwwSimple            bool
 }
 
 type tokens struct {
@@ -296,6 +304,21 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		go c.maxUptime()
 	}
 	go c.loadTokens()
+
+	os.RemoveAll("/opt/agi/www")
+	err = os.MkdirAll("/opt/agi/www", 0755)
+	if err != nil {
+		c.wwwSimple = true
+		log.Printf("WARN: simple homepage, error: %s", err)
+	} else {
+		err = webui.InstallWebsite("/opt/agi/www", proxyweb)
+		if err != nil {
+			c.wwwSimple = true
+			log.Printf("WARN: simple homepage, error: %s", err)
+		}
+	}
+
+	http.HandleFunc("/agi/dist/", c.wwwstatic)
 	http.HandleFunc("/agi/monitor-challenge", c.secretValidate)
 	http.HandleFunc("/agi/ttyd", c.ttydHandler)                 // web console tty
 	http.HandleFunc("/agi/ttyd/", c.ttydHandler)                // web console tty
@@ -345,6 +368,16 @@ func (c *agiExecProxyCmd) secretValidate(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 }
 
+func (c *agiExecProxyCmd) handleListSimple(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	out := []byte(`<html><head><title>AGI URLs</title><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" /><meta http-equiv="Pragma" content="no-cache" /><meta http-equiv="Expires" content="0" /></head><body><center>
+<a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
+<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
+<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
+</center></body></html>`)
+	w.Write(out)
+}
+
 func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
@@ -352,13 +385,36 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Add("Pragma", "no-cache")
 	w.Header().Add("Expires", "0")
-	w.WriteHeader(http.StatusOK)
-	out := []byte(`<html><head><title>AGI URLs</title><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" /><meta http-equiv="Pragma" content="no-cache" /><meta http-equiv="Expires" content="0" /></head><body><center>
-	<a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
-	<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
-	<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
-	</center></body></html>`)
-	w.Write(out)
+	if c.wwwSimple {
+		c.handleListSimple(w, r)
+		return
+	}
+	www := os.DirFS("/opt/agi/www")
+	t, err := template.ParseFS(www, "index.html")
+	if err != nil {
+		log.Print(err)
+		c.handleListSimple(w, r)
+		return
+	}
+	type np struct {
+		Title       string
+		Description string
+	}
+	nlabel, _ := os.ReadFile("/opt/agi/label")
+	p := np{
+		Title:       c.AGIName,
+		Description: string(nlabel),
+	}
+	err = t.ExecuteTemplate(w, "index", p)
+	if err != nil {
+		log.Print(err)
+		c.handleListSimple(w, r)
+		return
+	}
+}
+
+func (c *agiExecProxyCmd) wwwstatic(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, path.Join("/opt/agi/www", strings.TrimPrefix(strings.TrimLeft(r.URL.Path, "/"), "agi/")))
 }
 
 // form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
