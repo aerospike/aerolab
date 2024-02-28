@@ -28,6 +28,7 @@ type Page struct {
 	FormItems                               []*FormItem
 	Inventory                               map[string]*InventoryItem
 	Backend                                 string
+	BetaTag                                 bool
 }
 
 type InventoryItem struct {

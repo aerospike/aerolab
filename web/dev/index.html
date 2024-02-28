@@ -39,7 +39,7 @@
   <div class="overlay-spinner">
     <div class="d-flex justify-content-center">  
       <div class="spinner-border text-primary" role="status" style="width: 6rem; height: 6rem; z-index: 20;">
-        <<span class="sr-only">Loading...</span>>
+        <span class="sr-only">Loading...</span>
       </div>
     </div>
   </div>
@@ -138,7 +138,7 @@
     <!-- Brand Logo -->
     <a href="{{.WebRoot}}" class="brand-link">
       <img src="{{.WebRoot}}www/dist/img/aerolab.png" alt="A" class="brand-image img-circle elevation-3" style="opacity: .8">
-      <span class="brand-text font-weight-light">AeroLab</span>
+      <span class="brand-text font-weight-light">AeroLab</span>{{if .BetaTag}}&nbsp;<button type="button" class="btn btn-warning btn-xs beta">BETA</button>{{end}}
     </a>
 
     <!-- Sidebar -->

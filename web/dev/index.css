@@ -82,4 +82,10 @@ div .dt-search input {
    height: 20px;
    background-color: transparent;
 }
+.beta:hover {
+   background-color: #ffc107;
+   border-color: #ffc107;
+   box-shadow: none;
+   color: #1f2d3d;
+}
 {{end}}

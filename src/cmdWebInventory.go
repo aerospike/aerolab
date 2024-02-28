@@ -396,6 +396,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		PendingActionsShowAllUsersToggleChecked: false,
 		IsInventory:                             true,
 		Inventory:                               c.inventoryNames,
+		BetaTag:                                 isWebuiBeta,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{

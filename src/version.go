@@ -22,9 +22,11 @@ var version = "v" + strings.Trim(vBranch, "\t\r\n ") + "-" + strings.Trim(vCommi
 
 var telemetryVersion = "5"
 
-var webuiVersion = "9"
+var webuiVersion = "10"
 
 var simulateArmInstaller = false
 
 var awsExpiryVersion = 6
 var gcpExpiryVersion = 6
+
+var isWebuiBeta = true
