@@ -319,10 +319,11 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		}
 	}
 
-	http.HandleFunc("/agi/menu", c.handleList)         // URL list and status
-	http.HandleFunc("/agi/dist/", c.wwwstatic)         // static files for URL list
-	http.HandleFunc("/agi/api/status", c.handleStatus) // menu web page API
-	http.HandleFunc("/agi/api/logs", c.handleLogs)     // menu web page API
+	http.HandleFunc("/agi/menu", c.handleList)               // URL list and status
+	http.HandleFunc("/agi/dist/", c.wwwstatic)               // static files for URL list
+	http.HandleFunc("/agi/api/status", c.handleStatus)       // menu web page API
+	http.HandleFunc("/agi/api/logs", c.handleLogs)           // menu web page API
+	http.HandleFunc("/agi/api/detail", c.handleIngestDetail) // menu web page API
 	http.HandleFunc("/agi/monitor-challenge", c.secretValidate)
 	http.HandleFunc("/agi/ttyd", c.ttydHandler)                 // web console tty
 	http.HandleFunc("/agi/ttyd/", c.ttydHandler)                // web console tty

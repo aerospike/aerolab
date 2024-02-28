@@ -180,8 +180,15 @@
                                 <li class="nav-item">
                                     <a class="nav-link navMemory" data-bs-toggle="tab" href="#status">Status</a>
                                 </li>
-                                <li class="nav-item">
-                                    <a class="nav-link navMemory" data-bs-toggle="tab" href="#filemap">Progress</a>
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">Ingest</a>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#filesdl">Downloader</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#filesun">Unpacker</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#filespp">Pre-Processor</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#fileslp">Log Processor</a></li>
+                                        <li><a class="dropdown-item navMemory" data-bs-toggle="tab" href="#filescp">CF Processor</a></li>
+                                    </ul>
                                 </li>
                                 <li class="nav-item">
                                     <a class="nav-link navMemory" data-bs-toggle="tab" href="#ingestwarns">Errors</a>
@@ -203,36 +210,109 @@
                             <div class="tab-pane" id="status">
                                 <p class="card-text" id="statusMsg"><i class="fa-solid fa-spinner fa-spin"></i></p>
                             </div>
-                            <div class="tab-pane" id="filemap" aria-labelledby="#filemap">
-                                <p class="card-text">
-                                    <table id="progress" class="hover compact cell-border" style="width: 100%;">
-                                        <thead>
-                                            <tr>
-                                                <th>Something</th>
-                                                <th>Bob</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td>is</td>
-                                                <td>it</td>
-                                            </tr>
-                                            <tr>
-                                                <td>is</td>
-                                                <td>it</td>
-                                            </tr>
-                                        </tbody>
-                                        <tfoot>
-                                            <tr>
-                                                <th>Something</th>
-                                                <th>Bob</th>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
-                                </p>
+                            <div class="tab-pane" id="filesdl" aria-labelledby="#filesdl">
+                                <span class="card-text"><table id="tfilesdl" class="hover compact cell-border" style="width: 100%;"><thead><tr>
+                                        <th>Source</th>
+                                        <th>File</th>
+                                        <th>Size</th>
+                                        <th>Downloaded</th>
+                                        <th>Error</th>
+                                    </tr></thead><tbody></tbody><tfoot><tr>
+                                        <th>Source</th>
+                                        <th>File</th>
+                                        <th>Size</th>
+                                        <th>Downloaded</th>
+                                        <th>Error</th>
+                                </tr></tfoot></table></span>
+                            </div>
+                            <div class="tab-pane" id="filesun" aria-labelledby="#filesun">
+                                <span class="card-text"><table id="tfilesun" class="hover compact cell-border" style="width: 100%;"><thead><tr>
+                                        <th>File</th>
+                                        <th>Size</th>
+                                        <th>ContentType</th>
+                                        <th>IsCollectInfo</th>
+                                        <th>IsArchive</th>
+                                        <th>IsText</th>
+                                        <th>UnpackFailed</th>
+                                        <th>Errors</th>
+                                    </tr></thead><tbody></tbody><tfoot><tr>
+                                        <th>File</th>
+                                        <th>Size</th>
+                                        <th>ContentType</th>
+                                        <th>IsCollectInfo</th>
+                                        <th>IsArchive</th>
+                                        <th>IsText</th>
+                                        <th>UnpackFailed</th>
+                                        <th>Errors</th>
+                                </tr></tfoot></table></span>
+                            </div>
+                            <div class="tab-pane" id="filespp" aria-labelledby="#filespp">
+                                <span class="card-text"><table id="tfilespp" class="hover compact cell-border" style="width: 100%;"><thead><tr>
+                                        <th>Input File</th>
+                                        <th>Size</th>
+                                        <th>ContentType</th>
+                                        <th>IsCollectInfo</th>
+                                        <th>IsArchive</th>
+                                        <th>IsText</th>
+                                        <th>Output Files</th>
+                                        <th>IsDuplicate</th>
+                                        <th>DuplicateOf</th>
+                                        <th>Errors</th>
+                                    </tr></thead><tbody></tbody><tfoot><tr>
+                                        <th>Input File</th>
+                                        <th>Size</th>
+                                        <th>ContentType</th>
+                                        <th>IsCollectInfo</th>
+                                        <th>IsArchive</th>
+                                        <th>IsText</th>
+                                        <th>Output Files</th>
+                                        <th>IsDuplicate</th>
+                                        <th>DuplicateOf</th>
+                                        <th>Errors</th>
+                                </tr></tfoot></table></span>
+                            </div>
+                            <div class="tab-pane" id="fileslp" aria-labelledby="#fileslp">
+                                <span class="card-text"><table id="tfileslp" class="hover compact cell-border" style="width: 100%;"><thead><tr>
+                                        <th>File</th>
+                                        <th>ClusterName</th>
+                                        <th>NodeID</th>
+                                        <th>TotalSize</th>
+                                        <th>ProcessedSize</th>
+                                        <th>CompletePct</th>
+                                        <th>IsFinished</th>
+                                        <th>LineErrors</th>
+                                    </tr></thead><tbody></tbody><tfoot><tr>
+                                        <th>File</th>
+                                        <th>ClusterName</th>
+                                        <th>NodeID</th>
+                                        <th>TotalSize</th>
+                                        <th>ProcessedSize</th>
+                                        <th>CompletePct</th>
+                                        <th>IsFinished</th>
+                                        <th>LineErrors</th>
+                                </tr></tfoot></table></span>
+                            </div>
+                            <div class="tab-pane" id="filescp" aria-labelledby="#filescp">
+                                <span class="card-text"><table id="tfilescp" class="hover compact cell-border" style="width: 100%;"><thead><tr>
+                                        <th>File</th>
+                                        <th>Size</th>
+                                        <th>NodeID</th>
+                                        <th>Renamed</th>
+                                        <th>OriginalName</th>
+                                        <th>Processed</th>
+                                        <th>Errors</th>
+                                    </tr></thead><tbody></tbody><tfoot><tr>
+                                        <th>File</th>
+                                        <th>Size</th>
+                                        <th>NodeID</th>
+                                        <th>Renamed</th>
+                                        <th>OriginalName</th>
+                                        <th>Processed</th>
+                                        <th>Errors</th>
+                                </tr></tfoot></table></span>
                             </div>
                             <div class="tab-pane" id="ingestwarns">
-                                <p class=" card-text">file processing/downloading/unzipping/preprocessing errors</p>
+                                <p class=" card-text"><i class="fa-solid fa-spinner fa-spin"></i></p>
                             </div>
                             <div class="tab-pane" id="logsasd">
                                 <p class=" card-text" id="logsasdp"><i class="fa-solid fa-spinner fa-spin"></i></p>
@@ -306,126 +386,128 @@
             })
 
             // load status id=statusMsg innerHTML
-            $.getJSON("/agi/api/status?shorten=1000", function(data){ // shorten = max errors to return from server (plus line stating how many entries were truncated)
-                var asdStatus = "<font color=red>Aerospike NOT Running</font>";
-                if (data["AerospikeRunning"]) {
-                    asdStatus = "<font color=green>Aerospike Running</font>";
-                }
-                var pluginStatus = "<font color=red>Grafana Plugin NOT Running</font>";
-                if (data["PluginRunning"]) {
-                    pluginStatus = "<font color=green>Grafana Plugin Running</font>";
-                }
-                var gfixStatus = "<font color=red>Grafana Helper NOT Running</font>";
-                if (data["GrafanaHelperRunning"]) {
-                    gfixStatus = "<font color=green>Grafana Helper Running</font>";
-                }
-                var ingestStatus = "<font color=orange>Ingest Running</font>";
-                if (!data["Ingest"]["Running"] && data["Ingest"]["CompleteSteps"]["Init"] && data["Ingest"]["CompleteSteps"]["Download"] && data["Ingest"]["CompleteSteps"]["Unpack"] && data["Ingest"]["CompleteSteps"]["PreProcess"] && data["Ingest"]["CompleteSteps"]["ProcessLogs"] && data["Ingest"]["CompleteSteps"]["ProcessCollectInfo"]) {
-                    ingestStatus = "<font color=green>Ingest Finished</font>";
-                } else if (!data["Ingest"]["Running"]) {
-                    ingestStatus = "<font color=red>Ingest FAILED ("+data["Ingest"]["CompleteSteps"]["CriticalError"]+")</font>";
-                };
-                var dlStatus = data["Ingest"]["DownloaderCompletePct"] + "% (" + formatBytes(data["Ingest"]["DownloaderCompleteSize"]) + " / " + formatBytes(data["Ingest"]["DownloaderTotalSize"]) + ")";
-                var lpStatus = data["Ingest"]["LogProcessorCompletePct"] + "% (" + formatBytes(data["Ingest"]["LogProcessorCompleteSize"]) + " / " + formatBytes(data["Ingest"]["LogProcessorTotalSize"]) + ")";
-                if (data["Ingest"]["CompleteSteps"]["DownloadStartTime"].startsWith("0001-01-01T00:00:00")) {
-                    data["Ingest"]["CompleteSteps"]["DownloadStartTime"] = "";
-                }
-                if (data["Ingest"]["CompleteSteps"]["DownloadEndTime"].startsWith("0001-01-01T00:00:00")) {
-                    data["Ingest"]["CompleteSteps"]["DownloadEndTime"] = "";
-                }
-                if (data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"].startsWith("0001-01-01T00:00:00")) {
-                    data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"] = "";
-                }
-                if (data["Ingest"]["CompleteSteps"]["ProcessLogsEndTime"].startsWith("0001-01-01T00:00:00")) {
-                    data["Ingest"]["CompleteSteps"]["ProcessLogsEndTime"] = "";
-                }
-                if ((data["Ingest"]["DownloaderCompletePct"] < 100 || data["Ingest"]["DownloaderCompleteSize"] < data["Ingest"]["DownloaderTotalSize"]) && data["Ingest"]["CompleteSteps"]["DownloadStartTime"] != "") {
-                    let now = new Date();
-                    let elapsed = Math.round((now - Date.parse(data["Ingest"]["CompleteSteps"]["DownloadStartTime"]))/1000);
-                    let bytesPerSec = 0;
-                    if (elapsed > 0) {
-                        bytesPerSec = Math.round(data["Ingest"]["DownloaderCompleteSize"] / elapsed);
+            $( document ).ready(function() {
+                $.getJSON("/agi/api/status?shorten=1000", function(data){ // shorten = max errors to return from server (plus line stating how many entries were truncated)
+                    var asdStatus = "<font color=red>Aerospike NOT Running</font>";
+                    if (data["AerospikeRunning"]) {
+                        asdStatus = "<font color=green>Aerospike Running</font>";
+                    }
+                    var pluginStatus = "<font color=red>Grafana Plugin NOT Running</font>";
+                    if (data["PluginRunning"]) {
+                        pluginStatus = "<font color=green>Grafana Plugin Running</font>";
+                    }
+                    var gfixStatus = "<font color=red>Grafana Helper NOT Running</font>";
+                    if (data["GrafanaHelperRunning"]) {
+                        gfixStatus = "<font color=green>Grafana Helper Running</font>";
+                    }
+                    var ingestStatus = "<font color=orange>Ingest Running</font>";
+                    if (!data["Ingest"]["Running"] && data["Ingest"]["CompleteSteps"]["Init"] && data["Ingest"]["CompleteSteps"]["Download"] && data["Ingest"]["CompleteSteps"]["Unpack"] && data["Ingest"]["CompleteSteps"]["PreProcess"] && data["Ingest"]["CompleteSteps"]["ProcessLogs"] && data["Ingest"]["CompleteSteps"]["ProcessCollectInfo"]) {
+                        ingestStatus = "<font color=green>Ingest Finished</font>";
+                    } else if (!data["Ingest"]["Running"]) {
+                        ingestStatus = "<font color=red>Ingest FAILED ("+data["Ingest"]["CompleteSteps"]["CriticalError"]+")</font>";
                     };
-                    let remainBytes = data["Ingest"]["DownloaderTotalSize"] - data["Ingest"]["DownloaderCompleteSize"];
-                    let remain = 0;
-                    if (bytesPerSec > 0) {
-                        remain = Math.round(remainBytes/bytesPerSec);
+                    var dlStatus = data["Ingest"]["DownloaderCompletePct"] + "% (" + formatBytes(data["Ingest"]["DownloaderCompleteSize"]) + " / " + formatBytes(data["Ingest"]["DownloaderTotalSize"]) + ")";
+                    var lpStatus = data["Ingest"]["LogProcessorCompletePct"] + "% (" + formatBytes(data["Ingest"]["LogProcessorCompleteSize"]) + " / " + formatBytes(data["Ingest"]["LogProcessorTotalSize"]) + ")";
+                    if (data["Ingest"]["CompleteSteps"]["DownloadStartTime"].startsWith("0001-01-01T00:00:00")) {
+                        data["Ingest"]["CompleteSteps"]["DownloadStartTime"] = "";
                     }
-                    let endTime = new Date();
-                    endTime = new Date(endTime.getTime() + (remain*1000));
-                    let totalTime = elapsed + remain;
-                    dlStatus = dlStatus + " (speed:"+formatBytes(bytesPerSec)+") (elapsed:"+formatDuration(elapsed)+" remaining:"+formatDuration(remain)+" total:"+formatDuration(totalTime)+") End Time Estimate:"+endTime.toString();
-                }
-                if ((data["Ingest"]["LogProcessorCompletePct"] < 100 || data["Ingest"]["LogProcessorCompleteSize"] < data["Ingest"]["LogProcessorTotalSize"]) && data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"] != "") {
-                    let now = new Date();
-                    let elapsed = Math.round((now - Date.parse(data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"]))/1000);
-                    let bytesPerSec = 0;
-                    if (elapsed > 0) {
-                        bytesPerSec = Math.round(data["Ingest"]["LogProcessorCompleteSize"] / elapsed);
-                    };
-                    let remainBytes = data["Ingest"]["LogProcessorTotalSize"] - data["Ingest"]["LogProcessorCompleteSize"];
-                    let remain = 0;
-                    if (bytesPerSec > 0) {
-                        remain = Math.round(remainBytes/bytesPerSec);
+                    if (data["Ingest"]["CompleteSteps"]["DownloadEndTime"].startsWith("0001-01-01T00:00:00")) {
+                        data["Ingest"]["CompleteSteps"]["DownloadEndTime"] = "";
                     }
-                    let endTime = new Date();
-                    endTime = new Date(endTime.getTime() + (remain*1000));
-                    let totalTime = elapsed + remain;
-                    lpStatus = lpStatus + " (speed:"+formatBytes(bytesPerSec)+") (elapsed:"+formatDuration(elapsed)+" remaining:"+formatDuration(remain)+" total:"+formatDuration(totalTime)+") End Time Estimate:"+endTime.toString();
-                }
-                var errors = $(document.createElement('ul'));
-                var errorStr = "<font color=green>No General Errors</font>";
-                if (data["Ingest"]["Errors"] != null) {
-                    for (let i = 0; i < data["Ingest"]["Errors"].length;i++) {
-                        errorStr = "<font color=red>General Errors</font>";
-                        errors.append($(document.createElement('li')).text(data["Ingest"]["Errors"][i]));
+                    if (data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"].startsWith("0001-01-01T00:00:00")) {
+                        data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"] = "";
                     }
-                }
-                $('#statusMsg').html($(document.createElement('div'))
-                    .css("text-align","left")
-                    .append($(document.createElement('ul'))
-                        .append($(document.createElement('li')).html(asdStatus))
-                        .append($(document.createElement('li')).html(pluginStatus))
-                        .append($(document.createElement('li')).html(gfixStatus))
-                        .append($(document.createElement('li')).html(ingestStatus))
-                        .append($(document.createElement('li')).html("System")
-                            .append($(document.createElement('ul'))
-                                .append($(document.createElement('li')).html("Memory Free: " + formatBytes(data["System"]["MemoryFreeBytes"])))
-                                .append($(document.createElement('li')).html("Memory Total: " + formatBytes(data["System"]["MemoryTotalBytes"])))
-                                .append($(document.createElement('li')).html("Disk Free: " + formatBytes(data["System"]["DiskFreeBytes"])))
-                                .append($(document.createElement('li')).html("Disk Total: " + formatBytes(data["System"]["DiskTotalBytes"])))
-                            )
-                        )
-                        .append($(document.createElement('li')).html("Ingest")
-                            .append($(document.createElement('ul'))
-                                .append($(document.createElement('li')).html("Running: "+data["Ingest"]["Running"]))
-                                .append($(document.createElement('li')).html("Downloaded: " + dlStatus))
-                                .append($(document.createElement('li')).html("Processed: " + lpStatus))
-                                .append($(document.createElement('li')).html("Complete Steps")
-                                    .append($(document.createElement('ul'))
-                                        .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["Init"], "Init")))
-                                        .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["Download"], "Download")))
-                                        .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["Unpack"], "Unpack")))
-                                        .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["PreProcess"], "PreProcess")))
-                                        .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["ProcessLogs"], "ProcessLogs")))
-                                        .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["ProcessCollectInfo"], "ProcessCollectInfo")))
-                                    )
-                                )
-                                .append($(document.createElement('li')).html("Times")
-                                    .append($(document.createElement('ul'))
-                                        .append($(document.createElement('li')).html("Download Start Time: "+data["Ingest"]["CompleteSteps"]["DownloadStartTime"]))
-                                        .append($(document.createElement('li')).html("Download End Time: "+data["Ingest"]["CompleteSteps"]["DownloadEndTime"]))
-                                        .append($(document.createElement('li')).html("Processor Start Time: "+data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"]))
-                                        .append($(document.createElement('li')).html("Processor End Time: "+data["Ingest"]["CompleteSteps"]["ProcessLogsEndTime"]))
-                                    )
-                                )
-                                .append($(document.createElement('li')).html(errorStr)
-                                    .append(errors)
+                    if (data["Ingest"]["CompleteSteps"]["ProcessLogsEndTime"].startsWith("0001-01-01T00:00:00")) {
+                        data["Ingest"]["CompleteSteps"]["ProcessLogsEndTime"] = "";
+                    }
+                    if ((data["Ingest"]["DownloaderCompletePct"] < 100 || data["Ingest"]["DownloaderCompleteSize"] < data["Ingest"]["DownloaderTotalSize"]) && data["Ingest"]["CompleteSteps"]["DownloadStartTime"] != "") {
+                        let now = new Date();
+                        let elapsed = Math.round((now - Date.parse(data["Ingest"]["CompleteSteps"]["DownloadStartTime"]))/1000);
+                        let bytesPerSec = 0;
+                        if (elapsed > 0) {
+                            bytesPerSec = Math.round(data["Ingest"]["DownloaderCompleteSize"] / elapsed);
+                        };
+                        let remainBytes = data["Ingest"]["DownloaderTotalSize"] - data["Ingest"]["DownloaderCompleteSize"];
+                        let remain = 0;
+                        if (bytesPerSec > 0) {
+                            remain = Math.round(remainBytes/bytesPerSec);
+                        }
+                        let endTime = new Date();
+                        endTime = new Date(endTime.getTime() + (remain*1000));
+                        let totalTime = elapsed + remain;
+                        dlStatus = dlStatus + " (speed:"+formatBytes(bytesPerSec)+") (elapsed:"+formatDuration(elapsed)+" remaining:"+formatDuration(remain)+" total:"+formatDuration(totalTime)+") End Time Estimate:"+endTime.toString();
+                    }
+                    if ((data["Ingest"]["LogProcessorCompletePct"] < 100 || data["Ingest"]["LogProcessorCompleteSize"] < data["Ingest"]["LogProcessorTotalSize"]) && data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"] != "") {
+                        let now = new Date();
+                        let elapsed = Math.round((now - Date.parse(data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"]))/1000);
+                        let bytesPerSec = 0;
+                        if (elapsed > 0) {
+                            bytesPerSec = Math.round(data["Ingest"]["LogProcessorCompleteSize"] / elapsed);
+                        };
+                        let remainBytes = data["Ingest"]["LogProcessorTotalSize"] - data["Ingest"]["LogProcessorCompleteSize"];
+                        let remain = 0;
+                        if (bytesPerSec > 0) {
+                            remain = Math.round(remainBytes/bytesPerSec);
+                        }
+                        let endTime = new Date();
+                        endTime = new Date(endTime.getTime() + (remain*1000));
+                        let totalTime = elapsed + remain;
+                        lpStatus = lpStatus + " (speed:"+formatBytes(bytesPerSec)+") (elapsed:"+formatDuration(elapsed)+" remaining:"+formatDuration(remain)+" total:"+formatDuration(totalTime)+") End Time Estimate:"+endTime.toString();
+                    }
+                    var errors = $(document.createElement('ul'));
+                    var errorStr = "<font color=green>No General Errors</font>";
+                    if (data["Ingest"]["Errors"] != null) {
+                        for (let i = 0; i < data["Ingest"]["Errors"].length;i++) {
+                            errorStr = "<font color=red>General Errors</font>";
+                            errors.append($(document.createElement('li')).text(data["Ingest"]["Errors"][i]));
+                        }
+                    }
+                    $('#statusMsg').html($(document.createElement('div'))
+                        .css("text-align","left")
+                        .append($(document.createElement('ul'))
+                            .append($(document.createElement('li')).html(asdStatus))
+                            .append($(document.createElement('li')).html(pluginStatus))
+                            .append($(document.createElement('li')).html(gfixStatus))
+                            .append($(document.createElement('li')).html(ingestStatus))
+                            .append($(document.createElement('li')).html("System")
+                                .append($(document.createElement('ul'))
+                                    .append($(document.createElement('li')).html("Memory Free: " + formatBytes(data["System"]["MemoryFreeBytes"])))
+                                    .append($(document.createElement('li')).html("Memory Total: " + formatBytes(data["System"]["MemoryTotalBytes"])))
+                                    .append($(document.createElement('li')).html("Disk Free: " + formatBytes(data["System"]["DiskFreeBytes"])))
+                                    .append($(document.createElement('li')).html("Disk Total: " + formatBytes(data["System"]["DiskTotalBytes"])))
                                 )
                             )
+                            .append($(document.createElement('li')).html("Ingest")
+                                .append($(document.createElement('ul'))
+                                    .append($(document.createElement('li')).html("Running: "+data["Ingest"]["Running"]))
+                                    .append($(document.createElement('li')).html("Downloaded: " + dlStatus))
+                                    .append($(document.createElement('li')).html("Processed: " + lpStatus))
+                                    .append($(document.createElement('li')).html("Complete Steps")
+                                        .append($(document.createElement('ul'))
+                                            .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["Init"], "Init")))
+                                            .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["Download"], "Download")))
+                                            .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["Unpack"], "Unpack")))
+                                            .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["PreProcess"], "PreProcess")))
+                                            .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["ProcessLogs"], "ProcessLogs")))
+                                            .append($(document.createElement('li')).html(prettyComplete(data["Ingest"]["CompleteSteps"]["ProcessCollectInfo"], "ProcessCollectInfo")))
+                                        )
+                                    )
+                                    .append($(document.createElement('li')).html("Times")
+                                        .append($(document.createElement('ul'))
+                                            .append($(document.createElement('li')).html("Download Start Time: "+data["Ingest"]["CompleteSteps"]["DownloadStartTime"]))
+                                            .append($(document.createElement('li')).html("Download End Time: "+data["Ingest"]["CompleteSteps"]["DownloadEndTime"]))
+                                            .append($(document.createElement('li')).html("Processor Start Time: "+data["Ingest"]["CompleteSteps"]["ProcessLogsStartTime"]))
+                                            .append($(document.createElement('li')).html("Processor End Time: "+data["Ingest"]["CompleteSteps"]["ProcessLogsEndTime"]))
+                                        )
+                                    )
+                                    .append($(document.createElement('li')).html(errorStr)
+                                        .append(errors)
+                                    )
+                                )
+                            )
                         )
-                    )
-                );
+                    );
+                })
             })
             function prettyComplete(data, name) {
                 if (data) {
@@ -435,19 +517,92 @@
                 };
             };
 
-            // TODO: progress - load datatables
-            $('#progress').DataTable();
+            // define logerrors, this will be filled duing loadFileDetails
+            /* example format
+            var logErrors = {
+                "Downloader": [
+                    "error line 1",
+                    "error line 2",
+                    {
+                        "file": "bob.log",
+                        "error": "error line 3",
+                    },
+                ],
+                "Unpacker": [...],
+                ...
+            };
+            */
+            var logErrors = {};
+            // use to ensure that we do not go over X limit of error count per category; ex: {"Downloader": 412, "Unpacker": 217}
+            // this count should always increase so we can calculate how many errors we have obfuscated
+            var logErrorsCount = {};
 
-            // TODO: log errors
+            // ordering - first load log file details, then show errors
+            $( document ).ready(function() {
+                loadFileDetails();
+                showLogErrors();
+            });
+
+            // TODO: ajax and then load tables and logErrors fill
+            // /agi/ingest/detail?detail=FILE.json' ;; {"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
+            function loadFileDetails() {
+                $('#tfilesdl').DataTable();
+                $('#tfilesun').DataTable();
+                $('#tfilespp').DataTable();
+                $('#tfileslp').DataTable();
+                $('#tfilescp').DataTable();
+            }
+
+            // log errors
+            function showLogErrors() {
+                if (Object.keys(logErrors).length == 0) {
+                    $('#ingestwarns').html($(document.createElement('div')).css("text-align","left").html("<font color=green>None</font>"));
+                    return
+                }
+                var mainUl = $(document.createElement('ul'));
+                for (var key in logErrors){
+                    var values = logErrors[key];
+                    if (values == null || values.length == 0) {
+                        continue;
+                    };
+                    var vals = $(document.createElement('ul'));
+                    for (let i = 0; i < values.length; i++) {
+                        if (typeof values[i] != "object") {
+                            vals.append($(document.createElement('li'))
+                                .append($(document.createElement('code'))
+                                    .attr('color','red')
+                                    .text(values[i])
+                                )
+                            )
+                        } else {
+                            vals.append($(document.createElement('li'))
+                                .append('['+values[i]["file"]+'] ')
+                                .append($(document.createElement('code'))
+                                    .attr('color','red')
+                                    .text(values[i]["error"])
+                                )
+                            )
+                        }
+                    };
+                    mainUl.append($(document.createElement('li'))
+                    .append($(document.createElement('span'))
+                        .css('font-weight','bold')
+                        .html(key)
+                    ).append(vals));
+                };
+                $('#ingestwarns').html($(document.createElement('div')).css("text-align","left").append(mainUl));
+            };
 
             // AGI logs - up to last 20KiB or 200 lines per log
-            $.getJSON("/agi/api/logs", function(data){
-                $("#logsasdp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["AerospikeLogs"])));
-                $("#logsproxyp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["ProxyLogs"])));
-                $("#logsingestp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["IngestLogs"])));
-                $("#logspluginp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["PluginLogs"])));
-                $("#logsgfixp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["GrafanaFixLogs"])));
-                $("#dmesgp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["Dmesg"])));
+            $( document ).ready(function() {
+                $.getJSON("/agi/api/logs", function(data){
+                    $("#logsasdp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["AerospikeLogs"])));
+                    $("#logsproxyp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["ProxyLogs"])));
+                    $("#logsingestp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["IngestLogs"])));
+                    $("#logspluginp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["PluginLogs"])));
+                    $("#logsgfixp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["GrafanaFixLogs"])));
+                    $("#dmesgp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["Dmesg"])));
+                });
             });
 
             // helper - convert size
@@ -480,8 +635,8 @@
                 }
                 return seconds+"s";
             }
-
         });
+
         // back to top button
         window.onscroll = function() {scrollFunction()};
         function scrollFunction() {
