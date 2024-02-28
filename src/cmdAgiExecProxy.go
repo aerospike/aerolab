@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/subtle"
@@ -318,13 +319,15 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		}
 	}
 
-	http.HandleFunc("/agi/dist/", c.wwwstatic)
+	http.HandleFunc("/agi/menu", c.handleList)         // URL list and status
+	http.HandleFunc("/agi/dist/", c.wwwstatic)         // static files for URL list
+	http.HandleFunc("/agi/api/status", c.handleStatus) // menu web page API
+	http.HandleFunc("/agi/api/logs", c.handleLogs)     // menu web page API
 	http.HandleFunc("/agi/monitor-challenge", c.secretValidate)
 	http.HandleFunc("/agi/ttyd", c.ttydHandler)                 // web console tty
 	http.HandleFunc("/agi/ttyd/", c.ttydHandler)                // web console tty
 	http.HandleFunc("/agi/filebrowser", c.fbHandler)            // file browser
 	http.HandleFunc("/agi/filebrowser/", c.fbHandler)           // file browser
-	http.HandleFunc("/agi/menu", c.handleList)                  // simple URL list
 	http.HandleFunc("/agi/shutdown", c.handleShutdown)          // gracefully shutdown the proxy
 	http.HandleFunc("/agi/poweroff", c.handlePoweroff)          // poweroff the instance
 	http.HandleFunc("/agi/status", c.handleStatus)              // high-level agi service status
@@ -376,6 +379,65 @@ func (c *agiExecProxyCmd) handleListSimple(w http.ResponseWriter, r *http.Reques
 <a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
 </center></body></html>`)
 	w.Write(out)
+}
+
+func (c *agiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuthOnly(w, r) {
+		return
+	}
+	type logs struct {
+		AerospikeLogs  string
+		ProxyLogs      string
+		IngestLogs     string
+		PluginLogs     string
+		GrafanaFixLogs string
+		Dmesg          string
+	}
+	l := new(logs)
+	l.AerospikeLogs = c.getLog("/var/log/agi-aerospike.log", "")
+	l.ProxyLogs = c.getLog("/var/log/agi-proxy.log", "agi-proxy")
+	l.IngestLogs = c.getLog("/var/log/agi-ingest.log", "agi-ingest")
+	l.GrafanaFixLogs = c.getLog("/var/log/agi-grafanafix.log", "agi-grafanafix")
+	l.PluginLogs = c.getLog("/var/log/agi-plugin.log", "agi-plugin")
+	dmesg, err := exec.Command("dmesg").CombinedOutput()
+	if err != nil {
+		dmesg = append(dmesg, []byte(err.Error())...)
+	}
+	l.Dmesg = string(dmesg)
+	json.NewEncoder(w).Encode(l)
+}
+
+func (c *agiExecProxyCmd) getLog(path string, journalName string) string {
+	s, err := os.Stat(path)
+	if err == nil {
+		f, err := os.Open(path)
+		if err == nil {
+			defer f.Close()
+			if s.Size() > 20*1024 {
+				f.Seek(-20*1024, 2)
+				d, _ := io.ReadAll(f)
+				idx := bytes.Index(d, []byte{'\n'})
+				if idx == -1 {
+					return string(d)
+				} else {
+					return string(d[idx+1:])
+				}
+			} else {
+				d, _ := io.ReadAll(f)
+				return string(d)
+			}
+		} else {
+			return err.Error()
+		}
+	}
+	if journalName == "" {
+		return ""
+	}
+	l, err := exec.Command("journalctl", "-u", journalName, "-n", "200", "--no-pager").CombinedOutput()
+	if err != nil {
+		return string(append(l, []byte(err.Error())...))
+	}
+	return string(l)
 }
 
 func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
