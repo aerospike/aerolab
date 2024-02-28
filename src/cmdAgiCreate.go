@@ -767,11 +767,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if c.NoConfigOverride {
 		override = "0"
 	}
-	nver := strings.Split(c.AerospikeVersion.String(), ".")[0]
+	nver := strings.Split(c.AerospikeVersion.String(), ".")
 	//memory-size %dG
 	var memSizeStr, storEngine, dimStr, rpcStr, wbs string
 	var fileSizeInt int
-	if inslice.HasString([]string{"6", "5", "4", "3"}, nver) {
+	if inslice.HasString([]string{"6", "5", "4", "3"}, nver[0]) {
 		memSizeStr = "memory-size " + strconv.Itoa(memSize/1024/1024/1024) + "G"
 		storEngine = "device"
 		fileSizeInt = memSize / 1024 / 1024 / 1024
@@ -796,6 +796,10 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			storEngine = "memory"
 			fileSizeInt = int(float64(memSize/1024/1024/1024) / 1.25)
 		}
+	}
+	nveri, _ := strconv.Atoi(nver[0])
+	if (nver[0] == "7" && len(nver) > 1 && nver[1] != "0") || nveri > 7 {
+		wbs = ""
 	}
 	cedition := "x86_64"
 	if edition == "arm64" {

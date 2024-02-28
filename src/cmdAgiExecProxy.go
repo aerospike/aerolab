@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/subtle"
@@ -23,16 +24,23 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
+
+	_ "embed"
 
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/notifier"
+	"github.com/aerospike/aerolab/webui"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 	"github.com/fsnotify/fsnotify"
 	ps "github.com/mitchellh/go-ps"
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed agiproxy.tgz
+var proxyweb []byte
 
 type agiExecProxyCmd struct {
 	AGIName              string        `long:"agi-name"`
@@ -76,6 +84,7 @@ type agiExecProxyCmd struct {
 	isDim                bool
 	notifyJSON           bool
 	deployJson           string
+	wwwSimple            bool
 }
 
 type tokens struct {
@@ -296,12 +305,30 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		go c.maxUptime()
 	}
 	go c.loadTokens()
+
+	os.RemoveAll("/opt/agi/www")
+	err = os.MkdirAll("/opt/agi/www", 0755)
+	if err != nil {
+		c.wwwSimple = true
+		log.Printf("WARN: simple homepage, error: %s", err)
+	} else {
+		err = webui.InstallWebsite("/opt/agi/www", proxyweb)
+		if err != nil {
+			c.wwwSimple = true
+			log.Printf("WARN: simple homepage, error: %s", err)
+		}
+	}
+
+	http.HandleFunc("/agi/menu", c.handleList)               // URL list and status
+	http.HandleFunc("/agi/dist/", c.wwwstatic)               // static files for URL list
+	http.HandleFunc("/agi/api/status", c.handleStatus)       // menu web page API
+	http.HandleFunc("/agi/api/logs", c.handleLogs)           // menu web page API
+	http.HandleFunc("/agi/api/detail", c.handleIngestDetail) // menu web page API
 	http.HandleFunc("/agi/monitor-challenge", c.secretValidate)
 	http.HandleFunc("/agi/ttyd", c.ttydHandler)                 // web console tty
 	http.HandleFunc("/agi/ttyd/", c.ttydHandler)                // web console tty
 	http.HandleFunc("/agi/filebrowser", c.fbHandler)            // file browser
 	http.HandleFunc("/agi/filebrowser/", c.fbHandler)           // file browser
-	http.HandleFunc("/agi/menu", c.handleList)                  // simple URL list
 	http.HandleFunc("/agi/shutdown", c.handleShutdown)          // gracefully shutdown the proxy
 	http.HandleFunc("/agi/poweroff", c.handlePoweroff)          // poweroff the instance
 	http.HandleFunc("/agi/status", c.handleStatus)              // high-level agi service status
@@ -345,6 +372,75 @@ func (c *agiExecProxyCmd) secretValidate(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 }
 
+func (c *agiExecProxyCmd) handleListSimple(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusOK)
+	out := []byte(`<html><head><title>AGI URLs</title><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" /><meta http-equiv="Pragma" content="no-cache" /><meta http-equiv="Expires" content="0" /></head><body><center>
+<a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
+<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
+<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
+</center></body></html>`)
+	w.Write(out)
+}
+
+func (c *agiExecProxyCmd) handleLogs(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuthOnly(w, r) {
+		return
+	}
+	type logs struct {
+		AerospikeLogs  string
+		ProxyLogs      string
+		IngestLogs     string
+		PluginLogs     string
+		GrafanaFixLogs string
+		Dmesg          string
+	}
+	l := new(logs)
+	l.AerospikeLogs = c.getLog("/var/log/agi-aerospike.log", "")
+	l.ProxyLogs = c.getLog("/var/log/agi-proxy.log", "agi-proxy")
+	l.IngestLogs = c.getLog("/var/log/agi-ingest.log", "agi-ingest")
+	l.GrafanaFixLogs = c.getLog("/var/log/agi-grafanafix.log", "agi-grafanafix")
+	l.PluginLogs = c.getLog("/var/log/agi-plugin.log", "agi-plugin")
+	dmesg, err := exec.Command("dmesg").CombinedOutput()
+	if err != nil {
+		dmesg = append(dmesg, []byte(err.Error())...)
+	}
+	l.Dmesg = string(dmesg)
+	json.NewEncoder(w).Encode(l)
+}
+
+func (c *agiExecProxyCmd) getLog(path string, journalName string) string {
+	s, err := os.Stat(path)
+	if err == nil {
+		f, err := os.Open(path)
+		if err == nil {
+			defer f.Close()
+			if s.Size() > 20*1024 {
+				f.Seek(-20*1024, 2)
+				d, _ := io.ReadAll(f)
+				idx := bytes.Index(d, []byte{'\n'})
+				if idx == -1 {
+					return string(d)
+				} else {
+					return string(d[idx+1:])
+				}
+			} else {
+				d, _ := io.ReadAll(f)
+				return string(d)
+			}
+		} else {
+			return err.Error()
+		}
+	}
+	if journalName == "" {
+		return ""
+	}
+	l, err := exec.Command("journalctl", "-u", journalName, "-n", "200", "--no-pager").CombinedOutput()
+	if err != nil {
+		return string(append(l, []byte(err.Error())...))
+	}
+	return string(l)
+}
+
 func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuth(w, r) {
 		return
@@ -352,13 +448,36 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Add("Pragma", "no-cache")
 	w.Header().Add("Expires", "0")
-	w.WriteHeader(http.StatusOK)
-	out := []byte(`<html><head><title>AGI URLs</title><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" /><meta http-equiv="Pragma" content="no-cache" /><meta http-equiv="Expires" content="0" /></head><body><center>
-	<a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
-	<a href="/agi/ttyd" target="_blank"><h1>Web Console (ttyd)</h1></a>
-	<a href="/agi/filebrowser" target="_blank"><h1>File Browser</h1></a>
-	</center></body></html>`)
-	w.Write(out)
+	if c.wwwSimple {
+		c.handleListSimple(w)
+		return
+	}
+	www := os.DirFS("/opt/agi/www")
+	t, err := template.ParseFS(www, "index.html")
+	if err != nil {
+		log.Print(err)
+		c.handleListSimple(w)
+		return
+	}
+	type np struct {
+		Title       string
+		Description string
+	}
+	nlabel, _ := os.ReadFile("/opt/agi/label")
+	p := np{
+		Title:       c.AGIName,
+		Description: string(nlabel),
+	}
+	err = t.ExecuteTemplate(w, "index", p)
+	if err != nil {
+		log.Print(err)
+		c.handleListSimple(w)
+		return
+	}
+}
+
+func (c *agiExecProxyCmd) wwwstatic(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, path.Join("/opt/agi/www", strings.TrimPrefix(strings.TrimLeft(r.URL.Path, "/"), "agi/")))
 }
 
 // form: ?detail=[]string{"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json", "steps.json"}
@@ -411,12 +530,23 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuthOnly(w, r) {
 		return
 	}
+	r.ParseForm()
 	logger.Info("Listener: status request from %s", r.RemoteAddr)
 	resp, err := getAgiStatus(true, c.IngestProgressPath)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
+	}
+	if r.Form.Get("shorten") != "" {
+		shorten, err := strconv.Atoi(r.Form.Get("shorten"))
+		if err == nil {
+			if len(resp.Ingest.Errors) > shorten {
+				resp.Ingest.Errors = append(resp.Ingest.Errors[0:shorten], "...truncated entries: "+strconv.Itoa(len(resp.Ingest.Errors)-shorten))
+			}
+		} else {
+			log.Print(err)
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

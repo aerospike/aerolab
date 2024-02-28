@@ -127,9 +127,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 				return err
 			}
 			if !inslice.HasInt(snl, snInt) {
-				if err != nil {
-					return err
-				}
+				return fmt.Errorf("source node %d not found", snInt)
 			}
 			sourceNodeList = append(sourceNodeList, snInt)
 		}
@@ -177,9 +175,7 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 				return err
 			}
 			if !inslice.HasInt(dnl, dnInt) {
-				if err != nil {
-					return err
-				}
+				return fmt.Errorf("destination node %d not found", dnInt)
 			}
 			destNodeList = append(destNodeList, dnInt)
 		}

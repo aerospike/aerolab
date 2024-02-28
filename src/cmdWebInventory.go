@@ -396,6 +396,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		PendingActionsShowAllUsersToggleChecked: false,
 		IsInventory:                             true,
 		Inventory:                               c.inventoryNames,
+		BetaTag:                                 isWebuiBeta,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
@@ -852,10 +853,10 @@ func (c *webCmd) inventoryNodesAction(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "received empty request", http.StatusBadRequest)
 		return
 	}
-	c.inventoryNodesActionDo(w, r, reqID, data, action)
+	c.inventoryNodesActionDo(w, reqID, data, action)
 }
 
-func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, reqID string, data map[string]interface{}, action string) {
+func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, reqID string, data map[string]interface{}, action string) {
 	ntype := ""
 	switch a := data["type"].(type) {
 	case string:
@@ -909,7 +910,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 	case "destroy":
 		ncmd = append(ncmd, action)
 	case "extendExpiry":
-		if ntype == "cluster" {
+		if ntype == "cluster" || ntype == "agi" {
 			ncmd = []string{"cluster", "add", "expiry"}
 		} else {
 			ncmd = []string{"client", "configure", "expiry"}
@@ -1042,6 +1043,13 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						clist[agiName] = []string{}
 					}
 					clist[agiName] = append(clist[agiName], agiZone, agiInstanceExists)
+					if _, ok := zoneclist[agiZone]; !ok {
+						zoneclist[agiZone] = make(map[string][]string)
+					}
+					if _, ok := zoneclist[agiZone][agiName]; !ok {
+						zoneclist[agiZone][agiName] = []string{}
+					}
+					zoneclist[agiZone][agiName] = append(zoneclist[agiZone][agiName], "1")
 				}
 			default:
 				isError = true
@@ -1052,44 +1060,44 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 		}
 		switch action {
 		case "start":
-			hasError := c.inventoryNodesActionStart(w, r, reqID, action, invlog, clist, ntype)
+			hasError := c.inventoryNodesActionStart(reqID, invlog, clist, ntype)
 			if hasError {
 				isError = true
 			}
 		case "stop":
-			hasError := c.inventoryNodesActionStop(w, r, reqID, action, invlog, clist, ntype)
+			hasError := c.inventoryNodesActionStop(reqID, invlog, clist, ntype)
 			if hasError {
 				isError = true
 			}
 		case "aerospikeStart":
-			hasError := c.inventoryNodesActionAerospikeStart(w, r, reqID, action, invlog, clist, ntype)
+			hasError := c.inventoryNodesActionAerospikeStart(reqID, invlog, clist, ntype)
 			if hasError {
 				isError = true
 			}
 		case "aerospikeStop":
-			hasError := c.inventoryNodesActionAerospikeStop(w, r, reqID, action, invlog, clist, ntype)
+			hasError := c.inventoryNodesActionAerospikeStop(reqID, invlog, clist, ntype)
 			if hasError {
 				isError = true
 			}
 		case "aerospikeRestart":
-			hasError := c.inventoryNodesActionAerospikeRestart(w, r, reqID, action, invlog, clist, ntype)
+			hasError := c.inventoryNodesActionAerospikeRestart(reqID, invlog, clist, ntype)
 			if hasError {
 				isError = true
 			}
 		case "aerospikeStatus":
-			hasError := c.inventoryNodesActionAerospikeStatus(w, r, reqID, action, invlog, clist, ntype)
+			hasError := c.inventoryNodesActionAerospikeStatus(reqID, invlog, clist, ntype)
 			if hasError {
 				isError = true
 			}
 		case "extendExpiry":
-			hasError := c.inventoryNodesActionExtendExpiry(w, r, reqID, action, invlog, clist, ntype, data["expiry"].(string), zoneclist)
+			hasError := c.inventoryNodesActionExtendExpiry(reqID, invlog, clist, ntype, data["expiry"].(string), zoneclist)
 			if hasError {
 				isError = true
 			}
 		case "delete":
 			fallthrough
 		case "destroy":
-			hasError := c.inventoryNodesActionDestroy(w, r, reqID, action, invlog, clist, ntype)
+			hasError := c.inventoryNodesActionDestroy(reqID, action, invlog, clist, ntype)
 			if hasError {
 				isError = true
 			}
@@ -1110,7 +1118,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 	w.Write([]byte(reqID))
 }
 
-func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+func (c *webCmd) inventoryNodesActionStart(reqID string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
 	var err error
 	for name, nodes := range clist {
 		nodeNo := strings.Join(nodes, ",")
@@ -1175,7 +1183,7 @@ func (c *webCmd) inventoryNodesActionStart(w http.ResponseWriter, r *http.Reques
 	return
 }
 
-func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+func (c *webCmd) inventoryNodesActionStop(reqID string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
 	var err error
 	for name, nodes := range clist {
 		nodeNo := strings.Join(nodes, ",")
@@ -1229,7 +1237,7 @@ func (c *webCmd) inventoryNodesActionStop(w http.ResponseWriter, r *http.Request
 	return
 }
 
-func (c *webCmd) inventoryNodesActionAerospikeStart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+func (c *webCmd) inventoryNodesActionAerospikeStart(reqID string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
 	var err error
 	for name, nodes := range clist {
 		nodeNo := strings.Join(nodes, ",")
@@ -1266,7 +1274,7 @@ func (c *webCmd) inventoryNodesActionAerospikeStart(w http.ResponseWriter, r *ht
 	return
 }
 
-func (c *webCmd) inventoryNodesActionAerospikeStop(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+func (c *webCmd) inventoryNodesActionAerospikeStop(reqID string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
 	var err error
 	for name, nodes := range clist {
 		nodeNo := strings.Join(nodes, ",")
@@ -1303,7 +1311,7 @@ func (c *webCmd) inventoryNodesActionAerospikeStop(w http.ResponseWriter, r *htt
 	return
 }
 
-func (c *webCmd) inventoryNodesActionAerospikeRestart(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+func (c *webCmd) inventoryNodesActionAerospikeRestart(reqID string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
 	var err error
 	for name, nodes := range clist {
 		nodeNo := strings.Join(nodes, ",")
@@ -1340,7 +1348,7 @@ func (c *webCmd) inventoryNodesActionAerospikeRestart(w http.ResponseWriter, r *
 	return
 }
 
-func (c *webCmd) inventoryNodesActionAerospikeStatus(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+func (c *webCmd) inventoryNodesActionAerospikeStatus(reqID string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
 	var err error
 	for name, nodes := range clist {
 		nodeNo := strings.Join(nodes, ",")
@@ -1378,7 +1386,7 @@ func (c *webCmd) inventoryNodesActionAerospikeStatus(w http.ResponseWriter, r *h
 	return
 }
 
-func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+func (c *webCmd) inventoryNodesActionDestroy(reqID string, action string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
 	var err error
 	for name, nodes := range clist {
 		nodeNo := strings.Join(nodes, ",")
@@ -1451,7 +1459,7 @@ func (c *webCmd) inventoryNodesActionDestroy(w http.ResponseWriter, r *http.Requ
 	return
 }
 
-func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http.Request, reqID string, action string, invlog *os.File, clist map[string][]string, ntype string, expStr string, zones map[string]map[string][]string) (isError bool) {
+func (c *webCmd) inventoryNodesActionExtendExpiry(reqID string, invlog *os.File, clist map[string][]string, ntype string, expStr string, zones map[string]map[string][]string) (isError bool) {
 	expiry, err := time.ParseDuration(expStr)
 	if err != nil {
 		isError = true
@@ -1508,11 +1516,24 @@ func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http
 					log.Printf("[%s] Extend Expiry (%v)", reqID, clusterName+":"+nodeNo)
 				}
 			case "agi":
-				agiName := name
-				isError = true
-				err = errors.New("cannot extend expiry on agi nodes")
-				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
-				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+				clusterName := name
+				cmdJson := map[string]interface{}{
+					"ClusterName": clusterName,
+					"Nodes":       "1",
+					"Expires":     int64(expiry),
+					"Gcp": map[string]interface{}{
+						"Zone": zone,
+					},
+				}
+				err = c.runInvCmd(reqID, "/cluster/add/expiry", cmdJson, invlog)
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] Extend Expiry (%v)\n", reqID, clusterName+":"+nodeNo))
+					log.Printf("[%s] Extend Expiry (%v)", reqID, clusterName+":"+nodeNo)
+				}
 			}
 		}
 	}

@@ -106,6 +106,7 @@ func (c *agiMonitorCreateCmd) Execute(args []string) error {
 }
 
 func (c *agiMonitorCreateCmd) create(args []string) error {
+	_ = args
 	if a.opts.Config.Backend.Type == "docker" {
 		return errors.New("this feature can only be deployed on GCP or AWS")
 	}
@@ -493,7 +494,7 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if callbackFailure != nil {
-			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+err.Error())
+			c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: callback failed: "+callbackFailure.Error())
 			return
 		}
 		c.handleCheckSizing(w, r, uuid, event, authObj.InstanceType, cluster.Zone)
@@ -581,6 +582,7 @@ func (c *agiMonitorListenCmd) handleSizingDiskAndRAM(uuid string, event *ingest.
 }
 
 func (c *agiMonitorListenCmd) handleSizingDiskDo(uuid string, event *ingest.NotifyEvent, newSize int64) {
+	_ = event
 	a.opts.Volume.Resize.Zone = a.opts.AGI.Create.Gcp.Zone
 	a.opts.Volume.Resize.Name = string(a.opts.AGI.Create.ClusterName)
 	a.opts.Volume.Resize.Size = newSize

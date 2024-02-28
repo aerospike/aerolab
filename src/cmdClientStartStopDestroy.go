@@ -47,6 +47,7 @@ func (c *clientStartCmd) Execute(args []string) error {
 }
 
 func (c *clientStartCmd) runStart(args []string) error {
+	_ = args
 	log.Println("Running client.start")
 	b.WorkOnClients()
 	err := c.Machines.ExpandNodes(string(c.ClientName))
@@ -198,6 +199,7 @@ func (c *clientStopCmd) Execute(args []string) error {
 }
 
 func (c *clientStopCmd) runStop(args []string) error {
+	_ = args
 	b.WorkOnClients()
 	log.Println("Running client.stop")
 	err := c.Machines.ExpandNodes(string(c.ClientName))

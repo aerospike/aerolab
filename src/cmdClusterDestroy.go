@@ -25,6 +25,7 @@ func (c *clusterDestroyCmd) Execute(args []string) error {
 }
 
 func (c *clusterDestroyCmd) doDestroy(typeName string, args []string) error {
+	_ = args
 	log.Println("Running " + typeName + ".destroy")
 	err := c.Nodes.ExpandNodes(string(c.ClusterName))
 	if err != nil {

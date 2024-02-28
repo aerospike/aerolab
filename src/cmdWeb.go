@@ -98,7 +98,7 @@ func (j *jobTrack) GetStat() int {
 	return count
 }
 
-func (c *webCmd) runLoop(args []string) error {
+func (c *webCmd) runLoop() error {
 	firstRun := true
 	me, err := os.Executable()
 	if err != nil {
@@ -200,7 +200,10 @@ func (c *webCmd) Execute(args []string) error {
 		return nil
 	}
 	if !c.Real {
-		return c.runLoop(args)
+		return c.runLoop()
+	}
+	if isWebuiBeta {
+		log.Print("Running webui; this feature is in beta.")
 	}
 	c.agiTokens = NewAgiWebTokenHandler()
 	c.wsCount = new(wsCounters)
@@ -271,7 +274,7 @@ func (c *webCmd) Execute(args []string) error {
 			if err != nil {
 				return err
 			}
-			err = webui.InstallWebsite(c.WebPath)
+			err = webui.InstallWebsite(c.WebPath, webui.Website)
 			if err != nil {
 				return err
 			}
@@ -1359,6 +1362,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		IsForm:                                  true,
 		FormItems:                               formItems,
 		FormCommandTitle:                        title,
+		BetaTag:                                 isWebuiBeta,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
