@@ -1138,6 +1138,28 @@ function initDatatable() {
                     .always(function() {$("#loadingSpinner").hide();});
                 }
             }},            
+            {{if ne .Backend "docker"}}
+            {extend: 'myspacer'},
+            {
+                className: 'btn btn-warning dtTooltip',
+                titleAttr: 'Open form: Extend node(s) expiry time',
+                text: 'Extend Expiry',
+                action: function ( e, dt, node, config ) {
+                    let arr = [];
+                    dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                    if (arr.length < 1) {toastr.error("Select one or more rows.");return;}
+                    let ans = prompt("New Expiry","30h0m0s");
+                    if (ans == null) {
+                        return;
+                    }
+                    let data = {"list": arr,"action":"extendExpiry","type":"agi","expiry":ans};
+                    $("#loadingSpinner").show();
+                    $.post("{{.WebRoot}}www/api/inventory/nodes", JSON.stringify(data), function(data) {showCommandOut(data);})
+                    .fail(function(data) {let body = data.responseText;if ((data.status == 0)&&(body == undefined)) {body = "Connection Error";};toastr.error(data.statusText+": "+body);})
+                    .always(function() {$("#loadingSpinner").hide();});
+                }
+            },    
+            {{end}}
             {extend: 'myspacer'},
             {extend: 'reload',className: 'btn btn-info',},
             {extend: 'myspacer'},
