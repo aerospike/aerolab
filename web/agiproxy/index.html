@@ -374,7 +374,7 @@
                     lpStatus = lpStatus + " (speed:"+formatBytes(bytesPerSec)+") (elapsed:"+formatDuration(elapsed)+" remaining:"+formatDuration(remain)+" total:"+formatDuration(totalTime)+") End Time Estimate:"+endTime.toString();
                 }
                 var errors = $(document.createElement('ul'));
-                var errorStr = "<font color=green>No Errors</font>";
+                var errorStr = "<font color=green>No General Errors</font>";
                 if (data["Ingest"]["Errors"] != null) {
                     for (let i = 0; i < data["Ingest"]["Errors"].length;i++) {
                         if (i > 999) {
@@ -382,7 +382,7 @@
                             errors.append($(document.createElement('li')).text("...truncated lines: "+truncCount));
                             break;
                         };
-                        errorStr = "<font color=red>Errors</font>";
+                        errorStr = "<font color=red>General Errors</font>";
                         errors.append($(document.createElement('li')).text(data["Ingest"]["Errors"][i]));
                     }
                 }
