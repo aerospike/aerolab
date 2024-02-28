@@ -87,7 +87,7 @@ func fixClusterNameConfig(conf string, cluster_name string) (newconf string, err
 
 }
 
-func fixAerospikeConfig(conf string, mgroup string, mesh string, mesh_ip_list []string, node_list []int) (newconf string, err error) {
+func fixAerospikeConfig(conf string, mgroup string, mesh string, mesh_ip_list []string) (newconf string, err error) {
 	if mesh == "default" {
 		return conf, nil
 	}

@@ -172,7 +172,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 			if err != nil {
 				return nil, err
 			}
-		} else if foundVol != nil {
+		} else {
 			err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String(), foundVol.AvailabilityZoneName)
 			if err != nil {
 				return nil, err
@@ -209,7 +209,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 				if err != nil {
 					return nil, err
 				}
-			} else if foundVol != nil {
+			} else {
 				err = b.TagVolume(foundVol.FileSystemId, "expireduration", strings.ToLower(strings.ReplaceAll(c.Gcp.VolExpires.String(), ".", "_")), foundVol.AvailabilityZoneName)
 				if err != nil {
 					return nil, err

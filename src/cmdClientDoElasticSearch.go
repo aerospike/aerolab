@@ -85,6 +85,8 @@ func (c *clientAddElasticSearchCmd) Execute(args []string) error {
 }
 
 func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
+	_ = args
+
 	isDocker := false
 	if a.opts.Config.Backend.Type == "docker" {
 		isDocker = true

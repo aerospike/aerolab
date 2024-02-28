@@ -158,7 +158,7 @@ func (c *confRackIdCmd) Execute(args []string) error {
 				a.opts.Roster.Apply.Namespace = namespace
 				a.opts.Roster.Apply.Nodes = ""
 				a.opts.Roster.Apply.ParallelThreads = c.ParallelThreads
-				err = a.opts.Roster.Apply.runApply(args)
+				err = a.opts.Roster.Apply.runApply()
 				if err != nil {
 					log.Printf("ERROR running 'roster apply': %s", err)
 				}

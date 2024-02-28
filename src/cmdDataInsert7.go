@@ -18,6 +18,7 @@ import (
 )
 
 func (c *dataInsertCmd) insert7(args []string) error {
+	_ = args
 	ipPort := strings.Split(c.SeedNode, ":")
 	if len(ipPort) != 2 {
 		return fmt.Errorf("insert-data: Failed to process SeedNode, must be IP:PORT: %s", c.SeedNode)
@@ -174,9 +175,7 @@ func (c *dataInsertCmd) insert7(args []string) error {
 		for _, pTo := range partitionsToInsertToString {
 			pToInt, err := strconv.Atoi(pTo)
 			if err != nil {
-				if err != nil {
-					return fmt.Errorf("insert-data: partition list not numeric: %s", err)
-				}
+				return fmt.Errorf("insert-data: partition list not numeric: %s", err)
 			}
 			partitionsToInsertTo = append(partitionsToInsertTo, pToInt)
 		}

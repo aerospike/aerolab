@@ -24,7 +24,7 @@ import (
 var wait = new(sync.WaitGroup)
 
 func showcommands() {
-	fileNameEnd, out := getFileNameEnd(os.Args[0])
+	fileNameEnd, out := getFileNameEnd()
 
 	if len(os.Args) != 2 {
 		fmt.Printf("Usage: %s collect_info_file.tgz\n", os.Args[0])
@@ -117,7 +117,7 @@ func handleCollectInfo(collectName string, fileNameEnd string, out io.Writer) []
 	return ret
 }
 
-func getFileNameEnd(args string) (fileNameEnd string, out io.Writer) {
+func getFileNameEnd() (fileNameEnd string, out io.Writer) {
 	_, command := path.Split(os.Args[0])
 	switch command {
 	case "showsysinfo":
@@ -135,14 +135,14 @@ func getFileNameEnd(args string) (fileNameEnd string, out io.Writer) {
 		ctx, cancel := context.WithCancel(context.Background())
 		out = contextio.NewWriter(ctx, pw)
 		wait.Add(1)
-		go processInterrupts(ctx, cancel, pr)
+		go processInterrupts(cancel, pr)
 	default:
 		log.Fatalf("Command %s not understood", command)
 	}
 	return
 }
 
-func processInterrupts(ctx context.Context, cancel context.CancelFunc, in io.ReadCloser) {
+func processInterrupts(cancel context.CancelFunc, in io.ReadCloser) {
 	rd := bufio.NewScanner(in)
 	header := false
 	ntype := false

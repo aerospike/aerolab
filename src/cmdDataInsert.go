@@ -120,6 +120,7 @@ func (c *dataInsertCmd) insert(args []string) error {
 }
 
 func (c *dataInsertSelectorCmd) unpack(args []string, extraArgs []string) error {
+	_ = args
 	if c.IsClient {
 		b.WorkOnClients()
 	}

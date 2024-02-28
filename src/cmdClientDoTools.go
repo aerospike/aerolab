@@ -141,7 +141,7 @@ func (c *clientAddToolsCmd) addTools(args []string) error {
 	a.opts.Installer.Download.Username = c.Username
 	a.opts.Installer.Download.IsArm = isArm
 	a.opts.Files.Upload.doLegacy = true
-	fn, err := a.opts.Installer.Download.runDownload(args)
+	fn, err := a.opts.Installer.Download.runDownload()
 	if err != nil {
 		return err
 	}

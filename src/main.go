@@ -165,7 +165,7 @@ func main() {
 				args = append(args, arg)
 			}
 		}
-		err := a.main(os.Args[0], args)
+		err := a.main(args)
 		if err != nil {
 			defer handleExit()
 			panic(Exit{1})
@@ -187,7 +187,7 @@ To specify a custom configuration file, set the environment variable:
 
 `
 
-func (a *aerolab) main(name string, args []string) error {
+func (a *aerolab) main(args []string) error {
 	setOwners()
 	defer backendRestoreTerminal()
 	a.createDefaults()

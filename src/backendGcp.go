@@ -2863,7 +2863,7 @@ func (d *backendGcp) createSecurityGroupExternal(namePrefix string, isAgi bool) 
 	return nil
 }
 
-func (d *backendGcp) createSecurityGroupInternal(namePrefix string) error {
+func (d *backendGcp) createSecurityGroupInternal() error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -3121,7 +3121,7 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi boo
 		}
 	}
 	if !existInternal {
-		err = d.createSecurityGroupInternal(namePrefix)
+		err = d.createSecurityGroupInternal()
 		if err != nil {
 			return err
 		}
