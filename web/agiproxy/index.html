@@ -306,7 +306,7 @@
             })
 
             // load status id=statusMsg innerHTML
-            $.getJSON("/agi/api/status", function(data){
+            $.getJSON("/agi/api/status?shorten=1000", function(data){ // shorten = max errors to return from server (plus line stating how many entries were truncated)
                 var asdStatus = "<font color=red>Aerospike NOT Running</font>";
                 if (data["AerospikeRunning"]) {
                     asdStatus = "<font color=green>Aerospike Running</font>";
@@ -377,11 +377,6 @@
                 var errorStr = "<font color=green>No General Errors</font>";
                 if (data["Ingest"]["Errors"] != null) {
                     for (let i = 0; i < data["Ingest"]["Errors"].length;i++) {
-                        if (i > 999) {
-                            let truncCount = data["Ingest"]["Errors"].length-i;
-                            errors.append($(document.createElement('li')).text("...truncated lines: "+truncCount));
-                            break;
-                        };
                         errorStr = "<font color=red>General Errors</font>";
                         errors.append($(document.createElement('li')).text(data["Ingest"]["Errors"][i]));
                     }
