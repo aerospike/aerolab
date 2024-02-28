@@ -375,14 +375,16 @@
                 }
                 var errors = $(document.createElement('ul'));
                 var errorStr = "<font color=green>No Errors</font>";
-                for (let i = 0; i < data["Ingest"]["Errors"].length;i++) {
-                    if (i > 999) {
-                        let truncCount = data["Ingest"]["Errors"].length-i;
-                        errors.append($(document.createElement('li')).text("...truncated lines: "+truncCount));
-                        break;
-                    };
-                    errorStr = "<font color=red>Errors</font>";
-                    errors.append($(document.createElement('li')).text(data["Ingest"]["Errors"][i]));
+                if (data["Ingest"]["Errors"] != null) {
+                    for (let i = 0; i < data["Ingest"]["Errors"].length;i++) {
+                        if (i > 999) {
+                            let truncCount = data["Ingest"]["Errors"].length-i;
+                            errors.append($(document.createElement('li')).text("...truncated lines: "+truncCount));
+                            break;
+                        };
+                        errorStr = "<font color=red>Errors</font>";
+                        errors.append($(document.createElement('li')).text(data["Ingest"]["Errors"][i]));
+                    }
                 }
                 $('#statusMsg').html($(document.createElement('div'))
                     .css("text-align","left")
