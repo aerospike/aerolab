@@ -372,7 +372,7 @@ func (c *agiExecProxyCmd) secretValidate(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 }
 
-func (c *agiExecProxyCmd) handleListSimple(w http.ResponseWriter, r *http.Request) {
+func (c *agiExecProxyCmd) handleListSimple(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusOK)
 	out := []byte(`<html><head><title>AGI URLs</title><meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" /><meta http-equiv="Pragma" content="no-cache" /><meta http-equiv="Expires" content="0" /></head><body><center>
 <a href="/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1" target="_blank"><h1>Grafana</h1></a>
@@ -449,14 +449,14 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Pragma", "no-cache")
 	w.Header().Add("Expires", "0")
 	if c.wwwSimple {
-		c.handleListSimple(w, r)
+		c.handleListSimple(w)
 		return
 	}
 	www := os.DirFS("/opt/agi/www")
 	t, err := template.ParseFS(www, "index.html")
 	if err != nil {
 		log.Print(err)
-		c.handleListSimple(w, r)
+		c.handleListSimple(w)
 		return
 	}
 	type np struct {
@@ -471,7 +471,7 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 	err = t.ExecuteTemplate(w, "index", p)
 	if err != nil {
 		log.Print(err)
-		c.handleListSimple(w, r)
+		c.handleListSimple(w)
 		return
 	}
 }

@@ -98,7 +98,7 @@ func (j *jobTrack) GetStat() int {
 	return count
 }
 
-func (c *webCmd) runLoop(args []string) error {
+func (c *webCmd) runLoop() error {
 	firstRun := true
 	me, err := os.Executable()
 	if err != nil {
@@ -200,7 +200,7 @@ func (c *webCmd) Execute(args []string) error {
 		return nil
 	}
 	if !c.Real {
-		return c.runLoop(args)
+		return c.runLoop()
 	}
 	if isWebuiBeta {
 		log.Print("Running webui; this feature is in beta.")

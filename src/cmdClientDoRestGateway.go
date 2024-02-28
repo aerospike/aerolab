@@ -139,6 +139,7 @@ func (c *clientAddRestGatewayCmd) Execute(args []string) error {
 }
 
 func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
+	_ = args
 	b.WorkOnClients()
 	var err error
 	if c.url == "" {

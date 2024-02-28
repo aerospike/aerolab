@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
-func (d *backendAws) lookupAmi(region string, v backendVersion) (ami string, err error) {
+func (d *backendAws) lookupAmi(v backendVersion) (ami string, err error) {
 	owner := ""
 	switch v.distroName {
 	case "ubuntu":
@@ -181,7 +181,7 @@ func (d *backendAws) getUser(v backendVersion) string {
 }
 
 func (d *backendAws) getAmi(region string, v backendVersion) (ami string, err error) {
-	ret, err := d.lookupAmi(region, v)
+	ret, err := d.lookupAmi(v)
 	if err == nil {
 		return ret, nil
 	}

@@ -14,7 +14,7 @@ import (
 )
 
 func (c *dataDeleteCmd) delete5(args []string) error {
-
+	_ = args
 	ipPort := strings.Split(c.SeedNode, ":")
 	if len(ipPort) != 2 {
 		return fmt.Errorf("delete-data: Failed to process SeedNode, must be IP:PORT: %s", c.SeedNode)
@@ -39,7 +39,7 @@ func (c *dataDeleteCmd) delete5(args []string) error {
 				policy.AuthMode = aerospike.AuthModeInternal
 			}
 		}
-		var tlsconfig *tls.Config
+		tlsconfig := &tls.Config{}
 		if c.TlsCaCert != "" {
 			var cacertpool *x509.CertPool
 			ncertfile, err := os.ReadFile(c.TlsCaCert)

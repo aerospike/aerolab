@@ -55,7 +55,7 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 	// fix config if needed, read custom config file path if needed
 	if c.ParallelThreads == 1 || len(nodeList) == 1 {
 		for _, i := range nodeList {
-			err = c.fixIt(i, nip, clusterIps, nodeList)
+			err = c.fixIt(i, nip, clusterIps)
 			if err != nil {
 				return err
 			}
@@ -67,7 +67,7 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 		for _, node := range nodeList {
 			parallel <- 1
 			wait.Add(1)
-			go c.fixItParallel(node, nip, clusterIps, nodeList, parallel, wait, hasError)
+			go c.fixItParallel(node, nip, clusterIps, parallel, wait, hasError)
 		}
 		wait.Wait()
 		if len(hasError) > 0 {
@@ -78,19 +78,19 @@ func (c *confFixMeshCmd) Execute(args []string) error {
 	return nil
 }
 
-func (c *confFixMeshCmd) fixItParallel(i int, nip map[int]string, clusterIps []string, nodeList []int, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
+func (c *confFixMeshCmd) fixItParallel(i int, nip map[int]string, clusterIps []string, parallel chan int, wait *sync.WaitGroup, hasError chan bool) {
 	defer func() {
 		<-parallel
 		wait.Done()
 	}()
-	err := c.fixIt(i, nip, clusterIps, nodeList)
+	err := c.fixIt(i, nip, clusterIps)
 	if err != nil {
 		log.Printf("ERROR from node %d: %s", i, err)
 		hasError <- true
 	}
 }
 
-func (c *confFixMeshCmd) fixIt(i int, nip map[int]string, clusterIps []string, nodeList []int) error {
+func (c *confFixMeshCmd) fixIt(i int, nip map[int]string, clusterIps []string) error {
 	if _, ok := nip[i]; !ok {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (c *confFixMeshCmd) fixIt(i int, nip map[int]string, clusterIps []string, n
 		return fmt.Errorf("cluster=%s node=%v nodeIP=%v RunCommands error=%s", string(c.ClusterName), i, nip[i], err)
 	}
 	// nr has contents of aerospike.conf
-	newconf, err := fixAerospikeConfig(string(nr[0]), "", "mesh", clusterIps, nodeList)
+	newconf, err := fixAerospikeConfig(string(nr[0]), "", "mesh", clusterIps)
 	if err != nil {
 		return err
 	}

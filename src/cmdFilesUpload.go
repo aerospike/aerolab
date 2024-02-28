@@ -41,6 +41,7 @@ func (c *filesUploadCmd) Execute(args []string) error {
 }
 
 func (c *filesUploadCmd) runUpload(args []string) error {
+	_ = args
 	log.Print("Running files.upload")
 	if c.IsClient {
 		b.WorkOnClients()

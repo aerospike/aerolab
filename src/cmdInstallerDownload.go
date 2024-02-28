@@ -17,11 +17,11 @@ func (c *installerDownloadCmd) Execute(args []string) error {
 	if earlyProcessV2(args, false) {
 		return nil
 	}
-	_, err := c.runDownload(args)
+	_, err := c.runDownload()
 	return err
 }
 
-func (c *installerDownloadCmd) runDownload(args []string) (string, error) {
+func (c *installerDownloadCmd) runDownload() (string, error) {
 	log.Print("Running installer.download")
 	if err := chDir(string(c.ChDir)); err != nil {
 		return "", logFatal("ChDir failed: %s", err)
