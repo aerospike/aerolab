@@ -529,12 +529,23 @@ func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if !c.checkAuthOnly(w, r) {
 		return
 	}
+	r.ParseForm()
 	logger.Info("Listener: status request from %s", r.RemoteAddr)
 	resp, err := getAgiStatus(true, c.IngestProgressPath)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
+	}
+	if r.Form.Get("shorten") != "" {
+		shorten, err := strconv.Atoi(r.Form.Get("shorten"))
+		if err == nil {
+			if len(resp.Ingest.Errors) > shorten {
+				resp.Ingest.Errors = append(resp.Ingest.Errors[0:shorten], "...truncated entries: "+strconv.Itoa(len(resp.Ingest.Errors)-shorten))
+			}
+		} else {
+			log.Print(err)
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
