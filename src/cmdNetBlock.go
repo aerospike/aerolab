@@ -31,10 +31,10 @@ func (c *netBlockCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	return c.run(args, "-I")
+	return c.run("-I")
 }
 
-func (c *netBlockCmd) run(args []string, blockString string) error {
+func (c *netBlockCmd) run(blockString string) error {
 	if blockString == "-I" {
 		log.Print("Running net.block")
 	} else {

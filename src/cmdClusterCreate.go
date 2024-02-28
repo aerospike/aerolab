@@ -285,7 +285,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				if err != nil {
 					return err
 				}
-			} else if foundVol != nil {
+			} else {
 				err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String(), foundVol.AvailabilityZoneName)
 				if err != nil {
 					return err
@@ -350,7 +350,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				if err != nil {
 					return err
 				}
-			} else if foundVol != nil {
+			} else {
 				err = b.TagVolume(foundVol.FileSystemId, "expireduration", strings.ToLower(strings.ReplaceAll(c.Gcp.VolExpires.String(), ".", "_")), foundVol.AvailabilityZoneName)
 				if err != nil {
 					return err
@@ -915,7 +915,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		if err != nil {
 			return err
 		}
-		newconf, err = fixAerospikeConfig(string(conf), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps, nodeList)
+		newconf, err = fixAerospikeConfig(string(conf), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps)
 		if err != nil {
 			return err
 		}
@@ -930,7 +930,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		newconf = string(nr[0])
 		if c.HeartbeatMode == "mesh" || c.HeartbeatMode == "mcast" {
 			// nr has contents of aerospike.conf
-			newconf, err = fixAerospikeConfig(string(nr[0]), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps, nodeList)
+			newconf, err = fixAerospikeConfig(string(nr[0]), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps)
 			if err != nil {
 				return err
 			}

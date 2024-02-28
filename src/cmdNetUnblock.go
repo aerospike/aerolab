@@ -8,5 +8,5 @@ func (c *netUnblockCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	return c.run(args, "-D")
+	return c.run("-D")
 }

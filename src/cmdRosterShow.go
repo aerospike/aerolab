@@ -21,7 +21,7 @@ func (c *rosterShowCmd) Execute(args []string) error {
 		return nil
 	}
 	log.Print("Running roster.show")
-	err := c.show(args)
+	err := c.show()
 	if err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func (c *rosterShowCmd) Execute(args []string) error {
 	return nil
 }
 
-func (c *rosterShowCmd) show(args []string) error {
+func (c *rosterShowCmd) show() error {
 	clist, err := b.ClusterList()
 	if err != nil {
 		return err

@@ -23,7 +23,7 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	}
 
 	log.Print("Running roster.apply")
-	err := c.runApply(args)
+	err := c.runApply()
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (c *rosterApplyCmd) findNodesParallel(node int, parallel chan int, wait *sy
 	ob <- on
 }
 
-func (c *rosterApplyCmd) runApply(args []string) error {
+func (c *rosterApplyCmd) runApply() error {
 	clist, err := b.ClusterList()
 	if err != nil {
 		return err
@@ -177,7 +177,7 @@ func (c *rosterApplyCmd) runApply(args []string) error {
 		}
 		wait.Wait()
 	}
-	err = c.show(args)
+	err = c.show()
 	if err != nil {
 		return err
 	}

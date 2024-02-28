@@ -71,6 +71,7 @@ help:
 webdebug:
 	go generate
 	[ ! -f webui/www.tgz ] && touch webui/www.tgz || echo
+	[ ! -f agiproxy.tgz ] && touch agiproxy.tgz || echo
 	go run . webui --web-path ../web/dev --web-no-override --listen 0.0.0.0:3333 --webroot /aerolab/ --debug-requests
 
 .PHONY: macos-build-all

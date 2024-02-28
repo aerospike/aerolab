@@ -126,6 +126,7 @@ func (c *clientAddVSCodeCmd) Execute(args []string) error {
 }
 
 func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
+	_ = args
 	b.WorkOnClients()
 	if a.opts.Config.Backend.TmpDir != "" {
 		os.MkdirAll(string(a.opts.Config.Backend.TmpDir), 0755)
