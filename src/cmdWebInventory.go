@@ -910,7 +910,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 	case "destroy":
 		ncmd = append(ncmd, action)
 	case "extendExpiry":
-		if ntype == "cluster" {
+		if ntype == "cluster" || ntype == "agi" {
 			ncmd = []string{"cluster", "add", "expiry"}
 		} else {
 			ncmd = []string{"client", "configure", "expiry"}
@@ -1043,6 +1043,13 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 						clist[agiName] = []string{}
 					}
 					clist[agiName] = append(clist[agiName], agiZone, agiInstanceExists)
+					if _, ok := zoneclist[agiZone]; !ok {
+						zoneclist[agiZone] = make(map[string][]string)
+					}
+					if _, ok := zoneclist[agiZone][agiName]; !ok {
+						zoneclist[agiZone][agiName] = []string{}
+					}
+					zoneclist[agiZone][agiName] = append(zoneclist[agiZone][agiName], "1")
 				}
 			default:
 				isError = true
@@ -1509,11 +1516,24 @@ func (c *webCmd) inventoryNodesActionExtendExpiry(w http.ResponseWriter, r *http
 					log.Printf("[%s] Extend Expiry (%v)", reqID, clusterName+":"+nodeNo)
 				}
 			case "agi":
-				agiName := name
-				isError = true
-				err = errors.New("cannot extend expiry on agi nodes")
-				invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, agiName))
-				log.Printf("[%s] ERROR %s (%v)", reqID, err, agiName)
+				clusterName := name
+				cmdJson := map[string]interface{}{
+					"ClusterName": clusterName,
+					"Nodes":       "1",
+					"Expires":     int64(expiry),
+					"Gcp": map[string]interface{}{
+						"Zone": zone,
+					},
+				}
+				err = c.runInvCmd(reqID, "/cluster/add/expiry", cmdJson, invlog)
+				if err != nil {
+					isError = true
+					invlog.WriteString(fmt.Sprintf("[%s] ERROR %s (%v)\n", reqID, err, clusterName+":"+nodeNo))
+					log.Printf("[%s] ERROR %s (%v)", reqID, err, clusterName+":"+nodeNo)
+				} else {
+					invlog.WriteString(fmt.Sprintf("[%s] Extend Expiry (%v)\n", reqID, clusterName+":"+nodeNo))
+					log.Printf("[%s] Extend Expiry (%v)", reqID, clusterName+":"+nodeNo)
+				}
 			}
 		}
 	}
