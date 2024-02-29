@@ -319,6 +319,7 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		}
 	}
 
+	http.HandleFunc("/agi/ok", c.handleTokenTest)            // test token, returns ok or lack of success
 	http.HandleFunc("/agi/menu", c.handleList)               // URL list and status
 	http.HandleFunc("/agi/dist/", c.wwwstatic)               // static files for URL list
 	http.HandleFunc("/agi/api/status", c.handleStatus)       // menu web page API
@@ -524,6 +525,14 @@ func (c *agiExecProxyCmd) handleIngestDetail(w http.ResponseWriter, r *http.Requ
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	io.Copy(w, reader)
+}
+
+func (c *agiExecProxyCmd) handleTokenTest(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuthOnly(w, r) {
+		return
+	}
+	w.WriteHeader(200)
+	w.Write([]byte("OK"))
 }
 
 func (c *agiExecProxyCmd) handleStatus(w http.ResponseWriter, r *http.Request) {
