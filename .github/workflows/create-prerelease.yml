@@ -28,6 +28,8 @@ jobs:
               run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             - name: "Install Dependencies"
               run: |
+                export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=true
+                export HOMEBREW_NO_AUTO_UPDATE=true              
                 /usr/local/bin/brew install --overwrite python@3.11 || echo "Ignore errors on this 1"
                 /usr/local/bin/brew link --overwrite python@3.11 || echo "Ignore errors on this 2"
                 /usr/local/bin/brew install --overwrite dpkg upx zip make wget jq || echo "Ignore errors on this 3"
