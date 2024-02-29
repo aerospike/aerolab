@@ -209,6 +209,9 @@ type inventoryWebAGI struct {
 	ImageID        string    `backends:"docker"`
 	InstanceType   string    `backends:"gcp,aws"`
 	CreationTime   time.Time `hidden:"true"`
+	SourceLocal    string    `backends:"gcp,aws"`
+	SourceSftp     string    `backends:"gcp,aws"`
+	SourceS3       string    `backends:"gcp,aws"`
 	IsRunning      bool      `row:"Action"`
 	AccessProtocol string    `hidden:"true"` // http:// https://
 }
