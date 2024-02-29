@@ -286,7 +286,7 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 							statusMsg = "READY, HasErrors"
 						}
 					}
-					if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+					if !strings.HasPrefix(statusMsg, "READY") && !clusterStatus.Ingest.Running {
 						statusMsg = "ERR: INGEST DOWN"
 					}
 				} else if i.c.DebugRequests {
@@ -785,18 +785,31 @@ func (c *webCmd) inventoryAGIConnect(w http.ResponseWriter, r *http.Request) {
 	c.cache.RLock()
 	for _, agi := range c.cache.inv.AGI {
 		if agi.Name == name {
+			apipsplit := strings.Split(agi.AccessURL, "/")
+			accessProtIP := ""
+			if len(apipsplit) >= 3 {
+				accessProtIP = strings.Join(apipsplit[0:3], "/")
+			}
+			if a.opts.Config.Backend.Type != "docker" || accessProtIP == "" {
+				if agi.PublicIP != "" {
+					accessProtIP = agi.AccessProtocol + agi.PublicIP
+				} else if agi.PrivateIP != "" {
+					accessProtIP = agi.AccessProtocol + agi.PrivateIP
+				}
+			}
 			req = agiWebTokenRequest{
-				Name:       agi.Name,
-				PublicIP:   agi.PublicIP,
-				PrivateIP:  agi.PrivateIP,
-				InstanceID: agi.InstanceID,
+				Name:         agi.Name,
+				PublicIP:     agi.PublicIP,
+				PrivateIP:    agi.PrivateIP,
+				InstanceID:   agi.InstanceID,
+				AccessProtIP: accessProtIP,
 			}
 			break
 		}
 	}
 	c.cache.RUnlock()
 	c.cache.ilcMutex.RUnlock()
-	token, err := c.agiTokens.GetToken(req)
+	token, err := c.agiTokens.GetTokenWithTest(req)
 	if err != nil {
 		http.Error(w, "could not get token: "+err.Error(), http.StatusInternalServerError)
 		return

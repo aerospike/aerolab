@@ -133,9 +133,9 @@
             </div>
             <!-- navigation buttons -->
             <div class="row">
-                <div class="col-xl-3 col-lg-0">
+                <div class="col-xl-2 col-lg-0">
                 </div>
-                <div class="col-xl-2 col-lg-4">
+                <div class="col-xl-2 col-lg-3">
                     <button class="local-btn-pushable" onclick="window.open('/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1','_blank');">
                         <span class="local-btn-shadow"></span>
                         <span class="local-btn-edge"></span>
@@ -144,7 +144,7 @@
                         </span>
                     </button>
                 </div>
-                <div class="col-xl-2 col-lg-4">
+                <div class="col-xl-2 col-lg-3">
                     <button class="local-btn-pushable" onclick="window.open('/agi/ttyd','_blank');">
                         <span class="local-btn-shadow"></span>
                         <span class="local-btn-edge"></span>
@@ -153,7 +153,7 @@
                         </span>
                     </button>
                 </div>
-                <div class="col-xl-2 col-lg-4">
+                <div class="col-xl-2 col-lg-3">
                     <button class="local-btn-pushable" onclick="window.open('/agi/filebrowser','_blank');">
                         <span class="local-btn-shadow"></span>
                         <span class="local-btn-edge"></span>
@@ -162,7 +162,16 @@
                         </span>
                     </button>
                 </div>
-                <div class="col-xl-3 col-lg-0">
+                <div class="col-xl-2 col-lg-3">
+                    <button class="local-btn-pushable" id="statusLoader">
+                        <span class="local-btn-shadow"></span>
+                        <span class="local-btn-edge"></span>
+                        <span class="local-btn-front">
+                            <i class="fa-solid fa-info fa-5x"></i><br />Status
+                        </span>
+                    </button>
+                </div>
+                <div class="col-xl-2 col-lg-0">
                 </div>
             </div>
             <!-- break -->
@@ -172,7 +181,7 @@
                 </div>
             </div>
             <!-- details -->
-            <div class="row">
+            <div class="row" id="statusRow" style="display:none;">
                 <div class="col">
                     <div class="card">
                         <div class="card-header">
@@ -382,7 +391,7 @@
             })
 
             // load status id=statusMsg innerHTML
-            $( document ).ready(function() {
+            function getStatus() {
                 $.getJSON("/agi/api/status?shorten=1000", function(data){ // shorten = max errors to return from server (plus line stating how many entries were truncated)
                     var asdStatus = "<font color=red>Aerospike NOT Running</font>";
                     if (data["AerospikeRunning"]) {
@@ -455,7 +464,7 @@
                     if (data["Ingest"]["Errors"] != null) {
                         for (let i = 0; i < data["Ingest"]["Errors"].length;i++) {
                             errorStr = "<font color=red>General Errors</font>";
-                            errors.append($(document.createElement('li')).text(data["Ingest"]["Errors"][i]));
+                            errors.append($(document.createElement('li')).append($(document.createElement('code')).text(data["Ingest"]["Errors"][i])));
                         }
                     }
                     $('#statusMsg').html($(document.createElement('div'))
@@ -512,7 +521,7 @@
                     body = data.statusText+": "+body;
                     $("#statusMsg").css("text-align","left").text("ERROR: "+body);
                 });
-            })
+            };
             function prettyComplete(data, name) {
                 if (data) {
                     return "<font color=green>"+name+": "+data+"</font>";
@@ -542,10 +551,23 @@
             var logErrorsCount = {};
 
             // ordering - first load log file details, then show errors
-            $( document ).ready(function() {
-                loadFileDetails();
-                showLogErrors();
-            });
+            var statusLoaded = false;
+            $('#statusLoader').on('click',loadAllStatus);
+            function loadAllStatus() {
+                if (statusLoaded) {
+                    alert("Status already loaded. To update, refresh the browser window.");
+                    return;
+                }
+                statusLoaded = true;
+                $('#statusLoader').hide();
+                $("#statusRow").show();
+                setTimeout(function() {
+                    getStatus();
+                    getAgiLogs();
+                    loadFileDetails();
+                    showLogErrors();
+                },100);
+            };
 
             // datatables defaults
             Object.assign(DataTable.defaults, {
@@ -563,223 +585,253 @@
             // /agi/ingest/detail?detail=FILE.json' ;; {"downloader.json", "unpacker.json", "pre-processor.json", "log-processor.json", "cf-processor.json"}
             function loadFileDetails() {
                 // downloader
-                $.getJSON('/agi/ingest/detail?detail=downloader.json',function(data) {
-                    let out = [];
-                    logErrors["Downloader"] = [];
-                    logErrorsCount["Downloader"] = 0;
-                    for (var source of ["S3","Sftp"]) {
-                        let src=source+"Files";
-                        for (var fn in data[src]) {
-                            out.push([source,fn,formatBytes(data[src][fn]["Size"]),data[src][fn]["IsDownloaded"],data[src][fn]["Error"]]);
-                            if (data[src][fn]["Error"] != "" && data[src][fn]["Error"] != null) {
-                                if (logErrorsCount["Downloader"] < 1000) {
-                                    logErrors["Downloader"].push({
-                                        "file": fn,
-                                        "error": data[src][fn]["Error"],
-                                    })
-                                };
-                                logErrorsCount["Downloader"]++;
-                            }
+                $.ajax({
+                    async: false,
+                    type: 'GET',
+                    dataType: "json",
+                    url: '/agi/ingest/detail?detail=downloader.json',
+                    success: function(data) {
+                        let out = [];
+                        logErrors["Downloader"] = [];
+                        logErrorsCount["Downloader"] = 0;
+                        for (var source of ["S3","Sftp"]) {
+                            let src=source+"Files";
+                            for (var fn in data[src]) {
+                                out.push([source,fn,formatBytes(data[src][fn]["Size"]),data[src][fn]["IsDownloaded"],data[src][fn]["Error"]]);
+                                if (data[src][fn]["Error"] != "" && data[src][fn]["Error"] != null) {
+                                    if (logErrorsCount["Downloader"] < 1000) {
+                                        logErrors["Downloader"].push({
+                                            "file": fn,
+                                            "error": data[src][fn]["Error"],
+                                        })
+                                    };
+                                    logErrorsCount["Downloader"]++;
+                                }
+                            };
                         };
-                    };
-                    $("#filesdl").css("text-align","left");
-                    $('#tfilesdl').DataTable({
-                        data: out,
-                        fixedColumns: {left: 2},
-                    });
-                })
-                .fail(function(data) {
-                    let body = data.responseText;
-                    if ((data.status == 0)&&(body == undefined)) {
-                        body = "Connection Error";
+                        $("#filesdl").css("text-align","left");
+                        $('#tfilesdl').DataTable({
+                            data: out,
+                            fixedColumns: {left: 2},
+                        });
+                    },
+                    error: function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
+                        }
+                        body = data.statusText+": "+body;
+                        $("#filesdl").css("text-align","left").text("ERROR: "+body);
                     }
-                    body = data.statusText+": "+body;
-                    $("#filesdl").css("text-align","left").text("ERROR: "+body);
                 });
 
                 // unpacker
-                $.getJSON('/agi/ingest/detail?detail=unpacker.json',function(data) {
-                    let out = [];
-                    logErrors["Unpacker"] = [];
-                    logErrorsCount["Unpacker"] = 0;
-                    for (var fn in data["Files"]) {
-                        var errStr = "";
-                        if (data["Files"][fn]["Errors"] != null && data["Files"][fn]["Errors"].length > 0) {
-                            errStr = data["Files"][fn]["Errors"].join("<br>");
-                            if (logErrorsCount["Unpacker"] < 1000) {
-                                logErrors["Unpacker"].push({
-                                    "file": fn,
-                                    "error": data["Files"][fn]["Errors"].join("\n"),
-                                })
-                            };
-                            logErrorsCount["Unpacker"]++;
+                $.ajax({
+                    async: false,
+                    type: 'GET',
+                    dataType: "json",
+                    url: '/agi/ingest/detail?detail=unpacker.json',
+                    success: function(data) {
+                        let out = [];
+                        logErrors["Unpacker"] = [];
+                        logErrorsCount["Unpacker"] = 0;
+                        for (var fn in data["Files"]) {
+                            var errStr = "";
+                            if (data["Files"][fn]["Errors"] != null && data["Files"][fn]["Errors"].length > 0) {
+                                errStr = data["Files"][fn]["Errors"].join("<br>");
+                                if (logErrorsCount["Unpacker"] < 1000) {
+                                    logErrors["Unpacker"].push({
+                                        "file": fn,
+                                        "error": data["Files"][fn]["Errors"].join("\n"),
+                                    })
+                                };
+                                logErrorsCount["Unpacker"]++;
+                            }
+                            out.push([
+                                fn,
+                                formatBytes(data["Files"][fn]["Size"]),
+                                data["Files"][fn]["IsCollectInfo"],
+                                data["Files"][fn]["IsArchive"],
+                                data["Files"][fn]["IsText"],
+                                data["Files"][fn]["UnpackFailed"],
+                                errStr,
+                            ]);
+                        };
+                        $("#filesun").css("text-align","left");
+                        $('#tfilesun').DataTable({
+                            data: out,
+                            fixedColumns: {left: 1},
+                        });
+                    },
+                    error: function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
                         }
-                        out.push([
-                            fn,
-                            formatBytes(data["Files"][fn]["Size"]),
-                            data["Files"][fn]["IsCollectInfo"],
-                            data["Files"][fn]["IsArchive"],
-                            data["Files"][fn]["IsText"],
-                            data["Files"][fn]["UnpackFailed"],
-                            errStr,
-                        ]);
-                    };
-                    $("#filesun").css("text-align","left");
-                    $('#tfilesun').DataTable({
-                        data: out,
-                        fixedColumns: {left: 1},
-                    });
-                })
-                .fail(function(data) {
-                    let body = data.responseText;
-                    if ((data.status == 0)&&(body == undefined)) {
-                        body = "Connection Error";
+                        body = data.statusText+": "+body;
+                        $("#filesun").css("text-align","left").text("ERROR: "+body);
                     }
-                    body = data.statusText+": "+body;
-                    $("#filesun").css("text-align","left").text("ERROR: "+body);
                 });
 
                 // pre-processor
-                $.getJSON('/agi/ingest/detail?detail=pre-processor.json',function(data) {
-                    let out = [];
-                    logErrors["PreProcessor"] = [];
-                    logErrorsCount["PreProcessor"] = 0;
-                    for (var fn in data["Files"]) {
-                        var errStr = "";
-                        if (data["Files"][fn]["Errors"] != null && data["Files"][fn]["Errors"].length > 0) {
-                            errStr = data["Files"][fn]["Errors"].join("<br>");
-                            if (logErrorsCount["PreProcessor"] < 1000) {
-                                logErrors["PreProcessor"].push({
-                                    "file": fn,
-                                    "error": data["Files"][fn]["Errors"].join("\n"),
-                                })
+                $.ajax({
+                    async: false,
+                    type: 'GET',
+                    dataType: "json",
+                    url: '/agi/ingest/detail?detail=pre-processor.json',
+                    success: function(data) {
+                        let out = [];
+                        logErrors["PreProcessor"] = [];
+                        logErrorsCount["PreProcessor"] = 0;
+                        for (var fn in data["Files"]) {
+                            var errStr = "";
+                            if (data["Files"][fn]["Errors"] != null && data["Files"][fn]["Errors"].length > 0) {
+                                errStr = data["Files"][fn]["Errors"].join("<br>");
+                                if (logErrorsCount["PreProcessor"] < 1000) {
+                                    logErrors["PreProcessor"].push({
+                                        "file": fn,
+                                        "error": data["Files"][fn]["Errors"].join("\n"),
+                                    })
+                                }
+                                logErrorsCount["PreProcessor"]++;
                             }
-                            logErrorsCount["PreProcessor"]++;
+                            var isDup = false;
+                            var dupStr = "";
+                            var outStr = "";
+                            if (data["Files"][fn]["PreProcessDuplicateOf"] != null && data["Files"][fn]["PreProcessDuplicateOf"].length > 0) {
+                                isDup = true;
+                                dupStr = data["Files"][fn]["PreProcessDuplicateOf"].join("<br>");
+                            }
+                            if (data["Files"][fn]["PreProcessOutPaths"] != null && data["Files"][fn]["PreProcessOutPaths"].length > 0) {
+                                outStr = data["Files"][fn]["PreProcessOutPaths"].join("<br>");
+                            }
+                            out.push([
+                                fn,
+                                formatBytes(data["Files"][fn]["Size"]),
+                                data["Files"][fn]["IsCollectInfo"],
+                                data["Files"][fn]["IsArchive"],
+                                data["Files"][fn]["IsText"],
+                                outStr,
+                                isDup,
+                                dupStr,
+                                errStr,
+                            ]);
+                        };
+                        $("#filespp").css("text-align","left");
+                        $('#tfilespp').DataTable({
+                            data: out,
+                            fixedColumns: {left: 1},
+                        });
+                    },
+                error:function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
                         }
-                        var isDup = false;
-                        var dupStr = "";
-                        var outStr = "";
-                        if (data["Files"][fn]["PreProcessDuplicateOf"] != null && data["Files"][fn]["PreProcessDuplicateOf"].length > 0) {
-                            isDup = true;
-                            dupStr = data["Files"][fn]["PreProcessDuplicateOf"].join("<br>");
-                        }
-                        if (data["Files"][fn]["PreProcessOutPaths"] != null && data["Files"][fn]["PreProcessOutPaths"].length > 0) {
-                            outStr = data["Files"][fn]["PreProcessOutPaths"].join("<br>");
-                        }
-                        out.push([
-                            fn,
-                            formatBytes(data["Files"][fn]["Size"]),
-                            data["Files"][fn]["IsCollectInfo"],
-                            data["Files"][fn]["IsArchive"],
-                            data["Files"][fn]["IsText"],
-                            outStr,
-                            isDup,
-                            dupStr,
-                            errStr,
-                        ]);
-                    };
-                    $("#filespp").css("text-align","left");
-                    $('#tfilespp').DataTable({
-                        data: out,
-                        fixedColumns: {left: 1},
-                    });
-                })
-                .fail(function(data) {
-                    let body = data.responseText;
-                    if ((data.status == 0)&&(body == undefined)) {
-                        body = "Connection Error";
+                        body = data.statusText+": "+body;
+                        $("#filespp").css("text-align","left").text("ERROR: "+body);
                     }
-                    body = data.statusText+": "+body;
-                    $("#filespp").css("text-align","left").text("ERROR: "+body);
                 });
 
                 // log-processor
-                $.getJSON('/agi/ingest/detail?detail=log-processor.json',function(data) {
-                    let out = [];
-                    logErrors["LogProcessor"] = [];
-                    logErrorsCount["LogProcessor"] = 0;
-                    for (var fn in data["Files"]) {
-                        var errStr = [];
-                        nodeIdent = data["Files"][fn]["NodePrefix"];
-                        if (data["LineErrors"] != null && data["LineErrors"][nodeIdent] != null) {
-                            for (var errName in data["LineErrors"][nodeIdent]) {
-                                errStr.push("(repeated:"+data["LineErrors"][nodeIdent][errName]+") " + errName);
+                $.ajax({
+                    async: false,
+                    type: 'GET',
+                    dataType: "json",
+                    url: '/agi/ingest/detail?detail=log-processor.json',
+                    success: function(data) {
+                        let out = [];
+                        logErrors["LogProcessor"] = [];
+                        logErrorsCount["LogProcessor"] = 0;
+                        for (var fn in data["Files"]) {
+                            var errStr = [];
+                            nodeIdent = data["Files"][fn]["NodePrefix"];
+                            if (data["LineErrors"] != null && data["LineErrors"][nodeIdent] != null) {
+                                for (var errName in data["LineErrors"][nodeIdent]) {
+                                    errStr.push("(repeated:"+data["LineErrors"][nodeIdent][errName]+") " + errName);
+                                }
+                                if (logErrorsCount["LogProcessor"] < 1000) {
+                                    logErrors["LogProcessor"].push({
+                                        "file": fn,
+                                        "error": errStr.join("\n"),
+                                    })
+                                }
+                                logErrorsCount["LogProcessor"]++;
                             }
-                            if (logErrorsCount["LogProcessor"] < 1000) {
-                                logErrors["LogProcessor"].push({
-                                    "file": fn,
-                                    "error": errStr.join("\n"),
-                                })
-                            }
-                            logErrorsCount["LogProcessor"]++;
+                            var pct = Math.floor((data["Files"][fn]["Processed"] / data["Files"][fn]["Size"])*100);
+                            out.push([
+                                fn,
+                                data["Files"][fn]["ClusterName"],
+                                data["Files"][fn]["NodeID"],
+                                formatBytes(data["Files"][fn]["Size"]),
+                                formatBytes(data["Files"][fn]["Processed"]),
+                                pct,
+                                data["Files"][fn]["Finished"],
+                                errStr.join("<br>"),
+                            ]);
+                        };
+                        $("#fileslp").css("text-align","left");
+                        $('#tfileslp').DataTable({
+                            data: out,
+                            fixedColumns: {left: 1},
+                        });
+                    },
+                error: function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
                         }
-                        var pct = Math.floor((data["Files"][fn]["Processed"] / data["Files"][fn]["Size"])*100);
-                        out.push([
-                            fn,
-                            data["Files"][fn]["ClusterName"],
-                            data["Files"][fn]["NodeID"],
-                            formatBytes(data["Files"][fn]["Size"]),
-                            formatBytes(data["Files"][fn]["Processed"]),
-                            pct,
-                            data["Files"][fn]["Finished"],
-                            errStr.join("<br>"),
-                        ]);
-                    };
-                    $("#fileslp").css("text-align","left");
-                    $('#tfileslp').DataTable({
-                        data: out,
-                        fixedColumns: {left: 1},
-                    });
-                })
-                .fail(function(data) {
-                    let body = data.responseText;
-                    if ((data.status == 0)&&(body == undefined)) {
-                        body = "Connection Error";
+                        body = data.statusText+": "+body;
+                        $("#fileslp").css("text-align","left").text("ERROR: "+body);
                     }
-                    body = data.statusText+": "+body;
-                    $("#fileslp").css("text-align","left").text("ERROR: "+body);
                 });
 
                 // cf-processor
-                $.getJSON('/agi/ingest/detail?detail=cf-processor.json',function(data) {
-                    let out = [];
-                    logErrors["CollectInfoProcessor"] = [];
-                    logErrorsCount["CollectInfoProcessor"] = 0;
-                    for (var fn in data["Files"]) {
-                        var errStr = "";
-                        if (data["Files"][fn]["Errors"] != null && data["Files"][fn]["Errors"].length > 0) {
-                            errStr = data["Files"][fn]["Errors"].join("<br>");
-                            if (logErrorsCount["CollectInfoProcessor"] < 1000) {
-                                logErrors["CollectInfoProcessor"].push({
-                                    "file": fn,
-                                    "error": data["Files"][fn]["Errors"].join("\n"),
-                                })
-                            };
-                            logErrorsCount["CollectInfoProcessor"]++;
+                $.ajax({
+                    async: false,
+                    type: 'GET',
+                    dataType: "json",
+                    url: '/agi/ingest/detail?detail=cf-processor.json',
+                    success: function(data) {
+                        let out = [];
+                        logErrors["CollectInfoProcessor"] = [];
+                        logErrorsCount["CollectInfoProcessor"] = 0;
+                        for (var fn in data["Files"]) {
+                            var errStr = "";
+                            if (data["Files"][fn]["Errors"] != null && data["Files"][fn]["Errors"].length > 0) {
+                                errStr = data["Files"][fn]["Errors"].join("<br>");
+                                if (logErrorsCount["CollectInfoProcessor"] < 1000) {
+                                    logErrors["CollectInfoProcessor"].push({
+                                        "file": fn,
+                                        "error": data["Files"][fn]["Errors"].join("\n"),
+                                    })
+                                };
+                                logErrorsCount["CollectInfoProcessor"]++;
+                            }
+                            out.push([
+                                fn,
+                                formatBytes(data["Files"][fn]["Size"]),
+                                data["Files"][fn]["NodeID"],
+                                data["Files"][fn]["Renamed"],
+                                data["Files"][fn]["OriginalName"],
+                                data["Files"][fn]["Processed"],
+                                errStr,
+                            ]);
+                        };
+                        $("#filescp").css("text-align","left");
+                        $('#tfilescp').DataTable({
+                            data: out,
+                            fixedColumns: {left: 1},
+                        });
+                    },
+                error: function(data) {
+                        let body = data.responseText;
+                        if ((data.status == 0)&&(body == undefined)) {
+                            body = "Connection Error";
                         }
-                        out.push([
-                            fn,
-                            formatBytes(data["Files"][fn]["Size"]),
-                            data["Files"][fn]["NodeID"],
-                            data["Files"][fn]["Renamed"],
-                            data["Files"][fn]["OriginalName"],
-                            data["Files"][fn]["Processed"],
-                            errStr,
-                        ]);
-                    };
-                    $("#filescp").css("text-align","left");
-                    $('#tfilescp').DataTable({
-                        data: out,
-                        fixedColumns: {left: 1},
-                    });
-                })
-                .fail(function(data) {
-                    let body = data.responseText;
-                    if ((data.status == 0)&&(body == undefined)) {
-                        body = "Connection Error";
+                        body = data.statusText+": "+body;
+                        $("#filescp").css("text-align","left").text("ERROR: "+body);
                     }
-                    body = data.statusText+": "+body;
-                    $("#filescp").css("text-align","left").text("ERROR: "+body);
                 });
 
                 // logErrors fill truncated string
@@ -794,6 +846,17 @@
             // log errors
             function showLogErrors() {
                 if (Object.keys(logErrors).length == 0) {
+                    $('#ingestwarns').html($(document.createElement('div')).css("text-align","left").html("<font color=green>None</font>"));
+                    return
+                }
+                var hasErrors = false;
+                for (var key in logErrors){
+                    if (logErrors[key].length > 0) {
+                        hasErrors = true;
+                        break;
+                    }
+                }
+                if (!hasErrors) {
                     $('#ingestwarns').html($(document.createElement('div')).css("text-align","left").html("<font color=green>None</font>"));
                     return
                 }
@@ -832,7 +895,7 @@
             };
 
             // AGI logs - up to last 20KiB or 200 lines per log
-            $( document ).ready(function() {
+            function getAgiLogs() {
                 $.getJSON("/agi/api/logs", function(data){
                     $("#logsasdp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["AerospikeLogs"])));
                     $("#logsproxyp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["ProxyLogs"])));
@@ -854,7 +917,7 @@
                     $("#logsgfixp").css("text-align","left").text("ERROR: "+body);
                     $("#dmesgp").css("text-align","left").text("ERROR: "+body);
                 });
-            });
+            };
 
             // helper - convert size
             function formatBytes(bytes, decimals = 2) {

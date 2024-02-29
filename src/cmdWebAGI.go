@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"crypto/sha1"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -50,14 +52,58 @@ func (t *agiWebTokens) GetNewToken(req agiWebTokenRequest) (token string, err er
 	return t.GetToken(req)
 }
 
+// get the token, if it fails a quick test, obtain a new token
+func (t *agiWebTokens) GetTokenWithTest(req agiWebTokenRequest) (token string, err error) {
+	return t.getToken(req, true)
+}
+
 // get an existing token, or request a new one if current does not exist
 func (t *agiWebTokens) GetToken(req agiWebTokenRequest) (token string, err error) {
+	return t.getToken(req, false)
+}
+
+// return false if token is invalid, in all other cases (including connection failed) return true
+func testToken(url string, token string) bool {
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   5 * time.Second,
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Timeout:   5 * time.Second,
+		Transport: tr,
+	}
+	defer client.CloseIdleConnections()
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return true
+	}
+	req.AddCookie(&http.Cookie{Name: "AGI_TOKEN", Value: token})
+	req.AddCookie(&http.Cookie{Name: "X-AGI-CALLER", Value: "webui"})
+	response, err := client.Do(req)
+	if err != nil {
+		return true
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		return false
+	}
+	return true
+}
+
+// get token or obtain new onel optionally test if token is accepted
+func (t *agiWebTokens) getToken(req agiWebTokenRequest, test bool) (token string, err error) {
 	name := req.GetUniqueValue()
 	// if token exists, serve it
 	t.l.RLock()
 	if v, ok := t.tokens[name]; ok {
 		t.l.RUnlock()
-		return v, nil
+		if !test {
+			return v, nil
+		}
+		if testToken(req.AccessProtIP+"/agi/ok", v) {
+			return v, nil
+		}
+		return t.GetNewToken(req)
 	}
 
 	// token doesn't exist, obtain getter lock for getting tokens and unlock the main read lock
