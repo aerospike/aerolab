@@ -133,9 +133,9 @@
             </div>
             <!-- navigation buttons -->
             <div class="row">
-                <div class="col-xl-3 col-lg-0">
+                <div class="col-xl-2 col-lg-0">
                 </div>
-                <div class="col-xl-2 col-lg-4">
+                <div class="col-xl-2 col-lg-3">
                     <button class="local-btn-pushable" onclick="window.open('/d/dashList/dashboard-list?from=now-7d&to=now&var-MaxIntervalSeconds=30&var-ProduceDelta&var-ClusterName=All&var-NodeIdent=All&var-Namespace=All&var-Histogram=NONE&var-HistogramDev=NONE&var-HistogramUs=NONE&var-HistogramCount=NONE&var-HistogramSize=NONE&var-XdrDcName=All&var-xdr5dc=All&var-warnC=All&var-warnCtx=All&var-errC=All&var-errCtx=All&orgId=1','_blank');">
                         <span class="local-btn-shadow"></span>
                         <span class="local-btn-edge"></span>
@@ -144,7 +144,7 @@
                         </span>
                     </button>
                 </div>
-                <div class="col-xl-2 col-lg-4">
+                <div class="col-xl-2 col-lg-3">
                     <button class="local-btn-pushable" onclick="window.open('/agi/ttyd','_blank');">
                         <span class="local-btn-shadow"></span>
                         <span class="local-btn-edge"></span>
@@ -153,7 +153,7 @@
                         </span>
                     </button>
                 </div>
-                <div class="col-xl-2 col-lg-4">
+                <div class="col-xl-2 col-lg-3">
                     <button class="local-btn-pushable" onclick="window.open('/agi/filebrowser','_blank');">
                         <span class="local-btn-shadow"></span>
                         <span class="local-btn-edge"></span>
@@ -162,7 +162,16 @@
                         </span>
                     </button>
                 </div>
-                <div class="col-xl-3 col-lg-0">
+                <div class="col-xl-2 col-lg-3">
+                    <button class="local-btn-pushable" id="statusLoader">
+                        <span class="local-btn-shadow"></span>
+                        <span class="local-btn-edge"></span>
+                        <span class="local-btn-front">
+                            <i class="fa-solid fa-info fa-5x"></i><br />Status
+                        </span>
+                    </button>
+                </div>
+                <div class="col-xl-2 col-lg-0">
                 </div>
             </div>
             <!-- break -->
@@ -172,7 +181,7 @@
                 </div>
             </div>
             <!-- details -->
-            <div class="row">
+            <div class="row" id="statusRow" style="display:none;">
                 <div class="col">
                     <div class="card">
                         <div class="card-header">
@@ -382,7 +391,7 @@
             })
 
             // load status id=statusMsg innerHTML
-            $( document ).ready(function() {
+            function getStatus() {
                 $.getJSON("/agi/api/status?shorten=1000", function(data){ // shorten = max errors to return from server (plus line stating how many entries were truncated)
                     var asdStatus = "<font color=red>Aerospike NOT Running</font>";
                     if (data["AerospikeRunning"]) {
@@ -512,7 +521,7 @@
                     body = data.statusText+": "+body;
                     $("#statusMsg").css("text-align","left").text("ERROR: "+body);
                 });
-            })
+            };
             function prettyComplete(data, name) {
                 if (data) {
                     return "<font color=green>"+name+": "+data+"</font>";
@@ -542,10 +551,23 @@
             var logErrorsCount = {};
 
             // ordering - first load log file details, then show errors
-            $( document ).ready(function() {
-                loadFileDetails();
-                showLogErrors();
-            });
+            var statusLoaded = false;
+            $('#statusLoader').on('click',loadAllStatus);
+            function loadAllStatus() {
+                if (statusLoaded) {
+                    alert("Status already loaded. To update, refresh the browser window.");
+                    return;
+                }
+                statusLoaded = true;
+                $('#statusLoader').hide();
+                $("#statusRow").show();
+                setTimeout(function() {
+                    getStatus();
+                    getAgiLogs();
+                    loadFileDetails();
+                    showLogErrors();
+                },100);
+            };
 
             // datatables defaults
             Object.assign(DataTable.defaults, {
@@ -873,7 +895,7 @@
             };
 
             // AGI logs - up to last 20KiB or 200 lines per log
-            $( document ).ready(function() {
+            function getAgiLogs() {
                 $.getJSON("/agi/api/logs", function(data){
                     $("#logsasdp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["AerospikeLogs"])));
                     $("#logsproxyp").css("text-align","left").html($(document.createElement('pre')).html($(document.createElement('code')).text(data["ProxyLogs"])));
@@ -895,7 +917,7 @@
                     $("#logsgfixp").css("text-align","left").text("ERROR: "+body);
                     $("#dmesgp").css("text-align","left").text("ERROR: "+body);
                 });
-            });
+            };
 
             // helper - convert size
             function formatBytes(bytes, decimals = 2) {
