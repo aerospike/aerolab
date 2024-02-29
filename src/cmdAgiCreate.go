@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -457,6 +458,32 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if c.AGILabel == "" {
 		c.AGILabel = string(c.ClusterName)
 	}
+	sourceStringLocal := ""
+	sourceStringSftp := ""
+	sourceStringS3 := ""
+	if c.LocalSource != "" {
+		sourceStringLocal = "local:" + string(c.LocalSource)
+	}
+	if c.SftpEnable {
+		sourceStringSftp = c.SftpHost + ":" + c.SftpPath + "^" + c.SftpRegex
+	}
+	if c.S3Enable {
+		sourceStringS3 = c.S3Bucket + ":" + c.S3path + "^" + c.S3Regex
+	}
+	sourceStringSftp = strings.TrimSuffix(sourceStringSftp, "^")
+	sourceStringS3 = strings.TrimSuffix(sourceStringS3, "^")
+	if len(sourceStringLocal) > 191 { // 255 with base64 overhead
+		sourceStringLocal = sourceStringLocal[0:188] + "..."
+	}
+	if len(sourceStringSftp) > 191 { // 255 with base64 overhead
+		sourceStringSftp = sourceStringSftp[0:188] + "..."
+	}
+	if len(sourceStringS3) > 191 { // 255 with base64 overhead
+		sourceStringS3 = sourceStringS3[0:188] + "..."
+	}
+	sourceStringLocal = base64.RawStdEncoding.EncodeToString([]byte(sourceStringLocal))
+	sourceStringSftp = base64.RawStdEncoding.EncodeToString([]byte(sourceStringSftp))
+	sourceStringS3 = base64.RawStdEncoding.EncodeToString([]byte(sourceStringS3))
 	a.opts.Cluster.Create.ClusterName = c.ClusterName
 	a.opts.Cluster.Create.NodeCount = 1
 	a.opts.Cluster.Create.CustomConfigFilePath = ""
@@ -486,7 +513,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.Ebs = c.Aws.Ebs
 	a.opts.Cluster.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 	a.opts.Cluster.Create.Aws.SubnetID = c.Aws.SubnetID
-	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), fmt.Sprintf("agiLabel=%s", c.AGILabel), fmt.Sprintf("agiinstance=%s", c.Aws.InstanceType), fmt.Sprintf("aginodim=%t", c.NoDIM), fmt.Sprintf("termonpow=%t", c.Aws.TerminateOnPoweroff), fmt.Sprintf("isspot=%t", c.Aws.SpotInstance))
+	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), fmt.Sprintf("agiLabel=%s", c.AGILabel), fmt.Sprintf("agiinstance=%s", c.Aws.InstanceType), fmt.Sprintf("aginodim=%t", c.NoDIM), fmt.Sprintf("termonpow=%t", c.Aws.TerminateOnPoweroff), fmt.Sprintf("isspot=%t", c.Aws.SpotInstance), fmt.Sprintf("agiSrcLocal=%s", sourceStringLocal), fmt.Sprintf("agiSrcSftp=%s", sourceStringSftp), fmt.Sprintf("agiSrcS3=%s", sourceStringS3))
 	a.opts.Cluster.Create.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Cluster.Create.Aws.Expires = c.Aws.Expires
 	a.opts.Cluster.Create.Aws.PublicIP = false
@@ -534,7 +561,10 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Gcp.Tags = c.Gcp.Tags
 	a.opts.Cluster.Create.Gcp.Labels = append(c.Gcp.Labels, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), "agilabel=set")
 	a.opts.Cluster.Create.gcpMeta = map[string]string{
-		"agiLabel": c.AGILabel,
+		"agiLabel":    c.AGILabel,
+		"agiSrcLocal": sourceStringLocal,
+		"agiSrcSftp":  sourceStringSftp,
+		"agiSrcS3":    sourceStringS3,
 	}
 	a.opts.Cluster.Create.Gcp.VolLabels = append(gcplabels.PackToKV("agilabel", c.AGILabel), "agilabel=set", fmt.Sprintf("agiinstance=%s", c.Gcp.InstanceType), fmt.Sprintf("aginodim=%t", c.NoDIM), fmt.Sprintf("termonpow=%t", c.Gcp.TerminateOnPoweroff), fmt.Sprintf("isspot=%t", c.Gcp.SpotInstance))
 	a.opts.Cluster.Create.Gcp.VolDescription = c.AGILabel

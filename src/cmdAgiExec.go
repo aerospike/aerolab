@@ -268,6 +268,7 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 
 type agiExecIngestCmd struct {
 	AGIName    string `long:"agi-name"`
+	Async      bool   `long:"async" description:"if set, will asynchonously process logs and collectinfo"`
 	YamlFile   string `short:"y" long:"yaml" description:"Yaml config file"`
 	notify     notifier.HTTPSNotify
 	notifyJSON bool
@@ -617,6 +618,9 @@ func (c *agiExecIngestCmd) run(args []string) error {
 				nerrLock.Unlock()
 			}
 		}()
+	}
+	if !c.Async {
+		wg.Wait()
 	}
 	if !steps.ProcessCollectInfo {
 		wg.Add(1)
