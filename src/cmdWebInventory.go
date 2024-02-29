@@ -286,7 +286,7 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 							statusMsg = "READY, HasErrors"
 						}
 					}
-					if statusMsg != "READY" && !clusterStatus.Ingest.Running {
+					if !strings.HasPrefix(statusMsg, "READY") && !clusterStatus.Ingest.Running {
 						statusMsg = "ERR: INGEST DOWN"
 					}
 				} else if i.c.DebugRequests {
