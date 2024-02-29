@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -112,6 +113,14 @@ func (c *inventoryListCmd) getAGIStatus(inv *inventoryJson) {
 	workers.Wait()
 }
 
+func unb46(s string) string {
+	if s == "" {
+		return ""
+	}
+	r, _ := base64.RawStdEncoding.DecodeString(s)
+	return string(r)
+}
+
 func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 	inva := []inventoryWebAGI{}
 	agiVolNames := make(map[string]int) // map[agiName] = indexOf(inv)
@@ -129,6 +138,9 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 			Zone:         vol.AvailabilityZoneName,
 			VolID:        vol.FileSystemId,
 			CreationTime: vol.CreationTime,
+			SourceLocal:  unb46(vol.Tags["agiSrcLocal"]),
+			SourceSftp:   unb46(vol.Tags["agiSrcSftp"]),
+			SourceS3:     unb46(vol.Tags["agiSrcS3"]),
 		})
 	}
 	for _, inst := range inv.Clusters {
@@ -152,7 +164,40 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 			inva[idx].CreationTime = time.Time{} // TODO
 			inva[idx].IsRunning = inst.IsRunning
 			inva[idx].AccessProtocol = inst.AccessProtocol
+			srcLocal := ""
+			srcSftp := ""
+			srcS3 := ""
+			if a.opts.Config.Backend.Type == "aws" {
+				srcLocal = unb46(inst.awsTags["agiSrcLocal"])
+				srcSftp = unb46(inst.awsTags["agiSrcSftp"])
+				srcS3 = unb46(inst.awsTags["agiSrcS3"])
+			} else if a.opts.Config.Backend.Type == "gcp" {
+				srcLocal = unb46(inst.gcpMeta["agiSrcLocal"])
+				srcSftp = unb46(inst.gcpMeta["agiSrcSftp"])
+				srcS3 = unb46(inst.gcpMeta["agiSrcS3"])
+			}
+			if inva[idx].SourceLocal == "" {
+				inva[idx].SourceLocal = srcLocal
+			}
+			if inva[idx].SourceSftp == "" {
+				inva[idx].SourceSftp = srcSftp
+			}
+			if inva[idx].SourceS3 == "" {
+				inva[idx].SourceS3 = srcS3
+			}
 		} else {
+			srcLocal := ""
+			srcSftp := ""
+			srcS3 := ""
+			if a.opts.Config.Backend.Type == "aws" {
+				srcLocal = unb46(inst.awsTags["agiSrcLocal"])
+				srcSftp = unb46(inst.awsTags["agiSrcSftp"])
+				srcS3 = unb46(inst.awsTags["agiSrcS3"])
+			} else if a.opts.Config.Backend.Type == "gcp" {
+				srcLocal = unb46(inst.gcpMeta["agiSrcLocal"])
+				srcSftp = unb46(inst.gcpMeta["agiSrcSftp"])
+				srcS3 = unb46(inst.gcpMeta["agiSrcS3"])
+			}
 			inva = append(inva, inventoryWebAGI{
 				Name:           inst.ClusterName,
 				State:          inst.State,
@@ -171,6 +216,9 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 				CreationTime:   time.Time{}, // TODO
 				IsRunning:      inst.IsRunning,
 				AccessProtocol: inst.AccessProtocol,
+				SourceLocal:    srcLocal,
+				SourceSftp:     srcSftp,
+				SourceS3:       srcS3,
 			})
 		}
 	}
