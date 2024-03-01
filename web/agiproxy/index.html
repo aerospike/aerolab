@@ -570,10 +570,8 @@
                         lpStatus = lpStatus + " (speed:"+formatBytes(bytesPerSec)+") (elapsed:"+formatDuration(elapsed)+" remaining:"+formatDuration(remain)+" total:"+formatDuration(totalTime)+") End Time Estimate:"+endTime.toString();
                     }
                     var errorStr = "<font color=green>No Errors</font>";
-                    if (data["Ingest"]["Errors"] != null) {
-                        for (let i = 0; i < data["Ingest"]["Errors"].length;i++) {
-                            errorStr = "<font color=red>Errors: "+data["Ingest"]["Errors"].length+"</font>";
-                        }
+                    if (data["Ingest"]["ErrorCount"] != null && data["Ingest"]["ErrorCount"] > 0) {
+                        errorStr = "<font color=red>Errors: "+data["Ingest"]["ErrorCount"]+"</font>";
                     }
                     $('#statusMsg').html($(document.createElement('div'))
                         .css("text-align","left")
