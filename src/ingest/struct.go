@@ -71,6 +71,13 @@ func (l *lineErrors) MarshalJSON() ([]byte, error) {
 	return json.Marshal(l.errors)
 }
 
+func (l *lineErrors) UnmarshalJSON(v []byte) error {
+	l.Lock()
+	defer l.Unlock()
+	l.errors = make(map[int]map[string]int)
+	return json.Unmarshal(v, &l.errors)
+}
+
 type Config struct {
 	LogLevel  int `yaml:"logLevel" default:"4" envconfig:"LOGINGEST_LOGLEVEL"` // 0=NO_LOGGING 1=CRITICAL, 2=ERROR, 3=WARNING, 4=INFO, 5=DEBUG, 6=DETAIL
 	Aerospike struct {

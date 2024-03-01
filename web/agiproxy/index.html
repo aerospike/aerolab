@@ -170,6 +170,8 @@
                             <i class="fa-solid fa-info fa-5x"></i><br />Status
                         </span>
                     </button>
+                    <br />
+                    <div class="input-group mb-3"><input type="text" id="shorten" placeholder="max error entries to load" class="form-control"><div class="input-group-append"><button class="btn btn-success" type="button" id="shortenSet">Set</button></div></div>
                 </div>
                 <div class="col-xl-2 col-lg-0">
                 </div>
@@ -409,6 +411,13 @@
             if (window.location.hash == "#showstatus") {
                 $('#statusLoader').click();
             };
+            $('#shortenSet').on('click', function() {
+                var hrefEnd = "";
+                if (window.location.hash == "#showstatus") {
+                    hrefEnd = "#showstatus";
+                };
+                window.location.href='?shorten='+$('#shorten').val()+hrefEnd;
+            });
 
             $('#btndl').on('click', function() {loadTable('#tfilesdl')});
             $('#btnun').on('click', function() {loadTable('#tfilesun')});
@@ -484,7 +493,16 @@
 
             // load status id=statusMsg innerHTML
             function getStatus() {
-                $.getJSON("/agi/api/status?shorten=1000", function(data){ // shorten = max errors to return from server (plus line stating how many entries were truncated)
+                const urlParams = new URLSearchParams(window.location.search);
+                let shorten = urlParams.get("shorten");
+                if (shorten != undefined && shorten != null && shorten != "" && shorten > 0) {
+                    shorten = "?shorten="+shorten;
+                } else if (shorten == 0) {
+                    shorten = "";
+                } else {
+                    shorten = "?shorten=1000";
+                }
+                $.getJSON("/agi/api/status"+shorten, function(data){ // shorten = max errors to return from server (plus line stating how many entries were truncated) ?shorten=1000
                     var asdStatus = "<font color=red>Aerospike NOT Running</font>";
                     if (data["AerospikeRunning"]) {
                         asdStatus = "<font color=green>Aerospike Running</font>";
@@ -844,6 +862,10 @@
                 if (errArr != null && errArr.length > 0) {
                     for (var i = 0; i<errArr.length; i++) {
                         let item = errArr[i].split('::');
+                        if (item[0].startsWith("...trunc")) {
+                            logErrors[item[0]] = [item[0]+ "; more errors are available"];
+                            continue;
+                        }
                         let nerr = item[3];
                         if (item[2] > 1) {
                             item[2]--;
