@@ -3,6 +3,7 @@ package ingest
 import (
 	_ "embed"
 	"encoding/json"
+	"maps"
 	"os"
 	"regexp"
 	"sync"
@@ -53,10 +54,28 @@ func (l *lineErrors) isChanged() bool {
 	return c
 }
 
+// provide node prefix, and get a map[error-string]repeat-count
+func (l *lineErrors) Get(nodePrefix int) map[string]int {
+	l.Lock()
+	a := make(map[string]int)
+	if _, ok := l.errors[nodePrefix]; ok {
+		maps.Copy(a, l.errors[nodePrefix])
+	}
+	l.Unlock()
+	return a
+}
+
 func (l *lineErrors) MarshalJSON() ([]byte, error) {
 	l.Lock()
 	defer l.Unlock()
 	return json.Marshal(l.errors)
+}
+
+func (l *lineErrors) UnmarshalJSON(v []byte) error {
+	l.Lock()
+	defer l.Unlock()
+	l.errors = make(map[int]map[string]int)
+	return json.Unmarshal(v, &l.errors)
 }
 
 type Config struct {
@@ -353,6 +372,7 @@ type IngestStatusStruct struct {
 		LogProcessorTotalSize    int64
 		LogProcessorCompleteSize int64
 		Errors                   []string
+		ErrorCount               int
 	}
 	AerospikeRunning     bool
 	PluginRunning        bool
