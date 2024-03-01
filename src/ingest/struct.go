@@ -3,6 +3,7 @@ package ingest
 import (
 	_ "embed"
 	"encoding/json"
+	"maps"
 	"os"
 	"regexp"
 	"sync"
@@ -51,6 +52,17 @@ func (l *lineErrors) isChanged() bool {
 	c := l.changed
 	l.Unlock()
 	return c
+}
+
+// provide node prefix, and get a map[error-string]repeat-count
+func (l *lineErrors) Get(nodePrefix int) map[string]int {
+	l.Lock()
+	a := make(map[string]int)
+	if _, ok := l.errors[nodePrefix]; ok {
+		maps.Copy(a, l.errors[nodePrefix])
+	}
+	l.Unlock()
+	return a
 }
 
 func (l *lineErrors) MarshalJSON() ([]byte, error) {
