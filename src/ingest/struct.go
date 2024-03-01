@@ -372,6 +372,7 @@ type IngestStatusStruct struct {
 		LogProcessorTotalSize    int64
 		LogProcessorCompleteSize int64
 		Errors                   []string
+		ErrorCount               int
 	}
 	AerospikeRunning     bool
 	PluginRunning        bool

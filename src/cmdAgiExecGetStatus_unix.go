@@ -256,6 +256,7 @@ func getAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 	if err != nil {
 		return nil, err
 	}
+	status.Ingest.ErrorCount = len(status.Ingest.Errors)
 	return status, nil
 }
 
