@@ -48,7 +48,7 @@ type agiMonitorListenCmd struct {
 	KeyFile             string   `long:"key-file" description:"TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile"`           // TLS: key file (if not using autocert), default: snakeoil
 	GCPDiskThresholdPct int      `long:"gcp-disk-thres-pct" description:"usage threshold pct at which the disk will be increased" yaml:"gcpDiskThresholdPct" default:"80"`
 	GCPDiskIncreaseGB   int      `long:"gcp-disk-grow-gb" description:"when threshold is breached, grow by these many GB" yaml:"gcpDiskIncreaseGB" default:"100"`
-	RAMThresUsedPct     int      `long:"ram-thres-used-pct" description:"max used PCT of RAM before instance gets sized" yaml:"ramThresholdUsedPct" default:"90"`
+	RAMThresUsedPct     int      `long:"ram-thres-used-pct" description:"max used PCT of RAM before instance gets sized" yaml:"ramThresholdUsedPct" default:"95"`
 	RAMThresMinFreeGB   int      `long:"ram-thres-minfree-gb" description:"minimum free GB of RAM before instance gets sized" yaml:"ramThresholdMinFreeGB" default:"8"`
 	SizingNoDIMFirst    bool     `long:"sizing-nodim" description:"If set, the system will first stop using data-in-memory as a sizing option before resorting to changing instance sizes" yaml:"sizingOptionNoDIMFirst"`
 	DisableSizing       bool     `long:"sizing-disable" description:"Set to disable sizing of instances for more resources" yaml:"disableSizing"`
@@ -664,8 +664,8 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 			}
 		case AgiEventPreProcessComplete:
 			requiredRam := 0
-			dimRequiredMemory := int(math.Ceil((float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.DimMultiplier) / 1024 / 1024 / 1024))
-			noDimRequiredMemory := int(math.Ceil((float64(event.IngestStatus.Ingest.LogProcessorTotalSize) * c.NoDimMultiplier) / 1024 / 1024 / 1024))
+			dimRequiredMemory := int(math.Ceil((float64(event.IngestStatus.Ingest.LogProcessorTotalSize)*c.DimMultiplier)/1024/1024/1024)) + c.RAMThresMinFreeGB + 2     // required memory plus minimum free RAM to keep for plugin plus 2 GB for OS/ingest overhead
+			noDimRequiredMemory := int(math.Ceil((float64(event.IngestStatus.Ingest.LogProcessorTotalSize)*c.NoDimMultiplier)/1024/1024/1024)) + c.RAMThresMinFreeGB + 2 // required memory plus minimum free RAM to keep for plugin plus 2 GB for OS/ingest overhead
 			if event.IsDataInMemory {
 				requiredRam = dimRequiredMemory
 			} else {
