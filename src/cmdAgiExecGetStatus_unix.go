@@ -116,7 +116,7 @@ func getAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		dlSize := int64(0)
 		for fn, f := range p.S3Files {
 			if f.Error != "" {
-				status.Ingest.Errors = append(status.Ingest.Errors, fn+"::"+f.Error)
+				status.Ingest.Errors = append(status.Ingest.Errors, "Downloader::"+fn+"::1::"+f.Error)
 			}
 			totalSize += f.Size
 			if f.IsDownloaded {
@@ -129,7 +129,7 @@ func getAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		}
 		for fn, f := range p.SftpFiles {
 			if f.Error != "" {
-				status.Ingest.Errors = append(status.Ingest.Errors, fn+"::"+f.Error)
+				status.Ingest.Errors = append(status.Ingest.Errors, "Downloader::"+fn+"::1::"+f.Error)
 			}
 			totalSize += f.Size
 			if f.IsDownloaded {
@@ -164,7 +164,7 @@ func getAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		json.NewDecoder(reader).Decode(p)
 		for fn, f := range p.Files {
 			for _, nerr := range f.Errors {
-				status.Ingest.Errors = append(status.Ingest.Errors, fn+"::"+nerr)
+				status.Ingest.Errors = append(status.Ingest.Errors, "Unpaker::"+fn+"::1::"+nerr)
 			}
 		}
 		return nil
@@ -185,7 +185,7 @@ func getAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		json.NewDecoder(reader).Decode(p)
 		for fn, f := range p.Files {
 			for _, nerr := range f.Errors {
-				status.Ingest.Errors = append(status.Ingest.Errors, fn+"::"+nerr)
+				status.Ingest.Errors = append(status.Ingest.Errors, "Pre-Processor::"+fn+"::1::"+nerr)
 			}
 		}
 		return nil
@@ -219,11 +219,44 @@ func getAgiStatus(enabled bool, ingestProgressPath string) (*ingest.IngestStatus
 		if totalSize > 0 {
 			status.Ingest.LogProcessorCompletePct = int((100 * dlSize) / totalSize)
 		}
+		if p.LineErrors != nil {
+			for fn := range p.Files {
+				nodePrefix, err := strconv.Atoi(p.Files[fn].NodePrefix)
+				if err == nil {
+					errs := p.LineErrors.Get(nodePrefix)
+					for nerr, nerrc := range errs {
+						status.Ingest.Errors = append(status.Ingest.Errors, "Log Processor::"+fn+"::"+strconv.Itoa(nerrc)+"::"+nerr)
+					}
+				}
+			}
+		}
 		return nil
 	}()
 	if err != nil {
 		return nil, err
 	}
+	err = func() error {
+		if steps.Unpack && !steps.PreProcess {
+			status.Ingest.DownloaderCompletePct = 100
+		}
+		reader, err := agiGetReader(ingestProgressPath, "cf-processor.json")
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+		p := new(ingest.ProgressCollectProcessor)
+		json.NewDecoder(reader).Decode(p)
+		for fn, f := range p.Files {
+			for _, nerr := range f.Errors {
+				status.Ingest.Errors = append(status.Ingest.Errors, "CollectInfo Processor::"+fn+"::1::"+nerr)
+			}
+		}
+		return nil
+	}()
+	if err != nil {
+		return nil, err
+	}
+	status.Ingest.ErrorCount = len(status.Ingest.Errors)
 	return status, nil
 }
 
