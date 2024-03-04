@@ -265,6 +265,7 @@ func (c *webCmd) Execute(args []string) error {
 		c.WebPath = filepath.Join(c.WebPath, "www")
 	}
 	wwwVersion, err := os.ReadFile(filepath.Join(c.WebPath, "version.cfg"))
+	log.Printf("WebUI version: %s, currently installed version: %s", webuiVersion, strings.Trim(string(wwwVersion), "\r\n\t "))
 	if err != nil || strings.Trim(string(wwwVersion), "\r\n\t ") != webuiVersion {
 		if c.WebNoOverride {
 			log.Print("WARNING: web version mismatch, not overriding")
