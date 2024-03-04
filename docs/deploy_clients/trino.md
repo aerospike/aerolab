@@ -32,12 +32,12 @@ In this example we'll connect the shell to the Aerospike cluster's test
 namespace.
 
 ```bash
-aerolab client attach trino -n trino -m test
+aerolab attach trino -n trino -m test
 ```
 
 ## Attach to the Trino shell - the long way
 This example demonstrates passing the Trino shell command to the Trino client
 machine.
 ```bash
-aerolab client attach -n trino -- su - trino -c "bash ./trino --server 127.0.0.1:8080 --catalog aerospike --schema test"
+aerolab attach client -n trino -- su - trino -c "bash ./trino --server 127.0.0.1:8080 --catalog aerospike --schema test"
 ```

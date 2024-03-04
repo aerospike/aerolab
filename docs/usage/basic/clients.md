@@ -32,7 +32,7 @@ Available commands:
   tools          aerospike-tools
   ams            prometheus and grafana for AMS; for exporter see: cluster add exporter
   vscode         launch a VSCode IDE client
-  trino          launch a Trino server (use 'client attach trino' to get Trino shell)
+  trino          launch a Trino server (use 'attach trino' to get Trino shell)
   elasticsearch  deploy elasticsearch with the es connector for aerospike
   rest-gateway   deploy a rest-gateway client machine
 ```
