@@ -3,6 +3,7 @@
 * FEATURE: Added new client: `graph`.
 * ENHANCEMENT: Added option to add specific ports to the firewall rules on GCP and AWS backends.
 * ENHANCEMENT: AGI will not parse and graph `security.c` type messages for authentication message counts per second.
+* ENHANCEMENT: WebUI add option to `attach trino` for the trino client cli.
 
 #### 7.4.0
 * FEATURE: Web UI.
