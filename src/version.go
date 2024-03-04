@@ -20,13 +20,13 @@ var vEdition string
 
 var version = "v" + strings.Trim(vBranch, "\t\r\n ") + "-" + strings.Trim(vCommit, "\t\r\n ") + strings.Trim(vEdition, "\t\r\n ")
 
-var telemetryVersion = "5"
+var telemetryVersion = "5" // remember to modify this when changing the telemetry system; remember to update the telemetry structs in cloud function if needed
 
-var webuiVersion = "11"
+var webuiVersion = "11" // modify this when changing the html/js in webui; when modifying this, remember to modify the version.cfg file in the web/dev directory to match
 
 var simulateArmInstaller = false
 
-var awsExpiryVersion = 6
-var gcpExpiryVersion = 6
+var awsExpiryVersion = 6 // remember to change this when modifying the expiry system version
+var gcpExpiryVersion = 6 // remember to change this when modifying the expiry system version
 
-var isWebuiBeta = true
+var isWebuiBeta = true // switch to false to prevent the beta tag and log message for webUI

@@ -1,6 +1,12 @@
+#### 7.5.0
+* FEATURE: Added new client: `vector`.
+* FEATURE: Added new client: `graph`.
+* ENHANCEMENT: Added option to add specific ports to the firewall rules on GCP and AWS backends.
+* ENHANCEMENT: AGI will not parse and graph `security.c` type messages for authentication message counts per second.
+
 #### 7.4.0
 * FEATURE: Web UI.
-* FRATURE: DOCKER: Add support for multiarch. See [this page](https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md) for details.
+* FEATURE: DOCKER: Add support for multiarch. See [this page](https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md) for details.
 * FIX: GCP: Many commands would fail during template creation, making parallel use imposible. Fixed.
 * FIX: GCP: Delete `arm` templates was not working at all.
 * FIX: GCP: `client configure firewall` and `cluster add firewall` should not be locking the rules being added.
