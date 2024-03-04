@@ -8,7 +8,7 @@ type clientCreateCmd struct {
 	Tools         clientCreateToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools" webicon:"fas fa-toolbox" invwebforce:"true"`
 	AMS           clientCreateAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter" webicon:"fas fa-layer-group" invwebforce:"true"`
 	VSCode        clientCreateVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client" webicon:"fas fa-code" invwebforce:"true"`
-	Trino         clientCreateTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)" webicon:"fas fa-tachograph-digital" invwebforce:"true"`
+	Trino         clientCreateTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'attach trino' to get trino shell)" webicon:"fas fa-tachograph-digital" invwebforce:"true"`
 	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike" webicon:"fas fa-magnifying-glass" invwebforce:"true"`
 	RestGateway   clientCreateRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine" webicon:"fas fa-dungeon" invwebforce:"true"`
 	// NEW_CLIENTS_CREATE
@@ -19,7 +19,7 @@ type clientAddCmd struct {
 	Tools         clientAddToolsCmd         `command:"tools" subcommands-optional:"true" description:"aerospike-tools"`
 	AMS           clientAddAMSCmd           `command:"ams" subcommands-optional:"true" description:"prometheus and grafana for AMS; for exporter see: cluster add exporter"`
 	VSCode        clientAddVSCodeCmd        `command:"vscode" subcommands-optional:"true" description:"launch a VSCode IDE client"`
-	Trino         clientAddTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'client attach trino' to get trino shell)"`
+	Trino         clientAddTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'attach trino' to get trino shell)"`
 	ElasticSearch clientAddElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike"`
 	RestGateway   clientAddRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine"`
 	// NEW_CLIENTS_ADD
