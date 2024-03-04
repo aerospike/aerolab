@@ -29,7 +29,7 @@ func (c *clientConfigureTrinoCmd) Execute(args []string) error {
 		return err
 	}
 	backendRestoreTerminal()
-	log.Printf("To access Trino, use the `client attach trino` command.")
+	log.Printf("To access Trino, use the `attach trino` command.")
 	log.Print("Done")
 	return nil
 }

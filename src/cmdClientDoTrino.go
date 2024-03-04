@@ -11,8 +11,8 @@ import (
 type clientCreateTrinoCmd struct {
 	clientCreateBaseCmd
 	ConnectCluster   string `short:"s" long:"seed" description:"seed IP:PORT (can be changed later using client configure command)" default:"127.0.0.1:3000"`
-	TrinoVersion     string `long:"trino-version" description:"trino version" default:"399"`
-	ConnectorVersion string `long:"connector-version" description:"aerospike connector version" default:"4.2.1-391"`
+	TrinoVersion     string `long:"trino-version" description:"trino version" default:"435"`
+	ConnectorVersion string `long:"connector-version" description:"aerospike connector version" default:"4.5.0-431"`
 	chDirCmd
 }
 
@@ -22,8 +22,8 @@ type clientAddTrinoCmd struct {
 	StartScript flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	osSelectorCmd
 	ConnectCluster   string  `short:"s" long:"seed" description:"seed IP:PORT (can be changed later using client configure command)" default:"127.0.0.1:3000"`
-	TrinoVersion     string  `long:"trino-version" description:"trino version" default:"399"`
-	ConnectorVersion string  `long:"connector-version" description:"aerospike connector version" default:"4.2.1-391"`
+	TrinoVersion     string  `long:"trino-version" description:"trino version" default:"435"`
+	ConnectorVersion string  `long:"connector-version" description:"aerospike connector version" default:"4.5.0-431"`
 	Help             helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -164,16 +164,16 @@ fi
 while getopts t:h:a: flag
 do
     case "${flag}" in
-        t) trino_version=${OPTARG};; # Trino server version, e.g. 399
+        t) trino_version=${OPTARG};; # Trino server version, e.g. 435
         h) host_list=${OPTARG};; # Comma separated list of Aerospike seed nodes, e.g. 172.17.0.3:3000,172.17.0.4:3000
-        a) aerospike_trino=${OPTARG};; # Aerospike Trino connector version, e.g. 4.2.1-391 
+        a) aerospike_trino=${OPTARG};; # Aerospike Trino connector version, e.g. 4.5.0-431 
     esac
 done
 
 # Set defaults
-if [ -z "$trino_version" ]; then trino_version="399"; fi
+if [ -z "$trino_version" ]; then trino_version="435"; fi
 if [ -z "$host_list" ]; then host_list="127.0.0.1:3000"; fi
-if [ -z "$aerospike_trino" ]; then aerospike_trino="4.2.1-391"; fi
+if [ -z "$aerospike_trino" ]; then aerospike_trino="4.5.0-431"; fi
 
 # Split aerospike_trino argument 
 aerospike=(${aerospike_trino//-/ })
