@@ -54,3 +54,26 @@ aerolab attach shell -l all -- chmod 755 /usr/bin/asd
 ```
 aerolab aerospike start
 ```
+
+## Method 3: using a custom installer
+
+Example: deb file
+
+### Create an Aerospike cluster (2 example nodes)
+
+```
+aerolab cluster create -d ubuntu -i 20.04 -v 6.2.0.6 -c 2 -s n
+```
+
+### Upload a custom Aerospike binary
+
+```
+aerolab files upload aerospike.deb /tmp/aerospike.deb
+aerolab attach shell -l all -- dpkg -i /tmp/aerospike.deb
+```
+
+### Start Aerospike
+
+```
+aerolab aerospike start
+```
