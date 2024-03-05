@@ -156,10 +156,10 @@ type backend interface {
 	// may implement
 	DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error
 	// may implement
-	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string) error
+	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error
 	// may implement
-	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string) error
-	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool, extraPorts []string) error
+	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error
+	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool, extraPorts []string, noDefaults bool) error
 	// may implement
 	ListSecurityGroups() error
 	// may implement

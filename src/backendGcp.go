@@ -2500,7 +2500,7 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall, true, []string{})
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall, true, []string{}, false)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}
@@ -2747,10 +2747,10 @@ func (d *backendGcp) ListSubnets() error {
 	return errors.New("not implemented")
 }
 
-func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool, performLocking bool, extraPorts []string) error {
+func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zone string, remove bool, performLocking bool, extraPorts []string, noDefaults bool) error {
 	ctx := context.Background()
 	for _, name := range names {
-		if err := d.createSecurityGroupsIfNotExist(name, false, performLocking, extraPorts); err != nil {
+		if err := d.createSecurityGroupsIfNotExist(name, false, performLocking, extraPorts, noDefaults); err != nil {
 			return err
 		}
 	}
@@ -2813,14 +2813,17 @@ func (d *backendGcp) AssignSecurityGroups(clusterName string, names []string, zo
 	return nil
 }
 
-func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string) error {
-	return d.createSecurityGroupsIfNotExist(namePrefix, isAgi, true, extraPorts)
+func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {
+	return d.createSecurityGroupsIfNotExist(namePrefix, isAgi, true, extraPorts, noDefaults)
 }
 
-func (d *backendGcp) createSecurityGroupExternal(namePrefix string, isAgi bool, extraPorts []string) error {
+func (d *backendGcp) createSecurityGroupExternal(namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {
 	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200"}
 	if isAgi {
 		ports = []string{"22", "80", "443"}
+	}
+	if noDefaults {
+		ports = []string{}
 	}
 	for _, eport := range extraPorts {
 		if !inslice.HasString(ports, eport) {
@@ -2911,10 +2914,13 @@ func (d *backendGcp) createSecurityGroupInternal() error {
 	return nil
 }
 
-func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string) error {
+func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {
 	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200"}
 	if isAgi {
 		ports = []string{"22", "80", "443"}
+	}
+	if noDefaults {
+		ports = []string{}
 	}
 	for _, eport := range extraPorts {
 		if !inslice.HasString(ports, eport) {
@@ -3080,7 +3086,7 @@ func (d *backendGcp) ListSecurityGroups() error {
 	return nil
 }
 
-func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi bool, performLocking bool, extraPorts []string) error {
+func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi bool, performLocking bool, extraPorts []string, noDefaults bool) error {
 	ctx := context.Background()
 	firewallsClient, err := compute.NewFirewallsRESTClient(ctx)
 	if err != nil {
@@ -3140,19 +3146,19 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi boo
 		}
 	}
 	if !existExternal {
-		err = d.createSecurityGroupExternal(namePrefix, isAgi, extraPorts)
+		err = d.createSecurityGroupExternal(namePrefix, isAgi, extraPorts, noDefaults)
 		if err != nil {
 			return err
 		}
 		if !isAgi {
-			err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi, extraPorts)
+			err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi, extraPorts, noDefaults)
 			if err != nil {
 				return err
 			}
 		}
 	} else if needsLock {
 		log.Println("Security group CIDR doesn't allow this command to complete, re-locking security groups with the caller's IP")
-		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi, extraPorts)
+		err = d.LockSecurityGroups("discover-caller-ip", true, "", namePrefix, isAgi, extraPorts, noDefaults)
 		if err != nil {
 			return err
 		}
@@ -3306,7 +3312,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 
 	for _, fnp := range extra.firewallNamePrefix {
-		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall, true, []string{})
+		err = d.createSecurityGroupsIfNotExist(fnp, extra.isAgiFirewall, true, []string{}, false)
 		if err != nil {
 			return fmt.Errorf("firewall: %s", err)
 		}
