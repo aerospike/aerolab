@@ -154,6 +154,11 @@ patterns:
             - "batch-index: batches \\((?P<BatchSuccess>\\d+),(?P<BatchError>\\d+),(?P<BatchTimeout>\\d+)\\)"
     -
         setName: "nsDevice"
+        search: "INFO (drv-mem)"
+        export:
+            - "{(?P<Namespace>[^}]+)} (?P<Device>[^:]+): used-bytes (?P<UsedBytes>\\d+) free-wblocks (?P<FreeWBlocks>\\d+) write \\((?P<Writes>\\d+),(?P<WritePerSec>[0-9\\.]+)\\) defrag-q (?P<DefragQ>\\d+) defrag-read \\((?P<DefragR>\\d+),(?P<DefragRPerSec>[0-9\\.]+)\\) defrag-write \\((?P<DefragW>\\d+),(?P<DefragWPerSec>[0-9\\.]+)\\)"
+    -
+        setName: "nsDevice"
         search: "INFO (drv_ssd)"
         export:
             - "{(?P<Namespace>[^}]+)} (?P<Device>[^:]+): used-bytes (?P<UsedBytes>\\d+) free-wblocks (?P<FreeWBlocks>\\d+) write-q (?P<WriteQ>\\d+) write \\((?P<Writes>\\d+),(?P<WritePerSec>[0-9\\.]+)\\) defrag-q (?P<DefragQ>\\d+) defrag-read \\((?P<DefragR>\\d+),(?P<DefragRPerSec>[0-9\\.]+)\\) defrag-write \\((?P<DefragW>\\d+),(?P<DefragWPerSec>[0-9\\.]+)\\) shadow-write-q (?P<ShadowWriteQ>\\d+) tomb-raider-read \\((?P<TombDevRd>\\d+),(?P<TombDevRdSec>[0-9\\.]+)\\)"
