@@ -156,10 +156,10 @@ type backend interface {
 	// may implement
 	DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error
 	// may implement
-	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error
+	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string) error
 	// may implement
-	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error
-	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool) error
+	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string) error
+	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool, extraPorts []string) error
 	// may implement
 	ListSecurityGroups() error
 	// may implement
@@ -439,6 +439,7 @@ type inventoryFirewallRuleAWS struct {
 	SecurityGroupID   string
 	IPs               []string
 	Region            string
+	Ports             []string
 }
 
 type inventoryFirewallRuleDocker struct {

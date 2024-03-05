@@ -353,7 +353,7 @@ func (d *backendDocker) Arch() TypeArch {
 	return TypeArchAmd
 }
 
-func (d *backendDocker) AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool) error {
+func (d *backendDocker) AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool, extraPorts []string) error {
 	return nil
 }
 
@@ -361,7 +361,7 @@ func (d *backendDocker) DeleteSecurityGroups(vpc string, namePrefix string, inte
 	return nil
 }
 
-func (d *backendDocker) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error {
+func (d *backendDocker) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string) error {
 	return nil
 }
 
@@ -373,7 +373,7 @@ func (d *backendDocker) ListSubnets() error {
 	return nil
 }
 
-func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error {
+func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string) error {
 	return nil
 }
 
