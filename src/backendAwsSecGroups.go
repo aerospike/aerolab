@@ -119,7 +119,7 @@ func (d *backendAws) resolveVPCdo(create bool) (*ec2.DescribeVpcsOutput, error) 
 	return out, err
 }
 
-func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string, printID bool, namePrefixes []string, isAgi bool) (secGroup string, subnet string, err error) {
+func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string, printID bool, namePrefixes []string, isAgi bool, extraPorts []string) (secGroup string, subnet string, err error) {
 	var vpc string
 	if secGroupID == "" || !strings.HasPrefix(subnetID, "subnet-") {
 		if !strings.HasPrefix(subnetID, "subnet-") {
@@ -225,7 +225,7 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 			}
 			if (err != nil && strings.Contains(err.Error(), "InvalidGroup.NotFound")) || len(out.SecurityGroups) == 0 {
 				log.Print("Managed Security groups not found in VPC for given subnet, creating...")
-				secGroupsA, err := d.createSecGroups(vpc, groupPrefix, isAgi)
+				secGroupsA, err := d.createSecGroups(vpc, groupPrefix, isAgi, extraPorts)
 				if err != nil {
 					return "", "", fmt.Errorf("could create security groups: %s", err)
 				}
@@ -245,6 +245,9 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 						if aws.Int64Value(perms.FromPort) == -1 || aws.Int64Value(perms.ToPort) == -1 {
 							continue
 						}
+						for i := aws.Int64Value(perms.FromPort); i <= aws.Int64Value(perms.ToPort); i++ {
+							extraPorts = append(extraPorts, strconv.Itoa(int(i)))
+						}
 						for _, permRange := range perms.IpRanges {
 							_, cidr, _ := net.ParseCIDR(*permRange.CidrIp)
 							if cidr.Contains(parsedIp) {
@@ -258,7 +261,7 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 					}
 					if !fwfound {
 						log.Println("Security group CIDR doesn't allow this command to complete, re-locking security groups with the caller's IP")
-						err = d.LockSecurityGroups(myIp, true, vpc, groupPrefix, isAgi)
+						err = d.LockSecurityGroups(myIp, true, vpc, groupPrefix, isAgi, extraPorts)
 						if err != nil {
 							return secGroup, subnet, err
 						}
@@ -277,7 +280,7 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 	return
 }
 
-func (d *backendAws) createSecGroups(vpc string, namePrefix string, isAgi bool) (secGroups []string, err error) {
+func (d *backendAws) createSecGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string) (secGroups []string, err error) {
 	var secGroupIds []string
 	groupNames := []string{"AeroLabServer-" + strings.TrimPrefix(vpc, "vpc-"), "AeroLabClient-" + strings.TrimPrefix(vpc, "vpc-"), namePrefix + "-" + strings.TrimPrefix(vpc, "vpc-")}
 
@@ -401,6 +404,15 @@ func (d *backendAws) createSecGroups(vpc string, namePrefix string, isAgi bool) 
 	extraports := []int64{80, 443}
 	if !isAgi {
 		extraports = []int64{3000, 80, 443, 8080, 8888, 9200}
+	}
+	for _, ep := range extraPorts {
+		nip, err := strconv.Atoi(ep)
+		if err != nil {
+			return nil, err
+		}
+		if !hasInt64(extraports, int64(nip)) {
+			extraports = append(extraports, int64(nip))
+		}
 	}
 	for groupNo, groupId := range secGroupIds {
 		if groupNo < 2 {
@@ -598,7 +610,7 @@ func (d *backendAws) deleteSecGroups(vpc string, namePrefix string, internal boo
 }
 
 // ignoring performLocking as this command already does what it's supposed to
-func (d *backendAws) AssignSecurityGroups(clusterName string, names []string, vpc string, remove bool, performLocking bool) error {
+func (d *backendAws) AssignSecurityGroups(clusterName string, names []string, vpc string, remove bool, performLocking bool, extraPorts []string) error {
 	var instIds []*ec2.Instance
 	var secGroupIds []string
 	// find all instanceIds for a given cluster; if 0 found, error
@@ -703,13 +715,31 @@ func (d *backendAws) DeleteSecurityGroups(vpc string, namePrefix string, interna
 	return d.deleteSecGroups(vpc, namePrefix, internal)
 }
 
-func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error {
+func hasInt64(a []int64, i int64) bool {
+	for _, v := range a {
+		if v == i {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string) error {
 	portList := []int64{3000, 80, 443, 8080, 8888, 9200}
 	if isAgi {
 		portList = []int64{80, 443}
 	}
 	if lockSSH {
 		portList = append(portList, 22)
+	}
+	for _, ep := range extraPorts {
+		nip, err := strconv.Atoi(ep)
+		if err != nil {
+			return err
+		}
+		if !hasInt64(portList, int64(nip)) {
+			portList = append(portList, int64(nip))
+		}
 	}
 	// if VPC is "", find default-vpc
 	if vpc == "" {
@@ -837,7 +867,7 @@ func getip2() string {
 	return ip.Query
 }
 
-func (d *backendAws) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error {
+func (d *backendAws) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string) error {
 	if vpc == "" {
 		out, err := d.ec2svc.DescribeVpcs(&ec2.DescribeVpcsInput{
 			Filters: []*ec2.Filter{
@@ -858,7 +888,7 @@ func (d *backendAws) CreateSecurityGroups(vpc string, namePrefix string, isAgi b
 			log.Printf("WARN: more than 1 default VPC found, choosing first one in list: %s", vpc)
 		}
 	}
-	_, err := d.createSecGroups(vpc, namePrefix, isAgi)
+	_, err := d.createSecGroups(vpc, namePrefix, isAgi, extraPorts)
 	return err
 }
 
@@ -875,9 +905,19 @@ func (d *backendAws) listSecurityGroups(stdout bool) ([]inventoryFirewallRule, e
 	rules := []inventoryFirewallRule{}
 	for _, sg := range out.SecurityGroups {
 		nIps := []string{}
+		nports := []string{}
 		for _, sga := range sg.IpPermissions {
 			if *sga.IpProtocol == "icmp" {
 				continue
+			}
+			for i := aws.Int64Value(sga.FromPort); i <= aws.Int64Value(sga.ToPort); i++ {
+				if i == 0 {
+					continue
+				}
+				np := strconv.Itoa(int(i))
+				if !inslice.HasString(nports, np) {
+					nports = append(nports, np)
+				}
 			}
 			for _, sgb := range sga.IpRanges {
 				if !inslice.HasString(nIps, *sgb.CidrIp) {
@@ -895,6 +935,7 @@ func (d *backendAws) listSecurityGroups(stdout bool) ([]inventoryFirewallRule, e
 				SecurityGroupID:   aws.StringValue(sg.GroupId),
 				IPs:               nIps,
 				Region:            a.opts.Config.Backend.Region,
+				Ports:             nports,
 			},
 		})
 	}

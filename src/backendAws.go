@@ -2355,7 +2355,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	// end tag setup
 	input := ec2.RunInstancesInput{}
 	//this is needed - security group iD
-	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true, extra.firewallNamePrefix, extra.isAgiFirewall)
+	extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, true, extra.firewallNamePrefix, extra.isAgiFirewall, []string{})
 	if err != nil {
 		return err
 	}
@@ -2867,7 +2867,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		if i == start {
 			printID = true
 		}
-		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID, extra.firewallNamePrefix, extra.isAgiFirewall)
+		extra.securityGroupID, extra.subnetID, err = d.resolveSecGroupAndSubnet(extra.securityGroupID, extra.subnetID, printID, extra.firewallNamePrefix, extra.isAgiFirewall, []string{})
 		if err != nil {
 			return err
 		}
