@@ -75,6 +75,7 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
   * [Partitioner](docs/partitioner/partition-disks.md)
   * [Advanced - AWS Firewall Rules](docs/aws-firewall.md)
   * [Advanced - Custom VPC](docs/vpc.md)
+* [Docker Multiarch](docs/docker_multiarch.md)
 * [Usage examples](docs/usage/index.md)
   * [Basic](docs/usage/basic/index.md)
   * [Advanced](docs/usage/advanced/index.md)

@@ -15,6 +15,7 @@
   * [Partitioner](partitioner/partition-disks.md)
   * [Advanced - AWS Firewall Rules](aws-firewall.md)
   * [Advanced - Custom VPC](vpc.md)
+* [Docker Multiarch](docker_multiarch.md)
 * [Usage examples](usage/index.md)
   * [Basic](usage/basic/index.md)
   * [Advanced](usage/advanced/index.md)
