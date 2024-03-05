@@ -54,6 +54,7 @@ type destroyFirewallCmd struct {
 type createFirewallCmd struct {
 	NamePrefix string   `short:"n" long:"name" description:"Name to use for the firewall" default:"aerolab-managed-external"`
 	Ports      []string `short:"p" long:"port" description:"extra port to open, can be specified multiple times; default: 3000, 80, 443, 8080, 8888, 9200, 22"`
+	NoDefaults bool     `short:"d" long:"no-defaults" description:"set to prevent default ports from being opened"`
 	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -61,6 +62,7 @@ type lockFirewallCmd struct {
 	NamePrefix string   `short:"n" long:"name" description:"Name to use for the firewall" default:"aerolab-managed-external"`
 	IP         string   `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
 	Ports      []string `short:"p" long:"port" description:"extra port to open, can be specified multiple times; default: 3000, 80, 443, 8080, 8888, 9200, 22"`
+	NoDefaults bool     `short:"d" long:"no-defaults" description:"set to prevent default ports from being opened"`
 	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -86,7 +88,7 @@ func (c *createFirewallCmd) Execute(args []string) error {
 		return logFatal("required backend type to be GCP")
 	}
 	log.Print("Creating firewall rules")
-	err := b.CreateSecurityGroups("", c.NamePrefix, false, c.Ports)
+	err := b.CreateSecurityGroups("", c.NamePrefix, false, c.Ports, c.NoDefaults)
 	if err != nil {
 		return err
 	}
@@ -118,7 +120,7 @@ func (c *lockFirewallCmd) Execute(args []string) error {
 		return logFatal("required backend type to be GCP")
 	}
 	log.Print("Locking firewall rules")
-	err := b.LockSecurityGroups(c.IP, true, "", c.NamePrefix, false, c.Ports)
+	err := b.LockSecurityGroups(c.IP, true, "", c.NamePrefix, false, c.Ports, c.NoDefaults)
 	if err != nil {
 		return err
 	}
