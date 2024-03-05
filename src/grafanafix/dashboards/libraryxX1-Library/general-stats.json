@@ -5611,6 +5611,12 @@
       "id": "text",
       "name": "Text",
       "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
     }
   ],
   "annotations": {
@@ -6797,9 +6803,123 @@
       ],
       "title": "Migrate Fill Delay",
       "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "id": 87,
+      "panels": [
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 15
+          },
+          "id": 86,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max",
+                "min"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true\n    },{\n      \"name\": \"secMessage\",\n      \"required\": true\n    }],\n    \"bins\": [{\n    \t\"name\": \"repeated\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "refId": "A",
+              "target": "security"
+            }
+          ],
+          "title": "Security Audit (occurrence count/node/10s)",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Security Audit",
+      "type": "row"
     }
   ],
-  "refresh": "",
+  "refresh": false,
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",
