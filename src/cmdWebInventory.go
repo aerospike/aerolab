@@ -1624,6 +1624,7 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 	r.ParseForm()
 	name := r.FormValue("name")
 	node := r.FormValue("node")
+	namespace := r.FormValue("namespace")
 	var upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -1640,16 +1641,17 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 		return
 	}
 	attachCmd := "shell"
-	nodesw := "-l"
 	if target == "client" {
 		attachCmd = "client"
 	}
 	if target == "trino" {
 		attachCmd = "trino"
-		nodesw = "-m"
-		node = r.FormValue("namespace")
 	}
-	cmd := exec.Command(ex, "attach", attachCmd, "-n", name, nodesw, node)
+	nargs := []string{"attach", attachCmd, "-n", name, "-l", node}
+	if target == "trino" {
+		nargs = append(nargs, "-m", namespace)
+	}
+	cmd := exec.Command(ex, nargs...)
 	cmd.Env = append(os.Environ(), "TERM=xterm")
 	tty, err := pty.Start(cmd)
 	if err != nil {
