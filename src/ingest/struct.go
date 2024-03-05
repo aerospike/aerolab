@@ -236,9 +236,10 @@ type patterns struct {
 			GenCumulative bool     `yaml:"generateCumulative"`
 		} `yaml:"histogram"`
 		Aggregate *struct {
-			Every time.Duration `yaml:"every"` // aggregation time window
-			Field string        `yaml:"field"` // field to use for aggregation counts
-			On    string        `yaml:"on"`    // aggregate on this result value being the unique value
+			Every     time.Duration `yaml:"every"`     // aggregation time window
+			Field     string        `yaml:"field"`     // field to use for aggregation counts
+			On        string        `yaml:"on"`        // aggregate on this result value being the unique value
+			Increment bool          `yaml:"increment"` // increment the field value counts by 1 as part of aggregation; this is for lines that have (repeated:X) where the repeated stat does not contain the first argument, only repeat counts
 		} `yaml:"aggregate"`
 	} `yaml:"patterns"`
 }

@@ -560,6 +560,7 @@ patterns:
             every: 10s
             field: "repeated"
             on: "warnC"
+            increment: true
     -
         setName: "errors"
         search: ": ERROR ("
@@ -574,6 +575,7 @@ patterns:
             every: 10s
             field: "repeated"
             on: "errC"
+            increment: true
     -
         setName: "truncate"
         search: "truncat"

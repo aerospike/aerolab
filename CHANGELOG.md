@@ -4,6 +4,7 @@
 * ENHANCEMENT: Added option to add specific ports to the firewall rules on GCP and AWS backends.
 * ENHANCEMENT: AGI will not parse and graph `security.c` type messages for authentication message counts per second.
 * ENHANCEMENT: WebUI add option to `attach trino` for the trino client cli.
+* FIX: AGI: Ingest `aggregate` would incorrectly miss aggregation values when working with lines that contain `(repeated:X)`.
 
 #### 7.4.0
 * FEATURE: Web UI.
