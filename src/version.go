@@ -8,6 +8,7 @@ import (
 //go:generate sh -c "git rev-parse --short HEAD > embed_commit.txt"
 //go:generate sh -c "cat ../VERSION.md > embed_branch.txt"
 //go:generate sh -c "echo '-unofficial' > embed_tail.txt"
+//go:generate sh -c "cp embed_commit.txt ../web/dev/version.cfg"
 
 //go:embed embed_commit.txt
 var vCommit string
@@ -21,8 +22,6 @@ var vEdition string
 var version = "v" + strings.Trim(vBranch, "\t\r\n ") + "-" + strings.Trim(vCommit, "\t\r\n ") + strings.Trim(vEdition, "\t\r\n ")
 
 var telemetryVersion = "5" // remember to modify this when changing the telemetry system; remember to update the telemetry structs in cloud function if needed
-
-var webuiVersion = "11" // modify this when changing the html/js in webui; when modifying this, remember to modify the version.cfg file in the web/dev directory to match
 
 var simulateArmInstaller = false
 

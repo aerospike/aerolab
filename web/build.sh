@@ -14,7 +14,7 @@ rm -rf prod/dist/css/alt
 cp dev/*html prod/.
 cp dev/*js prod/.
 cp dev/*css prod/.
-grep 'webuiVersion' ../src/version.go |awk -F'"' '{print $2}' > prod/version.cfg
+cp dev/version.cfg prod/version.cfg
 
 # fontawesome
 mkdir -p prod/plugins/fontawesome-free/css prod/plugins/fontawesome-free/js
