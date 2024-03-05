@@ -1077,6 +1077,13 @@ function initDatatable() {
             }
             return "&nbsp;";
         }{{end}}{{if eq .Name "AccessUrl"}}, render: function (data, type, row, meta) {
+            if (row["ClientType"] == "trino") {
+                let disabledString = 'success"';
+                if (!row["IsRunning"]) {
+                    disabledString = 'default" disabled';
+                }
+                return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'trino','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">TrinoCLI</button>';
+            };
             return '<a href="'+data+'" target="_blank">'+data+'</a>';
         }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             if (data == null || data == 0) {
@@ -1722,6 +1729,13 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
         case "cluster":
             table = '#invclusters';
             break;
+        case "trino":
+            table = '#invclients';
+            var namespace = prompt("Namespace name to attach to","test");
+            if (namespace == null || namespace == "") {
+                return;
+            }
+            break;
         case "client":
             table = '#invclients';
             break;
@@ -1731,7 +1745,7 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
     }
     let t = $(table).DataTable();
     if (t.row(row).selected()) { t.row(row).deselect() } else { t.row(row).select() };
-    console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row+" accessURL:"+accessURL);
+    console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row+" accessURL:"+accessURL+" trino-namespace:"+namespace);
 
     if (target == "agi") {
         $(tbutton).addClass("disabled");
@@ -1754,7 +1768,7 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
         });
         return;
     }
-    window.open('{{.WebRoot}}www/api/inventory/'+target+'/connect?name='+name+"&node="+node, '_blank').focus();
+    window.open('{{.WebRoot}}www/api/inventory/'+target+'/connect?name='+name+"&node="+node+"&namespace="+namespace, '_blank').focus();
 }
 
 var tabInit = true;

@@ -424,8 +424,10 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 func (c *webCmd) addInventoryHandlers() {
 	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/ws", c.inventoryClusterWs)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/client/ws", c.inventoryClientWs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/trino/ws", c.inventoryTrinoWs)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/connect", c.inventoryClusterConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/client/connect", c.inventoryClientConnect)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/trino/connect", c.inventoryTrinoConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/volumes", c.inventoryVolumes)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/firewalls", c.inventoryFirewalls)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/expiry", c.inventoryExpiry)
@@ -1570,12 +1572,20 @@ func (c *webCmd) inventoryClientConnect(w http.ResponseWriter, r *http.Request) 
 	c.inventoryClusterClientConnect(w, r, "client")
 }
 
+func (c *webCmd) inventoryTrinoConnect(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientConnect(w, r, "trino")
+}
+
 func (c *webCmd) inventoryClusterWs(w http.ResponseWriter, r *http.Request) {
 	c.inventoryClusterClientWs(w, r, "cluster")
 }
 
 func (c *webCmd) inventoryClientWs(w http.ResponseWriter, r *http.Request) {
 	c.inventoryClusterClientWs(w, r, "client")
+}
+
+func (c *webCmd) inventoryTrinoWs(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientWs(w, r, "trino")
 }
 
 type windowSize struct {
@@ -1630,10 +1640,16 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 		return
 	}
 	attachCmd := "shell"
+	nodesw := "-l"
 	if target == "client" {
 		attachCmd = "client"
 	}
-	cmd := exec.Command(ex, "attach", attachCmd, "-n", name, "-l", node)
+	if target == "trino" {
+		attachCmd = "trino"
+		nodesw = "-m"
+		node = r.FormValue("namespace")
+	}
+	cmd := exec.Command(ex, "attach", attachCmd, "-n", name, nodesw, node)
 	cmd.Env = append(os.Environ(), "TERM=xterm")
 	tty, err := pty.Start(cmd)
 	if err != nil {
@@ -1747,6 +1763,7 @@ func (c *webCmd) inventoryClusterClientConnect(w http.ResponseWriter, r *http.Re
 	r.ParseForm()
 	name := r.FormValue("name")
 	node := r.FormValue("node")
+	namespace := r.FormValue("namespace")
 	wPty := ""
 	if runtime.GOOS == "windows" {
 		buildNo, err := getWindowsBuild()
@@ -1763,7 +1780,7 @@ func (c *webCmd) inventoryClusterClientConnect(w http.ResponseWriter, r *http.Re
 			log.Printf("could not get windows build: %s", err)
 		}
 	}
-	w.Write([]byte(fmt.Sprintf(xterm, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, target, name, node, wPty)))
+	w.Write([]byte(fmt.Sprintf(xterm, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, target, name, node, namespace, wPty)))
 }
 
 var xterm = `<!doctype html>
@@ -1793,7 +1810,7 @@ var xterm = `<!doctype html>
 	if (window.location.protocol == "https:") {
 		prot = "wss://";
 	}
-	var websocket = new WebSocket(prot + window.location.hostname + ":" + window.location.port + "%swww/api/inventory/%s/ws?name=%s&node=%s");
+	var websocket = new WebSocket(prot + window.location.hostname + ":" + window.location.port + "%swww/api/inventory/%s/ws?name=%s&node=%s&namespace=%s");
 	websocket.binaryType = "arraybuffer";
 	function ab2str(buf) {
 		return String.fromCharCode.apply(null, new Uint8Array(buf));
