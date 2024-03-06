@@ -892,6 +892,13 @@ function initDatatable() {
                             window.location.href = "{{.WebRoot}}client/create/rest-gateway";
                         }
                     },
+                    {
+                        text: 'Graph',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/graph";
+                        }
+                    },
+                    //TODO Proximus
                 ]
             },
             {extend: 'myspacer'},
@@ -907,7 +914,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/none?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/none?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -916,7 +923,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/base?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/base?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -925,7 +932,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/tools?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/tools?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -934,7 +941,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/ams?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/ams?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -943,7 +950,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/vscode?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/vscode?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -952,7 +959,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/trino?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/trino?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -961,7 +968,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/elasticsearch?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/elasticsearch?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -970,9 +977,19 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/rest-gateway?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/rest-gateway?ClientName="+arr[0]["ClientName"];
                         }
                     },
+                    {
+                        text: 'Graph',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/grow/graph?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    //TODO Proximus
                 ]
             },
             {extend: 'myspacer'},

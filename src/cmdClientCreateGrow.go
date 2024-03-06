@@ -11,6 +11,8 @@ type clientCreateCmd struct {
 	Trino         clientCreateTrinoCmd         `command:"trino" subcommands-optional:"true" description:"launch a trino server (use 'attach trino' to get trino shell)" webicon:"fas fa-tachograph-digital" invwebforce:"true"`
 	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike" webicon:"fas fa-magnifying-glass" invwebforce:"true"`
 	RestGateway   clientCreateRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine" webicon:"fas fa-dungeon" invwebforce:"true"`
+	Graph         clientCreateGraphCmd         `command:"graph" subcommands-optional:"true" description:"deploy a graph client machine" webicon:"fas fa-diagram-project" invwebforce:"true"`
+	//TODO Proximus
 	// NEW_CLIENTS_CREATE
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -101,5 +103,11 @@ func init() {
 	addBackendSwitch("client.grow.rest-gateway", "gcp", &a.opts.Client.Grow.RestGateway.Gcp)
 
 	// NEW_CLIENTS_BACKEND
-
+	addBackendSwitch("client.create.graph", "aws", &a.opts.Client.Create.Graph.Aws)
+	addBackendSwitch("client.create.graph", "gcp", &a.opts.Client.Create.Graph.Gcp)
+	addBackendSwitch("client.create.graph", "docker", &a.opts.Client.Create.Graph.Docker)
+	addBackendSwitch("client.grow.graph", "aws", &a.opts.Client.Grow.Graph.Aws)
+	addBackendSwitch("client.grow.graph", "gcp", &a.opts.Client.Grow.Graph.Gcp)
+	addBackendSwitch("client.grow.graph", "docker", &a.opts.Client.Grow.Graph.Docker)
+	//TODO Proximus
 }
