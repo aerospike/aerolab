@@ -236,6 +236,11 @@ func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 		}
 	}
 
+	log.Println("Expiries: enabling required services")
+	err = d.enableServices(true)
+	if err != nil {
+		log.Printf("Expiries: WARNING: Some services failed to enable, expiry system installation could fail: %s", err)
+	}
 	log.Println("Expiries: cleaning up old jobs")
 	if prevRegion != "" {
 		d.expiriesSystemRemove(false, prevRegion) // cleanup
@@ -415,9 +420,15 @@ func (d *backendGcp) ExpiriesSystemFrequency(intervalMinutes int) error {
 }
 
 func (d *backendGcp) EnableServices() error {
+	return d.enableServices(false)
+}
+
+func (d *backendGcp) enableServices(quiet bool) error {
 	gcloudServices := []string{"logging.googleapis.com", "cloudfunctions.googleapis.com", "cloudbuild.googleapis.com", "pubsub.googleapis.com", "cloudscheduler.googleapis.com", "compute.googleapis.com", "run.googleapis.com", "artifactregistry.googleapis.com", "storage.googleapis.com"}
 	for _, gs := range gcloudServices {
-		log.Printf("===== Running: gcloud services enable --project %s %s =====", a.opts.Config.Backend.Project, gs)
+		if !quiet {
+			log.Printf("===== Running: gcloud services enable --project %s %s =====", a.opts.Config.Backend.Project, gs)
+		}
 		out, err := exec.Command("gcloud", "services", "enable", "--project", a.opts.Config.Backend.Project, gs).CombinedOutput()
 		if err != nil {
 			log.Printf("ERROR: %s", err)
