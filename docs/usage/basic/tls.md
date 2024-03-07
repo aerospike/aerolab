@@ -3,15 +3,24 @@
 # TLS setup
 
 
-AeroLab can assist you in [configuring TLS](/server/operations/configure/network/tls)
-between client and server, as well as between server nodes.
+AeroLab can assist you in configuring TLS between client and server, as well as between server nodes.
+
+### Generate the configuration file
+
+First generate the configuration file with `tls` stanza.
+
+```bash
+aerolab conf generate
+```
+
+Select the "enabled" and "service" under "network-tls" portion and git CTRL+X to save the file as `aerospike.conf` in your current directory.
 
 ### Create a two node cluster with a TLS configuration skeleton in place
 
 Note: you can download the template configuration file from this repository, in the templates directory.
 
 ```bash
-aerolab cluster create -o templates/tls.conf -c 2 -n mytest
+aerolab cluster create -o aerospike.conf -c 2 -n mytest
 ```
 
 ### Generate TLS certificates
