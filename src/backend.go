@@ -33,6 +33,7 @@ type backendExtra struct {
 	network             string    // docker only
 	autoExpose          bool      // docker only
 	limitNoFile         int       // docker only
+	customDockerImage   string    // docker only
 	securityGroupID     string    // aws only
 	subnetID            string    // aws only
 	ebs                 string    // aws only

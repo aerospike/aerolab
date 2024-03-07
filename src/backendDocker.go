@@ -852,7 +852,11 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 			exposeList = append(exposeList, "--label", newlabel)
 		}
 		if d.client {
-			tmplName = d.imageNaming(v)
+			if extra.customDockerImage != "" {
+				tmplName = extra.customDockerImage
+			} else {
+				tmplName = d.imageNaming(v)
+			}
 		}
 		if extra.dockerHostname {
 			exposeList = append(exposeList, "--hostname", name+"-"+strconv.Itoa(node))
