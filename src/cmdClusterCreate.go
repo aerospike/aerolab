@@ -1486,6 +1486,14 @@ func patchDockerNamespacesV7(conf string) (newconf string, err error) {
 	if err != nil {
 		return conf, err
 	}
+	err = st.SetValue("index-stage-size", "128M")
+	if err != nil {
+		return conf, err
+	}
+	err = st.SetValue("sindex-stage-size", "128M")
+	if err != nil {
+		return conf, err
+	}
 	err = st.NewStanza("storage-engine device")
 	if err != nil {
 		return conf, err
