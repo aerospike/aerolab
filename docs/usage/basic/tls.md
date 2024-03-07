@@ -13,7 +13,7 @@ First generate the configuration file with `tls` stanza.
 aerolab conf generate
 ```
 
-Select the "enabled" and "service" under "network-tls" portion and git CTRL+X to save the file as `aerospike.conf` in your current directory.
+Select the "enabled" and "service" under "network-tls" portion and hit CTRL+X to save the file as `aerospike.conf` in your current directory.
 
 ### Create a two node cluster with a TLS configuration skeleton in place
 
