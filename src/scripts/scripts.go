@@ -6,12 +6,6 @@ import (
 	"strings"
 )
 
-/* -- graph --
-1. Save contents of GetGraphConfig to the destPath on client
-2. Save contents of GetGraphScript to a temp location on client
-3. Run the script from point 2 on client
-*/
-
 //go:embed install-docker.sh
 var InstallDocker []byte
 
@@ -25,11 +19,6 @@ var graphProperties string
 // properties: extra properties, for example []string{"aerospike.graph.index.vertex.properties=property1,property2"}
 func GetGraphConfig(seeds []string, namespace string, properties []string) []byte {
 	return []byte(fmt.Sprintf(graphProperties, strings.Join(seeds, ", "), namespace, strings.Join(properties, "\n")))
-}
-
-// for local deployments, just starts graph on local machine
-func GetDockerGraphScript(clientName string, ramMB int, propertiesFilePath string, extraParams string) []byte {
-	return []byte(fmt.Sprintf(startGraph, clientName, ramMB, propertiesFilePath, extraParams))
 }
 
 // for on-cloud deployments, installs docker and starts graph inside

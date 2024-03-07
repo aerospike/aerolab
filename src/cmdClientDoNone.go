@@ -225,23 +225,24 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		ep = strings.Split(c.Docker.ExposePortsToHost, ",")
 	}
 	extra := &backendExtra{
-		cpuLimit:        c.Docker.CpuLimit,
-		ramLimit:        c.Docker.RamLimit,
-		swapLimit:       c.Docker.SwapLimit,
-		privileged:      c.Docker.Privileged,
-		network:         c.Docker.NetworkName,
-		exposePorts:     ep,
-		switches:        args,
-		dockerHostname:  !c.NoSetHostname,
-		ami:             c.Aws.AMI,
-		instanceType:    c.Aws.InstanceType,
-		ebs:             c.Aws.Ebs,
-		securityGroupID: c.Aws.SecurityGroupID,
-		subnetID:        c.Aws.SubnetID,
-		publicIP:        c.Aws.PublicIP,
-		tags:            c.Aws.Tags,
-		clientType:      strings.ToLower(nt),
-		instanceRole:    c.instanceRole,
+		cpuLimit:          c.Docker.CpuLimit,
+		ramLimit:          c.Docker.RamLimit,
+		swapLimit:         c.Docker.SwapLimit,
+		privileged:        c.Docker.Privileged,
+		network:           c.Docker.NetworkName,
+		customDockerImage: c.Docker.clientCustomDockerImage,
+		exposePorts:       ep,
+		switches:          args,
+		dockerHostname:    !c.NoSetHostname,
+		ami:               c.Aws.AMI,
+		instanceType:      c.Aws.InstanceType,
+		ebs:               c.Aws.Ebs,
+		securityGroupID:   c.Aws.SecurityGroupID,
+		subnetID:          c.Aws.SubnetID,
+		publicIP:          c.Aws.PublicIP,
+		tags:              c.Aws.Tags,
+		clientType:        strings.ToLower(nt),
+		instanceRole:      c.instanceRole,
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra = &backendExtra{
@@ -277,7 +278,11 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		aerospikeVersion: "client",
 		isArm:            isArm,
 	}
-	log.Printf("Distro: %s Version: %s", string(c.DistroName), string(c.DistroVersion))
+	if c.Docker.clientCustomDockerImage == "" {
+		log.Printf("Distro: %s Version: %s", string(c.DistroName), string(c.DistroVersion))
+	} else {
+		log.Printf("Custom image: %s", c.Docker.clientCustomDockerImage)
+	}
 	if a.opts.Config.Backend.Type != "aws" {
 		extra.firewallNamePrefix = c.Gcp.NamePrefix
 		extra.labels = append(extra.labels, "owner="+c.Owner)

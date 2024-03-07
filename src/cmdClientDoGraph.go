@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,7 +17,7 @@ import (
 )
 
 type clientCreateGraphCmd struct {
-	clientCreateBaseCmd
+	clientCreateNoneCmd
 	ClusterName     TypeClusterName `short:"C" long:"cluster-name" description:"cluster name to seed from" default:"mydc"`
 	Namespace       string          `short:"m" long:"namespace" description:"namespace name to configure graph to use" default:"test"`
 	ExtraProperties []string        `short:"e" long:"extra" description:"extra properties to add; can be specified multiple times; ex: -e 'aerospike.client.timeout=2000'"`
@@ -32,6 +31,17 @@ type clientCreateGraphCmd struct {
 func (c *clientCreateGraphCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":8182") {
+		if c.Docker.NoAutoExpose {
+			fmt.Println("Docker backend is in use, but graph access port is not being forwarded. If using Docker Desktop, use '-e 8182:8182' parameter in order to forward port 8182. Press ENTER to continue regardless.")
+			if !c.JustDoIt {
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
+			}
+		} else {
+			c.Docker.ExposePortsToHost = strings.Trim("8182:8182,"+c.Docker.ExposePortsToHost, ",")
+		}
 	}
 	fmt.Println("Getting cluster list")
 	b.WorkOnServers()
@@ -109,16 +119,9 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		netParams := ""
-		if c.Docker.NetworkName != "" {
-			netParams = "--network " + c.Docker.NetworkName
-		}
-		graphScript := scripts.GetDockerGraphScript(fmt.Sprintf(dockerNameHeader+"%s_%d", c.ClientName, 1), c.RAMMb, confFile, netParams)
+		c.Docker.clientCustomDockerImage = "aerospike/aerospike-graph-service"
 		log.Println("Pulling and running dockerized aerospike-graph, this may take a while...")
-		out, err := exec.Command("bash", "-c", string(graphScript)).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("ERROR: %s: %s", err, string(out))
-		}
+		c.createBase([]string{"-e", fmt.Sprintf("JAVA_OPTIONS=-Xmx%dm", c.RAMMb), "-v", confFile + ":/opt/aerospike-graph/conf/aerospike-graph.properties"}, "graph")
 		log.Print("Done")
 		log.Print("Common tasks and commands:")
 		log.Print(" * access gremlin console:          docker run -it --rm tinkerpop/gremlin-console")
