@@ -602,7 +602,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	// docker will use max 2GB on plugin, aws/gcp 4GB; for aws/gcp we should leave 6GB of RAM unused (4GB-plugin 2GB-OS); for docker: 3GB (2GB-plugin 1GB-everything else)
 	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"free", "-b"}}, []int{1})
 	if err != nil {
-		return fmt.Errorf("could not get available memory on node: %s: %s", err, string(out[0]))
+		if len(out) > 0 {
+			return fmt.Errorf("could not get available memory on node: %s: %s", err, string(out[0]))
+		} else {
+			return fmt.Errorf("could not get available memory on node: %s", err)
+		}
 	}
 	outn := strings.Split(string(out[0]), "\n")
 	if len(outn) < 2 || !strings.HasPrefix(outn[1], "Mem:") || !strings.Contains(outn[0], "available") {
