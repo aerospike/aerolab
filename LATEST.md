@@ -11,3 +11,4 @@ _Release Date: Month day, year_
 * ENHANCEMENT: GCP Expiry system will attempt to enable required services prior to installation.
 * ENHANCEMENT: Docker: for version 7+ of Aerospike, if a custom config file is not provided, modify the default one to remove `bar` namespace and change `test` to use file-backed `storage-engine device`.
 * FIX: AGI: Ingest `aggregate` would incorrectly miss aggregation values when working with lines that contain `(repeated:X)`.
+* FIX: WebUI: make listener bind specifically to IPv4 or IPv6 depending on specified address instead of letting the kernel decide.
