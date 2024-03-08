@@ -37,7 +37,7 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr          string        `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
+	ListenAddr          []string      `long:"listen" description:"host:port, or just :port, for IPv6 use for example '[::1]:3333'; can be specified multiple times" default:"127.0.0.1:3333"`
 	WebRoot             string        `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
 	AbsoluteTimeout     time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
 	MaxConcurrentJobs   int           `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
@@ -301,20 +301,47 @@ func (c *webCmd) Execute(args []string) error {
 			http.Redirect(w, r, c.WebRoot, http.StatusTemporaryRedirect)
 		})
 	}
-	log.Printf("Listening on %s", c.ListenAddr)
-	l, err := net.Listen("tcp", c.ListenAddr)
-	if err != nil {
-		time.Sleep(time.Second)
-		l, err = net.Listen("tcp", c.ListenAddr)
-		if err != nil {
-			return err
+	ret := make(chan error, len(c.ListenAddr))
+	locker := new(sync.Mutex)
+	for _, listenAddr := range c.ListenAddr {
+		locker.Lock()
+		if len(ret) > 0 {
+			locker.Unlock()
+			return <-ret
 		}
+		go func(listenAddr string) {
+			prot := "tcp4"
+			if strings.Count(listenAddr, ":") >= 2 {
+				prot = "tcp6"
+			}
+			log.Printf("Listening on %s %s", prot, listenAddr)
+			l, err := net.Listen(prot, listenAddr)
+			if err != nil {
+				time.Sleep(time.Second)
+				l, err = net.Listen(prot, listenAddr)
+				if err != nil {
+					ret <- err
+					locker.Unlock()
+					return
+				}
+			}
+			locker.Unlock()
+			err = http.Serve(l, nil)
+			if err != nil {
+				ret <- err
+			}
+		}(listenAddr)
+	}
+	locker.Lock()
+	defer locker.Unlock()
+	if len(ret) > 0 {
+		return <-ret
 	}
 	if !c.NoBrowser {
-		openurl := strings.ReplaceAll(c.ListenAddr, "0.0.0.0", "127.0.0.1")
+		openurl := strings.ReplaceAll(strings.ReplaceAll(c.ListenAddr[0], "0.0.0.0", "127.0.0.1"), "[::]", "[::1]")
 		browser.OpenURL("http://" + openurl)
 	}
-	return http.Serve(l, nil)
+	return <-ret
 }
 
 func (c *webCmd) allowls(r *http.Request) bool {
