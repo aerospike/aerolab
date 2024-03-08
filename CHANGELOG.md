@@ -9,6 +9,7 @@
 * FIX: AGI: Ingest `aggregate` would incorrectly miss aggregation values when working with lines that contain `(repeated:X)`.
 * FIX: AGI: Handle connection error during installation gracefully.
 * FIX: WebUI: make listener bind specifically to IPv4 or IPv6 depending on specified address instead of letting the kernel decide.
+* FIX: WebUI: do not clear running jobs from history in the web interface until they are completed (when clear history button is pressed).
 
 #### 7.4.0
 * FEATURE: Web UI.

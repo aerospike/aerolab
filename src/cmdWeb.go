@@ -612,10 +612,11 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		if err != nil {
 			return nil
 		}
-		if ts.Before(truncatets) {
+		reqID := strings.TrimSuffix(fnsplit[2], ".log")
+		runJob := c.joblist.Get(reqID)
+		if ts.Before(truncatets) && runJob == nil {
 			return nil
 		}
-		reqID := strings.TrimSuffix(fnsplit[2], ".log")
 		startedWhen := ""
 		tsDur := time.Since(ts)
 		if tsDur > 24*time.Hour {
@@ -642,7 +643,6 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 			StartedWhen:    startedWhen,
 			FilePath:       path,
 		}
-		runJob := c.joblist.Get(reqID)
 		if runJob != nil {
 			j.IsRunning = true
 			jobs.HasRunning = true
