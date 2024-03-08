@@ -519,7 +519,7 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 		comm = "config docker delete-network"
 	}
 	invlog.WriteString("-=-=-=-=- [path] /" + strings.ReplaceAll(comm, " ", "/") + " -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] #WEBUI: " + comm + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] " + comm + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d rules\n", reqID, len(rules)))
@@ -626,7 +626,7 @@ func (c *webCmd) inventoryVolumesAction(w http.ResponseWriter, r *http.Request) 
 	}
 	comm := "volume delete"
 	invlog.WriteString("-=-=-=-=- [path] /" + strings.ReplaceAll(comm, " ", "/") + " -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] #WEBUI: " + comm + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] " + comm + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d volumes\n", reqID, len(vols)))
@@ -699,7 +699,7 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	invlog.WriteString("-=-=-=-=- [path] /template/destroy -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: template destroy -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] #WEBUI: template destroy -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] template destroy -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d templates\n", reqID, len(templates)))
@@ -935,7 +935,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, reqID string, dat
 		return
 	}
 	invlog.WriteString("-=-=-=-=- [path] /" + strings.Join(ncmd, "/") + " -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] #WEBUI: " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	xtype := ntype
