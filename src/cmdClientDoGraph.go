@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,6 +25,10 @@ type clientCreateGraphCmd struct {
 	Namespace       string          `short:"m" long:"namespace" description:"namespace name to configure graph to use" default:"test"`
 	ExtraProperties []string        `short:"e" long:"extra" description:"extra properties to add; can be specified multiple times; ex: -e 'aerospike.client.timeout=2000'"`
 	RAMMb           int             `long:"ram-mb" description:"manually specify amount of RAM MiB to use; default-docker: 4G; default-cloud: 90pct"`
+	GraphImage      string          `long:"graph-image" description:"graph is installed using docker images; docker image to use for graph installation" default:"aerospike/aerospike-graph-service"`
+	DockerLoginUser string          `long:"docker-user" description:"login to docker registry for graph installation"`
+	DockerLoginPass string          `long:"docker-pass" description:"login to docker registry for graph installation"`
+	DockerLoginURL  string          `long:"docker-url" description:"login to docker registry for graph installation"`
 	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	seedip          string
 	seedport        string
@@ -105,6 +110,17 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 	graphConfig := scripts.GetGraphConfig([]string{c.seedip + ":" + c.seedport}, c.Namespace, c.ExtraProperties)
 
 	if a.opts.Config.Backend.Type == "docker" {
+		if c.DockerLoginUser != "" && c.DockerLoginPass != "" {
+			log.Println("Docker Login...")
+			params := []string{"login", "--username", c.DockerLoginUser, "--password", c.DockerLoginPass}
+			if c.DockerLoginURL != "" {
+				params = append(params, c.DockerLoginURL)
+			}
+			out, err := exec.Command("docker", params...).CombinedOutput()
+			if err != nil {
+				return fmt.Errorf("%s\n%s", err, string(out))
+			}
+		}
 		log.Println("Running client.create.graph")
 		if c.ClientCount > 1 {
 			return errors.New("on docker, only one client can be dpeloyed at a time")
@@ -130,7 +146,7 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		c.Docker.clientCustomDockerImage = "aerospike/aerospike-graph-service"
+		c.Docker.clientCustomDockerImage = c.GraphImage
 		log.Println("Pulling and running dockerized aerospike-graph, this may take a while...")
 		c.createBase([]string{"-e", fmt.Sprintf("JAVA_OPTIONS=-Xmx%dm", c.RAMMb), "-v", confFile + ":/opt/aerospike-graph/conf/aerospike-graph.properties"}, "graph")
 		log.Print("Done")
@@ -188,7 +204,15 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 			}
 			log.Printf("Client %s Machine %d TotalSizeMB=%d GraphSizeMB=%d", c.ClientName, node, sysSizeMb, memSizeMb)
 		}
-		graphScript := scripts.GetCloudGraphScript(memSizeMb, "/etc/aerospike-graph.properties", "")
+		var graphScript []byte
+		if c.DockerLoginUser != "" && c.DockerLoginPass != "" {
+			graphScript = []byte(fmt.Sprintf("set -e\ndocker login --username '%s' --password '%s'", c.DockerLoginUser, strings.ReplaceAll(c.DockerLoginPass, "'", "\\'")))
+			if c.DockerLoginURL != "" {
+				graphScript = append(graphScript, []byte(fmt.Sprintf(" %s", c.DockerLoginURL))...)
+			}
+			graphScript = append(graphScript, '\n')
+		}
+		graphScript = append(graphScript, scripts.GetCloudGraphScript(memSizeMb, "/etc/aerospike-graph.properties", "", c.GraphImage)...)
 		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-graph.properties", string(graphConfig), len(graphConfig)}, {"/tmp/install-graph.sh", string(graphScript), len(graphScript)}}, []int{node})
 		if err != nil {
 			return err
