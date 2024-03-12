@@ -23,6 +23,6 @@ func GetGraphConfig(seeds []string, namespace string, properties []string) []byt
 
 // for on-cloud deployments, installs docker and starts graph inside
 // for properties file path, ex: /etc/aerospike-graph/aerospike-graph.properties
-func GetCloudGraphScript(ramMB int, propertiesFilePath string, extraParams string) []byte {
-	return append(InstallDocker, []byte(fmt.Sprintf(startGraph, "aerospike-graph", ramMB, propertiesFilePath, extraParams))...)
+func GetCloudGraphScript(ramMB int, propertiesFilePath string, extraParams string, imageName string) []byte {
+	return append(InstallDocker, []byte(fmt.Sprintf(startGraph, "aerospike-graph", ramMB, propertiesFilePath, extraParams, imageName))...)
 }
