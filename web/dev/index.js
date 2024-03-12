@@ -1114,6 +1114,13 @@ function initDatatable() {
                 }
                 return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'trino','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">TrinoCLI</button>';
             };
+            if (row["ClientType"] == "graph") {
+                let disabledString = 'success"';
+                if (!row["IsRunning"]) {
+                    disabledString = 'default" disabled';
+                }
+                return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'graph','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">GremlinConsole</button>';
+            };
             return '<a href="'+data+'" target="_blank">'+data+'</a>';
         }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             if (data == null || data == 0) {
@@ -1765,6 +1772,9 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
             if (namespace == null || namespace == "") {
                 return;
             }
+            break;
+        case "graph":
+            table = '#invclients';
             break;
         case "client":
             table = '#invclients';

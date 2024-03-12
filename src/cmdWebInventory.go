@@ -425,9 +425,11 @@ func (c *webCmd) addInventoryHandlers() {
 	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/ws", c.inventoryClusterWs)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/client/ws", c.inventoryClientWs)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/trino/ws", c.inventoryTrinoWs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/graph/ws", c.inventoryGraphWs)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/connect", c.inventoryClusterConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/client/connect", c.inventoryClientConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/trino/connect", c.inventoryTrinoConnect)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/graph/connect", c.inventoryGraphConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/volumes", c.inventoryVolumes)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/firewalls", c.inventoryFirewalls)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/expiry", c.inventoryExpiry)
@@ -1576,6 +1578,10 @@ func (c *webCmd) inventoryTrinoConnect(w http.ResponseWriter, r *http.Request) {
 	c.inventoryClusterClientConnect(w, r, "trino")
 }
 
+func (c *webCmd) inventoryGraphConnect(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientConnect(w, r, "graph")
+}
+
 func (c *webCmd) inventoryClusterWs(w http.ResponseWriter, r *http.Request) {
 	c.inventoryClusterClientWs(w, r, "cluster")
 }
@@ -1586,6 +1592,10 @@ func (c *webCmd) inventoryClientWs(w http.ResponseWriter, r *http.Request) {
 
 func (c *webCmd) inventoryTrinoWs(w http.ResponseWriter, r *http.Request) {
 	c.inventoryClusterClientWs(w, r, "trino")
+}
+
+func (c *webCmd) inventoryGraphWs(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientWs(w, r, "graph")
 }
 
 type windowSize struct {
@@ -1641,7 +1651,7 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 		return
 	}
 	attachCmd := "shell"
-	if target == "client" {
+	if target == "client" || target == "graph" {
 		attachCmd = "client"
 	}
 	if target == "trino" {
@@ -1650,6 +1660,13 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 	nargs := []string{"attach", attachCmd, "-n", name, "-l", node}
 	if target == "trino" {
 		nargs = append(nargs, "-m", namespace)
+	}
+	if target == "graph" {
+		nargs = append(nargs, "--", "docker", "run", "-it", "--rm", "tinkerpop/gremlin-console")
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		ex = "docker"
+		nargs = []string{"run", "-it", "--rm", "tinkerpop/gremlin-console"}
 	}
 	cmd := exec.Command(ex, nargs...)
 	cmd.Env = append(os.Environ(), "TERM=xterm")
