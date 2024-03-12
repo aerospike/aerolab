@@ -14,11 +14,18 @@ aerolab client create graph -n graph --count 1 --cluster-name mydc --namespace t
 
 ### Other options
 
-The other 2 notable options are:
+The other notable options are:
 ```
 -e, --extra=                     extra properties to add; can be specified multiple times; ex: -e 'aerospike.client.timeout=2000'
-    --ram-mb=                    manually specify amount of RAM MiB to use; default-docker: 4G; default-cloud: 90pct
+    --ram-mb=                    manually specify amount of RAM MiB to use
+```
 
+If using a non-standard graph docker image, the following parameters can be utilized:
+```
+--graph-image=               graph is installed using docker images; docker image to use for graph installation (default: aerospike/aerospike-graph-service)
+--docker-user=               login to docker registry for graph installation
+--docker-pass=               login to docker registry for graph installation
+--docker-url=                login to docker registry for graph installation
 ```
 
 ### Connecting
