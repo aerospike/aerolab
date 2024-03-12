@@ -193,15 +193,15 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 	}
 	log.Println("Continuing graph installation...")
 	returns := parallelize.MapLimit(machines, c.ParallelThreads, func(node int) error {
-		var graphScript []byte
+		var dockerLogin *scripts.DockerLogin
 		if c.DockerLoginUser != "" && c.DockerLoginPass != "" {
-			graphScript = []byte(fmt.Sprintf("set -e\ndocker login --username '%s' --password '%s'", c.DockerLoginUser, strings.ReplaceAll(c.DockerLoginPass, "'", "\\'")))
-			if c.DockerLoginURL != "" {
-				graphScript = append(graphScript, []byte(fmt.Sprintf(" %s", c.DockerLoginURL))...)
+			dockerLogin = &scripts.DockerLogin{
+				URL:  c.DockerLoginURL,
+				User: c.DockerLoginUser,
+				Pass: c.DockerLoginPass,
 			}
-			graphScript = append(graphScript, '\n')
 		}
-		graphScript = append(graphScript, scripts.GetCloudGraphScript("/etc/aerospike-graph.properties", "", c.GraphImage)...)
+		graphScript := scripts.GetCloudGraphScript("/etc/aerospike-graph.properties", "", c.GraphImage, dockerLogin)
 		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-graph.properties", string(graphConfig), len(graphConfig)}, {"/tmp/install-graph.sh", string(graphScript), len(graphScript)}}, []int{node})
 		if err != nil {
 			return err
