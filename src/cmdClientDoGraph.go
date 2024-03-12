@@ -134,7 +134,7 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 		log.Println("Pulling and running dockerized aerospike-graph, this may take a while...")
 		c.createBase([]string{"-e", fmt.Sprintf("JAVA_OPTIONS=-Xmx%dm", c.RAMMb), "-v", confFile + ":/opt/aerospike-graph/conf/aerospike-graph.properties"}, "graph")
 		log.Print("Done")
-		log.Print("Common tasks and commands:")
+		log.Print("\nCommon tasks and commands:")
 		log.Print(" * access gremlin console:          docker run -it --rm tinkerpop/gremlin-console")
 		log.Printf(" * access terminal on graph server: aerolab attach client -n %s", c.ClientName)
 		log.Print(" * visit https://gdotv.com/ to download a Graph IDE and Visualization tool")
@@ -218,5 +218,10 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 	log.Printf(" * access gremlin console on graph server: aerolab attach client -n %s -- docker run -it --rm tinkerpop/gremlin-console", c.ClientName)
 	log.Printf(" * access terminal on graph server:        aerolab attach client -n %s", c.ClientName)
 	log.Print(" * visit https://gdotv.com/ to download a Graph IDE and Visualization tool")
+	log.Print("Example creating a dedicated gremlin-console client:")
+	log.Print(" * create an empty client: aerolab client create base -n mygremlin [...]")
+	log.Print(" * donwload docker script: aerolab client attach -n mygremlin -- curl -fsSL https://get.docker.com -o /tmp/get-docker.sh")
+	log.Print(" * install docker        : aerolab client attach -n mygremlin -- bash /tmp/get-docker.sh")
+	log.Print(" * run gremlin-console   : aerolab client attach -n mygremlin -- docker run -it --rm tinkerpop/gremlin-console")
 	return nil
 }
