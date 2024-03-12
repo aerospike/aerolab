@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,6 +20,7 @@ import (
 type clientCreateGraphCmd struct {
 	clientCreateNoneCmd
 	ClusterName     TypeClusterName `short:"C" long:"cluster-name" description:"cluster name to seed from" default:"mydc"`
+	Seed            string          `long:"seed" description:"specify a seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored"`
 	Namespace       string          `short:"m" long:"namespace" description:"namespace name to configure graph to use" default:"test"`
 	ExtraProperties []string        `short:"e" long:"extra" description:"extra properties to add; can be specified multiple times; ex: -e 'aerospike.client.timeout=2000'"`
 	RAMMb           int             `long:"ram-mb" description:"manually specify amount of RAM MiB to use; default-docker: 4G; default-cloud: 90pct"`
@@ -43,48 +45,57 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 			c.Docker.ExposePortsToHost = strings.Trim("8182:8182,"+c.Docker.ExposePortsToHost, ",")
 		}
 	}
-	fmt.Println("Getting cluster list")
-	b.WorkOnServers()
-	clist, err := b.ClusterList()
-	if err != nil {
-		return err
-	}
-	if !inslice.HasString(clist, string(c.ClusterName)) {
-		return errors.New("cluster not found")
-	}
-	ips, err := b.GetNodeIpMap(string(c.ClusterName), true)
-	if err != nil {
-		return err
-	}
-	if len(ips) == 0 {
-		ips, err = b.GetNodeIpMap(string(c.ClusterName), false)
+	if c.Seed == "" {
+		fmt.Println("Getting cluster list")
+		b.WorkOnServers()
+		clist, err := b.ClusterList()
+		if err != nil {
+			return err
+		}
+		if !inslice.HasString(clist, string(c.ClusterName)) {
+			return errors.New("cluster not found")
+		}
+		ips, err := b.GetNodeIpMap(string(c.ClusterName), true)
 		if err != nil {
 			return err
 		}
 		if len(ips) == 0 {
-			return errors.New("node IPs not found")
+			ips, err = b.GetNodeIpMap(string(c.ClusterName), false)
+			if err != nil {
+				return err
+			}
+			if len(ips) == 0 {
+				return errors.New("node IPs not found")
+			}
 		}
-	}
-	for _, ip := range ips {
-		if ip != "" {
-			c.seedip = ip
-			break
+		for _, ip := range ips {
+			if ip != "" {
+				c.seedip = ip
+				break
+			}
 		}
-	}
-	c.seedport = "3000"
-	if a.opts.Config.Backend.Type == "docker" {
-		inv, err := b.Inventory("", []int{InventoryItemClusters})
-		if err != nil {
-			return err
-		}
-		for _, item := range inv.Clusters {
-			if item.ClusterName == c.ClusterName.String() {
-				if item.PrivateIp != "" && item.DockerExposePorts != "" {
-					c.seedport = item.DockerExposePorts
-					c.seedip = item.PrivateIp
+		c.seedport = "3000"
+		if a.opts.Config.Backend.Type == "docker" {
+			inv, err := b.Inventory("", []int{InventoryItemClusters})
+			if err != nil {
+				return err
+			}
+			for _, item := range inv.Clusters {
+				if item.ClusterName == c.ClusterName.String() {
+					if item.PrivateIp != "" && item.DockerExposePorts != "" {
+						c.seedport = item.DockerExposePorts
+						c.seedip = item.PrivateIp
+					}
 				}
 			}
 		}
+	} else {
+		addr, err := net.ResolveTCPAddr("tcp", c.Seed)
+		if err != nil {
+			return err
+		}
+		c.seedport = strconv.Itoa(addr.Port)
+		c.seedip = addr.IP.String()
 	}
 	b.WorkOnClients()
 	if c.seedip == "" {
