@@ -42,6 +42,7 @@ aerolab client create graph help
 # setup - backend, cluster, graph client, AMS
 aerolab config backend -t gcp -o myproject
 aerolab cluster create -n fire -v 6.4.0.11 -c 2 --instance e2-standard-2 --zone us-central1-a --firewall=bob
+aerolab cluster add exporter -n fire
 aerolab client create graph -n fly -m test -C fire --instance e2-standard-2 --zone us-central1-a --firewall=bob
 aerolab client create ams -n eyes --clusters=fire --clients=fly --instance e2-standard-2 --zone us-central1-a --firewall=bob
 

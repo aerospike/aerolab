@@ -24,6 +24,7 @@ type clientCreateGraphCmd struct {
 	Seed            string          `long:"seed" description:"specify a seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored"`
 	Namespace       string          `short:"m" long:"namespace" description:"namespace name to configure graph to use" default:"test"`
 	ExtraProperties []string        `short:"e" long:"extra" description:"extra properties to add; can be specified multiple times; ex: -e 'aerospike.client.timeout=2000'"`
+	AMS             string          `long:"ams" description:"name of an AMS client to add this machine to prometheus configs to"`
 	RAMMb           int             `long:"ram-mb" description:"manually specify amount of RAM MiB to use; default-docker: 4G; default-cloud: 90pct"`
 	GraphImage      string          `long:"graph-image" description:"graph is installed using docker images; docker image to use for graph installation" default:"aerospike/aerospike-graph-service"`
 	DockerLoginUser string          `long:"docker-user" description:"login to docker registry for graph installation"`
@@ -107,6 +108,19 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 		return errors.New("could not find an IP for a node in the given cluster - are all the nodes down?")
 	}
 
+	// AMS section - verify it exists
+	if c.AMS != "" {
+		clients, err := b.ClusterList()
+		if err != nil {
+			return err
+		}
+		if !inslice.HasString(clients, c.AMS) {
+			return errors.New("AMS client not found")
+		}
+		b.WorkOnClients()
+	}
+
+	// continue installation
 	graphConfig := scripts.GetGraphConfig([]string{c.seedip + ":" + c.seedport}, c.Namespace, c.ExtraProperties)
 
 	if a.opts.Config.Backend.Type == "docker" {
@@ -148,7 +162,20 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 		}
 		c.Docker.clientCustomDockerImage = c.GraphImage
 		log.Println("Pulling and running dockerized aerospike-graph, this may take a while...")
-		c.createBase([]string{"-e", fmt.Sprintf("JAVA_OPTIONS=-Xmx%dm", c.RAMMb), "-v", confFile + ":/opt/aerospike-graph/conf/aerospike-graph.properties"}, "graph")
+		machines, err := c.createBase([]string{"-e", fmt.Sprintf("JAVA_OPTIONS=-Xmx%dm", c.RAMMb), "-v", confFile + ":/opt/aerospike-graph/conf/aerospike-graph.properties"}, "graph")
+		if err != nil {
+			return err
+		}
+		if c.AMS != "" {
+			mstring := []string{}
+			for _, n := range machines {
+				mstring = append(mstring, strconv.Itoa(n))
+			}
+			err = c.ConfigureAMS(strings.Join(mstring, ","))
+			if err != nil {
+				return err
+			}
+		}
 		log.Print("Done")
 		log.Print("\nCommon tasks and commands:")
 		log.Print(" * access gremlin console:          docker run -it --rm tinkerpop/gremlin-console")
@@ -236,6 +263,16 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 	if isError {
 		return errors.New("some nodes returned errors")
 	}
+	if c.AMS != "" {
+		mstring := []string{}
+		for _, n := range machines {
+			mstring = append(mstring, strconv.Itoa(n))
+		}
+		err = c.ConfigureAMS(strings.Join(mstring, ","))
+		if err != nil {
+			return err
+		}
+	}
 	log.Println("Done")
 	log.Print("Common tasks and commands:")
 	log.Print(" * access gremlin console locally:         docker run -it --rm tinkerpop/gremlin-console")
@@ -248,4 +285,11 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 	log.Print(" * install docker        : aerolab client attach -n mygremlin -- bash /tmp/get-docker.sh")
 	log.Print(" * run gremlin-console   : aerolab client attach -n mygremlin -- docker run -it --rm tinkerpop/gremlin-console")
 	return nil
+}
+
+func (c *clientCreateGraphCmd) ConfigureAMS(machines string) error {
+	a.opts.Client.Configure.AMS.ClientName = TypeClientName(c.AMS)
+	a.opts.Client.Configure.AMS.ConnectClients = c.ClientName
+	a.opts.Client.Configure.AMS.Machines = ""
+	return a.opts.Client.Configure.AMS.Execute(nil)
 }
