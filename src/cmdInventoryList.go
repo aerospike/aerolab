@@ -345,7 +345,12 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			inv.Clients[vi].AccessUrl = "gremlin://" + nip + port
 			inv.Clients[vi].AccessPort = "8182"
-		//TODO Proximus
+		case "vector":
+			if port == "" {
+				port = ":" + vectorAccessPort
+			}
+			inv.Clients[vi].AccessUrl = vectorAccessProtocol + "://" + nip + port
+			inv.Clients[vi].AccessPort = vectorAccessPort
 		case "vscode":
 			if port == "" {
 				port = ":8080"

@@ -898,7 +898,12 @@ function initDatatable() {
                             window.location.href = "{{.WebRoot}}client/create/graph";
                         }
                     },
-                    //TODO Proximus
+                    {
+                        text: 'Vector',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/vector";
+                        }
+                    },
                 ]
             },
             {extend: 'myspacer'},
@@ -989,7 +994,15 @@ function initDatatable() {
                             window.location.href = "{{.WebRoot}}client/grow/graph?ClientName="+arr[0]["ClientName"];
                         }
                     },
-                    //TODO Proximus
+                    {
+                        text: 'Vector',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/grow/vector?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
                 ]
             },
             {extend: 'myspacer'},
