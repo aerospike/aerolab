@@ -108,6 +108,7 @@ type clusterCreateCmdGcp struct {
 	VolDescription      string        `long:"gcp-vol-desc" description:"set volume description field value"`
 	VolLabels           []string      `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
 	TerminateOnPoweroff bool          `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
+	OnHostMaintenance   string        `long:"on-host-maintenance-policy" description:"optionally specify a custom policy onHostMaintenance"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -887,7 +888,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			extra.limitNoFile = c.Docker.NoFILELimit
 		}
 	}
-
+	extra.onHostMaintenance = c.Gcp.OnHostMaintenance
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err

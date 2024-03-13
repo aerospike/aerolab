@@ -336,6 +336,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra.spotInstance = c.Gcp.SpotInstance
 	}
+	extra.onHostMaintenance = c.Gcp.OnHostMaintenance
 	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {
 		return nil, err

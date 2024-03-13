@@ -3336,6 +3336,9 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	expiryTelemetryLock.Unlock()
 	onHostMaintenance := "MIGRATE"
+	if extra.onHostMaintenance != "" {
+		onHostMaintenance = extra.onHostMaintenance
+	}
 	autoRestart := true
 	provisioning := "STANDARD"
 	if extra.spotInstance {
@@ -3469,9 +3472,10 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 
 		op, err := instancesClient.Insert(ctx, req)
-		if err != nil && strings.Contains(err.Error(), "OnHostMaintenance must be set to TERMINATE") {
+		if err != nil && (strings.Contains(err.Error(), "OnHostMaintenance must be set to TERMINATE") || strings.Contains(err.Error(), "not support live migration")) {
 			req.InstanceResource.Scheduling.OnHostMaintenance = proto.String("TERMINATE")
 			onHostMaintenance = "TERMINATE"
+			log.Print("OnHostMaintenance mode not supported, attempting to switch to TERMINATE")
 			op, err = instancesClient.Insert(ctx, req)
 		}
 		if err != nil {
