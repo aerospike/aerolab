@@ -50,6 +50,7 @@ type backendExtra struct {
 	disks               []string  // gcp only
 	zone                string    // gcp only
 	labels              []string  // gcp only
+	onHostMaintenance   string    // gcp only
 	gcpMeta             map[string]string
 }
 
