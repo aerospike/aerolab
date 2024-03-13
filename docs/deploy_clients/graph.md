@@ -2,6 +2,12 @@
 
 AeroLab supports installing Graph client to Aerospike. This is the Aerospike Gremlin server (TinkerPop). The `gremlin console` is not included but can be easily started on the graph servers or locally in docker.
 
+## Version
+
+AeroLab supports graph version `2.0.0` and above. Version `1.*` support is not provided.
+
+If using the `docker` backend, and your `aerospike/aerospike-graph-service:latest` docker image points at version 1, you will have to either delete the image first, or manually specify the version you want by adding `--graph-image=aerospike/aerospike-graph-service:2.0.0` to your `create` command.
+
 ## Basic usage
 
 ### Install Graph with Aerolab
