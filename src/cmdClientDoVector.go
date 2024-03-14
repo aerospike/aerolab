@@ -8,6 +8,7 @@ import (
 	"github.com/bestmethod/inslice"
 )
 
+// TODO change vector port, port 5000 is used by too many services
 const vectorAccessPort = "5000"
 const vectorAccessProtocol = "http"
 
@@ -83,6 +84,6 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		return errors.New("could not find an IP for a node in the given cluster - are all the nodes down?")
 	}
 
-	// TODO this whole thing, it's a copy currently of graph and will deploy graph instead
+	// TODO future this whole thing
 	return errors.New("not implemented yet")
 }
