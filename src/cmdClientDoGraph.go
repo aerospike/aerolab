@@ -148,7 +148,7 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 		}
 		confFile := filepath.Join(curDir, "aerospike-graph.properties")
 		if _, err := os.Stat(confFile); err == nil {
-			log.Printf("WARNING: configuration file %s already exists. Press ENTER to continue.", confFile)
+			log.Printf("WARNING: configuration file %s already exists. Press ENTER to override and continue.", confFile)
 			if !c.JustDoIt {
 				var ignoreMe string
 				fmt.Scanln(&ignoreMe)

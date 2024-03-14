@@ -23,3 +23,7 @@ func (c *clientCmd) Execute(args []string) error {
 	os.Exit(1)
 	return nil
 }
+
+func init() {
+	addBackendSwitch("client.attach", "docker", &a.opts.Client.Attach.Docker)
+}
