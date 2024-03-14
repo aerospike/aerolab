@@ -1006,7 +1006,7 @@ func (d *backendDocker) RunCommands(clusterName string, commands [][]string, nod
 		var out []byte
 		var err error
 		for _, command := range commands {
-			head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), name}
+			head := []string{"exec", "-u", "0", "-e", fmt.Sprintf("NODE=%d", node), name}
 			command = append(head, command...)
 			out, err = exec.Command("docker", command...).CombinedOutput()
 			fout = append(fout, out)
@@ -1155,10 +1155,10 @@ func (d *backendDocker) Download(clusterName string, node int, source string, de
 }
 
 func (d *backendDocker) AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error) {
-	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive)
+	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive, nil)
 }
 
-func (d *backendDocker) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) (err error) {
+func (d *backendDocker) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool, dockerForceUser *string) (err error) {
 	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	var cmd *exec.Cmd
 	termMode := "-t"
@@ -1168,7 +1168,11 @@ func (d *backendDocker) RunCustomOut(clusterName string, node int, command []str
 	if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()) {
 		termMode = "-t"
 	}
-	head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), termMode, name}
+	head := []string{"exec"}
+	if dockerForceUser != nil {
+		head = append(head, "-u", *dockerForceUser)
+	}
+	head = append(head, "-e", fmt.Sprintf("NODE=%d", node), termMode, name)
 	if len(command) == 0 {
 		command = append(head, "/bin/bash")
 	} else {

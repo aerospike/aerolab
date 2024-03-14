@@ -2121,10 +2121,10 @@ func (d *backendGcp) RunCommands(clusterName string, commands [][]string, nodes 
 }
 
 func (d *backendGcp) AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error) {
-	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive)
+	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive, nil)
 }
 
-func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) (err error) {
+func (d *backendGcp) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool, dockerForceUser *string) (err error) {
 	clusters, err := d.ClusterList()
 	if err != nil {
 		return fmt.Errorf("could not get cluster list: %s", err)

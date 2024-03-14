@@ -2168,10 +2168,10 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 }
 
 func (d *backendAws) AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error) {
-	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive)
+	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive, nil)
 }
 
-func (d *backendAws) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) (err error) {
+func (d *backendAws) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool, dockerForceUser *string) (err error) {
 	clusters, err := d.ClusterList()
 	if err != nil {
 		return fmt.Errorf("could not get cluster list: %s", err)
