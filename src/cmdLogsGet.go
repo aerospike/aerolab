@@ -17,29 +17,45 @@ import (
 
 type logsGetCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Client      bool            `short:"c" long:"client" description:"Set to indicate that this is a client group, not an aerospike cluster"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Journal     bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
 	LogLocation string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
 	Destination flags.Filename  `short:"d" long:"destination" description:"Destination directory (will be created if doesn't exist)" default:"./logs/"`
 	Force       bool            `short:"f" long:"force" description:"set to not be asked whether to override existing files" webdisable:"true" webset:"true"`
 	parallelThreadsCmd
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Tail []string       `description:"Optionally, specify the command to execute to get the logs instead of log files/journalctl"`
+	Help logsGetCmdHelp `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type logsGetCmdHelp struct{}
+
+func (c *logsGetCmdHelp) Execute(args []string) error {
+	return printHelp("In order to specify a non-journal custom command to execute for log gathering, provide inline tail, for example: aerolab logs get -n myclient -- docker logs aerospike-graph\n\n")
 }
 
 func (c *logsGetCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if len(c.Tail) == 0 {
+		c.Tail = args
+	}
 	if c.ParallelThreads < 1 {
 		return errors.New("thread count must be 1+")
 	}
 	log.Print("Running logs.get")
+	nnn := "cluster"
+	if c.Client {
+		b.WorkOnClients()
+		nnn = "client group"
+	}
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return err
 	}
 	if !inslice.HasString(clusterList, string(c.ClusterName)) {
-		err = fmt.Errorf("cluster does not exist: %s", string(c.ClusterName))
+		err = fmt.Errorf(nnn+" does not exist: %s", string(c.ClusterName))
 		return err
 	}
 
@@ -61,13 +77,13 @@ func (c *logsGetCmd) Execute(args []string) error {
 				return err
 			}
 			if !inslice.HasInt(nodesList, nodeInt) {
-				return fmt.Errorf("node %d does not exist in cluster", nodeInt)
+				return fmt.Errorf("node %d does not exist in "+nnn, nodeInt)
 			}
 			nodes = append(nodes, nodeInt)
 		}
 	}
 	if len(nodes) == 0 {
-		err = errors.New("found 0 nodes in cluster")
+		err = errors.New("found 0 nodes in " + nnn)
 		return err
 	}
 
@@ -149,7 +165,9 @@ func (c *logsGetCmd) getParallel(node int, parallel chan int, wait *sync.WaitGro
 
 func (c *logsGetCmd) get(node int) error {
 	fn := string(c.Destination) + "-" + strconv.Itoa(node)
-	if c.Journal {
+	if len(c.Tail) > 0 {
+		fn = fn + "." + c.Tail[0] + ".log"
+	} else if c.Journal {
 		fn = fn + ".journald.log"
 	} else {
 		_, logf := path.Split(c.LogLocation)
@@ -160,9 +178,12 @@ func (c *logsGetCmd) get(node int) error {
 		return err
 	}
 	defer f.Close()
-	if c.Journal {
+	if c.Journal || len(c.Tail) > 0 {
 		command := []string{"journalctl", "-u", "aerospike", "--no-pager"}
-		err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f, false)
+		if len(c.Tail) > 0 {
+			command = c.Tail
+		}
+		err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f, false, nil)
 		if err != nil {
 			return fmt.Errorf("journalctl error: %s", err)
 		}
@@ -170,7 +191,7 @@ func (c *logsGetCmd) get(node int) error {
 	}
 
 	command := []string{"cat", c.LogLocation}
-	err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f, false)
+	err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f, false, nil)
 	if err != nil {
 		return fmt.Errorf("log cat error: %s", err)
 	}

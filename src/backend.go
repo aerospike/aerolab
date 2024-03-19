@@ -33,6 +33,7 @@ type backendExtra struct {
 	network             string    // docker only
 	autoExpose          bool      // docker only
 	limitNoFile         int       // docker only
+	customDockerImage   string    // docker only
 	securityGroupID     string    // aws only
 	subnetID            string    // aws only
 	ebs                 string    // aws only
@@ -49,6 +50,7 @@ type backendExtra struct {
 	disks               []string  // gcp only
 	zone                string    // gcp only
 	labels              []string  // gcp only
+	onHostMaintenance   string    // gcp only
 	gcpMeta             map[string]string
 }
 
@@ -139,7 +141,7 @@ type backend interface {
 	// attach to a node in cluster and run a single command. does not return output of command.
 	AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error)
 	// like AttachAndRun, but provide custom stdin, stdout and stderr the command should pipe to
-	RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) (err error)
+	RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool, dockerForceUser *string) (err error)
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
@@ -156,10 +158,10 @@ type backend interface {
 	// may implement
 	DeleteSecurityGroups(vpc string, namePrefix string, internal bool) error
 	// may implement
-	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error
+	CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error
 	// may implement
-	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error
-	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool) error
+	LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error
+	AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool, extraPorts []string, noDefaults bool) error
 	// may implement
 	ListSecurityGroups() error
 	// may implement
@@ -439,6 +441,7 @@ type inventoryFirewallRuleAWS struct {
 	SecurityGroupID   string
 	IPs               []string
 	Region            string
+	Ports             []string
 }
 
 type inventoryFirewallRuleDocker struct {

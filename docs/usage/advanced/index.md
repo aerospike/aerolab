@@ -8,6 +8,4 @@
 
 [Encryption at rest](encryption.md)
 
-[Simulate raw block storage](loop-dev.md)
-
 [Custom Aerospike build](custom-build.md)

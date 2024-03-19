@@ -31,6 +31,9 @@ labels: # globally defined labels
     - "Device"
     - "evictReason"
     - "stopWrReason"
+    - "secCtx"
+    - "secC"
+    - "secMessage"
 
 patterns: 
     - 
@@ -152,6 +155,11 @@ patterns:
         export:
             - "batch-index: batches \\((?P<BatchSuccess>\\d+),(?P<BatchError>\\d+),(?P<BatchTimeout>\\d+)\\) delays (?P<BatchDelay>\\d+)"
             - "batch-index: batches \\((?P<BatchSuccess>\\d+),(?P<BatchError>\\d+),(?P<BatchTimeout>\\d+)\\)"
+    -
+        setName: "nsDevice"
+        search: "INFO (drv-mem)"
+        export:
+            - "{(?P<Namespace>[^}]+)} (?P<Device>[^:]+): used-bytes (?P<UsedBytes>\\d+) free-wblocks (?P<FreeWBlocks>\\d+) write \\((?P<Writes>\\d+),(?P<WritePerSec>[0-9\\.]+)\\) defrag-q (?P<DefragQ>\\d+) defrag-read \\((?P<DefragR>\\d+),(?P<DefragRPerSec>[0-9\\.]+)\\) defrag-write \\((?P<DefragW>\\d+),(?P<DefragWPerSec>[0-9\\.]+)\\)"
     -
         setName: "nsDevice"
         search: "INFO (drv_ssd)"
@@ -555,6 +563,7 @@ patterns:
             every: 10s
             field: "repeated"
             on: "warnC"
+            increment: true
     -
         setName: "errors"
         search: ": ERROR ("
@@ -569,6 +578,7 @@ patterns:
             every: 10s
             field: "repeated"
             on: "errC"
+            increment: true
     -
         setName: "truncate"
         search: "truncat"
@@ -577,3 +587,21 @@ patterns:
             - "{(?P<Namespace>[^}]+)} got command to truncate to (?P<truncStart>\\d+)"
             - "{(?P<Namespace>[^}]+)} truncating to (?P<truncNow>\\d+) on (?P<truncThread>\\d+) threads"
             - "{(?P<Namespace>[^}]+)} done truncate to (?P<truncEnd>\\d+) deleted (?P<truncDel>\\d+)"
+    -
+        setName: "security"
+        search: ": INFO (audit)"
+        replace:
+            -
+                regex: " \\| client: [^\\|]+\\| authenticated user: [^\\|]+\\|" # XX | client: IP:PORT | authenticated user: UNAME | action: YY | detail: DETAIL -> XX :: action: YY | detail: DETAIL
+                sub: " ::"
+            -
+                regex: "INFO "
+                sub: "INFO (norepeat:0) " # add norepeat:0 which is the 'repeated' statistic, that must be present for aggregation
+        export:
+            - " \\(norepeat:(?P<repeated>\\d+)\\) \\((?P<secCtx>[^)]+)\\): \\((?P<secC>[^)]+)\\) (?P<secMessage>[^\\|]+)" # export only: XX action: YY
+        aggregate:
+            every: 10s          # aggregate window 10s
+            field: "repeated"   # aggregate on repeated statistic
+            on: "secMessage"    # aggregate on uniq field named secMessage
+            increment: true     # increment the field statistic by 1; if the statistic was "occurrences" then we would not be incrementing; if it's "repeated" then the first occurrence is not in the statistic and it must be increased by 1
+

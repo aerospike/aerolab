@@ -329,6 +329,13 @@ func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int
 			}
 			if p.Aggregate != nil && p.Aggregate.Field != "" {
 				newVal, _ := strconv.Atoi(nRes[p.Aggregate.Field].(string))
+				if p.Aggregate.Increment {
+					newVal++
+					nRes[p.Aggregate.Field] = strconv.Itoa(newVal)
+				}
+				if nMeta[p.Aggregate.On] == nil {
+					return nil, fmt.Errorf("AGGREGATION FAILURE: aggregation item %s is not in the patterns `labels:` section", p.Aggregate.On)
+				}
 				uniq := nMeta[p.Aggregate.On].(string)
 				if _, ok := s.aggregateItems[uniq]; !ok {
 					s.aggregateItems[uniq] = &aggregator{

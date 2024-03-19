@@ -339,6 +339,18 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			}
 			inv.Clients[vi].AccessUrl = "http://" + nip + port
 			inv.Clients[vi].AccessPort = "8081"
+		case "graph":
+			if port == "" {
+				port = ":8182"
+			}
+			inv.Clients[vi].AccessUrl = "gremlin://" + nip + port
+			inv.Clients[vi].AccessPort = "8182"
+		case "vector":
+			if port == "" {
+				port = ":" + vectorAccessPort
+			}
+			inv.Clients[vi].AccessUrl = vectorAccessProtocol + "://" + nip + port
+			inv.Clients[vi].AccessPort = vectorAccessPort
 		case "vscode":
 			if port == "" {
 				port = ":8080"
@@ -1194,9 +1206,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		case "aws":
 			t.SetTitle(colorHiWhite.Sprint("SECURITY GROUPS"))
 			if c.AWSFull {
-				t.AppendHeader(table.Row{"VPC", "SecurityGroupName", "SecurityGroupID", "IPs", "Region"})
+				t.AppendHeader(table.Row{"VPC", "SecurityGroupName", "SecurityGroupID", "IPs", "Region", "Ports"})
 			} else {
-				t.AppendHeader(table.Row{"VPC", "SecurityGroupName", "SecurityGroupID", "IPs"})
+				t.AppendHeader(table.Row{"VPC", "SecurityGroupName", "SecurityGroupID", "IPs", "Ports"})
 			}
 			for _, v := range inv.FirewallRules {
 				vv := table.Row{
@@ -1208,6 +1220,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				if c.AWSFull {
 					vv = append(vv, v.AWS.Region)
 				}
+				vv = append(vv, strings.Join(v.AWS.Ports, ","))
 				t.AppendRow(vv)
 			}
 		case "docker":

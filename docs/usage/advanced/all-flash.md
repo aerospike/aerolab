@@ -8,8 +8,8 @@
 #### Prepare a template for the All Flash namespace
 
 The following example is a snippet of the configuration template you need. Pay attention to the
-`index-type` sub-section. Your template must be a complete aerospike.conf - see the `templates/`
-directory in this repo for full examples.
+`index-type` sub-section. Your template must be a complete aerospike.conf. You can generate a sample
+configuration file with `aerolab conf generate`.
 
 ```
 namespace bar {
@@ -38,7 +38,7 @@ Deploying AeroLab with your All Flash template requires a privileged container. 
 you will be deploying a cluster with three nodes, using mesh:
 
 ```bash
-aerolab cluster create -n someName -c 3 --privileged
+aerolab cluster create -n someName -o template.conf -c 3 --privileged
 ```
 
 That's it, the cluster will be created, with the primary index of the namespace stored on `/mnt`.

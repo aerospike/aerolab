@@ -37,7 +37,7 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr          string        `long:"listen" description:"listing host:port, or just :port" default:"127.0.0.1:3333"`
+	ListenAddr          []string      `long:"listen" description:"host:port, or just :port, for IPv6 use for example '[::1]:3333'; can be specified multiple times" default:"127.0.0.1:3333"`
 	WebRoot             string        `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
 	AbsoluteTimeout     time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
 	MaxConcurrentJobs   int           `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
@@ -265,8 +265,8 @@ func (c *webCmd) Execute(args []string) error {
 		c.WebPath = filepath.Join(c.WebPath, "www")
 	}
 	wwwVersion, err := os.ReadFile(filepath.Join(c.WebPath, "version.cfg"))
-	log.Printf("WebUI version: %s, currently installed version: %s", webuiVersion, strings.Trim(string(wwwVersion), "\r\n\t "))
-	if err != nil || strings.Trim(string(wwwVersion), "\r\n\t ") != webuiVersion {
+	log.Printf("WebUI version: %s, currently installed version: %s", strings.Trim(vCommit, "\r\n\t "), strings.Trim(string(wwwVersion), "\r\n\t "))
+	if err != nil || strings.Trim(string(wwwVersion), "\r\n\t ") != strings.Trim(vCommit, "\r\n\t ") {
 		if c.WebNoOverride {
 			log.Print("WARNING: web version mismatch, not overriding")
 		} else {
@@ -301,20 +301,47 @@ func (c *webCmd) Execute(args []string) error {
 			http.Redirect(w, r, c.WebRoot, http.StatusTemporaryRedirect)
 		})
 	}
-	log.Printf("Listening on %s", c.ListenAddr)
-	l, err := net.Listen("tcp", c.ListenAddr)
-	if err != nil {
-		time.Sleep(time.Second)
-		l, err = net.Listen("tcp", c.ListenAddr)
-		if err != nil {
-			return err
+	ret := make(chan error, len(c.ListenAddr))
+	locker := new(sync.Mutex)
+	for _, listenAddr := range c.ListenAddr {
+		locker.Lock()
+		if len(ret) > 0 {
+			locker.Unlock()
+			return <-ret
 		}
+		go func(listenAddr string) {
+			prot := "tcp4"
+			if strings.Count(listenAddr, ":") >= 2 {
+				prot = "tcp6"
+			}
+			log.Printf("Listening on %s %s", prot, listenAddr)
+			l, err := net.Listen(prot, listenAddr)
+			if err != nil {
+				time.Sleep(time.Second)
+				l, err = net.Listen(prot, listenAddr)
+				if err != nil {
+					ret <- err
+					locker.Unlock()
+					return
+				}
+			}
+			locker.Unlock()
+			err = http.Serve(l, nil)
+			if err != nil {
+				ret <- err
+			}
+		}(listenAddr)
+	}
+	locker.Lock()
+	defer locker.Unlock()
+	if len(ret) > 0 {
+		return <-ret
 	}
 	if !c.NoBrowser {
-		openurl := strings.ReplaceAll(c.ListenAddr, "0.0.0.0", "127.0.0.1")
+		openurl := strings.ReplaceAll(strings.ReplaceAll(c.ListenAddr[0], "0.0.0.0", "127.0.0.1"), "[::]", "[::1]")
 		browser.OpenURL("http://" + openurl)
 	}
-	return http.Serve(l, nil)
+	return <-ret
 }
 
 func (c *webCmd) allowls(r *http.Request) bool {
@@ -585,10 +612,11 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		if err != nil {
 			return nil
 		}
-		if ts.Before(truncatets) {
+		reqID := strings.TrimSuffix(fnsplit[2], ".log")
+		runJob := c.joblist.Get(reqID)
+		if ts.Before(truncatets) && runJob == nil {
 			return nil
 		}
-		reqID := strings.TrimSuffix(fnsplit[2], ".log")
 		startedWhen := ""
 		tsDur := time.Since(ts)
 		if tsDur > 24*time.Hour {
@@ -615,7 +643,6 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 			StartedWhen:    startedWhen,
 			FilePath:       path,
 		}
-		runJob := c.joblist.Get(reqID)
 		if runJob != nil {
 			j.IsRunning = true
 			jobs.HasRunning = true

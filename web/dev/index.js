@@ -892,6 +892,18 @@ function initDatatable() {
                             window.location.href = "{{.WebRoot}}client/create/rest-gateway";
                         }
                     },
+                    {
+                        text: 'Graph',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/graph";
+                        }
+                    },
+                    {
+                        text: 'Vector',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/vector";
+                        }
+                    },
                 ]
             },
             {extend: 'myspacer'},
@@ -907,7 +919,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/none?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/none?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -916,7 +928,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/base?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/base?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -925,7 +937,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/tools?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/tools?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -934,7 +946,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/ams?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/ams?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -943,7 +955,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/vscode?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/vscode?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -952,7 +964,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/trino?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/trino?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -961,7 +973,7 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/elasticsearch?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/elasticsearch?ClientName="+arr[0]["ClientName"];
                         }
                     },
                     {
@@ -970,7 +982,25 @@ function initDatatable() {
                             let arr = [];
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
-                            window.location.href = "{{.WebRoot}}client/create/rest-gateway?ClientName="+arr[0]["ClientName"];
+                            window.location.href = "{{.WebRoot}}client/grow/rest-gateway?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'Graph',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/grow/graph?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'Vector',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/grow/vector?ClientName="+arr[0]["ClientName"];
                         }
                     },
                 ]
@@ -1077,6 +1107,20 @@ function initDatatable() {
             }
             return "&nbsp;";
         }{{end}}{{if eq .Name "AccessUrl"}}, render: function (data, type, row, meta) {
+            if (row["ClientType"] == "trino") {
+                let disabledString = 'success"';
+                if (!row["IsRunning"]) {
+                    disabledString = 'default" disabled';
+                }
+                return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'trino','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">TrinoCLI</button>';
+            };
+            if (row["ClientType"] == "graph") {
+                let disabledString = 'success"';
+                if (!row["IsRunning"]) {
+                    disabledString = 'default" disabled';
+                }
+                return '<button type="button" class="btn btn-block btn-'+disabledString+' onclick="xRunAttach('+"this,'graph','"+row["ClientName"]+"','"+row["NodeNo"]+"'"+","+meta.row+');">GremlinConsole</button>';
+            };
             return '<a href="'+data+'" target="_blank">'+data+'</a>';
         }{{end}}{{if eq .Name "InstanceRunningCost"}}, render: function (data, type, row, meta) {
             if (data == null || data == 0) {
@@ -1722,6 +1766,16 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
         case "cluster":
             table = '#invclusters';
             break;
+        case "trino":
+            table = '#invclients';
+            var namespace = prompt("Namespace name to attach to","test");
+            if (namespace == null || namespace == "") {
+                return;
+            }
+            break;
+        case "graph":
+            table = '#invclients';
+            break;
         case "client":
             table = '#invclients';
             break;
@@ -1731,7 +1785,7 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
     }
     let t = $(table).DataTable();
     if (t.row(row).selected()) { t.row(row).deselect() } else { t.row(row).select() };
-    console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row+" accessURL:"+accessURL);
+    console.log("target:"+target+" name:"+name+" node:"+node+" row:"+row+" accessURL:"+accessURL+" trino-namespace:"+namespace);
 
     if (target == "agi") {
         $(tbutton).addClass("disabled");
@@ -1754,7 +1808,7 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
         });
         return;
     }
-    window.open('{{.WebRoot}}www/api/inventory/'+target+'/connect?name='+name+"&node="+node, '_blank').focus();
+    window.open('{{.WebRoot}}www/api/inventory/'+target+'/connect?name='+name+"&node="+node+"&namespace="+namespace, '_blank').focus();
 }
 
 var tabInit = true;

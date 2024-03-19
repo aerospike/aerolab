@@ -22,7 +22,8 @@ import (
 
 type clientCreateAMSCmd struct {
 	clientCreateBaseCmd
-	ConnectClusters TypeClusterName `short:"s" long:"clusters" default:"mydc" description:"comma-separated list of clusters to configure as source for this AMS"`
+	ConnectClusters TypeClusterName `short:"s" long:"clusters" description:"comma-separated list of clusters to configure as source for this AMS"`
+	ConnectClients  TypeClientName  `short:"S" long:"clients" description:"comma-separated list of clients to configure as source for this AMS"`
 	Dashboards      flags.Filename  `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
 	DebugDashboards bool            `long:"debug-dashboards" hidden:"true"`
 	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
@@ -35,7 +36,9 @@ type clientAddAMSCmd struct {
 	StartScript flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	osSelectorCmd
 	nodes           map[string][]string // destination map[cluster][]nodeIPs
+	clients         map[string][]string // destination map[cluster][]nodeIPs
 	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
+	ConnectClients  TypeClientName      `short:"S" long:"clients" description:"comma-separated list of clients to configure as source for this AMS"`
 	Dashboards      flags.Filename      `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
 	parallelThreadsCmd
 	DebugDashboards bool               `long:"debug-dashboards" hidden:"true"`
@@ -83,9 +86,21 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 			return err
 		}
 	}
-	nodes, err := c.checkClustersExist(c.ConnectClusters.String())
-	if err != nil {
-		return err
+	var nodeList map[string][]string
+	var clientList map[string][]string
+	var err error
+	if c.ConnectClusters != "" {
+		nodeList, err = c.checkClustersExist(c.ConnectClusters.String())
+		if err != nil {
+			return err
+		}
+	}
+	if c.ConnectClients != "" {
+		b.WorkOnClients()
+		clientList, err = c.checkClustersExist(c.ConnectClients.String())
+		if err != nil {
+			return err
+		}
 	}
 	machines, err := c.createBase(args, "ams")
 	if err != nil {
@@ -95,7 +110,8 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 		return nil
 	}
 
-	a.opts.Client.Add.AMS.nodes = nodes
+	a.opts.Client.Add.AMS.nodes = nodeList
+	a.opts.Client.Add.AMS.clients = clientList
 	a.opts.Client.Add.AMS.ClientName = c.ClientName
 	a.opts.Client.Add.AMS.StartScript = c.StartScript
 	a.opts.Client.Add.AMS.Machines = TypeMachines(intSliceToString(machines, ","))
@@ -117,11 +133,21 @@ func (c *clientAddAMSCmd) Execute(args []string) error {
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
-	nodes, err := c.checkClustersExist(c.ConnectClusters.String())
-	if err != nil {
-		return err
+	if c.ConnectClusters != "" {
+		nodes, err := c.checkClustersExist(c.ConnectClusters.String())
+		if err != nil {
+			return err
+		}
+		c.nodes = nodes
 	}
-	c.nodes = nodes
+	if c.ConnectClients != "" {
+		b.WorkOnClients()
+		clients, err := c.checkClustersExist(c.ConnectClients.String())
+		if err != nil {
+			return err
+		}
+		c.clients = clients
+	}
 	return c.addAMS(args)
 }
 
@@ -295,27 +321,42 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed1.5): %s", err)
 	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n  - job_name: clients\\n    static_configs:\\n      - targets: [] #TODO_CLIENT_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed2): %s", err)
 	}
 	allnodes := []string{}
 	allnodeExp := []string{}
+	allClients := []string{}
 	for _, nodes := range c.nodes {
 		for _, node := range nodes {
 			allnodes = append(allnodes, node+":9145")
 			allnodeExp = append(allnodeExp, node+":9100")
 		}
 	}
+	for _, nodes := range c.clients {
+		for _, node := range nodes {
+			allClients = append(allClients, node+":9090")
+		}
+	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
 	nips := "'" + strings.Join(allnodeExp, "','") + "'"
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
-	if err != nil {
-		return fmt.Errorf("failed to configure prometheus (sed3): %s", err)
+	cips := "'" + strings.Join(allClients, "','") + "'"
+	if len(allnodes) != 0 || len(allnodeExp) != 0 {
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		if err != nil {
+			return fmt.Errorf("failed to configure prometheus (sed3): %s", err)
+		}
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASDN_TARGETS/      - targets: [" + nips + "] #TODO_ASDN_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		if err != nil {
+			return fmt.Errorf("failed to configure prometheus (sed3.1): %s", err)
+		}
 	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASDN_TARGETS/      - targets: [" + nips + "] #TODO_ASDN_TARGETS/g", "/etc/prometheus/prometheus.yml"})
-	if err != nil {
-		return fmt.Errorf("failed to configure prometheus (sed3.1): %s", err)
+	if len(allClients) != 0 {
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakY", "-E", "s/.*TODO_CLIENT_TARGETS/      - targets: [" + cips + "] #TODO_CLIENT_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		if err != nil {
+			return fmt.Errorf("failed to configure prometheus (sed.1): %s", err)
+		}
 	}
 	// configure:grafana
 	err = a.opts.Attach.Client.run([]string{"chmod", "664", "/etc/grafana/grafana.ini"})

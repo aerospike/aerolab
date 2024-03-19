@@ -8,6 +8,7 @@ import (
 //go:generate sh -c "git rev-parse --short HEAD > embed_commit.txt"
 //go:generate sh -c "cat ../VERSION.md > embed_branch.txt"
 //go:generate sh -c "echo '-unofficial' > embed_tail.txt"
+//go:generate sh -c "cp embed_commit.txt ../web/dev/version.cfg"
 
 //go:embed embed_commit.txt
 var vCommit string
@@ -20,13 +21,11 @@ var vEdition string
 
 var version = "v" + strings.Trim(vBranch, "\t\r\n ") + "-" + strings.Trim(vCommit, "\t\r\n ") + strings.Trim(vEdition, "\t\r\n ")
 
-var telemetryVersion = "5"
-
-var webuiVersion = "11"
+var telemetryVersion = "5" // remember to modify this when changing the telemetry system; remember to update the telemetry structs in cloud function if needed
 
 var simulateArmInstaller = false
 
-var awsExpiryVersion = 6
-var gcpExpiryVersion = 6
+var awsExpiryVersion = 6 // remember to change this when modifying the expiry system version
+var gcpExpiryVersion = 6 // remember to change this when modifying the expiry system version
 
-var isWebuiBeta = true
+var isWebuiBeta = true // switch to false to prevent the beta tag and log message for webUI

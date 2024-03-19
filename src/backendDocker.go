@@ -353,7 +353,7 @@ func (d *backendDocker) Arch() TypeArch {
 	return TypeArchAmd
 }
 
-func (d *backendDocker) AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool) error {
+func (d *backendDocker) AssignSecurityGroups(clusterName string, names []string, vpcOrZone string, remove bool, performLocking bool, extraPorts []string, noDefaults bool) error {
 	return nil
 }
 
@@ -361,7 +361,7 @@ func (d *backendDocker) DeleteSecurityGroups(vpc string, namePrefix string, inte
 	return nil
 }
 
-func (d *backendDocker) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool) error {
+func (d *backendDocker) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {
 	return nil
 }
 
@@ -373,7 +373,7 @@ func (d *backendDocker) ListSubnets() error {
 	return nil
 }
 
-func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool) error {
+func (d *backendDocker) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {
 	return nil
 }
 
@@ -852,7 +852,11 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 			exposeList = append(exposeList, "--label", newlabel)
 		}
 		if d.client {
-			tmplName = d.imageNaming(v)
+			if extra.customDockerImage != "" {
+				tmplName = extra.customDockerImage
+			} else {
+				tmplName = d.imageNaming(v)
+			}
 		}
 		if extra.dockerHostname {
 			exposeList = append(exposeList, "--hostname", name+"-"+strconv.Itoa(node))
@@ -1002,7 +1006,7 @@ func (d *backendDocker) RunCommands(clusterName string, commands [][]string, nod
 		var out []byte
 		var err error
 		for _, command := range commands {
-			head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), name}
+			head := []string{"exec", "-u", "0", "-e", fmt.Sprintf("NODE=%d", node), name}
 			command = append(head, command...)
 			out, err = exec.Command("docker", command...).CombinedOutput()
 			fout = append(fout, out)
@@ -1151,10 +1155,10 @@ func (d *backendDocker) Download(clusterName string, node int, source string, de
 }
 
 func (d *backendDocker) AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error) {
-	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive)
+	return d.RunCustomOut(clusterName, node, command, os.Stdin, os.Stdout, os.Stderr, isInteractive, nil)
 }
 
-func (d *backendDocker) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) (err error) {
+func (d *backendDocker) RunCustomOut(clusterName string, node int, command []string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool, dockerForceUser *string) (err error) {
 	name := fmt.Sprintf(dockerNameHeader+"%s_%d", clusterName, node)
 	var cmd *exec.Cmd
 	termMode := "-t"
@@ -1164,7 +1168,11 @@ func (d *backendDocker) RunCustomOut(clusterName string, node int, command []str
 	if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsCygwinTerminal(os.Stdout.Fd()) {
 		termMode = "-t"
 	}
-	head := []string{"exec", "-e", fmt.Sprintf("NODE=%d", node), termMode, name}
+	head := []string{"exec"}
+	if dockerForceUser != nil {
+		head = append(head, "-u", *dockerForceUser)
+	}
+	head = append(head, "-e", fmt.Sprintf("NODE=%d", node), termMode, name)
 	if len(command) == 0 {
 		command = append(head, "/bin/bash")
 	} else {
