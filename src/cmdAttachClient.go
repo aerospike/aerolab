@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -10,12 +11,21 @@ import (
 )
 
 type attachClientCmd struct {
-	ClientName TypeClientName `short:"n" long:"name" description:"Client group name" default:"client"`
-	Machine    TypeMachines   `short:"l" long:"node" description:"Machine to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
-	Detach     bool           `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C, disables parallel"`
-	Parallel   bool           `long:"parallel" description:"enable parallel execution across all machines"`
-	Tail       []string       `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]" webrequired:"true"`
-	Help       attachCmdHelp  `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClientName TypeClientName        `short:"n" long:"name" description:"Client group name" default:"client"`
+	Machine    TypeMachines          `short:"l" long:"node" description:"Machine to attach to (or comma-separated list, when using '-- ...'). Example: 'attach shell --node=all -- /some/command' will execute command on all nodes" default:"1"`
+	Detach     bool                  `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C, disables parallel"`
+	Parallel   bool                  `long:"parallel" description:"enable parallel execution across all machines"`
+	Docker     attachClientCmdDocker `no-flag:"true"`
+	Tail       []string              `description:"List containing command parameters to execute, ex: [\"ls\",\"/opt\"]" webrequired:"true"`
+	Help       attachCmdHelp         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type attachClientCmdDocker struct {
+	DockerUser string `long:"docker-user" description:"for docker backend, force a specific user name/id"`
+}
+
+func init() {
+	addBackendSwitch("attach.client", "docker", &a.opts.Attach.Client.Docker)
 }
 
 func (c *attachClientCmd) Execute(args []string) error {
@@ -65,12 +75,16 @@ func (c *attachClientCmd) run(args []string) (err error) {
 	if len(nodes) > 1 {
 		isInteractive = false
 	}
+	var dockerUser *string
+	if c.Docker.DockerUser != "" {
+		dockerUser = &c.Docker.DockerUser
+	}
 	if !c.Parallel {
 		for _, node := range nodes {
 			if len(nodes) > 1 {
 				fmt.Printf(" ======== %s:%d ========\n", string(c.ClientName), node)
 			}
-			erra := b.AttachAndRun(string(c.ClientName), node, args, isInteractive)
+			erra := b.RunCustomOut(string(c.ClientName), node, args, os.Stdin, os.Stdout, os.Stderr, isInteractive, dockerUser)
 			if erra != nil {
 				if err == nil {
 					err = erra
@@ -102,15 +116,15 @@ func (c *attachClientCmd) run(args []string) (err error) {
 	wg := new(sync.WaitGroup)
 	for _, node := range nodes {
 		wg.Add(1)
-		go c.runbg(wg, node, args, isInteractive)
+		go c.runbg(wg, node, args, isInteractive, dockerUser)
 	}
 	wg.Wait()
 	return nil
 }
 
-func (c *attachClientCmd) runbg(wg *sync.WaitGroup, node int, args []string, isInteractive bool) {
+func (c *attachClientCmd) runbg(wg *sync.WaitGroup, node int, args []string, isInteractive bool, dockerUser *string) {
 	defer wg.Done()
-	err := b.AttachAndRun(string(c.ClientName), node, args, isInteractive)
+	err := b.RunCustomOut(string(c.ClientName), node, args, os.Stdin, os.Stdout, os.Stderr, isInteractive, dockerUser)
 	if err != nil {
 		log.Printf(" ---- Node %d ERROR: %s", node, err)
 	}

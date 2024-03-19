@@ -108,19 +108,22 @@ type clusterCreateCmdGcp struct {
 	VolDescription      string        `long:"gcp-vol-desc" description:"set volume description field value"`
 	VolLabels           []string      `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
 	TerminateOnPoweroff bool          `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
+	OnHostMaintenance   string        `long:"on-host-maintenance-policy" description:"optionally specify a custom policy onHostMaintenance"`
 }
 
 type clusterCreateCmdDocker struct {
-	ExposePortsToHost string   `short:"e" long:"expose-ports" description:"If a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
-	NoAutoExpose      bool     `long:"no-autoexpose" description:"The easiest way to create multi-node clusters on docker desktop is to expose custom ports; this switch disables the functionality and leaves the listen/advertised IP:PORT in aerospike.conf untouched"`
-	CpuLimit          string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
-	RamLimit          string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
-	SwapLimit         string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
-	NoFILELimit       int      `long:"nofile-limit" description:"for clusters, default will attempt to set to proto-fd-max+5000; you can set this manually or set to -1 to disable the parameter" default:"0"`
-	Privileged        bool     `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
-	NetworkName       string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
-	ClientType        string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
-	Labels            []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	ExposePortsToHost       string   `short:"e" long:"expose-ports" description:"If a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
+	NoAutoExpose            bool     `long:"no-autoexpose" description:"The easiest way to create multi-node clusters on docker desktop is to expose custom ports; this switch disables the functionality and leaves the listen/advertised IP:PORT in aerospike.conf untouched"`
+	CpuLimit                string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
+	RamLimit                string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
+	SwapLimit               string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
+	NoFILELimit             int      `long:"nofile-limit" description:"for clusters, default will attempt to set to proto-fd-max+5000; you can set this manually or set to -1 to disable the parameter" default:"0"`
+	NoPatchV7Config         bool     `long:"nopatch-v7-config" description:"for clusters, if a custom aerospike.conf is not provided, by default the config file will be patched to remove bar namespace and set test to file backing; set to disable this"`
+	Privileged              bool     `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
+	NetworkName             string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
+	ClientType              string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
+	Labels                  []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	clientCustomDockerImage string
 }
 
 type featureFile struct {
@@ -885,7 +888,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			extra.limitNoFile = c.Docker.NoFILELimit
 		}
 	}
-
+	extra.onHostMaintenance = c.Gcp.OnHostMaintenance
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err
@@ -919,7 +922,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		if err != nil {
 			return err
 		}
-	} else if c.HeartbeatMode == "mesh" || c.HeartbeatMode == "mcast" || !c.NoOverrideClusterName {
+	} else {
 		var r [][]string
 		r = append(r, []string{"cat", "/etc/aerospike/aerospike.conf"})
 		var nr [][]byte
@@ -933,6 +936,12 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			newconf, err = fixAerospikeConfig(string(nr[0]), c.MulticastAddress, c.HeartbeatMode.String(), clusterIps)
 			if err != nil {
 				return err
+			}
+		}
+		if aver_major >= 7 && !c.Docker.NoPatchV7Config {
+			newconf, err = patchDockerNamespacesV7(newconf)
+			if err != nil {
+				log.Printf("Failed to patch default namespaces, memory requirements will be huge and Aerospike could OOM: %s", err)
 			}
 		}
 	}
@@ -1442,4 +1451,70 @@ func isLegalName(name string) bool {
 		}
 	}
 	return true
+}
+
+func patchDockerNamespacesV7(conf string) (newconf string, err error) {
+	ac, err := aeroconf.Parse(strings.NewReader(conf))
+	if err != nil {
+		return conf, err
+	}
+
+	// remove all namespaces
+	for _, key := range ac.ListKeys() {
+		if ac.Type(key) != aeroconf.ValueStanza {
+			continue
+		}
+		if !strings.HasPrefix(key, "namespace ") {
+			continue
+		}
+		err = ac.Delete(key)
+		if err != nil {
+			return conf, err
+		}
+	}
+
+	// add test namespace, file backing
+	err = ac.NewStanza("namespace test")
+	if err != nil {
+		return conf, err
+	}
+	st := ac.Stanza("namespace test")
+	err = st.SetValue("default-ttl", "0")
+	if err != nil {
+		return conf, err
+	}
+	err = st.SetValue("replication-factor", "2")
+	if err != nil {
+		return conf, err
+	}
+	err = st.SetValue("index-stage-size", "128M")
+	if err != nil {
+		return conf, err
+	}
+	err = st.SetValue("sindex-stage-size", "128M")
+	if err != nil {
+		return conf, err
+	}
+	err = st.NewStanza("storage-engine device")
+	if err != nil {
+		return conf, err
+	}
+	st = st.Stanza("storage-engine device")
+	err = st.SetValue("file", "/opt/aerospike/data/test.dat")
+	if err != nil {
+		return conf, err
+	}
+	err = st.SetValue("filesize", "4G")
+	if err != nil {
+		return conf, err
+	}
+
+	// export new config
+	var buf bytes.Buffer
+	err = ac.Write(&buf, "", "    ", true)
+	if err != nil {
+		return conf, err
+	}
+	conf = buf.String()
+	return conf, nil
 }

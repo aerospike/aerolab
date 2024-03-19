@@ -118,16 +118,20 @@ type destroySecGroupsCmd struct {
 }
 
 type createSecGroupsCmd struct {
-	NamePrefix string  `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
-	VPC        string  `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
-	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NamePrefix string   `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
+	Ports      []string `short:"p" long:"port" description:"extra port to open, can be specified multiple times; default: 3000, 80, 443, 8080, 8888, 9200, 22"`
+	NoDefaults bool     `short:"d" long:"no-defaults" description:"set to prevent default ports from being opened"`
+	VPC        string   `short:"v" long:"vpc" description:"vpc ID; default: use default VPC" default:""`
+	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type lockSecGroupsCmd struct {
-	NamePrefix string  `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
-	IP         string  `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
-	VPC        string  `short:"v" long:"vpc" description:"VPC to handle sec groups for; default: default-VPC" default:""`
-	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	NamePrefix string   `short:"n" long:"name" description:"Name prefix to use for the firewall" default:"AeroLab"`
+	IP         string   `short:"i" long:"ip" description:"set the IP mask to allow access, eg 0.0.0.0/0 or 1.2.3.4/32 or 10.11.12.13" default:"discover-caller-ip"`
+	VPC        string   `short:"v" long:"vpc" description:"VPC to handle sec groups for; default: default-VPC" default:""`
+	Ports      []string `short:"p" long:"port" description:"extra port to open, can be specified multiple times; default: 3000, 80, 443, 8080, 8888, 9200, 22"`
+	NoDefaults bool     `short:"d" long:"no-defaults" description:"set to prevent default ports from being opened"`
+	Help       helpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *listSecGroupsCmd) Execute(args []string) error {
@@ -166,7 +170,7 @@ func (c *createSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Creating security groups")
-	err := b.CreateSecurityGroups(c.VPC, c.NamePrefix, false)
+	err := b.CreateSecurityGroups(c.VPC, c.NamePrefix, false, c.Ports, c.NoDefaults)
 	if err != nil {
 		return err
 	}
@@ -198,7 +202,7 @@ func (c *lockSecGroupsCmd) Execute(args []string) error {
 		return logFatal("required backend type to be AWS")
 	}
 	log.Print("Locking security groups")
-	err := b.LockSecurityGroups(c.IP, true, c.VPC, c.NamePrefix, false)
+	err := b.LockSecurityGroups(c.IP, true, c.VPC, c.NamePrefix, false, c.Ports, c.NoDefaults)
 	if err != nil {
 		return err
 	}

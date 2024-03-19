@@ -1,0 +1,126 @@
+<mxfile host="app.diagrams.net" modified="2024-03-06T22:32:38.356Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" etag="yMYBRswWd-W5BB3RuHfG" version="24.0.2" type="device">
+  <diagram name="Page-1" id="CEb-oPqE9XrqnwlMbbt6">
+    <mxGraphModel dx="2522" dy="1288" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-2" value="Logs" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.document2;whiteSpace=wrap;size=0.25;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-5" value="Logs" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.document2;whiteSpace=wrap;size=0.25;" vertex="1" parent="1">
+          <mxGeometry x="50" y="90" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-6" value="Logs" style="strokeWidth=2;html=1;shape=mxgraph.flowchart.document2;whiteSpace=wrap;size=0.25;" vertex="1" parent="1">
+          <mxGeometry x="60" y="100" width="100" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-7" target="zbE8wVzPaJokBNCUcgeQ-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-7" target="zbE8wVzPaJokBNCUcgeQ-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-7" value="AGI Ingest&lt;div&gt;(custom built)&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="270" y="100" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-11" value="Aerospike" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;" vertex="1" parent="1">
+          <mxGeometry x="480" y="90" width="60" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-13" target="zbE8wVzPaJokBNCUcgeQ-14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-13" value="" style="shape=actor;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="310" y="410" width="40" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-14" value="AGI Proxy&lt;div&gt;* Terminal access&lt;/div&gt;&lt;div&gt;* Grafana&lt;/div&gt;&lt;div&gt;* Ingest Status&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="270" y="320" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-16" value="Grafana with JSON backend and custom dashboards" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="320" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-17" value="Aerospike-Grafana JSON&amp;nbsp;&lt;span style=&quot;background-color: initial;&quot;&gt;plugin&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;background-color: initial;&quot;&gt;(custom built)&lt;/span&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="220" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-18" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-16" target="zbE8wVzPaJokBNCUcgeQ-17">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="620" y="330" as="sourcePoint" />
+            <mxPoint x="670" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-19" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-17" target="zbE8wVzPaJokBNCUcgeQ-11">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="510" y="330" as="sourcePoint" />
+            <mxPoint x="510" y="290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-20" value="Terminal: ttyd" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="320" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-21" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-14" target="zbE8wVzPaJokBNCUcgeQ-7">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="300" y="270" as="sourcePoint" />
+            <mxPoint x="350" y="220" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-40" value="(get status)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="zbE8wVzPaJokBNCUcgeQ-21">
+          <mxGeometry x="0.0125" y="-2" relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-22" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-14" target="zbE8wVzPaJokBNCUcgeQ-16">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="400" y="380" as="sourcePoint" />
+            <mxPoint x="450" y="330" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-23" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-20" target="zbE8wVzPaJokBNCUcgeQ-14">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="220" y="470" as="sourcePoint" />
+            <mxPoint x="270" y="420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-24" value="High level overview of the AGI Stack" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="311" y="30" width="219" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-26" value="High level overview of ingest process" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="304" y="490" width="219" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-28" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-27" target="zbE8wVzPaJokBNCUcgeQ-16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-27" value="Grafana-Helper&lt;div&gt;(custom built)&lt;/div&gt;&lt;div&gt;Set grafana settings and import dashboards&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="320" width="140" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-31" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-29" target="zbE8wVzPaJokBNCUcgeQ-30">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-29" value="Init" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="337" y="520" width="154" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-33" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-30" target="zbE8wVzPaJokBNCUcgeQ-32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-30" value="Downloader&lt;div&gt;Get logs from:&lt;/div&gt;&lt;div&gt;* local computer&lt;/div&gt;&lt;div&gt;*s3 bucket&lt;/div&gt;&lt;div&gt;* sftp source&lt;/div&gt;" style="whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="585" width="120" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-35" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-32" target="zbE8wVzPaJokBNCUcgeQ-34">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-32" value="Unpacker&lt;div&gt;Unpack recursively all files except for collectinfo&lt;/div&gt;" style="whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="354" y="700" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-39" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="zbE8wVzPaJokBNCUcgeQ-34" target="zbE8wVzPaJokBNCUcgeQ-38">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-34" value="Pre-processor&lt;div&gt;* Handle logs exported in csv,json and non-standard formats. Attempt to fix malformed logs. Rename logs to match CLUSTER_NAME/PREFIX_NODEID_SUFFIX.log naming&lt;/div&gt;" style="whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="251" y="810" width="326" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-37" value="Queries are made using our own JSON schema and data returned.&lt;div&gt;The plugin makes Aerospike queries and performs&lt;/div&gt;&lt;div&gt;extra tasks to make the return timeseries.&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="570" y="250" width="380" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="zbE8wVzPaJokBNCUcgeQ-38" value="Log/CF Processor&lt;div&gt;Ingest logs using a set of predefined (in yaml config file) regex patterns.&lt;/div&gt;" style="whiteSpace=wrap;html=1;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="306" y="910" width="216" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

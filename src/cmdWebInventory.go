@@ -424,8 +424,12 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 func (c *webCmd) addInventoryHandlers() {
 	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/ws", c.inventoryClusterWs)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/client/ws", c.inventoryClientWs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/trino/ws", c.inventoryTrinoWs)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/graph/ws", c.inventoryGraphWs)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/cluster/connect", c.inventoryClusterConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/client/connect", c.inventoryClientConnect)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/trino/connect", c.inventoryTrinoConnect)
+	http.HandleFunc(c.WebRoot+"www/api/inventory/graph/connect", c.inventoryGraphConnect)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/volumes", c.inventoryVolumes)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/firewalls", c.inventoryFirewalls)
 	http.HandleFunc(c.WebRoot+"www/api/inventory/expiry", c.inventoryExpiry)
@@ -517,7 +521,7 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 		comm = "config docker delete-network"
 	}
 	invlog.WriteString("-=-=-=-=- [path] /" + strings.ReplaceAll(comm, " ", "/") + " -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] #WEBUI: " + comm + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] " + comm + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d rules\n", reqID, len(rules)))
@@ -624,7 +628,7 @@ func (c *webCmd) inventoryVolumesAction(w http.ResponseWriter, r *http.Request) 
 	}
 	comm := "volume delete"
 	invlog.WriteString("-=-=-=-=- [path] /" + strings.ReplaceAll(comm, " ", "/") + " -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + comm + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] #WEBUI: " + comm + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] " + comm + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d volumes\n", reqID, len(vols)))
@@ -697,7 +701,7 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	invlog.WriteString("-=-=-=-=- [path] /template/destroy -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: template destroy -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] #WEBUI: template destroy -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] template destroy -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	invlog.WriteString(fmt.Sprintf("[%s] DELETE %d templates\n", reqID, len(templates)))
@@ -933,7 +937,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, reqID string, dat
 		return
 	}
 	invlog.WriteString("-=-=-=-=- [path] /" + strings.Join(ncmd, "/") + " -=-=-=-=-\n")
-	invlog.WriteString("-=-=-=-=- [cmdline] WEBUI: " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
+	invlog.WriteString("-=-=-=-=- [cmdline] #WEBUI: " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [command] " + strings.Join(ncmd, " ") + " -=-=-=-=-\n")
 	invlog.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	xtype := ntype
@@ -1570,12 +1574,28 @@ func (c *webCmd) inventoryClientConnect(w http.ResponseWriter, r *http.Request) 
 	c.inventoryClusterClientConnect(w, r, "client")
 }
 
+func (c *webCmd) inventoryTrinoConnect(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientConnect(w, r, "trino")
+}
+
+func (c *webCmd) inventoryGraphConnect(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientConnect(w, r, "graph")
+}
+
 func (c *webCmd) inventoryClusterWs(w http.ResponseWriter, r *http.Request) {
 	c.inventoryClusterClientWs(w, r, "cluster")
 }
 
 func (c *webCmd) inventoryClientWs(w http.ResponseWriter, r *http.Request) {
 	c.inventoryClusterClientWs(w, r, "client")
+}
+
+func (c *webCmd) inventoryTrinoWs(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientWs(w, r, "trino")
+}
+
+func (c *webCmd) inventoryGraphWs(w http.ResponseWriter, r *http.Request) {
+	c.inventoryClusterClientWs(w, r, "graph")
 }
 
 type windowSize struct {
@@ -1614,6 +1634,7 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 	r.ParseForm()
 	name := r.FormValue("name")
 	node := r.FormValue("node")
+	namespace := r.FormValue("namespace")
 	var upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -1630,10 +1651,24 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 		return
 	}
 	attachCmd := "shell"
-	if target == "client" {
+	if target == "client" || target == "graph" {
 		attachCmd = "client"
 	}
-	cmd := exec.Command(ex, "attach", attachCmd, "-n", name, "-l", node)
+	if target == "trino" {
+		attachCmd = "trino"
+	}
+	nargs := []string{"attach", attachCmd, "-n", name, "-l", node}
+	if target == "trino" {
+		nargs = append(nargs, "-m", namespace)
+	}
+	if target == "graph" {
+		nargs = append(nargs, "--", "docker", "run", "-it", "--rm", "tinkerpop/gremlin-console")
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		ex = "docker"
+		nargs = []string{"run", "-it", "--rm", "tinkerpop/gremlin-console"}
+	}
+	cmd := exec.Command(ex, nargs...)
 	cmd.Env = append(os.Environ(), "TERM=xterm")
 	tty, err := pty.Start(cmd)
 	if err != nil {
@@ -1747,6 +1782,7 @@ func (c *webCmd) inventoryClusterClientConnect(w http.ResponseWriter, r *http.Re
 	r.ParseForm()
 	name := r.FormValue("name")
 	node := r.FormValue("node")
+	namespace := r.FormValue("namespace")
 	wPty := ""
 	if runtime.GOOS == "windows" {
 		buildNo, err := getWindowsBuild()
@@ -1763,7 +1799,7 @@ func (c *webCmd) inventoryClusterClientConnect(w http.ResponseWriter, r *http.Re
 			log.Printf("could not get windows build: %s", err)
 		}
 	}
-	w.Write([]byte(fmt.Sprintf(xterm, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, target, name, node, wPty)))
+	w.Write([]byte(fmt.Sprintf(xterm, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, c.WebRoot, target, name, node, namespace, wPty)))
 }
 
 var xterm = `<!doctype html>
@@ -1793,7 +1829,7 @@ var xterm = `<!doctype html>
 	if (window.location.protocol == "https:") {
 		prot = "wss://";
 	}
-	var websocket = new WebSocket(prot + window.location.hostname + ":" + window.location.port + "%swww/api/inventory/%s/ws?name=%s&node=%s");
+	var websocket = new WebSocket(prot + window.location.hostname + ":" + window.location.port + "%swww/api/inventory/%s/ws?name=%s&node=%s&namespace=%s");
 	websocket.binaryType = "arraybuffer";
 	function ab2str(buf) {
 		return String.fromCharCode.apply(null, new Uint8Array(buf));

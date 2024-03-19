@@ -75,7 +75,11 @@ func (c *configBackendCmd) Execute(args []string) error {
 		}
 	}
 	fmt.Printf("Config.Backend.Type = %s\n", c.Type)
+	if c.Type != "docker" {
+		fmt.Printf("Config.Backend.SshKeyPath = %s\n", c.SshKeyPath)
+	}
 	if c.Type == "aws" {
+		fmt.Printf("Config.Backend.AWSProfile = %s\n", c.AWSProfile)
 		fmt.Printf("Config.Backend.Region = %s\n", c.Region)
 	}
 	if c.Type == "gcp" {
