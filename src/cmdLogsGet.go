@@ -17,6 +17,7 @@ import (
 
 type logsGetCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Client      bool            `short:"c" long:"client" description:"Set to indicate that this is a client group, not an aerospike cluster"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Journal     bool            `short:"j" long:"journal" description:"Attempt to get logs from journald instead of log files"`
 	LogLocation string          `short:"p" long:"path" description:"Aerospike log file path" default:"/var/log/aerospike.log"`
@@ -44,6 +45,9 @@ func (c *logsGetCmd) Execute(args []string) error {
 		return errors.New("thread count must be 1+")
 	}
 	log.Print("Running logs.get")
+	if c.Client {
+		b.WorkOnClients()
+	}
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return err
