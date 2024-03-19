@@ -23,12 +23,22 @@ type logsGetCmd struct {
 	Destination flags.Filename  `short:"d" long:"destination" description:"Destination directory (will be created if doesn't exist)" default:"./logs/"`
 	Force       bool            `short:"f" long:"force" description:"set to not be asked whether to override existing files" webdisable:"true" webset:"true"`
 	parallelThreadsCmd
-	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Tail []string       `description:"Optionally, specify the command to execute to get the logs instead of log files/journalctl"`
+	Help logsGetCmdHelp `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type logsGetCmdHelp struct{}
+
+func (c *logsGetCmdHelp) Execute(args []string) error {
+	return printHelp("In order to specify a non-journal custom command to execute for log gathering, provide inline tail, for example: aerolab logs get -n myclient -- docker logs aerospike-graph\n\n")
 }
 
 func (c *logsGetCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if len(c.Tail) == 0 {
+		c.Tail = args
 	}
 	if c.ParallelThreads < 1 {
 		return errors.New("thread count must be 1+")
@@ -149,7 +159,9 @@ func (c *logsGetCmd) getParallel(node int, parallel chan int, wait *sync.WaitGro
 
 func (c *logsGetCmd) get(node int) error {
 	fn := string(c.Destination) + "-" + strconv.Itoa(node)
-	if c.Journal {
+	if len(c.Tail) > 0 {
+		fn = fn + "." + c.Tail[0] + ".log"
+	} else if c.Journal {
 		fn = fn + ".journald.log"
 	} else {
 		_, logf := path.Split(c.LogLocation)
@@ -160,8 +172,11 @@ func (c *logsGetCmd) get(node int) error {
 		return err
 	}
 	defer f.Close()
-	if c.Journal {
+	if c.Journal || len(c.Tail) > 0 {
 		command := []string{"journalctl", "-u", "aerospike", "--no-pager"}
+		if len(c.Tail) > 0 {
+			command = c.Tail
+		}
 		err = b.RunCustomOut(string(c.ClusterName), node, command, os.Stdin, f, f, false, nil)
 		if err != nil {
 			return fmt.Errorf("journalctl error: %s", err)
