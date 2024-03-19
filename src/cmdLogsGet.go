@@ -45,15 +45,17 @@ func (c *logsGetCmd) Execute(args []string) error {
 		return errors.New("thread count must be 1+")
 	}
 	log.Print("Running logs.get")
+	nnn := "cluster"
 	if c.Client {
 		b.WorkOnClients()
+		nnn = "client group"
 	}
 	clusterList, err := b.ClusterList()
 	if err != nil {
 		return err
 	}
 	if !inslice.HasString(clusterList, string(c.ClusterName)) {
-		err = fmt.Errorf("cluster does not exist: %s", string(c.ClusterName))
+		err = fmt.Errorf(nnn+" does not exist: %s", string(c.ClusterName))
 		return err
 	}
 
@@ -75,13 +77,13 @@ func (c *logsGetCmd) Execute(args []string) error {
 				return err
 			}
 			if !inslice.HasInt(nodesList, nodeInt) {
-				return fmt.Errorf("node %d does not exist in cluster", nodeInt)
+				return fmt.Errorf("node %d does not exist in "+nnn, nodeInt)
 			}
 			nodes = append(nodes, nodeInt)
 		}
 	}
 	if len(nodes) == 0 {
-		err = errors.New("found 0 nodes in cluster")
+		err = errors.New("found 0 nodes in " + nnn)
 		return err
 	}
 
