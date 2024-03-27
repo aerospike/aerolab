@@ -28,19 +28,19 @@ jobs:
               run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
             - name: "Install Dependencies"
               run: |
-                export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=true
-                export HOMEBREW_NO_AUTO_UPDATE=true              
                 /usr/local/bin/brew install --overwrite python@3.11 || echo "Ignore errors on this 1"
                 /usr/local/bin/brew link --overwrite python@3.11 || echo "Ignore errors on this 2"
                 /usr/local/bin/brew install --overwrite dpkg upx zip make wget jq || echo "Ignore errors on this 3"
                 /usr/local/bin/brew link --overwrite python@3.11 || echo "Ignore errors on this 4"
                 /usr/local/bin/brew install python-gdbm@3.11 || echo "Ignore errors on this 5"
                 /usr/local/bin/brew install python-tk@3.11 || echo "Ignore errors on this 6"
+                export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=true
+                export HOMEBREW_NO_AUTO_UPDATE=true              
                 cd ~/work/aerolab/aerolab/Formula && /usr/local/bin/brew install --formula ./rpm.rb
             - name: "Install golang"
               run: |
-                wget https://go.dev/dl/go1.21.6.darwin-amd64.pkg
-                sudo installer -store -pkg go1.21.6.darwin-amd64.pkg -target /
+                wget https://go.dev/dl/go1.22.1.darwin-amd64.pkg
+                sudo installer -store -pkg go1.22.1.darwin-amd64.pkg -target /
             - name: "Install Packages.pkg for making macos PKG files"
               run: wget https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg && sudo installer -pkg Packages.pkg -target /
             - name: "Compile"

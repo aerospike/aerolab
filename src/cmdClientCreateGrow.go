@@ -12,7 +12,7 @@ type clientCreateCmd struct {
 	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike" webicon:"fas fa-magnifying-glass" invwebforce:"true"`
 	RestGateway   clientCreateRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine" webicon:"fas fa-dungeon" invwebforce:"true"`
 	Graph         clientCreateGraphCmd         `command:"graph" subcommands-optional:"true" description:"deploy a graph client machine" webicon:"fas fa-diagram-project" invwebforce:"true"`
-	Vector        clientCreateVectorCmd        `command:"vector" hidden:"true" subcommands-optional:"true" description:"deploy a vector client machine" webicon:"fa-solid fa-wand-sparkles" invwebforce:"true"`
+	Vector        clientCreateVectorCmd        `command:"vector" subcommands-optional:"true" description:"deploy a vector client machine" webicon:"fa-solid fa-wand-sparkles" invwebforce:"true"`
 	// NEW_CLIENTS_CREATE
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
