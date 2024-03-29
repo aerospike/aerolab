@@ -278,7 +278,7 @@ func setOwners() {
 	if len(uname) > 63 {
 		uname = uname[:63]
 	}
-	currentOwnerUser = uname
+	currentOwnerUser = strings.ToLower(uname)
 }
 
 func earlyProcessNoBackend(tail []string) (early bool) {
