@@ -15,3 +15,4 @@ _Release Date: Month day, year_
 * FIX: WebUI: make listener bind specifically to IPv4 or IPv6 depending on specified address instead of letting the kernel decide.
 * FIX: WebUI: do not clear running jobs from history in the web interface until they are completed (when clear history button is pressed).
 * FIX: GCP: For accelerated instances fallback to `onHostMaintenance=TERMINATE` policy.
+* FIX: Windows: username discovery system and username truncation for instance labels.
