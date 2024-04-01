@@ -3,13 +3,21 @@
 # Deploy a rack-aware cluster with strong consistency
 
 
-AeroLab simplifies deploying a [rack-aware](/server/operations/configure/network/rack-aware)
-Aerospike Database cluster in [strong consistency mode](/server/architecture/consistency).
+AeroLab simplifies deploying a [rack-aware](https://aerospike.com/docs/server/reference/configuration?search=rack-id&context=namespace&version=all#namespace__rack-id)
+Aerospike Database cluster in [strong consistency mode](https://aerospike.com/docs/server/reference/configuration?search=strong-consistency&context=namespace&version=all).
+
+### Create a custom template configuration file
+
+```
+aerolab conf generate -f sc-template.conf
+```
+
+Select strong consistency tickbox, and hit CTRL+X to save the file.
 
 ### Create a 6-node Aerospike cluster, do not start `aerospike`
 
 ```bash
-aerolab cluster create -c 6 -s n -o SC-TEMPLATE-FILE.CONF
+aerolab cluster create -c 6 -s n -o sc-template.conf
 ```
 
 ## Assign rack-id 1 to first three nodes, all namespaces

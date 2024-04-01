@@ -347,10 +347,19 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			inv.Clients[vi].AccessPort = "8182"
 		case "vector":
 			if port == "" {
-				port = ":" + vectorAccessPort
+				port = ":" + inv.Clients[vi].gcpLabels["lport"]
 			}
-			inv.Clients[vi].AccessUrl = vectorAccessProtocol + "://" + nip + port
-			inv.Clients[vi].AccessPort = vectorAccessPort
+			if port == ":" {
+				port = ":" + inv.Clients[vi].awsTags["lport"]
+			}
+			if port == ":" {
+				port = ":" + inv.Clients[vi].dockerLabels["lport"]
+			}
+			if port == ":" {
+				port = ":5000"
+			}
+			inv.Clients[vi].AccessUrl = "http://" + nip + port
+			inv.Clients[vi].AccessPort = strings.TrimPrefix(port, ":")
 		case "vscode":
 			if port == "" {
 				port = ":8080"

@@ -89,6 +89,7 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
   * [Trino](docs/deploy_clients/trino.md)
   * [VSCode](docs/deploy_clients/vscode.md)
   * [Graph](docs/deploy_clients/graph.md)
+  * [Vector](docs/deploy_clients/vector.md)
   * [AMS monitoring stack](docs/usage/monitoring/ams.md)
   * [Tools and Asbench](docs/usage/full-stack/index.md)
 * [REST API](docs/rest-api.md)
