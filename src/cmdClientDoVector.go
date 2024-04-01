@@ -14,8 +14,8 @@ import (
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/aerospike/aerolab/scripts"
 	"github.com/bestmethod/inslice"
-	"github.com/jessevdk/go-flags"
-	"gopkg.in/yaml.v2"
+	flags "github.com/rglonek/jeddevdk-goflags"
+	"gopkg.in/yaml.v3"
 )
 
 type clientCreateVectorCmd struct {
