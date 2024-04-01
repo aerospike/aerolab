@@ -15,6 +15,9 @@ var startGraph string
 //go:embed graph-config.properties
 var graphProperties string
 
+//go:embed vector-install.sh
+var vectorInstall string
+
 // docker login details
 type DockerLogin struct {
 	URL  string
@@ -45,4 +48,16 @@ func GetCloudGraphScript(propertiesFilePath string, extraParams string, imageNam
 	loginScript = append(loginScript, '\n')
 	installScript := append(InstallDocker, loginScript...)
 	return append(installScript, []byte(fmt.Sprintf(startGraph, "aerospike-graph", propertiesFilePath, extraParams, imageName))...)
+}
+
+func GetVectorScript(isDocker bool, packaging string, downloadUrl string) []byte {
+	dockerVal := "0"
+	if isDocker {
+		dockerVal = "1"
+	}
+	debVal := "0"
+	if packaging == "deb" {
+		debVal = "1"
+	}
+	return []byte(fmt.Sprintf(vectorInstall, dockerVal, debVal, packaging, downloadUrl))
 }

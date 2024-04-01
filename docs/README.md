@@ -29,6 +29,7 @@
   * [Trino](deploy_clients/trino.md)
   * [VSCode](deploy_clients/vscode.md)
   * [Graph](deploy_clients/graph.md)
+  * [Vector](deploy_clients/vector.md)
   * [AMS monitoring stack](usage/monitoring/ams.md)
   * [Tools and Asbench](usage/full-stack/index.md)
 * [REST API](rest-api.md)
