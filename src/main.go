@@ -14,6 +14,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"sort"
 	"strconv"
@@ -270,7 +271,14 @@ func setOwners() {
 		}
 		uname = uname + string(r)
 	}
-	currentOwnerUser = uname
+	if runtime.GOOS == "windows" {
+		unamex := strings.Split(uname, "\\")
+		uname = unamex[len(unamex)-1]
+	}
+	if len(uname) > 63 {
+		uname = uname[:63]
+	}
+	currentOwnerUser = strings.ToLower(uname)
 }
 
 func earlyProcessNoBackend(tail []string) (early bool) {
