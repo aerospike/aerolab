@@ -18,6 +18,9 @@ var graphProperties string
 //go:embed vector-install.sh
 var vectorInstall string
 
+//go:embed vector-example.sh
+var vectorExample string
+
 // docker login details
 type DockerLogin struct {
 	URL  string
@@ -60,4 +63,8 @@ func GetVectorScript(isDocker bool, packaging string, downloadUrl string) []byte
 		debVal = "1"
 	}
 	return []byte(fmt.Sprintf(vectorInstall, dockerVal, debVal, packaging, downloadUrl))
+}
+
+func GetVectorExampleScript(proximusPort string, listenPort string) []byte {
+	return []byte(fmt.Sprintf(vectorExample, proximusPort, listenPort))
 }
