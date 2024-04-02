@@ -34,7 +34,7 @@ aerolab client create vector -n vector -C vectordb --confirm --zone us-central1-
 
 ### Other options
 
-Vector-specific command-line parameters are:
+The following vector-specific command-line parameters apply to your proximus cluster:
 ```
 -C, --cluster-name=        cluster name to seed from (default: mydc)
     --seed=                specify a seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored
@@ -52,9 +52,10 @@ Vector-specific command-line parameters are:
 
 ### Usage
 
-See [this link](https://github.com/aerospike/aerospike-proximus-client-python) for official aerospike proximus python client.
+The vector client comes pre-installed with a set of [examples](https://github.com/aerospike/proximus-examples) you can utilize.
+These are located in the /opt/ director and be invoked with the following steps.
 
-See [this link](https://github.com/aerospike/proximus-examples) for proximus usage examples.
+Or develop your own application using the aerospike [vector python client](https://github.com/aerospike/aerospike-proximus-client-python).
 
 ### Example image search
 
@@ -67,7 +68,7 @@ aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh
 Once installed, exit the application by using CTRL+C. Then upload images:
 
 ```bash
-aerolab files upload -c -n vector /path/to/images /opt/proximus-examples/prism-image-search/prism/static/images/data/
+aerolab files upload -c -n vector ~/Pictures /opt/proximus-examples/prism-image-search/prism/static/images/data/
 ```
 
 Start the web server again:
