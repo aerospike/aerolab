@@ -11,7 +11,8 @@ type clientConfigureAMSCmd struct {
 	ClientName      TypeClientName  `short:"n" long:"group-name" description:"Client group name" default:"client"`
 	Machines        TypeMachines    `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
 	ConnectClusters TypeClusterName `short:"s" long:"clusters" description:"comma-separated list of clusters to configure as source for this AMS"`
-	ConnectClients  TypeClientName  `short:"S" long:"clients" description:"comma-separated list of clients to configure as source for this AMS"`
+	ConnectClients  TypeClientName  `short:"S" long:"clients" description:"comma-separated list of (graph) clients to configure as source for this AMS"`
+	ConnectVector   TypeClientName  `short:"V" long:"vector" description:"comma-separated list of vector clients to configure as source for this AMS"`
 	Help            helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -29,6 +30,7 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 	}
 	var nodeList map[string][]string
 	var clientList map[string][]string
+	var vectorList map[string][]string
 	var err error
 	if c.ConnectClusters != "" {
 		nodeList, err = c.checkClustersExist(c.ConnectClusters.String())
@@ -43,11 +45,19 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 			return err
 		}
 	}
+	if c.ConnectVector != "" {
+		b.WorkOnClients()
+		vectorList, err = c.checkClustersExist(string(c.ConnectVector))
+		if err != nil {
+			return err
+		}
+	}
 	a.opts.Attach.Client.Machine = c.Machines
 	b.WorkOnClients()
 	allnodes := []string{}
 	allnodeExp := []string{}
 	allClients := []string{}
+	allVector := []string{}
 	for _, nodes := range nodeList {
 		for _, node := range nodes {
 			allnodes = append(allnodes, node+":9145")
@@ -59,9 +69,15 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 			allClients = append(allClients, node+":9090")
 		}
 	}
+	for _, nodes := range vectorList {
+		for _, node := range nodes {
+			allVector = append(allVector, node+":5040")
+		}
+	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
 	nips := "'" + strings.Join(allnodeExp, "','") + "'"
 	cips := "'" + strings.Join(allClients, "','") + "'"
+	vips := "'" + strings.Join(allVector, "','") + "'"
 	defer backendRestoreTerminal()
 	if len(allnodes) != 0 || len(allnodeExp) != 0 {
 		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakX", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
@@ -75,6 +91,12 @@ func (c *clientConfigureAMSCmd) Execute(args []string) error {
 	}
 	if len(allClients) != 0 {
 		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakY", "-E", "s/.*TODO_CLIENT_TARGETS/      - targets: [" + cips + "] #TODO_CLIENT_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		if err != nil {
+			return fmt.Errorf("failed to configure prometheus (sed.1): %s", err)
+		}
+	}
+	if len(allVector) != 0 {
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakY", "-E", "s/.*TODO_VECTOR_TARGETS/      - targets: [" + vips + "] #TODO_VECTOR_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 		if err != nil {
 			return fmt.Errorf("failed to configure prometheus (sed.1): %s", err)
 		}

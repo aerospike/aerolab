@@ -101,3 +101,66 @@ $ aerolab client attach -n vector --detach -- /bin/bash /opt/autoload/15-prism
 ```
 
 As the script is in `/opt/autoload`, prism will also be auto-started whenever aerolab starts the client machine.
+
+## Full example
+
+The below example is for Docker. For GCP/AWS add the appropriate `--zone=`, `--instance=`, `--instance-type=` to all the cluster/client `create` commands. See `aerolab cluster create help` and `aerolab client create help` for more details.
+
+### Preparation:
+
+```bash
+# make a working directory
+mkdir vector
+cd vector
+
+# create aerospike.conf - tick the vector and vectod-disk checkboxes
+aerolab conf generate
+```
+
+### Installation:
+
+```bash
+# create aerospike cluster
+aerolab cluster create -n vectordb -o aerospike.conf
+
+# add exporter to aerospike cluster for monitoring
+aerolab cluster add exporter -n vectordb 
+
+# create vector client and configure it to use the aerospike cluster
+aerolab client create vector -n vector -C vectordb --confirm
+
+# create AMS monitoring stack, configure to monitor cluster and client, exposing prometheus port in docker
+aerolab client create ams -n ams --clusters=vectordb --vector=vector -e 9090:9090
+
+# install prism example in the vector client
+aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh install
+
+# upload example images
+aerolab files upload -c -n vector {path-to-image-folder-or-file} /opt/proximus-examples/prism-image-search/prism/static/images/data/
+
+# create and upload prism example startup script
+echo "nohup /bin/bash /opt/prism-example.sh >> /var/log/prism.log 2>&1 &" > 15-prism
+aerolab files upload -c -n vector 15-prism /opt/autoload/15-prism
+aerolab attach client -n vector -- chmod 755 /opt/autoload/15-prism
+
+# run the prism example
+aerolab client attach -n vector --detach -- /bin/bash /opt/autoload/15-prism
+
+# tail prism logs
+aerolab attach client -n vector -- tail -f /var/log/prism.log
+```
+
+### Access:
+
+On docker, access `http://127.0.0.1:8998`.
+
+On cloud deployments, run `aerolab client list` and then access `http://EXTERNAL_IP:8080`.
+
+For accessing the AMS stack, see "Access URL" output of `aerolab client list`.
+
+### Destroy:
+
+```bash
+aerolab cluster destroy -f -n vectordb
+aerolab client destroy -f -n ams,vector
+```
