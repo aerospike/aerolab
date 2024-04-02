@@ -21,8 +21,8 @@ import (
 
 type clientCreateVectorCmd struct {
 	clientCreateNoneCmd
-	ClusterName                TypeClusterName `short:"C" long:"cluster-name" description:"cluster name to seed from" default:"mydc"`
-	Seed                       string          `long:"seed" description:"specify a seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored"`
+	ClusterName                TypeClusterName `short:"C" long:"cluster-name" description:"aerospike cluster name to seed from" default:"mydc"`
+	Seed                       string          `long:"seed" description:"specify an aerospike cluster seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored"`
 	ServiceListen              string          `long:"listen" description:"specify a listen IP:PORT for the service" default:"0.0.0.0:5555"`
 	NoTouchServiceListen       bool            `long:"no-touch-listen" description:"set this to prevent aerolab from touching the service: configuration part"`
 	NoTouchSeed                bool            `long:"no-touch-seed" description:"set this to prevent aerolab from configuring the aerospike seed ip and port"`
@@ -30,7 +30,7 @@ type clientCreateVectorCmd struct {
 	VectorVersion              string          `long:"version" description:"vector version to install; only 0.3.1 is officially supported by aerolab (0.3.1-1 for rpm)" default:"0.3.1"`
 	CustomConf                 flags.Filename  `long:"custom-conf" description:"provide a custom aerospike-proximus.yml to ship"`
 	NoStart                    bool            `long:"no-start" description:"if set, service will not be started after installation"`
-	FeaturesFile               flags.Filename  `short:"f" long:"featurefile" description:"Features file to install; if not provided, the features.conf from the seed cluster will be taken"`
+	FeaturesFile               flags.Filename  `short:"f" long:"featurefile" description:"Features file to install; if not provided, the features.conf from the seed aerospike cluster will be taken"`
 	MetadataNamespace          string          `long:"metans" description:"configure the metadata namespace name" default:"proximus-meta"`
 	JustDoIt                   bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	seedip                     string
