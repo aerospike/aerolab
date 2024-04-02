@@ -52,8 +52,15 @@ The following vector-specific command-line parameters apply to your proximus clu
 
 ### Usage
 
-The vector client comes pre-installed with a set of [examples](https://github.com/aerospike/proximus-examples) you can utilize.
-These are located in the /opt/ director and be invoked with the following steps.
+The vector client is best paired with a set of [examples](https://github.com/aerospike/proximus-examples) you can utilize.
+Follow these instructions to install in the /opt/ director and be invoked with the following steps.
+
+```shell
+aerolab attach client -n vector
+apt -y install python3 python3-pip git
+cd /opt && git clone https://github.com/aerospike/proximus-examples.git
+```
+
 
 Or develop your own application using the aerospike [vector python client](https://github.com/aerospike/aerospike-proximus-client-python).
 
