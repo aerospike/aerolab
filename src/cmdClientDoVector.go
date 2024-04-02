@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -56,6 +57,11 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		c.serviceip = "localhost"
 	}
 
+	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":8998") {
+		if !c.Docker.NoAutoExpose {
+			c.Docker.ExposePortsToHost = strings.Trim("8998:8998,"+c.Docker.ExposePortsToHost, ",")
+		}
+	}
 	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":"+c.serviceport) {
 		if c.Docker.NoAutoExpose {
 			fmt.Println("Docker backend is in use, but vector access port is not being forwarded. If using Docker Desktop, use '-e " + c.serviceport + ":" + c.serviceport + "' parameter in order to forward port " + c.serviceport + ". Press ENTER to continue regardless.")
@@ -250,7 +256,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		}
 
 		if c.CustomConf != "" {
-			log.Printf("node=%d read custom conf file", node)
+			log.Printf("client=%d read custom conf file", node)
 			// read the custom conf
 			fc, err := os.ReadFile(string(c.CustomConf))
 			if err != nil {
@@ -258,7 +264,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 			}
 			newconf := fc
 			if !c.NoTouchSeed || !c.NoTouchServiceListen || c.MetadataNamespace != "proximus-meta" || !c.NoTouchAdvertisedListeners {
-				log.Printf("node=%d patch custom conf file", node)
+				log.Printf("client=%d patch custom conf file", node)
 				// patch the custom conf
 				newconf, err = c.vectorConfigPatch(fc, listeners)
 				if err != nil {
@@ -266,7 +272,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				}
 			}
 			// upload custom conf
-			log.Printf("node=%d upload custom conf file", node)
+			log.Printf("client=%d upload custom conf file", node)
 			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-proximus/aerospike-proximus.yml", string(newconf), len(newconf)}}, []int{node})
 			if err != nil {
 				return err
@@ -274,7 +280,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		}
 
 		// upload and run install script
-		log.Printf("node=%d upload and run install script", node)
+		log.Printf("client=%d upload and run install script", node)
 		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/opt/install-vector.sh", string(script), len(script)}}, []int{node})
 		if err != nil {
 			return err
@@ -288,7 +294,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		}
 
 		if c.CustomConf == "" && (!c.NoTouchSeed || !c.NoTouchServiceListen || c.MetadataNamespace != "proximus-meta" || !c.NoTouchAdvertisedListeners) {
-			log.Printf("node=%d download, patch and upload conf file", node)
+			log.Printf("client=%d download, patch and upload conf file", node)
 			// download, patch and reupload config file /etc/aerospike-proximus/aerospike-proximus.yml
 			// download
 			oldconf, err := b.RunCommands(string(c.ClientName), [][]string{{"cat", "/etc/aerospike-proximus/aerospike-proximus.yml"}}, []int{node})
@@ -311,7 +317,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		}
 
 		// features file
-		log.Printf("node=%d upload features file", node)
+		log.Printf("client=%d upload features file", node)
 		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-proximus/features.conf", string(ffc), len(ffc)}}, []int{node})
 		if err != nil {
 			return err
@@ -321,7 +327,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		// if docker - also detach-run the autoload /opt/autoload/10-proximus
 		// if cloud - systemctl start aerospike-proximus
 		if !c.NoStart {
-			log.Printf("node=%d start service", node)
+			log.Printf("client=%d start service", node)
 			if a.opts.Config.Backend.Type == "docker" {
 				a.opts.Attach.Client.ClientName = c.ClientName
 				a.opts.Attach.Client.Machine = TypeMachines(strconv.Itoa(node))
@@ -341,7 +347,19 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				}
 			}
 		}
-		log.Printf("node=%d done", node)
+
+		// upload prism-example script
+		log.Printf("client=%d upload example script", node)
+		listenPort := "8080"
+		if a.opts.Config.Backend.Type == "docker" {
+			listenPort = "8998"
+		}
+		ex := scripts.GetVectorExampleScript(c.serviceport, listenPort)
+		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/opt/prism-example.sh", string(ex), len(ex)}}, []int{node})
+		if err != nil {
+			return err
+		}
+		log.Printf("client=%d done", node)
 		return nil
 	})
 	isError := false
@@ -357,6 +375,8 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	log.Println("Done")
 	log.Println(" * Proximus python client manual: https://github.com/aerospike/aerospike-proximus-client-python")
 	log.Println(" * Proximus usage examples:       https://github.com/aerospike/proximus-examples")
+	fmt.Printf("\nTo download examples:\n  $ aerolab attach client -n %s\n  $ apt -y install python3 python3-pip git\n  $ cd /opt && git clone https://github.com/aerospike/proximus-examples.git\n  $ cd /opt/proximus-examples\n  $ ls\n", c.ClientName)
+	fmt.Println("\nPrism image search example installation script and manual are provided. For instructions, see https://github.com/aerospike/aerolab/blob/master/docs/deploy_clients/vector.md")
 	return nil
 }
 
@@ -372,8 +392,22 @@ func mapDelete(mp interface{}, keys []interface{}) error {
 				delete(m, key)
 			}
 			mp = m[key]
+		case map[string]interface{}:
+			switch k := key.(type) {
+			case string:
+				if i < len(keys)-1 {
+					if _, ok := m[k]; !ok {
+						return nil
+					}
+				} else {
+					delete(m, k)
+				}
+				mp = m[k]
+			default:
+				return fmt.Errorf("type mismatch key=%s map type=%s", reflect.TypeOf(key).String(), reflect.TypeOf(mp).String())
+			}
 		default:
-			return errors.New("invalid map type, must be map[string]interface{}")
+			return fmt.Errorf("delete: invalid map type (%s), must be map[interface{}]interface{} (keys:%v mp:%v)", reflect.TypeOf(mp).String(), keys, mp)
 		}
 	}
 	return nil
@@ -391,8 +425,22 @@ func mapMakeSet(mp interface{}, keys []interface{}, value interface{}) error {
 				m[key] = value
 			}
 			mp = m[key]
+		case map[string]interface{}:
+			switch k := key.(type) {
+			case string:
+				if i < len(keys)-1 {
+					if _, ok := m[k]; !ok {
+						m[k] = make(map[interface{}]interface{})
+					}
+				} else {
+					m[k] = value
+				}
+				mp = m[k]
+			default:
+				return fmt.Errorf("type mismatch key=%s map type=%s", reflect.TypeOf(key).String(), reflect.TypeOf(mp).String())
+			}
 		default:
-			return errors.New("invalid map type, must be map[interface{}]interface{}")
+			return fmt.Errorf("set: invalid map type, must be map[interface{}]interface{} (keys:%v mp:%v)", keys, mp)
 		}
 	}
 	return nil
@@ -414,27 +462,27 @@ func (c *clientCreateVectorCmd) vectorConfigPatch(fc []byte, listeners vectorAdv
 	if !c.NoTouchAdvertisedListeners && len(listeners) > 0 {
 		err = mapDelete(config, []interface{}{"service", "advertised-listeners"})
 		if err != nil {
-			return fc, err
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "advertised-listeners"})
 		}
 		err = mapMakeSet(config, []interface{}{"service", "advertised-listeners"}, listeners)
 		if err != nil {
-			return fc, err
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "advertised-listeners"})
 		}
 	}
 	if !c.NoTouchServiceListen {
 		err = mapDelete(config, []interface{}{"service", "ports"})
 		if err != nil {
-			return fc, err
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "ports"})
 		}
 		err = mapMakeSet(config, []interface{}{"service", "ports", c.serviceport, "addresses"}, []string{c.serviceip})
 		if err != nil {
-			return fc, err
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "ports", c.serviceport, "addresses"})
 		}
 	}
 	if !c.NoTouchSeed {
 		err = mapDelete(config, []interface{}{"aerospike", "seeds"})
 		if err != nil {
-			return fc, err
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"aerospike", "seeds"})
 		}
 		err = mapMakeSet(config, []interface{}{"aerospike", "seeds"}, []map[string]interface{}{
 			{
@@ -444,13 +492,13 @@ func (c *clientCreateVectorCmd) vectorConfigPatch(fc []byte, listeners vectorAdv
 			},
 		})
 		if err != nil {
-			return fc, err
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"aerospike", "seeds"})
 		}
 	}
 	if c.MetadataNamespace != "proximus-meta" {
 		err = mapMakeSet(config, []interface{}{"aerospike", "metadata-namespace"}, c.MetadataNamespace)
 		if err != nil {
-			return fc, err
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"aerospike", "metadata-namespace"})
 		}
 	}
 	buf := &bytes.Buffer{}
