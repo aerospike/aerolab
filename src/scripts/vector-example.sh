@@ -8,7 +8,10 @@ then
   mkdir -p /opt/proximus-examples/prism-image-search/prism/static/images/data/
   touch /opt/prism-example-installed
 fi
-set -e
-export PROXIMUS_PORT=%s
-cd /opt/proximus-examples/prism-image-search/prism
-waitress-serve --host 0.0.0.0 --port %s --threads 32 prism:app
+if [ "$1" != "install" ]
+then
+  set -e
+  export PROXIMUS_PORT=%s
+  cd /opt/proximus-examples/prism-image-search/prism
+  waitress-serve --host 0.0.0.0 --port %s --threads 32 prism:app
+fi

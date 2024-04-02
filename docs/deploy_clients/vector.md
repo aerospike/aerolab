@@ -36,8 +36,8 @@ aerolab client create vector -n vector -C vectordb --confirm --zone us-central1-
 
 The following vector-specific command-line parameters apply to your proximus cluster:
 ```
--C, --cluster-name=        cluster name to seed from (default: mydc)
-    --seed=                specify a seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored
+-C, --cluster-name=        aerospike cluster name to seed from (default: mydc)
+    --seed=                specify an aerospike cluster seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored
     --listen=              specify a listen IP:PORT for the service (default: 0.0.0.0:5555)
     --no-touch-listen      set this to prevent aerolab from touching the service: configuration part
     --no-touch-seed        set this to prevent aerolab from configuring the aerospike seed ip and port
@@ -45,7 +45,7 @@ The following vector-specific command-line parameters apply to your proximus clu
     --version=             vector version to install; only 0.3.1 is officially supported by aerolab (0.3.1-1 for rpm) (default: 0.3.1)
     --custom-conf=         provide a custom aerospike-proximus.yml to ship
     --no-start             if set, service will not be started after installation
--f, --featurefile=         Features file to install; if not provided, the features.conf from the seed cluster will be taken
+-f, --featurefile=         Features file to install; if not provided, the features.conf from the seed aerospike cluster will be taken
     --metans=              configure the metadata namespace name (default: proximus-meta)
     --confirm              set this parameter to confirm any warning questions without being asked to press ENTER to continue
 ```
@@ -69,16 +69,16 @@ Or develop your own application using the aerospike [vector python client](https
 Install the prism example image search application:
 
 ```bash
-aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh
+aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh install
 ```
 
-Once installed, exit the application by using CTRL+C. Then upload images:
+Once the install finishes, upload images:
 
 ```bash
-aerolab files upload -c -n vector <path-to-pictures> /opt/proximus-examples/prism-image-search/prism/static/images/data/
+aerolab files upload -c -n vector {path-to-pictures-file-or-directory} /opt/proximus-examples/prism-image-search/prism/static/images/data/
 ```
 
-Start the web server again:
+Run the web server:
 
 ```bash
 aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh
@@ -88,9 +88,9 @@ aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh
 
 On docker, access `http://127.0.0.1:8998`.
 
-On cloud desployments, run `aerolab client list` and then access `http://EXTERNAL_IP:8080`.
+On cloud deployments, run `aerolab client list` and then access `http://EXTERNAL_IP:8080`.
 
-### Running the prism example in tbe background
+### Running the prism example webserver in tbe background
 
 ```bash
 $ aerolab client attach -n vector
