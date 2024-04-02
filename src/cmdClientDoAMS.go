@@ -23,7 +23,8 @@ import (
 type clientCreateAMSCmd struct {
 	clientCreateBaseCmd
 	ConnectClusters TypeClusterName `short:"s" long:"clusters" description:"comma-separated list of clusters to configure as source for this AMS"`
-	ConnectClients  TypeClientName  `short:"S" long:"clients" description:"comma-separated list of clients to configure as source for this AMS"`
+	ConnectClients  TypeClientName  `short:"S" long:"clients" description:"comma-separated list of (graph) clients to configure as source for this AMS"`
+	ConnectVector   TypeClientName  `short:"V" long:"vector" description:"comma-separated list of vector clients to configure as source for this AMS"`
 	Dashboards      flags.Filename  `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
 	DebugDashboards bool            `long:"debug-dashboards" hidden:"true"`
 	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
@@ -37,9 +38,11 @@ type clientAddAMSCmd struct {
 	osSelectorCmd
 	nodes           map[string][]string // destination map[cluster][]nodeIPs
 	clients         map[string][]string // destination map[cluster][]nodeIPs
-	ConnectClusters TypeClusterName     `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
-	ConnectClients  TypeClientName      `short:"S" long:"clients" description:"comma-separated list of clients to configure as source for this AMS"`
-	Dashboards      flags.Filename      `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
+	vector          map[string][]string
+	ConnectClusters TypeClusterName `short:"s" long:"clusters" default:"" description:"comma-separated list of clusters to configure as source for this AMS"`
+	ConnectClients  TypeClientName  `short:"S" long:"clients" description:"comma-separated list of clients to configure as source for this AMS"`
+	ConnectVector   TypeClientName  `short:"V" long:"vector" description:"comma-separated list of vector clients to configure as source for this AMS"`
+	Dashboards      flags.Filename  `long:"dashboards" description:"dashboards list file, see https://github.com/aerospike/aerolab/blob/master/docs/usage/monitoring/dashboards.md"`
 	parallelThreadsCmd
 	DebugDashboards bool               `long:"debug-dashboards" hidden:"true"`
 	Aws             clientAddAMSCmdAws `no-flag:"true"`
@@ -88,6 +91,7 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 	}
 	var nodeList map[string][]string
 	var clientList map[string][]string
+	var vectorList map[string][]string
 	var err error
 	if c.ConnectClusters != "" {
 		nodeList, err = c.checkClustersExist(c.ConnectClusters.String())
@@ -102,6 +106,13 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 			return err
 		}
 	}
+	if c.ConnectVector != "" {
+		b.WorkOnClients()
+		vectorList, err = c.checkClustersExist(c.ConnectVector.String())
+		if err != nil {
+			return err
+		}
+	}
 	machines, err := c.createBase(args, "ams")
 	if err != nil {
 		return err
@@ -112,6 +123,7 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 
 	a.opts.Client.Add.AMS.nodes = nodeList
 	a.opts.Client.Add.AMS.clients = clientList
+	a.opts.Client.Add.AMS.vector = vectorList
 	a.opts.Client.Add.AMS.ClientName = c.ClientName
 	a.opts.Client.Add.AMS.StartScript = c.StartScript
 	a.opts.Client.Add.AMS.Machines = TypeMachines(intSliceToString(machines, ","))
@@ -147,6 +159,14 @@ func (c *clientAddAMSCmd) Execute(args []string) error {
 			return err
 		}
 		c.clients = clients
+	}
+	if c.ConnectVector != "" {
+		b.WorkOnClients()
+		vectorList, err := c.checkClustersExist(c.ConnectVector.String())
+		if err != nil {
+			return err
+		}
+		c.vector = vectorList
 	}
 	return c.addAMS(args)
 }
@@ -321,13 +341,14 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed1.5): %s", err)
 	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n  - job_name: clients\\n    static_configs:\\n      - targets: [] #TODO_CLIENT_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
+	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n  - job_name: clients\\n    static_configs:\\n      - targets: [] #TODO_CLIENT_TARGETS\\n  - job_name: vector\\n    metrics_path: \\/manage\\/rest\\/v1\\/prometheus\\n    static_configs:\\n      - targets: [] #TODO_VECTOR_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
 	if err != nil {
 		return fmt.Errorf("failed to configure prometheus (sed2): %s", err)
 	}
 	allnodes := []string{}
 	allnodeExp := []string{}
 	allClients := []string{}
+	allVector := []string{}
 	for _, nodes := range c.nodes {
 		for _, node := range nodes {
 			allnodes = append(allnodes, node+":9145")
@@ -339,9 +360,15 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			allClients = append(allClients, node+":9090")
 		}
 	}
+	for _, nodes := range c.vector {
+		for _, node := range nodes {
+			allVector = append(allVector, node+":5040")
+		}
+	}
 	ips := "'" + strings.Join(allnodes, "','") + "'"
 	nips := "'" + strings.Join(allnodeExp, "','") + "'"
 	cips := "'" + strings.Join(allClients, "','") + "'"
+	vips := "'" + strings.Join(allVector, "','") + "'"
 	if len(allnodes) != 0 || len(allnodeExp) != 0 {
 		err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 		if err != nil {
@@ -358,6 +385,12 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 			return fmt.Errorf("failed to configure prometheus (sed.1): %s", err)
 		}
 	}
+	if len(allVector) != 0 {
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakY", "-E", "s/.*TODO_VECTOR_TARGETS/      - targets: [" + vips + "] #TODO_VECTOR_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		if err != nil {
+			return fmt.Errorf("failed to configure prometheus (sed.1): %s", err)
+		}
+	}
 	// configure:grafana
 	err = a.opts.Attach.Client.run([]string{"chmod", "664", "/etc/grafana/grafana.ini"})
 	if err != nil {
@@ -368,6 +401,10 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		return fmt.Errorf("failed to configure grafana (sed ini): %s", err)
 	}
 	err = a.opts.Attach.Client.run([]string{"grafana-cli", "plugins", "install", "camptocamp-prometheus-alertmanager-datasource"})
+	if err != nil {
+		return fmt.Errorf("failed to configure grafana (plugin install): %s", err)
+	}
+	err = a.opts.Attach.Client.run([]string{"grafana-cli", "plugins", "install", "grafana-polystat-panel"})
 	if err != nil {
 		return fmt.Errorf("failed to configure grafana (plugin install): %s", err)
 	}
