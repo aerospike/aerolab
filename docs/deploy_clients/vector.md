@@ -55,3 +55,41 @@ Vector-specific command-line parameters are:
 See [this link](https://github.com/aerospike/aerospike-proximus-client-python) for official aerospike proximus python client.
 
 See [this link](https://github.com/aerospike/proximus-examples) for proximus usage examples.
+
+### Example image search
+
+Install the prism example image search application:
+
+```bash
+aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh
+```
+
+Once installed, exit the application by using CTRL+C. Then upload images:
+
+```bash
+aerolab files upload -c -n vector /path/to/images /opt/proximus-examples/prism-image-search/prism/static/images/data/
+```
+
+Start the web server again:
+
+```bash
+aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh
+```
+
+### Accessing the webserver
+
+On docker, access `http://127.0.0.1:8998`.
+
+On cloud desployments, run `aerolab client list` and then access `http://EXTERNAL_IP:8080`.
+
+### Running the prism example in tbe background
+
+```bash
+$ aerolab client attach -n vector
+echo "nohup /bin/bash /opt/prism-example.sh >> /var/log/prism.log 2>&1 &" > /opt/autoload/15-prism
+chmod 755 /opt/autoload/15-prism
+exit
+$ aerolab client attach -n vector --detach -- /bin/bash /opt/autoload/15-prism
+```
+
+As the script is in `/opt/autoload`, prism will also be auto-started whenever aerolab starts the client machine.
