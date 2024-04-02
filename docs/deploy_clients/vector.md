@@ -75,7 +75,7 @@ aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh
 Once installed, exit the application by using CTRL+C. Then upload images:
 
 ```bash
-aerolab files upload -c -n vector <path-to-pictures>/*.jpg /opt/proximus-examples/prism-image-search/prism/static/images/data/
+aerolab files upload -c -n vector <path-to-pictures> /opt/proximus-examples/prism-image-search/prism/static/images/data/
 ```
 
 Start the web server again:
