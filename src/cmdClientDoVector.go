@@ -113,7 +113,31 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		}
 		ffc = out[0]
 	} else {
-		return errors.New("not feature file provided")
+		return errors.New("no feature file provided")
+	}
+
+	// test the feaures file for the correct enabled feature
+	ffcscanner := bufio.NewScanner(bytes.NewReader(ffc))
+	ffcenabled := false
+	for ffcscanner.Scan() {
+		line := strings.ToLower(strings.Trim(ffcscanner.Text(), "\r\n\t "))
+		if strings.HasPrefix(line, "vector-service") && strings.HasSuffix(line, "true") {
+			ffcenabled = true
+			break
+		}
+	}
+	if !ffcenabled {
+		if !c.JustDoIt {
+			fmt.Println("\nWARNING: The given feature key file does not have vector-service enabled. This will not work.\nPlease cancel (CTRL+C) and provide a feature key file using `-f /path/to/file`.")
+			fmt.Println("Press ENTER to continue regardless.")
+			reader := bufio.NewReader(os.Stdin)
+			_, err := reader.ReadString('\n')
+			if err != nil {
+				logExit(err)
+			}
+		} else {
+			fmt.Println("\nWARNING: The given feature key file does not have vector-service enabled. This will not work.\nTo provide a feature key file, use `-f /path/to/file` in the create command. Continuing regardless...")
+		}
 	}
 
 	// confirm at least 2 namespaces exist in cluster, and one has the same name as c.MetadataNamespace and has nsup enabled
