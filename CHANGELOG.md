@@ -1,5 +1,7 @@
 #### 7.6.0
 ======= 7.6.0 =======
+* TODO: showinterrupts hangs
+* TODO: AGI namespace->devices not populating in asd 7.0+
 * TODO: inventory webui view: always show current backend in the top
 * TODO: add asbench ui to aerolab webui
 * TODO: add eksctl bootstrap option to aerolab as a command
