@@ -1,6 +1,6 @@
 # [v7.6.0](https://github.com/aerospike/aerolab/releases/tag/7.6.0)
 
-_Release Date: Month day, year_
+_Release Date: April 8, 2024_
 
 **Release Notes:**
 * TODO: inventory webui view: always show current backend in the top
