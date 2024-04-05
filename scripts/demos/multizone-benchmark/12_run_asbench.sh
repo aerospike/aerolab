@@ -11,7 +11,7 @@ set -e
 . ./configure.sh
 
 # get one node seed IP
-NODEIP=$(aerolab cluster list -j |grep -A7 ${CLUSTER_NAME} |grep IpAddress |head -1 |egrep -o '([0-9]{1,3}\.){3}[0-9]{1,3}')
+NODEIP=$(aerolab cluster list -i |grep ${CLUSTER_NAME} |head -1 |egrep -o 'int_ip=[^ ]+' |awk -F'=' '{print $2}')
 echo "Seed: ${NODEIP}"
 
 # parameters
@@ -24,12 +24,14 @@ if [ "${LOAD}" = "i" ]
 then
     for i in `seq 1 ${asbench_per_instance_insert}`
     do
+      echo aerolab client attach -n ${CLIENT_NAME} -l all --detach -- /bin/bash -c "run_asbench ${common_params1} -s n\${NODE}x${i} ${common_params2[@]} -t 0 -w I ${common_params3[@]}"
       aerolab client attach -n ${CLIENT_NAME} -l all --detach -- /bin/bash -c "run_asbench ${common_params1} -s n\${NODE}x${i} ${common_params2[@]} -t 0 -w I ${common_params3[@]}"
     done
 elif [ "${LOAD}" = "ru" ]
 then
     for i in `seq 1 ${asbench_per_instance_load}`
     do
+      echo aerolab client attach -n ${CLIENT_NAME} -l all --detach -- /bin/bash -c "run_asbench ${common_params1[@]} -s n\${NODE}x${i} ${common_params2[@]} -t ${asbench_ru_runtime} -g ${asbench_ru_throughput} -w RU,${asbench_ru_percent} ${common_params3[@]}"
       aerolab client attach -n ${CLIENT_NAME} -l all --detach -- /bin/bash -c "run_asbench ${common_params1[@]} -s n\${NODE}x${i} ${common_params2[@]} -t ${asbench_ru_runtime} -g ${asbench_ru_throughput} -w RU,${asbench_ru_percent} ${common_params3[@]}"
     done
 else

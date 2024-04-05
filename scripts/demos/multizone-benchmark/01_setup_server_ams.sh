@@ -9,11 +9,10 @@ then
     echo "AWS_AVAILABILITY_ZONES must have at least one AZ, for example: AWS_AVAILABILITY_ZONES=(us-east-1a us-east-1b)"
     exit 1
   fi
-  echo "Creating cluster, ${NODES_PER_AZ} nodes per AZ, AZs=${AWS_AVAILABILITY_ZONES}"
+  echo "Creating cluster, ${NODES_PER_AZ} nodes per AZ, AZs="${AWS_AVAILABILITY_ZONES[@]}
 else
   echo "Create cluster in docker, total nodes=$(( ${#AWS_AVAILABILITY_ZONES[@]} * ${NODES_PER_AZ} ))"
 fi
-
 sed "s/_NAMESPACE_/${NAMESPACE}/g" ${TEMPLATE} > aerospike.conf
 STAGE="create"
 START_NODE=0
