@@ -201,9 +201,9 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 			return "", fmt.Errorf("scanner error: %s", err)
 		}
 		line := s.Text()
-		if strings.HasPrefix(line, "===") {
+		if strings.HasPrefix(line, "====ASCOLLECTINFO") {
 			s1 = true
-		} else if s1 && strings.HasPrefix(line, "['hostname") {
+		} else if s1 && (strings.HasPrefix(line, "['hostname") || strings.Trim(line, "\r\n\t ") == "hostname -I") {
 			s2 = true
 		} else if s1 && s2 {
 			ips = strings.Split(strings.Trim(line, "\r\n\t "), " ")

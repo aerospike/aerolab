@@ -12,6 +12,7 @@
 * FIX: WebUI: do not clear running jobs from history in the web interface until they are completed (when clear history button is pressed).
 * FIX: GCP: For accelerated instances fallback to `onHostMaintenance=TERMINATE` policy.
 * FIX: Windows: username discovery system and username truncation for instance labels.
+* FIX: AGI and ShowCommands: new `sysinfo` file format change.
 
 #### 7.4.0
 * FEATURE: Web UI.
