@@ -2204,6 +2204,107 @@
         "type": "timeseries"
       }
     },
+    "f15189e5-3d8c-4be7-b3f9-fb9a85416c0e": {
+      "name": "Namespace->data-usage - cache read pct",
+      "uid": "f15189e5-3d8c-4be7-b3f9-fb9a85416c0e",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "percent"
+          },
+          "overrides": []
+        },
+        "libraryPanel": {
+          "name": "Namespace->data-usage - cache read pct",
+          "uid": ""
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"dataCacheUsePct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "refId": "A",
+            "target": "nsUsageData"
+          }
+        ],
+        "title": "data-usage - cache read pct",
+        "type": "timeseries"
+      }
+    },
     "ae8eb53c-7758-4496-b604-26618b193cf0": {
       "name": "Namespace->stop-writes - sys-memory-pct",
       "uid": "ae8eb53c-7758-4496-b604-26618b193cf0",
@@ -13869,6 +13970,20 @@
             "uid": "bdcbe067-a6bd-44d9-8cfb-30eef4f2bc25"
           },
           "title": "data-usage - avail-pct"
+        },
+        {
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 16
+          },
+          "id": 186,
+          "libraryPanel": {
+            "name": "Namespace->data-usage - cache read pct",
+            "uid": "f15189e5-3d8c-4be7-b3f9-fb9a85416c0e"
+          },
+          "title": "data-usage - cache read pct"
         }
       ],
       "title": "Index, Sindex, Set-Index, Data Usage (asd v7+)",
@@ -15670,8 +15785,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -15767,8 +15881,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -15864,8 +15977,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -15961,8 +16073,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16058,8 +16169,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",

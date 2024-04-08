@@ -13,6 +13,7 @@
 * FIX: GCP: For accelerated instances fallback to `onHostMaintenance=TERMINATE` policy.
 * FIX: Windows: username discovery system and username truncation for instance labels.
 * FIX: AGI and ShowCommands: new `sysinfo` file format change.
+* IMPROVEMENT: AGI: Naming of panel groups in Namespace dashboard. Add missing `data-used cache read pct` dashboard.
 
 #### 7.4.0
 * FEATURE: Web UI.
