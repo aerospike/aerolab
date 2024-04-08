@@ -203,7 +203,7 @@ func processInterrupts(cancel context.CancelFunc, in io.ReadCloser) {
 			}
 			header = true
 		} else if header {
-			if line == "['cat /proc/interrupts']" {
+			if line == "['cat /proc/interrupts']" || line == "cat /proc/interrupts" {
 				ntype = true
 			}
 			header = false

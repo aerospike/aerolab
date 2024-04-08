@@ -3,6 +3,9 @@
 _Release Date: Month Day, Year_
 
 **Release Notes:**
+* FIX: AGI: process collectinfo - handle new format of `sysinfo` files.
+* FIX: ShowCommands: handle new format of `sysinfo` files.
+
 ======= 7.6.0 =======
 * TODO: showinterrupts hangs
 * TODO: AGI namespace->devices not populating in asd 7.0+
