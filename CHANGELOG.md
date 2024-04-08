@@ -2,10 +2,7 @@
 * IMPROVEMENT: AGI: Naming of panel groups in Namespace dashboard. Add missing `data-used cache read pct` dashboard.
 * FIX: AGI: process collectinfo - handle new format of `sysinfo` files.
 * FIX: ShowCommands: handle new format of `sysinfo` files.
-
-======= 7.6.0 =======
-* TODO: showinterrupts hangs
-* TODO: AGI namespace->devices not populating in asd 7.0+
+* FIX: `aerospike upgrade` command without not work with `arm` on `AWS`.
 * TODO: inventory webui view: always show current backend in the top
 * TODO: add asbench ui to aerolab webui
 * TODO: add eksctl bootstrap option to aerolab as a command
