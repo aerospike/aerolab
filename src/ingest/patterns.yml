@@ -202,6 +202,7 @@ patterns:
         setName: "nsUsageData" #v7
         search: "data-usage: used-bytes"
         export:
+            - "{(?P<Namespace>[^}]+)} data-usage: used-bytes (?P<dataUsedBytes>\\d+) avail-pct (?P<dataAvailPct>\\d+) cache-read-pct (?P<dataCacheUsePct>[0-9\\.]+)"
             - "{(?P<Namespace>[^}]+)} data-usage: used-bytes (?P<dataUsedBytes>\\d+) avail-pct (?P<dataAvailPct>\\d+)"
     -
         setName: "nsStopWrites" #v7
