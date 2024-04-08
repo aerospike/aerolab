@@ -1,4 +1,5 @@
 #### 7.6.0
+* IMPROVEMENT: AGI: Naming of panel groups in Namespace dashboard. Add missing `data-used cache read pct` dashboard.
 * FIX: AGI: process collectinfo - handle new format of `sysinfo` files.
 * FIX: ShowCommands: handle new format of `sysinfo` files.
 
