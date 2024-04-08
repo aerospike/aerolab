@@ -17,3 +17,6 @@ exclude:
     - scripts/aerolab-ldap/docker-compose.yml
     - tunnel-container-openvpn/build-base/Dockerfile
     - tunnel-container-openvpn/build-run/Dockerfile.template
+    - src/vendor/**
+    - scripts/**
+    - tunnel-container-openvpn/**
