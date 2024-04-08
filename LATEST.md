@@ -1,18 +1,37 @@
-# [v7.5.0](https://github.com/aerospike/aerolab/releases/tag/7.5.0)
+# [v7.6.0](https://github.com/aerospike/aerolab/releases/tag/7.6.0)
 
-_Release Date: April 8, 2024_
+_Release Date: Month Day, Year_
 
 **Release Notes:**
-* FEATURE: Added new client: `graph`.
-* ENHANCEMENT: Added option to add specific ports to the firewall rules on GCP and AWS backends.
-* ENHANCEMENT: AGI will not parse and graph `security.c` type messages for authentication message counts per second.
-* ENHANCEMENT: WebUI add option to `attach trino` for the trino client cli.
-* ENHANCEMENT: GCP Expiry system will attempt to enable required services prior to installation.
-* ENHANCEMENT: Docker: for version 7+ of Aerospike, if a custom config file is not provided, modify the default one to remove `bar` namespace and change `test` to use file-backed `storage-engine device`.
-* ENHANCEMENT: `logs get` - provide an option to specify a custom command to execute.
-* FIX: AGI: Ingest `aggregate` would incorrectly miss aggregation values when working with lines that contain `(repeated:X)`.
-* FIX: AGI: Handle connection error during installation gracefully.
-* FIX: WebUI: make listener bind specifically to IPv4 or IPv6 depending on specified address instead of letting the kernel decide.
-* FIX: WebUI: do not clear running jobs from history in the web interface until they are completed (when clear history button is pressed).
-* FIX: GCP: For accelerated instances fallback to `onHostMaintenance=TERMINATE` policy.
-* FIX: Windows: username discovery system and username truncation for instance labels.
+* IMPROVEMENT: AGI: Naming of panel groups in Namespace dashboard. Add missing `data-used cache read pct` dashboard.
+* FIX: AGI: process collectinfo - handle new format of `sysinfo` files.
+* FIX: ShowCommands: handle new format of `sysinfo` files.
+* FIX: `aerospike upgrade` command without not work with `arm` on `AWS`.
+* TODO: inventory webui view: always show current backend in the top
+* TODO: add asbench ui to aerolab webui
+* TODO: add eksctl bootstrap option to aerolab as a command
+* TODO: add option to specify to inventory multiple regions (with a given list) in aws
+* TODO: make instance-types webui option a dropdown in cloud backends
+* TODO: top-right jobs list - add "show all user jobs" switch, add username/email info to each job
+* TODO: add support for special owner/user header which will define the user running this (so it can be set by authenticating proxy)
+* TODO: change weblog path: ./weblog/user-owner/items.log
+* TODO: file choice for upload form type: user to select local path - upload via aerolab or directly (key share?)
+  * TODO: disable local-path-explorer if either connected to using non-local-address (outsider) or a proxy header is set (via proxy)
+  * TODO: use --hosted
+* TODO: implement "simple" mode which will have the list of options greatly reduced, present "simple/full" slider
+  * TODO: definitions should be a list of items, like aerolab config defaults without the values
+  * TODO: should have a sane default selection (support team will have a tuned selection)
+  * TODO: user should be able to specify their own list as either replacement, addition or removal of items
+  * TODO: add option to disable full mode view option toggle altogether
+* TODO: revisit certificate handling, specifically for AGI and AGI-monitor, to allow for shipping a signed cert and performing cert validation
+  * TODO: use --hosted
+* TODO: firewall - for AGI it's already 0.0.0.0 as we have token auth enabled; for aerolab-managed-external have per-user firewalls
+  * Under --hosted
+======= 7.7.0 =======
+* TODO: add aerolab HA option
+  * TODO: support storing inventory cache in a location other than local disk (aerospike DB?)
+  * TODO: support each aerolab generating it's own NODE-ID and storing it in a distributed DB
+    * TODO: highest node-id wins and is the one updating the inventory, all others read the cache only
+      * TODO: check who is highest every time reading from cache
+    * TODO: each node inserts it's nodeid into a nodes set with a 30-second timeout on record, every 10 seconds
+      * TODO: this way if a node is not available after 30 seconds, it's entry expires and another is chosen
