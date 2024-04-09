@@ -25,8 +25,8 @@ jobs:
               from: AeroLab Release Bot <${{secrets.RELEASE_MAIL_FROM}}>
               reply_to: ${{secrets.RELEASE_MAIL_FROM}}
               convert_markdown: true
-              html_body: file://LATEST.md
-              body: file://LATEST.md
+              html_body: file://CHANGELOG/${{inputs.VERSION}}.md
+              body: file://CHANGELOG/${{inputs.VERSION}}.md
           - name: "Send slack notification"
             env:
                 SLACK_CHANNEL: ${{ secrets.RELEASE_SLACK_CHANNEL }}
