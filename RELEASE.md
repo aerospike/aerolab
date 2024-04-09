@@ -11,7 +11,7 @@ NOTES:
 ### Documentation and changelog
 See [the documentation](https://github.com/aerospike/aerolab/blob/master/README.md) for full installation and usage instructions.
 
-[Changelog](https://github.com/aerospike/aerolab/blob/master/CHANGELOG.md)
+[Changelog](https://github.com/aerospike/aerolab/tree/master/CHANGELOG/)
 
 ### Download aerolab from Assets below
 
