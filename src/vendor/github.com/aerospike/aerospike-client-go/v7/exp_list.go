@@ -201,7 +201,7 @@ func ExpListRemoveByValueRange(
 	args := []ExpressionArgument{
 		cdtContextList(ctx),
 		IntegerValue(_CDT_LIST_REMOVE_BY_VALUE_INTERVAL),
-		IntegerValue(ListReturnTypeNone),
+		IntegerValue(returnType),
 	}
 	if valueBegin != nil {
 		args = append(args, valueBegin)
@@ -637,7 +637,7 @@ func cdtListAddWrite(
 	var returnType ExpType
 	if len(ctx) == 0 {
 		returnType = ExpTypeLIST
-	} else if (ctx[0].id & ctxTypeListIndex) == 0 {
+	} else if (ctx[0].Id & ctxTypeListIndex) == 0 {
 		returnType = ExpTypeMAP
 	} else {
 		returnType = ExpTypeLIST
