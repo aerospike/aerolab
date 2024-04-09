@@ -98,7 +98,7 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version changes
+See [https://github.com/aerospike/aerolab/tree/master/CHANGELOG/](CHANGELOG.md) for version changes
 
 ## Version
 
