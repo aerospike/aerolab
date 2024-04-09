@@ -1,6 +1,41 @@
 # Change History
 
-## January 25 2023: v7.1.0
+## March 28 2024: v7.2.0
+
+This is a major update. Please test your code thoroughly before using in production.
+
+- **New Features**
+  - [CLIENT-2766] Support `RawBlobValue` in the Go client.
+  - [CLIENT-2767] Support Persistent List Indexes.
+  - [CLIENT-2823] Support `QueryDuration`.
+  - [CLIENT-2831] Support `ReadPolicy.ReadTouchTTLPercent`.
+  - [CLIENT-2240] Add more client statistics.
+    - Adds the following statistics:
+      - `circuit-breaker-hits`: Number of times circuit breaker was hit.
+      - `connections-error-other`: Connection errors other than timeouts.
+      - `connections-error-timeout`: Connection Timeout errors.
+      - `connections-idle-dropped`: The connection was idle and dropped.
+      - `connections-pool-overflow`: The command offered the connection to the pool, but .the pool was full and the connection was closed
+      - `exceeded-max-retries`: Number of transactions where exceeded maximum number of retries specified in the policy
+      - `exceeded-total-timeout`: Number of transactions that exceeded the specified total timeout
+      - `total-nodes`: Total number of nodes in the cluster
+  - Export private fields in `PartitionStatus` and add `Recordset.BVal`.
+
+- **Improvements**
+  - [CLIENT-2784] Do not use batch repeat flag on batch writes when `policy.SendKey` is set to `true`.
+  - [CLIENT-2442] Document that Only `string`, `integer`, `bytes` are allowed as map key types; `Policy.SendKey` clarification.
+  - Reduce the required Go version to 1.20 to support EL9; Update the dependencies.
+  - Update `ExpCond()` doc to say that all action expressions must return the same type.
+
+- **Fixes**
+  - [CLIENT-2811] `RespondPerEachOp` doesn't work for list operation. To allow backwards compatibility, this change will change the default value of `RespondPerEachOp` to `true`.
+  - [CLIENT-2818] Fix return type for `ExpListRemoveByValueRange`.
+  - Update the proto grpc files to resolve namespace issues.
+  - Improve the tests for `BatchOperations` to run on Github Actions.
+  - Fix tests that relied on the server nsup-period setting to be larger than zero.
+  - Fix Truncate test on slow servers.
+
+## January 25 2024: v7.1.0
 
 - **New Features**
   - Add `TaskId()` to `ExecuteTask`.

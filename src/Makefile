@@ -17,6 +17,9 @@ help:
 	\tmake build && make install                 - build and install on current system\n\
 	\tmake build-linux && make pkg-linux         - build and package all linux releases\n\
 	\n\
+	UPDATE COMMANDS:\n\
+	\tdeps               - Update all dependencies in the project\n\
+	\n\
 	BUILD COMMANDS:\n\
 	\tbuild              - A version for the current system (linux and mac only)\n\
 	\tbuildall           - All versions for all supported systems\n\
@@ -66,6 +69,12 @@ help:
 	\n\
 	OUTPUTS: ../bin/ and ../bin/packages/\n\
 	"
+
+.PHONY: deps
+deps:
+	cd ../expiries/aws && go get -u && go mod tidy && GOWORK=off go mod vendor
+	cd ../expiries/gcp && go get -u && go mod tidy
+	go get -u && go mod tidy && GOWORK=off go mod vendor
 
 .PHONY: webdebug
 webdebug:

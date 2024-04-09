@@ -14,7 +14,7 @@
 
 package aerospike
 
-// List operations support negative indexing.  If the index is negative, the
+// List operations support negative indexing. If the index is negative, the
 // resolved index starts backwards from end of list. If an index is out of bounds,
 // a parameter error will be returned. If a range is partially out of bounds, the
 // valid part of the range will be returned. Index/Range examples:
@@ -29,7 +29,7 @@ package aerospike
 //    Index -3 Count 3: Last three items in list.
 //    Index -5 Count 4: Range between fifth to last item to second to last item inclusive.
 //
-// Nested CDT operations are supported by optional Ctx context arguments.  Examples:
+// Nested CDT operations are supported by optional Ctx context arguments. Examples:
 //
 // bin = [[7,9,5],[1,2,3],[6,5,4,1]]
 // Append 11 to last list.
@@ -151,10 +151,10 @@ const (
 	// ListReturnTypeExists returns true if count > 0.
 	ListReturnTypeExists ListReturnType = 13
 
-	// ListReturnTypeInverted will invert meaning of list command and return values.  For example:
+	// ListReturnTypeInverted will invert meaning of list command and return values. For example:
 	// ListOperation.getByIndexRange(binName, index, count, ListReturnType.INDEX | ListReturnType.INVERTED)
 	// With the INVERTED flag enabled, the items outside of the specified index range will be returned.
-	// The meaning of the list command can also be inverted.  For example:
+	// The meaning of the list command can also be inverted. For example:
 	// ListOperation.removeByIndexRange(binName, index, count, ListReturnType.INDEX | ListReturnType.INVERTED);
 	// With the INVERTED flag enabled, the items outside of the specified index range will be removed and returned.
 	ListReturnTypeInverted ListReturnType = 0x10000
@@ -180,7 +180,7 @@ const (
 	ListWriteFlagsDefault = 0
 	// ListWriteFlagsAddUnique means: Only add unique values.
 	ListWriteFlagsAddUnique = 1
-	// ListWriteFlagsInsertBounded means: Enforce list boundaries when inserting.  Do not allow values to be inserted
+	// ListWriteFlagsInsertBounded means: Enforce list boundaries when inserting. Do not allow values to be inserted
 	// at index outside current list boundaries.
 	ListWriteFlagsInsertBounded = 2
 	// ListWriteFlagsNoFail means: do not raise error if a list item fails due to write flag constraints.
@@ -219,12 +219,12 @@ func packCDTParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext, para
 		size += n
 
 		for _, c := range ctx {
-			if n, err = packAInt64(packer, int64(c.id)); err != nil {
+			if n, err = packAInt64(packer, int64(c.Id)); err != nil {
 				return size + n, err
 			}
 			size += n
 
-			if n, err = c.value.pack(packer); err != nil {
+			if n, err = c.Value.pack(packer); err != nil {
 				return size + n, err
 			}
 			size += n
@@ -289,12 +289,12 @@ func packCDTIfcVarParamsAsArray(packer BufferEx, opType int16, ctx []*CDTContext
 		size += n
 
 		for _, c := range ctx {
-			if n, err = packAInt64(packer, int64(c.id)); err != nil {
+			if n, err = packAInt64(packer, int64(c.Id)); err != nil {
 				return size + n, err
 			}
 			size += n
 
-			if n, err = c.value.pack(packer); err != nil {
+			if n, err = c.Value.pack(packer); err != nil {
 				return size + n, err
 			}
 			size += n
@@ -368,24 +368,24 @@ func packCDTCreate(packer BufferEx, opType int16, ctx []*CDTContext, flag int, p
 
 	for i := 0; i < last; i++ {
 		c = ctx[i]
-		if n, err = packAInt64(packer, int64(c.id)); err != nil {
+		if n, err = packAInt64(packer, int64(c.Id)); err != nil {
 			return size + n, err
 		}
 		size += n
 
-		if n, err = c.value.pack(packer); err != nil {
+		if n, err = c.Value.pack(packer); err != nil {
 			return size + n, err
 		}
 		size += n
 	}
 
 	c = ctx[last]
-	if n, err = packAInt64(packer, int64(c.id|flag)); err != nil {
+	if n, err = packAInt64(packer, int64(c.Id|flag)); err != nil {
 		return size + n, err
 	}
 	size += n
 
-	if n, err = c.value.pack(packer); err != nil {
+	if n, err = c.Value.pack(packer); err != nil {
 		return size + n, err
 	}
 	size += n
@@ -425,7 +425,7 @@ func cdtListOrderFlag(order ListOrderType, pad bool) int {
 
 // ListCreateOp creates list create operation.
 // Server creates list at given context level. The context is allowed to be beyond list
-// boundaries only if pad is set to true.  In that case, nil list entries will be inserted to
+// boundaries only if pad is set to true. In that case, nil list entries will be inserted to
 // satisfy the context position.
 func ListCreateOp(binName string, listOrder ListOrderType, pad bool, ctx ...*CDTContext) *Operation {
 	// If context not defined, the set order for top-level bin list.
@@ -435,9 +435,38 @@ func ListCreateOp(binName string, listOrder ListOrderType, pad bool, ctx ...*CDT
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET_TYPE, cdtListOrderFlag(listOrder, pad), IntegerValue(listOrder)}, encoder: cdtCreateOpEncoder}
 }
 
+// ListCreateOp creates list create operation with a persisted index.
+// A list index improves lookup performance, but requires more storage.
+// A list index can be created for a top-level ordered list only.
+// Nested and unordered list indexes are not supported.
+//
+// Server creates list at given context level. The context is allowed to be beyond list
+// boundaries only if pad is set to true. In that case, nil list entries will be inserted to
+// satisfy the context position.
+func ListCreateWithIndexOp(binName string, listOrder ListOrderType, pad bool, ctx ...*CDTContext) *Operation {
+	// If context not defined, the set order for top-level bin list.
+	if len(ctx) == 0 {
+		return ListSetOrderWithIndexOp(binName, listOrder)
+	}
+
+	// Create nested list. persistIndex does not apply here, so ignore it.
+	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET_TYPE, cdtListOrderFlag(listOrder, pad), IntegerValue(listOrder)}, encoder: cdtCreateOpEncoder}
+}
+
 // ListSetOrderOp creates a set list order operation.
-// Server sets list order.  Server returns nil.
+// Server sets list order. Server returns nil.
 func ListSetOrderOp(binName string, listOrder ListOrderType, ctx ...*CDTContext) *Operation {
+	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET_TYPE, IntegerValue(listOrder)}, encoder: listGenericOpEncoder}
+}
+
+// ListSetOrderWithIndexOp creates a set list order operation with a persisted index.
+// A list index improves lookup performance, but requires more storage.
+// A list index can be created for a top-level ordered list only.
+// Nested and unordered list indexes are not supported.
+//
+// Server sets list order. Server returns nil.
+func ListSetOrderWithIndexOp(binName string, listOrder ListOrderType, ctx ...*CDTContext) *Operation {
+	listOrder |= 0x10
 	return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_SET_TYPE, IntegerValue(listOrder)}, encoder: listGenericOpEncoder}
 }
 
@@ -558,6 +587,7 @@ func ListRemoveByValueListOp(binName string, values []interface{}, returnType Li
 // If valueEnd is nil, the range is greater than equal to valueBegin.
 // Server returns removed data specified by returnType
 func ListRemoveByValueRangeOp(binName string, returnType ListReturnType, valueBegin, valueEnd interface{}, ctx ...*CDTContext) *Operation {
+	// TODO: Inconsistent parameter order
 	if valueEnd == nil {
 		return &Operation{opType: _CDT_MODIFY, ctx: ctx, binName: binName, binValue: ListValue{_CDT_LIST_REMOVE_BY_VALUE_INTERVAL, IntegerValue(returnType), NewValue(valueBegin)}, encoder: listGenericOpEncoder}
 	}

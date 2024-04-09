@@ -4,11 +4,11 @@ go 1.22
 
 require (
 	cloud.google.com/go/compute v1.25.1
-	cloud.google.com/go/storage v1.39.1
+	cloud.google.com/go/storage v1.40.0
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
-	github.com/aerospike/aerospike-client-go/v7 v7.1.0
-	github.com/aws/aws-sdk-go v1.51.8
+	github.com/aerospike/aerospike-client-go/v7 v7.2.0
+	github.com/aws/aws-sdk-go v1.51.17
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
 	github.com/containerd/console v1.0.4
@@ -18,7 +18,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.3
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.1
-	github.com/jedib0t/go-pretty/v6 v6.5.6
+	github.com/jedib0t/go-pretty/v6 v6.5.8
 	github.com/jroimartin/gocui v0.5.0
 	github.com/lithammer/shortuuid v3.0.0+incompatible
 	github.com/mattn/go-isatty v0.0.20
@@ -40,7 +40,7 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.112.1 // indirect
+	cloud.google.com/go v0.112.2 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v1.1.7 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -59,18 +59,17 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
-	go.opentelemetry.io/otel v1.24.0 // indirect
-	go.opentelemetry.io/otel/metric v1.24.0 // indirect
-	go.opentelemetry.io/otel/trace v1.24.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.50.0 // indirect
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.50.0 // indirect
+	go.opentelemetry.io/otel v1.25.0 // indirect
+	go.opentelemetry.io/otel/metric v1.25.0 // indirect
+	go.opentelemetry.io/otel/trace v1.25.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
-	golang.org/x/oauth2 v0.18.0 // indirect
-	golang.org/x/sync v0.6.0 // indirect
+	golang.org/x/oauth2 v0.19.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
-	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto v0.0.0-20240325203815-454cdb8f5daa // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240325203815-454cdb8f5daa // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240325203815-454cdb8f5daa // indirect
-	google.golang.org/grpc v1.62.1 // indirect
+	google.golang.org/genproto v0.0.0-20240401170217-c3f982113cda // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240401170217-c3f982113cda // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda // indirect
+	google.golang.org/grpc v1.63.2 // indirect
 )
