@@ -42,16 +42,15 @@ func newBatchAttrOps(rp *BatchPolicy, wp *BatchWritePolicy, ops []*Operation) {
 
 	for _, op := range ops {
 		switch op.opType {
+		case _READ_HEADER:
+			readHeader = true
+			hasRead = true
 		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ, _CDT_READ, _READ:
 			// _Read all bins if no bin is specified.
 			if op.binName == "" {
 				readAllBins = true
 			}
 			hasRead = true
-
-			if op.headerOnly {
-				readHeader = true
-			}
 
 		default:
 			hasWriteOp = true
@@ -102,7 +101,7 @@ func (ba *batchAttr) setRead(rp *BatchPolicy) {
 	case ReadModeSCAllowUnavailable:
 		ba.infoAttr = _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
 	}
-	ba.expiration = 0
+	ba.expiration = uint32(rp.ReadTouchTTLPercent)
 	ba.generation = 0
 	ba.hasWrite = false
 	ba.sendKey = false
@@ -129,7 +128,7 @@ func (ba *batchAttr) setBatchRead(rp *BatchReadPolicy) {
 	case ReadModeSCAllowUnavailable:
 		ba.infoAttr = _INFO3_SC_READ_TYPE | _INFO3_SC_READ_RELAX
 	}
-	ba.expiration = 0
+	ba.expiration = uint32(rp.ReadTouchTTLPercent)
 	ba.generation = 0
 	ba.hasWrite = false
 	ba.sendKey = false
@@ -141,15 +140,13 @@ func (ba *batchAttr) adjustRead(ops []*Operation) {
 
 	for _, op := range ops {
 		switch op.opType {
+		case _READ_HEADER:
+			readHeader = true
 		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ, _CDT_READ, _READ:
-			// _Read all bins if no bin is specified.
+			// Read all bins if no bin is specified.
 			if op.binName == "" {
 				readAllBins = true
 			}
-			if op.headerOnly {
-				readHeader = true
-			}
-
 		default:
 		}
 	}
@@ -232,16 +229,15 @@ func (ba *batchAttr) adjustWrite(ops []*Operation) {
 
 	for _, op := range ops {
 		switch op.opType {
+		case _READ_HEADER:
+			readHeader = true
+			hasRead = true
 		case _BIT_READ, _EXP_READ, _HLL_READ, _MAP_READ, _CDT_READ, _READ:
 			// _Read all bins if no bin is specified.
 			if op.binName == "" {
 				readAllBins = true
 			}
 			hasRead = true
-			if op.headerOnly {
-				readHeader = true
-				hasRead = true
-			}
 
 		default:
 		}
