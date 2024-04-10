@@ -318,33 +318,17 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	}
 
 	defer backendRestoreTerminal()
-	// install:prometheus
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "apt-get update && apt-get -y install prometheus"})
+	// TODO: upload and run install script
+	installScript := c.installScript()
+	err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{filePath: "/opt/installer.sh", fileContents: installScript, fileSize: len(installScript)}}, nodesList)
 	if err != nil {
-		return fmt.Errorf("failed to install prometheus: %s", err)
+		return err
 	}
-	// install:grafana
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "apt-get -y install apt-transport-https software-properties-common wget && wget -q -O /usr/share/keyrings/grafana.key https://packages.grafana.com/gpg.key && echo \"deb [signed-by=/usr/share/keyrings/grafana.key] https://packages.grafana.com/oss/deb stable main\" > /etc/apt/sources.list.d/grafana.list && apt-get update && apt-get -y install grafana"})
+	err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/installer.sh"})
 	if err != nil {
-		return fmt.Errorf("failed to install grafana: %s", err)
+		return fmt.Errorf("failed to run installer: %s", err)
 	}
-	// configure:prometheus
-	err = a.opts.Attach.Client.run([]string{"wget", "-q", "-O", "/etc/prometheus/aerospike_rules.yaml", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/prometheus/aerospike_rules.yml"})
-	if err != nil {
-		return fmt.Errorf("failed to configure prometheus (dl rules file): %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak", "-E", "s/^rule_files:/rule_files:\\n  - \"\\/etc\\/prometheus\\/aerospike_rules.yaml\"/g", "/etc/prometheus/prometheus.yml"})
-	if err != nil {
-		return fmt.Errorf("failed to configure prometheus (sed1): %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak1", "-E", "s/- job_name: node/- job_name: nodelocal/g", "/etc/prometheus/prometheus.yml"})
-	if err != nil {
-		return fmt.Errorf("failed to configure prometheus (sed1.5): %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak2", "-E", "s/^scrape_configs:/scrape_configs:\\n  - job_name: aerospike\\n    static_configs:\\n      - targets: [] #TODO_ASD_TARGETS\\n  - job_name: node\\n    static_configs:\\n      - targets: [] #TODO_ASDN_TARGETS\\n  - job_name: clients\\n    static_configs:\\n      - targets: [] #TODO_CLIENT_TARGETS\\n  - job_name: vector\\n    metrics_path: \\/manage\\/rest\\/v1\\/prometheus\\n    static_configs:\\n      - targets: [] #TODO_VECTOR_TARGETS\\n/g", "/etc/prometheus/prometheus.yml"})
-	if err != nil {
-		return fmt.Errorf("failed to configure prometheus (sed2): %s", err)
-	}
+
 	allnodes := []string{}
 	allnodeExp := []string{}
 	allClients := []string{}
@@ -370,55 +354,26 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 	cips := "'" + strings.Join(allClients, "','") + "'"
 	vips := "'" + strings.Join(allVector, "','") + "'"
 	if len(allnodes) != 0 || len(allnodeExp) != 0 {
-		err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakAsd", "-E", "s/.*TODO_ASD_TARGETS/      - targets: [" + ips + "] #TODO_ASD_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 		if err != nil {
 			return fmt.Errorf("failed to configure prometheus (sed3): %s", err)
 		}
-		err = a.opts.Attach.Client.run([]string{"sed", "-i.bak3", "-E", "s/.*TODO_ASDN_TARGETS/      - targets: [" + nips + "] #TODO_ASDN_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakAsdNode", "-E", "s/.*TODO_ASDN_TARGETS/      - targets: [" + nips + "] #TODO_ASDN_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 		if err != nil {
 			return fmt.Errorf("failed to configure prometheus (sed3.1): %s", err)
 		}
 	}
 	if len(allClients) != 0 {
-		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakY", "-E", "s/.*TODO_CLIENT_TARGETS/      - targets: [" + cips + "] #TODO_CLIENT_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakGraph", "-E", "s/.*TODO_CLIENT_TARGETS/      - targets: [" + cips + "] #TODO_CLIENT_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 		if err != nil {
 			return fmt.Errorf("failed to configure prometheus (sed.1): %s", err)
 		}
 	}
 	if len(allVector) != 0 {
-		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakY", "-E", "s/.*TODO_VECTOR_TARGETS/      - targets: [" + vips + "] #TODO_VECTOR_TARGETS/g", "/etc/prometheus/prometheus.yml"})
+		err = a.opts.Attach.Client.run([]string{"sed", "-i.bakVector", "-E", "s/.*TODO_VECTOR_TARGETS/      - targets: [" + vips + "] #TODO_VECTOR_TARGETS/g", "/etc/prometheus/prometheus.yml"})
 		if err != nil {
 			return fmt.Errorf("failed to configure prometheus (sed.1): %s", err)
 		}
-	}
-	// configure:grafana
-	err = a.opts.Attach.Client.run([]string{"chmod", "664", "/etc/grafana/grafana.ini"})
-	if err != nil {
-		return fmt.Errorf("failed to configure grafana (chmod): %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak", "-E", "s/^\\[paths\\]$/[paths]\\nprovisioning = \\/etc\\/grafana\\/provisioning/g", "/etc/grafana/grafana.ini"})
-	if err != nil {
-		return fmt.Errorf("failed to configure grafana (sed ini): %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"grafana-cli", "plugins", "install", "camptocamp-prometheus-alertmanager-datasource"})
-	if err != nil {
-		return fmt.Errorf("failed to configure grafana (plugin install): %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"grafana-cli", "plugins", "install", "grafana-polystat-panel"})
-	if err != nil {
-		return fmt.Errorf("failed to configure grafana (plugin install): %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"wget", "-q", "-O", "/etc/grafana/provisioning/datasources/all.yaml", "https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/datasources/all.yaml"})
-	if err != nil {
-		return fmt.Errorf("failed to configure grafana (wget datasource): %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"/bin/bash", "-c", "echo -e '  - name: Loki\n    type: loki\n    access: proxy\n    url: http://localhost:3100\n    jsonData:\n      maxLines: 1000\n' >> /etc/grafana/provisioning/datasources/all.yaml"})
-	if err != nil {
-		return fmt.Errorf("failed to add loki to grafana: %s", err)
-	}
-	err = a.opts.Attach.Client.run([]string{"sed", "-i.bak", "s/prometheus:9090/127.0.0.1:9090/g", "/etc/grafana/provisioning/datasources/all.yaml"})
-	if err != nil {
-		return fmt.Errorf("failed to configure grafana (sed datasource): %s", err)
 	}
 	// dashboards
 	log.Println("Downloading dashboards...")
@@ -705,4 +660,48 @@ EOF
 `
 	size = len(script)
 	return
+}
+
+func (c *clientAddAMSCmd) installScript() string {
+	return `function grafana() {
+	set -e
+	mkdir -p /etc/apt/keyrings/
+	wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor > /etc/apt/keyrings/grafana.gpg
+	echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" > /etc/apt/sources.list.d/grafana.list
+	apt-get update
+	apt-get -y install grafana
+}
+
+function grafana_fallback() {
+	set -e
+    platform=amd64
+    [[ $(uname -m) =~ arm ]] && platform=arm64
+    [[ $(uname -p) =~ arm ]] && platform=arm64
+	apt-get install -y adduser libfontconfig1 musl
+	wget https://dl.grafana.com/oss/release/grafana_10.4.1_amd64.deb
+	dpkg -i grafana_10.4.1_${platform}.deb
+}
+
+set -e
+apt-get update
+apt-get -y install prometheus apt-transport-https software-properties-common wget
+
+set +e
+ret=$(grafana)
+[ $? -ne 0 ] && ret=$(grafana_fallback)
+[ $? -ne 0 ] && exit 1
+
+set -e
+wget -q -O /etc/prometheus/aerospike_rules.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/prometheus/aerospike_rules.yml
+sed -i.bak -E 's/^rule_files:/rule_files:\n  - "\/etc\/prometheus\/aerospike_rules.yaml"/g' /etc/prometheus/prometheus.yml
+sed -i.bak -E 's/- job_name: node/- job_name: nodelocal/g' /etc/prometheus/prometheus.yml
+sed -i.bak -E 's/^scrape_configs:/scrape_configs:\n  - job_name: aerospike\n    static_configs:\n      - targets: [] #TODO_ASD_TARGETS\n  - job_name: node\n    static_configs:\n      - targets: [] #TODO_ASDN_TARGETS\n  - job_name: clients\n    static_configs:\n      - targets: [] #TODO_CLIENT_TARGETS\n  - job_name: vector\n    metrics_path: \/manage\/rest\/v1\/prometheus\n    static_configs:\n      - targets: [] #TODO_VECTOR_TARGETS\n/g' /etc/prometheus/prometheus.yml
+chmod 664 /etc/grafana/grafana.ini
+sed -i.bak -E 's/^\[paths\]$/[paths]\nprovisioning = \/etc\/grafana\/provisioning/g' /etc/grafana/grafana.ini
+grafana-cli plugins install camptocamp-prometheus-alertmanager-datasource
+grafana-cli plugins install grafana-polystat-panel
+wget -q -O /etc/grafana/provisioning/datasources/all.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/grafana/provisioning/datasources/all.yaml
+echo -e '  - name: Loki\n    type: loki\n    access: proxy\n    url: http://localhost:3100\n    jsonData:\n      maxLines: 1000\n' >> /etc/grafana/provisioning/datasources/all.yaml
+sed -i.bak 's/prometheus:9090/127.0.0.1:9090/g' /etc/grafana/provisioning/datasources/all.yaml
+`
 }
