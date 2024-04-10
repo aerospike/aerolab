@@ -1261,6 +1261,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.AppendHeader(table.Row{"VpcID", "VpcName", "VpcCidr", "Avail.Zone", "SubnetID", "SubnetCidr", "AZDefault", "SubnetName", "Auto-AssignIP"})
 			for _, v := range inv.Subnets {
 				autoIP := "no (enable to use with aerolab)"
+				if a.opts.Config.Backend.AWSNoPublicIps {
+					autoIP = "no (disabled)"
+				}
 				if v.AWS.AutoPublicIP {
 					autoIP = "yes (ok)"
 				}

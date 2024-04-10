@@ -1098,6 +1098,9 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 					if instance.PrivateIpAddress != nil {
 						privateIp = *instance.PrivateIpAddress
 					}
+					if a.opts.Config.Backend.AWSNoPublicIps {
+						publicIp = privateIp
+					}
 					if instance.InstanceId != nil {
 						instanceId = *instance.InstanceId
 					}
@@ -2238,7 +2241,7 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 					}
 				}
 				nip := instance.PublicIpAddress
-				if internalIPs {
+				if internalIPs || a.opts.Config.Backend.AWSNoPublicIps {
 					nip = instance.PrivateIpAddress
 				}
 				if nip != nil {
@@ -2477,7 +2480,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 					continue
 				}
 
-				if nout.Reservations[0].Instances[0].PublicIpAddress == nil {
+				if nout.Reservations[0].Instances[0].PublicIpAddress == nil && !a.opts.Config.Backend.AWSNoPublicIps {
 					fmt.Println("Have not received Public IP Address from AWS - just slow, or subnet in AWS is misconfigured - must be default provide public IP address")
 					time.Sleep(time.Second)
 					continue
@@ -2488,11 +2491,17 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 					}
 				}
 
-				_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "ls", 0)
+				var pubIp string
+				if a.opts.Config.Backend.AWSNoPublicIps {
+					pubIp = *nout.Reservations[0].Instances[0].PrivateIpAddress
+				} else {
+					pubIp = *nout.Reservations[0].Instances[0].PublicIpAddress
+				}
+				_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "ls", 0)
 				if err == nil {
 					instanceReady = instanceReady + 1
 				} else {
-					fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", *nout.Reservations[0].Instances[0].PublicIpAddress, keyPath, err)
+					fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", pubIp, keyPath, err)
 					time.Sleep(time.Second)
 				}
 			}
@@ -2513,37 +2522,43 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	fmt.Println("Connection succeeded, continuing deployment...")
 
 	// sort out root/ubuntu issues
-	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo mkdir -p /root/.ssh", 0)
+	var pubIp string
+	if a.opts.Config.Backend.AWSNoPublicIps {
+		pubIp = *instance.PrivateIpAddress
+	} else {
+		pubIp = *instance.PublicIpAddress
+	}
+	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo mkdir -p /root/.ssh", 0)
 	if err != nil {
-		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo mkdir -p /root/.ssh", 0)
+		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo mkdir -p /root/.ssh", 0)
 		if err != nil {
 			return fmt.Errorf("mkdir .ssh failed: %s\n%s", string(out), err)
 		}
 	}
-	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chown root:root /root/.ssh", 0)
+	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chown root:root /root/.ssh", 0)
 	if err != nil {
-		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chown root:root /root/.ssh", 0)
+		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chown root:root /root/.ssh", 0)
 		if err != nil {
 			return fmt.Errorf("chown .ssh failed: %s\n%s", string(out), err)
 		}
 	}
-	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chmod 750 /root/.ssh", 0)
+	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chmod 750 /root/.ssh", 0)
 	if err != nil {
-		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chmod 750 /root/.ssh", 0)
+		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chmod 750 /root/.ssh", 0)
 		if err != nil {
 			return fmt.Errorf("chmod .ssh failed: %s\n%s", string(out), err)
 		}
 	}
-	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
+	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
 	if err != nil {
-		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
+		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
 		if err != nil {
 			return fmt.Errorf("cp .ssh failed: %s\n%s", string(out), err)
 		}
 	}
-	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
+	_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
 	if err != nil {
-		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
+		out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
 		if err != nil {
 			return fmt.Errorf("chmod auth_keys failed: %s\n%s", string(out), err)
 		}
@@ -2556,7 +2571,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 
 	// copy files as required to VM
 	files = append(files, fileListReader{"/root/installer.sh", strings.NewReader(script), len(script)})
-	err = scp("root", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, files)
+	err = scp("root", fmt.Sprintf("%s:22", pubIp), keyPath, files)
 	if err != nil {
 		return fmt.Errorf("scp failed: %s", err)
 	}
@@ -2567,14 +2582,14 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	}
 
 	// run script as required
-	_, err = remoteRun("root", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "chmod 755 /root/installer.sh", 0)
+	_, err = remoteRun("root", fmt.Sprintf("%s:22", pubIp), keyPath, "chmod 755 /root/installer.sh", 0)
 	if err != nil {
-		out, err := remoteRun("root", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "chmod 755 /root/installer.sh", 0)
+		out, err := remoteRun("root", fmt.Sprintf("%s:22", pubIp), keyPath, "chmod 755 /root/installer.sh", 0)
 		if err != nil {
 			return fmt.Errorf("chmod failed: %s\n%s", string(out), err)
 		}
 	}
-	out, err := remoteRun("root", fmt.Sprintf("%s:22", *instance.PublicIpAddress), keyPath, "/bin/bash -c /root/installer.sh", 0)
+	out, err := remoteRun("root", fmt.Sprintf("%s:22", pubIp), keyPath, "/bin/bash -c /root/installer.sh", 0)
 	if err != nil {
 		return fmt.Errorf("/root/installer.sh failed: %s\n%s", string(out), err)
 	}
@@ -3000,65 +3015,71 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 				if len(nout.Reservations[0].Instances) == 0 {
 					return errors.New("aws instances count == 0 in reservation[0] and no error happened")
 				}
-				if nout.Reservations[0].Instances[0].PublicIpAddress == nil {
+				if nout.Reservations[0].Instances[0].PublicIpAddress == nil && !a.opts.Config.Backend.AWSNoPublicIps {
 					return errors.New("no public ip address assigned to the instance")
 				}
-				_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "ls", 0)
+				var pubIp string
+				if a.opts.Config.Backend.AWSNoPublicIps {
+					pubIp = *nout.Reservations[0].Instances[0].PrivateIpAddress
+				} else {
+					pubIp = *nout.Reservations[0].Instances[0].PublicIpAddress
+				}
+				_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "ls", 0)
 				if err == nil {
 					fmt.Println("Connection succeeded, continuing installation...")
 					// sort out root/ubuntu issues
-					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo mkdir -p /root/.ssh", 0)
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo mkdir -p /root/.ssh", 0)
 					if err != nil {
-						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo mkdir -p /root/.ssh", 0)
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo mkdir -p /root/.ssh", 0)
 						if err != nil {
 							return fmt.Errorf("mkdir .ssh failed: %s\n%s", string(out), err)
 						}
 					}
-					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo chown root:root /root/.ssh", 0)
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chown root:root /root/.ssh", 0)
 					if err != nil {
-						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo chown root:root /root/.ssh", 0)
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chown root:root /root/.ssh", 0)
 						if err != nil {
 							return fmt.Errorf("chown .ssh failed: %s\n%s", string(out), err)
 						}
 					}
-					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo chmod 750 /root/.ssh", 0)
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chmod 750 /root/.ssh", 0)
 					if err != nil {
-						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo chmod 750 /root/.ssh", 0)
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chmod 750 /root/.ssh", 0)
 						if err != nil {
 							return fmt.Errorf("chmod .ssh failed: %s\n%s", string(out), err)
 						}
 					}
-					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
 					if err != nil {
-						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo cp /home/"+d.getUser(v)+"/.ssh/authorized_keys /root/.ssh/", 0)
 						if err != nil {
 							return fmt.Errorf("cp .ssh failed: %s\n%s", string(out), err)
 						}
 					}
-					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
 					if err != nil {
-						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo chmod 640 /root/.ssh/authorized_keys", 0)
 						if err != nil {
-							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", *nout.Reservations[0].Instances[0].PublicIpAddress, string(out), err)
+							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", pubIp, string(out), err)
 						}
 					}
-					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "echo \"AcceptEnv NODE\" |sudo tee -a /etc/ssh/sshd_config", 0)
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "echo \"AcceptEnv NODE\" |sudo tee -a /etc/ssh/sshd_config", 0)
 					if err != nil {
-						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "echo \"AcceptEnv NODE\" |sudo tee -a /etc/ssh/sshd_config", 0)
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "echo \"AcceptEnv NODE\" |sudo tee -a /etc/ssh/sshd_config", 0)
 						if err != nil {
-							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", *nout.Reservations[0].Instances[0].PublicIpAddress, string(out), err)
+							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", pubIp, string(out), err)
 						}
 					}
-					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo service ssh restart || sudo service sshd restart", 0)
+					_, err = remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo service ssh restart || sudo service sshd restart", 0)
 					if err != nil {
-						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", *nout.Reservations[0].Instances[0].PublicIpAddress), keyPath, "sudo service ssh restart || sudo service sshd restart", 0)
+						out, err := remoteRun(d.getUser(v), fmt.Sprintf("%s:22", pubIp), keyPath, "sudo service ssh restart || sudo service sshd restart", 0)
 						if err != nil {
-							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", *nout.Reservations[0].Instances[0].PublicIpAddress, string(out), err)
+							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", pubIp, string(out), err)
 						}
 					}
 					instanceReady = instanceReady + 1
 				} else {
-					fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", *nout.Reservations[0].Instances[0].PublicIpAddress, keyPath, err)
+					fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", pubIp, keyPath, err)
 					time.Sleep(time.Second)
 				}
 			}

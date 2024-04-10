@@ -33,15 +33,16 @@ func (c *configCmd) Execute(args []string) error {
 }
 
 type configBackendCmd struct {
-	Type       string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:"" webchoice:"aws,gcp,docker"`
-	SshKeyPath flags.Filename `short:"p" long:"key-path" description:"AWS and GCP backends: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
-	Region     string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
-	AWSProfile string         `short:"P" long:"aws-profile" description:"AWS backend: provide a profile to use; setting this ignores the AWS_PROFILE env variable"`
-	Project    string         `short:"o" long:"project" description:"GCP backend: override default gcp configured project" default:""`
-	Arch       string         `short:"a" long:"docker-arch" description:"set to either amd64 or arm64 to force a particular architecture on docker; see https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md"`
-	TmpDir     flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:""`
-	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
-	typeSet    string
+	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:"" webchoice:"aws,gcp,docker"`
+	SshKeyPath     flags.Filename `short:"p" long:"key-path" description:"AWS and GCP backends: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/"`
+	Region         string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
+	AWSProfile     string         `short:"P" long:"aws-profile" description:"AWS backend: provide a profile to use; setting this ignores the AWS_PROFILE env variable"`
+	AWSNoPublicIps bool           `long:"aws-nopublic-ip" description:"AWS backend: if set, aerolab will not request public IPs, and will operate on private IPs only"`
+	Project        string         `short:"o" long:"project" description:"GCP backend: override default gcp configured project" default:""`
+	Arch           string         `short:"a" long:"docker-arch" description:"set to either amd64 or arm64 to force a particular architecture on docker; see https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md"`
+	TmpDir         flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:""`
+	Help           helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	typeSet        string
 }
 
 type configDefaultsCmd struct {
