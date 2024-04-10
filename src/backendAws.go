@@ -440,24 +440,36 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 		return err
 	}
 
-	_, err = d.scheduler.CreateSchedule(&scheduler.CreateScheduleInput{
-		Name:               aws.String("aerolab-expiries"),
-		Description:        aws.String(strconv.Itoa(awsExpiryVersion)),
-		ScheduleExpression: aws.String("rate(" + strconv.Itoa(intervalMinutes) + " minutes)"),
-		State:              aws.String("ENABLED"),
-		ClientToken:        aws.String("aerolab-expiries-" + a.opts.Config.Backend.Region),
-		FlexibleTimeWindow: &scheduler.FlexibleTimeWindow{
-			Mode: aws.String(scheduler.FlexibleTimeWindowModeOff),
-		},
-		Target: &scheduler.Target{
-			Arn:     function.FunctionArn,
-			RoleArn: schedRole.Role.Arn,
-		},
-	})
-	if err != nil {
-		return err
+	err = errors.New("execution role you provide must allow AWS EventBridge Scheduler to assume the role")
+	retries := 0
+	for err != nil && strings.Contains(err.Error(), "execution role you provide must allow AWS EventBridge Scheduler to assume the role") {
+		retries++
+		_, err = d.scheduler.CreateSchedule(&scheduler.CreateScheduleInput{
+			Name:               aws.String("aerolab-expiries"),
+			Description:        aws.String(strconv.Itoa(awsExpiryVersion)),
+			ScheduleExpression: aws.String("rate(" + strconv.Itoa(intervalMinutes) + " minutes)"),
+			State:              aws.String("ENABLED"),
+			ClientToken:        aws.String("aerolab-expiries-" + a.opts.Config.Backend.Region),
+			FlexibleTimeWindow: &scheduler.FlexibleTimeWindow{
+				Mode: aws.String(scheduler.FlexibleTimeWindowModeOff),
+			},
+			Target: &scheduler.Target{
+				Arn:     function.FunctionArn,
+				RoleArn: schedRole.Role.Arn,
+			},
+		})
+		if err != nil {
+			if !strings.Contains(err.Error(), "execution role you provide must allow AWS EventBridge Scheduler to assume the role") {
+				return err
+			} else {
+				if retries > 3 {
+					return err
+				}
+				log.Println("Scheduler: IAM not ready, waiting for IAM and retrying to create Lambda")
+				time.Sleep(5 * time.Second)
+			}
+		}
 	}
-
 	log.Println("Cluster expiry system installed")
 	return nil
 }
