@@ -1025,6 +1025,9 @@ func (d *backendAws) listSubnets(stdout bool) ([]inventorySubnetAWS, error) {
 			}
 		}
 		autoIP := "no (enable to use with aerolab)"
+		if a.opts.Config.Backend.AWSNoPublicIps {
+			autoIP = "no (disabled)"
+		}
 		if aws.BoolValue(sub.MapPublicIpOnLaunch) {
 			autoIP = "yes (ok)"
 		}
