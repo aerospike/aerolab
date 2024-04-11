@@ -102,8 +102,9 @@ type Nav struct {
 }
 
 type NavTop struct {
-	Name string
-	Href string
+	Name   string
+	Href   string
+	Target string
 }
 
 type MainMenu struct {
