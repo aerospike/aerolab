@@ -387,6 +387,13 @@ func (c *webCmd) inventoryLogFile(requestID string) (*os.File, error) {
 }
 
 func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
+	backendIcon := "fa-aws"
+	if a.opts.Config.Backend.Type == "gcp" {
+		backendIcon = "fa-google"
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		backendIcon = "fa-docker"
+	}
 	p := &webui.Page{
 		Backend:                                 a.opts.Config.Backend.Type,
 		WebRoot:                                 c.WebRoot,
@@ -402,6 +409,10 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 				{
 					Name: "Home",
 					Href: c.WebRoot,
+				},
+				{
+					Name: "<i class=\"fa-brands " + backendIcon + "\"></i>",
+					Href: strings.TrimRight(c.WebRoot, "/") + "/config/backend",
 				},
 			},
 		},
