@@ -407,12 +407,19 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
-					Name: "Home",
-					Href: c.WebRoot,
+					Name:   "Home",
+					Href:   c.WebRoot,
+					Target: "_self",
 				},
 				{
-					Name: "<i class=\"fa-brands " + backendIcon + "\"></i>",
-					Href: strings.TrimRight(c.WebRoot, "/") + "/config/backend",
+					Name:   "AsbenchUI",
+					Href:   strings.TrimRight(c.WebRoot, "/") + "/www/dist/asbench/index.html",
+					Target: "_blank",
+				},
+				{
+					Name:   "<i class=\"fa-brands " + backendIcon + "\"></i>",
+					Href:   strings.TrimRight(c.WebRoot, "/") + "/config/backend",
+					Target: "_self",
 				},
 			},
 		},
