@@ -1377,7 +1377,13 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		errTitle = "Failed to generate form items"
 		isError = true
 	}
-
+	backendIcon := "fa-aws"
+	if a.opts.Config.Backend.Type == "gcp" {
+		backendIcon = "fa-google"
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		backendIcon = "fa-docker"
+	}
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
@@ -1394,8 +1400,19 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
-					Name: "Home",
-					Href: c.WebRoot,
+					Name:   "Home",
+					Href:   c.WebRoot,
+					Target: "_self",
+				},
+				{
+					Name:   "AsbenchUI",
+					Href:   strings.TrimRight(c.WebRoot, "/") + "/www/dist/asbench/index.html",
+					Target: "_blank",
+				},
+				{
+					Name:   "<i class=\"fa-brands " + backendIcon + "\"></i>",
+					Href:   strings.TrimRight(c.WebRoot, "/") + "/config/backend",
+					Target: "_self",
 				},
 			},
 		},
