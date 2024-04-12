@@ -599,7 +599,7 @@ func (c *volumeExecMountCmd) isDeb() bool {
 
 func (c *volumeExecMountCmd) installEFSUtilsYum() error {
 	// deps
-	command := []string{"/bin/bash", "-c", "yum install -y make rpm-build git"}
+	command := []string{"/bin/bash", "-c", "yum install -y make rpm-build git rust cargo openssl-devel"}
 	out, err := exec.Command(command[0], command[1:]...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %s", err, string(out))
@@ -636,7 +636,12 @@ func (c *volumeExecMountCmd) installEFSUtilsDeb() error {
 	if alreadyInstalled {
 		return nil
 	}
-
+	// deps
+	command := []string{"/bin/bash", "-c", "apt-get update && apt-get -y install git binutils rustc cargo pkg-config libssl-dev"}
+	out, err := exec.Command(command[0], command[1:]...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", err, string(out))
+	}
 	// git clone
 	if _, err := os.Stat("efs-utils"); err != nil {
 		command := []string{"git", "clone", "https://github.com/aws/efs-utils"}
@@ -647,8 +652,8 @@ func (c *volumeExecMountCmd) installEFSUtilsDeb() error {
 	}
 
 	// compile
-	command := []string{"/bin/bash", "-c", "cd efs-utils && ./build-deb.sh"}
-	out, err := exec.Command(command[0], command[1:]...).CombinedOutput()
+	command = []string{"/bin/bash", "-c", "cd efs-utils && ./build-deb.sh"}
+	out, err = exec.Command(command[0], command[1:]...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %s", err, string(out))
 	}
