@@ -664,6 +664,7 @@ EOF
 
 func (c *clientAddAMSCmd) installScript() string {
 	return `function grafana() {
+	set -x
 	set -e
 	mkdir -p /etc/apt/keyrings/
 	wget -q -O - https://apt.grafana.com/gpg.key | gpg --dearmor > /etc/apt/keyrings/grafana.gpg
@@ -673,6 +674,7 @@ func (c *clientAddAMSCmd) installScript() string {
 }
 
 function grafana_fallback() {
+	set -x
 	set -e
     platform=amd64
     [[ $(uname -m) =~ arm ]] && platform=arm64
@@ -682,14 +684,24 @@ function grafana_fallback() {
 	dpkg -i grafana_10.4.1_${platform}.deb
 }
 
+set -x
 set -e
 apt-get update
 apt-get -y install prometheus apt-transport-https software-properties-common wget
 
 set +e
 ret=$(grafana)
-[ $? -ne 0 ] && ret=$(grafana_fallback)
-[ $? -ne 0 ] && exit 1
+if [ $? -ne 0 ]
+then
+	echo ${ret}
+	echo "WARNING: Grafana failed to install from apt repos, trying manual download"
+	ret=$(grafana_fallback)
+	if [ $? -ne 0 ]
+	then
+		echo ${ret}
+		exit 1
+	fi
+fi
 
 set -e
 wget -q -O /etc/prometheus/aerospike_rules.yaml https://raw.githubusercontent.com/aerospike/aerospike-monitoring/master/config/prometheus/aerospike_rules.yml
