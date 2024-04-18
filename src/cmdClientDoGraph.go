@@ -206,10 +206,8 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
-		a.opts.Attach.Client.ClientName = c.ClientName
-		a.opts.Attach.Client.Machine = TypeMachines(strconv.Itoa(node))
 		defer backendRestoreTerminal()
-		err = a.opts.Attach.Client.run([]string{"/bin/bash", "/tmp/install-graph.sh"})
+		err = b.AttachAndRun(string(c.ClientName), node, []string{"/bin/bash", "/tmp/install-graph.sh"}, false)
 		if err != nil {
 			return err
 		}
