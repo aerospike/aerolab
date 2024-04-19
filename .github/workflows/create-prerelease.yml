@@ -35,7 +35,8 @@ jobs:
                 /usr/local/bin/brew link --overwrite python@3.11 || echo "I1.3"
                 /usr/local/bin/brew install python-gdbm@3.11 || echo "I1.4"
                 /usr/local/bin/brew install python-tk@3.11 || echo "I1.5"
-                for i in dpkg upx zip make wget jq rpm python3.11; do command -v $i; [ $? -ne 0 ] && echo "$i package missing" && exit 1; done
+                for i in dpkg upx zip make wget jq rpm python3.11; do command -v $i || exit 1; done
+                echo "Dependencies checked"
             - name: "Install golang"
               run: |
                 wget https://go.dev/dl/go1.22.2.darwin-amd64.pkg
