@@ -201,31 +201,73 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					lineErrorLock.Unlock()
 					return
 				}
-				out2, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.ExposedPorts}} {{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
-				if err != nil {
-					lineErrorLock.Lock()
-					lineError = err
-					lineErrorLock.Unlock()
-					return
-				}
-				ipport := strings.Split(strings.Trim(string(out2), "'\" \n\r"), " ")
 				ip := ""
 				exposePort := ""
 				intPort := ""
-				for _, it := range ipport {
-					if strings.HasPrefix(it, "{") {
-						nports := make(map[string]interface{})
-						err = json.Unmarshal([]byte(it), &nports)
-						if err == nil {
-							for k := range nports {
-								k = strings.Split(k, "/")[0]
-								exposePort = k
-								intPort = k
+				if d.dockerCmd == "docker" {
+					out2, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.ExposedPorts}} {{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
+					if err != nil {
+						lineErrorLock.Lock()
+						lineError = err
+						lineErrorLock.Unlock()
+						return
+					}
+					ipport := strings.Split(strings.Trim(string(out2), "'\" \n\r"), " ")
+					for _, it := range ipport {
+						if strings.HasPrefix(it, "{") {
+							nports := make(map[string]interface{})
+							err = json.Unmarshal([]byte(it), &nports)
+							if err == nil {
+								for k := range nports {
+									k = strings.Split(k, "/")[0]
+									exposePort = k
+									intPort = k
+								}
 							}
+						} else if it != "null" && it != "" {
+							ip = it
+							break
 						}
-					} else if it != "null" && it != "" {
-						ip = it
-						break
+					}
+				} else {
+					out2, err := exec.Command("podman", "container", "inspect", "--format", `{{json .NetworkSettings.Ports}} {{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}`, tt[1]).CombinedOutput()
+					if err != nil {
+						lineErrorLock.Lock()
+						lineError = err
+						lineErrorLock.Unlock()
+						return
+					}
+					ipport := strings.Split(strings.Trim(string(out2), "'\" \n\r"), " ")
+					for _, it := range ipport {
+						if strings.HasPrefix(it, "{") {
+							nports := make(map[string]interface{})
+							err = json.Unmarshal([]byte(it), &nports)
+							if err == nil {
+								for k, v := range nports {
+									intPort = strings.Split(k, "/")[0]
+									switch vv := v.(type) {
+									case []interface{}:
+										if len(vv) == 0 {
+											continue
+										}
+										vv0 := vv[0]
+										switch vv0m := vv0.(type) {
+										case map[string]interface{}:
+											k, ok := vv0m["HostPort"]
+											if ok {
+												exposePort = k.(string)
+											}
+										}
+									}
+									if exposePort != "" {
+										break
+									}
+								}
+							}
+						} else if it != "null" && it != "" {
+							ip = it
+							break
+						}
 					}
 				}
 				arch := "amd64"
