@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/aerospike/aerolab/scripts"
@@ -251,6 +252,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	script := scripts.GetVectorScript(a.opts.Config.Backend.Type == "docker", fExt, dlUrl)
 	log.Printf("Download URL: %s", dlUrl)
 
+	aoptslock := new(sync.Mutex)
 	returns := parallelize.MapLimit(machines, c.ParallelThreads, func(node int) error {
 		// handle advertised listeners
 		listeners := make(vectorAdvertisedListeners)
@@ -351,6 +353,8 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		// if docker - also detach-run the autoload /opt/autoload/10-proximus
 		// if cloud - systemctl start aerospike-proximus
 		if !c.NoStart {
+			// make a lock on this as doing a.opts in parallelize causes a race condition!
+			aoptslock.Lock()
 			log.Printf("client=%d start service", node)
 			if a.opts.Config.Backend.Type == "docker" {
 				a.opts.Attach.Client.ClientName = c.ClientName
@@ -359,6 +363,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				defer backendRestoreTerminal()
 				err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/autoload/10-proximus"})
 				if err != nil {
+					aoptslock.Unlock()
 					return err
 				}
 			} else {
@@ -367,9 +372,11 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				defer backendRestoreTerminal()
 				err = a.opts.Attach.Client.run([]string{"systemctl", "start", "aerospike-proximus"})
 				if err != nil {
+					aoptslock.Unlock()
 					return err
 				}
 			}
+			aoptslock.Unlock()
 		}
 
 		// upload prism-example script
