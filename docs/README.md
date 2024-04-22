@@ -21,6 +21,7 @@
   * [Basic](usage/basic/index.md)
   * [Advanced](usage/advanced/index.md)
   * [Full Stack](usage/full-stack/index.md)
+* [AWS EKS Kubernetes](eks/README.md)
 * [AGI - graphing aerospike statistics from logs](agi/README.md)
 * [DirEnv - different aerolab configuration per directory](direnv.md)
 * [Deploying clients](deploy_clients/index.md)

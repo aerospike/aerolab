@@ -53,7 +53,7 @@ func (c *expiryInstallCmd) Execute(args []string) error {
 		deployRegion = deployRegion[:len(deployRegion)-1]
 	}
 	err := b.ExpiriesSystemInstall(c.Frequency, strings.Join(deployRegion, "-"))
-	if err != nil {
+	if err != nil && err.Error() != "EXISTS" {
 		return errors.New(err.Error())
 	}
 	log.Println("Done")
