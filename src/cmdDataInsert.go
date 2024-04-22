@@ -72,20 +72,24 @@ func (c *dataInsertCmd) insert(args []string) error {
 	}
 	log.Print("Running data.insert")
 	if c.RunDirect {
+		var err error
 		log.Print("Insert start")
-		defer log.Print("Insert done")
 		switch c.Version {
 		case "7":
-			return c.insert7(args)
+			err = c.insert7(args)
 		case "6":
-			return c.insert6(args)
+			err = c.insert6(args)
 		case "5":
-			return c.insert5(args)
+			err = c.insert5(args)
 		case "4":
-			return c.insert4(args)
+			err = c.insert4(args)
 		default:
-			return errors.New("aerospike client version does not exist")
+			err = errors.New("aerospike client version does not exist")
 		}
+		if err == nil {
+			log.Print("Insert done")
+		}
+		return err
 	}
 	if b == nil {
 		return logFatal("Invalid backend")
@@ -115,7 +119,7 @@ func (c *dataInsertCmd) insert(args []string) error {
 	if err := c.unpack(args, extraArgs); err != nil {
 		return err
 	}
-	log.Print("Unpacking done")
+	log.Print("Complete")
 	return nil
 }
 
@@ -182,7 +186,7 @@ func (c *dataInsertSelectorCmd) unpack(args []string, extraArgs []string) error 
 		if err != nil {
 			return fmt.Errorf("insert-data: cfgFile read error: %s", err)
 		}
-		defer contents.Close()
+		defer cfgContents.Close()
 		err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/root/.aerolab.conf", cfgContents, cfilelen}}, []int{c.Node.Int()})
 		if err != nil {
 			return fmt.Errorf("insert-data: cfgFile backend.CopyFilesToCluster: %s", err)
