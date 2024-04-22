@@ -31,6 +31,7 @@ type clientCreateEksCtlCmd struct {
 	chDirCmd
 }
 
+// TODO: test if the bootstrap sh script should install region if using instance Profile; if not, remove that code piece and modify the below to not check for region setup if profile is specified
 // TODO: if `os.Args[0]` is called `eksexpiry`, provide eks expiry tool instead
 //       * `eksexpiry --name bobCluster --region us-central-1 --in 30h` or `--at 2024-02-11_05:40:15_0700`
 // TODO: code actual expiry system code that does the actual expiries (may need to bake in eksctl source as a library; or bootstrap to /tmp on the fly and run from there?) ;; should work through all regions(?)
@@ -49,7 +50,7 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 			if d.IsDir() {
 				return nil
 			}
-			contents, err := eksYamls.ReadFile(d.Name())
+			contents, err := eksYamls.ReadFile(npath)
 			if err != nil {
 				return err
 			}
@@ -123,7 +124,7 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if isError {
 		return errors.New("some nodes returned errors")
 	}
-	log.Println("Done")
+	log.Println("Done! Attach command: aerolab attach client -n " + c.ClientName)
 	log.Println("For usage instructions and help, see documentation at https://github.com/aerospike/aerolab/blob/master/docs/eks/README.md")
 	return nil
 }

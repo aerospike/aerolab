@@ -4,6 +4,11 @@ function aws_auth() {
 	printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\n" ${KEYID} ${SECRETKEY} > ~/.aws/credentials
 }
 
+function aws_region() {
+	[ ! -d ~/.aws ] && mkdir ~/.aws
+	printf "[default]\noutput = text\nregion = %s\n" ${AWS_REGION} > ~/.aws/config
+}
+
 function install_packages() {
 	apt update
 	apt -y install curl vim openssh-client zip git jq less wget
@@ -15,12 +20,14 @@ function keygen() {
 
 # cause Colton created it
 function get_coltons_helper() {
+	old=$(pwd)
 	if [ ! -d /root/deploy-olm-ako ]
 	then
 		cd /root && git clone -b eksctl https://github.com/colton-aerospike/deploy-olm-ako
 	else
 		cd /root/deploy-olm-ako && git pull
 	fi
+	cd ${old}
 }
 
 function install_eksctl() {
@@ -106,7 +113,8 @@ if [ ! -z "${KEYID}" ] && [ ! -z "${SECRETKEY}" ]; then
 	echo "Installing AWS Auth..."
 	aws_auth
 else
-	echo "Skipping AWS Auth installation"
+	echo "Skipping AWS Auth installation; Installing region settings only..."
+	aws_region
 fi
 echo "Installing dependencies"
 install_packages
