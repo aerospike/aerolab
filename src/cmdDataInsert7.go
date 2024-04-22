@@ -89,6 +89,9 @@ func (c *dataInsertCmd) insert7(args []string) error {
 	}
 	go func() {
 		for {
+			if inserted == total {
+				return
+			}
 			nsec := int(time.Since(startTime).Seconds())
 			var ttkn int
 			if nsec == 0 {

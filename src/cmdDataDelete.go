@@ -27,20 +27,24 @@ func (c *dataDeleteCmd) delete(args []string) error {
 	}
 	log.Print("Running data.delete")
 	if c.RunDirect {
+		var err error
 		log.Print("Delete start")
-		defer log.Print("Delete done")
 		switch c.Version {
 		case "7":
-			return c.delete7(args)
+			err = c.delete7(args)
 		case "6":
-			return c.delete6(args)
+			err = c.delete6(args)
 		case "5":
-			return c.delete5(args)
+			err = c.delete5(args)
 		case "4":
-			return c.delete4(args)
+			err = c.delete4(args)
 		default:
-			return errors.New("aerospike client version does not exist")
+			err = errors.New("aerospike client version does not exist")
 		}
+		if err == nil {
+			log.Print("Insert done")
+		}
+		return err
 	}
 	if b == nil {
 		return logFatal("Invalid backend")
@@ -70,7 +74,7 @@ func (c *dataDeleteCmd) delete(args []string) error {
 	if err := c.unpack(args, extraArgs); err != nil {
 		return err
 	}
-	log.Print("Unpacking done")
+	log.Print("Complete")
 	return nil
 }
 
