@@ -19,7 +19,7 @@ function create() {
 	then
 		aerolab config backend -t aws -r $AWS_REGION || exit 1
 		aerolab config aws list-security-groups |grep interview
-		[ $? -ne 0 ] && aerolab config aws create-security-groups -n interview -p 22 -p 80 -p 443 --no-defaults
+		[ $? -ne 0 ] && aerolab config aws create-security-groups -n interview -p 80 -p 443 --no-defaults
 		aerolab config aws lock-security-groups -n interview -i 0.0.0.0/0 -p 22 -p 80 -p 443 --no-defaults || exit 1
 	else
 	    aerolab config backend -t gcp -o $GCP_PROJECT || exit 1
