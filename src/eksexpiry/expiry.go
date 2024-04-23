@@ -1,0 +1,130 @@
+package eksexpiry
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/eks"
+)
+
+type request struct {
+	ClusterName string
+	Region      string
+	In          time.Duration
+	At          string
+	at          time.Time
+}
+
+func Expiry() {
+	// flag request struct
+	r := new(request)
+	// custom flag usage function
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		fmt.Fprint(flag.CommandLine.Output(), "\nIf both -in and -at are specified, the one with the longest expiry will take effect.\n")
+	}
+	// flag parameters
+	flag.StringVar(&r.ClusterName, "name", "", "EKS Cluster Name (required)")
+	flag.StringVar(&r.Region, "region", "", "EKS Cluster Region (required)")
+	flag.DurationVar(&r.In, "in", 0, "Expire in duration from now; ex: 30h5m10s")
+	flag.StringVar(&r.At, "at", "", "Expire at this precise time; format: RFC3339 (2006-01-02T15:04:05+07:00)")
+	// if nothing is specified, display help and exit
+	if len(os.Args) == 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
+	// parse flags
+	flag.Parse()
+	// flag sanity checks
+	if r.ClusterName == "" {
+		fmt.Println("ERROR: Cluster Name is required!")
+		os.Exit(1)
+	}
+	if r.Region == "" {
+		fmt.Println("ERROR: Cluster Region is required!")
+		os.Exit(1)
+	}
+	if r.In == 0 && r.At == "" {
+		fmt.Println("ERROR: Either -in (duration) or -at (datetime) is required!")
+		os.Exit(1)
+	}
+	// compute expiry time
+	if r.In != 0 {
+		r.at = time.Now().Add(r.In)
+	}
+	if r.At != "" {
+		at, err := time.Parse(time.RFC3339, r.At)
+		if err != nil {
+			fmt.Printf("ERROR: Invalid value for -at, must be RFC3339 (2006-01-02T15:04:05Z07:00): %s\n", err)
+			os.Exit(1)
+		}
+		if r.at.IsZero() || at.After(r.at) {
+			r.at = at
+		}
+	}
+	// expiry time sanity check
+	if r.at.Before(time.Now()) {
+		fmt.Printf("ERROR: cluster would expiry immediately (calculated expiry: %s)\n", r.at.Format(time.RFC3339))
+		os.Exit(1)
+	}
+	// check connectivity
+	fmt.Println("Connecting to AWS EKS")
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(r.Region),
+	})
+	if err != nil {
+		fmt.Printf("ERROR: Could not create AWS Session: %s\n", err)
+		os.Exit(1)
+	}
+	svc := eks.New(sess, aws.NewConfig().WithRegion(r.Region))
+	// find cluster
+	fmt.Println("Looking up cluster")
+	cluster, err := svc.DescribeCluster(&eks.DescribeClusterInput{
+		Name: aws.String(r.ClusterName),
+	})
+	if err != nil {
+		fmt.Printf("ERROR: eks.DescribeCluster API returned: %s\n", err)
+		os.Exit(1)
+	}
+	if cluster == nil {
+		fmt.Println("ERROR: eks.DescribeCluster API returned an empty value.")
+		os.Exit(1)
+	}
+	// get old expiry
+	old := "none"
+	oldAt := aws.StringValue(cluster.Cluster.Tags["ExpireAt"])
+	if oldAt != "" {
+		oldAtInt, err := strconv.Atoi(oldAt)
+		if err == nil {
+			old = time.Unix(int64(oldAtInt), 0).Format(time.RFC3339)
+		}
+	} else {
+		initial := aws.StringValue(cluster.Cluster.Tags["initialExpiry"])
+		if initial != "" {
+			createTs := aws.TimeValue(cluster.Cluster.CreatedAt)
+			initialDuration, err := time.ParseDuration(initial)
+			if err == nil {
+				old = createTs.Add(initialDuration).Format(time.RFC3339)
+			}
+		}
+	}
+	// set new expiry
+	fmt.Printf("Setting expiry cluster=%s region=%s at=%s old=%s\n", r.ClusterName, r.Region, r.at.Format(time.RFC3339), old)
+	_, err = svc.TagResource(&eks.TagResourceInput{
+		ResourceArn: cluster.Cluster.Arn,
+		Tags: aws.StringMap(map[string]string{
+			"ExpireAt": strconv.Itoa(int(r.at.UTC().Unix())),
+		}),
+	})
+	if err != nil {
+		fmt.Printf("ERROR: Could not tag EKS cluster, eks.TagResource API returned: %s\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Done")
+}

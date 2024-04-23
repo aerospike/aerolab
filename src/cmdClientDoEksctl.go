@@ -31,11 +31,9 @@ type clientCreateEksCtlCmd struct {
 	chDirCmd
 }
 
-// TODO: test if the bootstrap sh script should install region if using instance Profile; if not, remove that code piece and modify the below to not check for region setup if profile is specified
-// TODO: if `os.Args[0]` is called `eksexpiry`, provide eks expiry tool instead
-//       * `eksexpiry --name bobCluster --region us-central-1 --in 30h` or `--at 2024-02-11_05:40:15_0700`
+// TODO: test eksctl and write out rackaware.md, asbench.md, ams.md
+// TODO: test eksexpiry
 // TODO: code actual expiry system code that does the actual expiries (may need to bake in eksctl source as a library; or bootstrap to /tmp on the fly and run from there?) ;; should work through all regions(?)
-// TODO: rackaware.md, asbench.md, ams.md
 
 func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if earlyProcess(args) {
