@@ -15,6 +15,11 @@ NAME=interview
 
 # create firewall and client
 function create() {
+	if [ ! -f $SCRIPT ]
+	then
+		echo "ERROR: script $SCRIPT not found"
+		return 1
+	fi
 	if [ "$BACKEND" == "aws" ]
 	then
 		aerolab config backend -t aws -r $AWS_REGION || exit 1
@@ -29,7 +34,9 @@ function create() {
 	fi
 
 	set -e
-	aerolab client create base -n $NAME -X $SCRIPT --instance-type=t3a.xlarge --secgroup-name=interview --aws-expire=$EXPIRE --instance=e2-standard-2 --zone=$GCP_REGION --firewall=interview --gcp-expire=$EXPIRE
+	aerolab client create base -n $NAME --instance-type=t3a.xlarge --secgroup-name=interview --aws-expire=$EXPIRE --instance=e2-standard-2 --zone=$GCP_REGION --firewall=interview --gcp-expire=$EXPIRE
+	aerolab files upload -n $NAME -c $SCRIPT /tmp/setup.sh
+	aerolab client attach -n $NAME -- bash /tmp/setup.sh
 }
 
 # start client
