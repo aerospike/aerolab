@@ -21,20 +21,19 @@ var eksYamls embed.FS
 
 type clientCreateEksCtlCmd struct {
 	clientCreateNoneCmd
-	EksAwsRegion         string         `short:"r" long:"eks-aws-region" description:"AWS region to install expiries system too and configure as default region"`
-	EksAwsKeyId          string         `short:"k" long:"eks-aws-keyid" description:"AWS Key ID to use for auth when performing eksctl tasks and expiries"`
-	EksAwsSecretKey      string         `short:"s" long:"eks-aws-secretkey" description:"AWS Secret Key to use for auth when performing eksctl tasks and expiries"`
-	EksAwsInstancePolicy string         `short:"x" long:"eks-aws-policy" description:"AWS instance policy to use instead of KEYID/SecretKey for authentication"`
-	FeaturesFilePath     flags.Filename `short:"f" long:"eks-asd-features" description:"Aerospike Features File to copy to the EKSCTL client machine; destination: /root/features.conf"`
-	JustDoIt             bool           `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
-	InstallYamls         bool           `long:"install-yamls" hidden:"true"`
+	EksAwsRegion          string         `short:"r" long:"eks-aws-region" description:"AWS region to install expiries system too and configure as default region"`
+	EksAwsKeyId           string         `short:"k" long:"eks-aws-keyid" description:"AWS Key ID to use for auth when performing eksctl tasks and expiries"`
+	EksAwsSecretKey       string         `short:"s" long:"eks-aws-secretkey" description:"AWS Secret Key to use for auth when performing eksctl tasks and expiries"`
+	EksAwsInstanceProfile string         `short:"x" long:"eks-aws-profile" description:"AWS instance profile to use instead of KEYID/SecretKey for authentication"`
+	FeaturesFilePath      flags.Filename `short:"f" long:"eks-asd-features" description:"Aerospike Features File to copy to the EKSCTL client machine; destination: /root/features.conf"`
+	JustDoIt              bool           `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
+	InstallYamls          bool           `long:"install-yamls" hidden:"true"`
 	chDirCmd
 }
 
-// TODO: if `os.Args[0]` is called `eksexpiry`, provide eks expiry tool instead
-//       * `eksexpiry --name bobCluster --region us-central-1 --in 30h` or `--at 2024-02-11_05:40:15_0700`
+// TODO: test eksctl and write out rackaware.md, asbench.md, ams.md
+// TODO: test eksexpiry
 // TODO: code actual expiry system code that does the actual expiries (may need to bake in eksctl source as a library; or bootstrap to /tmp on the fly and run from there?) ;; should work through all regions(?)
-// TODO: rackaware.md, asbench.md, ams.md
 
 func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if earlyProcess(args) {
@@ -49,7 +48,7 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 			if d.IsDir() {
 				return nil
 			}
-			contents, err := eksYamls.ReadFile(d.Name())
+			contents, err := eksYamls.ReadFile(npath)
 			if err != nil {
 				return err
 			}
@@ -62,8 +61,8 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if c.FeaturesFilePath == "" {
 		return errors.New("features file must be specified using -f /path/to/features.conf")
 	}
-	if (c.EksAwsKeyId == "" || c.EksAwsSecretKey == "") && c.EksAwsInstancePolicy == "" {
-		return errors.New("either KeyID+SecretKey OR InstancePolicy must be specified; for help see: aerolab client create eksctl help")
+	if (c.EksAwsKeyId == "" || c.EksAwsSecretKey == "") && c.EksAwsInstanceProfile == "" {
+		return errors.New("either KeyID+SecretKey OR InstanceProfile must be specified; for help see: aerolab client create eksctl help")
 	}
 	if c.EksAwsRegion == "" {
 		return errors.New("AWS region must be specified (use -r AWSREGION)")
@@ -74,6 +73,7 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	}
 	//continue
 	b.WorkOnClients()
+	c.instanceRole = c.EksAwsInstanceProfile
 	machines, err := c.createBase(args, "eksctl")
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if isError {
 		return errors.New("some nodes returned errors")
 	}
-	log.Println("Done")
+	log.Println("Done! Attach command: aerolab attach client -n " + c.ClientName)
 	log.Println("For usage instructions and help, see documentation at https://github.com/aerospike/aerolab/blob/master/docs/eks/README.md")
 	return nil
 }

@@ -21,13 +21,13 @@ Name | Description
 Provide a KEYID and SECRETKEY that the machine should use to interact with AWS.
 
 ```bash
-aerolab client create eks -n eksctl -r AWS-REGION -k AKIAxxxxxxxxxxxxxx -s xxxxxxxxxxxxxxxxxx
+aerolab client create eks -n eksctl -f /path/to/features.conf -r AWS-REGION -k AKIAxxxxxxxxxxxxxx -s xxxxxxxxxxxxxxxxxx
 ```
 
 Alternatively, provide an instance policy to apply to the instance for authentication purposes (policy must exist):
 
 ```bash
-aerolab client create eks -n eksctl -r AWS-REGION -x AWS-POLICY-NAME
+aerolab client create eks -n eksctl -f /path/to/features.conf -r AWS-REGION -x AWS-POLICY-NAME
 ```
 
 ### (Optional, as required) Update the eks tools
