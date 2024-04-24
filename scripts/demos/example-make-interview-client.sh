@@ -7,19 +7,18 @@ GCP_REGION=europe-west2-a
 SCRIPT=./interview.sh
 NAME=interview
 
-### NOTE - ensure the script runs just once, not on every start/stop
-### script should start with:
-###   [ -f /opt/installed ] && exit 0
-### script should end with:
-###   touch /opt/installed
-
 # create firewall and client
 function create() {
+	if [ ! -f $SCRIPT ]
+	then
+		echo "ERROR: script $SCRIPT not found"
+		return 1
+	fi
 	if [ "$BACKEND" == "aws" ]
 	then
 		aerolab config backend -t aws -r $AWS_REGION || exit 1
 		aerolab config aws list-security-groups |grep interview
-		[ $? -ne 0 ] && aerolab config aws create-security-groups -n interview -p 22 -p 80 -p 443 --no-defaults
+		[ $? -ne 0 ] && aerolab config aws create-security-groups -n interview -p 80 -p 443 --no-defaults
 		aerolab config aws lock-security-groups -n interview -i 0.0.0.0/0 -p 22 -p 80 -p 443 --no-defaults || exit 1
 	else
 	    aerolab config backend -t gcp -o $GCP_PROJECT || exit 1
@@ -29,7 +28,9 @@ function create() {
 	fi
 
 	set -e
-	aerolab client create base -n $NAME -X $SCRIPT --instance-type=t3a.xlarge --secgroup-name=interview --aws-expire=$EXPIRE --instance=e2-standard-2 --zone=$GCP_REGION --firewall=interview --gcp-expire=$EXPIRE
+	aerolab client create base -n $NAME --instance-type=t3a.xlarge --secgroup-name=interview --aws-expire=$EXPIRE --instance=e2-standard-2 --zone=$GCP_REGION --firewall=interview --gcp-expire=$EXPIRE
+	aerolab files upload -n $NAME -c $SCRIPT /tmp/setup.sh
+	aerolab client attach -n $NAME -- bash /tmp/setup.sh
 }
 
 # start client
@@ -47,6 +48,11 @@ function destroy() {
 	aerolab client destroy -f -n $NAME
 }
 
+# enable tmux/screen sharing
+function enabletmux() {
+	aerolab client attach -n $NAME -- bash /root/enable-screen.sh
+}
+
 if [ "$1" == "create" ]
 then
 	create
@@ -59,8 +65,26 @@ then
 elif [ "$1" == "destroy" ]
 then
 	destroy
+elif [ "$1" == "enable" ]
+then
+	enabletmux
+elif [ "$1" == "create-enable" ]
+then
+	create || exit 1
+	enabletmux
+elif [ "$1" == "showip" ]
+then
+	aerolab client list --ip |egrep '^client=interview' |egrep -o 'ext_ip=[^ ]+' |sed 's/ext_ip=/ssh root@/g'
 else
-	echo "Usage: $0 create|start|stop|destroy"
+	echo "Usage: $0 create|enable|start|stop|destroy"
+	echo " * create:        create inverview machine"
+	echo " * enable:        enable screen/tmux (this will work only once)"
+	echo " * create-enable: shortcut to auto-run create followed by enable in a single command"
+	echo " * showip:        show the IP of the interview machine"
+	echo " * start:         start a stopped inverview machine"
+	echo " * stop:          stop a running inverview machine"
+	echo " * destroy:       remove the inverview machine"
+	echo
 	echo "Before running, edit the settings parameters in this script"
 	exit 1
 fi
