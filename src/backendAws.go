@@ -231,7 +231,7 @@ func (d *backendAws) CreateVolume(name string, zone string, tags []string, expir
 		})
 	}
 	if expires != 0 {
-		err := d.ExpiriesSystemInstall(10, "")
+		err := d.ExpiriesSystemInstall(15, "")
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
 		}
@@ -356,24 +356,19 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	_, err = d.iam.PutRolePolicy(&iam.PutRolePolicyInput{
 		PolicyName:     aws.String("aerolab-expiries-lambda-policy-" + a.opts.Config.Backend.Region),
 		RoleName:       aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
-		PolicyDocument: aws.String(fmt.Sprintf(`{"Statement":[{"Action":"logs:CreateLogGroup","Effect":"Allow","Resource":"arn:aws:logs:%s:%s:*"},{"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Effect":"Allow","Resource":["arn:aws:logs:%s:%s:log-group:/aws/lambda/aerolab-expiries:*"]}],"Version":"2012-10-17"}`, a.opts.Config.Backend.Region, accountId, a.opts.Config.Backend.Region, accountId)),
+		PolicyDocument: aws.String(fmt.Sprintf(`{"Statement":[{"Action":"logs:CreateLogGroup","Effect":"Allow","Resource":"arn:aws:logs:%s:%s:*"},{"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Effect":"Allow","Resource":["arn:aws:logs:%s:%s:log-group:/aws/lambda/aerolab-expiries:*"]},{"Action":"eks:*","Effect":"Allow","Resource":"*"},{"Action":["ssm:GetParameter","ssm:GetParameters"],"Effect":"Allow","Resource":["arn:aws:ssm:*:%s:parameter/aws/*","arn:aws:ssm:*::parameter/aws/*"]},{"Action":["kms:CreateGrant","kms:DescribeKey"],"Effect":"Allow","Resource":"*"},{"Action":["logs:PutRetentionPolicy"],"Effect":"Allow","Resource":"*"},{"Action":["iam:CreateInstanceProfile","iam:DeleteInstanceProfile","iam:GetInstanceProfile","iam:RemoveRoleFromInstanceProfile","iam:GetRole","iam:CreateRole","iam:DeleteRole","iam:AttachRolePolicy","iam:PutRolePolicy","iam:AddRoleToInstanceProfile","iam:ListInstanceProfilesForRole","iam:PassRole","iam:DetachRolePolicy","iam:DeleteRolePolicy","iam:GetRolePolicy","iam:GetOpenIDConnectProvider","iam:CreateOpenIDConnectProvider","iam:DeleteOpenIDConnectProvider","iam:TagOpenIDConnectProvider","iam:ListOpenIDConnectProviders","iam:ListOpenIDConnectProviderTags","iam:DeleteOpenIDConnectProvider","iam:ListAttachedRolePolicies","iam:TagRole","iam:GetPolicy","iam:CreatePolicy","iam:DeletePolicy","iam:ListPolicyVersions"],"Effect":"Allow","Resource":["arn:aws:iam::%s:instance-profile/eksctl-*","arn:aws:iam::%s:role/eksctl-*","arn:aws:iam::%s:policy/eksctl-*","arn:aws:iam::%s:oidc-provider/*","arn:aws:iam::%s:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup","arn:aws:iam::%s:role/eksctl-managed-*"]},{"Action":["iam:GetRole"],"Effect":"Allow","Resource":["arn:aws:iam::%s:role/*"]},{"Action":["iam:CreateServiceLinkedRole"],"Condition":{"StringEquals":{"iam:AWSServiceName":["eks.amazonaws.com","eks-nodegroup.amazonaws.com","eks-fargate.amazonaws.com"]}},"Effect":"Allow","Resource":"*"}],"Version":"2012-10-17"}`, a.opts.Config.Backend.Region, accountId, a.opts.Config.Backend.Region, accountId, accountId, accountId, accountId, accountId, accountId, accountId, accountId, accountId)),
 	})
 	if err != nil {
 		return err
 	}
-	_, err = d.iam.AttachRolePolicy(&iam.AttachRolePolicyInput{
-		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
-		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonEC2FullAccess"),
-	})
-	if err != nil {
-		return err
-	}
-	_, err = d.iam.AttachRolePolicy(&iam.AttachRolePolicyInput{
-		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
-		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess"),
-	})
-	if err != nil {
-		return err
+	for _, npolicy := range awsExpiryPolicies {
+		_, err = d.iam.AttachRolePolicy(&iam.AttachRolePolicyInput{
+			RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+			PolicyArn: aws.String(npolicy),
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	schedRole, err := d.iam.CreateRole(&iam.CreateRoleInput{
@@ -405,10 +400,15 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 		FunctionName: aws.String("aerolab-expiries"),
 		Handler:      aws.String("bootstrap"),
 		PackageType:  aws.String("Zip"),
-		Timeout:      aws.Int64(60),
+		Timeout:      aws.Int64(900),
 		Publish:      aws.Bool(true),
 		Runtime:      aws.String("provided.al2"),
-		Role:         lambdaRole.Role.Arn,
+		Environment: &lambda.Environment{
+			Variables: aws.StringMap(map[string]string{
+				"EKS_ROLE": aws.StringValue(lambdaRole.Role.Arn),
+			}),
+		},
+		Role: lambdaRole.Role.Arn,
 	})
 	if err != nil && strings.Contains(err.Error(), "InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda") {
 		retries := 0
@@ -423,10 +423,15 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 				FunctionName: aws.String("aerolab-expiries"),
 				Handler:      aws.String("bootstrap"),
 				PackageType:  aws.String("Zip"),
-				Timeout:      aws.Int64(60),
+				Timeout:      aws.Int64(900),
 				Publish:      aws.Bool(true),
 				Runtime:      aws.String("provided.al2"),
-				Role:         lambdaRole.Role.Arn,
+				Environment: &lambda.Environment{
+					Variables: aws.StringMap(map[string]string{
+						"EKS_ROLE": aws.StringValue(lambdaRole.Role.Arn),
+					}),
+				},
+				Role: lambdaRole.Role.Arn,
 			})
 			if err != nil && !strings.Contains(err.Error(), "InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda") {
 				return err
@@ -524,6 +529,8 @@ func (d *backendAws) ClusterExpiry(zone string, clusterName string, expiry time.
 	return err
 }
 
+var awsExpiryPolicies = []string{"arn:aws:iam::aws:policy/AmazonEC2FullAccess", "arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess", "arn:aws:iam::aws:policy/AWSCloudFormationFullAccess"}
+
 func (d *backendAws) ExpiriesSystemRemove(region string) error {
 	if d.disableExpiryInstall {
 		return nil
@@ -543,20 +550,14 @@ func (d *backendAws) ExpiriesSystemRemove(region string) error {
 	if err != nil && !strings.Contains(err.Error(), "ResourceNotFoundException: Function not found") {
 		ret = append(ret, err.Error())
 	}
-
-	_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
-		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess"),
-		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
-	})
-	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
-		ret = append(ret, err.Error())
-	}
-	_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
-		PolicyArn: aws.String("arn:aws:iam::aws:policy/AmazonEC2FullAccess"),
-		RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
-	})
-	if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
-		ret = append(ret, err.Error())
+	for _, npolicy := range awsExpiryPolicies {
+		_, err = d.iam.DetachRolePolicy(&iam.DetachRolePolicyInput{
+			PolicyArn: aws.String(npolicy),
+			RoleName:  aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
+		})
+		if err != nil && !strings.Contains(err.Error(), "NoSuchEntity") {
+			ret = append(ret, err.Error())
+		}
 	}
 	_, err = d.iam.DeleteRolePolicy(&iam.DeleteRolePolicyInput{
 		PolicyName: aws.String("aerolab-expiries-lambda-policy-" + a.opts.Config.Backend.Region),
@@ -2806,7 +2807,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 	}
 	if !extra.expiresTime.IsZero() {
-		err = d.ExpiriesSystemInstall(10, "")
+		err = d.ExpiriesSystemInstall(15, "")
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, clusters will not expire: %s", err)
 		}

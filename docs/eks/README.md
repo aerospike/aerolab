@@ -30,11 +30,21 @@ Alternatively, provide an instance policy to apply to the instance for authentic
 aerolab client create eks -n eksctl -f /path/to/features.conf -r AWS-REGION -x AWS-POLICY-NAME
 ```
 
-### (Optional, as required) Update the eks tools
+### Optional - configure timezone in eksctl client machine
+
+This is particularly useful for the `eksexpiry` program to display local timezone instead of UTC:
 
 ```bash
-aerolab client attach -n eksctl -- bootstrap
+aerolab client attach -n eksctl -- dpkg-reconfigure tzdata
 ```
+
+### NOTE ON REGIONS AND TOOLS VERSIONS
+
+If intending to switch to another region in the `eksctl` template `yaml` files, ensure that the above `bootstrap -n NEWREGION` is executed, replacing `NEWREGION` with actual AWS region. Without this, aerolab's expiry system will not work in the new region.
+
+If required, all preinstalled tools can also be updated and example `yaml` files can be recreated automatically with the new region.
+
+See [this page](update-switch-region.md) for information on how to update the tools in the `eksctl` client and switch regions.
 
 ### Connect to the eks tools machine
 
@@ -131,7 +141,7 @@ Below 3 examples show how this can be achieved.
 # using cluster name
 eksexpiry --name CLUSTERNAME --region us-central-1 --in 30h
 # using eksctl yaml file
-eksexpiry --file /root/eks/basic.yaml --region us-central-1 --in 30h
+eksexpiry --file /root/eks/basic.yaml --in 30h
 # specify exact date instead of duration, format YYYY-MM-DD_hh:mm:ss[_TZ] ; if timezone is not specified, UTC is assumed
 eksexpiry --name CLUSTERNAME --region us-central-1 --at 2024-02-11_05:40:15_0700
 ```
