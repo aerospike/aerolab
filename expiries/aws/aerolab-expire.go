@@ -7,14 +7,20 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudformation"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/efs"
+	"github.com/aws/aws-sdk-go/service/eks"
+	"github.com/aws/aws-sdk-go/service/iam"
 )
 
 type MyEvent struct{}
@@ -190,6 +196,151 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 		}
 	}
 
+	log.Println("EKS: Listing clusters")
+	ekssvc := eks.New(sess)
+	eksClusters, err := ekssvc.ListClusters(&eks.ListClustersInput{})
+	if err != nil {
+		return makeErrorResponse("Could not list EKS: ", err)
+	}
+	now = time.Now()
+	for _, eksClusterName := range eksClusters.Clusters {
+		eksCluster, err := ekssvc.DescribeCluster(&eks.DescribeClusterInput{Name: eksClusterName})
+		if err != nil {
+			return makeErrorResponse("Could not describe EKS cluster: ", err)
+		}
+		eksAt := aws.StringValue(eksCluster.Cluster.Tags["ExpireAt"])
+		var expireAt time.Time
+		if eksAt != "" {
+			oldAtInt, err := strconv.Atoi(eksAt)
+			if err == nil {
+				expireAt = time.Unix(int64(oldAtInt), 0)
+			}
+		} else {
+			initial := aws.StringValue(eksCluster.Cluster.Tags["initialExpiry"])
+			if initial != "" {
+				createTs := aws.TimeValue(eksCluster.Cluster.CreatedAt)
+				initialDuration, err := time.ParseDuration(initial)
+				if err == nil {
+					expireAt = createTs.Add(initialDuration)
+				}
+			}
+		}
+		if expireAt.IsZero() {
+			log.Printf("EKS: Cluster=%s NoExpirySet", aws.StringValue(eksCluster.Cluster.Name))
+			continue
+		}
+		if expireAt.After(now) {
+			log.Printf("EKS: Cluster=%s Expiry=%s NotExpired", aws.StringValue(eksCluster.Cluster.Name), expireAt.Format(time.RFC3339))
+			continue
+		}
+		log.Printf("EKS: Cluster=%s Expiry=%s Starting Expiry", aws.StringValue(eksCluster.Cluster.Name), expireAt.Format(time.RFC3339))
+
+		log.Print("EKS: Listing cloudformation stacks...")
+		cfSvc := cloudformation.New(sess)
+		stacks, err := cfSvc.ListStacks(&cloudformation.ListStacksInput{})
+		if err != nil {
+			return makeErrorResponse("Could not cloudformation.ListStacks: ", err)
+		}
+		type astack struct {
+			Name          string
+			CreationTime  time.Time
+			CurrentStatus string
+		}
+		stackList := []*astack{}
+		for _, stack := range stacks.StackSummaries {
+			if !strings.HasPrefix(aws.StringValue(stack.StackName), "eksctl-"+aws.StringValue(eksCluster.Cluster.Name)+"-") {
+				continue
+			}
+			if aws.StringValue(stack.StackStatus) == cloudformation.StackStatusDeleteComplete {
+				continue
+			}
+			stackList = append(stackList, &astack{
+				Name:          aws.StringValue(stack.StackName),
+				CreationTime:  aws.TimeValue(stack.CreationTime),
+				CurrentStatus: aws.StringValue(stack.StackStatus),
+			})
+		}
+		sort.Slice(stackList, func(i, j int) bool {
+			return stackList[j].CreationTime.Before(stackList[i].CreationTime) // reverse sort since we want to delete in reverse order
+		})
+		for _, stack := range stackList {
+			if stack.Name == "eksctl-"+aws.StringValue(eksCluster.Cluster.Name)+"-cluster" {
+				log.Print("EKS: Listing EBS Volumes")
+				delvols, err := svc.DescribeVolumes(&ec2.DescribeVolumesInput{
+					Filters: []*ec2.Filter{
+						{
+							Name:   aws.String("tag:kubernetes.io/cluster/" + aws.StringValue(eksCluster.Cluster.Name)),
+							Values: aws.StringSlice([]string{"owned"}),
+						}, {
+							Name:   aws.String("tag:KubernetesCluster"),
+							Values: aws.StringSlice([]string{aws.StringValue(eksCluster.Cluster.Name)}),
+						},
+					},
+				})
+				if err != nil {
+					return makeErrorResponse("Could not ec2.ListVolumes: ", err)
+				}
+				log.Printf("EKS: Deleting %d EBS volumes created using the ebs-csi driver (tag:KubernetesCluster={CLUSTERNAME} tag:kubernetes.io/cluster/{CLUSTERNAME}=owned)", len(delvols.Volumes))
+				for _, delvol := range delvols.Volumes {
+					log.Printf("Deleting %s", *delvol.VolumeId)
+					_, err = svc.DeleteVolume(&ec2.DeleteVolumeInput{
+						VolumeId: delvol.VolumeId,
+					})
+					if err != nil {
+						return makeErrorResponse("Could not ec2.DeleteVolume: ", err)
+					}
+				}
+				log.Print("Checking IAM Identity Providers (tag:alpha.eksctl.io/cluster-name={CLUSTERNAME})")
+				iamsvc := iam.New(sess)
+				oidc, err := iamsvc.ListOpenIDConnectProviders(&iam.ListOpenIDConnectProvidersInput{})
+				if err != nil {
+					return makeErrorResponse("Could not iam.ListOpenIDConnectProviders: ", err)
+				}
+				oidcDelList := []string{}
+				for _, oidcItem := range oidc.OpenIDConnectProviderList {
+					tags, err := iamsvc.ListOpenIDConnectProviderTags(&iam.ListOpenIDConnectProviderTagsInput{
+						OpenIDConnectProviderArn: oidcItem.Arn,
+					})
+					if err != nil {
+						return makeErrorResponse("Could not iam.ListOpenIDConnectProviderTags on "+*oidcItem.Arn+": ", err)
+					}
+					tagList := make(map[string]string)
+					for _, tag := range tags.Tags {
+						tagList[*tag.Key] = *tag.Value
+					}
+					if tagList["alpha.eksctl.io/cluster-name"] == aws.StringValue(eksCluster.Cluster.Name) {
+						oidcDelList = append(oidcDelList, *oidcItem.Arn)
+					}
+				}
+				log.Printf("Deleting %d IAM Identity Provider for the k8s cluster", len(oidcDelList))
+				for _, oidcDel := range oidcDelList {
+					_, err = iamsvc.DeleteOpenIDConnectProvider(&iam.DeleteOpenIDConnectProviderInput{
+						OpenIDConnectProviderArn: aws.String(oidcDel),
+					})
+					if err != nil {
+						return makeErrorResponse("Could not iam.DeleteOpenIDConnectProvider on "+oidcDel+": ", err)
+					}
+				}
+			}
+			if stack.CurrentStatus != cloudformation.StackStatusDeleteInProgress {
+				log.Printf("EKS: Scheduling deletion of stack %s", stack.Name)
+				_, err = cfSvc.DeleteStack(&cloudformation.DeleteStackInput{
+					StackName: aws.String(stack.Name),
+				})
+				if err != nil {
+					return makeErrorResponse("Could not cloudformation.DeleteStack: ", err)
+				}
+			}
+			log.Printf("EKS: Waiting on %s to be deleted", stack.Name)
+			err = cfSvc.WaitUntilStackDeleteComplete(&cloudformation.DescribeStacksInput{
+				StackName: aws.String(stack.Name),
+			})
+			if err != nil {
+				return makeErrorResponse("Could not cloudformation.WaitUntilStackDeleteComplete: ", err)
+			}
+		}
+		log.Println("EKS: Cluster Expired")
+	}
 	return MyResponse{Message: "Completed", Status: "OK"}, nil
 }
 
