@@ -26,7 +26,7 @@ func (c *configAwsCmd) Execute(args []string) error {
 }
 
 type expiryInstallCmd struct {
-	Frequency int                 `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"10"`
+	Frequency int                 `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"15"`
 	Gcp       expiryInstallCmdGcp `no-flag:"true"`
 	Help      helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -82,7 +82,7 @@ func (c *expiryRemoveCmd) Execute(args []string) error {
 }
 
 type expiryCheckFreqCmd struct {
-	Frequency int     `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"10"`
+	Frequency int     `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"15"`
 	Help      helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

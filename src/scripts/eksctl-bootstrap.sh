@@ -11,7 +11,8 @@ function aws_region() {
 
 function install_packages() {
 	apt update
-	apt -y install curl vim openssh-client zip git jq less wget
+	DEBIAN_FRONTEND=noninteractive apt -y install curl vim openssh-client zip git jq less wget
+	DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends tzdata
 }
 
 function keygen() {
@@ -76,7 +77,9 @@ function install_helm() {
 function initial_bootstrap() {
 	ln -s /usr/local/bin/aerolab /usr/local/bin/eksexpiry
 	aerolab config backend -t aws -r ${AWS_REGION}
-	aerolab config aws expiry-install
+	set +e
+	aerolab config aws expiry-install || echo "WARNING: EXPIRY system could not be installed; EKS clusters may not expire"
+	set -e
 	aerolab client create eksctl --install-yamls -r ${AWS_REGION}
 }
 
@@ -84,8 +87,9 @@ usage() { echo "Usage: $0 [-k <AWS_KEY_ID>] -s [<AWS_SECRET_KEY>] [-r <AWS_DEFAU
 
 KEYID=""
 SECRETKEY=""
-AWS_REGION="ca-central-1"
-while getopts ":k:s:r:" o; do
+AWS_REGION=""
+SWREGION=0
+while getopts ":n:k:s:r:" o; do
     case "${o}" in
         k)
             KEYID=${OPTARG}
@@ -96,6 +100,10 @@ while getopts ":k:s:r:" o; do
         r)
         	AWS_REGION=${OPTARG}
         	;;
+		n)
+        	AWS_REGION=${OPTARG}
+			SWREGION=1
+        	;;
         *)
             usage
             ;;
@@ -104,6 +112,16 @@ done
 shift $((OPTIND-1))
 
 set -e
+
+if [ ${SWREGION} -gt 0 ]
+then
+	echo "Switching region and installing expiry system"
+	aws_region
+	aerolab config backend -t aws -r ${AWS_REGION}
+	aerolab config aws expiry-install
+	exit 0
+fi
+
 cwd=$(pwd)
 cd /tmp
 rm -rf /tmp/eks-installer
@@ -112,9 +130,11 @@ cd eks-installer
 if [ ! -z "${KEYID}" ] && [ ! -z "${SECRETKEY}" ]; then
 	echo "Installing AWS Auth..."
 	aws_auth
-else
+elif [ ! -z "${AWS_REGION}" ]; then
 	echo "Skipping AWS Auth installation; Installing region settings only..."
 	aws_region
+else
+	echo "Skipping AWS Auth/Region reconfiguration"
 fi
 echo "Installing dependencies"
 install_packages
@@ -143,7 +163,7 @@ then
 	initial_bootstrap
 	touch /etc/aerolab-eks-bootstrapped
 else
-	echo "File '/etc/aerolab-eks-bootstrapped' exists, skipping initial bootstrap commands"
+	echo "File '/etc/aerolab-eks-bootstrapped' exists, skipping initial install commands"
 fi
 echo "Cleanup"
 cd ${cwd}

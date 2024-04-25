@@ -28,20 +28,18 @@ type clientCreateEksCtlCmd struct {
 	FeaturesFilePath      flags.Filename `short:"f" long:"eks-asd-features" description:"Aerospike Features File to copy to the EKSCTL client machine; destination: /root/features.conf"`
 	JustDoIt              bool           `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	InstallYamls          bool           `long:"install-yamls" hidden:"true"`
+	UpdateBootstrap       bool           `long:"update-bootstrap" hidden:"true"`
 	chDirCmd
 }
-
-// TODO: test eksctl and write out rackaware.md, asbench.md, ams.md
-// TODO: test eksexpiry
-// TODO: code actual expiry system code that does the actual expiries (may need to bake in eksctl source as a library; or bootstrap to /tmp on the fly and run from there?) ;; should work through all regions(?)
 
 func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	script := scripts.GetEksctlBootstrapScript()
 	if c.InstallYamls {
 		os.Mkdir("/root/eks", 0755)
-		return fs.WalkDir(eksYamls, ".", func(npath string, d fs.DirEntry, err error) error {
+		err := fs.WalkDir(eksYamls, ".", func(npath string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -56,6 +54,17 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 			err = os.WriteFile(path.Join("/root/eks", d.Name()), contents, 0644)
 			return err
 		})
+		if err != nil {
+			return err
+		}
+	}
+	if c.UpdateBootstrap {
+		if err := os.WriteFile("/usr/local/bin/bootstrap", script, 0755); err != nil {
+			return err
+		}
+	}
+	if c.InstallYamls || c.UpdateBootstrap {
+		return nil
 	}
 	//basic checks
 	if c.FeaturesFilePath == "" {
@@ -88,7 +97,6 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	script := scripts.GetEksctlBootstrapScript()
 	returns := parallelize.MapLimit(machines, c.ParallelThreads, func(node int) error {
 		// bootstrap script
 		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/usr/local/bin/bootstrap", string(script), len(script)}}, []int{node})
@@ -122,7 +130,9 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if isError {
 		return errors.New("some nodes returned errors")
 	}
-	log.Println("Done! Attach command: aerolab attach client -n " + c.ClientName)
-	log.Println("For usage instructions and help, see documentation at https://github.com/aerospike/aerolab/blob/master/docs/eks/README.md")
+	log.Println("Done")
+	log.Println("To configure timezone inside the machine, run: aerolab attach client -n " + c.ClientName + " -- dpkg-reconfigure tzdata")
+	log.Println("Attach command: aerolab attach client -n " + c.ClientName)
+	log.Println("Usage instructions: https://github.com/aerospike/aerolab/blob/master/docs/eks/README.md")
 	return nil
 }
