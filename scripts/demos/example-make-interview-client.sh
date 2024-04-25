@@ -74,7 +74,7 @@ then
 	enabletmux
 elif [ "$1" == "showip" ]
 then
-	aerolab client list --ip |egrep '^client=interview' |egrep -o 'ext_ip=[^ ]+' |sed 's/ext_ip=/ssh root@/g'
+	aerolab client list --ip |egrep "^client=$NAME" |egrep -o 'ext_ip=[^ ]+' |sed 's/ext_ip=/ssh root@/g'
 else
 	echo "Usage: $0 create|enable|start|stop|destroy"
 	echo " * create:        create inverview machine"
