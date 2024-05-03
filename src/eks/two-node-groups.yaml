@@ -30,7 +30,7 @@ iam:
 nodeGroups:
   - name: testNodeGroup1
     instanceType: r5a.2xlarge
-    desiredCapacity: 2
+    desiredCapacity: 4
     volumeSize: 100
     volumeType: gp2
     ssh: # import default public key (~/.ssh/id_rsa.pub)
@@ -49,7 +49,7 @@ nodeGroups:
     #    effect: NoSchedule
   - name: testNodeGroup2
     instanceType: r5a.2xlarge
-    desiredCapacity: 2
+    desiredCapacity: 4
     volumeSize: 100
     volumeType: gp2
     ssh: # import default public key (~/.ssh/id_rsa.pub)
