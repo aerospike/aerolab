@@ -24,7 +24,7 @@ type clusterPartitionConfCmd struct {
 	FilterType         string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
 	Namespace          string          `short:"m" long:"namespace" description:"namespace to modify the settings for" default:""`
 	ConfDest           string          `short:"o" long:"configure" description:"what to configure the selections as; options: memory|device|shadow|pi-flash|si-flash" default:""`
-	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% for what the mounts-size-limit should be set to for flash configs" default:"90"`
+	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% for what the mounts-budget should be set to for flash configs" default:"90"`
 	parallelThreadsLongCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -232,6 +232,7 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			return useParts[x].partNo < useParts[y].partNo
 		}
 	})
+	totalFsSize := 0
 	for _, p := range useParts {
 		switch c.ConfDest {
 		case "memory":
@@ -308,7 +309,8 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
 					suffix = "T"
 				}
-				fsSize = strconv.Itoa(int(float64(fsSizeI)*c.MountsSizeLimitPct/100)) + suffix
+				totalFsSize += fsSizeI
+				fsSize = strconv.Itoa(int(float64(totalFsSize)*c.MountsSizeLimitPct/100)) + suffix
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValue(is7, fsSize)
 		case "si-flash":
@@ -344,7 +346,8 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
 					suffix = "T"
 				}
-				fsSize = strconv.Itoa(int(float64(fsSizeI)*c.MountsSizeLimitPct/100)) + suffix
+				totalFsSize += fsSizeI
+				fsSize = strconv.Itoa(int(float64(totalFsSize)*c.MountsSizeLimitPct/100)) + suffix
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValue(is7, fsSize)
 		}
