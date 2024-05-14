@@ -2818,7 +2818,7 @@ func (d *backendGcp) CreateSecurityGroups(vpc string, namePrefix string, isAgi b
 }
 
 func (d *backendGcp) createSecurityGroupExternal(namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {
-	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200"}
+	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200", "8182", "8998"}
 	if isAgi {
 		ports = []string{"22", "80", "443"}
 	}
@@ -2915,7 +2915,7 @@ func (d *backendGcp) createSecurityGroupInternal() error {
 }
 
 func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {
-	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200"}
+	ports := []string{"22", "3000", "443", "80", "8080", "8888", "9200", "8182", "8998"}
 	if isAgi {
 		ports = []string{"22", "80", "443"}
 	}
