@@ -403,7 +403,7 @@ func (d *backendAws) createSecGroups(vpc string, namePrefix string, isAgi bool, 
 	// ingress rule for client for special ports (grafana, vscode), apply on server too, in case we want access from the great beyond
 	extraports := []int64{80, 443}
 	if !isAgi {
-		extraports = []int64{3000, 80, 443, 8080, 8888, 9200}
+		extraports = []int64{3000, 80, 443, 8080, 8888, 9200, 8182, 8998}
 	}
 	if noDefaults {
 		extraports = []int64{}
@@ -728,7 +728,7 @@ func hasInt64(a []int64, i int64) bool {
 }
 
 func (d *backendAws) LockSecurityGroups(ip string, lockSSH bool, vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {
-	portList := []int64{3000, 80, 443, 8080, 8888, 9200}
+	portList := []int64{3000, 80, 443, 8080, 8888, 9200, 8182, 8998}
 	if isAgi {
 		portList = []int64{80, 443}
 	}
