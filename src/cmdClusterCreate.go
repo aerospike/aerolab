@@ -839,6 +839,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			return err
 		}
 		for _, item := range ij.Clusters {
+			if item.ClusterName != string(c.ClusterName) {
+				continue
+			}
 			if item.Expires == "" || item.Expires == "0001-01-01T00:00:00Z" {
 				extra.expiresTime = time.Time{}
 				break
