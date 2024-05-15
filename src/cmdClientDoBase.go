@@ -311,6 +311,9 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 			return nil, err
 		}
 		for _, item := range ij.Clients {
+			if item.ClientName != string(c.ClientName) {
+				continue
+			}
 			if item.Expires == "" || item.Expires == "0001-01-01T00:00:00Z" {
 				extra.expiresTime = time.Time{}
 				break
