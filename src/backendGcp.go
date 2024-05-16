@@ -865,6 +865,12 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 				} else if strings.HasPrefix(*t.Name, "c3-") || strings.HasPrefix(*t.Name, "c3d-") {
 					eph = 32
 					ephs = 12 * 1000
+				} else if strings.HasPrefix(*t.Name, "n4-") && (strings.HasSuffix(*t.Name, "-2") || strings.HasSuffix(*t.Name, "-4") || strings.HasSuffix(*t.Name, "-8")) {
+					eph = 16
+					ephs = 257 * 1024
+				} else if strings.HasPrefix(*t.Name, "n4-") {
+					eph = 32
+					ephs = 512 * 1024
 				} else {
 					eph = -1
 					ephs = -1
@@ -3172,8 +3178,10 @@ type gcpMakeOps struct {
 }
 
 type gcpDisk struct {
-	diskType string
-	diskSize int
+	diskType       string
+	diskSize       int
+	diskIops       int
+	diskThroughput int
 }
 
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
@@ -3215,7 +3223,11 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 
 	disksInt := []gcpDisk{}
 	if len(extra.disks) == 0 {
-		extra.disks = []string{"pd-balanced:20"}
+		if strings.HasPrefix(extra.instanceType, "n4-") {
+			extra.disks = []string{"hyperdisk-balanced:20"}
+		} else {
+			extra.disks = []string{"pd-balanced:20"}
+		}
 	}
 	nDisks := extra.disks
 	extra.disks = []string{}
@@ -3240,20 +3252,62 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			})
 			continue
 		}
+		if strings.HasPrefix(disk, "hyperdisk-balanced:") {
+			diska := strings.Split(disk, ":")
+			if len(diska) == 2 {
+				diska = append(diska, []string{"3060", "155"}...)
+			}
+			if len(diska) != 4 {
+				return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20:3060:155)")
+			}
+			dsize, err := strconv.Atoi(diska[1])
+			if err != nil {
+				return fmt.Errorf("incorrect format for disk mapping: size must be an integer: %s", err)
+			}
+			diops, err := strconv.Atoi(diska[2])
+			if err != nil {
+				return fmt.Errorf("incorrect format for disk mapping: IOPs must be an integer: %s", err)
+			}
+			dthroughput, err := strconv.Atoi(diska[3])
+			if err != nil {
+				return fmt.Errorf("incorrect format for disk mapping: Throughput must be an integer: %s", err)
+			}
+			disksInt = append(disksInt, gcpDisk{
+				diskType:       diska[0],
+				diskSize:       dsize,
+				diskIops:       diops,
+				diskThroughput: dthroughput,
+			})
+			continue
+		}
 		if !strings.HasPrefix(disk, "pd-") {
-			return errors.New("invalid disk definition, disk must be local-ssd[@count], or pd-*:sizeGB[@count] (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40 or pd-ssd:40@5 or local-ssd@5)")
+			return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20:3060:155)")
 		}
 		diska := strings.Split(disk, ":")
-		if len(diska) != 2 {
-			return errors.New("invalid disk definition, disk must be local-ssd[@count], or pd-*:sizeGB[@count] (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40 or pd-ssd:40@5 or local-ssd@5)")
+		if len(diska) != 2 && len(diska) != 4 {
+			return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20:3060:155)")
 		}
 		dint, err := strconv.Atoi(diska[1])
 		if err != nil {
 			return fmt.Errorf("incorrect format for disk mapping: size must be an integer: %s", err)
 		}
+		var diops int
+		var dthroughput int
+		if len(diska) == 4 {
+			diops, err = strconv.Atoi(diska[2])
+			if err != nil {
+				return fmt.Errorf("incorrect format for disk mapping: IOPs must be an integer: %s", err)
+			}
+			dthroughput, err = strconv.Atoi(diska[3])
+			if err != nil {
+				return fmt.Errorf("incorrect format for disk mapping: Throughput must be an integer: %s", err)
+			}
+		}
 		disksInt = append(disksInt, gcpDisk{
-			diskType: diska[0],
-			diskSize: dint,
+			diskType:       diska[0],
+			diskSize:       dint,
+			diskIops:       diops,
+			diskThroughput: dthroughput,
 		})
 	}
 
@@ -3381,28 +3435,40 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			var simage *string
 			boot := false
 			if nI == 0 {
-				if !strings.HasPrefix(nDisk.diskType, "pd-") {
-					return errors.New("first (root volume) disk must be of type pd-*")
+				if !strings.HasPrefix(nDisk.diskType, "pd-") && !strings.HasPrefix(nDisk.diskType, "hyperdisk-") {
+					return errors.New("first (root volume) disk must be of type pd-* or hyperdisk-*")
 				}
 				simage = proto.String(imageName)
 				boot = true
 			}
 			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", extra.zone, nDisk.diskType)
 			var diskSize *int64
+			var piops *int64
+			var pput *int64
 			attachmentType := proto.String(computepb.AttachedDisk_SCRATCH.String())
 			var devIface *string
-			if strings.HasPrefix(nDisk.diskType, "pd-") {
+			if strings.HasPrefix(nDisk.diskType, "pd-") || strings.HasPrefix(nDisk.diskType, "hyperdisk-") {
 				devIface = nil
 				diskSize = proto.Int64(int64(nDisk.diskSize))
 				attachmentType = proto.String(computepb.AttachedDisk_PERSISTENT.String())
+				if nDisk.diskThroughput != 0 {
+					put := int64(nDisk.diskThroughput)
+					pput = &put
+				}
+				if nDisk.diskIops != 0 {
+					iops := int64(nDisk.diskIops)
+					piops = &iops
+				}
 			} else {
 				devIface = proto.String(computepb.AttachedDisk_NVME.String())
 			}
 			disksList = append(disksList, &computepb.AttachedDisk{
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
-					DiskSizeGb:  diskSize,
-					SourceImage: simage,
-					DiskType:    proto.String(diskType),
+					DiskSizeGb:            diskSize,
+					SourceImage:           simage,
+					DiskType:              proto.String(diskType),
+					ProvisionedIops:       piops,
+					ProvisionedThroughput: pput,
 				},
 				AutoDelete: proto.Bool(true),
 				Boot:       proto.Bool(boot),
