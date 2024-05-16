@@ -394,10 +394,10 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		p := message.NewPrinter(language.English)
 		maxRecordsStr := p.Sprintf("%d", maxRecords)
 		if spaceRequired > maxUsableBytes {
-			log.Printf("WARNING: node=%d space required for partition-tree-sprigs (%s) exceeds the pi-flash partition_size*%d%% (%s). Changing from %d to %d. This will give space for %s master records.", nodeNo, convSize(int64(spaceRequired)), int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
+			log.Printf("WARNING: node=%d space required for partition-tree-sprigs (%s) exceeds the pi-flash partition_size*%d%% (%s). Changing from %d to %d. At %s master records the fill factor will be 1.", nodeNo, convSize(int64(spaceRequired)), int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
 			cc.Stanza("namespace "+c.Namespace).SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
 		} else if maxSprigs > treeSprigsInt {
-			log.Printf("WARNING: node=%d partition-tree-sprigs seems to be low for the amount of partition space configured (%s). Changing from %d to %d. This will give space for %s master records.", nodeNo, convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
+			log.Printf("WARNING: node=%d partition-tree-sprigs seems to be low for the amount of partition space configured (%s). Changing from %d to %d. At %s master records the fill factor will be 1.", nodeNo, convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
 			cc.Stanza("namespace "+c.Namespace).SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
 		}
 	}

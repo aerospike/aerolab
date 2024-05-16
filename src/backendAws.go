@@ -2695,13 +2695,19 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		return errors.New("root disk size must be specified")
 	}
 	disks := strings.Split(extra.ebs, ",")
-	disksInt := []int64{}
-	for _, disk := range disks {
-		dint, err := strconv.Atoi(disk)
-		if err != nil {
-			return fmt.Errorf("incorrect format for disk mapping - must be comma-separated integers: %s", err)
+	disksInt := extra.cloudDisks
+	// below IF block is for parsing old format of disk definitions aand defaults
+	if len(disksInt) == 0 {
+		for _, disk := range disks {
+			dint, err := strconv.Atoi(disk)
+			if err != nil {
+				return fmt.Errorf("incorrect format for disk mapping - must be comma-separated integers: %s", err)
+			}
+			disksInt = append(disksInt, &cloudDisk{
+				Type: "gp2",
+				Size: int64(dint),
+			})
 		}
-		disksInt = append(disksInt, int64(dint))
 	}
 
 	templateId := ""
@@ -2921,30 +2927,52 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		// resolve EBS mapping first, to correctly handle splitting of disks
 		bdms := []*ec2.BlockDeviceMapping{}
 		if myImage.RootDeviceType != nil && myImage.RootDeviceName != nil && *myImage.RootDeviceType == ec2.RootDeviceTypeEbs {
+			var iops *int64
+			var throughput *int64
+			if disksInt[0].ProvisionedIOPS > 0 {
+				iops = &disksInt[0].ProvisionedIOPS
+			}
+			if disksInt[0].ProvisionedThroughput > 0 {
+				throughput = &disksInt[0].ProvisionedThroughput
+			}
 			bdms = []*ec2.BlockDeviceMapping{
 				{
 					DeviceName: myImage.RootDeviceName,
 					Ebs: &ec2.EbsBlockDevice{
 						DeleteOnTermination: aws.Bool(true),
-						VolumeSize:          aws.Int64(disksInt[0]),
-						VolumeType:          aws.String("gp2"),
+						VolumeSize:          aws.Int64(disksInt[0].Size),
+						VolumeType:          aws.String(disksInt[0].Type),
+						Iops:                iops,
+						Throughput:          throughput,
 						Encrypted:           aws.Bool(true),
 					},
 				},
 			}
 		}
+		mappings := fmt.Sprintf("Devices: type=%s size=%d iops=%d throughput=%d device=%s\n", disksInt[0].Type, disksInt[0].Size, disksInt[0].ProvisionedIOPS, disksInt[0].ProvisionedThroughput, aws.StringValue(myImage.RootDeviceName))
 		avnames := "bcdefghijklmnopqrstuvwxyz"
 		for i, av := range disksInt {
 			if i == 0 {
 				continue
 			}
+			var iops *int64
+			var throughput *int64
+			if av.ProvisionedIOPS > 0 {
+				iops = &av.ProvisionedIOPS
+			}
+			if av.ProvisionedThroughput > 0 {
+				throughput = &av.ProvisionedThroughput
+			}
+			mappings += fmt.Sprintf("Devices: type=%s size=%d iops=%d throughput=%d device=%s\n", av.Type, av.Size, av.ProvisionedIOPS, av.ProvisionedThroughput, "/dev/xvd"+string(avnames[i]))
 			bdms = append(bdms, &ec2.BlockDeviceMapping{
 				DeviceName: aws.String("/dev/xvd" + string(avnames[i])),
 				Ebs: &ec2.EbsBlockDevice{
 					DeleteOnTermination: aws.Bool(true),
-					VolumeSize:          aws.Int64(int64(av)),
-					VolumeType:          aws.String("gp2"),
+					VolumeSize:          aws.Int64(av.Size),
+					VolumeType:          aws.String(av.Type),
 					Encrypted:           aws.Bool(true),
+					Iops:                iops,
+					Throughput:          throughput,
 				},
 			})
 		} // END EBS mapping
@@ -2983,6 +3011,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 				jenc.SetIndent("", "  ")
 				jenc.Encode(input)
 			}
+			fmt.Print(mappings)
 			return fmt.Errorf("could not run RunInstances\n%s", err)
 		}
 		reservations = append(reservations, reservationsX)

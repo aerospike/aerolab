@@ -72,7 +72,8 @@ type aerospikeVersionSelectorCmd struct {
 type clusterCreateCmdAws struct {
 	AMI                 string        `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
 	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:"" webrequired:"true"`
-	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
+	Ebs                 string        `webhidden:"true" short:"E" long:"ebs" description:"Deprecated: EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
+	Disk                []string      `long:"aws-disk" description:"EBS disks, format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=gp2,size=20 --disk type=gp3,size=100,iops=5000,throughput=200,count=2 ; first one is root volume ; this parameter can be specified multiple times"`
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
 	PublicIP            bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
@@ -92,7 +93,8 @@ type clusterCreateCmdAws struct {
 type clusterCreateCmdGcp struct {
 	Image               string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
 	InstanceType        string        `long:"instance" description:"instance type to use" default:"" webrequired:"true"`
-	Disks               []string      `long:"disk" description:"format type:sizeGB[:iops:throughputMb][@count] or local-ssd[@count]; ex: pd-ssd:20 pd-balanced:40@2 local-ssd local-ssd@5 hyperdisk-balanced:20:3060:155; first in list is root volume, cannot be local-ssd; can be specified multiple times"`
+	Disks               []string      `webhidden:"true" long:"disk" description:"Deprecated: format type:sizeGB[:iops:throughputMb][@count] or local-ssd[@count]; ex: pd-ssd:20 pd-balanced:40@2 local-ssd local-ssd@5 hyperdisk-balanced:20:3060:155; first in list is root volume, cannot be local-ssd; can be specified multiple times"`
+	Disk                []string      `long:"gcp-disk" description:"disks, format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2 ; first in list is root volume, cannot be local-ssd ; this parameter can be specified multiple times"`
 	PublicIP            bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	IsArm               bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
@@ -534,6 +536,10 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	if c.Docker.ExposePortsToHost != "" {
 		ep = strings.Split(c.Docker.ExposePortsToHost, ",")
 	}
+	cloudDisks, err := disk2backend(c.Aws.Disk)
+	if err != nil {
+		return err
+	}
 	extra := &backendExtra{
 		cpuLimit:        c.Docker.CpuLimit,
 		ramLimit:        c.Docker.RamLimit,
@@ -551,8 +557,13 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		subnetID:        c.Aws.SubnetID,
 		publicIP:        c.Aws.PublicIP,
 		tags:            c.Aws.Tags,
+		cloudDisks:      cloudDisks,
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
+		cloudDisks, err := disk2backend(c.Gcp.Disk)
+		if err != nil {
+			return err
+		}
 		extra = &backendExtra{
 			instanceType: c.Gcp.InstanceType,
 			ami:          c.Gcp.Image,
@@ -561,6 +572,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			disks:        c.Gcp.Disks,
 			zone:         c.Gcp.Zone,
 			labels:       c.Gcp.Labels,
+			cloudDisks:   cloudDisks,
 		}
 	}
 	// check if template exists
@@ -1520,4 +1532,51 @@ func patchDockerNamespacesV7(conf string) (newconf string, err error) {
 	}
 	conf = buf.String()
 	return conf, nil
+}
+
+func disk2backend(ds []string) (disks []*cloudDisk, err error) {
+	for _, d := range ds {
+		defs := strings.Split(d, ",")
+		disk := cloudDisk{}
+		cnt := 1
+		for _, def := range defs {
+			kv := strings.Split(def, "=")
+			if len(kv) != 2 {
+				return nil, fmt.Errorf("definition %s is incorrect, must be key=value", def)
+			}
+			switch kv[0] {
+			case "type":
+				disk.Type = kv[1]
+			case "size":
+				size, err := strconv.Atoi(kv[1])
+				if err != nil {
+					return nil, fmt.Errorf("size value of %s not an int", def)
+				}
+				disk.Size = int64(size)
+			case "iops":
+				iops, err := strconv.Atoi(kv[1])
+				if err != nil {
+					return nil, fmt.Errorf("iops value of %s not an int", def)
+				}
+				disk.ProvisionedIOPS = int64(iops)
+			case "throughput":
+				tp, err := strconv.Atoi(kv[1])
+				if err != nil {
+					return nil, fmt.Errorf("throughput value of %s not an int", def)
+				}
+				disk.ProvisionedThroughput = int64(tp)
+			case "count":
+				cnt, err = strconv.Atoi(kv[1])
+				if err != nil {
+					return nil, fmt.Errorf("count value of %s not an int", def)
+				}
+			default:
+				return nil, fmt.Errorf("key name '%s' not supported in %s", kv[0], def)
+			}
+		}
+		for c := 1; c <= cnt; c++ {
+			disks = append(disks, &disk)
+		}
+	}
+	return
 }
