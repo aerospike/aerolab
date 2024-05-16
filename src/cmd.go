@@ -73,7 +73,8 @@ func (c *showcommandsCmd) Execute(args []string) error {
 }
 
 type upgradeCmd struct {
-	Edge   bool    `long:"edge" description:"Include pre-releases when discovering latest version"`
+	Edge   bool    `long:"edge" description:"Include pre-releases when discovering versions"`
+	BugFix bool    `long:"bugfix" description:"Download latest (pre-)release bugfix version"`
 	DryRun bool    `long:"dryrun" description:"Set to show the upgrade source URL and destination path, do not upgrade"`
 	Help   helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -90,14 +91,36 @@ func (c *upgradeCmd) Execute(args []string) error {
 		return err
 	}
 	latestVersion := ""
+	if c.BugFix {
+		c.Edge = true
+	}
 	if c.Edge {
-		pre, err = a.isLatestVersionQueryPrerelease()
+		pres, err := a.isLatestVersionQueryPrereleases()
 		if err != nil {
 			if err.Error() == "NOT FOUND" {
 				c.Edge = false
 			} else {
 				return err
 			}
+		}
+		for _, presa := range pres {
+			if c.BugFix {
+				if strings.HasSuffix(strings.Split(presa.LatestVersion, "-")[0], ".0") {
+					continue
+				}
+			}
+			if pre == nil {
+				pr := presa
+				pre = pr
+				continue
+			}
+			if VersionCheck(strings.Split(pre.LatestVersion, "-")[0], strings.Split(presa.LatestVersion, "-")[0]) > 0 {
+				pr := presa
+				pre = pr
+			}
+		}
+		if pre == nil {
+			c.Edge = false
 		}
 	}
 	if !c.Edge {
