@@ -224,6 +224,10 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	if c.Docker.ExposePortsToHost != "" {
 		ep = strings.Split(c.Docker.ExposePortsToHost, ",")
 	}
+	cloudDisks, err := disk2backend(c.Aws.Disk)
+	if err != nil {
+		return nil, err
+	}
 	extra := &backendExtra{
 		cpuLimit:          c.Docker.CpuLimit,
 		ramLimit:          c.Docker.RamLimit,
@@ -243,8 +247,13 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		tags:              c.Aws.Tags,
 		clientType:        strings.ToLower(nt),
 		instanceRole:      c.instanceRole,
+		cloudDisks:        cloudDisks,
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
+		cloudDisks, err := disk2backend(c.Gcp.Disk)
+		if err != nil {
+			return nil, err
+		}
 		extra = &backendExtra{
 			instanceType: c.Gcp.InstanceType,
 			ami:          c.Gcp.Image,
@@ -255,6 +264,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			labels:       c.Gcp.Labels,
 			instanceRole: c.instanceRole,
 			clientType:   strings.ToLower(nt),
+			cloudDisks:   cloudDisks,
 		}
 	}
 

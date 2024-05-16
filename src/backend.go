@@ -21,6 +21,13 @@ func getBackend() (backend, error) {
 	return backends[a.opts.Config.Backend.Type], nil
 }
 
+type cloudDisk struct {
+	Type                  string
+	Size                  int64
+	ProvisionedIOPS       int64
+	ProvisionedThroughput int64
+}
+
 type backendExtra struct {
 	clientType          string    // all: ams|elasticsearch|rest-gateway|VSCode|...
 	cpuLimit            string    // docker only
@@ -36,7 +43,7 @@ type backendExtra struct {
 	customDockerImage   string    // docker only
 	securityGroupID     string    // aws only
 	subnetID            string    // aws only
-	ebs                 string    // aws only
+	ebs                 string    // aws only; old
 	terminateOnPoweroff bool      // aws only
 	spotInstance        bool      // aws only
 	instanceRole        string    // aws only
@@ -47,11 +54,12 @@ type backendExtra struct {
 	firewallNamePrefix  []string  // aws/gcp only
 	expiresTime         time.Time // aws/gcp only
 	isAgiFirewall       bool      // aws/gcp only
-	disks               []string  // gcp only
+	disks               []string  // gcp only; old
 	zone                string    // gcp only
 	labels              []string  // gcp only
 	onHostMaintenance   string    // gcp only
 	gcpMeta             map[string]string
+	cloudDisks          []*cloudDisk // gcp/aws only
 }
 
 type backendVersion struct {
