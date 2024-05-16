@@ -125,7 +125,11 @@ func main() {
 		return
 	}
 	if len(os.Args) < 2 || os.Args[1] != "upgrade" {
-		go a.isLatestVersion()
+		if len(os.Args) < 3 || os.Args[1] != "agi" || os.Args[2] != "exec" {
+			if !inslice.HasString(os.Args, "--webui") {
+				go a.isLatestVersion()
+			}
+		}
 	}
 	_, command := path.Split(os.Args[0])
 	switch command {
