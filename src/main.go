@@ -237,12 +237,12 @@ func (a *aerolab) main(args []string) error {
 	a.parseArgs(args)
 	a.early = false
 	_, err := a.parseFile()
-	if err != nil && os.Args[1] != "webui" {
+	if err != nil && os.Args[1] != "webui" && os.Args[1] != "upgrade" {
 		_, fna := path.Split(os.Args[0])
 		fmt.Printf(chooseBackendHelpMsg, fna, fna, fna)
 		os.Exit(1)
 	}
-	if !a.forceFileOptional && a.opts.Config.Backend.Type == "" && os.Args[1] != "webui" && os.Args[1] != "webrun" {
+	if !a.forceFileOptional && a.opts.Config.Backend.Type == "" && os.Args[1] != "webui" && os.Args[1] != "webrun" && os.Args[1] != "upgrade" {
 		_, fna := path.Split(os.Args[0])
 		fmt.Printf(chooseBackendHelpMsg, fna, fna, fna)
 		os.Exit(1)
