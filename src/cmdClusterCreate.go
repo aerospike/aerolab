@@ -92,7 +92,7 @@ type clusterCreateCmdAws struct {
 type clusterCreateCmdGcp struct {
 	Image               string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
 	InstanceType        string        `long:"instance" description:"instance type to use" default:"" webrequired:"true"`
-	Disks               []string      `long:"disk" description:"format type:sizeGB or local-ssd, optionally add @x to create that many, ex: pd-ssd:20 ex: pd-balanced:40 ex: local-ssd ex: local-ssd@5; first in list is for root volume and must be pd-* type; can be specified multiple times"`
+	Disks               []string      `long:"disk" description:"format type:sizeGB[:iops:throughputMb][@count] or local-ssd[@count]; ex: pd-ssd:20 pd-balanced:40@2 local-ssd local-ssd@5 hyperdisk-balanced:20:3060:155; first in list is root volume, cannot be local-ssd; can be specified multiple times"`
 	PublicIP            bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	IsArm               bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
