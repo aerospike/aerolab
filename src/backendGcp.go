@@ -865,6 +865,12 @@ func (d *backendGcp) getInstanceTypes(zone string) ([]instanceType, error) {
 				} else if strings.HasPrefix(*t.Name, "c3-") || strings.HasPrefix(*t.Name, "c3d-") {
 					eph = 32
 					ephs = 12 * 1000
+				} else if strings.HasPrefix(*t.Name, "n4-") && (strings.HasSuffix(*t.Name, "-2") || strings.HasSuffix(*t.Name, "-4") || strings.HasSuffix(*t.Name, "-8")) {
+					eph = 16
+					ephs = 257 * 1024
+				} else if strings.HasPrefix(*t.Name, "n4-") {
+					eph = 32
+					ephs = 512 * 1024
 				} else {
 					eph = -1
 					ephs = -1
@@ -3171,11 +3177,6 @@ type gcpMakeOps struct {
 	op  *compute.Operation
 }
 
-type gcpDisk struct {
-	diskType string
-	diskSize int
-}
-
 func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int, extra *backendExtra) error {
 	name = strings.Trim(name, "\r\n\t ")
 	if extra.zone == "" {
@@ -3213,48 +3214,97 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 	labels[gcpTagCostLastRun] = gcplabelEncodeToSave(strconv.FormatFloat(0, 'f', 8, 64))
 	labels[gcpTagCostStartTime] = gcplabelEncodeToSave(strconv.Itoa(int(time.Now().Unix())))
 
-	disksInt := []gcpDisk{}
-	if len(extra.disks) == 0 {
-		extra.disks = []string{"pd-balanced:20"}
-	}
-	nDisks := extra.disks
-	extra.disks = []string{}
-	for _, disk := range nDisks {
-		diskb := strings.Split(disk, "@")
-		disk = diskb[0]
-		count := 1
-		if len(diskb) > 1 {
-			count, err = strconv.Atoi(diskb[1])
-			if err != nil {
-				return fmt.Errorf("invalid definition of %s: %s", disk, err)
+	disksInt := extra.cloudDisks
+	// this whole IF block is to handle old formatting and defaults if disks are not specified
+	if len(disksInt) == 0 {
+		if len(extra.disks) == 0 {
+			if strings.HasPrefix(extra.instanceType, "n4-") {
+				extra.disks = []string{"hyperdisk-balanced:20"}
+			} else {
+				extra.disks = []string{"pd-balanced:20"}
 			}
 		}
-		for i := 1; i <= count; i++ {
-			extra.disks = append(extra.disks, disk)
+		nDisks := extra.disks
+		extra.disks = []string{}
+		for _, disk := range nDisks {
+			diskb := strings.Split(disk, "@")
+			disk = diskb[0]
+			count := 1
+			if len(diskb) > 1 {
+				count, err = strconv.Atoi(diskb[1])
+				if err != nil {
+					return fmt.Errorf("invalid definition of %s: %s", disk, err)
+				}
+			}
+			for i := 1; i <= count; i++ {
+				extra.disks = append(extra.disks, disk)
+			}
 		}
-	}
-	for _, disk := range extra.disks {
-		if disk == "local-ssd" {
-			disksInt = append(disksInt, gcpDisk{
-				diskType: disk,
+		for _, disk := range extra.disks {
+			if disk == "local-ssd" {
+				disksInt = append(disksInt, &cloudDisk{
+					Type: disk,
+				})
+				continue
+			}
+			if strings.HasPrefix(disk, "hyperdisk-balanced:") {
+				diska := strings.Split(disk, ":")
+				if len(diska) == 2 {
+					diska = append(diska, []string{"3060", "155"}...)
+				}
+				if len(diska) != 4 {
+					return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20:3060:155)")
+				}
+				dsize, err := strconv.Atoi(diska[1])
+				if err != nil {
+					return fmt.Errorf("incorrect format for disk mapping: size must be an integer: %s", err)
+				}
+				diops, err := strconv.Atoi(diska[2])
+				if err != nil {
+					return fmt.Errorf("incorrect format for disk mapping: IOPs must be an integer: %s", err)
+				}
+				dthroughput, err := strconv.Atoi(diska[3])
+				if err != nil {
+					return fmt.Errorf("incorrect format for disk mapping: Throughput must be an integer: %s", err)
+				}
+				disksInt = append(disksInt, &cloudDisk{
+					Type:                  diska[0],
+					Size:                  int64(dsize),
+					ProvisionedIOPS:       int64(diops),
+					ProvisionedThroughput: int64(dthroughput),
+				})
+				continue
+			}
+			if !strings.HasPrefix(disk, "pd-") {
+				return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20:3060:155)")
+			}
+			diska := strings.Split(disk, ":")
+			if len(diska) != 2 && len(diska) != 4 {
+				return errors.New("invalid disk definition; disk must be either local-ssd[@count] or type:sizeGB[:iops:throughputMb][@count] (ex local-ssd@5 pd-balanced:50 pd-ssd:50@5 pd-standard:10 hyperdisk-balanced:20:3060:155)")
+			}
+			dint, err := strconv.Atoi(diska[1])
+			if err != nil {
+				return fmt.Errorf("incorrect format for disk mapping: size must be an integer: %s", err)
+			}
+			var diops int
+			var dthroughput int
+			if len(diska) == 4 {
+				diops, err = strconv.Atoi(diska[2])
+				if err != nil {
+					return fmt.Errorf("incorrect format for disk mapping: IOPs must be an integer: %s", err)
+				}
+				dthroughput, err = strconv.Atoi(diska[3])
+				if err != nil {
+					return fmt.Errorf("incorrect format for disk mapping: Throughput must be an integer: %s", err)
+				}
+			}
+			disksInt = append(disksInt, &cloudDisk{
+				Type:                  diska[0],
+				Size:                  int64(dint),
+				ProvisionedIOPS:       int64(diops),
+				ProvisionedThroughput: int64(dthroughput),
 			})
-			continue
 		}
-		if !strings.HasPrefix(disk, "pd-") {
-			return errors.New("invalid disk definition, disk must be local-ssd[@count], or pd-*:sizeGB[@count] (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40 or pd-ssd:40@5 or local-ssd@5)")
-		}
-		diska := strings.Split(disk, ":")
-		if len(diska) != 2 {
-			return errors.New("invalid disk definition, disk must be local-ssd[@count], or pd-*:sizeGB[@count] (eg pd-standard:20 or pd-balanced:20 or pd-ssd:40 or pd-ssd:40@5 or local-ssd@5)")
-		}
-		dint, err := strconv.Atoi(diska[1])
-		if err != nil {
-			return fmt.Errorf("incorrect format for disk mapping: size must be an integer: %s", err)
-		}
-		disksInt = append(disksInt, gcpDisk{
-			diskType: diska[0],
-			diskSize: dint,
-		})
 	}
 
 	var imageName string
@@ -3381,28 +3431,40 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			var simage *string
 			boot := false
 			if nI == 0 {
-				if !strings.HasPrefix(nDisk.diskType, "pd-") {
-					return errors.New("first (root volume) disk must be of type pd-*")
+				if !strings.HasPrefix(nDisk.Type, "pd-") && !strings.HasPrefix(nDisk.Type, "hyperdisk-") {
+					return errors.New("first (root volume) disk must be of type pd-* or hyperdisk-*")
 				}
 				simage = proto.String(imageName)
 				boot = true
 			}
-			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", extra.zone, nDisk.diskType)
+			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", extra.zone, nDisk.Type)
 			var diskSize *int64
+			var piops *int64
+			var pput *int64
 			attachmentType := proto.String(computepb.AttachedDisk_SCRATCH.String())
 			var devIface *string
-			if strings.HasPrefix(nDisk.diskType, "pd-") {
+			if strings.HasPrefix(nDisk.Type, "pd-") || strings.HasPrefix(nDisk.Type, "hyperdisk-") {
 				devIface = nil
-				diskSize = proto.Int64(int64(nDisk.diskSize))
+				diskSize = proto.Int64(int64(nDisk.Size))
 				attachmentType = proto.String(computepb.AttachedDisk_PERSISTENT.String())
+				if nDisk.ProvisionedThroughput != 0 {
+					put := int64(nDisk.ProvisionedThroughput)
+					pput = &put
+				}
+				if nDisk.ProvisionedIOPS != 0 {
+					iops := int64(nDisk.ProvisionedIOPS)
+					piops = &iops
+				}
 			} else {
 				devIface = proto.String(computepb.AttachedDisk_NVME.String())
 			}
 			disksList = append(disksList, &computepb.AttachedDisk{
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
-					DiskSizeGb:  diskSize,
-					SourceImage: simage,
-					DiskType:    proto.String(diskType),
+					DiskSizeGb:            diskSize,
+					SourceImage:           simage,
+					DiskType:              proto.String(diskType),
+					ProvisionedIops:       piops,
+					ProvisionedThroughput: pput,
 				},
 				AutoDelete: proto.Bool(true),
 				Boot:       proto.Bool(boot),

@@ -26,7 +26,7 @@ type clusterPartitionConfCmd struct {
 	FilterType         string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
 	Namespace          string          `short:"m" long:"namespace" description:"namespace to modify the settings for" default:""`
 	ConfDest           string          `short:"o" long:"configure" description:"what to configure the selections as; options: memory|device|shadow|pi-flash|si-flash" default:""`
-	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% space to use for configurating partition-tree-sprigs for pi-flash" default:"90"`
+	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% space to use for configurating partition-tree-sprigs for pi-flash; this also sets mounts-budget accordingly" default:"90"`
 	parallelThreadsLongCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -312,7 +312,8 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 				} else {
 					totalFsSizeBytes += fsSizeI
 				}
-				fsSize = strconv.Itoa(totalFsSizeBytes/1024) + "K"
+				maxUsableBytes := int(float64(totalFsSizeBytes) * c.MountsSizeLimitPct / 100)
+				fsSize = strconv.Itoa(maxUsableBytes/1024) + "K"
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValue(is7, fsSize)
 		case "si-flash":
@@ -349,7 +350,8 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 				} else {
 					totalFsSizeBytes += fsSizeI
 				}
-				fsSize = strconv.Itoa(totalFsSizeBytes/1024) + "K"
+				maxUsableBytes := int(float64(totalFsSizeBytes) * c.MountsSizeLimitPct / 100)
+				fsSize = strconv.Itoa(maxUsableBytes/1024) + "K"
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValue(is7, fsSize)
 		}
@@ -394,10 +396,10 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		p := message.NewPrinter(language.English)
 		maxRecordsStr := p.Sprintf("%d", maxRecords)
 		if spaceRequired > maxUsableBytes {
-			log.Printf("WARNING: node=%d space required for partition-tree-sprigs (%s) exceeds the pi-flash partition_size*%d%% (%s). Changing from %d to %d. This will give space for %s master records.", nodeNo, convSize(int64(spaceRequired)), int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
+			log.Printf("WARNING: node=%d space required for partition-tree-sprigs (%s) exceeds the pi-flash partition_size*%d%% (%s). Changing from %d to %d. At %s master records the fill factor will be 1.", nodeNo, convSize(int64(spaceRequired)), int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
 			cc.Stanza("namespace "+c.Namespace).SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
 		} else if maxSprigs > treeSprigsInt {
-			log.Printf("WARNING: node=%d partition-tree-sprigs seems to be low for the amount of partition space configured (%s). Changing from %d to %d. This will give space for %s master records.", nodeNo, convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
+			log.Printf("WARNING: node=%d partition-tree-sprigs seems to be low for the amount of partition space configured (%s). Changing from %d to %d. At %s master records the fill factor will be 1.", nodeNo, convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
 			cc.Stanza("namespace "+c.Namespace).SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
 		}
 	}
