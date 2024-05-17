@@ -2272,8 +2272,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "name": "Namespace->data-usage - cache read pct",
-          "uid": ""
+          "uid": "f15189e5-3d8c-4be7-b3f9-fb9a85416c0e"
         },
         "options": {
           "legend": {
@@ -10909,9 +10908,9 @@
         "type": "timeseries"
       }
     },
-    "N0AomKP4z": {
-      "name": "Namespace->Retransmits Per Second: Batch Sub Dup Res",
-      "uid": "N0AomKP4z",
+    "OqDAiFP4z": {
+      "name": "Namespace->Retransmits Per Second: UDF Dup Res",
+      "uid": "OqDAiFP4z",
       "kind": 1,
       "model": {
         "datasource": {
@@ -10977,7 +10976,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "uid": "N0AomKP4z"
+          "uid": "OqDAiFP4z"
         },
         "options": {
           "legend": {
@@ -11000,12 +10999,12 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBtchDup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitUdfDup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "retransmits"
           }
         ],
-        "title": "Retransmits Per Second: Batch Sub Dup Res",
+        "title": "Retransmits Per Second: UDF Dup Res",
         "type": "timeseries"
       }
     },
@@ -11209,9 +11208,9 @@
         "type": "timeseries"
       }
     },
-    "OqDAiFP4z": {
-      "name": "Namespace->Retransmits Per Second: UDF Dup Res",
-      "uid": "OqDAiFP4z",
+    "wVkJiFEVz": {
+      "name": "Namespace->Retransmits Per Second: UDF Repl",
+      "uid": "wVkJiFEVz",
       "kind": 1,
       "model": {
         "datasource": {
@@ -11277,7 +11276,7 @@
           "overrides": []
         },
         "libraryPanel": {
-          "uid": "OqDAiFP4z"
+          "uid": "wVkJiFEVz"
         },
         "options": {
           "legend": {
@@ -11300,12 +11299,12 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitUdfDup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitRepl\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "retransmits"
           }
         ],
-        "title": "Retransmits Per Second: UDF Dup Res",
+        "title": "Retransmits Per Second: UDF Repl",
         "type": "timeseries"
       }
     },
@@ -11509,9 +11508,9 @@
         "type": "timeseries"
       }
     },
-    "wVkJiFEVz": {
-      "name": "Namespace->Retransmits Per Second: UDF Repl",
-      "uid": "wVkJiFEVz",
+    "Zij1iKE4z": {
+      "name": "Namespace->Retransmits Per Second: nsup",
+      "uid": "Zij1iKE4z",
       "kind": 1,
       "model": {
         "datasource": {
@@ -11576,9 +11575,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "wVkJiFEVz"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -11600,12 +11596,12 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitRepl\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitNsup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "retransmits"
           }
         ],
-        "title": "Retransmits Per Second: UDF Repl",
+        "title": "Retransmits Per Second: nsup (old stat)",
         "type": "timeseries"
       }
     },
@@ -11809,106 +11805,6 @@
         "type": "timeseries"
       }
     },
-    "Zij1iKE4z": {
-      "name": "Namespace->Retransmits Per Second: nsup",
-      "uid": "Zij1iKE4z",
-      "kind": 1,
-      "model": {
-        "datasource": {
-          "type": "simpod-json-datasource",
-          "uid": "${DS_JSON}"
-        },
-        "description": "",
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "palette-classic"
-            },
-            "custom": {
-              "axisCenteredZero": false,
-              "axisColorMode": "text",
-              "axisLabel": "",
-              "axisPlacement": "auto",
-              "barAlignment": 0,
-              "drawStyle": "line",
-              "fillOpacity": 10,
-              "gradientMode": "none",
-              "hideFrom": {
-                "legend": false,
-                "tooltip": false,
-                "viz": false
-              },
-              "insertNulls": false,
-              "lineInterpolation": "linear",
-              "lineStyle": {
-                "fill": "solid"
-              },
-              "lineWidth": 1,
-              "pointSize": 5,
-              "scaleDistribution": {
-                "type": "linear"
-              },
-              "showPoints": "auto",
-              "spanNulls": false,
-              "stacking": {
-                "group": "A",
-                "mode": "none"
-              },
-              "thresholdsStyle": {
-                "mode": "off"
-              }
-            },
-            "mappings": [],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                {
-                  "color": "green",
-                  "value": null
-                },
-                {
-                  "color": "red",
-                  "value": 80
-                }
-              ]
-            },
-            "unit": "short"
-          },
-          "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "Zij1iKE4z"
-        },
-        "options": {
-          "legend": {
-            "calcs": [
-              "max"
-            ],
-            "displayMode": "table",
-            "placement": "right",
-            "showLegend": true
-          },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "desc"
-          }
-        },
-        "targets": [
-          {
-            "datasource": {
-              "type": "simpod-json-datasource",
-              "uid": "json"
-            },
-            "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitNsup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
-            "refId": "A",
-            "target": "retransmits"
-          }
-        ],
-        "title": "Retransmits Per Second: nsup",
-        "type": "timeseries"
-      }
-    },
     "J_ZbmFEVz": {
       "name": "Namespace->Retransmits Per Second: UDF Sub Repl",
       "uid": "J_ZbmFEVz",
@@ -12106,6 +12002,103 @@
           }
         ],
         "title": "Retransmits Per Second: OPS Sub Repl",
+        "type": "timeseries"
+      }
+    },
+    "N0AomKP4z": {
+      "name": "Namespace->Retransmits Per Second: Batch Sub Dup Res",
+      "uid": "N0AomKP4z",
+      "kind": 1,
+      "model": {
+        "datasource": {
+          "type": "simpod-json-datasource",
+          "uid": "${DS_JSON}"
+        },
+        "description": "",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "hideFrom": {
+                "legend": false,
+                "tooltip": false,
+                "viz": false
+              },
+              "insertNulls": false,
+              "lineInterpolation": "linear",
+              "lineStyle": {
+                "fill": "solid"
+              },
+              "lineWidth": 1,
+              "pointSize": 5,
+              "scaleDistribution": {
+                "type": "linear"
+              },
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              },
+              "thresholdsStyle": {
+                "mode": "off"
+              }
+            },
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 80
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [
+              "max"
+            ],
+            "displayMode": "table",
+            "placement": "right",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "simpod-json-datasource",
+              "uid": "json"
+            },
+            "editorMode": "code",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBtchDup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "refId": "A",
+            "target": "retransmits"
+          }
+        ],
+        "title": "Retransmits Per Second: Batch Sub Dup Res (old stat)",
         "type": "timeseries"
       }
     },
@@ -15334,7 +15327,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 18
+            "y": 21
           },
           "id": 122,
           "libraryPanel": {
@@ -15348,7 +15341,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 18
+            "y": 21
           },
           "id": 123,
           "libraryPanel": {
@@ -15362,49 +15355,7 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 18
-          },
-          "id": 124,
-          "libraryPanel": {
-            "name": "Namespace->Retransmits Per Second: Batch Sub Dup Res",
-            "uid": "N0AomKP4z"
-          },
-          "title": "Retransmits Per Second: Batch Sub Dup Res"
-        },
-        {
-          "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 0,
-            "y": 25
-          },
-          "id": 125,
-          "libraryPanel": {
-            "name": "Namespace->Retransmits Per Second: Write Dup Res",
-            "uid": "f59omKEVz"
-          },
-          "title": "Retransmits Per Second: Write Dup Res"
-        },
-        {
-          "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 8,
-            "y": 25
-          },
-          "id": 126,
-          "libraryPanel": {
-            "name": "Namespace->Retransmits Per Second: Delete Dup Res",
-            "uid": "FBiAmFPVz"
-          },
-          "title": "Retransmits Per Second: Delete Dup Res"
-        },
-        {
-          "gridPos": {
-            "h": 7,
-            "w": 8,
-            "x": 16,
-            "y": 25
+            "y": 21
           },
           "id": 127,
           "libraryPanel": {
@@ -15418,35 +15369,35 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 32
+            "y": 28
           },
-          "id": 128,
+          "id": 125,
           "libraryPanel": {
-            "name": "Namespace->Retransmits Per Second: Write Repl",
-            "uid": "8s-0iKEVk"
+            "name": "Namespace->Retransmits Per Second: Write Dup Res",
+            "uid": "f59omKEVz"
           },
-          "title": "Retransmits Per Second: Write Repl"
+          "title": "Retransmits Per Second: Write Dup Res"
         },
         {
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 32
+            "y": 28
           },
-          "id": 129,
+          "id": 126,
           "libraryPanel": {
-            "name": "Namespace->Retransmits Per Second: Delete Repl",
-            "uid": "nSu0iFP4k"
+            "name": "Namespace->Retransmits Per Second: Delete Dup Res",
+            "uid": "FBiAmFPVz"
           },
-          "title": "Retransmits Per Second: Delete Repl"
+          "title": "Retransmits Per Second: Delete Dup Res"
         },
         {
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 32
+            "y": 28
           },
           "id": 130,
           "libraryPanel": {
@@ -15460,7 +15411,49 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 39
+            "y": 35
+          },
+          "id": 128,
+          "libraryPanel": {
+            "name": "Namespace->Retransmits Per Second: Write Repl",
+            "uid": "8s-0iKEVk"
+          },
+          "title": "Retransmits Per Second: Write Repl"
+        },
+        {
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 35
+          },
+          "id": 129,
+          "libraryPanel": {
+            "name": "Namespace->Retransmits Per Second: Delete Repl",
+            "uid": "nSu0iFP4k"
+          },
+          "title": "Retransmits Per Second: Delete Repl"
+        },
+        {
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 35
+          },
+          "id": 133,
+          "libraryPanel": {
+            "name": "Namespace->Retransmits Per Second: nsup",
+            "uid": "Zij1iKE4z"
+          },
+          "title": "Retransmits Per Second: nsup (old stat)"
+        },
+        {
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 42
           },
           "id": 131,
           "libraryPanel": {
@@ -15474,7 +15467,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 39
+            "y": 42
           },
           "id": 132,
           "libraryPanel": {
@@ -15484,25 +15477,110 @@
           "title": "Retransmits Per Second: OPS Sub Dup Res"
         },
         {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 39
+            "y": 42
           },
-          "id": 133,
-          "libraryPanel": {
-            "name": "Namespace->Retransmits Per Second: nsup",
-            "uid": "Zij1iKE4z"
+          "id": 195,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
           },
-          "title": "Retransmits Per Second: nsup"
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitRPRepl\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Read Ping Repl",
+          "type": "timeseries"
         },
         {
           "gridPos": {
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 46
+            "y": 49
           },
           "id": 134,
           "libraryPanel": {
@@ -15516,7 +15594,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 46
+            "y": 49
           },
           "id": 135,
           "libraryPanel": {
@@ -15526,7 +15604,7 @@
           "title": "Retransmits Per Second: OPS Sub Repl"
         }
       ],
-      "title": "Retransmits",
+      "title": "Retransmits (non-batch)",
       "type": "row"
     },
     {
@@ -15536,6 +15614,826 @@
         "w": 24,
         "x": 0,
         "y": 21
+      },
+      "id": 188,
+      "panels": [
+        {
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 29
+          },
+          "id": 187,
+          "libraryPanel": {
+            "name": "Namespace->Retransmits Per Second: Batch Sub Dup Res",
+            "uid": "N0AomKP4z"
+          },
+          "title": "Retransmits Per Second: Batch Sub Dup Res (old stat)"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 29
+          },
+          "id": 124,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBRDup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Batch Sub Read Dup Res",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 29
+          },
+          "id": 189,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBWDup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Batch Sub Write Dup Res",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 36
+          },
+          "id": 190,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBDDup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Batch Sub Delete Dup Res",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 36
+          },
+          "id": 191,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBUDup\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Batch Sub UDF Dup Res",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 36
+          },
+          "id": 192,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBWRepl\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Batch Sub Write Repl",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 0,
+            "y": 43
+          },
+          "id": 193,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBDRepl\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Batch Sub Delete Repl",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 8,
+            "y": 43
+          },
+          "id": 194,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBURepl\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Batch Sub UDF Repl",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 43
+          },
+          "id": 196,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"ResmitBPRepl\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "retransmits"
+            }
+          ],
+          "title": "Retransmits Per Second: Batch Sub Read Ping Repl",
+          "type": "timeseries"
+        }
+      ],
+      "title": "Retransmits (batch)",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 22
       },
       "id": 137,
       "panels": [
@@ -15633,7 +16531,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 22
+        "y": 23
       },
       "id": 145,
       "panels": [
@@ -15731,7 +16629,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 24
       },
       "id": 180,
       "panels": [
@@ -16220,7 +17118,7 @@
       "type": "row"
     }
   ],
-  "refresh": "",
+  "refresh": false,
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",
