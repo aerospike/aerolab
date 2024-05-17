@@ -127,16 +127,17 @@ jobs:
                 if [ "${DELPREV}" = "true" ]
                 then
                   set -e
-                  COUNT=$(gh release list -R github.com/aerospike/aerolab -L 100 |grep Pre-release |awk '{print $(NF-1)}' |wc -l)
-                  if [ $COUNT -lt 2 ]
-                  then
-                      echo "Found only one pre-release, not removing"
-                      exit 0
-                  else
-                      PREV=$(gh release list -R github.com/aerospike/aerolab -L 100 |grep Pre-release |awk '{print $(NF-1)}' |tail -1)
-                      echo "Removing $PREV"
-                      gh release delete $PREV -R github.com/aerospike/aerolab --yes --cleanup-tag
-                  fi
+                  gh release list -R github.com/aerospike/aerolab -L 100 |grep Pre-release |awk -F'\t' '{print $3}' |while read line
+                  do
+                    if [ "$line" != "${TAG}" ]
+                    then
+                      if [[ $line =~ ^${VER}- ]]
+                      then
+                        echo "Removing $line"
+                        gh release delete $line -R github.com/aerospike/aerolab --yes --cleanup-tag
+                      fi
+                    fi
+                  done
                 fi
             - name: "Send slack notification"
               env:
