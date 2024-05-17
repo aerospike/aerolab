@@ -134,7 +134,7 @@ jobs:
                       if [[ $line =~ ^${VER}- ]]
                       then
                         echo "Removing $line"
-                        gh release delete $PREV -R github.com/aerospike/aerolab --yes --cleanup-tag
+                        gh release delete $line -R github.com/aerospike/aerolab --yes --cleanup-tag
                       fi
                     fi
                   done
