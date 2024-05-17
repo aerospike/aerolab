@@ -9,8 +9,12 @@ else
 fi
 curl -L -o /tmp/installer.%s '%s'
 [ -f /tmp/installer.deb ] && apt -y install openjdk-21-jdk-headless /tmp/installer.deb
-[ -f /tmp/installer.rpm ] && yum -y install java-21-openjdk
-[ -f /tmp/installer.rpm ] && yum localinstall /tmp/installer.rpm
+if [ -f /tmp/installer.rpm ]; then
+    yum -y install epel-release
+    yum -y install java-latest-openjdk
+    alternatives --set java java-latest-openjdk.x86_64
+    yum -y localinstall /tmp/installer.rpm
+fi
 if [ ${DOCKER} -eq 0 ]
 then
     systemctl enable aerospike-proximus
