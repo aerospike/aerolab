@@ -131,7 +131,7 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	a.opts.Client.Create.None.Owner = c.Owner
 	a.opts.Client.Create.None.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 	a.opts.Client.Create.None.Aws.SubnetID = c.Aws.SubnetID
-	a.opts.Client.Create.None.Aws.InstanceType = c.Aws.InstanceType
+	a.opts.Client.Create.None.Aws.InstanceType = guiInstanceType(c.Aws.InstanceType)
 	a.opts.Client.Create.None.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Client.Create.None.Aws.Expires = 0
 	a.opts.Client.Create.None.instanceRole = c.Aws.InstanceRole
@@ -144,9 +144,9 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	a.opts.Client.Create.None.Gcp.Expires = 0
 	a.opts.Client.Create.None.Aws.Ebs = "20"
 	a.opts.Client.Create.None.Gcp.Disks = []string{"pd-ssd:20"}
-	a.opts.Client.Create.None.Gcp.InstanceType = c.Gcp.InstanceType
+	a.opts.Client.Create.None.Gcp.InstanceType = guiInstanceType(c.Gcp.InstanceType)
 	a.opts.Client.Create.None.Gcp.NamePrefix = c.Gcp.NamePrefix
-	a.opts.Client.Create.None.Gcp.Zone = c.Gcp.Zone
+	a.opts.Client.Create.None.Gcp.Zone = guiZone(c.Gcp.Zone)
 	_, err = a.opts.Client.Create.None.createBase(nil, "agimonitor")
 	if err != nil {
 		return err

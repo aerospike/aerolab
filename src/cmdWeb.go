@@ -233,6 +233,16 @@ func (c *webCmd) Execute(args []string) error {
 			log.Printf("WARNING: Inventory query failure: %s", err)
 		} else {
 			log.Print("Initial Inventory obtained")
+			if a.opts.Config.Backend.Type != "docker" {
+				log.Print("Obtaining initial inventory instance-types")
+				zone := "us-central1-a"
+				if a.opts.Cluster.Create.Gcp.Zone != "" {
+					zone = string(a.opts.Cluster.Create.Gcp.Zone)
+				}
+				exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--zone", zone).CombinedOutput()
+				exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--arm", "--zone", zone).CombinedOutput()
+				log.Print("Instance Type cache refreshed")
+			}
 		}
 	}()
 	go func() {
@@ -1003,16 +1013,54 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
 					required = true
 				}
-				for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
-					isSelected := false
-					if choice == commandValue.Field(i).String() {
-						isSelected = true
+				if strings.HasPrefix(tags.Get("webchoice"), "method::") {
+					method := strings.TrimPrefix(tags.Get("webchoice"), "method::")
+					nt := commandValue.Field(i).MethodByName(method)
+					if nt.IsValid() && !nt.IsNil() {
+						zone := "us-central1-a"
+						if a.opts.Cluster.Create.Gcp.Zone != "" {
+							zone = string(a.opts.Cluster.Create.Gcp.Zone)
+						}
+						ret := nt.Call([]reflect.Value{reflect.ValueOf(zone)})
+						if len(ret) > 1 {
+							retErr := ret[1]
+							retDefault := commandValue.Field(i).String()
+							if len(ret) > 2 {
+								retErr = ret[2]
+								if retDefault == "" {
+									retDefault = ret[1].String()
+								}
+							}
+							if retErr.IsNil() {
+								ri := ret[0].Interface().([][]string)
+								for _, choice := range ri {
+									isSelected := false
+									if choice[0] == retDefault {
+										isSelected = true
+									}
+									choices = append(choices, &webui.FormItemSelectItem{
+										Name:     choice[1],
+										Value:    choice[0],
+										Selected: isSelected,
+									})
+								}
+							} else {
+								log.Printf("WARN: instance-types: %s", retErr.Interface())
+							}
+						}
 					}
-					choices = append(choices, &webui.FormItemSelectItem{
-						Name:     choice,
-						Value:    choice,
-						Selected: isSelected,
-					})
+				} else {
+					for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
+						isSelected := false
+						if choice == commandValue.Field(i).String() {
+							isSelected = true
+						}
+						choices = append(choices, &webui.FormItemSelectItem{
+							Name:     choice,
+							Value:    choice,
+							Selected: isSelected,
+						})
+					}
 				}
 				wf = append(wf, &webui.FormItem{
 					Type: webui.FormItemType{
@@ -1830,6 +1878,14 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			if c.commands[cindex].reload || (c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != ""))) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
 				log.Printf("[%s] Refreshing interface data", requestID)
 				f.WriteString("\n->Refreshing interface data\n")
+				zone := "us-central1-a"
+				if a.opts.Cluster.Create.Gcp.Zone != "" {
+					zone = string(a.opts.Cluster.Create.Gcp.Zone)
+				}
+				if a.opts.Config.Backend.Type != "docker" {
+					exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--zone", zone).CombinedOutput()
+					exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--arm", "--zone", zone).CombinedOutput()
+				}
 				err = c.cache.run(time.Now())
 				if err != nil {
 					log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)

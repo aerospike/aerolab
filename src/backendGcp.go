@@ -1379,6 +1379,7 @@ func listZones() ([]string, error) {
 		}
 		zones = append(zones, pair.GetName())
 	}
+	sort.Strings(zones)
 	return zones, nil
 }
 
