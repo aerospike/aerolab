@@ -3,12 +3,15 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -19,6 +22,96 @@ import (
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
+
+type guiZone string
+
+func (g guiZone) String() string {
+	return string(g)
+}
+
+// list, default, error
+func (g guiZone) List(zone string) ([][]string, string, error) {
+	zones, err := listZones()
+	if err != nil {
+		return nil, "", err
+	}
+	z := [][]string{}
+	for _, zone := range zones {
+		z = append(z, []string{zone, zone})
+	}
+	return z, "us-central1-a", nil
+}
+
+type guiInstanceType string
+
+func (g guiInstanceType) String() string {
+	return string(g)
+}
+
+func (g guiInstanceType) List(zone string) ([][]string, string, error) {
+	out, err := exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--zone", zone).CombinedOutput()
+	if err != nil {
+		return nil, "", err
+	}
+	var itypesAmd []instanceType
+	var itypesArm []instanceType
+	err = json.Unmarshal(out, &itypesAmd)
+	if err != nil {
+		return nil, "", err
+	}
+	out, err = exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--arm", "--zone", zone).CombinedOutput()
+	if err != nil {
+		return nil, "", err
+	}
+	err = json.Unmarshal(out, &itypesArm)
+	if err != nil {
+		return nil, "", err
+	}
+	itypes := []instanceType{}
+	for _, itype := range append(itypesAmd, itypesArm...) {
+		found := false
+		for _, i := range itypes {
+			if i.InstanceName == itype.InstanceName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			itypes = append(itypes, itype)
+		}
+	}
+	sep := "."
+	if a.opts.Config.Backend.Type == "gcp" {
+		sep = "-"
+	}
+	sort.Slice(itypes, func(i, j int) bool {
+		ni := strings.Split(itypes[i].InstanceName, sep)[0]
+		nj := strings.Split(itypes[j].InstanceName, sep)[0]
+		if ni < nj {
+			return true
+		}
+		if ni > nj {
+			return false
+		}
+		if itypes[i].CPUs != itypes[j].CPUs {
+			return itypes[i].CPUs < itypes[j].CPUs
+		}
+		return itypes[i].RamGB < itypes[j].RamGB
+	})
+	types := [][]string{}
+	for _, nType := range itypes {
+		arch := "amd64"
+		if nType.IsArm {
+			arch = "arm64"
+		}
+		types = append(types, []string{nType.InstanceName, fmt.Sprintf("%s (ARCH:%s CPUs:%d RamGB:%0.2f NVMe:%d/%0.2fG on-demand:$%0.2f/hr spot:$%0.2f/hr)", nType.InstanceName, arch, nType.CPUs, nType.RamGB, nType.EphemeralDisks, nType.EphemeralDiskTotalSizeGB, nType.PriceUSD, nType.SpotPriceUSD)})
+	}
+	def := "e2-standard-4"
+	if a.opts.Config.Backend.Type == "aws" {
+		def = "t3a.xlarge"
+	}
+	return types, def, nil
+}
 
 type clusterCreateCmd struct {
 	ClusterName             TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
@@ -70,47 +163,47 @@ type aerospikeVersionSelectorCmd struct {
 }
 
 type clusterCreateCmdAws struct {
-	AMI                 string        `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
-	InstanceType        string        `short:"I" long:"instance-type" description:"instance type to use" default:"" webrequired:"true"`
-	Ebs                 string        `webhidden:"true" short:"E" long:"ebs" description:"Deprecated: EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
-	Disk                []string      `long:"aws-disk" description:"EBS disks, format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=gp2,size=20 --disk type=gp3,size=100,iops=5000,throughput=200,count=2 ; first one is root volume ; this parameter can be specified multiple times"`
-	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
-	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
-	PublicIP            bool          `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
-	IsArm               bool          `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices     bool          `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
-	Tags                []string      `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix          []string      `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
-	EFSMount            string        `long:"aws-efs-mount" description:"mount EFS volume; format: NAME:EfsPath:MountPath OR use NAME:MountPath to mount the EFS root"`
-	EFSCreate           bool          `long:"aws-efs-create" description:"set to create the EFS volume if it doesn't exist"`
-	EFSOneZone          bool          `long:"aws-efs-onezone" description:"set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments"`
-	TerminateOnPoweroff bool          `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
-	SpotInstance        bool          `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
-	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
-	EFSExpires          time.Duration `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired"`
+	AMI                 string          `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
+	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"instance type to use" default:"" webrequired:"true" webchoice:"method::List"`
+	Ebs                 string          `webhidden:"true" short:"E" long:"ebs" description:"Deprecated: EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
+	Disk                []string        `long:"aws-disk" description:"EBS disks, format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=gp2,size=20 --disk type=gp3,size=100,iops=5000,throughput=200,count=2 ; first one is root volume ; this parameter can be specified multiple times"`
+	SecurityGroupID     string          `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
+	SubnetID            string          `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
+	PublicIP            bool            `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
+	IsArm               bool            `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices     bool            `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags                []string        `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix          []string        `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+	EFSMount            string          `long:"aws-efs-mount" description:"mount EFS volume; format: NAME:EfsPath:MountPath OR use NAME:MountPath to mount the EFS root"`
+	EFSCreate           bool            `long:"aws-efs-create" description:"set to create the EFS volume if it doesn't exist"`
+	EFSOneZone          bool            `long:"aws-efs-onezone" description:"set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments"`
+	TerminateOnPoweroff bool            `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
+	SpotInstance        bool            `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
+	Expires             time.Duration   `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	EFSExpires          time.Duration   `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired"`
 }
 
 type clusterCreateCmdGcp struct {
-	Image               string        `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
-	InstanceType        string        `long:"instance" description:"instance type to use" default:"" webrequired:"true"`
-	Disks               []string      `webhidden:"true" long:"disk" description:"Deprecated: format type:sizeGB[:iops:throughputMb][@count] or local-ssd[@count]; ex: pd-ssd:20 pd-balanced:40@2 local-ssd local-ssd@5 hyperdisk-balanced:20:3060:155; first in list is root volume, cannot be local-ssd; can be specified multiple times"`
-	Disk                []string      `long:"gcp-disk" description:"disks, format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2 ; first in list is root volume, cannot be local-ssd ; this parameter can be specified multiple times"`
-	PublicIP            bool          `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
-	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
-	IsArm               bool          `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices     bool          `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
-	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
-	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
-	SpotInstance        bool          `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
-	Expires             time.Duration `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
-	VolMount            string        `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath"`
-	VolCreate           bool          `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist"`
-	VolExpires          time.Duration `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
-	VolDescription      string        `long:"gcp-vol-desc" description:"set volume description field value"`
-	VolLabels           []string      `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
-	TerminateOnPoweroff bool          `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
-	OnHostMaintenance   string        `long:"on-host-maintenance-policy" description:"optionally specify a custom policy onHostMaintenance"`
+	Image               string          `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
+	InstanceType        guiInstanceType `long:"instance" description:"instance type to use" default:"" webrequired:"true" webchoice:"method::List"`
+	Disks               []string        `webhidden:"true" long:"disk" description:"Deprecated: format type:sizeGB[:iops:throughputMb][@count] or local-ssd[@count]; ex: pd-ssd:20 pd-balanced:40@2 local-ssd local-ssd@5 hyperdisk-balanced:20:3060:155; first in list is root volume, cannot be local-ssd; can be specified multiple times"`
+	Disk                []string        `long:"gcp-disk" description:"disks, format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2 ; first in list is root volume, cannot be local-ssd ; this parameter can be specified multiple times"`
+	PublicIP            bool            `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
+	Zone                guiZone         `long:"zone" description:"zone name to deploy to" webrequired:"true" webchoice:"method::List"`
+	IsArm               bool            `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
+	NoBestPractices     bool            `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
+	Tags                []string        `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
+	Labels              []string        `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
+	NamePrefix          []string        `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	SpotInstance        bool            `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
+	Expires             time.Duration   `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
+	VolMount            string          `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath"`
+	VolCreate           bool            `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist"`
+	VolExpires          time.Duration   `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
+	VolDescription      string          `long:"gcp-vol-desc" description:"set volume description field value"`
+	VolLabels           []string        `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
+	TerminateOnPoweroff bool            `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
+	OnHostMaintenance   string          `long:"on-host-maintenance-policy" description:"optionally specify a custom policy onHostMaintenance"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -348,7 +441,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				a.opts.Volume.Create.Name = efsName
 				a.opts.Volume.Create.Owner = c.Owner
 				a.opts.Volume.Create.Expires = c.Gcp.VolExpires
-				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone
+				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone.String()
 				a.opts.Volume.Create.Gcp.Description = c.Gcp.VolDescription
 				a.opts.Volume.Create.Tags = c.Gcp.VolLabels
 				err = a.opts.Volume.Create.Execute(nil)
@@ -383,9 +476,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	iType := c.Aws.InstanceType
 	if a.opts.Config.Backend.Type == "gcp" {
 		iType = c.Gcp.InstanceType
-		printPrice(c.Gcp.Zone, iType, c.NodeCount, false)
+		printPrice(c.Gcp.Zone.String(), iType.String(), c.NodeCount, false)
 	} else if a.opts.Config.Backend.Type == "aws" {
-		printPrice(c.Gcp.Zone, iType, c.NodeCount, c.Aws.SpotInstance)
+		printPrice(c.Gcp.Zone.String(), iType.String(), c.NodeCount, c.Aws.SpotInstance)
 	}
 	if c.PriceOnly {
 		return nil
@@ -494,14 +587,14 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 
 	// arm fill
 	if a.opts.Config.Backend.Type == "aws" {
-		c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+		c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType.String())
 		if err != nil {
 			return fmt.Errorf("IsSystemArm check: %s", err)
 		}
 		isArm = c.Aws.IsArm
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
-		c.Gcp.IsArm, err = b.IsSystemArm(c.Gcp.InstanceType)
+		c.Gcp.IsArm, err = b.IsSystemArm(c.Gcp.InstanceType.String())
 		if err != nil {
 			return fmt.Errorf("IsSystemArm check: %s", err)
 		}
@@ -551,7 +644,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		switches:        args,
 		dockerHostname:  !c.NoSetHostname,
 		ami:             c.Aws.AMI,
-		instanceType:    c.Aws.InstanceType,
+		instanceType:    c.Aws.InstanceType.String(),
 		ebs:             c.Aws.Ebs,
 		securityGroupID: c.Aws.SecurityGroupID,
 		subnetID:        c.Aws.SubnetID,
@@ -565,12 +658,12 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			return err
 		}
 		extra = &backendExtra{
-			instanceType: c.Gcp.InstanceType,
+			instanceType: c.Gcp.InstanceType.String(),
 			ami:          c.Gcp.Image,
 			publicIP:     c.Gcp.PublicIP,
 			tags:         c.Gcp.Tags,
 			disks:        c.Gcp.Disks,
-			zone:         c.Gcp.Zone,
+			zone:         c.Gcp.Zone.String(),
 			labels:       c.Gcp.Labels,
 			cloudDisks:   cloudDisks,
 		}

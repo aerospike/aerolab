@@ -509,7 +509,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Password = ""
 	a.opts.Cluster.Create.useAgiFirewall = true
 	a.opts.Cluster.Create.Aws.AMI = ""
-	a.opts.Cluster.Create.Aws.InstanceType = c.Aws.InstanceType
+	a.opts.Cluster.Create.Aws.InstanceType = guiInstanceType(c.Aws.InstanceType)
 	a.opts.Cluster.Create.Aws.Ebs = c.Aws.Ebs
 	a.opts.Cluster.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 	a.opts.Cluster.Create.Aws.SubnetID = c.Aws.SubnetID
@@ -552,10 +552,10 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.SpotInstance = c.Aws.SpotInstance
 	a.opts.Cluster.Create.Gcp.SpotInstance = c.Gcp.SpotInstance
 	a.opts.Cluster.Create.Gcp.Image = ""
-	a.opts.Cluster.Create.Gcp.InstanceType = c.Gcp.InstanceType
+	a.opts.Cluster.Create.Gcp.InstanceType = guiInstanceType(c.Gcp.InstanceType)
 	a.opts.Cluster.Create.Gcp.Disks = c.Gcp.Disks
 	a.opts.Cluster.Create.Gcp.PublicIP = false
-	a.opts.Cluster.Create.Gcp.Zone = c.Gcp.Zone
+	a.opts.Cluster.Create.Gcp.Zone = guiZone(c.Gcp.Zone)
 	a.opts.Cluster.Create.Gcp.IsArm = false
 	a.opts.Cluster.Create.Gcp.NoBestPractices = false
 	a.opts.Cluster.Create.Gcp.Tags = c.Gcp.Tags

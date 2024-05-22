@@ -57,9 +57,9 @@ func (c *clientCreateNoneCmd) Execute(args []string) error {
 		iType = c.Gcp.InstanceType
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
-		printPrice(c.Gcp.Zone, iType, c.ClientCount, false)
+		printPrice(c.Gcp.Zone.String(), iType.String(), c.ClientCount, false)
 	} else if a.opts.Config.Backend.Type == "aws" {
-		printPrice(c.Gcp.Zone, iType, c.ClientCount, c.Aws.SpotInstance)
+		printPrice(c.Gcp.Zone.String(), iType.String(), c.ClientCount, c.Aws.SpotInstance)
 	}
 	if c.PriceOnly {
 		return nil
@@ -204,7 +204,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 				a.opts.Volume.Create.Tags = c.Gcp.Labels
 				a.opts.Volume.Create.Owner = c.Owner
 				a.opts.Volume.Create.Expires = c.Gcp.VolExpires
-				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone
+				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone.String()
 				err = a.opts.Volume.Create.Execute(nil)
 				if err != nil {
 					return nil, err
@@ -239,7 +239,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		switches:          args,
 		dockerHostname:    !c.NoSetHostname,
 		ami:               c.Aws.AMI,
-		instanceType:      c.Aws.InstanceType,
+		instanceType:      c.Aws.InstanceType.String(),
 		ebs:               c.Aws.Ebs,
 		securityGroupID:   c.Aws.SecurityGroupID,
 		subnetID:          c.Aws.SubnetID,
@@ -255,12 +255,12 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			return nil, err
 		}
 		extra = &backendExtra{
-			instanceType: c.Gcp.InstanceType,
+			instanceType: c.Gcp.InstanceType.String(),
 			ami:          c.Gcp.Image,
 			publicIP:     c.Gcp.PublicIP,
 			tags:         c.Gcp.Tags,
 			disks:        c.Gcp.Disks,
-			zone:         c.Gcp.Zone,
+			zone:         c.Gcp.Zone.String(),
 			labels:       c.Gcp.Labels,
 			instanceRole: c.instanceRole,
 			clientType:   strings.ToLower(nt),
@@ -269,7 +269,7 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	}
 
 	// arm fill
-	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType.String())
 	if err != nil {
 		return nil, fmt.Errorf("IsSystemArm check: %s", err)
 	}
