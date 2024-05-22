@@ -1,8 +1,10 @@
 timestamps: # timestamp definitions
-    - definition: "Jan 02 2006 15:04:05.000 "
+    - definition: "Jan 02 2006 15:04:05.000 " # log-millis true
       regex: "[A-Z][a-z]{2} [0-9]{2} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3} "
-    - definition: "Jan 02 2006 15:04:05 "
+    - definition: "Jan 02 2006 15:04:05 " # log-millis false
       regex: "[A-Z][a-z]{2} [0-9]{2} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} "
+    - definition: "Jan 02 15:04:05 " # syslog edition
+      regex: "[A-Z][a-z]{2} [0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} "
 
 multilineJoins: # handle multiline hell
     - startLineSearch: "histogram dump"
