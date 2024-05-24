@@ -175,6 +175,9 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 		timestamp, err = time.Parse(s.patterns.Timestamps[s.timestampDefIdx].Definition, tsString)
 		if err == nil && timestamp.Year() == 0 {
 			timestamp = timestamp.AddDate(time.Now().Year(), 0, 0)
+			if timestamp.After(time.Now().Add(24 * time.Hour)) {
+				timestamp = timestamp.AddDate(-1, 0, 0)
+			}
 		}
 		return
 	}
@@ -187,6 +190,9 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 		timestamp, err = time.Parse(def.Definition, tsString)
 		if err == nil && timestamp.Year() == 0 {
 			timestamp = timestamp.AddDate(time.Now().Year(), 0, 0)
+			if timestamp.After(time.Now().Add(24 * time.Hour)) {
+				timestamp = timestamp.AddDate(-1, 0, 0)
+			}
 		}
 		if err == nil {
 			s.timestampDefIdx = j
@@ -204,6 +210,9 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 		timestamp, err = time.Parse(def.Definition, tsString)
 		if err == nil && timestamp.Year() == 0 {
 			timestamp = timestamp.AddDate(time.Now().Year(), 0, 0)
+			if timestamp.After(time.Now().Add(24 * time.Hour)) {
+				timestamp = timestamp.AddDate(-1, 0, 0)
+			}
 		}
 		if err == nil {
 			s.timestampDefIdx = j
