@@ -15,18 +15,20 @@ import (
 )
 
 type agiWebTokens struct {
-	tokens  map[string]string
-	l       *sync.RWMutex
-	getters map[string]*sync.WaitGroup
-	glock   *sync.Mutex
+	tokens             map[string]string
+	l                  *sync.RWMutex
+	getters            map[string]*sync.WaitGroup
+	glock              *sync.Mutex
+	insecureSkipVerify bool
 }
 
-func NewAgiWebTokenHandler() *agiWebTokens {
+func NewAgiWebTokenHandler(insecureSkipVerify bool) *agiWebTokens {
 	return &agiWebTokens{
-		tokens:  make(map[string]string),
-		l:       new(sync.RWMutex),
-		getters: make(map[string]*sync.WaitGroup),
-		glock:   new(sync.Mutex),
+		tokens:             make(map[string]string),
+		l:                  new(sync.RWMutex),
+		getters:            make(map[string]*sync.WaitGroup),
+		glock:              new(sync.Mutex),
+		insecureSkipVerify: insecureSkipVerify,
 	}
 }
 
@@ -63,11 +65,11 @@ func (t *agiWebTokens) GetToken(req agiWebTokenRequest) (token string, err error
 }
 
 // return false if token is invalid, in all other cases (including connection failed) return true
-func testToken(url string, token string) bool {
+func testToken(url string, token string, insecureSkipVerify bool) bool {
 	tr := &http.Transport{
 		DisableKeepAlives: true,
 		IdleConnTimeout:   5 * time.Second,
-		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: insecureSkipVerify}, // ping AGI to test if token is valid, expect real cert on AGI instances
 	}
 	client := &http.Client{
 		Timeout:   5 * time.Second,
@@ -100,7 +102,7 @@ func (t *agiWebTokens) getToken(req agiWebTokenRequest, test bool) (token string
 		if !test {
 			return v, nil
 		}
-		if testToken(req.AccessProtIP+"/agi/ok", v) {
+		if testToken(req.AccessProtIP+"/agi/ok", v, t.insecureSkipVerify) {
 			return v, nil
 		}
 		return t.GetNewToken(req)

@@ -1,7 +1,10 @@
 {{define "mainjs"}}
+var updateJobListAllUsers = Cookies.get('AEROLAB_SHOW_ALL_USERS');
 function pendingActionShowAll(id) {
     let isChecked = $(id).is(":checked");
-    console.log(isChecked); // not implemented in this version
+    Cookies.set('AEROLAB_SHOW_ALL_USERS', isChecked, { expires: 360, path: '{{.WebRoot}}' });
+    updateJobListAllUsers = Cookies.get('AEROLAB_SHOW_ALL_USERS');
+    updateJobList();
 }
 
 $('.aerolab-required').on("change",function() {
@@ -371,7 +374,10 @@ var updateJobListLastSuccess = true;
 var updateJobListConnErrCount = 0;
 async function updateJobList(setTimer = false, noInventoryUpdate = false, hideOverlay = false) {
     var mutexunlock = await jobListMutex.lock();
-    $.getJSON("{{.WebRoot}}www/api/jobs/", function(data) {
+    if ((updateJobListAllUsers != "true")&&(updateJobListAllUsers != "false")) {
+        updateJobListAllUsers = false;
+    }
+    $.getJSON("{{.WebRoot}}www/api/jobs/?jobsAllUsers="+updateJobListAllUsers, function(data) {
         if (!updateJobListLastSuccess) {
             updateJobListLastSuccess = true;
         }
@@ -421,8 +427,11 @@ async function updateJobList(setTimer = false, noInventoryUpdate = false, hideOv
         // command
         var ln4 = '<span class="float-right text-muted text-sm">';
         // startedWhen
-        //var ln3 = '</span><br><span class="text-muted text-sm">&nbsp;</span><span class="text-muted float-right text-sm">&nbsp;</span></a>';
-        var ln5 = '</span></a>';
+        var ln5 = '</span><br><span class="text-muted text-sm">';
+        // username
+        var ln6 = '</span><span class="text-muted float-right text-sm">&nbsp;</span></a>';
+        // no user
+        var ln5alt = '</span></a>'; var ln6alt = '';
         if (data.Jobs != null) {
             for (var i=0; i<data.Jobs.length;i++) {
                 let jl = $(".jobslist");
@@ -446,7 +455,11 @@ async function updateJobList(setTimer = false, noInventoryUpdate = false, hideOv
                     }
                 }
                 jobid="'"+data.Jobs[i]["RequestID"]+"',"+data.Jobs[i]["IsRunning"];
-                $(jl).append(ln1+jobid+ln2+lnicon+ln3+data.Jobs[i]["Command"]+ln4+data.Jobs[i]["StartedWhen"]+ln5);
+                if (data.Jobs[i]["UserName"] != "") {
+                    $(jl).append(ln1+jobid+ln2+lnicon+ln3+data.Jobs[i]["Command"]+ln4+data.Jobs[i]["StartedWhen"]+ln5+data.Jobs[i]["UserName"]+ln6);
+                } else {
+                    $(jl).append(ln1+jobid+ln2+lnicon+ln3+data.Jobs[i]["Command"]+ln4+data.Jobs[i]["StartedWhen"]+ln5alt+ln6alt);
+                }
             }
         };
         if (!noInventoryUpdate) {
