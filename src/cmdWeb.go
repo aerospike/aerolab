@@ -49,6 +49,8 @@ type webCmd struct {
 	MinInterval         time.Duration `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
 	BlockServerLs       bool          `long:"block-server-ls" description:"block file exploration on the server altogether"`
 	AllowLsEverywhere   bool          `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
+	UniqueFirewalls     bool          `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
+	AGIStrictTLS        bool          `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
@@ -205,7 +207,7 @@ func (c *webCmd) Execute(args []string) error {
 	if isWebuiBeta {
 		log.Print("Running webui; this feature is in beta.")
 	}
-	c.agiTokens = NewAgiWebTokenHandler()
+	c.agiTokens = NewAgiWebTokenHandler(c.AGIStrictTLS)
 	c.wsCount = new(wsCounters)
 	go c.wsCount.PrintTimer(time.Second)
 	c.cfgTs = time.Now()
@@ -588,6 +590,7 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		startTimestamp time.Time // for sorting purposes
 		CmdLine        string
 		FilePath       string
+		UserName       string
 	}
 	type jsonJobs struct {
 		Jobs         []*jsonJob
@@ -613,7 +616,21 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		if !strings.HasSuffix(path, ".log") {
 			return nil
 		}
-		_, fn := filepath.Split(path)
+		ndir, fn := filepath.Split(path)
+		_, nusr := filepath.Split(strings.TrimRight(ndir, "/"))
+		if nusr == "weblog" && !strings.HasSuffix(strings.TrimRight(ndir, "/"), "weblog/weblog") {
+			nusr = "N/A"
+		}
+		nUser := r.Header.Get("x-auth-aerolab-user")
+		if nUser == "" {
+			nUser = currentOwnerUser
+		}
+		if r.FormValue("jobsAllUsers") != "true" {
+			if nUser != nusr && nusr != "N/A" {
+				return nil
+			}
+			nusr = ""
+		}
 		fnsplit := strings.Split(fn, "_")
 		if len(fnsplit) != 3 {
 			return nil
@@ -652,6 +669,7 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 			startTimestamp: ts,
 			StartedWhen:    startedWhen,
 			FilePath:       path,
+			UserName:       nusr,
 		}
 		if runJob != nil {
 			j.IsRunning = true
@@ -1432,12 +1450,19 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	if a.opts.Config.Backend.Type == "docker" {
 		backendIcon = "fa-docker"
 	}
+	isShowUsersChecked := false
+	showAllUsersCookie, err := r.Cookie("AEROLAB_SHOW_ALL_USERS")
+	if err == nil {
+		if showAllUsersCookie.Value == "true" {
+			isShowUsersChecked = true
+		}
+	}
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
-		PendingActionsShowAllUsersToggle:        false,
-		PendingActionsShowAllUsersToggleChecked: false,
+		PendingActionsShowAllUsersToggle:        true,
+		PendingActionsShowAllUsersToggleChecked: isShowUsersChecked,
 		IsError:                                 isError,
 		ErrorString:                             errStr,
 		ErrorTitle:                              errTitle,
@@ -1603,6 +1628,35 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 		return indexi < indexj
 	})
+
+	if c.UniqueFirewalls && a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && cmdline[2] == "create") || (cmdline[1] == "client" && cmdline[2] == "create") || (cmdline[1] == "template" && cmdline[2] == "create")) {
+		fwsw := "xxGcpxxNamePrefix"
+		if a.opts.Config.Backend.Type == "aws" {
+			fwsw = "xxAwsxxNamePrefix"
+		}
+		fwFound := false
+		for _, kv := range postForm {
+			if kv[0].(string) == fwsw {
+				fwFound = true
+				break
+			}
+		}
+		if !fwFound {
+			nUser := r.Header.Get("x-auth-aerolab-user")
+			if nUser == "" {
+				nUser = currentOwnerUser
+			}
+			nUser = strings.ToLower(nUser)
+			nFW := ""
+			for _, c := range nUser {
+				if (c >= 97 && c <= 122) || (c >= 48 && c <= 57) {
+					nFW = nFW + string(c)
+				}
+			}
+			item := []interface{}{fwsw, []string{nFW}}
+			postForm = append(postForm, item)
+		}
+	}
 
 	// fill command struct
 	tail := []string{"--"}
@@ -1820,8 +1874,19 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	os.Mkdir(path.Join(rootDir, "weblog"), 0755)
-	fn := path.Join(rootDir, "weblog", time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
+
+	nUser := r.Header.Get("x-auth-aerolab-user")
+	if nUser == "" {
+		nUser = currentOwnerUser
+	}
+
+	nPath := path.Join(rootDir, "weblog")
+	os.Mkdir(nPath, 0755)
+	if nUser != "" {
+		nPath = path.Join(nPath, nUser)
+		os.Mkdir(nPath, 0755)
+	}
+	fn := path.Join(nPath, time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.AbsoluteTimeout)
 	run := exec.CommandContext(ctx, ex, "webrun")

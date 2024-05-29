@@ -10,6 +10,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -20,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/aws/aws-sdk-go/service/pricing"
+	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/scheduler"
 	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/bestmethod/inslice"
@@ -231,7 +233,7 @@ func (d *backendAws) CreateVolume(name string, zone string, tags []string, expir
 		})
 	}
 	if expires != 0 {
-		err := d.ExpiriesSystemInstall(15, "")
+		err := d.ExpiriesSystemInstall(15, "", "")
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
 		}
@@ -307,9 +309,47 @@ func (d *backendAws) SetLabel(clusterName string, key string, value string, gzpZ
 	return nil
 }
 
-func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+var expInstallMutex = new(sync.Mutex)
+
+func (d *backendAws) ExpiriesUpdateZoneID(zoneId string) error {
+	expInstallMutex.Lock()
+	defer expInstallMutex.Unlock()
+	funcConf, err := d.lambda.GetFunctionConfiguration(&lambda.GetFunctionConfigurationInput{
+		FunctionName: aws.String("aerolab-expiries"),
+	})
+	if err != nil {
+		return err
+	}
+	if funcConf.Environment.Variables != nil && aws.StringValue(funcConf.Environment.Variables["route53_zoneid"]) == zoneId {
+		return nil
+	}
+	if funcConf.Environment.Variables == nil {
+		funcConf.Environment.Variables = make(map[string]*string)
+	}
+	funcConf.Environment.Variables["route53_zoneid"] = &zoneId
+	_, err = d.lambda.UpdateFunctionConfiguration(&lambda.UpdateFunctionConfigurationInput{
+		FunctionName: aws.String("aerolab-expiries"),
+		Environment: &lambda.Environment{
+			Variables: funcConf.Environment.Variables,
+		},
+	})
+	return err
+}
+
+func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion string, awsDnsZoneId string) error {
+	expInstallMutex.Lock()
+	defer expInstallMutex.Unlock()
 	if d.disableExpiryInstall {
 		return nil
+	}
+	// if reinstalling preserve zoneId (if lambda installed and that's available) if awsDnsZoneId is not provided
+	if awsDnsZoneId == "" {
+		funcConf, err := d.lambda.GetFunctionConfiguration(&lambda.GetFunctionConfigurationInput{
+			FunctionName: aws.String("aerolab-expiries"),
+		})
+		if err == nil && funcConf.Environment.Variables != nil {
+			awsDnsZoneId = aws.StringValue(funcConf.Environment.Variables["route53_zoneid"])
+		}
 	}
 	// if a scheduler already exists, return EXISTS as it's all been already made
 	q, err := d.scheduler.ListSchedules(&scheduler.ListSchedulesInput{
@@ -405,7 +445,8 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 		Runtime:      aws.String("provided.al2"),
 		Environment: &lambda.Environment{
 			Variables: aws.StringMap(map[string]string{
-				"EKS_ROLE": aws.StringValue(lambdaRole.Role.Arn),
+				"EKS_ROLE":       aws.StringValue(lambdaRole.Role.Arn),
+				"route53_zoneid": awsDnsZoneId,
 			}),
 		},
 		Role: lambdaRole.Role.Arn,
@@ -476,6 +517,42 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 		}
 	}
 	log.Println("Cluster expiry system installed")
+	return nil
+}
+
+func (d *backendAws) DomainCreate(zoneId string, fqdn string, IP string, wait bool) (err error) {
+	svc := route53.New(d.sess)
+	recordSetsOutput, err := svc.ChangeResourceRecordSets(&route53.ChangeResourceRecordSetsInput{
+		HostedZoneId: aws.String(zoneId),
+		ChangeBatch: &route53.ChangeBatch{
+			Changes: []*route53.Change{
+				{
+					Action: aws.String("UPSERT"),
+					ResourceRecordSet: &route53.ResourceRecordSet{
+						Name: aws.String(fqdn),
+						TTL:  aws.Int64(int64(60)),
+						Type: aws.String("A"),
+						ResourceRecords: []*route53.ResourceRecord{
+							{
+								Value: aws.String(IP),
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if wait {
+		err = svc.WaitUntilResourceRecordSetsChanged(&route53.GetChangeInput{
+			Id: recordSetsOutput.ChangeInfo.Id,
+		})
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -2127,12 +2204,19 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 		return fmt.Errorf("could not run DescribeInstances\n%s", err)
 	}
 	var instanceIds []*string
+	type instanceDomainInfo struct {
+		ZoneID     string
+		DomainName string
+	}
+	instanceZones := make(map[string]instanceDomainInfo)
 
 	for _, reservation := range instances.Reservations {
 		for _, instance := range reservation.Instances {
 			if *instance.State.Code != int64(48) {
+				tags := make(map[string]string)
 				var nodeNumber int
 				for _, tag := range instance.Tags {
+					tags[*tag.Key] = *tag.Value
 					if *tag.Key == awsTagNodeNumber {
 						nodeNumber, err = strconv.Atoi(*tag.Value)
 						if err != nil {
@@ -2161,9 +2245,75 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 					if err != nil {
 						return fmt.Errorf("error terminating instance %s\n%s\n%s", *instance.InstanceId, result, err)
 					}
+					if tags["agiDomain"] != "" && tags["agiZoneID"] != "" {
+						instanceZones[*instance.InstanceId] = instanceDomainInfo{
+							ZoneID:     tags["agiZoneID"],
+							DomainName: tags["agiDomain"],
+						}
+					}
 				}
 			}
 		}
+	}
+	if len(instanceZones) > 0 {
+		log.Print("Cleaning up DNS")
+		wg := new(sync.WaitGroup)
+		wg.Add(1)
+		defer wg.Wait()
+		go func() {
+			defer log.Print("DNS Cleanup done")
+			// get zoneInfo cache filled
+			zoneInfo := make(map[string][]DNSHost)
+			r53 := route53.New(d.sess)
+			for _, instZone := range instanceZones {
+				if _, ok := zoneInfo[instZone.ZoneID]; !ok {
+					hosts, err := DNSListHosts(r53, instZone.ZoneID)
+					if err != nil {
+						log.Printf("ERROR: Route53 Query error, aboritng DNS cleanup: %s", err)
+						return
+					}
+					zoneInfo[instZone.ZoneID] = hosts
+				}
+			}
+			// prepare for batch removals
+			zoneChanges := make(map[string]*route53.ChangeBatch) // [zoneId]batch
+			for instId, instZone := range instanceZones {
+				for _, dnsHost := range zoneInfo[instZone.ZoneID] {
+					if strings.HasPrefix(dnsHost.Name, instId+".") {
+						if _, ok := zoneChanges[instZone.ZoneID]; !ok {
+							zoneChanges[instZone.ZoneID] = &route53.ChangeBatch{}
+						}
+						ips := []*route53.ResourceRecord{}
+						for _, ip := range dnsHost.IPs {
+							ips = append(ips, &route53.ResourceRecord{
+								Value: aws.String(ip),
+							})
+						}
+						zoneChanges[instZone.ZoneID].Changes = append(zoneChanges[instZone.ZoneID].Changes, &route53.Change{
+							Action: aws.String("DELETE"),
+							ResourceRecordSet: &route53.ResourceRecordSet{
+								Name:            aws.String(dnsHost.Name),
+								TTL:             aws.Int64(dnsHost.TTL),
+								Type:            aws.String("A"),
+								ResourceRecords: ips,
+							},
+						})
+						break
+					}
+				}
+			}
+			// perform batch removals
+			for zoneId, batch := range zoneChanges {
+				_, err = r53.ChangeResourceRecordSets(&route53.ChangeResourceRecordSetsInput{
+					HostedZoneId: aws.String(zoneId),
+					ChangeBatch:  batch,
+				})
+				if err != nil {
+					log.Printf("Failed to batch-remove DNS records from zone %s: %s", zoneId, err)
+					time.Sleep(time.Second)
+				}
+			}
+		}()
 	}
 	if len(instanceIds) > 0 {
 		log.Printf("Terminate command sent to %d instances, waiting for AWS to finish terminating", len(instanceIds))
@@ -2181,6 +2331,36 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 	}
 
 	return nil
+}
+
+type DNSHost struct {
+	Name string
+	IPs  []string
+	TTL  int64
+}
+
+func DNSListHosts(r53 *route53.Route53, zoneId string) (hosts []DNSHost, err error) {
+	out, err := r53.ListResourceRecordSets(&route53.ListResourceRecordSetsInput{
+		HostedZoneId: aws.String(zoneId),
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, rset := range out.ResourceRecordSets {
+		if *rset.Type != "A" {
+			continue
+		}
+		ips := []string{}
+		for _, rr := range rset.ResourceRecords {
+			ips = append(ips, *rr.Value)
+		}
+		hosts = append(hosts, DNSHost{
+			Name: *rset.Name,
+			IPs:  ips,
+			TTL:  *rset.TTL,
+		})
+	}
+	return hosts, nil
 }
 
 func (d *backendAws) AttachAndRun(clusterName string, node int, command []string, isInteractive bool) (err error) {
@@ -2262,6 +2442,67 @@ func (d *backendAws) GetNodeIpMap(name string, internalIPs bool) (map[int]string
 				} else {
 					nodeList[nodeNumber] = "N/A"
 				}
+			}
+		}
+	}
+	return nodeList, nil
+}
+
+func (d *backendAws) GetInstanceIpMap(name string, internalIPs bool) (map[string]string, error) {
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagClusterName),
+				Values: []*string{aws.String(name)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return nil, fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	nodeList := make(map[string]string)
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code != int64(48) {
+				nip := instance.PublicIpAddress
+				if internalIPs || a.opts.Config.Backend.AWSNoPublicIps {
+					nip = instance.PrivateIpAddress
+				}
+				if nip != nil {
+					nodeList[*instance.InstanceId] = *nip
+				} else {
+					nodeList[*instance.InstanceId] = "N/A"
+				}
+			}
+		}
+	}
+	return nodeList, nil
+}
+
+// map[instanceId]map[key]value
+func (d *backendAws) GetInstanceTags(name string) (map[string]map[string]string, error) {
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagClusterName),
+				Values: []*string{aws.String(name)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return nil, fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	nodeList := make(map[string]map[string]string)
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code != int64(48) {
+				tags := make(map[string]string)
+				for _, kv := range instance.Tags {
+					tags[*kv.Key] = tags[*kv.Value]
+				}
+				nodeList[*instance.InstanceId] = tags
 			}
 		}
 	}
@@ -2813,7 +3054,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 	}
 	if !extra.expiresTime.IsZero() {
-		err = d.ExpiriesSystemInstall(15, "")
+		err = d.ExpiriesSystemInstall(15, "", "")
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, clusters will not expire: %s", err)
 		}

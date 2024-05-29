@@ -165,13 +165,13 @@ func (d *backendGcp) storeExpiryInstalled(projectID string, region string, isSuc
 
 func (d *backendGcp) expiriesSystemInstall(intervalMinutes int, deployRegion string, wg *sync.WaitGroup) {
 	defer wg.Done()
-	err := d.ExpiriesSystemInstall(intervalMinutes, deployRegion)
+	err := d.ExpiriesSystemInstall(intervalMinutes, deployRegion, "")
 	if err != nil && err.Error() != "EXISTS" {
 		log.Printf("WARNING: Failed to install the expiry system, clusters will not expire: %s", err)
 	}
 }
 
-func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion string, awsDnsZoneId string) error {
 	if d.disableExpiryInstall {
 		return nil
 	}

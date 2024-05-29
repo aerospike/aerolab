@@ -199,11 +199,9 @@ func Syslog(conf *Config) error {
 	httpClient := &http.Client{
 		Timeout: time.Duration(conf.DstWebTimeout) * time.Second,
 	}
-	if conf.DstWebIgnoreCert {
-		httpClient.Transport = &http.Transport{
-			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
-			TLSHandshakeTimeout: time.Duration(conf.DstWebTimeout) * time.Second,
-		}
+	httpClient.Transport = &http.Transport{
+		TLSClientConfig:     &tls.Config{InsecureSkipVerify: conf.DstWebIgnoreCert},
+		TLSHandshakeTimeout: time.Duration(conf.DstWebTimeout) * time.Second,
 	}
 
 	// Create a Unix domain socket and listen for incoming connections.

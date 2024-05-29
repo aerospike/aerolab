@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +22,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/efs"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/bestmethod/inslice"
 )
 
 type MyEvent struct{}
@@ -38,16 +41,13 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 	}
 	svc := ec2.New(sess)
 
+	r53instanceList := []string{}
 	// list instances
 	instances, err := svc.DescribeInstances(&ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("instance-state-name"),
 				Values: aws.StringSlice([]string{"pending", "running", "stopping", "stopped"}),
-			},
-			{
-				Name:   aws.String("tag-key"),
-				Values: aws.StringSlice([]string{"aerolab4expires"}),
 			},
 		},
 	})
@@ -63,12 +63,13 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 	defer telemetryLock.Wait()
 	for _, reservation := range instances.Reservations {
 		for _, instance := range reservation.Instances {
+			r53instanceList = append(r53instanceList, *instance.InstanceId)
 			enumCount++
 			tags := make(map[string]string)
 			for _, tag := range instance.Tags {
 				tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
 			}
-			if expires, ok := tags["aerolab4expires"]; ok {
+			if expires, ok := tags["aerolab4expires"]; ok && expires != "" {
 				expiry, err := time.Parse(time.RFC3339, expires)
 				if err != nil {
 					log.Printf("Could not handle expiry for instance %s: %s: %s", aws.StringValue(instance.InstanceId), expires, err)
@@ -85,6 +86,7 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 						continue
 					}
 					deleteList = append(deleteList, aws.StringValue(instance.InstanceId))
+					r53instanceList = r53instanceList[:len(r53instanceList)-1]
 					name := tags["Aerolab4ClusterName"]
 					node := tags["Aerolab4NodeNumber"]
 					if name == "" || node == "" {
@@ -341,7 +343,102 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 		}
 		log.Println("EKS: Cluster Expired")
 	}
+
+	if os.Getenv("route53_zoneid") == "" {
+		return MyResponse{Message: "Completed", Status: "OK"}, nil
+	}
+
+	log.Println("DNS Cleanup")
+	zoneid := os.Getenv("route53_zoneid")
+	region := os.Getenv("route53_region")
+	var regionx *string
+	if region != "" {
+		regionx = &region
+	}
+	sessx, err := session.NewSession(&aws.Config{
+		Region: regionx,
+	})
+	if err != nil {
+		return makeErrorResponse("Could not route53 new session: ", err)
+	}
+	r53 := route53.New(sessx)
+	hosts, err := DNSListHosts(r53, zoneid)
+	if err != nil {
+		return makeErrorResponse("Could not route53 list hosts: ", err)
+	}
+	changeBatch := route53.ChangeBatch{}
+	// instance-id.region.agi.*
+	// len=4+ [0]=instance-id [1]=region [2]=agi
+	for _, host := range hosts {
+		hostSplit := strings.Split(host.Name, ".")
+		if len(hostSplit) < 4 {
+			continue
+		}
+		if hostSplit[2] != "agi" {
+			continue
+		}
+		if hostSplit[1] != os.Getenv("AWS_REGION") {
+			continue
+		}
+		if inslice.HasString(r53instanceList, hostSplit[0]) {
+			continue
+		}
+		ips := []*route53.ResourceRecord{}
+		for _, ip := range host.IPs {
+			ips = append(ips, &route53.ResourceRecord{
+				Value: aws.String(ip),
+			})
+		}
+		log.Printf("Removing %s (%v) TTL:%d", host.Name, host.IPs, host.TTL)
+		changeBatch.Changes = append(changeBatch.Changes, &route53.Change{
+			Action: aws.String("DELETE"),
+			ResourceRecordSet: &route53.ResourceRecordSet{
+				Name:            aws.String(host.Name),
+				TTL:             aws.Int64(host.TTL),
+				Type:            aws.String("A"),
+				ResourceRecords: ips,
+			},
+		})
+	}
+	_, err = r53.ChangeResourceRecordSets(&route53.ChangeResourceRecordSetsInput{
+		HostedZoneId: aws.String(zoneid),
+		ChangeBatch:  &changeBatch,
+	})
+	if err != nil {
+		return makeErrorResponse("Could not route53 remove hosts: ", err)
+	}
+
 	return MyResponse{Message: "Completed", Status: "OK"}, nil
+}
+
+type DNSHost struct {
+	Name string
+	IPs  []string
+	TTL  int64
+}
+
+func DNSListHosts(r53 *route53.Route53, zoneId string) (hosts []DNSHost, err error) {
+	out, err := r53.ListResourceRecordSets(&route53.ListResourceRecordSetsInput{
+		HostedZoneId: aws.String(zoneId),
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, rset := range out.ResourceRecordSets {
+		if *rset.Type != "A" {
+			continue
+		}
+		ips := []string{}
+		for _, rr := range rset.ResourceRecords {
+			ips = append(ips, *rr.Value)
+		}
+		hosts = append(hosts, DNSHost{
+			Name: *rset.Name,
+			IPs:  ips,
+			TTL:  *rset.TTL,
+		})
+	}
+	return hosts, nil
 }
 
 func main() {

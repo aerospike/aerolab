@@ -40,8 +40,9 @@ func (c *agiMonitorCmd) Execute(args []string) error {
 }
 
 type agiMonitorListenCmd struct {
-	ListenAddress       string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443" yaml:"listenAddress"`                                   // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
-	NoTLS               bool     `long:"no-tls" description:"disable tls" yaml:"noTLS"`                                                                                                                            // enable TLS
+	ListenAddress       string   `long:"address" description:"address to listen on; if autocert is enabled, will also listen on :80" default:"0.0.0.0:443" yaml:"listenAddress"` // 0.0.0.0:443, not :80 is also required and will be bound to if using autocert
+	NoTLS               bool     `long:"no-tls" description:"disable tls" yaml:"noTLS"`                                                                                          // enable TLS
+	StrictAGITLS        bool     `long:"strict-agi-tls" description:"if set, AGI-Monitor will expect AGI instances to have a valid TLS certificate"`
 	AutoCertDomains     []string `long:"autocert" description:"TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
 	AutoCertEmail       string   `long:"autocert-email" description:"TLS: if autocert is specified, specify a valid email address to use with letsencrypt"`
 	CertFile            string   `long:"cert-file" description:"TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile"` // TLS: cert file (if not using autocert), default: snakeoil
@@ -83,11 +84,13 @@ type agiMonitorCreateCmdGcp struct {
 }
 
 type agiMonitorCreateCmdAws struct {
-	InstanceType    string   `long:"aws-instance" description:"instance type to use" default:"t3a.medium"`
-	SecurityGroupID string   `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
-	SubnetID        string   `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
-	NamePrefix      []string `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
-	InstanceRole    string   `long:"aws-role" description:"instance role to assign to the instance; the role must allow at least EC2 and EFS access; and must be manually precreated" default:"agimonitor"`
+	InstanceType      string   `long:"aws-instance" description:"instance type to use" default:"t3a.medium"`
+	SecurityGroupID   string   `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
+	SubnetID          string   `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
+	NamePrefix        []string `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
+	InstanceRole      string   `long:"aws-role" description:"instance role to assign to the instance; the role must allow at least EC2 and EFS access; and must be manually precreated" default:"agimonitor"`
+	Route53ZoneId     string   `long:"route53-zoneid" description:"if set, will automatically update a route53 DNS domain with an entry of {instanceId}.{region}.agi.; expiry system will also be updated accordingly"`
+	Route53DomainName string   `long:"route53-fqdn" description:"the route domain the zone refers to; eg monitor.eu-west-1.myagi.org"`
 }
 
 func init() {
@@ -107,6 +110,11 @@ func (c *agiMonitorCreateCmd) Execute(args []string) error {
 
 func (c *agiMonitorCreateCmd) create(args []string) error {
 	_ = args
+	if a.opts.Config.Backend.Type == "aws" {
+		if (c.Aws.Route53DomainName == "" && c.Aws.Route53ZoneId != "") || (c.Aws.Route53DomainName != "" && c.Aws.Route53ZoneId == "") {
+			return errors.New("either both route53-zoneid and route53-domain must be fills or both must be empty")
+		}
+	}
 	if a.opts.Config.Backend.Type == "docker" {
 		return errors.New("this feature can only be deployed on GCP or AWS")
 	}
@@ -134,6 +142,9 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	a.opts.Client.Create.None.Aws.InstanceType = guiInstanceType(c.Aws.InstanceType)
 	a.opts.Client.Create.None.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Client.Create.None.Aws.Expires = 0
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
+		a.opts.Client.Create.None.Aws.Tags = append(a.opts.Client.Create.None.Aws.Tags, "agimUrl="+c.Aws.Route53DomainName)
+	}
 	a.opts.Client.Create.None.instanceRole = c.Aws.InstanceRole
 	if a.opts.Config.Backend.Type == "gcp" {
 		a.opts.Client.Create.None.instanceRole = c.Gcp.InstanceRole
@@ -150,6 +161,22 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	_, err = a.opts.Client.Create.None.createBase(nil, "agimonitor")
 	if err != nil {
 		return err
+	}
+
+	b.WorkOnClients()
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
+		log.Printf("Configuring route53")
+		instIps, err := b.GetInstanceIpMap(string(c.Name), false)
+		if err != nil {
+			log.Printf("ERROR: Could not get node IPs, DNS will not be updated: %s", err)
+		} else {
+			for _, ip := range instIps {
+				err := b.DomainCreate(c.Aws.Route53ZoneId, c.Aws.Route53DomainName, ip, true)
+				if err != nil {
+					log.Printf("ERROR creating domain in route53: %s", err)
+				}
+			}
+		}
 	}
 
 	log.Printf("Installing aerolab")
@@ -257,6 +284,9 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 			Addr:      c.ListenAddress,
 			TLSConfig: m.TLSConfig(),
 		}
+		s.TLSConfig.MinVersion = tls.VersionTLS12
+		s.TLSConfig.CurvePreferences = []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256}
+		s.TLSConfig.CipherSuites = []uint16{tls.TLS_AES_128_GCM_SHA256, tls.TLS_AES_256_GCM_SHA384, tls.TLS_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384}
 		log.Printf("Listening on https://%s", c.ListenAddress)
 		return s.ListenAndServeTLS("", "")
 	}
@@ -287,7 +317,15 @@ fi
 		}
 	}
 	log.Printf("Listening on https://%s", c.ListenAddress)
-	return http.ListenAndServeTLS(c.ListenAddress, c.CertFile, c.KeyFile, nil)
+	srv := &http.Server{Addr: c.ListenAddress}
+	tlsConfig := &tls.Config{
+		MinVersion:       tls.VersionTLS12,
+		CurvePreferences: []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		CipherSuites: []uint16{
+			tls.TLS_AES_128_GCM_SHA256, tls.TLS_AES_256_GCM_SHA384, tls.TLS_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},
+	}
+	srv.TLSConfig = tlsConfig
+	return srv.ListenAndServeTLS(c.CertFile, c.KeyFile)
 }
 
 func (c *agiMonitorListenCmd) isFile(s string) bool {
@@ -341,7 +379,7 @@ func (c *agiMonitorListenCmd) challengeCallbackDo(prot string, ip string, secret
 	tr := &http.Transport{
 		DisableKeepAlives: true,
 		IdleConnTimeout:   10 * time.Second,
-		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: !c.StrictAGITLS}, // are we expecting AGI instances to have a valid certificate
 	}
 	client := &http.Client{
 		Timeout:   10 * time.Second,
