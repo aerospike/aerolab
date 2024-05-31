@@ -22,11 +22,11 @@ var _ BatchRecordIfc = &BatchWrite{}
 type BatchWrite struct {
 	BatchRecord
 
-	// Optional write policy.
-	policy *BatchWritePolicy
+	// Policy is an optional write Policy.
+	Policy *BatchWritePolicy
 
-	// Required operations for this key.
-	ops []*Operation
+	// Ops specify required operations for this key.
+	Ops []*Operation
 }
 
 // NewBatchWrite initializesa policy, batch key and read/write operations.
@@ -36,8 +36,8 @@ type BatchWrite struct {
 func NewBatchWrite(policy *BatchWritePolicy, key *Key, ops ...*Operation) *BatchWrite {
 	return &BatchWrite{
 		BatchRecord: *newSimpleBatchRecord(key, true),
-		ops:         ops,
-		policy:      policy,
+		Ops:         ops,
+		Policy:      policy,
 	}
 }
 
@@ -62,23 +62,23 @@ func (bw *BatchWrite) equals(obj BatchRecordIfc) bool {
 		return false
 	}
 
-	return &bw.ops == &other.ops && bw.policy == other.policy && (bw.policy == nil || !bw.policy.SendKey)
+	return &bw.Ops == &other.Ops && bw.Policy == other.Policy && (bw.Policy == nil || !bw.Policy.SendKey)
 }
 
 // Return wire protocol size. For internal use only.
 func (bw *BatchWrite) size(parentPolicy *BasePolicy) (int, Error) {
 	size := 2 // gen(2) = 2
 
-	if bw.policy != nil {
-		if bw.policy.FilterExpression != nil {
-			if sz, err := bw.policy.FilterExpression.size(); err != nil {
+	if bw.Policy != nil {
+		if bw.Policy.FilterExpression != nil {
+			if sz, err := bw.Policy.FilterExpression.size(); err != nil {
 				return -1, err
 			} else {
 				size += sz + int(_FIELD_HEADER_SIZE)
 			}
 		}
 
-		if bw.policy.SendKey || parentPolicy.SendKey {
+		if bw.Policy.SendKey || parentPolicy.SendKey {
 			if sz, err := bw.Key.userKey.EstimateSize(); err != nil {
 				return -1, err
 			} else {
@@ -95,7 +95,7 @@ func (bw *BatchWrite) size(parentPolicy *BasePolicy) (int, Error) {
 
 	hasWrite := false
 
-	for _, op := range bw.ops {
+	for _, op := range bw.Ops {
 		if op.opType.isWrite {
 			hasWrite = true
 		}

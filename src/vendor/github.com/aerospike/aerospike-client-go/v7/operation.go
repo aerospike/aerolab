@@ -91,7 +91,7 @@ func (o *Operation) grpc_op_type() kvs.OperationType {
 		return kvs.OperationType_HLL_MODIFY
 	}
 
-	panic("UNREACHABLE")
+	panic(unreachable)
 }
 
 // Operation contains operation definition.

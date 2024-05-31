@@ -24,9 +24,11 @@ type batcher interface {
 	cloneBatchCommand(batch *batchNode) batcher
 	filteredOut() int
 
-	retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration int, commandWasSent bool) (bool, Error)
+	retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration int) (bool, Error)
 	generateBatchNodes(*Cluster) ([]*batchNode, Error)
 	setSequence(int, int)
+
+	executeSingle(*Client) Error
 }
 
 type batchCommand struct {
@@ -56,7 +58,7 @@ func (cmd *batchCommand) prepareRetry(ifc command, isTimeout bool) bool {
 	return false
 }
 
-func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration int, commandWasSent bool) (bool, Error) {
+func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time.Time, iteration int) (bool, Error) {
 	// Retry requires keys for this node to be split among other nodes.
 	// This is both recursive and exponential.
 	batchNodes, err := ifc.generateBatchNodes(cluster)
@@ -74,7 +76,7 @@ func (cmd *batchCommand) retryBatch(ifc batcher, cluster *Cluster, deadline time
 	for _, batchNode := range batchNodes {
 		command := ifc.cloneBatchCommand(batchNode)
 		command.setSequence(cmd.sequenceAP, cmd.sequenceSC)
-		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), deadline, iteration, commandWasSent); err != nil {
+		if err := command.executeAt(command, cmd.policy.GetBasePolicy(), deadline, iteration); err != nil {
 			ferr = chainErrors(err, ferr)
 			if !cmd.policy.AllowPartialResults {
 				return false, ferr
@@ -93,6 +95,10 @@ func (cmd *batchCommand) getPolicy(ifc command) Policy {
 	return cmd.policy
 }
 
+func (cmd *batchCommand) transactionType() transactionType {
+	return ttNone
+}
+
 func (cmd *batchCommand) Execute() Error {
 	return cmd.execute(cmd)
 }
@@ -102,13 +108,13 @@ func (cmd *batchCommand) filteredOut() int {
 }
 
 func (cmd *batchCommand) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
-	panic("Unreachable")
+	panic(unreachable)
 }
 
 func (cmd *batchCommand) cloneBatchCommand(batch *batchNode) batcher {
-	panic("Unreachable")
+	panic(unreachable)
 }
 
 func (cmd *batchCommand) writeBuffer(ifc command) Error {
-	panic("Unreachable")
+	panic(unreachable)
 }

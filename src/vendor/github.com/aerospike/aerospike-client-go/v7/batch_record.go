@@ -120,6 +120,7 @@ func (br *BatchRecord) resultCode() types.ResultCode {
 func (br *BatchRecord) prepare() {
 	br.Record = nil
 	br.ResultCode = types.NO_RESPONSE
+	br.Err = nil
 	br.InDoubt = false
 }
 
@@ -127,6 +128,14 @@ func (br *BatchRecord) prepare() {
 func (br *BatchRecord) setRecord(record *Record) {
 	br.Record = record
 	br.ResultCode = types.OK
+	br.Err = nil
+}
+
+// Set error result directly.
+func (br *BatchRecord) setRawError(err Error) {
+	br.ResultCode = err.resultCode()
+	br.InDoubt = err.IsInDoubt()
+	br.Err = err
 }
 
 // Set error result. For internal use only.
@@ -159,5 +168,5 @@ func (br *BatchRecord) getType() batchRecordType {
 
 // Return wire protocol size. For internal use only.
 func (br *BatchRecord) size(parentPolicy *BasePolicy) (int, Error) {
-	panic("UNREACHABLE")
+	panic(unreachable)
 }

@@ -27,8 +27,8 @@ var enc = base64.NewEncoding("./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuv
 
 // Helper function to build the bcrypt hash string
 // payload takes :
-//		* []byte -> which it base64 encodes it (trims padding "=") and writes it to the buffer
-//		* string -> which it writes straight to the buffer
+//   - []byte -> which it base64 encodes it (trims padding "=") and writes it to the buffer
+//   - string -> which it writes straight to the buffer
 func build_bcrypt_str(minor byte, rounds uint, payload ...interface{}) []byte {
 	rs := bytes.NewBuffer(make([]byte, 0, 61))
 	rs.WriteString("$2")

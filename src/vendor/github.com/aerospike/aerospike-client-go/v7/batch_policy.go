@@ -117,6 +117,14 @@ func NewWriteBatchPolicy() *BatchPolicy {
 	return res
 }
 
+func (p *BatchPolicy) toWritePolicy() *WritePolicy {
+	wp := NewWritePolicy(0, 0)
+	if p != nil {
+		wp.BasePolicy = p.BasePolicy
+	}
+	return wp
+}
+
 func (p *BatchPolicy) grpc_write() *kvs.WritePolicy {
 	return &kvs.WritePolicy{
 		Replica:    p.ReplicaPolicy.grpc(),
