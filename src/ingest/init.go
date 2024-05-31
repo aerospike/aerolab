@@ -205,13 +205,15 @@ func (i *Ingest) Close() {
 }
 
 func (p *patterns) compile() error {
-	for i := range p.Timestamps {
-		logger.Detail("REGEX: compiling timestamps:%s", p.Timestamps[i].Regex)
-		regex, err := regexp.Compile(p.Timestamps[i].Regex)
-		if err != nil {
-			return fmt.Errorf("failed to compile %s: %s", p.Timestamps[i].Regex, err)
+	for j := range p.Timestamps {
+		for i := range p.Timestamps[j].Defs {
+			logger.Detail("REGEX: compiling timestamps:%s", p.Timestamps[j].Defs[i].Regex)
+			regex, err := regexp.Compile(p.Timestamps[j].Defs[i].Regex)
+			if err != nil {
+				return fmt.Errorf("failed to compile %s: %s", p.Timestamps[j].Defs[i].Regex, err)
+			}
+			p.Timestamps[j].Defs[i].regex = regex
 		}
-		p.Timestamps[i].regex = regex
 	}
 	for i := range p.Multiline {
 		logger.Detail("REGEX: compiling multiline:%s", p.Multiline[i].ReMatchLines)
@@ -229,30 +231,32 @@ func (p *patterns) compile() error {
 			p.Multiline[i].ReMatchJoin[j].re = regex
 		}
 	}
-	for i := range p.Patterns {
-		for j := range p.Patterns[i].Regex {
-			logger.Detail("REGEX: compiling pattern:%s", p.Patterns[i].Regex[j])
-			regex, err := regexp.Compile(p.Patterns[i].Regex[j])
-			if err != nil {
-				return fmt.Errorf("failed to compile %s: %s", p.Patterns[i].Regex[j], err)
+	for k := range p.Defs {
+		for i := range p.Defs[k].Patterns {
+			for j := range p.Defs[k].Patterns[i].Regex {
+				logger.Detail("REGEX: compiling pattern:%s", p.Defs[k].Patterns[i].Regex[j])
+				regex, err := regexp.Compile(p.Defs[k].Patterns[i].Regex[j])
+				if err != nil {
+					return fmt.Errorf("failed to compile %s: %s", p.Defs[k].Patterns[i].Regex[j], err)
+				}
+				p.Defs[k].Patterns[i].regex = append(p.Defs[k].Patterns[i].regex, regex)
 			}
-			p.Patterns[i].regex = append(p.Patterns[i].regex, regex)
-		}
-		for j := range p.Patterns[i].RegexAdvanced {
-			logger.Detail("REGEX: compiling pattern:%s", p.Patterns[i].RegexAdvanced[j].Regex)
-			regex, err := regexp.Compile(p.Patterns[i].RegexAdvanced[j].Regex)
-			if err != nil {
-				return fmt.Errorf("failed to compile %s: %s", p.Patterns[i].RegexAdvanced[j].Regex, err)
+			for j := range p.Defs[k].Patterns[i].RegexAdvanced {
+				logger.Detail("REGEX: compiling pattern:%s", p.Defs[k].Patterns[i].RegexAdvanced[j].Regex)
+				regex, err := regexp.Compile(p.Defs[k].Patterns[i].RegexAdvanced[j].Regex)
+				if err != nil {
+					return fmt.Errorf("failed to compile %s: %s", p.Defs[k].Patterns[i].RegexAdvanced[j].Regex, err)
+				}
+				p.Defs[k].Patterns[i].RegexAdvanced[j].regex = regex
 			}
-			p.Patterns[i].RegexAdvanced[j].regex = regex
-		}
-		for j := range p.Patterns[i].Replace {
-			logger.Detail("REGEX: compiling pattern-replace:%s", p.Patterns[i].Replace[j].Regex)
-			regex, err := regexp.Compile(p.Patterns[i].Replace[j].Regex)
-			if err != nil {
-				return fmt.Errorf("failed to compile %s: %s", p.Patterns[i].Replace[j].Regex, err)
+			for j := range p.Defs[k].Patterns[i].Replace {
+				logger.Detail("REGEX: compiling pattern-replace:%s", p.Defs[k].Patterns[i].Replace[j].Regex)
+				regex, err := regexp.Compile(p.Defs[k].Patterns[i].Replace[j].Regex)
+				if err != nil {
+					return fmt.Errorf("failed to compile %s: %s", p.Defs[k].Patterns[i].Replace[j].Regex, err)
+				}
+				p.Defs[k].Patterns[i].Replace[j].regex = regex
 			}
-			p.Patterns[i].Replace[j].regex = regex
 		}
 	}
 	return nil

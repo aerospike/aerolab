@@ -86,13 +86,15 @@ func (i *Ingest) dbConnect() error {
 func (i *Ingest) dbSindex(wait bool) error {
 	i.createSindex(i.config.Aerospike.DefaultSetName, i.config.Aerospike.TimestampIndexName, wait)
 	i.createSindex(i.config.Aerospike.LogFileRagesSetName, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, i.config.Aerospike.LogFileRagesSetName), wait)
-	for _, pattern := range i.patterns.Patterns {
-		if pattern.Name != "" {
-			i.createSindex(pattern.Name, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, pattern.Name), wait)
-		}
-		for _, adv := range pattern.RegexAdvanced {
-			if adv.SetName != "" {
-				i.createSindex(adv.SetName, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, adv.SetName), wait)
+	for _, def := range i.patterns.Defs {
+		for _, pattern := range def.Patterns {
+			if pattern.Name != "" {
+				i.createSindex(pattern.Name, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, pattern.Name), wait)
+			}
+			for _, adv := range pattern.RegexAdvanced {
+				if adv.SetName != "" {
+					i.createSindex(adv.SetName, fmt.Sprintf("%s_%s", i.config.Aerospike.TimestampIndexName, adv.SetName), wait)
+				}
 			}
 		}
 	}
