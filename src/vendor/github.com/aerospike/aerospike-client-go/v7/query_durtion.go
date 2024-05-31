@@ -61,5 +61,5 @@ const (
 // 	case PREFER_RACK:
 // 		return kvs.Replica_PREFER_RACK
 // 	}
-// 	panic("UNREACHABLE")
+// 	panic(unreachable)
 // }

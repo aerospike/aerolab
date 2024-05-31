@@ -55,3 +55,18 @@ func NewBatchUDFPolicy() *BatchUDFPolicy {
 		CommitLevel: COMMIT_ALL,
 	}
 }
+
+func (bup *BatchUDFPolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+	wp := bp.toWritePolicy()
+
+	if bup != nil {
+		if bup.FilterExpression != nil {
+			wp.FilterExpression = bup.FilterExpression
+		}
+		wp.CommitLevel = bup.CommitLevel
+		wp.Expiration = bup.Expiration
+		wp.DurableDelete = bup.DurableDelete
+		wp.SendKey = bup.SendKey
+	}
+	return wp
+}

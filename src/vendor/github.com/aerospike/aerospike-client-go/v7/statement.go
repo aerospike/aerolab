@@ -16,10 +16,10 @@ package aerospike
 
 import (
 	"fmt"
+	"math/rand"
 
 	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v7/types"
-	xornd "github.com/aerospike/aerospike-client-go/v7/types/rand"
 )
 
 // Statement encapsulates query statement parameters.
@@ -61,7 +61,7 @@ func NewStatement(ns string, set string, binNames ...string) *Statement {
 		SetName:    set,
 		BinNames:   binNames,
 		ReturnData: true,
-		TaskId:     xornd.Uint64(),
+		TaskId:     rand.Uint64(),
 	}
 }
 
@@ -118,7 +118,7 @@ func (stmt *Statement) prepare(returnData bool) {
 func (stmt *Statement) grpc(policy *QueryPolicy, ops []*Operation) *kvs.Statement {
 	IndexName := stmt.IndexName
 	// reset taskID every time
-	TaskId := xornd.Int64()
+	TaskId := rand.Int63()
 	SetName := stmt.SetName
 
 	MaxRecords := uint64(policy.MaxRecords)

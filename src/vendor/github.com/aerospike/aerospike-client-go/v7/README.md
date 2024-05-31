@@ -13,17 +13,20 @@ You can refer to the test files for idiomatic use cases.
 
 Please refer to [`CHANGELOG.md`](CHANGELOG.md) for release notes, or if you encounter breaking changes.
 
-- [Usage](#usage)
-- [Prerequisites](#Prerequisites)
-- [Installation](#Installation)
-- [Tweaking Performance](#Performance)
-- [Benchmarks](#Benchmarks)
-- [API Documentation](#API-Documentation)
-- [Google App Engine](#App-Engine)
-- [Reflection](#Reflection)
-- [Tests](#Tests)
-- [Examples](#Examples)
-  - [Tools](#Tools)
+- [Aerospike Go Client v7](#aerospike-go-client-v7)
+  - [Usage](#usage)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+    - [Some Hints:](#some-hints)
+  - [Performance Tweaking](#performance-tweaking)
+  - [Tests](#tests)
+  - [Examples](#examples)
+    - [Tools](#tools)
+  - [Benchmarks](#benchmarks)
+  - [API Documentation](#api-documentation)
+  - [Google App Engine](#google-app-engine)
+  - [Reflection, and Object API](#reflection-and-object-api)
+  - [License](#license)
 
 ## Usage
 
@@ -155,7 +158,7 @@ See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 <a name="API-Documentation"></a>
 ## API Documentation
 
-A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go).
+A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v7).
 
 <a name="App-Engine"></a>
 ## Google App Engine

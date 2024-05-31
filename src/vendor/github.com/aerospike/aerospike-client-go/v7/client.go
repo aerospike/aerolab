@@ -19,7 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -28,6 +28,8 @@ import (
 	"github.com/aerospike/aerospike-client-go/v7/logger"
 	"github.com/aerospike/aerospike-client-go/v7/types"
 )
+
+const unreachable = "UNREACHABLE"
 
 // Client encapsulates an Aerospike cluster.
 // All database operations are available against this object.
@@ -39,6 +41,8 @@ type Client struct {
 	// DefaultBatchPolicy is the default parent policy used in batch read commands. Base policy fields
 	// include socketTimeout, totalTimeout, maxRetries, etc...
 	DefaultBatchPolicy *BatchPolicy
+	// DefaultBatchReadPolicy is the default read policy used in batch operate commands.
+	DefaultBatchReadPolicy *BatchReadPolicy
 	// DefaultBatchWritePolicy is the default write policy used in batch operate commands.
 	// Write policy fields include generation, expiration, durableDelete, etc...
 	DefaultBatchWritePolicy *BatchWritePolicy
@@ -95,6 +99,7 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 		cluster:                  cluster,
 		DefaultPolicy:            NewPolicy(),
 		DefaultBatchPolicy:       NewBatchPolicy(),
+		DefaultBatchReadPolicy:   NewBatchReadPolicy(),
 		DefaultBatchWritePolicy:  NewBatchWritePolicy(),
 		DefaultBatchDeletePolicy: NewBatchDeletePolicy(),
 		DefaultBatchUDFPolicy:    NewBatchUDFPolicy(),
@@ -104,6 +109,9 @@ func NewClientWithPolicyAndHost(policy *ClientPolicy, hosts ...*Host) (*Client, 
 		DefaultAdminPolicy:       NewAdminPolicy(),
 		DefaultInfoPolicy:        NewInfoPolicy(),
 	}
+
+	// back reference especially used in batch commands
+	cluster.client = client
 
 	runtime.SetFinalizer(client, clientFinalizer)
 	return client, err
@@ -127,6 +135,11 @@ func (clnt *Client) GetDefaultBatchPolicy() *BatchPolicy {
 // DefaultBatchWritePolicy returns corresponding default policy from the client
 func (clnt *Client) GetDefaultBatchWritePolicy() *BatchWritePolicy {
 	return clnt.DefaultBatchWritePolicy
+}
+
+// DefaultBatchReadPolicy returns corresponding default policy from the client
+func (clnt *Client) GetDefaultBatchReadPolicy() *BatchReadPolicy {
+	return clnt.DefaultBatchReadPolicy
 }
 
 // DefaultBatchDeletePolicy returns corresponding default policy from the client
@@ -177,6 +190,11 @@ func (clnt *Client) SetDefaultBatchPolicy(policy *BatchPolicy) {
 // DefaultBatchWritePolicy returns corresponding default policy from the client
 func (clnt *Client) SetDefaultBatchWritePolicy(policy *BatchWritePolicy) {
 	clnt.DefaultBatchWritePolicy = policy
+}
+
+// DefaultBatchReadPolicy returns corresponding default policy from the client
+func (clnt *Client) SetDefaultBatchReadPolicy(policy *BatchReadPolicy) {
+	clnt.DefaultBatchReadPolicy = policy
 }
 
 // DefaultBatchDeletePolicy returns corresponding default policy from the client
@@ -631,7 +649,7 @@ func (clnt *Client) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePo
 		return nil, err
 	}
 
-	cmd := newBatchCommandDelete(nil, nil, policy, keys, records, attr)
+	cmd := newBatchCommandDelete(nil, nil, policy, deletePolicy, keys, records, attr)
 	_, err = clnt.batchExecute(policy, batchNodes, cmd)
 	return records, err
 }
@@ -651,7 +669,7 @@ func (clnt *Client) BatchOperate(policy *BatchPolicy, records []BatchRecordIfc) 
 		return err
 	}
 
-	cmd := newBatchCommandOperate(nil, nil, policy, records)
+	cmd := newBatchCommandOperate(clnt, nil, nil, policy, records)
 	_, err = clnt.batchExecute(policy, batchNodes, cmd)
 	return err
 }
@@ -682,7 +700,7 @@ func (clnt *Client) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy,
 		return nil, err
 	}
 
-	cmd := newBatchCommandUDF(nil, nil, policy, keys, packageName, functionName, args, records, attr)
+	cmd := newBatchCommandUDF(nil, nil, policy, udfPolicy, keys, packageName, functionName, args, records, attr)
 	_, err = clnt.batchExecute(policy, batchNodes, cmd)
 	return records, err
 }
@@ -786,7 +804,7 @@ func (clnt *Client) ScanNode(apolicy *ScanPolicy, node *Node, namespace string, 
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) RegisterUDFFromFile(policy *WritePolicy, clientPath string, serverPath string, language Language) (*RegisterTask, Error) {
 	policy = clnt.getUsableWritePolicy(policy)
-	udfBody, err := ioutil.ReadFile(clientPath)
+	udfBody, err := os.ReadFile(clientPath)
 	if err != nil {
 		return nil, newCommonError(err)
 	}
@@ -929,17 +947,10 @@ func (clnt *Client) ListUDF(policy *BasePolicy) ([]*UDF, Error) {
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (interface{}, Error) {
-	policy = clnt.getUsableWritePolicy(policy)
-	command, err := newExecuteCommand(clnt.cluster, policy, key, packageName, functionName, NewValueArray(args))
+	record, err := clnt.execute(policy, key, packageName, functionName, args...)
 	if err != nil {
 		return nil, err
 	}
-
-	if err := command.Execute(); err != nil {
-		return nil, err
-	}
-
-	record := command.GetRecord()
 
 	if record == nil || len(record.Bins) == 0 {
 		return nil, nil
@@ -954,6 +965,20 @@ func (clnt *Client) Execute(policy *WritePolicy, key *Key, packageName string, f
 	}
 
 	return nil, ErrUDFBadResponse.err()
+}
+
+func (clnt *Client) execute(policy *WritePolicy, key *Key, packageName string, functionName string, args ...Value) (*Record, Error) {
+	policy = clnt.getUsableWritePolicy(policy)
+	command, err := newExecuteCommand(clnt.cluster, policy, key, packageName, functionName, NewValueArray(args))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := command.Execute(); err != nil {
+		return nil, err
+	}
+
+	return command.GetRecord(), nil
 }
 
 //----------------------------------------------------------
@@ -1727,11 +1752,28 @@ func (clnt *Client) String() string {
 	return ""
 }
 
+// MetricsEnabled returns true if metrics are enabled for the cluster.
+func (clnt *Client) MetricsEnabled() bool {
+	return clnt.cluster.MetricsEnabled()
+}
+
+// EnableMetrics enables the cluster transaction metrics gathering.
+// If the parameters for the histogram in the policy are the different from the one already
+// on the cluster, the metrics will be reset.
+func (clnt *Client) EnableMetrics(policy *MetricsPolicy) {
+	clnt.cluster.EnableMetrics(policy)
+}
+
+// DisableMetrics disables the cluster transaction metrics gathering.
+func (clnt *Client) DisableMetrics() {
+	clnt.cluster.DisableMetrics()
+}
+
 // Stats returns internal statistics regarding the inner state of the client and the cluster.
 func (clnt *Client) Stats() (map[string]interface{}, Error) {
 	resStats := clnt.cluster.statsCopy()
 
-	clusterStats := nodeStats{}
+	clusterStats := *newNodeStats(clnt.cluster.MetricsPolicy())
 	for _, stats := range resStats {
 		clusterStats.aggregate(&stats)
 	}
@@ -1824,6 +1866,16 @@ func (clnt *Client) getUsableBaseBatchWritePolicy(policy *BatchPolicy) *BatchPol
 			return clnt.DefaultBatchPolicy
 		}
 		return NewBatchPolicy()
+	}
+	return policy
+}
+
+func (clnt *Client) getUsableBatchReadPolicy(policy *BatchReadPolicy) *BatchReadPolicy {
+	if policy == nil {
+		if clnt.DefaultBatchReadPolicy != nil {
+			return clnt.DefaultBatchReadPolicy
+		}
+		return NewBatchReadPolicy()
 	}
 	return policy
 }

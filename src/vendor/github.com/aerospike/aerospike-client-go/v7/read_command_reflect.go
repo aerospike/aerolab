@@ -136,6 +136,57 @@ func setObjectField(mappings map[string][]int, obj reflect.Value, fieldName stri
 	return setValue(f, value)
 }
 
+func fillMap(f, newMap, emptyStruct reflect.Value, key, elem, value interface{}, fieldKind reflect.Kind) Error {
+	var newKey, newVal reflect.Value
+	fKeyType := f.Type().Key()
+	if key != nil {
+		newKey = reflect.ValueOf(key)
+	} else {
+		newKey = reflect.Zero(fKeyType)
+	}
+
+	if newKey.Type() != fKeyType {
+		if !newKey.CanConvert(fKeyType) {
+			return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid key `%#v` for %s field", value, fieldKind))
+		}
+		newKey = newKey.Convert(fKeyType)
+	}
+
+	fElemType := f.Type().Elem()
+	if elem != nil {
+		newVal = reflect.ValueOf(elem)
+	} else {
+		newVal = reflect.Zero(fElemType)
+	}
+
+	if newVal.Type() != fElemType {
+		switch newVal.Kind() {
+		case reflect.Map, reflect.Slice, reflect.Array:
+			newVal = reflect.New(fElemType)
+			if err := setValue(newVal.Elem(), elem); err != nil {
+				return err
+			}
+			newVal = reflect.Indirect(newVal)
+		default:
+			if !newVal.CanConvert(fElemType) {
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
+			}
+			newVal = newVal.Convert(fElemType)
+		}
+	}
+
+	if newVal.Kind() == reflect.Map && newVal.Len() == 0 && newMap.Type().Elem().Kind() == emptyStruct.Type().Kind() {
+		if newMap.Type().Elem().NumField() == 0 {
+			newMap.SetMapIndex(newKey, emptyStruct)
+		} else {
+			return newError(types.PARSE_ERROR, "Map value type is struct{}, but data returned from database is a non-empty map[interface{}]interface{}")
+		}
+	} else {
+		newMap.SetMapIndex(newKey, newVal)
+	}
+	return nil
+}
+
 func setValue(f reflect.Value, value interface{}) Error {
 	// find the name based on tag mapping
 	if f.CanSet() {
@@ -332,65 +383,38 @@ func setValue(f reflect.Value, value interface{}) Error {
 			}
 		case reflect.Map:
 			emptyStruct := reflect.ValueOf(struct{}{})
-			theMap, ok := value.(map[interface{}]interface{})
-			if !ok {
-				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
-			}
-			if theMap != nil {
+			if theMap, ok := value.(map[interface{}]interface{}); ok {
 				newMap := reflect.MakeMap(f.Type())
-				var newKey, newVal reflect.Value
 				for key, elem := range theMap {
-					fKeyType := f.Type().Key()
-					if key != nil {
-						newKey = reflect.ValueOf(key)
-					} else {
-						newKey = reflect.Zero(fKeyType)
-					}
-
-					if newKey.Type() != fKeyType {
-						if !newKey.CanConvert(fKeyType) {
-							return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid key `%#v` for %s field", value, fieldKind))
-						}
-						newKey = newKey.Convert(fKeyType)
-					}
-
-					fElemType := f.Type().Elem()
-					if elem != nil {
-						newVal = reflect.ValueOf(elem)
-					} else {
-						newVal = reflect.Zero(fElemType)
-					}
-
-					if newVal.Type() != fElemType {
-						switch newVal.Kind() {
-						case reflect.Map, reflect.Slice, reflect.Array:
-							newVal = reflect.New(fElemType)
-							if err := setValue(newVal.Elem(), elem); err != nil {
-								return err
-							}
-							newVal = reflect.Indirect(newVal)
-						default:
-							if !newVal.CanConvert(fElemType) {
-								return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
-							}
-							newVal = newVal.Convert(fElemType)
-						}
-					}
-
-					if newVal.Kind() == reflect.Map && newVal.Len() == 0 && newMap.Type().Elem().Kind() == emptyStruct.Type().Kind() {
-						if newMap.Type().Elem().NumField() == 0 {
-							newMap.SetMapIndex(newKey, emptyStruct)
-						} else {
-							return newError(types.PARSE_ERROR, "Map value type is struct{}, but data returned from database is a non-empty map[interface{}]interface{}")
-						}
-					} else {
-						newMap.SetMapIndex(newKey, newVal)
+					if err := fillMap(f, newMap, emptyStruct, key, elem, value, fieldKind); err != nil {
+						return err
 					}
 				}
 				f.Set(newMap)
+			} else if theMap, ok := value.([]MapPair); ok {
+				newMap := reflect.MakeMap(f.Type())
+				for _, mp := range theMap {
+					key, elem := mp.Key, mp.Value
+					if err := fillMap(f, newMap, emptyStruct, key, elem, value, fieldKind); err != nil {
+						return err
+					}
+				}
+				f.Set(newMap)
+			} else {
+				return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for %s field", value, fieldKind))
 			}
 
 		case reflect.Struct:
+			// support MapPair
+			if f.Type().Name() == "MapPair" {
+				v, ok := value.(MapPair)
+				if !ok {
+					return newError(types.PARSE_ERROR, fmt.Sprintf("Invalid value `%#v` for MapPair %s field", value, fieldKind))
+				}
+				f.Set(reflect.ValueOf(v))
+				break
+			}
+
 			// support time.Time
 			if f.Type().PkgPath() == "time" && f.Type().Name() == "Time" {
 				v, ok := value.(int)

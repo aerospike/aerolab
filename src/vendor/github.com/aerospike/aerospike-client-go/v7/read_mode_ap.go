@@ -40,5 +40,5 @@ func (rm ReadModeAP) grpc() kvs.ReadModeAP {
 	case ReadModeAPAll:
 		return kvs.ReadModeAP_ALL
 	}
-	panic("UNREACHABLE")
+	panic(unreachable)
 }

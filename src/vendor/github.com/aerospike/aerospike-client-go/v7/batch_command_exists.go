@@ -106,7 +106,38 @@ func (cmd *batchCommandExists) parseRecordResults(ifc command, receiveSize int) 
 	return true, nil
 }
 
+func (cmd *batchCommandExists) transactionType() transactionType {
+	return ttBatchRead
+}
+
+func (cmd *batchCommandExists) executeSingle(client *Client) Error {
+	var err Error
+	for _, offset := range cmd.batch.offsets {
+		cmd.existsArray[offset], err = client.Exists(&cmd.policy.BasePolicy, cmd.keys[offset])
+		if err != nil {
+			// Key not found is NOT an error for batch requests
+			if err.resultCode() == types.KEY_NOT_FOUND_ERROR {
+				continue
+			}
+
+			if err.resultCode() == types.FILTERED_OUT {
+				cmd.filteredOutCnt++
+				continue
+			}
+
+			if cmd.policy.AllowPartialResults {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
 func (cmd *batchCommandExists) Execute() Error {
+	if len(cmd.batch.offsets) == 1 {
+		return cmd.executeSingle(cmd.node.cluster.client)
+	}
 	return cmd.execute(cmd)
 }
 
