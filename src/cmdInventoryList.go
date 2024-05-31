@@ -304,6 +304,11 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		if v.gcpLabels["aerolab4ssl"] == "true" || v.awsTags["aerolab4ssl"] == "true" || v.DockerInternalPort == "443" {
 			prot = "https://"
 		}
+		if a.opts.Config.Backend.Type == "aws" {
+			if v.awsTags["agiDomain"] != "" {
+				nip = v.InstanceId + "." + a.opts.Config.Backend.Region + ".agi." + v.awsTags["agiDomain"]
+			}
+		}
 		if v.Features&ClusterFeatureAGI > 0 {
 			inv.Clusters[vi].AccessProtocol = prot
 			inv.Clusters[vi].AccessUrl = prot + nip + port + "/agi/menu"
@@ -1261,6 +1266,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.AppendHeader(table.Row{"VpcID", "VpcName", "VpcCidr", "Avail.Zone", "SubnetID", "SubnetCidr", "AZDefault", "SubnetName", "Auto-AssignIP"})
 			for _, v := range inv.Subnets {
 				autoIP := "no (enable to use with aerolab)"
+				if a.opts.Config.Backend.AWSNoPublicIps {
+					autoIP = "no (disabled)"
+				}
 				if v.AWS.AutoPublicIP {
 					autoIP = "yes (ok)"
 				}

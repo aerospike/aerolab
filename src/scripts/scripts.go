@@ -21,6 +21,9 @@ var vectorInstall string
 //go:embed vector-example.sh
 var vectorExample string
 
+//go:embed eksctl-bootstrap.sh
+var eksctlBootstrap string
+
 // docker login details
 type DockerLogin struct {
 	URL  string
@@ -67,4 +70,8 @@ func GetVectorScript(isDocker bool, packaging string, downloadUrl string) []byte
 
 func GetVectorExampleScript(proximusPort string, listenPort string) []byte {
 	return []byte(fmt.Sprintf(vectorExample, proximusPort, listenPort))
+}
+
+func GetEksctlBootstrapScript() []byte {
+	return []byte(eksctlBootstrap)
 }

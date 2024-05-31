@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aerospike/aerolab/eksexpiry"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/bestmethod/inslice"
 	"github.com/google/uuid"
@@ -135,6 +136,8 @@ func main() {
 	switch command {
 	case "showsysinfo", "showconf", "showinterrupts":
 		showcommands()
+	case "eksexpiry":
+		eksexpiry.Expiry()
 	default:
 		if beepenv := os.Getenv("AEROLAB_BEEP"); beepenv != "" {
 			bp, err := strconv.Atoi(beepenv)

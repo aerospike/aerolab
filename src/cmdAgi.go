@@ -140,6 +140,11 @@ func (c *agiAddTokenCmd) Execute(args []string) error {
 			if v.gcpLabels["aerolab4ssl"] == "true" || v.awsTags["aerolab4ssl"] == "true" || v.DockerInternalPort == "443" {
 				prot = "https://"
 			}
+			if a.opts.Config.Backend.Type == "aws" {
+				if v.awsTags["agiDomain"] != "" {
+					nip = v.InstanceId + "." + a.opts.Config.Backend.Region + ".agi." + v.awsTags["agiDomain"]
+				}
+			}
 			nodeUrl = prot + nip + port + "/agi/menu?AGI_TOKEN="
 		}
 		if nodeUrl == "" {

@@ -67,9 +67,9 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		iType = c.Gcp.InstanceType
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
-		printPrice(c.Gcp.Zone, iType, c.ClientCount, false)
+		printPrice(c.Gcp.Zone.String(), iType.String(), c.ClientCount, false)
 	} else if a.opts.Config.Backend.Type == "aws" {
-		printPrice(c.Gcp.Zone, iType, c.ClientCount, c.Aws.SpotInstance)
+		printPrice(c.Gcp.Zone.String(), iType.String(), c.ClientCount, c.Aws.SpotInstance)
 	}
 	if c.PriceOnly {
 		return nil, nil
@@ -204,7 +204,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 				a.opts.Volume.Create.Tags = c.Gcp.Labels
 				a.opts.Volume.Create.Owner = c.Owner
 				a.opts.Volume.Create.Expires = c.Gcp.VolExpires
-				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone
+				a.opts.Volume.Create.Gcp.Zone = c.Gcp.Zone.String()
 				err = a.opts.Volume.Create.Execute(nil)
 				if err != nil {
 					return nil, err
@@ -224,6 +224,10 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	if c.Docker.ExposePortsToHost != "" {
 		ep = strings.Split(c.Docker.ExposePortsToHost, ",")
 	}
+	cloudDisks, err := disk2backend(c.Aws.Disk)
+	if err != nil {
+		return nil, err
+	}
 	extra := &backendExtra{
 		cpuLimit:          c.Docker.CpuLimit,
 		ramLimit:          c.Docker.RamLimit,
@@ -235,29 +239,35 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		switches:          args,
 		dockerHostname:    !c.NoSetHostname,
 		ami:               c.Aws.AMI,
-		instanceType:      c.Aws.InstanceType,
+		instanceType:      c.Aws.InstanceType.String(),
 		ebs:               c.Aws.Ebs,
 		securityGroupID:   c.Aws.SecurityGroupID,
 		subnetID:          c.Aws.SubnetID,
 		publicIP:          c.Aws.PublicIP,
 		tags:              c.Aws.Tags,
 		clientType:        strings.ToLower(nt),
+		cloudDisks:        cloudDisks,
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
+		cloudDisks, err := disk2backend(c.Gcp.Disk)
+		if err != nil {
+			return nil, err
+		}
 		extra = &backendExtra{
-			instanceType: c.Gcp.InstanceType,
+			instanceType: c.Gcp.InstanceType.String(),
 			ami:          c.Gcp.Image,
 			publicIP:     c.Gcp.PublicIP,
 			tags:         c.Gcp.Tags,
 			disks:        c.Gcp.Disks,
-			zone:         c.Gcp.Zone,
+			zone:         c.Gcp.Zone.String(),
 			labels:       c.Gcp.Labels,
 			clientType:   strings.ToLower(nt),
+			cloudDisks:   cloudDisks,
 		}
 	}
 
 	// arm fill
-	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType.String())
 	if err != nil {
 		return nil, fmt.Errorf("IsSystemArm check: %s", err)
 	}

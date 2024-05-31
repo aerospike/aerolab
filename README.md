@@ -75,11 +75,13 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
   * [Partitioner](docs/partitioner/partition-disks.md)
   * [Advanced - AWS Firewall Rules](docs/aws-firewall.md)
   * [Advanced - Custom VPC](docs/vpc.md)
+  * [Advanced - Run without PublicIPs](docs/aws-no-publicip.md)
 * [Docker Multiarch](docs/docker_multiarch.md)
 * [Usage examples](docs/usage/index.md)
   * [Basic](docs/usage/basic/index.md)
   * [Advanced](docs/usage/advanced/index.md)
   * [Full Stack](docs/usage/full-stack/index.md)
+* [AWS EKS Kubernetes](docs/eks/README.md)
 * [DirEnv - different aerolab configuration per directory](docs/direnv.md)
 * [AGI - graphing aerospike statistics from logs](docs/agi/README.md)
 * [Deploying clients](docs/deploy_clients/index.md)
@@ -95,6 +97,7 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
 * [REST API](docs/rest-api.md)
 * [Utility scripts](docs/utility_scripts/index.md)
 * [Volume usage examples](docs/volume-examples.md)
+* [WebUI Hosted Mode](docs/webui.md)
 
 ## Changelog
 

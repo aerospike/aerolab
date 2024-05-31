@@ -196,10 +196,17 @@ type SftpSource struct {
 var patternEmbed []byte
 
 type patterns struct {
+	GenericLogs []*struct {
+		ContainsStrings  []string `yaml:"fileContainsStrings"`
+		ApplyClusterName string   `yaml:"applyClusterName"`
+	} `yaml:"genericLogs"`
 	Timestamps []*struct {
-		Definition string `yaml:"definition"`
-		Regex      string `yaml:"regex"`
-		regex      *regexp.Regexp
+		ClusterName string `yaml:"clusterName"`
+		Defs        []*struct {
+			Definition string `yaml:"definition"`
+			Regex      string `yaml:"regex"`
+			regex      *regexp.Regexp
+		} `yaml:"defs"`
 	} `yaml:"timestamps"`
 	Multiline []*struct {
 		StartLineSearch string `yaml:"startLineSearch"`
@@ -213,35 +220,38 @@ type patterns struct {
 	} `yaml:"multilineJoins"`
 	GlobalLabels  []string `yaml:"labels"`
 	LabelsSetName string   `yaml:"labelsSetName"`
-	Patterns      []*struct {
-		Name    string `yaml:"setName"`
-		Search  string `yaml:"search"`
-		Replace []*struct {
-			Regex string `yaml:"regex"`
-			regex *regexp.Regexp
-			Sub   string `yaml:"sub"`
-		} `yaml:"replace"`
-		Regex         []string `yaml:"export"`
-		regex         []*regexp.Regexp
-		RegexAdvanced []struct {
-			Regex   string `yaml:"regex"`
-			regex   *regexp.Regexp
-			SetName string `yaml:"setName"`
-		} `yaml:"exportAdvanced"`
-		StoreNodePrefix     string            `yaml:"storeNodePrefix"`
-		Labels              []string          `yaml:"labels"` // used to define which regex matches are labels (to be stuck in metadata)
-		DefaultValuePadding map[string]string `yaml:"defaultValuePadding"`
-		Histogram           *struct {
-			Buckets       []string `yaml:"buckets"`
-			GenCumulative bool     `yaml:"generateCumulative"`
-		} `yaml:"histogram"`
-		Aggregate *struct {
-			Every     time.Duration `yaml:"every"`     // aggregation time window
-			Field     string        `yaml:"field"`     // field to use for aggregation counts
-			On        string        `yaml:"on"`        // aggregate on this result value being the unique value
-			Increment bool          `yaml:"increment"` // increment the field value counts by 1 as part of aggregation; this is for lines that have (repeated:X) where the repeated stat does not contain the first argument, only repeat counts
-		} `yaml:"aggregate"`
-	} `yaml:"patterns"`
+	Defs          []*struct {
+		ClusterName string `yaml:"clusterName"`
+		Patterns    []*struct {
+			Name    string `yaml:"setName"`
+			Search  string `yaml:"search"`
+			Replace []*struct {
+				Regex string `yaml:"regex"`
+				regex *regexp.Regexp
+				Sub   string `yaml:"sub"`
+			} `yaml:"replace"`
+			Regex         []string `yaml:"export"`
+			regex         []*regexp.Regexp
+			RegexAdvanced []struct {
+				Regex   string `yaml:"regex"`
+				regex   *regexp.Regexp
+				SetName string `yaml:"setName"`
+			} `yaml:"exportAdvanced"`
+			StoreNodePrefix     string            `yaml:"storeNodePrefix"`
+			Labels              []string          `yaml:"labels"` // used to define which regex matches are labels (to be stuck in metadata)
+			DefaultValuePadding map[string]string `yaml:"defaultValuePadding"`
+			Histogram           *struct {
+				Buckets       []string `yaml:"buckets"`
+				GenCumulative bool     `yaml:"generateCumulative"`
+			} `yaml:"histogram"`
+			Aggregate *struct {
+				Every     time.Duration `yaml:"every"`     // aggregation time window
+				Field     string        `yaml:"field"`     // field to use for aggregation counts
+				On        string        `yaml:"on"`        // aggregate on this result value being the unique value
+				Increment bool          `yaml:"increment"` // increment the field value counts by 1 as part of aggregation; this is for lines that have (repeated:X) where the repeated stat does not contain the first argument, only repeat counts
+			} `yaml:"aggregate"`
+		} `yaml:"patterns"`
+	} `yaml:"defs"`
 }
 
 type Progress struct {

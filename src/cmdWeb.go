@@ -49,6 +49,8 @@ type webCmd struct {
 	MinInterval         time.Duration `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
 	BlockServerLs       bool          `long:"block-server-ls" description:"block file exploration on the server altogether"`
 	AllowLsEverywhere   bool          `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
+	UniqueFirewalls     bool          `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
+	AGIStrictTLS        bool          `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
@@ -205,7 +207,7 @@ func (c *webCmd) Execute(args []string) error {
 	if isWebuiBeta {
 		log.Print("Running webui; this feature is in beta.")
 	}
-	c.agiTokens = NewAgiWebTokenHandler()
+	c.agiTokens = NewAgiWebTokenHandler(c.AGIStrictTLS)
 	c.wsCount = new(wsCounters)
 	go c.wsCount.PrintTimer(time.Second)
 	c.cfgTs = time.Now()
@@ -233,6 +235,16 @@ func (c *webCmd) Execute(args []string) error {
 			log.Printf("WARNING: Inventory query failure: %s", err)
 		} else {
 			log.Print("Initial Inventory obtained")
+			if a.opts.Config.Backend.Type != "docker" {
+				log.Print("Obtaining initial inventory instance-types")
+				zone := "us-central1-a"
+				if a.opts.Cluster.Create.Gcp.Zone != "" {
+					zone = string(a.opts.Cluster.Create.Gcp.Zone)
+				}
+				exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--zone", zone).CombinedOutput()
+				exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--arm", "--zone", zone).CombinedOutput()
+				log.Print("Instance Type cache refreshed")
+			}
 		}
 	}()
 	go func() {
@@ -578,6 +590,7 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		startTimestamp time.Time // for sorting purposes
 		CmdLine        string
 		FilePath       string
+		UserName       string
 	}
 	type jsonJobs struct {
 		Jobs         []*jsonJob
@@ -603,7 +616,21 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		if !strings.HasSuffix(path, ".log") {
 			return nil
 		}
-		_, fn := filepath.Split(path)
+		ndir, fn := filepath.Split(path)
+		_, nusr := filepath.Split(strings.TrimRight(ndir, "/"))
+		if nusr == "weblog" && !strings.HasSuffix(strings.TrimRight(ndir, "/"), "weblog/weblog") {
+			nusr = "N/A"
+		}
+		nUser := r.Header.Get("x-auth-aerolab-user")
+		if nUser == "" {
+			nUser = currentOwnerUser
+		}
+		if r.FormValue("jobsAllUsers") != "true" {
+			if nUser != nusr && nusr != "N/A" {
+				return nil
+			}
+			nusr = ""
+		}
 		fnsplit := strings.Split(fn, "_")
 		if len(fnsplit) != 3 {
 			return nil
@@ -642,6 +669,7 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 			startTimestamp: ts,
 			StartedWhen:    startedWhen,
 			FilePath:       path,
+			UserName:       nusr,
 		}
 		if runJob != nil {
 			j.IsRunning = true
@@ -1003,16 +1031,54 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
 					required = true
 				}
-				for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
-					isSelected := false
-					if choice == commandValue.Field(i).String() {
-						isSelected = true
+				if strings.HasPrefix(tags.Get("webchoice"), "method::") {
+					method := strings.TrimPrefix(tags.Get("webchoice"), "method::")
+					nt := commandValue.Field(i).MethodByName(method)
+					if nt.IsValid() && !nt.IsNil() {
+						zone := "us-central1-a"
+						if a.opts.Cluster.Create.Gcp.Zone != "" {
+							zone = string(a.opts.Cluster.Create.Gcp.Zone)
+						}
+						ret := nt.Call([]reflect.Value{reflect.ValueOf(zone)})
+						if len(ret) > 1 {
+							retErr := ret[1]
+							retDefault := commandValue.Field(i).String()
+							if len(ret) > 2 {
+								retErr = ret[2]
+								if retDefault == "" {
+									retDefault = ret[1].String()
+								}
+							}
+							if retErr.IsNil() {
+								ri := ret[0].Interface().([][]string)
+								for _, choice := range ri {
+									isSelected := false
+									if choice[0] == retDefault {
+										isSelected = true
+									}
+									choices = append(choices, &webui.FormItemSelectItem{
+										Name:     choice[1],
+										Value:    choice[0],
+										Selected: isSelected,
+									})
+								}
+							} else {
+								log.Printf("WARN: instance-types: %s", retErr.Interface())
+							}
+						}
 					}
-					choices = append(choices, &webui.FormItemSelectItem{
-						Name:     choice,
-						Value:    choice,
-						Selected: isSelected,
-					})
+				} else {
+					for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
+						isSelected := false
+						if choice == commandValue.Field(i).String() {
+							isSelected = true
+						}
+						choices = append(choices, &webui.FormItemSelectItem{
+							Name:     choice,
+							Value:    choice,
+							Selected: isSelected,
+						})
+					}
 				}
 				wf = append(wf, &webui.FormItem{
 					Type: webui.FormItemType{
@@ -1377,13 +1443,26 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		errTitle = "Failed to generate form items"
 		isError = true
 	}
-
+	backendIcon := "fa-aws"
+	if a.opts.Config.Backend.Type == "gcp" {
+		backendIcon = "fa-google"
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		backendIcon = "fa-docker"
+	}
+	isShowUsersChecked := false
+	showAllUsersCookie, err := r.Cookie("AEROLAB_SHOW_ALL_USERS")
+	if err == nil {
+		if showAllUsersCookie.Value == "true" {
+			isShowUsersChecked = true
+		}
+	}
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
-		PendingActionsShowAllUsersToggle:        false,
-		PendingActionsShowAllUsersToggleChecked: false,
+		PendingActionsShowAllUsersToggle:        true,
+		PendingActionsShowAllUsersToggleChecked: isShowUsersChecked,
 		IsError:                                 isError,
 		ErrorString:                             errStr,
 		ErrorTitle:                              errTitle,
@@ -1394,8 +1473,19 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
-					Name: "Home",
-					Href: c.WebRoot,
+					Name:   "Home",
+					Href:   c.WebRoot,
+					Target: "_self",
+				},
+				{
+					Name:   "AsbenchUI",
+					Href:   strings.TrimRight(c.WebRoot, "/") + "/www/dist/asbench/index.html",
+					Target: "_blank",
+				},
+				{
+					Name:   "<i class=\"fa-brands " + backendIcon + "\"></i>",
+					Href:   strings.TrimRight(c.WebRoot, "/") + "/config/backend",
+					Target: "_self",
 				},
 			},
 		},
@@ -1538,6 +1628,35 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 		return indexi < indexj
 	})
+
+	if c.UniqueFirewalls && a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && cmdline[2] == "create") || (cmdline[1] == "client" && cmdline[2] == "create") || (cmdline[1] == "template" && cmdline[2] == "create")) {
+		fwsw := "xxGcpxxNamePrefix"
+		if a.opts.Config.Backend.Type == "aws" {
+			fwsw = "xxAwsxxNamePrefix"
+		}
+		fwFound := false
+		for _, kv := range postForm {
+			if kv[0].(string) == fwsw {
+				fwFound = true
+				break
+			}
+		}
+		if !fwFound {
+			nUser := r.Header.Get("x-auth-aerolab-user")
+			if nUser == "" {
+				nUser = currentOwnerUser
+			}
+			nUser = strings.ToLower(nUser)
+			nFW := ""
+			for _, c := range nUser {
+				if (c >= 97 && c <= 122) || (c >= 48 && c <= 57) {
+					nFW = nFW + string(c)
+				}
+			}
+			item := []interface{}{fwsw, []string{nFW}}
+			postForm = append(postForm, item)
+		}
+	}
 
 	// fill command struct
 	tail := []string{"--"}
@@ -1755,8 +1874,19 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	os.Mkdir(path.Join(rootDir, "weblog"), 0755)
-	fn := path.Join(rootDir, "weblog", time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
+
+	nUser := r.Header.Get("x-auth-aerolab-user")
+	if nUser == "" {
+		nUser = currentOwnerUser
+	}
+
+	nPath := path.Join(rootDir, "weblog")
+	os.Mkdir(nPath, 0755)
+	if nUser != "" {
+		nPath = path.Join(nPath, nUser)
+		os.Mkdir(nPath, 0755)
+	}
+	fn := path.Join(nPath, time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
 
 	ctx, cancel := context.WithTimeout(context.Background(), c.AbsoluteTimeout)
 	run := exec.CommandContext(ctx, ex, "webrun")
@@ -1813,6 +1943,14 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			if c.commands[cindex].reload || (c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != ""))) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {
 				log.Printf("[%s] Refreshing interface data", requestID)
 				f.WriteString("\n->Refreshing interface data\n")
+				zone := "us-central1-a"
+				if a.opts.Cluster.Create.Gcp.Zone != "" {
+					zone = string(a.opts.Cluster.Create.Gcp.Zone)
+				}
+				if a.opts.Config.Backend.Type != "docker" {
+					exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--zone", zone).CombinedOutput()
+					exec.Command(os.Args[0], "inventory", "instance-types", "-j", "--arm", "--zone", zone).CombinedOutput()
+				}
 				err = c.cache.run(time.Now())
 				if err != nil {
 					log.Printf("[%s] ERROR: Inventory Refresh: %s", requestID, err)

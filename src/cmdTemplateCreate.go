@@ -40,7 +40,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	}
 
 	// arm fill
-	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType.String())
 	if err != nil {
 		return fmt.Errorf("IsSystemArm check: %s", err)
 	}
@@ -126,7 +126,7 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	nscript := aerospikeInstallScript[a.opts.Config.Backend.Type+":"+c.DistroName.String()+":"+c.DistroVersion.String()]
 	extra := &backendExtra{
 		ami:             c.Aws.AMI,
-		instanceType:    c.Aws.InstanceType,
+		instanceType:    c.Aws.InstanceType.String(),
 		ebs:             c.Aws.Ebs,
 		securityGroupID: c.Aws.SecurityGroupID,
 		subnetID:        c.Aws.SubnetID,
@@ -135,12 +135,12 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	}
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra = &backendExtra{
-			instanceType: c.Gcp.InstanceType,
+			instanceType: c.Gcp.InstanceType.String(),
 			ami:          c.Gcp.Image,
 			publicIP:     c.Gcp.PublicIP,
 			tags:         c.Gcp.Tags,
 			disks:        []string{"balanced:20"},
-			zone:         c.Gcp.Zone,
+			zone:         c.Gcp.Zone.String(),
 			labels:       c.Gcp.Labels,
 		}
 	}

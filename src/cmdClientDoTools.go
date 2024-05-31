@@ -53,7 +53,7 @@ func (c *clientCreateToolsCmd) Execute(args []string) error {
 		}
 	}
 	// arm fill
-	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType)
+	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType.String())
 	if err != nil {
 		return fmt.Errorf("IsSystemArm check: %s", err)
 	}

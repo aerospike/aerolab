@@ -53,7 +53,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 		if _, ok := foundLogs[fcluster]; !ok {
 			foundLogs[fcluster] = make(map[string]string)
 		}
-		foundLogs[strings.ToLower(fcluster)][strings.ToLower(fn[1])] = fn[0]
+		foundLogs[fcluster][strings.ToLower(fn[1])] = fn[0]
 		return nil
 	})
 	if err != nil {
@@ -220,7 +220,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		if clusterNodeId, ok := ct.ipToNode[ip]; ok {
 			cluster := clusterNodeId[0]
 			nodeId := clusterNodeId[1]
-			if nnodes, ok := logs[strings.ToLower(cluster)]; ok {
+			if nnodes, ok := logs[cluster]; ok {
 				if prefix, ok := nnodes[strings.ToLower(nodeId)]; ok {
 					fdir, ffile := path.Split(filePath)
 					ffile = prefix + "_" + ffile
@@ -231,7 +231,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 			}
 			if !found && cluster == "null" {
 				cluster = "unset"
-				if nnodes, ok := logs[strings.ToLower(cluster)]; ok {
+				if nnodes, ok := logs[cluster]; ok {
 					if prefix, ok := nnodes[strings.ToLower(nodeId)]; ok {
 						fdir, ffile := path.Split(filePath)
 						ffile = prefix + "_" + ffile

@@ -21,6 +21,13 @@ func getBackend() (backend, error) {
 	return backends[a.opts.Config.Backend.Type], nil
 }
 
+type cloudDisk struct {
+	Type                  string
+	Size                  int64
+	ProvisionedIOPS       int64
+	ProvisionedThroughput int64
+}
+
 type backendExtra struct {
 	clientType          string    // all: ams|elasticsearch|rest-gateway|VSCode|...
 	cpuLimit            string    // docker only
@@ -36,7 +43,7 @@ type backendExtra struct {
 	customDockerImage   string    // docker only
 	securityGroupID     string    // aws only
 	subnetID            string    // aws only
-	ebs                 string    // aws only
+	ebs                 string    // aws only; old
 	terminateOnPoweroff bool      // aws only
 	spotInstance        bool      // aws only
 	instanceRole        string    // aws only
@@ -47,11 +54,12 @@ type backendExtra struct {
 	firewallNamePrefix  []string  // aws/gcp only
 	expiresTime         time.Time // aws/gcp only
 	isAgiFirewall       bool      // aws/gcp only
-	disks               []string  // gcp only
+	disks               []string  // gcp only; old
 	zone                string    // gcp only
 	labels              []string  // gcp only
 	onHostMaintenance   string    // gcp only
 	gcpMeta             map[string]string
+	cloudDisks          []*cloudDisk // gcp/aws only
 }
 
 type backendVersion struct {
@@ -97,7 +105,7 @@ type backend interface {
 	// cause gcp
 	EnableServices() error
 	// expiries calls
-	ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error
+	ExpiriesSystemInstall(intervalMinutes int, deployRegion string, awsDnsZoneId string) error
 	ExpiriesSystemRemove(region string) error
 	ExpiriesSystemFrequency(intervalMinutes int) error
 	ClusterExpiry(zone string, clusterName string, expiry time.Duration, nodes []int) error
@@ -177,6 +185,11 @@ type backend interface {
 	SetLabel(clusterName string, key string, value string, gcpZone string) error
 	// aws, gcp
 	GetKeyPath(clusterName string) (keyPath string, err error)
+	// aws
+	DomainCreate(zoneId string, host string, IP string, wait bool) (err error)
+	GetInstanceIpMap(name string, internalIPs bool) (map[string]string, error)
+	ExpiriesUpdateZoneID(zoneId string) error
+	GetInstanceTags(name string) (map[string]map[string]string, error)
 }
 
 type inventoryJson struct {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	_ "embed"
@@ -80,6 +81,10 @@ type agiCreateCmd struct {
 	NoToolsOverride  bool            `long:"no-tools-override" description:"by default agi will install the latest tools package; set this to disable tools package upgrade"`
 	hTTPSNotify
 	WithAGIMonitorAuto      bool                 `long:"with-monitor" description:"if set, system will look for agimonitor client; if not present, one will be created; will also auto-fill the monitor URL"`
+	MonitorAutoCertDomains  []string             `long:"monitor-autocert" description:"Monitor Creation: TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
+	MonitorAutoCertEmail    string               `long:"monitor-autocert-email" description:"Monitor Creation: TLS: if autocert is specified, specify a valid email address to use with letsencrypt"`
+	MonitorCertFile         string               `long:"monitor-cert-file" description:"Monitor Creation: TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile"` // TLS: cert file (if not using autocert), default: snakeoil
+	MonitorKeyFile          string               `long:"monitor-key-file" description:"Monitor Creation: TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile"`           // TLS: key file (if not using autocert), default: snakeoil
 	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
 	Distro                  TypeDistro           `short:"d" long:"distro" description:"Custom distro" default:"ubuntu"`
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
@@ -109,6 +114,8 @@ type agiCreateCmdAws struct {
 	SpotInstance        bool          `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 	EFSExpires          time.Duration `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired" default:"96h"`
+	Route53ZoneId       string        `long:"route53-zoneid" description:"if set, will automatically update a route53 DNS domain with an entry of {instanceId}.{region}.agi.; expiry system will also be updated accordingly"`
+	Route53DomainName   string        `long:"route53-domain" description:"the route domain the zone refers to; eg myagi.org"`
 }
 
 type agiCreateCmdGcp struct {
@@ -144,6 +151,11 @@ func init() {
 func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "aws" {
+		if (c.Aws.Route53DomainName == "" && c.Aws.Route53ZoneId != "") || (c.Aws.Route53DomainName != "" && c.Aws.Route53ZoneId == "") {
+			return errors.New("either both route53-zoneid and route53-domain must be fills or both must be empty")
+		}
 	}
 	if c.Owner == "" {
 		c.Owner = currentOwnerUser
@@ -298,23 +310,47 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			a.opts.AGI.Monitor.Create.Aws.SubnetID = c.Aws.SubnetID
 			a.opts.AGI.Monitor.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
 			a.opts.AGI.Monitor.Create.Gcp.Zone = c.Gcp.Zone
+			a.opts.AGI.Monitor.Create.AutoCertDomains = c.MonitorAutoCertDomains
+			a.opts.AGI.Monitor.Create.AutoCertEmail = c.MonitorAutoCertEmail
+			a.opts.AGI.Monitor.Create.CertFile = c.MonitorCertFile
+			a.opts.AGI.Monitor.Create.KeyFile = c.MonitorKeyFile
+			if c.ProxyCert != "" && c.ProxyKey != "" && !c.ProxyDisableSSL {
+				a.opts.AGI.Monitor.Create.StrictAGITLS = true
+			}
 			err := a.opts.AGI.Monitor.Create.create(nil)
 			if err != nil {
 				return err
 			}
+			if len(c.MonitorAutoCertDomains) == 0 && c.MonitorCertFile == "" && c.MonitorKeyFile == "" {
+				c.AGIMonitorCertIgnore = true // should notifier on AGI side expect AGI monitor to have a valid certificate
+			}
 		}
-		ips, err := b.GetNodeIpMap(a.opts.AGI.Monitor.Create.Name, true)
-		if err != nil {
-			return err
+		agimUrl := ""
+		if a.opts.Config.Backend.Type == "aws" {
+			// get agimUrl (agimUrl aws tag) and use that as c.AGIMonitorUrl = "https://" + agimUrl
+			tags, err := b.GetInstanceTags(c.ClusterName.String())
+			if err == nil {
+				for _, tgs := range tags {
+					if tg, ok := tgs["agimUrl"]; ok && tg != "" {
+						agimUrl = tg
+						c.AGIMonitorUrl = "https://" + agimUrl
+					}
+				}
+			}
 		}
-		if len(ips) == 0 {
-			return errors.New("could not get private IP of AGI monitor client, ensure it is running")
+		if agimUrl == "" {
+			ips, err := b.GetNodeIpMap(a.opts.AGI.Monitor.Create.Name, true)
+			if err != nil {
+				return err
+			}
+			if len(ips) == 0 {
+				return errors.New("could not get private IP of AGI monitor client, ensure it is running")
+			}
+			if nip, ok := ips[1]; !ok || nip == "" {
+				return errors.New("could not resolve private IP of AGI monitor client, ensure it is running")
+			}
+			c.AGIMonitorUrl = "https://" + ips[1]
 		}
-		if nip, ok := ips[1]; !ok || nip == "" {
-			return errors.New("could not resolve private IP of AGI monitor client, ensure it is running")
-		}
-		c.AGIMonitorUrl = "https://" + ips[1]
-		c.AGIMonitorCertIgnore = true
 		b.WorkOnServers()
 	}
 	// if files specified do not exist, bail early
@@ -363,7 +399,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		}
 	}
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.InstanceType == "" {
-		log.Println("Resolving supported Instance Type")
+		log.Println("Resolving supported Instance Types")
 		sup := make([]bool, 8)
 		itypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, true, "")
 		if err != nil {
@@ -481,6 +517,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if len(sourceStringS3) > 191 { // 255 with base64 overhead
 		sourceStringS3 = sourceStringS3[0:188] + "..."
 	}
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
+		c.Aws.Tags = append(c.Aws.Tags, "agiDomain="+c.Aws.Route53DomainName, "agiZoneID="+c.Aws.Route53ZoneId)
+	}
 	sourceStringLocal = base64.RawStdEncoding.EncodeToString([]byte(sourceStringLocal))
 	sourceStringSftp = base64.RawStdEncoding.EncodeToString([]byte(sourceStringSftp))
 	sourceStringS3 = base64.RawStdEncoding.EncodeToString([]byte(sourceStringS3))
@@ -509,7 +548,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Password = ""
 	a.opts.Cluster.Create.useAgiFirewall = true
 	a.opts.Cluster.Create.Aws.AMI = ""
-	a.opts.Cluster.Create.Aws.InstanceType = c.Aws.InstanceType
+	a.opts.Cluster.Create.Aws.InstanceType = guiInstanceType(c.Aws.InstanceType)
 	a.opts.Cluster.Create.Aws.Ebs = c.Aws.Ebs
 	a.opts.Cluster.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 	a.opts.Cluster.Create.Aws.SubnetID = c.Aws.SubnetID
@@ -552,10 +591,10 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.SpotInstance = c.Aws.SpotInstance
 	a.opts.Cluster.Create.Gcp.SpotInstance = c.Gcp.SpotInstance
 	a.opts.Cluster.Create.Gcp.Image = ""
-	a.opts.Cluster.Create.Gcp.InstanceType = c.Gcp.InstanceType
+	a.opts.Cluster.Create.Gcp.InstanceType = guiInstanceType(c.Gcp.InstanceType)
 	a.opts.Cluster.Create.Gcp.Disks = c.Gcp.Disks
 	a.opts.Cluster.Create.Gcp.PublicIP = false
-	a.opts.Cluster.Create.Gcp.Zone = c.Gcp.Zone
+	a.opts.Cluster.Create.Gcp.Zone = guiZone(c.Gcp.Zone)
 	a.opts.Cluster.Create.Gcp.IsArm = false
 	a.opts.Cluster.Create.Gcp.NoBestPractices = false
 	a.opts.Cluster.Create.Gcp.Tags = c.Gcp.Tags
@@ -597,6 +636,34 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		return fmt.Errorf("could not recover current working directory: %s", err)
 	}
 
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
+		instIps, err := b.GetInstanceIpMap(string(c.ClusterName), false)
+		if err != nil {
+			log.Printf("ERROR: Could not get node IPs, DNS will not be updated: %s", err)
+		} else {
+			wg := new(sync.WaitGroup)
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				if c.Aws.Expires != 0 {
+					err := b.ExpiriesUpdateZoneID(c.Aws.Route53ZoneId)
+					if err != nil {
+						log.Printf("ERROR Route53 ZoneID not updated in expiry system, zones will be not cleaned up on expiry: %s", err)
+					}
+				}
+			}()
+			go func() {
+				defer wg.Done()
+				for inst, ip := range instIps {
+					err := b.DomainCreate(c.Aws.Route53ZoneId, fmt.Sprintf("%s.%s.agi.%s", inst, a.opts.Config.Backend.Region, c.Aws.Route53DomainName), ip, true)
+					if err != nil {
+						log.Printf("ERROR creating domain in route53: %s", err)
+					}
+				}
+			}()
+			defer wg.Wait()
+		}
+	}
 	log.Println("Cluster Node created, continuing AGI deployment...")
 
 	// docker will use max 2GB on plugin, aws/gcp 4GB; for aws/gcp we should leave 6GB of RAM unused (4GB-plugin 2GB-OS); for docker: 3GB (2GB-plugin 1GB-everything else)
