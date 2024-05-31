@@ -98,7 +98,7 @@ func (a *aerolab) isLatestVersionQuery(v *GitHubRelease, versionFile string) err
 	return nil
 }
 
-func (a *aerolab) isLatestVersionQueryPrerelease() (*GitHubRelease, error) {
+func (a *aerolab) isLatestVersionQueryPrereleases() ([]*GitHubRelease, error) {
 	client := &http.Client{}
 	client.Timeout = 5 * time.Second
 	defer client.CloseIdleConnections()
@@ -123,12 +123,16 @@ func (a *aerolab) isLatestVersionQueryPrerelease() (*GitHubRelease, error) {
 	if err != nil {
 		return nil, err
 	}
+	ans := []*GitHubRelease{}
 	for _, pre := range vPrerelease {
 		if !pre.Prerelease {
 			continue
 		}
 		pre.CurrentVersion = vBranch
-		return pre, nil
+		ans = append(ans, pre)
 	}
-	return nil, errors.New("NOT FOUND")
+	if len(ans) == 0 {
+		return ans, errors.New("NOT FOUND")
+	}
+	return ans, nil
 }

@@ -188,7 +188,7 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 			tr := &http.Transport{
 				DisableKeepAlives: true,
 				IdleConnTimeout:   10 * time.Second,
-				TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+				TLSClientConfig:   &tls.Config{InsecureSkipVerify: i.c.AGIStrictTLS}, // get AGI status, expect AGI to have real certificates
 			}
 			client := &http.Client{
 				Timeout:   10 * time.Second,
@@ -375,33 +375,67 @@ func (c *webCmd) getInventoryNames() map[string]*webui.InventoryItem {
 	return out
 }
 
-func (c *webCmd) inventoryLogFile(requestID string) (*os.File, error) {
+func (c *webCmd) inventoryLogFile(requestID string, r *http.Request) (*os.File, error) {
 	rootDir, err := a.aerolabRootDir()
 	if err != nil {
 		return nil, err
 	}
-	rootDir = path.Join(rootDir, "weblog")
-	os.MkdirAll(rootDir, 0755)
-	fn := path.Join(rootDir, time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
+	nUser := r.Header.Get("x-auth-aerolab-user")
+	if nUser == "" {
+		nUser = currentOwnerUser
+	}
+
+	nPath := path.Join(rootDir, "weblog")
+	os.Mkdir(nPath, 0755)
+	if nUser != "" {
+		nPath = path.Join(nPath, nUser)
+		os.Mkdir(nPath, 0755)
+	}
+	fn := path.Join(nPath, time.Now().Format("2006-01-02_15-04-05_")+requestID+".log")
 	return os.Create(fn)
 }
 
 func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
+	backendIcon := "fa-aws"
+	if a.opts.Config.Backend.Type == "gcp" {
+		backendIcon = "fa-google"
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		backendIcon = "fa-docker"
+	}
+	isShowUsersChecked := false
+	showAllUsersCookie, err := r.Cookie("AEROLAB_SHOW_ALL_USERS")
+	if err == nil {
+		if showAllUsersCookie.Value == "true" {
+			isShowUsersChecked = true
+		}
+	}
 	p := &webui.Page{
 		Backend:                                 a.opts.Config.Backend.Type,
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
-		PendingActionsShowAllUsersToggle:        false,
-		PendingActionsShowAllUsersToggleChecked: false,
+		PendingActionsShowAllUsersToggle:        true,
+		PendingActionsShowAllUsersToggleChecked: isShowUsersChecked,
 		IsInventory:                             true,
 		Inventory:                               c.inventoryNames,
 		BetaTag:                                 isWebuiBeta,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
-					Name: "Home",
-					Href: c.WebRoot,
+					Name:   "Home",
+					Href:   c.WebRoot,
+					Target: "_self",
+				},
+				{
+					Name:   "AsbenchUI",
+					Href:   strings.TrimRight(c.WebRoot, "/") + "/www/dist/asbench/index.html",
+					Target: "_blank",
+				},
+				{
+					Name:   "<i class=\"fa-brands " + backendIcon + "\"></i>",
+					Href:   strings.TrimRight(c.WebRoot, "/") + "/config/backend",
+					Target: "_self",
 				},
 			},
 		},
@@ -506,7 +540,7 @@ func (c *webCmd) inventoryFirewallsAction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	c.jobqueue.Add()
-	invlog, err := c.inventoryLogFile(reqID)
+	invlog, err := c.inventoryLogFile(reqID, r)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
 		return
@@ -621,7 +655,7 @@ func (c *webCmd) inventoryVolumesAction(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	c.jobqueue.Add()
-	invlog, err := c.inventoryLogFile(reqID)
+	invlog, err := c.inventoryLogFile(reqID, r)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
 		return
@@ -695,7 +729,7 @@ func (c *webCmd) inventoryTemplatesAction(w http.ResponseWriter, r *http.Request
 		return
 	}
 	c.jobqueue.Add()
-	invlog, err := c.inventoryLogFile(reqID)
+	invlog, err := c.inventoryLogFile(reqID, r)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
 		return
@@ -870,10 +904,10 @@ func (c *webCmd) inventoryNodesAction(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "received empty request", http.StatusBadRequest)
 		return
 	}
-	c.inventoryNodesActionDo(w, reqID, data, action)
+	c.inventoryNodesActionDo(w, r, reqID, data, action)
 }
 
-func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, reqID string, data map[string]interface{}, action string) {
+func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, reqID string, data map[string]interface{}, action string) {
 	ntype := ""
 	switch a := data["type"].(type) {
 	case string:
@@ -900,7 +934,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, reqID string, dat
 	}()
 	list := data["list"].([]interface{})
 	c.jobqueue.Add()
-	invlog, err := c.inventoryLogFile(reqID)
+	invlog, err := c.inventoryLogFile(reqID, r)
 	if err != nil {
 		http.Error(w, "could not create log file: %s"+err.Error(), http.StatusInternalServerError)
 		return

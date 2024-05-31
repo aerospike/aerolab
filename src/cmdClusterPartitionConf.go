@@ -12,6 +12,8 @@ import (
 	"sync"
 
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 
 	"github.com/bestmethod/inslice"
 )
@@ -24,7 +26,7 @@ type clusterPartitionConfCmd struct {
 	FilterType         string          `short:"t" long:"filter-type" description:"what disk types to select, options: nvme/local or ebs/persistent" default:"ALL"`
 	Namespace          string          `short:"m" long:"namespace" description:"namespace to modify the settings for" default:""`
 	ConfDest           string          `short:"o" long:"configure" description:"what to configure the selections as; options: memory|device|shadow|pi-flash|si-flash" default:""`
-	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% for what the mounts-budget should be set to for flash configs" default:"90"`
+	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% space to use for configurating partition-tree-sprigs for pi-flash; this also sets mounts-budget accordingly" default:"90"`
 	parallelThreadsLongCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -232,7 +234,7 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			return useParts[x].partNo < useParts[y].partNo
 		}
 	})
-	totalFsSize := 0
+	totalFsSizeBytes := 0
 	for _, p := range useParts {
 		switch c.ConfDest {
 		case "memory":
@@ -299,18 +301,19 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			}
 			fsSize := p.FsSize
 			if err == nil {
-				suffix := ""
 				if strings.HasSuffix(strings.ToUpper(p.FsSize), "G") {
-					suffix = "G"
+					totalFsSizeBytes += fsSizeI * 1024 * 1024 * 1024
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "M") {
-					suffix = "M"
+					totalFsSizeBytes += fsSizeI * 1024 * 1024
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "K") {
-					suffix = "K"
+					totalFsSizeBytes += fsSizeI * 1024
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
-					suffix = "T"
+					totalFsSizeBytes += fsSizeI * 1024 * 1024 * 1024 * 1024
+				} else {
+					totalFsSizeBytes += fsSizeI
 				}
-				totalFsSize += fsSizeI
-				fsSize = strconv.Itoa(int(float64(totalFsSize)*c.MountsSizeLimitPct/100)) + suffix
+				maxUsableBytes := int(float64(totalFsSizeBytes) * c.MountsSizeLimitPct / 100)
+				fsSize = strconv.Itoa(maxUsableBytes/1024) + "K"
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("index-type flash").SetValue(is7, fsSize)
 		case "si-flash":
@@ -336,18 +339,19 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			}
 			fsSize := p.FsSize
 			if err == nil {
-				suffix := ""
 				if strings.HasSuffix(strings.ToUpper(p.FsSize), "G") {
-					suffix = "G"
+					totalFsSizeBytes += fsSizeI * 1024 * 1024 * 1024
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "M") {
-					suffix = "M"
+					totalFsSizeBytes += fsSizeI * 1024 * 1024
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "K") {
-					suffix = "K"
+					totalFsSizeBytes += fsSizeI * 1024
 				} else if strings.HasSuffix(strings.ToUpper(p.FsSize), "T") {
-					suffix = "T"
+					totalFsSizeBytes += fsSizeI * 1024 * 1024 * 1024 * 1024
+				} else {
+					totalFsSizeBytes += fsSizeI
 				}
-				totalFsSize += fsSizeI
-				fsSize = strconv.Itoa(int(float64(totalFsSize)*c.MountsSizeLimitPct/100)) + suffix
+				maxUsableBytes := int(float64(totalFsSizeBytes) * c.MountsSizeLimitPct / 100)
+				fsSize = strconv.Itoa(maxUsableBytes/1024) + "K"
 			}
 			cc.Stanza("namespace "+c.Namespace).Stanza("sindex-type flash").SetValue(is7, fsSize)
 		}
@@ -368,6 +372,37 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			}
 		}
 	}
+	if (c.ConfDest == "allflash" || c.ConfDest == "pi-flash") && totalFsSizeBytes > 0 {
+		treeSprigs := "256"
+		rf := "2"
+		if cc.Stanza("namespace "+c.Namespace).Type("partition-tree-sprigs") != aeroconf.ValueNil {
+			sprigsconf, err := cc.Stanza("namespace " + c.Namespace).GetValues("partition-tree-sprigs")
+			if err == nil && len(sprigsconf) > 0 {
+				treeSprigs = *sprigsconf[0]
+			}
+		}
+		if cc.Stanza("namespace "+c.Namespace).Type("replication-factor") != aeroconf.ValueNil {
+			rfconf, err := cc.Stanza("namespace " + c.Namespace).GetValues("replication-factor")
+			if err == nil && len(rfconf) > 0 {
+				rf = *rfconf[0]
+			}
+		}
+		rfInt, _ := strconv.Atoi(rf)
+		treeSprigsInt, _ := strconv.Atoi(treeSprigs)
+		spaceRequired := 4096 * rfInt * 4096 * treeSprigsInt
+		maxUsableBytes := int(float64(totalFsSizeBytes) * c.MountsSizeLimitPct / 100)
+		maxSprigs := NextPowOf2(maxUsableBytes / 4096 / rfInt / 4096)
+		maxRecords := maxSprigs * 4096 * 64
+		p := message.NewPrinter(language.English)
+		maxRecordsStr := p.Sprintf("%d", maxRecords)
+		if spaceRequired > maxUsableBytes {
+			log.Printf("WARNING: node=%d space required for partition-tree-sprigs (%s) exceeds the pi-flash partition_size*%d%% (%s). Changing from %d to %d. At %s master records the fill factor will be 1.", nodeNo, convSize(int64(spaceRequired)), int(c.MountsSizeLimitPct), convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
+			cc.Stanza("namespace "+c.Namespace).SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
+		} else if maxSprigs > treeSprigsInt {
+			log.Printf("WARNING: node=%d partition-tree-sprigs seems to be low for the amount of partition space configured (%s). Changing from %d to %d. At %s master records the fill factor will be 1.", nodeNo, convSize(int64(maxUsableBytes)), treeSprigsInt, maxSprigs, maxRecordsStr)
+			cc.Stanza("namespace "+c.Namespace).SetValue("partition-tree-sprigs", strconv.Itoa(maxSprigs))
+		}
+	}
 	var buf bytes.Buffer
 	err = cc.Write(&buf, "", "    ", true)
 	if err != nil {
@@ -379,4 +414,14 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		return err
 	}
 	return nil
+}
+
+func NextPowOf2(n int) int {
+	k := 1
+	l := 1
+	for k < n {
+		l = k
+		k = k << 1
+	}
+	return l
 }

@@ -133,9 +133,11 @@ github.com/aws/aws-sdk-go/private/protocol/restxml
 github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
 github.com/aws/aws-sdk-go/service/ec2
 github.com/aws/aws-sdk-go/service/efs
+github.com/aws/aws-sdk-go/service/eks
 github.com/aws/aws-sdk-go/service/iam
 github.com/aws/aws-sdk-go/service/lambda
 github.com/aws/aws-sdk-go/service/pricing
+github.com/aws/aws-sdk-go/service/route53
 github.com/aws/aws-sdk-go/service/s3
 github.com/aws/aws-sdk-go/service/scheduler
 github.com/aws/aws-sdk-go/service/sso
@@ -391,11 +393,18 @@ golang.org/x/term
 # golang.org/x/text v0.15.0
 ## explicit; go 1.18
 golang.org/x/text/cases
+golang.org/x/text/feature/plural
 golang.org/x/text/internal
+golang.org/x/text/internal/catmsg
+golang.org/x/text/internal/format
 golang.org/x/text/internal/language
 golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/number
+golang.org/x/text/internal/stringset
 golang.org/x/text/internal/tag
 golang.org/x/text/language
+golang.org/x/text/message
+golang.org/x/text/message/catalog
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi

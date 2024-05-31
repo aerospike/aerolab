@@ -16,9 +16,11 @@ fi
 echo "Creating clients"
 set -e
 STAGE="create"
-for i in ${AWS_AVAILABILITY_ZONES[@]}
+ZONELIST=${AWS_AVAILABILITY_ZONES}
+[ "${BACKEND}" = "gcp" ] && ZONELIST=${GCP_AVAILABILITY_ZONES}
+for i in ${ZONELIST[@]}
 do
-  aerolab client ${STAGE} tools -n ${CLIENT_NAME} -c ${CLIENTS_PER_AZ} -v ${VER} --instance-type ${CLIENT_AWS_INSTANCE} --ebs=${AWS_EBS} --subnet-id=${i}
+  aerolab client ${STAGE} tools -n ${CLIENT_NAME} -c ${CLIENTS_PER_AZ} -v ${VER} --instance-type ${CLIENT_AWS_INSTANCE} --ebs=${ROOT_VOL} --subnet-id=${i} --instance ${GCP_CLIENT_INSTANCE} --zone ${i} --disk=pd-ssd:${ROOT_VOL}
   STAGE="grow"
 done
 
