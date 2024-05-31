@@ -95,7 +95,11 @@ func (c *clusterPartitionMkfsCmd) Execute(args []string) error {
 				if pi == 0 {
 					continue
 				}
-				script.Add("mkfs -t " + c.FsType + " -f " + c.MkfsOpts + " " + p.Path)
+				forceFlag := " -f "
+				if strings.Contains(c.FsType, "ext") {
+					forceFlag = " -F "
+				}
+				script.Add("mkfs -t " + c.FsType + forceFlag + c.MkfsOpts + " " + p.Path)
 				mountPoint := strings.TrimRight(c.MountRoot, "/") + "/" + p.Name
 				script.Add("mkdir -p " + mountPoint)
 				script.Add(fmt.Sprintf("echo \"%s %s %s %s 0 9\" >> /etc/fstab", p.Path, mountPoint, c.FsType, c.MountOpts))
