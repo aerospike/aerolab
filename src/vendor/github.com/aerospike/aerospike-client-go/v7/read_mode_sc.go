@@ -52,5 +52,5 @@ func (rm ReadModeSC) grpc() kvs.ReadModeSC {
 	case ReadModeSCAllowUnavailable:
 		return kvs.ReadModeSC_ALLOW_UNAVAILABLE
 	}
-	panic("UNREACHABLE")
+	panic(unreachable)
 }

@@ -24,6 +24,7 @@ import (
 
 	"github.com/aerospike/aerospike-client-go/v7/logger"
 	"github.com/aerospike/aerospike-client-go/v7/types"
+	"github.com/aerospike/aerospike-client-go/v7/types/pool"
 
 	ParticleType "github.com/aerospike/aerospike-client-go/v7/types/particle_type"
 	Buffer "github.com/aerospike/aerospike-client-go/v7/utils/buffer"
@@ -120,6 +121,27 @@ const (
 	_AS_MSG_TYPE_COMPRESSED    int64 = 4
 )
 
+type transactionType int
+
+const (
+	ttNone transactionType = iota
+	ttGet
+	ttGetHeader
+	ttExists
+	ttPut
+	ttDelete
+	ttOperate
+	ttQuery
+	ttScan
+	ttUDF
+	ttBatchRead
+	ttBatchWrite
+)
+
+var (
+	buffPool = pool.NewTieredBufferPool(MinBufferSize, PoolCutOffBufferSize)
+)
+
 // command interface describes all commands available
 type command interface {
 	getPolicy(ifc command) Policy
@@ -132,10 +154,12 @@ type command interface {
 	parseRecordResults(ifc command, receiveSize int) (bool, Error)
 	prepareRetry(ifc command, isTimeout bool) bool
 
+	transactionType() transactionType
+
 	isRead() bool
 
 	execute(ifc command) Error
-	executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int, commandWasSent bool) Error
+	executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) Error
 
 	canPutConnBack() bool
 
@@ -591,7 +615,7 @@ func (cmd *baseCommand) setUdf(policy *WritePolicy, key *Key, packageName string
 	return nil
 }
 
-func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchRecordIfc, batch *batchNode) (*batchAttr, Error) {
+func (cmd *baseCommand) setBatchOperateIfc(client ClientIfc, policy *BatchPolicy, records []BatchRecordIfc, batch *batchNode) (*batchAttr, Error) {
 	offsets := batch.offsets
 	max := len(batch.offsets)
 
@@ -682,12 +706,7 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			case _BRT_BATCH_READ:
 				br := record.(*BatchRead)
 
-				if br.Policy != nil {
-					attr.setBatchRead(br.Policy)
-				} else {
-					attr.setRead(policy)
-				}
-
+				attr.setBatchRead(client.getUsableBatchReadPolicy(br.Policy))
 				if len(br.BinNames) > 0 {
 					cmd.writeBatchBinNames(key, br.BinNames, attr, attr.filterExp)
 				} else if br.Ops != nil {
@@ -701,35 +720,23 @@ func (cmd *baseCommand) setBatchOperateIfc(policy *BatchPolicy, records []BatchR
 			case _BRT_BATCH_WRITE:
 				bw := record.(*BatchWrite)
 
-				if bw.policy != nil {
-					attr.setBatchWrite(bw.policy)
-				} else {
-					attr.setWrite(&policy.BasePolicy)
-				}
-				attr.adjustWrite(bw.ops)
-				cmd.writeBatchOperations(key, bw.ops, attr, attr.filterExp)
+				attr.setBatchWrite(client.getUsableBatchWritePolicy(bw.Policy))
+				attr.adjustWrite(bw.Ops)
+				cmd.writeBatchOperations(key, bw.Ops, attr, attr.filterExp)
 
 			case _BRT_BATCH_UDF:
 				bu := record.(*BatchUDF)
 
-				if bu.policy != nil {
-					attr.setBatchUDF(bu.policy)
-				} else {
-					attr.setUDF(&policy.BasePolicy)
-				}
+				attr.setBatchUDF(client.getUsableBatchUDFPolicy(bu.Policy))
 				cmd.writeBatchWrite(key, attr, attr.filterExp, 3, 0)
-				cmd.writeFieldString(bu.packageName, UDF_PACKAGE_NAME)
-				cmd.writeFieldString(bu.functionName, UDF_FUNCTION)
+				cmd.writeFieldString(bu.PackageName, UDF_PACKAGE_NAME)
+				cmd.writeFieldString(bu.FunctionName, UDF_FUNCTION)
 				cmd.writeFieldBytes(bu.argBytes, UDF_ARGLIST)
 
 			case _BRT_BATCH_DELETE:
 				bd := record.(*BatchDelete)
 
-				if bd.policy != nil {
-					attr.setBatchDelete(bd.policy)
-				} else {
-					attr.setDelete(&policy.BasePolicy)
-				}
+				attr.setBatchDelete(client.getUsableBatchDeletePolicy(bd.Policy))
 				cmd.writeBatchWrite(key, attr, attr.filterExp, 0, 0)
 			}
 			prev = record
@@ -2397,13 +2404,6 @@ func (cmd *baseCommand) validateHeader(header int64) Error {
 	return nil
 }
 
-var (
-	// MaxBufferSize protects against allocating massive memory blocks
-	// for buffers. Tweak this number if you are returning a lot of
-	// LDT elements in your queries.
-	MaxBufferSize = 1024 * 1024 * 120 // 120 MB
-)
-
 const (
 	msgHeaderPad  = 16
 	zlibHeaderPad = 2
@@ -2422,6 +2422,10 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 		return newCustomNodeError(cmd.node, types.PARSE_ERROR, fmt.Sprintf("Invalid size for buffer: %d", size))
 	}
 
+	if cmd.conn != nil && cmd.conn.buffHist != nil {
+		cmd.conn.buffHist.Add(uint64(size))
+	}
+
 	if size <= len(cmd.dataBuffer) {
 		// don't touch the buffer
 		// this is a noop, here to silence the linters
@@ -2430,7 +2434,7 @@ func (cmd *baseCommand) sizeBufferSz(size int, willCompress bool) Error {
 		cmd.dataBuffer = cmd.dataBuffer[:size]
 	} else {
 		// not enough space
-		cmd.dataBuffer = make([]byte, size)
+		cmd.dataBuffer = buffPool.Get(size)
 	}
 
 	// The trick here to keep a ref to the buffer, and set the buffer itself
@@ -2493,7 +2497,7 @@ func (cmd *baseCommand) compress() Error {
 		// If not possible to reuse it, reallocate a buffer.
 		if compressedSz+msgHeaderPad > len(cmd.dataBufferCompress) {
 			// compression added to the size of the message
-			buf := make([]byte, compressedSz+msgHeaderPad)
+			buf := buffPool.Get(compressedSz + msgHeaderPad)
 			if n := copy(buf[msgHeaderPad:], b.Bytes()); n < compressedSz {
 				return newError(types.SERIALIZE_ERROR)
 			}
@@ -2528,8 +2532,8 @@ func (cmd *baseCommand) compressedSize() int {
 	return int(size)
 }
 
-func (cmd *baseCommand) batchInDoubt(isWrite bool, commandWasSent bool) bool {
-	return isWrite && commandWasSent
+func (cmd *baseCommand) batchInDoubt(isWrite bool, commandSentCounter int) bool {
+	return isWrite && commandSentCounter > 1
 }
 
 func (cmd *baseCommand) isRead() bool {
@@ -2540,9 +2544,7 @@ func (cmd *baseCommand) isRead() bool {
 // This function should only be called from grpc commands.
 func (cmd *baseCommand) grpcPutBufferBack() {
 	// put the data buffer back in the pool in case it gets used again
-	if len(cmd.dataBuffer) >= DefaultBufferSize && len(cmd.dataBuffer) <= MaxBufferSize {
-		bufPool.Put(cmd.dataBuffer)
-	}
+	buffPool.Put(cmd.dataBuffer)
 	cmd.dataBuffer = nil
 }
 
@@ -2556,12 +2558,14 @@ func (cmd *baseCommand) execute(ifc command) Error {
 	policy := ifc.getPolicy(ifc).GetBasePolicy()
 	deadline := policy.deadline()
 
-	return cmd.executeAt(ifc, policy, deadline, -1, false)
+	return cmd.executeAt(ifc, policy, deadline, -1)
 }
 
-func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int, commandWasSent bool) (errChain Error) {
+func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time.Time, iterations int) (errChain Error) {
 	// for exponential backoff
 	interval := policy.SleepBetweenRetries
+
+	transStart := time.Now()
 
 	notFirstIteration := false
 	isClientTimeout := false
@@ -2579,7 +2583,8 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			if cmd.node != nil && cmd.node.cluster != nil {
 				cmd.node.cluster.maxRetriesExceededCount.GetAndIncrement()
 			}
-			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandWasSent).setNode(cmd.node)
+			applyTransactionMetrics(cmd.node, ifc.transactionType(), transStart)
+			return chainErrors(ErrMaxRetriesExceeded.err(), errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandSentCounter).setNode(cmd.node)
 		}
 
 		// Sleep before trying again, after the first iteration
@@ -2596,21 +2601,24 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		}
 
 		if notFirstIteration {
+			applyTransactionRetryMetrics(cmd.node)
+
 			if !ifc.prepareRetry(ifc, isClientTimeout || (err != nil && err.Matches(types.SERVER_NOT_AVAILABLE))) {
 				if bc, ok := ifc.(batcher); ok {
 					// Batch may be retried in separate commands.
-					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.commandSentCounter, cmd.commandWasSent)
+					alreadyRetried, err := bc.retryBatch(bc, cmd.node.cluster, deadline, cmd.commandSentCounter)
 					if alreadyRetried {
 						// Batch was retried in separate subcommands. Complete this command.
+						applyTransactionMetrics(cmd.node, ifc.transactionType(), transStart)
 						if err != nil {
-							return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+							return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 						}
 						return nil
 					}
 
 					// chain the errors and retry
 					if err != nil {
-						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+						errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 						continue
 					}
 				}
@@ -2634,7 +2642,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 			// chain the errors
 			if err != nil {
-				errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+				errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 			}
 
 			// Node is currently inactive. Retry.
@@ -2645,8 +2653,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		if err = cmd.node.validateErrorCount(); err != nil {
 			isClientTimeout = false
 
+			applyTransactionErrorMetrics(cmd.node)
+
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			// Max error rate achieved, try again per policy
 			continue
@@ -2657,7 +2667,9 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 			isClientTimeout = false
 
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
+
+			applyTransactionErrorMetrics(cmd.node)
 
 			// exit immediately if connection pool is exhausted and the corresponding policy option is set
 			if policy.ExitFastOnExhaustedConnectionPool && errors.Is(err, ErrConnectionPoolExhausted) {
@@ -2682,13 +2694,16 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		// Set command buffer.
 		err = ifc.writeBuffer(ifc)
 		if err != nil {
+			applyTransactionErrorMetrics(cmd.node)
+
 			// chain the errors
-			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+			err = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			// All runtime exceptions are considered fatal. Do not retry.
 			// Close socket to flush out possible garbage. Do not put back in pool.
 			cmd.conn.Close()
 			cmd.conn = nil
+			applyTransactionMetrics(cmd.node, ifc.transactionType(), transStart)
 			return err
 		}
 
@@ -2704,11 +2719,14 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 
 		// now that the deadline has been set in the buffer, compress the contents
 		if err = cmd.compress(); err != nil {
-			return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+			applyTransactionErrorMetrics(cmd.node)
+			return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 		}
 
 		// now that the deadline has been set in the buffer, compress the contents
 		if err = cmd.prepareBuffer(ifc, deadline); err != nil {
+			applyTransactionErrorMetrics(cmd.node)
+			applyTransactionMetrics(cmd.node, ifc.transactionType(), transStart)
 			return chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node)
 		}
 
@@ -2716,8 +2734,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		cmd.commandWasSent = true
 		_, err = cmd.conn.Write(cmd.dataBuffer[:cmd.dataOffset])
 		if err != nil {
+			applyTransactionErrorMetrics(cmd.node)
+
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			isClientTimeout = false
 			if deviceOverloadError(err) {
@@ -2736,8 +2756,10 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 		// Parse results.
 		err = ifc.parseResult(ifc, cmd.conn)
 		if err != nil {
+			applyTransactionErrorMetrics(cmd.node)
+
 			// chain the errors
-			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+			errChain = chainErrors(err, errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 
 			if networkError(err) {
 				isTimeout := errors.Is(err, ErrTimeout)
@@ -2773,15 +2795,23 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 				cmd.conn = nil
 			}
 
-			return errChain.setInDoubt(ifc.isRead(), cmd.commandWasSent)
+			applyTransactionMetrics(cmd.node, ifc.transactionType(), transStart)
+			return errChain.setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 		}
 
-		// in case it has grown and re-allocated
-		if len(cmd.dataBufferCompress) > len(cmd.dataBuffer) {
-			cmd.conn.dataBuffer = cmd.dataBufferCompress
-		} else {
-			cmd.conn.dataBuffer = cmd.dataBuffer
+		applyTransactionMetrics(cmd.node, ifc.transactionType(), transStart)
+
+		// in case it has grown and re-allocated, it means
+		// it was borrowed from the pool, sp put it back.
+		if &cmd.dataBufferCompress != &cmd.conn.origDataBuffer {
+			buffPool.Put(cmd.dataBufferCompress)
+		} else if &cmd.dataBuffer != &cmd.conn.origDataBuffer {
+			buffPool.Put(cmd.dataBuffer)
 		}
+
+		cmd.dataBuffer = nil
+		cmd.dataBufferCompress = nil
+		cmd.conn.dataBuffer = cmd.conn.origDataBuffer
 
 		// Put connection back in pool.
 		ifc.putConnection(cmd.conn)
@@ -2795,7 +2825,7 @@ func (cmd *baseCommand) executeAt(ifc command, policy *BasePolicy, deadline time
 	if cmd.node != nil && cmd.node.cluster != nil {
 		cmd.node.cluster.totalTimeoutExceededCount.GetAndIncrement()
 	}
-	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandWasSent)
+	errChain = chainErrors(ErrTimeout.err(), errChain).iter(cmd.commandSentCounter).setNode(cmd.node).setInDoubt(ifc.isRead(), cmd.commandSentCounter)
 	return errChain
 }
 
@@ -2833,4 +2863,50 @@ func networkError(err Error) bool {
 
 func deviceOverloadError(err Error) bool {
 	return err.Matches(types.DEVICE_OVERLOAD)
+}
+
+func applyTransactionMetrics(node *Node, tt transactionType, tb time.Time) {
+	if node != nil && node.cluster.MetricsEnabled() {
+		applyMetrics(tt, &node.stats, tb)
+	}
+}
+
+func applyTransactionErrorMetrics(node *Node) {
+	if node != nil {
+		node.stats.TransactionErrorCount.GetAndIncrement()
+	}
+}
+
+func applyTransactionRetryMetrics(node *Node) {
+	if node != nil {
+		node.stats.TransactionRetryCount.GetAndIncrement()
+	}
+}
+
+func applyMetrics(tt transactionType, metrics *nodeStats, s time.Time) {
+	d := uint64(time.Since(s).Microseconds())
+	switch tt {
+	case ttGet:
+		metrics.GetMetrics.Add(d)
+	case ttGetHeader:
+		metrics.GetHeaderMetrics.Add(d)
+	case ttExists:
+		metrics.ExistsMetrics.Add(d)
+	case ttPut:
+		metrics.PutMetrics.Add(d)
+	case ttDelete:
+		metrics.DeleteMetrics.Add(d)
+	case ttOperate:
+		metrics.OperateMetrics.Add(d)
+	case ttQuery:
+		metrics.QueryMetrics.Add(d)
+	case ttScan:
+		metrics.ScanMetrics.Add(d)
+	case ttUDF:
+		metrics.UDFMetrics.Add(d)
+	case ttBatchRead:
+		metrics.BatchReadMetrics.Add(d)
+	case ttBatchWrite:
+		metrics.BatchWriteMetrics.Add(d)
+	}
 }

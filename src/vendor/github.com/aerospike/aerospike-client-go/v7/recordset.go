@@ -16,13 +16,12 @@ package aerospike
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"runtime"
 	"sync"
 
 	"github.com/aerospike/aerospike-client-go/v7/internal/atomic"
-
-	xornd "github.com/aerospike/aerospike-client-go/v7/types/rand"
 )
 
 // Result is the value returned by Recordset's Results() function.
@@ -70,7 +69,7 @@ func (os *objectset) TaskId() uint64 {
 func (os *objectset) resetTaskID() {
 	os.chanLock.Lock()
 	defer os.chanLock.Unlock()
-	os.taskID = uint64(xornd.Int64())
+	os.taskID = rand.Uint64()
 }
 
 // Recordset encapsulates the result of Scan and Query commands.

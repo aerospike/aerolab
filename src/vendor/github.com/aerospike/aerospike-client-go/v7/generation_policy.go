@@ -40,5 +40,5 @@ func (gp GenerationPolicy) grpc() kvs.GenerationPolicy {
 	case EXPECT_GEN_GT:
 		return kvs.GenerationPolicy_EXPECT_GEN_GT
 	}
-	panic("UNREACHABLE")
+	panic(unreachable)
 }
