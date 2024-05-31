@@ -80,6 +80,22 @@ func (clnt *Client) GetObject(policy *BasePolicy, key *Key, obj interface{}) Err
 	return command.Execute()
 }
 
+// getObjectDirect reads a record for specified key and puts the result into the provided object.
+// The policy can be used to specify timeouts.
+// If the policy is nil, the default relevant policy will be used.
+func (clnt *Client) getObjectDirect(policy *BasePolicy, key *Key, rval *reflect.Value) Error {
+	policy = clnt.getUsablePolicy(policy)
+
+	binNames := objectMappings.getFields(rval.Type())
+	command, err := newReadCommand(clnt.cluster, policy, key, binNames, nil)
+	if err != nil {
+		return err
+	}
+
+	command.object = rval
+	return command.Execute()
+}
+
 // BatchGetObjects reads multiple record headers and bins for specified keys in one batch request.
 // The returned objects are in positional order with the original key array order.
 // If a key is not found, the positional object will not change, and the positional found boolean will be false.
@@ -194,14 +210,6 @@ func (clnt *Client) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, o
 // objChan will be closed after all the records are read.
 func (clnt *Client) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
 	return clnt.scanNodePartitionsObjects(apolicy, node, objChan, namespace, setName, binNames...)
-}
-
-// scanNodeObjects reads all records in specified namespace and set for one node only,
-// and marshalls the results into the objects of the provided channel in Recordset.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *Client) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) Error {
-	command := newScanObjectsCommand(node, policy, namespace, setName, binNames, recordset)
-	return command.Execute()
 }
 
 // QueryPartitionObjects executes a query for specified partitions and returns a recordset.

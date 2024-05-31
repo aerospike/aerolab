@@ -22,15 +22,17 @@ import (
 type batchCommandDelete struct {
 	batchCommand
 
-	keys    []*Key
-	records []*BatchRecord
-	attr    *batchAttr
+	batchDeletePolicy *BatchDeletePolicy
+	keys              []*Key
+	records           []*BatchRecord
+	attr              *batchAttr
 }
 
 func newBatchCommandDelete(
 	node *Node,
 	batch *batchNode,
 	policy *BatchPolicy,
+	batchDeletePolicy *BatchDeletePolicy,
 	keys []*Key,
 	records []*BatchRecord,
 	attr *batchAttr,
@@ -41,9 +43,10 @@ func newBatchCommandDelete(
 			policy:           policy,
 			batch:            batch,
 		},
-		keys:    keys,
-		records: records,
-		attr:    attr,
+		batchDeletePolicy: batchDeletePolicy,
+		keys:              keys,
+		records:           records,
+		attr:              attr,
 	}
 	return res
 }
@@ -108,8 +111,8 @@ func (cmd *batchCommandDelete) parseRecordResults(ifc command, receiveSize int) 
 				return false, err
 			}
 		} else {
-			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
 			cmd.records[batchIndex].Err = chainErrors(newCustomNodeError(cmd.node, resultCode), cmd.records[batchIndex].Err)
+			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
 		}
 	}
 	return true, nil
@@ -161,7 +164,41 @@ func (cmd *batchCommandDelete) parseRecord(rec *BatchRecord, key *Key, opCount i
 	return nil
 }
 
+func (cmd *batchCommandDelete) transactionType() transactionType {
+	return ttBatchWrite
+}
+
+func (cmd *batchCommandDelete) executeSingle(client *Client) Error {
+	policy := cmd.batchDeletePolicy.toWritePolicy(cmd.policy)
+	for i, key := range cmd.keys {
+		res, err := client.Operate(policy, key, DeleteOp())
+		cmd.records[i].setRecord(res)
+		if err != nil {
+			cmd.records[i].setRawError(err)
+
+			// Key not found is NOT an error for batch requests
+			if err.resultCode() == types.KEY_NOT_FOUND_ERROR {
+				continue
+			}
+
+			if err.resultCode() == types.FILTERED_OUT {
+				cmd.filteredOutCnt++
+				continue
+			}
+
+			if cmd.policy.AllowPartialResults {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
 func (cmd *batchCommandDelete) Execute() Error {
+	if len(cmd.keys) == 1 {
+		return cmd.executeSingle(cmd.node.cluster.client)
+	}
 	return cmd.execute(cmd)
 }
 

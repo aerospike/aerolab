@@ -1,3 +1,4 @@
+//go:build !app_engine
 // +build !app_engine
 
 package luaLib

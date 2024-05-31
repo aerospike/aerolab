@@ -57,3 +57,19 @@ func NewBatchDeletePolicy() *BatchDeletePolicy {
 		GenerationPolicy: NONE,
 	}
 }
+
+func (bdp *BatchDeletePolicy) toWritePolicy(bp *BatchPolicy) *WritePolicy {
+	wp := bp.toWritePolicy()
+
+	if bdp != nil {
+		if bdp.FilterExpression != nil {
+			wp.FilterExpression = bdp.FilterExpression
+		}
+		wp.CommitLevel = bdp.CommitLevel
+		wp.GenerationPolicy = bdp.GenerationPolicy
+		wp.Generation = bdp.Generation
+		wp.DurableDelete = bdp.DurableDelete
+		wp.SendKey = bdp.SendKey
+	}
+	return wp
+}

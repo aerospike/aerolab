@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	iatomic "github.com/aerospike/aerospike-client-go/v7/internal/atomic"
+	hist "github.com/aerospike/aerospike-client-go/v7/types/histogram"
 )
 
 // nodeStats keeps track of client's internal node statistics
@@ -60,6 +61,54 @@ type nodeStats struct {
 	NodeAdded iatomic.Int `json:"node-added-count"`
 	// Total number of times nodes were removed from the client (not the same as actual nodes removed. Network disruptions between client and server may cause a node being dropped client-side)
 	NodeRemoved iatomic.Int `json:"node-removed-count"`
+
+	// Total number of transaction retries
+	TransactionRetryCount iatomic.Int `json:"transaction-retry-count"`
+	// Total number of transaction errors
+	TransactionErrorCount iatomic.Int `json:"transaction-error-count"`
+
+	// Metrics for Get commands
+	GetMetrics hist.SyncHistogram[uint64] `json:"get-metrics"`
+	// Metrics for GetHeader commands
+	GetHeaderMetrics hist.SyncHistogram[uint64] `json:"get-header-metrics"`
+	// Metrics for Exists commands
+	ExistsMetrics hist.SyncHistogram[uint64] `json:"exists-metrics"`
+	// Metrics for Put commands
+	PutMetrics hist.SyncHistogram[uint64] `json:"put-metrics"`
+	// Metrics for Delete commands
+	DeleteMetrics hist.SyncHistogram[uint64] `json:"delete-metrics"`
+	// Metrics for Operate commands
+	OperateMetrics hist.SyncHistogram[uint64] `json:"operate-metrics"`
+	// Metrics for Query commands
+	QueryMetrics hist.SyncHistogram[uint64] `json:"query-metrics"`
+	// Metrics for Scan commands
+	ScanMetrics hist.SyncHistogram[uint64] `json:"scan-metrics"`
+	// Metrics for UDFMetrics commands
+	UDFMetrics hist.SyncHistogram[uint64] `json:"udf-metrics"`
+	// Metrics for Read only Batch commands
+	BatchReadMetrics hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
+	// Metrics for Batch commands containing writes
+	BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
+}
+
+func newNodeStats(policy *MetricsPolicy) *nodeStats {
+	if policy == nil {
+		policy = DefaultMetricsPolicy()
+	}
+
+	return &nodeStats{
+		GetMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		GetHeaderMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ExistsMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		PutMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		DeleteMetrics:     *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		OperateMetrics:    *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		QueryMetrics:      *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		ScanMetrics:       *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		UDFMetrics:        *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BatchReadMetrics:  *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+		BatchWriteMetrics: *hist.NewSync[uint64](policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns),
+	}
 }
 
 // latest returns the latest values to be used in aggregation and then resets the values
@@ -84,6 +133,21 @@ func (ns *nodeStats) getAndReset() *nodeStats {
 		PartitionMapUpdates:      ns.PartitionMapUpdates.CloneAndSet(0),
 		NodeAdded:                ns.NodeAdded.CloneAndSet(0),
 		NodeRemoved:              ns.NodeRemoved.CloneAndSet(0),
+
+		TransactionRetryCount: ns.TransactionRetryCount.CloneAndSet(0),
+		TransactionErrorCount: ns.TransactionErrorCount.CloneAndSet(0),
+
+		GetMetrics:        *ns.GetMetrics.CloneAndReset(),
+		GetHeaderMetrics:  *ns.GetHeaderMetrics.CloneAndReset(),
+		ExistsMetrics:     *ns.ExistsMetrics.CloneAndReset(),
+		PutMetrics:        *ns.PutMetrics.CloneAndReset(),
+		DeleteMetrics:     *ns.DeleteMetrics.CloneAndReset(),
+		OperateMetrics:    *ns.OperateMetrics.CloneAndReset(),
+		QueryMetrics:      *ns.QueryMetrics.CloneAndReset(),
+		ScanMetrics:       *ns.ScanMetrics.CloneAndReset(),
+		UDFMetrics:        *ns.UDFMetrics.CloneAndReset(),
+		BatchReadMetrics:  *ns.BatchReadMetrics.CloneAndReset(),
+		BatchWriteMetrics: *ns.BatchWriteMetrics.CloneAndReset(),
 	}
 
 	ns.m.Unlock()
@@ -111,14 +175,46 @@ func (ns *nodeStats) clone() nodeStats {
 		PartitionMapUpdates:      ns.PartitionMapUpdates.Clone(),
 		NodeAdded:                ns.NodeAdded.Clone(),
 		NodeRemoved:              ns.NodeRemoved.Clone(),
+
+		TransactionRetryCount: ns.TransactionRetryCount.Clone(),
+		TransactionErrorCount: ns.TransactionErrorCount.Clone(),
+
+		GetMetrics:        *ns.GetMetrics.Clone(),
+		GetHeaderMetrics:  *ns.GetHeaderMetrics.Clone(),
+		ExistsMetrics:     *ns.ExistsMetrics.Clone(),
+		PutMetrics:        *ns.PutMetrics.Clone(),
+		DeleteMetrics:     *ns.DeleteMetrics.Clone(),
+		OperateMetrics:    *ns.OperateMetrics.Clone(),
+		QueryMetrics:      *ns.QueryMetrics.Clone(),
+		ScanMetrics:       *ns.ScanMetrics.Clone(),
+		UDFMetrics:        *ns.UDFMetrics.Clone(),
+		BatchReadMetrics:  *ns.BatchReadMetrics.Clone(),
+		BatchWriteMetrics: *ns.BatchWriteMetrics.Clone(),
 	}
 
 	ns.m.Unlock()
 	return res
 }
 
+func (ns *nodeStats) reshape(policy *MetricsPolicy) {
+	ns.m.Lock()
+	ns.GetMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.GetHeaderMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.ExistsMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.PutMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.DeleteMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.OperateMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.QueryMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.ScanMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.UDFMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.BatchReadMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.BatchWriteMetrics.Reshape(policy.HistogramType, uint64(policy.LatencyBase), policy.LatencyColumns)
+	ns.m.Unlock()
+}
+
 func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.m.Lock()
+	newStats.m.Lock()
 
 	ns.ConnectionsAttempts.AddAndGet(newStats.ConnectionsAttempts.Get())
 	ns.ConnectionsSuccessful.AddAndGet(newStats.ConnectionsSuccessful.Get())
@@ -138,6 +234,22 @@ func (ns *nodeStats) aggregate(newStats *nodeStats) {
 	ns.NodeAdded.AddAndGet(newStats.NodeAdded.Get())
 	ns.NodeRemoved.AddAndGet(newStats.NodeRemoved.Get())
 
+	ns.TransactionRetryCount.AddAndGet(newStats.TransactionRetryCount.Get())
+	ns.TransactionErrorCount.AddAndGet(newStats.TransactionErrorCount.Get())
+
+	ns.GetMetrics.Merge(&newStats.GetMetrics)
+	ns.GetHeaderMetrics.Merge(&newStats.GetHeaderMetrics)
+	ns.ExistsMetrics.Merge(&newStats.ExistsMetrics)
+	ns.PutMetrics.Merge(&newStats.PutMetrics)
+	ns.DeleteMetrics.Merge(&newStats.DeleteMetrics)
+	ns.OperateMetrics.Merge(&newStats.OperateMetrics)
+	ns.QueryMetrics.Merge(&newStats.QueryMetrics)
+	ns.ScanMetrics.Merge(&newStats.ScanMetrics)
+	ns.UDFMetrics.Merge(&newStats.UDFMetrics)
+	ns.BatchReadMetrics.Merge(&newStats.BatchReadMetrics)
+	ns.BatchWriteMetrics.Merge(&newStats.BatchWriteMetrics)
+
+	newStats.m.Unlock()
 	ns.m.Unlock()
 }
 
@@ -160,6 +272,21 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		PartitionMapUpdates      int `json:"partition-map-updates"`
 		NodeAdded                int `json:"node-added-count"`
 		NodeRemoved              int `json:"node-removed-count"`
+
+		RetryCount int `json:"transaction-retry-count"`
+		ErrorCount int `json:"transaction-error-count"`
+
+		GetMetrics        hist.SyncHistogram[uint64] `json:"get-metrics"`
+		GetHeaderMetrics  hist.SyncHistogram[uint64] `json:"get-header-metrics"`
+		ExistsMetrics     hist.SyncHistogram[uint64] `json:"exists-metrics"`
+		PutMetrics        hist.SyncHistogram[uint64] `json:"put-metrics"`
+		DeleteMetrics     hist.SyncHistogram[uint64] `json:"delete-metrics"`
+		OperateMetrics    hist.SyncHistogram[uint64] `json:"operate-metrics"`
+		QueryMetrics      hist.SyncHistogram[uint64] `json:"query-metrics"`
+		ScanMetrics       hist.SyncHistogram[uint64] `json:"scan-metrics"`
+		UDFMetrics        hist.SyncHistogram[uint64] `json:"udf-metrics"`
+		BatchReadMetrics  hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
+		BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
 	}{
 		ns.ConnectionsAttempts.Get(),
 		ns.ConnectionsSuccessful.Get(),
@@ -178,6 +305,21 @@ func (ns nodeStats) MarshalJSON() ([]byte, error) {
 		ns.PartitionMapUpdates.Get(),
 		ns.NodeAdded.Get(),
 		ns.NodeRemoved.Get(),
+
+		ns.TransactionRetryCount.Get(),
+		ns.TransactionErrorCount.Get(),
+
+		ns.GetMetrics,
+		ns.GetHeaderMetrics,
+		ns.ExistsMetrics,
+		ns.PutMetrics,
+		ns.DeleteMetrics,
+		ns.OperateMetrics,
+		ns.QueryMetrics,
+		ns.ScanMetrics,
+		ns.UDFMetrics,
+		ns.BatchReadMetrics,
+		ns.BatchWriteMetrics,
 	})
 }
 
@@ -200,6 +342,21 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 		PartitionMapUpdates      int `json:"partition-map-updates"`
 		NodeAdded                int `json:"node-added-count"`
 		NodeRemoved              int `json:"node-removed-count"`
+
+		RetryCount int `json:"transaction-retry-count"`
+		ErrorCount int `json:"transaction-error-count"`
+
+		GetMetrics        hist.SyncHistogram[uint64] `json:"get-metrics"`
+		GetHeaderMetrics  hist.SyncHistogram[uint64] `json:"get-header-metrics"`
+		ExistsMetrics     hist.SyncHistogram[uint64] `json:"exists-metrics"`
+		PutMetrics        hist.SyncHistogram[uint64] `json:"put-metrics"`
+		DeleteMetrics     hist.SyncHistogram[uint64] `json:"delete-metrics"`
+		OperateMetrics    hist.SyncHistogram[uint64] `json:"operate-metrics"`
+		QueryMetrics      hist.SyncHistogram[uint64] `json:"query-metrics"`
+		ScanMetrics       hist.SyncHistogram[uint64] `json:"scan-metrics"`
+		UDFMetrics        hist.SyncHistogram[uint64] `json:"udf-metrics"`
+		BatchReadMetrics  hist.SyncHistogram[uint64] `json:"batch-read-metrics"`
+		BatchWriteMetrics hist.SyncHistogram[uint64] `json:"batch-write-metrics"`
 	}{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -223,6 +380,21 @@ func (ns *nodeStats) UnmarshalJSON(data []byte) error {
 	ns.PartitionMapUpdates.Set(aux.PartitionMapUpdates)
 	ns.NodeAdded.Set(aux.NodeAdded)
 	ns.NodeRemoved.Set(aux.NodeRemoved)
+
+	ns.TransactionRetryCount.Set(aux.RetryCount)
+	ns.TransactionErrorCount.Set(aux.ErrorCount)
+
+	ns.GetMetrics = aux.GetMetrics
+	ns.GetHeaderMetrics = aux.GetHeaderMetrics
+	ns.ExistsMetrics = aux.ExistsMetrics
+	ns.PutMetrics = aux.PutMetrics
+	ns.DeleteMetrics = aux.DeleteMetrics
+	ns.OperateMetrics = aux.OperateMetrics
+	ns.QueryMetrics = aux.QueryMetrics
+	ns.ScanMetrics = aux.ScanMetrics
+	ns.UDFMetrics = aux.UDFMetrics
+	ns.BatchReadMetrics = aux.BatchReadMetrics
+	ns.BatchWriteMetrics = aux.BatchWriteMetrics
 
 	return nil
 }
