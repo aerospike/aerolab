@@ -166,17 +166,6 @@ func (ba *batchAttr) adjustReadForAllBins(readAllBins bool) {
 	}
 }
 
-func (ba *batchAttr) setWrite(wp *BasePolicy) {
-	ba.filterExp = nil
-	ba.readAttr = 0
-	ba.writeAttr = _INFO2_WRITE | _INFO2_RESPOND_ALL_OPS
-	ba.infoAttr = 0
-	ba.expiration = 0
-	ba.generation = 0
-	ba.hasWrite = true
-	ba.sendKey = wp.SendKey
-}
-
 func (ba *batchAttr) setBatchWrite(wp *BatchWritePolicy) {
 	ba.filterExp = wp.FilterExpression
 	ba.readAttr = 0
@@ -254,17 +243,6 @@ func (ba *batchAttr) adjustWrite(ops []*Operation) {
 	}
 }
 
-func (ba *batchAttr) setUDF(up *BasePolicy) {
-	ba.filterExp = nil
-	ba.readAttr = 0
-	ba.writeAttr = _INFO2_WRITE
-	ba.infoAttr = 0
-	ba.expiration = 0
-	ba.generation = 0
-	ba.hasWrite = true
-	ba.sendKey = up.SendKey
-}
-
 func (ba *batchAttr) setBatchUDF(up *BatchUDFPolicy) {
 	ba.filterExp = up.FilterExpression
 	ba.readAttr = 0
@@ -282,17 +260,6 @@ func (ba *batchAttr) setBatchUDF(up *BatchUDFPolicy) {
 	if up.CommitLevel == COMMIT_MASTER {
 		ba.infoAttr |= _INFO3_COMMIT_MASTER
 	}
-}
-
-func (ba *batchAttr) setDelete(dp *BasePolicy) {
-	ba.filterExp = nil
-	ba.readAttr = 0
-	ba.writeAttr = _INFO2_WRITE | _INFO2_RESPOND_ALL_OPS | _INFO2_DELETE
-	ba.infoAttr = 0
-	ba.expiration = 0
-	ba.generation = 0
-	ba.hasWrite = true
-	ba.sendKey = dp.SendKey
 }
 
 func (ba *batchAttr) setBatchDelete(dp *BatchDeletePolicy) {

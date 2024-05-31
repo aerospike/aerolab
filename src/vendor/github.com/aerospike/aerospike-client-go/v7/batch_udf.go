@@ -20,17 +20,17 @@ var _ BatchRecordIfc = &BatchUDF{}
 type BatchUDF struct {
 	BatchRecord
 
-	// Optional UDF policy.
-	policy *BatchUDFPolicy
+	// Policy is the optional UDF Policy.
+	Policy *BatchUDFPolicy
 
-	// Package or lua module name.
-	packageName string
+	// PackageName specify the lua module name.
+	PackageName string
 
-	// Lua function name.
-	functionName string
+	// FunctionName specify Lua function name.
+	FunctionName string
 
-	// Optional arguments to lua function.
-	functionArgs []Value
+	// FunctionArgs specify optional arguments to lua function.
+	FunctionArgs []Value
 
 	// Wire protocol bytes for function args. For internal use only.
 	argBytes []byte
@@ -40,10 +40,10 @@ type BatchUDF struct {
 func NewBatchUDF(policy *BatchUDFPolicy, key *Key, packageName, functionName string, functionArgs ...Value) *BatchUDF {
 	return &BatchUDF{
 		BatchRecord:  *newSimpleBatchRecord(key, true),
-		policy:       policy,
-		packageName:  packageName,
-		functionName: functionName,
-		functionArgs: functionArgs,
+		Policy:       policy,
+		PackageName:  packageName,
+		FunctionName: functionName,
+		FunctionArgs: functionArgs,
 	}
 }
 
@@ -51,10 +51,10 @@ func NewBatchUDF(policy *BatchUDFPolicy, key *Key, packageName, functionName str
 func newBatchUDF(policy *BatchUDFPolicy, key *Key, packageName, functionName string, functionArgs ...Value) (*BatchUDF, *BatchRecord) {
 	res := &BatchUDF{
 		BatchRecord:  *newSimpleBatchRecord(key, true),
-		policy:       policy,
-		packageName:  packageName,
-		functionName: functionName,
-		functionArgs: functionArgs,
+		Policy:       policy,
+		PackageName:  packageName,
+		FunctionName: functionName,
+		FunctionArgs: functionArgs,
 	}
 	return res, &res.BatchRecord
 }
@@ -78,8 +78,8 @@ func (bu *BatchUDF) equals(obj BatchRecordIfc) bool {
 	if other, ok := obj.(*BatchUDF); !ok {
 		return false
 	} else {
-		return bu.functionName == other.functionName && &bu.functionArgs == &other.functionArgs &&
-			bu.packageName == other.packageName && bu.policy == other.policy
+		return bu.FunctionName == other.FunctionName && &bu.FunctionArgs == &other.FunctionArgs &&
+			bu.PackageName == other.PackageName && bu.Policy == other.Policy
 	}
 }
 
@@ -87,16 +87,16 @@ func (bu *BatchUDF) equals(obj BatchRecordIfc) bool {
 func (bu *BatchUDF) size(parentPolicy *BasePolicy) (int, Error) {
 	size := 2 // gen(2) = 2
 
-	if bu.policy != nil {
-		if bu.policy.FilterExpression != nil {
-			sz, err := bu.policy.FilterExpression.size()
+	if bu.Policy != nil {
+		if bu.Policy.FilterExpression != nil {
+			sz, err := bu.Policy.FilterExpression.size()
 			if err != nil {
 				return -1, err
 			}
 			size += sz + int(_FIELD_HEADER_SIZE)
 		}
 
-		if bu.policy.SendKey || parentPolicy.SendKey {
+		if bu.Policy.SendKey || parentPolicy.SendKey {
 			if sz, err := bu.Key.userKey.EstimateSize(); err != nil {
 				return -1, err
 			} else {
@@ -111,11 +111,11 @@ func (bu *BatchUDF) size(parentPolicy *BasePolicy) (int, Error) {
 		size += sz + int(_FIELD_HEADER_SIZE) + 1
 	}
 
-	size += len(bu.packageName) + int(_FIELD_HEADER_SIZE)
-	size += len(bu.functionName) + int(_FIELD_HEADER_SIZE)
+	size += len(bu.PackageName) + int(_FIELD_HEADER_SIZE)
+	size += len(bu.FunctionName) + int(_FIELD_HEADER_SIZE)
 
 	packer := newPacker()
-	sz, err := packValueArray(packer, bu.functionArgs)
+	sz, err := packValueArray(packer, bu.FunctionArgs)
 	if err != nil {
 		return -1, err
 	}

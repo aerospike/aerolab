@@ -25,3 +25,5 @@ testdata/
 Dockerfile*
 .dockerignore
 docker-compose.yml
+golangci.yml
+cover*.out

@@ -25,6 +25,7 @@ import (
 
 type batchCommandOperate struct {
 	batchCommand
+	client ClientIfc
 
 	attr    *batchAttr
 	records []BatchRecordIfc
@@ -35,6 +36,7 @@ type batchCommandOperate struct {
 }
 
 func newBatchCommandOperate(
+	client ClientIfc,
 	node *Node,
 	batch *batchNode,
 	policy *BatchPolicy,
@@ -46,6 +48,7 @@ func newBatchCommandOperate(
 			policy:           policy,
 			batch:            batch,
 		},
+		client:  client,
 		records: records,
 	}
 	return res
@@ -68,7 +71,7 @@ func (cmd *batchCommandOperate) cloneBatchCommand(batch *batchNode) batcher {
 }
 
 func (cmd *batchCommandOperate) writeBuffer(ifc command) Error {
-	attr, err := cmd.setBatchOperateIfc(cmd.policy, cmd.records, cmd.batch)
+	attr, err := cmd.setBatchOperateIfc(cmd.client, cmd.policy, cmd.records, cmd.batch)
 	cmd.attr = attr
 	return err
 }
@@ -121,7 +124,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 			if resultCode == types.UDF_BAD_RESPONSE {
 				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
 				if err != nil {
-					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
 					return false, err
 				}
 
@@ -134,9 +137,9 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 				// Need to store record because failure bin contains an error message.
 				cmd.records[batchIndex].setRecord(rec)
 				if msg, ok := msg.(string); ok && len(msg) > 0 {
-					cmd.records[batchIndex].setErrorWithMsg(cmd.node, resultCode, msg, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+					cmd.records[batchIndex].setErrorWithMsg(cmd.node, resultCode, msg, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
 				} else {
-					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
 				}
 
 				// If cmd is the end marker of the response, do not proceed further
@@ -147,7 +150,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 				continue
 			}
 
-			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+			cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
 
 			// If cmd is the end marker of the response, do not proceed further
 			if (info3 & _INFO3_LAST) == _INFO3_LAST {
@@ -162,7 +165,7 @@ func (cmd *batchCommandOperate) parseRecordResults(ifc command, receiveSize int)
 			if cmd.objects == nil {
 				rec, err := cmd.parseRecord(cmd.records[batchIndex].key(), opCount, generation, expiration)
 				if err != nil {
-					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandWasSent))
+					cmd.records[batchIndex].setError(cmd.node, resultCode, cmd.batchInDoubt(cmd.attr.hasWrite, cmd.commandSentCounter))
 					return false, err
 				}
 				cmd.records[batchIndex].setRecord(rec)
@@ -225,8 +228,75 @@ func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, e
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
+func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
+	var res *Record
+	var err Error
+	for _, br := range cmd.records {
+
+		switch br := br.(type) {
+		case *BatchRead:
+			ops := br.Ops
+			if br.headerOnly() {
+				ops = append(ops, GetHeaderOp())
+			} else if len(br.BinNames) > 0 {
+				for i := range br.BinNames {
+					ops = append(ops, GetBinOp(br.BinNames[i]))
+				}
+			} else if len(ops) == 0 {
+				ops = append(ops, GetOp())
+			}
+			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy), br.Key, ops...)
+		case *BatchWrite:
+			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy)
+			policy.RespondPerEachOp = true
+			res, err = client.Operate(policy, br.Key, br.Ops...)
+			br.setRecord(res)
+		case *BatchDelete:
+			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy)
+			res, err = client.Operate(policy, br.Key, DeleteOp())
+			br.setRecord(res)
+		case *BatchUDF:
+			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy)
+			policy.RespondPerEachOp = true
+			res, err = client.execute(policy, br.Key, br.PackageName, br.FunctionName, br.FunctionArgs...)
+		}
+
+		br.setRecord(res)
+		if err != nil {
+			br.BatchRec().setRawError(err)
+
+			// Key not found is NOT an error for batch requests
+			if err.resultCode() == types.KEY_NOT_FOUND_ERROR {
+				continue
+			}
+
+			if err.resultCode() == types.FILTERED_OUT {
+				cmd.filteredOutCnt++
+				continue
+			}
+
+			if cmd.policy.AllowPartialResults {
+				continue
+			}
+
+			return err
+		}
+	}
+	return nil
+}
+
 func (cmd *batchCommandOperate) Execute() Error {
+	if cmd.objects == nil && len(cmd.records) == 1 {
+		return cmd.executeSingle(cmd.node.cluster.client)
+	}
 	return cmd.execute(cmd)
+}
+
+func (cmd *batchCommandOperate) transactionType() transactionType {
+	if cmd.isRead() {
+		return ttBatchRead
+	}
+	return ttBatchWrite
 }
 
 func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
@@ -234,7 +304,6 @@ func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNo
 }
 
 func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
-	cmd.dataBuffer = bufPool.Get().([]byte)
 	defer cmd.grpcPutBufferBack()
 
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
@@ -257,11 +326,12 @@ func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
 
 	client := kvs.NewKVSClient(conn)
 
-	ctx := cmd.policy.grpcDeadlineContext()
+	ctx, cancel := cmd.policy.grpcDeadlineContext()
+	defer cancel()
 
 	streamRes, gerr := client.BatchOperate(ctx, &req)
 	if gerr != nil {
-		return newGrpcError(gerr, gerr.Error())
+		return newGrpcError(!cmd.isRead(), gerr, gerr.Error())
 	}
 
 	cmd.commandWasSent = true
@@ -273,18 +343,18 @@ func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
 
 		res, gerr := streamRes.Recv()
 		if gerr != nil {
-			e := newGrpcError(gerr)
+			e := newGrpcError(!cmd.isRead(), gerr)
 			return nil, e
 		}
 
-		if res.Status != 0 {
+		if res.GetStatus() != 0 {
 			e := newGrpcStatusError(res)
-			return res.Payload, e
+			return res.GetPayload(), e
 		}
 
-		cmd.grpcEOS = !res.HasNext
+		cmd.grpcEOS = !res.GetHasNext()
 
-		return res.Payload, nil
+		return res.GetPayload(), nil
 	}
 
 	cmd.conn = newGrpcFakeConnection(nil, readCallback)

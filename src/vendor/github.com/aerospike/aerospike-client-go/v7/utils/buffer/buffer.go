@@ -16,7 +16,6 @@ package buffer
 
 import (
 	"encoding/binary"
-	"fmt"
 	"math"
 )
 
@@ -53,18 +52,6 @@ func init() {
 	Arch32Bits = (SizeOfInt == SizeOfInt32)
 }
 
-// BytesToHexString converts a byte slice into a hex string
-func BytesToHexString(buf []byte) string {
-	hlist := make([]byte, 3*len(buf))
-
-	for i := range buf {
-		hex := fmt.Sprintf("%02x ", buf[i])
-		idx := i * 3
-		copy(hlist[idx:], hex)
-	}
-	return string(hlist)
-}
-
 // LittleBytesToInt32 converts a slice into int32; only maximum of 4 bytes will be used
 func LittleBytesToInt32(buf []byte, offset int) int32 {
 	l := len(buf[offset:])
@@ -97,12 +84,13 @@ func BytesToInt64(buf []byte, offset int) int64 {
 
 // VarBytesToInt64 will convert a 8, 4 or 2 byte slice into an int64
 func VarBytesToInt64(buf []byte, offset int, len int) int64 {
-	if len == 8 {
-		return BytesToInt64(buf, offset)
-	} else if len == 4 {
-		return int64(BytesToInt32(buf, offset))
-	} else if len == 2 {
+	switch len {
+	case 2:
 		return int64(BytesToInt16(buf, offset))
+	case 4:
+		return int64(BytesToInt32(buf, offset))
+	case 8:
+		return BytesToInt64(buf, offset)
 	}
 
 	val := int64(0)

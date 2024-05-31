@@ -32,6 +32,8 @@ import (
 // Cluster encapsulates the aerospike cluster nodes and manages
 // them.
 type Cluster struct {
+	client *Client
+
 	// Initial host nodes specified by user.
 	seeds iatomic.SyncVal //[]*Host
 
@@ -47,6 +49,10 @@ type Cluster struct {
 	nodes     iatomic.SyncVal       //[]*Node
 	stats     map[string]*nodeStats //host => stats
 	statsLock sync.Mutex
+
+	// enable performance metrics
+	metricsEnabled atomic.Bool  // bool
+	metricsPolicy  atomic.Value // *MetricsPolicy
 
 	// Hints for best node for a partition
 	partitionWriteMap atomic.Value //partitionMap
@@ -367,7 +373,7 @@ func (clstr *Cluster) tend() Error {
 			clstr.removeNodes(removeList)
 		}
 
-		clstr.aggregateNodestats(removeList)
+		clstr.aggregateNodeStats(removeList)
 	}
 
 	// Add nodes in a batch.
@@ -400,7 +406,7 @@ func (clstr *Cluster) tend() Error {
 		logger.Logger.Info("Tend finished. Live node count changes from %d to %d", nodeCountBeforeTend, len(clstr.GetNodes()))
 	}
 
-	clstr.aggregateNodestats(clstr.GetNodes())
+	clstr.aggregateNodeStats(clstr.GetNodes())
 
 	// Reset connection error window for all nodes every connErrorWindow tend iterations.
 	if clstr.clientPolicy.MaxErrorRate > 0 && clstr.tendCount%clstr.clientPolicy.ErrorRateWindow == 0 {
@@ -412,7 +418,7 @@ func (clstr *Cluster) tend() Error {
 	return nil
 }
 
-func (clstr *Cluster) aggregateNodestats(nodeList []*Node) {
+func (clstr *Cluster) aggregateNodeStats(nodeList []*Node) {
 	// update stats
 	clstr.statsLock.Lock()
 	defer clstr.statsLock.Unlock()
@@ -428,6 +434,9 @@ func (clstr *Cluster) aggregateNodestats(nodeList []*Node) {
 }
 
 func (clstr *Cluster) statsCopy() map[string]nodeStats {
+	// update the stats on the cluster object
+	clstr.aggregateNodeStats(clstr.GetNodes())
+
 	clstr.statsLock.Lock()
 	defer clstr.statsLock.Unlock()
 
@@ -1034,4 +1043,47 @@ func (clstr *Cluster) WarmUp(count int) (int, Error) {
 		return cnt.Get(), err.(Error)
 	}
 	return cnt.Get(), nil
+}
+
+// MetricsEnabled returns true if metrics are enabled for the cluster.
+func (clstr *Cluster) MetricsPolicy() *MetricsPolicy {
+	res := clstr.metricsPolicy.Load()
+	if res != nil {
+		return res.(*MetricsPolicy)
+	}
+	return nil
+}
+
+// MetricsEnabled returns true if metrics are enabled for the cluster.
+func (clstr *Cluster) MetricsEnabled() bool {
+	return clstr.metricsEnabled.Load()
+}
+
+// EnableMetrics enables the cluster transaction metrics gathering.
+// If the parameters for the histogram in the policy are the different from the one already
+// on the cluster, the metrics will be reset.
+func (clstr *Cluster) EnableMetrics(policy *MetricsPolicy) {
+	if policy == nil {
+		policy = DefaultMetricsPolicy()
+	}
+
+	clstr.metricsPolicy.Store(policy)
+	clstr.metricsEnabled.Store(true)
+
+	clstr.statsLock.Lock()
+	defer clstr.statsLock.Unlock()
+
+	// reshape the histogram in case it has changed
+	for _, stat := range clstr.stats {
+		stat.reshape(policy)
+	}
+
+	for _, node := range clstr.GetNodes() {
+		node.stats.reshape(policy)
+	}
+}
+
+// DisableMetrics disables the cluster transaction metrics gathering.
+func (clstr *Cluster) DisableMetrics() {
+	clstr.metricsEnabled.Store(false)
 }

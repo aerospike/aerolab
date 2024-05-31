@@ -53,7 +53,7 @@ func (ict IndexCollectionType) grpc() kvs.IndexCollectionType {
 	case ICT_MAPVALUES:
 		return kvs.IndexCollectionType_MAPVALUES
 	}
-	panic("UNREACHABLE")
+	panic(unreachable)
 }
 
 func (ict IndexCollectionType) String() string {
@@ -71,7 +71,7 @@ func (ict IndexCollectionType) String() string {
 	case ICT_MAPVALUES:
 		return "ICT_MAPVALUES"
 	}
-	panic("UNREACHABLE")
+	panic(unreachable)
 }
 
 // ictToString converts IndexCollectionType to string representations

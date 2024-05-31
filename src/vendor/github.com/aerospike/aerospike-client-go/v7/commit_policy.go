@@ -37,5 +37,5 @@ func (cl CommitLevel) grpc() kvs.CommitLevel {
 	case COMMIT_MASTER:
 		return kvs.CommitLevel_COMMIT_MASTER
 	}
-	panic("UNREACHABLE")
+	panic(unreachable)
 }

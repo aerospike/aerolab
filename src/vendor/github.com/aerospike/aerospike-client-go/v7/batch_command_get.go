@@ -212,7 +212,50 @@ func (cmd *batchCommandGet) parseRecord(key *Key, opCount int, generation, expir
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
+func (cmd *batchCommandGet) transactionType() transactionType {
+	return ttBatchRead
+}
+
+func (cmd *batchCommandGet) executeSingle(client *Client) Error {
+	for _, offset := range cmd.batch.offsets {
+		var err Error
+		if len(cmd.ops) > 0 {
+			// Validate that all operations are read
+			for i := range cmd.ops {
+				if cmd.ops[i].opType.isWrite {
+					return newError(types.PARAMETER_ERROR, "Write operations not allowed in batch read").setNode(cmd.node)
+				}
+			}
+			cmd.records[offset], err = client.Operate(cmd.policy.toWritePolicy(), cmd.keys[offset], cmd.ops...)
+		} else if (cmd.readAttr & _INFO1_NOBINDATA) == _INFO1_NOBINDATA {
+			cmd.records[offset], err = client.GetHeader(&cmd.policy.BasePolicy, cmd.keys[offset])
+		} else {
+			cmd.records[offset], err = client.Get(&cmd.policy.BasePolicy, cmd.keys[offset], cmd.binNames...)
+		}
+		if err != nil {
+			// Key not found is NOT an error for batch requests
+			if err.resultCode() == types.KEY_NOT_FOUND_ERROR {
+				continue
+			}
+
+			if err.resultCode() == types.FILTERED_OUT {
+				cmd.filteredOutCnt++
+				continue
+			}
+
+			if cmd.policy.AllowPartialResults {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
+}
+
 func (cmd *batchCommandGet) Execute() Error {
+	if cmd.objects == nil && len(cmd.batch.offsets) == 1 {
+		return cmd.executeSingle(cmd.node.cluster.client)
+	}
 	return cmd.execute(cmd)
 }
 

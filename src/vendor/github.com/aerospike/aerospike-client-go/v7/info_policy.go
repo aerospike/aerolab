@@ -51,12 +51,14 @@ func (p *InfoPolicy) timeout() time.Duration {
 	return _DEFAULT_TIMEOUT
 }
 
-func (p *InfoPolicy) grpcDeadlineContext() context.Context {
+var simpleCancelFunc = func() {}
+
+func (p *InfoPolicy) grpcDeadlineContext() (context.Context, context.CancelFunc) {
 	timeout := p.timeout()
 	if timeout <= 0 {
-		return context.Background()
+		return context.Background(), simpleCancelFunc
 
 	}
-	ctx, _ := context.WithTimeout(context.Background(), timeout)
-	return ctx
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	return ctx, cancel
 }

@@ -121,7 +121,7 @@ func (clnt *ProxyClient) BatchGetObjects(policy *BatchPolicy, keys []*Key, objec
 		return nil, err
 	}
 
-	cmd := newBatchCommandOperate(nil, batchNode, policy, batchRecordsIfc)
+	cmd := newBatchCommandOperate(clnt, nil, batchNode, policy, batchRecordsIfc)
 
 	objectsFound := make([]bool, len(keys))
 	cmd.objects = objectsVal
@@ -168,7 +168,7 @@ func (clnt *ProxyClient) ScanAllObjects(apolicy *ScanPolicy, objChan interface{}
 // scanNodePartitions reads all records in specified namespace and set for one node only.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *ProxyClient) scanNodePartitionsObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	panic("NOT SUPPORTED")
+	panic(notSupportedInProxyClient)
 }
 
 // ScanNodeObjects reads all records in specified namespace and set for one node only,
@@ -177,14 +177,14 @@ func (clnt *ProxyClient) scanNodePartitionsObjects(apolicy *ScanPolicy, node *No
 // The resulting records will be marshalled into the objChan.
 // objChan will be closed after all the records are read.
 func (clnt *ProxyClient) ScanNodeObjects(apolicy *ScanPolicy, node *Node, objChan interface{}, namespace string, setName string, binNames ...string) (*Recordset, Error) {
-	panic("NOT SUPPORTED")
+	panic(notSupportedInProxyClient)
 }
 
 // scanNodeObjects reads all records in specified namespace and set for one node only,
 // and marshalls the results into the objects of the provided channel in Recordset.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *ProxyClient) scanNodeObjects(policy *ScanPolicy, node *Node, recordset *Recordset, namespace string, setName string, binNames ...string) Error {
-	panic("NOT SUPPORTED")
+	panic(notSupportedInProxyClient)
 }
 
 // QueryPartitionObjects executes a query for specified partitions and returns a recordset.
@@ -220,7 +220,7 @@ func (clnt *ProxyClient) QueryObjects(policy *QueryPolicy, statement *Statement,
 }
 
 func (clnt *ProxyClient) queryNodePartitionsObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
-	panic("NOT SUPPORTED")
+	panic(notSupportedInProxyClient)
 }
 
 // QueryNodeObjects executes a query on a specific node and marshals the records into the given channel.
@@ -229,5 +229,5 @@ func (clnt *ProxyClient) queryNodePartitionsObjects(policy *QueryPolicy, node *N
 // This method is only supported by Aerospike 3+ servers.
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *ProxyClient) QueryNodeObjects(policy *QueryPolicy, node *Node, statement *Statement, objChan interface{}) (*Recordset, Error) {
-	panic("NOT SUPPORTED")
+	panic(notSupportedInProxyClient)
 }
