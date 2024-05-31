@@ -37,3 +37,4 @@
 * [REST API](rest-api.md)
 * [Utility scripts](utility_scripts/index.md)
 * [Volume usage examples](volume-examples.md)
+* [WebUI Hosted Mode](webui.md)

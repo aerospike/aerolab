@@ -259,6 +259,14 @@ func (d *backendGcp) ResizeVolume(name string, zone string, newSize int64) error
 	return op.Wait(ctx)
 }
 
+func (d *backendGcp) ExpiriesUpdateZoneID(zoneId string) error {
+	return nil
+}
+
+func (d *backendGcp) GetInstanceTags(name string) (map[string]map[string]string, error) {
+	return nil, nil
+}
+
 func (d *backendGcp) DetachVolume(name string, clusterName string, node int, zone string) error {
 	ctx := context.Background()
 	client, err := compute.NewInstancesRESTClient(ctx)
@@ -299,7 +307,7 @@ func (d *backendGcp) CreateVolume(name string, zone string, tags []string, expir
 		if len(deployRegion) > 2 {
 			deployRegion = deployRegion[:len(deployRegion)-1]
 		}
-		err := d.ExpiriesSystemInstall(10, strings.Join(deployRegion, "-"))
+		err := d.ExpiriesSystemInstall(10, strings.Join(deployRegion, "-"), "")
 		if err != nil && err.Error() != "EXISTS" {
 			log.Printf("WARNING: Failed to install the expiry system, EFS will not expire: %s", err)
 		}
@@ -1358,6 +1366,14 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 	return ij, nil
 }
 
+func (d *backendGcp) GetInstanceIpMap(name string, internalIPs bool) (map[string]string, error) {
+	return nil, nil
+}
+
+func (d *backendGcp) DomainCreate(zoneId string, fqdn string, IP string, wait bool) (err error) {
+	return nil
+}
+
 func listZones() ([]string, error) {
 	ctx := context.Background()
 	client, err := compute.NewZonesRESTClient(ctx)
@@ -1379,6 +1395,7 @@ func listZones() ([]string, error) {
 		}
 		zones = append(zones, pair.GetName())
 	}
+	sort.Strings(zones)
 	return zones, nil
 }
 

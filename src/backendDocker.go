@@ -80,7 +80,15 @@ func (d *backendDocker) EnableServices() error {
 	return nil
 }
 
-func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error {
+func (d *backendDocker) ExpiriesUpdateZoneID(zoneId string) error {
+	return nil
+}
+
+func (d *backendDocker) GetInstanceTags(name string) (map[string]map[string]string, error) {
+	return nil, nil
+}
+
+func (d *backendDocker) ExpiriesSystemInstall(intervalMinutes int, deployRegion string, awsDnsZoneId string) error {
 	return nil
 }
 func (d *backendDocker) ExpiriesSystemRemove(region string) error {
@@ -445,6 +453,14 @@ func (d *backendDocker) ClusterList() ([]string, error) {
 
 func (d *backendDocker) NodeListInCluster(name string) ([]int, error) {
 	return d.nodeListInClusterDo(name, false)
+}
+
+func (d *backendDocker) DomainCreate(zoneId string, fqdn string, IP string, wait bool) (err error) {
+	return nil
+}
+
+func (d *backendDocker) GetInstanceIpMap(name string, internalIPs bool) (map[string]string, error) {
+	return nil, nil
 }
 
 func (d *backendDocker) nodeListInClusterDo(name string, onlyRunning bool) ([]int, error) {

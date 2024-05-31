@@ -105,7 +105,7 @@ type backend interface {
 	// cause gcp
 	EnableServices() error
 	// expiries calls
-	ExpiriesSystemInstall(intervalMinutes int, deployRegion string) error
+	ExpiriesSystemInstall(intervalMinutes int, deployRegion string, awsDnsZoneId string) error
 	ExpiriesSystemRemove(region string) error
 	ExpiriesSystemFrequency(intervalMinutes int) error
 	ClusterExpiry(zone string, clusterName string, expiry time.Duration, nodes []int) error
@@ -185,6 +185,11 @@ type backend interface {
 	SetLabel(clusterName string, key string, value string, gcpZone string) error
 	// aws, gcp
 	GetKeyPath(clusterName string) (keyPath string, err error)
+	// aws
+	DomainCreate(zoneId string, host string, IP string, wait bool) (err error)
+	GetInstanceIpMap(name string, internalIPs bool) (map[string]string, error)
+	ExpiriesUpdateZoneID(zoneId string) error
+	GetInstanceTags(name string) (map[string]map[string]string, error)
 }
 
 type inventoryJson struct {

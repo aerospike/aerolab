@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -232,11 +233,29 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 			return err
 		}
 	}
+	log.Print("Stopping grafana")
+	time.Sleep(1 * time.Second)
 	exec.Command("service", "grafana-server", "stop").CombinedOutput()
-	err := grafanafix.EarlySetup("/etc/grafana/grafana.ini", "/etc/grafana/provisioning", "/var/lib/grafana/plugins", "", 0)
+	time.Sleep(1 * time.Second)
+	var err error
+	waited := 0
+	for err == nil {
+		_, err = exec.Command("pidof", "grafana").CombinedOutput()
+		if err == nil {
+			exec.Command("service", "grafana-server", "stop").CombinedOutput()
+			time.Sleep(time.Second)
+			waited++
+			if waited > 60 {
+				break
+			}
+		}
+	}
+	log.Print("Early patch")
+	err = grafanafix.EarlySetup("/etc/grafana/grafana.ini", "/etc/grafana/provisioning", "/var/lib/grafana/plugins", "", 0)
 	if err != nil {
 		return err
 	}
+	log.Print("Starting grafana")
 	out, err := exec.Command("service", "grafana-server", "start").CombinedOutput()
 	if err != nil {
 		errstr := fmt.Sprintf("%s\n%s", string(out), err)
@@ -247,7 +266,7 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 			if len(pid) > 0 {
 				break
 			}
-			if retries > 9 {
+			if retries > 59 {
 				return errors.New(errstr)
 			}
 			retries++
@@ -262,6 +281,7 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 			return fmt.Errorf("(%s): %s", err, errstr)
 		}
 	}
+	log.Print("Running grafanafix")
 	grafanafix.Run(conf)
 	return nil
 }
