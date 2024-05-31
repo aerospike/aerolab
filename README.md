@@ -97,6 +97,7 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
 * [REST API](docs/rest-api.md)
 * [Utility scripts](docs/utility_scripts/index.md)
 * [Volume usage examples](docs/volume-examples.md)
+* [WebUI Hosted Mode](docs/webui.md)
 
 ## Changelog
 

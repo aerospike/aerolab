@@ -13,6 +13,8 @@ import (
 var errNotMatched = errors.New("LINE NOT MATCHED")
 
 type logStream struct {
+	defId               int
+	timestampDefId      int
 	patterns            *patterns
 	TimeRanges          *TimeRanges
 	timestampDefIdx     int
@@ -45,8 +47,24 @@ type aggregator struct {
 	out       *logStreamOutput // this will be set as time goes by to allow for dumping of data, the stat will need to be overridden
 }
 
-func newLogStream(p *patterns, t *TimeRanges, timestampName string) *logStream {
+func newLogStream(clusterName string, p *patterns, t *TimeRanges, timestampName string) *logStream {
+	defId := 0
+	for i := range p.Defs {
+		if p.Defs[i].ClusterName == clusterName {
+			defId = i
+			break
+		}
+	}
+	tsDefId := 0
+	for i := range p.Timestamps {
+		if p.Timestamps[i].ClusterName == clusterName {
+			tsDefId = i
+			break
+		}
+	}
 	return &logStream{
+		defId:             defId,
+		timestampDefId:    tsDefId,
 		patterns:          p,
 		TimeRanges:        t,
 		multilineItems:    make(map[string]*multilineItem),
@@ -158,7 +176,7 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 	if s.timestampDefIdx >= 0 {
 		var tsString string
 		if s.timestampNeedsRegex {
-			sloc := s.patterns.Timestamps[s.timestampDefIdx].regex.FindStringIndex(line)
+			sloc := s.patterns.Timestamps[s.timestampDefId].Defs[s.timestampDefIdx].regex.FindStringIndex(line)
 			if sloc == nil {
 				err = errors.New("regex not matched")
 				return
@@ -166,29 +184,41 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 			tsString = line[sloc[0]:sloc[1]]
 			lineOffset = sloc[0]
 		} else {
-			if len(line) < len(s.patterns.Timestamps[s.timestampDefIdx].Definition) {
+			if len(line) < len(s.patterns.Timestamps[s.timestampDefId].Defs[s.timestampDefIdx].Definition) {
 				err = errors.New("line too short")
 				return
 			}
-			tsString = line[0:len(s.patterns.Timestamps[s.timestampDefIdx].Definition)]
+			tsString = line[0:len(s.patterns.Timestamps[s.timestampDefId].Defs[s.timestampDefIdx].Definition)]
 		}
-		timestamp, err = time.Parse(s.patterns.Timestamps[s.timestampDefIdx].Definition, tsString)
+		timestamp, err = time.Parse(s.patterns.Timestamps[s.timestampDefId].Defs[s.timestampDefIdx].Definition, tsString)
+		if err == nil && timestamp.Year() == 0 {
+			timestamp = timestamp.AddDate(time.Now().Year(), 0, 0)
+			if timestamp.After(time.Now().Add(24 * time.Hour)) {
+				timestamp = timestamp.AddDate(-1, 0, 0)
+			}
+		}
 		return
 	}
 
-	for j, def := range s.patterns.Timestamps {
+	for j, def := range s.patterns.Timestamps[s.timestampDefId].Defs {
 		if len(line) < len(def.Definition) {
 			continue
 		}
 		tsString := line[0:len(def.Definition)]
 		timestamp, err = time.Parse(def.Definition, tsString)
+		if err == nil && timestamp.Year() == 0 {
+			timestamp = timestamp.AddDate(time.Now().Year(), 0, 0)
+			if timestamp.After(time.Now().Add(24 * time.Hour)) {
+				timestamp = timestamp.AddDate(-1, 0, 0)
+			}
+		}
 		if err == nil {
 			s.timestampDefIdx = j
 			return
 		}
 	}
 
-	for j, def := range s.patterns.Timestamps {
+	for j, def := range s.patterns.Timestamps[s.timestampDefId].Defs {
 		sloc := def.regex.FindStringIndex(line)
 		if sloc == nil {
 			continue
@@ -196,6 +226,12 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 		tsString := line[sloc[0]:sloc[1]]
 		lineOffset = sloc[0]
 		timestamp, err = time.Parse(def.Definition, tsString)
+		if err == nil && timestamp.Year() == 0 {
+			timestamp = timestamp.AddDate(time.Now().Year(), 0, 0)
+			if timestamp.After(time.Now().Add(24 * time.Hour)) {
+				timestamp = timestamp.AddDate(-1, 0, 0)
+			}
+		}
 		if err == nil {
 			s.timestampDefIdx = j
 			s.timestampNeedsRegex = true
@@ -209,7 +245,7 @@ func (s *logStream) lineGetTimestamp(line string) (timestamp time.Time, lineOffs
 var errNoTimestamp = errors.New("timestamp not found")
 
 func (s *logStream) lineProcess(line string, timestamp time.Time, nodePrefix int) ([]*logStreamOutput, error) {
-	for _, p := range s.patterns.Patterns {
+	for _, p := range s.patterns.Defs[s.defId].Patterns {
 		if !strings.Contains(line, p.Search) {
 			continue
 		}

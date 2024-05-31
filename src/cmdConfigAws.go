@@ -28,6 +28,7 @@ func (c *configAwsCmd) Execute(args []string) error {
 type expiryInstallCmd struct {
 	Frequency int                 `short:"f" long:"frequency" description:"Scheduler frequency in minutes" default:"15"`
 	Gcp       expiryInstallCmdGcp `no-flag:"true"`
+	Aws       expiryInstallCmdAws `no-flag:"true"`
 	Help      helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -35,8 +36,13 @@ type expiryInstallCmdGcp struct {
 	Region string `long:"region" description:"region to deploy the function to"`
 }
 
+type expiryInstallCmdAws struct {
+	Route53ZoneId string `long:"route53-zoneid" description:"optionally if using AGI with route53 updater, specify zoneId to cleanup"`
+}
+
 func init() {
 	addBackendSwitch("config.gcp.expiry-install", "gcp", &a.opts.Config.Gcp.ExpiryInstall.Gcp)
+	addBackendSwitch("config.gcp.expiry-install", "aws", &a.opts.Config.Gcp.ExpiryInstall.Aws)
 	addBackendSwitch("config.gcp.expiry-remove", "gcp", &a.opts.Config.Gcp.ExpiryRemove.Gcp)
 }
 
@@ -52,7 +58,7 @@ func (c *expiryInstallCmd) Execute(args []string) error {
 	if len(deployRegion) > 2 {
 		deployRegion = deployRegion[:len(deployRegion)-1]
 	}
-	err := b.ExpiriesSystemInstall(c.Frequency, strings.Join(deployRegion, "-"))
+	err := b.ExpiriesSystemInstall(c.Frequency, strings.Join(deployRegion, "-"), c.Aws.Route53ZoneId)
 	if err != nil && err.Error() != "EXISTS" {
 		return errors.New(err.Error())
 	}
