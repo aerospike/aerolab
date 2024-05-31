@@ -59,5 +59,5 @@ func (rea RecordExistsAction) grpc() kvs.RecordExistsAction {
 	case CREATE_ONLY:
 		return kvs.RecordExistsAction_CREATE_ONLY
 	}
-	panic("UNREACHABLE")
+	panic(unreachable)
 }

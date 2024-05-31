@@ -16,10 +16,10 @@ package aerospike
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v7/types"
-	xrand "github.com/aerospike/aerospike-client-go/v7/types/rand"
 	Buffer "github.com/aerospike/aerospike-client-go/v7/utils/buffer"
 )
 
@@ -114,11 +114,11 @@ func (cmd *baseMultiCommand) prepareRetry(ifc command, isTimeout bool) bool {
 }
 
 func (cmd *baseMultiCommand) getConnection(policy Policy) (*Connection, Error) {
-	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().deadline(), policy.GetBasePolicy().socketTimeout(), byte(xrand.Int64()%256))
+	return cmd.node.getConnectionWithHint(policy.GetBasePolicy().deadline(), policy.GetBasePolicy().socketTimeout(), byte(rand.Int63()&0xff))
 }
 
 func (cmd *baseMultiCommand) putConnection(conn *Connection) {
-	cmd.node.putConnectionWithHint(conn, byte(xrand.Int64()%256))
+	cmd.node.putConnectionWithHint(conn, byte(rand.Int63()&0xff))
 }
 
 func (cmd *baseMultiCommand) parseResult(ifc command, conn *Connection) Error {

@@ -48,6 +48,10 @@ func (cmd *queryCommand) parseResult(ifc command, conn *Connection) Error {
 	return cmd.baseMultiCommand.parseResult(ifc, conn)
 }
 
+func (cmd *queryCommand) transactionType() transactionType {
+	return ttQuery
+}
+
 // Execute will run the query.
 func (cmd *queryCommand) Execute() Error {
 	err := cmd.execute(cmd)

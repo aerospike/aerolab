@@ -86,6 +86,8 @@ func newNode(cluster *Cluster, nv *nodeValidator) *Node {
 
 		features: nv.features,
 
+		stats: *newNodeStats(cluster.MetricsPolicy()),
+
 		// Assign host to first IP alias because the server identifies nodes
 		// by IP address (not hostname).
 		connections:         *newConnectionHeap(cluster.clientPolicy.MinConnectionsPerNode, cluster.clientPolicy.ConnectionQueueSize),

@@ -87,9 +87,9 @@ func (ky *Key) String() string {
 	}
 
 	if ky.userKey != nil {
-		return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), Buffer.BytesToHexString(ky.digest[:]))
+		return fmt.Sprintf("%s:%s:%s:%v", ky.namespace, ky.setName, ky.userKey.String(), fmt.Sprintf("% 02x", ky.digest[:]))
 	}
-	return fmt.Sprintf("%s:%s::%v", ky.namespace, ky.setName, Buffer.BytesToHexString(ky.digest[:]))
+	return fmt.Sprintf("%s:%s::%v", ky.namespace, ky.setName, fmt.Sprintf("% 02x", ky.digest[:]))
 }
 
 // NewKey initializes a key from namespace, optional set name and user key.

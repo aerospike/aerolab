@@ -102,6 +102,19 @@ type ClientIfc interface {
 
 	// TODO: Synchronization here for the sake of dynamic config in the future
 
+	getUsablePolicy(*BasePolicy) *BasePolicy
+	getUsableWritePolicy(*WritePolicy) *WritePolicy
+	getUsableScanPolicy(*ScanPolicy) *ScanPolicy
+	getUsableQueryPolicy(*QueryPolicy) *QueryPolicy
+	getUsableAdminPolicy(*AdminPolicy) *AdminPolicy
+	getUsableInfoPolicy(*InfoPolicy) *InfoPolicy
+
+	getUsableBatchPolicy(*BatchPolicy) *BatchPolicy
+	getUsableBatchReadPolicy(*BatchReadPolicy) *BatchReadPolicy
+	getUsableBatchWritePolicy(*BatchWritePolicy) *BatchWritePolicy
+	getUsableBatchDeletePolicy(*BatchDeletePolicy) *BatchDeletePolicy
+	getUsableBatchUDFPolicy(*BatchUDFPolicy) *BatchUDFPolicy
+
 	GetDefaultPolicy() *BasePolicy
 	GetDefaultBatchPolicy() *BatchPolicy
 	GetDefaultBatchWritePolicy() *BatchWritePolicy

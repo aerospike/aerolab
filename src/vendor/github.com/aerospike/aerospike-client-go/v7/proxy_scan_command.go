@@ -65,17 +65,20 @@ func (cmd *grpcScanPartitionCommand) writeBuffer(ifc command) Error {
 }
 
 func (cmd *grpcScanPartitionCommand) shouldRetry(e Error) bool {
-	panic("UNREACHABLE")
+	panic(unreachable)
+}
+
+func (cmd *grpcScanPartitionCommand) transactionType() transactionType {
+	return ttScan
 }
 
 func (cmd *grpcScanPartitionCommand) Execute() Error {
-	panic("UNREACHABLE")
+	panic(unreachable)
 }
 
 func (cmd *grpcScanPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 	defer cmd.recordset.signalEnd()
 
-	cmd.dataBuffer = bufPool.Get().([]byte)
 	defer cmd.grpcPutBufferBack()
 
 	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
@@ -105,11 +108,12 @@ func (cmd *grpcScanPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 
 	client := kvs.NewScanClient(conn)
 
-	ctx := cmd.policy.grpcDeadlineContext()
+	ctx, cancel := cmd.policy.grpcDeadlineContext()
+	defer cancel()
 
 	streamRes, gerr := client.Scan(ctx, &req)
 	if gerr != nil {
-		return newGrpcError(gerr, gerr.Error())
+		return newGrpcError(!cmd.isRead(), gerr, gerr.Error())
 	}
 
 	cmd.commandWasSent = true
@@ -121,20 +125,20 @@ func (cmd *grpcScanPartitionCommand) ExecuteGRPC(clnt *ProxyClient) Error {
 
 		res, gerr := streamRes.Recv()
 		if gerr != nil {
-			e := newGrpcError(gerr)
+			e := newGrpcError(!cmd.isRead(), gerr)
 			cmd.recordset.sendError(e)
 			return nil, e
 		}
 
-		cmd.grpcEOS = !res.HasNext
+		cmd.grpcEOS = !res.GetHasNext()
 
-		if res.Status != 0 {
+		if res.GetStatus() != 0 {
 			e := newGrpcStatusError(res)
 			cmd.recordset.sendError(e)
-			return res.Payload, e
+			return res.GetPayload(), e
 		}
 
-		return res.Payload, nil
+		return res.GetPayload(), nil
 	}
 
 	cmd.conn = newGrpcFakeConnection(nil, readCallback)

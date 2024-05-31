@@ -16,7 +16,15 @@ package aerospike
 
 import "github.com/aerospike/aerospike-client-go/v7/types"
 
-type scanPartitionObjectsCommand scanObjectsCommand
+type scanPartitionObjectsCommand struct {
+	baseMultiCommand
+
+	policy    *ScanPolicy
+	namespace string
+	setName   string
+	binNames  []string
+	taskID    uint64
+}
 
 func newScanPartitionObjectsCommand(
 	policy *ScanPolicy,
@@ -50,8 +58,16 @@ func (cmd *scanPartitionObjectsCommand) writeBuffer(ifc command) Error {
 	return cmd.setScan(cmd.policy, &cmd.namespace, &cmd.setName, cmd.binNames, cmd.recordset.taskID, cmd.nodePartitions)
 }
 
+func (cmd *scanPartitionObjectsCommand) parseResult(ifc command, conn *Connection) Error {
+	return cmd.baseMultiCommand.parseResult(ifc, conn)
+}
+
 func (cmd *scanPartitionObjectsCommand) shouldRetry(e Error) bool {
 	return cmd.tracker != nil && cmd.tracker.shouldRetry(cmd.nodePartitions, e)
+}
+
+func (cmd *scanPartitionObjectsCommand) transactionType() transactionType {
+	return ttScan
 }
 
 func (cmd *scanPartitionObjectsCommand) Execute() Error {

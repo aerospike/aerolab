@@ -27,22 +27,39 @@ import (
 
 	"github.com/aerospike/aerospike-client-go/v7/logger"
 	"github.com/aerospike/aerospike-client-go/v7/types"
+	"github.com/aerospike/aerospike-client-go/v7/types/histogram"
 )
 
-// DefaultBufferSize specifies the initial size of the connection buffer when it is created.
-// If not big enough (as big as the average record), it will be reallocated to size again
-// which will be more expensive.
-var DefaultBufferSize = 64 * 1024 // 64 KiB
+const _BUFF_ADJUST_INTERVAL = 5 * time.Second
 
-// bufPool reuses the data buffers to remove pressure from
-// the allocator and the GC during connection churns.
-var bufPool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, DefaultBufferSize)
-	},
-}
+var (
+	// DefaultBufferSize specifies the initial size of the connection buffer when it is created.
+	// If not big enough (as big as the average record), it will be reallocated to size again
+	// which will be more expensive.
+	DefaultBufferSize = 64 * 1024 // 64 KiB
+
+	// MaxBufferSize protects against allocating massive memory blocks
+	// for buffers. Tweak this number if you are returning a lot of
+	// large records in your requests.
+	MaxBufferSize = 1024 * 1024 * 120 // 120 MiB
+
+	// PoolCutOffBufferSize specifies the largest buffer size that will be pooled. Anything larger will be
+	// allocated per request and thrown away afterwards to avoid allocating very big buffers.
+	PoolCutOffBufferSize = 1024 * 1024 // 1MiB
+
+	// MinBufferSize specifies the smallest buffer size that would be allocated for connections. Smaller buffer
+	// requests will allocate at least this amount of memory. This protects against allocating too many small
+	// buffers that would require reallocation and putting pressure on the GC.
+	MinBufferSize = 8 * 1024 // 16 KiB
+)
 
 // Connection represents a connection with a timeout.
+// Connections maintain a buffer to minimize requesting buffers from the pool.
+// If a returned record requires a bigger buffer, the connection will borrow a larger
+// buffer from the pool and temporarily use it, returning it after the request.
+// A histogram keeps track of the sizes of buffers used for the connection, and the median
+// value is used to resize the connection buffer on intervals to optimize memory usage and
+// minimize GC pressure.
 type Connection struct {
 	node *Node
 
@@ -57,8 +74,18 @@ type Connection struct {
 	// connection object
 	conn net.Conn
 
+	// histogram to adjust the buff size to optimal value over time
+	buffHist             *histogram.Log2
+	bufferAdjustDeadline time.Time
+
 	// to avoid having a buffer pool and contention
 	dataBuffer []byte
+
+	// This is a reference to the original data buffer.
+	// After a big buffer is used temporarily, we will use
+	// this field to reset the dataBuffer field to the original
+	// smaller buffer.
+	origDataBuffer []byte
 
 	compressed bool
 	inflater   io.ReadCloser
@@ -124,7 +151,11 @@ func newGrpcFakeConnection(payload []byte, callback func() ([]byte, Error)) *Con
 // If the connection is not established in the specified timeout,
 // an error will be returned
 func newConnection(address string, timeout time.Duration) (*Connection, Error) {
-	newConn := &Connection{dataBuffer: bufPool.Get().([]byte)}
+	newConn := &Connection{dataBuffer: buffPool.Get(DefaultBufferSize)}
+	newConn.buffHist = histogram.NewLog2(32)
+	newConn.bufferAdjustDeadline = time.Now().Add(_BUFF_ADJUST_INTERVAL)
+	newConn.origDataBuffer = newConn.dataBuffer
+
 	runtime.SetFinalizer(newConn, connectionFinalizer)
 
 	// don't wait indefinitely
@@ -408,11 +439,10 @@ func (ctn *Connection) Close() {
 			ctn.conn = nil
 
 			// put the data buffer back in the pool in case it gets used again
-			if len(ctn.dataBuffer) >= DefaultBufferSize && len(ctn.dataBuffer) <= MaxBufferSize {
-				bufPool.Put(ctn.dataBuffer)
-			}
+			buffPool.Put(ctn.dataBuffer)
 
 			ctn.dataBuffer = nil
+			ctn.origDataBuffer = nil
 			ctn.node = nil
 		}
 	})
@@ -498,14 +528,42 @@ func (ctn *Connection) isIdle() bool {
 	return ctn.idleTimeout > 0 && time.Now().After(ctn.idleDeadline)
 }
 
+func selectWithinRange[T int | uint | int64 | uint64](min, val, max T) T {
+	if val < min {
+		return min
+	} else if val > max {
+		return max
+	}
+	return val
+}
+
 // refresh extends the idle deadline of the connection.
 func (ctn *Connection) refresh() {
-	ctn.idleDeadline = time.Now().Add(ctn.idleTimeout)
+	now := time.Now()
+	ctn.idleDeadline = now.Add(ctn.idleTimeout)
 	if ctn.inflater != nil {
 		ctn.inflater.Close()
 	}
 	ctn.compressed = false
 	ctn.inflater = nil
+	ctn.dataBuffer = ctn.origDataBuffer
+
+	// adjust buffer size
+	if now.After(ctn.bufferAdjustDeadline) {
+		ctn.bufferAdjustDeadline = now.Add(_BUFF_ADJUST_INTERVAL)
+		newBuffSize := selectWithinRange(MinBufferSize, int(ctn.buffHist.Median()), PoolCutOffBufferSize)
+		ctn.buffHist.Reset()
+		// Do not go lower than 1K and larger than max allowed buffer size
+		if newBuffSize != len(ctn.dataBuffer) {
+			ctn.origDataBuffer = nil
+			// put the current buffer back in the pool
+			buffPool.Put(ctn.dataBuffer)
+
+			// Get a new one from the pool
+			ctn.dataBuffer = buffPool.Get(int(newBuffSize))
+			ctn.origDataBuffer = ctn.dataBuffer
+		}
+	}
 }
 
 // initInflater sets up the zlib inflater to read compressed data from the connection

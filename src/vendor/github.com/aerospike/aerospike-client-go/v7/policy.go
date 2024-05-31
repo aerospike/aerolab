@@ -252,12 +252,12 @@ func (p *BasePolicy) grpc() *kvs.ReadPolicy {
 	}
 }
 
-func (p *BasePolicy) grpcDeadlineContext() context.Context {
+func (p *BasePolicy) grpcDeadlineContext() (context.Context, context.CancelFunc) {
 	timeout := p.timeout()
 	if timeout <= 0 {
-		return context.Background()
+		return context.Background(), simpleCancelFunc
 
 	}
-	ctx, _ := context.WithTimeout(context.Background(), timeout)
-	return ctx
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	return ctx, cancel
 }

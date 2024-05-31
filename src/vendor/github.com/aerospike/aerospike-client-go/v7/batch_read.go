@@ -153,3 +153,7 @@ func (br *BatchRead) size(parentPolicy *BasePolicy) (int, Error) {
 func (br *BatchRead) String() string {
 	return fmt.Sprintf("%s: %v", br.Key, br.BinNames)
 }
+
+func (br *BatchRead) headerOnly() bool {
+	return len(br.BinNames) == 0 && !br.ReadAllBins
+}
