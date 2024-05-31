@@ -266,7 +266,9 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 	loc := int64(0)
 	timer := time.Now()
 	stepper := i.config.ProgressPrint.UpdateInterval / 2
-	stream := newLogStream(i.patterns, &i.config.IngestTimeRanges, i.config.Aerospike.TimestampBinName)
+	logDir, fileNameOnly := path.Split(fileName)
+	_, clusterName := path.Split(strings.Trim(logDir, "/"))
+	stream := newLogStream(clusterName, i.patterns, &i.config.IngestTimeRanges, i.config.Aerospike.TimestampBinName)
 	for s.Scan() {
 		if err = s.Err(); err != nil {
 			resultsChan <- &processResult{
@@ -358,8 +360,6 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 		}
 	}
 	// store startTime and endTime of logs
-	logDir, fileNameOnly := path.Split(fileName)
-	_, clusterName := path.Split(strings.Trim(logDir, "/"))
 	for _, point := range []time.Time{startTime, endTime} {
 		if point.IsZero() {
 			continue

@@ -12,7 +12,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
+	"github.com/lithammer/shortuuid"
 )
 
 func (i *Ingest) PreProcess() error {
@@ -259,11 +261,41 @@ func (i *Ingest) preProcessGetClusterNode(fn string) (clusterName string, nodeId
 	defer f.Close()
 	s := bufio.NewScanner(f)
 	r := i.config.findClusterNameNodeIdRegex
+	genericLogsTracker := make(map[int][]int)
 	for s.Scan() {
 		if err = s.Err(); err != nil {
 			return "", "", err
 		}
 		line := s.Text()
+		for li, l := range i.patterns.GenericLogs {
+			for lli, ll := range l.ContainsStrings {
+				if strings.Contains(line, ll) {
+					if _, ok := genericLogsTracker[li]; !ok {
+						genericLogsTracker[li] = []int{}
+					}
+					if !inslice.HasInt(genericLogsTracker[li], lli) {
+						genericLogsTracker[li] = append(genericLogsTracker[li], lli)
+					}
+				}
+			}
+		}
+
+		for li, l := range i.patterns.GenericLogs {
+			if ll, ok := genericLogsTracker[li]; ok {
+				found := true
+				for x := 0; x < len(l.ContainsStrings); x++ {
+					if !inslice.HasInt(ll, x) {
+						found = false
+						break
+					}
+				}
+				if found {
+					fno := shortuuid.NewWithNamespace(fn)
+					return l.ApplyClusterName, fno, nil
+				}
+			}
+		}
+
 		if !strings.Contains(line, "NODE-ID") {
 			continue
 		}
