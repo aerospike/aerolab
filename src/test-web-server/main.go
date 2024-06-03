@@ -99,8 +99,9 @@ func main() {
 		r.Header.Set("X-Forwarded-For", headerAppend(r.Header.Get("X-Forwarded-For"), r.RemoteAddr, ","))
 		// set fake user header for testing
 		r.Header.Set("x-auth-aerolab-user", userCookie.Value)
-		// override r.Host with destination URL host
+		// override r.Host with destination URL host and fix origin header
 		r.Host = destUrl.Host
+		r.Header.Set("Origin", args.DestURL)
 		// service proxy
 		proxy.ServeHTTP(w, r)
 	})
@@ -211,9 +212,9 @@ func (t *myTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 		userName = userCookie.Value
 	}
 	if rterr != nil {
-		logLine = fmt.Sprintf("uuid=%s userName=%s req: remoteAddr=%s requestURI=%s host=%s method=%s err=%v", uuid, userName, r.RemoteAddr, r.RequestURI, r.Host, r.Method, rterr)
+		logLine = fmt.Sprintf("uuid=%s userName=%s req(proto=%s remoteAddr=%s requestURI=%s host=%s method=%s) err=%v", uuid, userName, r.Proto, r.RemoteAddr, r.RequestURI, r.Host, r.Method, rterr)
 	} else {
-		logLine = fmt.Sprintf("uuid=%s userName=%s req: remoteAddr=%s requestURI=%s host=%s method=%s resp: status=%s contentLength=%d rtt=%s", uuid, userName, r.RemoteAddr, r.RequestURI, r.Host, r.Method, w.Status, w.ContentLength, respTime.Sub(reqTime))
+		logLine = fmt.Sprintf("uuid=%s userName=%s req(proto=%s remoteAddr=%s requestURI=%s host=%s method=%s) resp(status=%s contentLength=%d) rtt=%s", uuid, userName, r.Proto, r.RemoteAddr, r.RequestURI, r.Host, r.Method, w.Status, w.ContentLength, respTime.Sub(reqTime))
 	}
 
 	// print log line
