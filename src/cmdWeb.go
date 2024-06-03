@@ -51,6 +51,7 @@ type webCmd struct {
 	AllowLsEverywhere   bool          `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
 	UniqueFirewalls     bool          `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
 	AGIStrictTLS        bool          `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
+	WSProxyOrigin       string        `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
