@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,26 +9,59 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path"
 	"time"
 
+	"github.com/jessevdk/go-flags"
 	"github.com/lithammer/shortuuid"
+	"golang.org/x/crypto/acme/autocert"
 )
 
+// cli args definition
+type opts struct {
+	ListenAddr    string   `long:"listen" description:"listen address; ignored if --tls is specified (listen in TLS is bound to 0.0.0.0:80+443)" default:"0.0.0.0:8080"`
+	TLS           bool     `long:"tls" description:"enable TLS; this will ignore ListenAddr"`
+	HostWhitelist []string `long:"tls-host" description:"autocert: specify domain to respond on; this parameter can be specified multiple times"`
+	CacheDir      string   `long:"tls-cache-dir" description:"autocert: directory to use for caching TLS certificates" default:"tls-cache"`
+	LogTextFile   string   `long:"log-text-file" description:"path to a text file to log requests to" default:"proxy.log"`
+	LogJsonFile   string   `long:"log-json-file" description:"path to a json file to log requests to" default:"proxy.json"`
+	DestURL       string   `long:"dest-url" description:"destination URL to send proxy requests to" default:"http://127.0.0.1:3333/"`
+}
+
 func main() {
+	// cli args
+	args := &opts{}
+	tail, err := flags.Parse(args)
+	if err != nil {
+		os.Exit(1)
+	}
+	if len(tail) > 0 {
+		fmt.Fprintf(os.Stderr, "unknown trailing arguments: %v\n", tail)
+		os.Exit(1)
+	}
+
 	// create logging files - text and json
-	f, err := os.OpenFile("proxy.json", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+	ld, _ := path.Split(args.LogJsonFile)
+	if ld != "" {
+		os.MkdirAll(ld, 0755)
+	}
+	f, err := os.OpenFile(args.LogJsonFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer f.Close()
-	p, err := os.OpenFile("proxy.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+	ld, _ = path.Split(args.LogTextFile)
+	if ld != "" {
+		os.MkdirAll(ld, 0755)
+	}
+	p, err := os.OpenFile(args.LogTextFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer p.Close()
 
 	// create proxy handlers
-	destUrl, _ := url.Parse("http://127.0.0.1:3333/")
+	destUrl, _ := url.Parse(args.DestURL)
 	proxy := httputil.NewSingleHostReverseProxy(destUrl)
 	proxy.Transport = &myTransport{
 		JSONLog: f,
@@ -50,10 +84,56 @@ func main() {
 		proxy.ServeHTTP(w, r)
 	})
 
-	// start webserver
-	bind := "0.0.0.0:8080"
-	log.Println("Listening on " + bind)
-	http.ListenAndServe(bind, nil)
+	// start webserver: non-tls
+	if !args.TLS {
+		log.Println("Listening on " + args.ListenAddr)
+		if err := http.ListenAndServe(args.ListenAddr, nil); err != nil {
+			log.Fatal(err)
+		}
+		log.Print("Exiting")
+		return
+	}
+
+	// tls: sanity check
+	if len(args.HostWhitelist) == 0 {
+		fmt.Fprint(os.Stderr, "with TLS, at least one hostWhileList FQDN must be provided\n")
+		os.Exit(1)
+	}
+
+	// tls: prepate autocert
+	os.MkdirAll(args.CacheDir, 0755)
+	autocertManager := autocert.Manager{
+		Prompt:     autocert.AcceptTOS,
+		HostPolicy: autocert.HostWhitelist(args.HostWhitelist...),
+		Cache:      autocert.DirCache(args.CacheDir),
+	}
+
+	// tls: listen on port 80 for callback for certificate requests
+	go func() {
+		srv := &http.Server{
+			Addr:    ":80",
+			Handler: autocertManager.HTTPHandler(nil),
+		}
+		log.Println("AutoCert: Listening on 0.0.0.0:80")
+		err := srv.ListenAndServe()
+		log.Fatal(err)
+	}()
+
+	// tls: create server
+	srv := &http.Server{
+		Addr:    ":443",
+		Handler: nil,
+		TLSConfig: &tls.Config{
+			GetCertificate: autocertManager.GetCertificate,
+		},
+	}
+
+	// tls: start webserver
+	log.Print("TLS: Listening on 0.0.0.0:443")
+	if err := srv.ListenAndServeTLS("", ""); err != nil {
+		log.Fatal(err)
+	}
+	log.Print("Exiting")
 }
 
 // for headers which append comma-separated values, either create a new value, or append a value separated by sep
