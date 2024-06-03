@@ -103,7 +103,7 @@ func (c *attachShellCmd) run(args []string) (err error) {
 			}
 		}
 		if !expiry.IsZero() && time.Now().Add(24*time.Hour).After(expiry) {
-			log.Printf("WARNING: cluster expires in %s (%s)", time.Until(expiry), expiry.Format(time.RFC850))
+			log.Printf("WARNING: cluster expires in %s (%s)", time.Until(expiry).Truncate(time.Second), expiry.Format(time.RFC850))
 		}
 	}
 	wg := new(sync.WaitGroup)
