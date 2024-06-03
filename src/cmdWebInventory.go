@@ -1705,8 +1705,10 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 			if err != nil {
 				return false
 			}
-			if c.WSProxyOrigin != "" && equalASCIIFold(c.WSProxyOrigin, u.Host) {
-				return true
+			for _, origin := range c.WSProxyOrigins {
+				if equalASCIIFold(origin, u.Host) {
+					return true
+				}
 			}
 			return equalASCIIFold(u.Host, r.Host)
 		},
