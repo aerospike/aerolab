@@ -15,17 +15,19 @@ import (
 	"github.com/jessevdk/go-flags"
 	"github.com/lithammer/shortuuid"
 	"golang.org/x/crypto/acme/autocert"
+	"gopkg.in/yaml.v3"
 )
 
 // cli args definition
 type opts struct {
-	ListenAddr    string   `long:"listen" description:"listen address; ignored if --tls is specified (listen in TLS is bound to 0.0.0.0:80+443)" default:"0.0.0.0:8080"`
-	TLS           bool     `long:"tls" description:"enable TLS; this will ignore ListenAddr"`
-	HostWhitelist []string `long:"tls-host" description:"autocert: specify domain to respond on; this parameter can be specified multiple times"`
-	CacheDir      string   `long:"tls-cache-dir" description:"autocert: directory to use for caching TLS certificates" default:"tls-cache"`
-	LogTextFile   string   `long:"log-text-file" description:"path to a text file to log requests to" default:"proxy.log"`
-	LogJsonFile   string   `long:"log-json-file" description:"path to a json file to log requests to" default:"proxy.json"`
-	DestURL       string   `long:"dest-url" description:"destination URL to send proxy requests to" default:"http://127.0.0.1:3333/"`
+	ListenAddr     string        `long:"listen" description:"listen address; ignored if --tls is specified (listen in TLS is bound to 0.0.0.0:80+443)" default:"0.0.0.0:8080" yaml:"ListenAddr"`
+	TLS            bool          `long:"tls" description:"enable TLS; this will ignore ListenAddr" yaml:"TLS"`
+	HostWhitelist  []string      `long:"tls-host" description:"autocert: specify domain to respond on; this parameter can be specified multiple times" yaml:"HostWhitelist"`
+	CacheDir       string        `long:"tls-cache-dir" description:"autocert: directory to use for caching TLS certificates" default:"tls-cache" yaml:"CacheDir"`
+	LogTextFile    string        `long:"log-text-file" description:"path to a text file to log requests to" default:"proxy.log" yaml:"LogTextFile"`
+	LogJsonFile    string        `long:"log-json-file" description:"path to a json file to log requests to" default:"proxy.json" yaml:"LogJsonFile"`
+	DestURL        string        `long:"dest-url" description:"destination URL to send proxy requests to" default:"http://127.0.0.1:3333/" yaml:"DestURL"`
+	CookieLifeTime time.Duration `long:"user-cookie-life" description:"duration for which logged in user should remain logged in" default:"24h" yaml:"CookieLifeTime"`
 }
 
 func main() {
@@ -70,6 +72,25 @@ func main() {
 
 	// proxy handler router and function
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// test if fake user is set
+		userCookie, err := r.Cookie("proxy-fake-user")
+		if err != nil {
+			if r.FormValue("submit") == "" {
+				// handle "set user" page
+				w.Write([]byte("<html><body><form method=get><input type=text name=proxy-fake-user placeholder='enter fake username'><input type=submit name=submit value=submit></form></body></html>"))
+				return
+			}
+			// login user
+			userCookie = &http.Cookie{
+				Name:    "proxy-fake-user",
+				Value:   r.FormValue("proxy-fake-user"),
+				Path:    "/",
+				Expires: time.Now().Add(args.CookieLifeTime),
+			}
+			http.SetCookie(w, userCookie)
+			http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+			return
+		}
 		// override request URL host and scheme to proxy destination
 		r.URL.Host = destUrl.Host
 		r.URL.Scheme = destUrl.Scheme
@@ -77,12 +98,38 @@ func main() {
 		r.Header.Set("X-Forwarded-Host", headerAppend(r.Header.Get("X-Forwarded-Host"), r.Header.Get("Host"), ","))
 		r.Header.Set("X-Forwarded-For", headerAppend(r.Header.Get("X-Forwarded-For"), r.RemoteAddr, ","))
 		// set fake user header for testing
-		r.Header.Set("x-auth-aerolab-user", "fakeUser")
+		r.Header.Set("x-auth-aerolab-user", userCookie.Value)
 		// override r.Host with destination URL host
 		r.Host = destUrl.Host
 		// service proxy
 		proxy.ServeHTTP(w, r)
 	})
+
+	// logout handler
+	http.HandleFunc("/proxy-logout", func(w http.ResponseWriter, r *http.Request) {
+		http.SetCookie(w, &http.Cookie{
+			Name:    "proxy-fake-user",
+			Value:   "",
+			Path:    "/",
+			Expires: time.Now().Add(-5 * time.Second),
+		})
+		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+	})
+
+	// print configuration yaml
+	if args.TLS {
+		// tls: sanity check
+		if len(args.HostWhitelist) == 0 {
+			fmt.Fprint(os.Stderr, "with TLS, at least one hostWhileList FQDN must be provided\n")
+			os.Exit(1)
+		}
+		// override ListenAddr for yaml print
+		args.ListenAddr = "0.0.0.0:443, 0.0.0.0:80"
+	}
+	conf, _ := yaml.Marshal(map[string]*opts{
+		"Config": args,
+	})
+	fmt.Println(string(conf))
 
 	// start webserver: non-tls
 	if !args.TLS {
@@ -92,12 +139,6 @@ func main() {
 		}
 		log.Print("Exiting")
 		return
-	}
-
-	// tls: sanity check
-	if len(args.HostWhitelist) == 0 {
-		fmt.Fprint(os.Stderr, "with TLS, at least one hostWhileList FQDN must be provided\n")
-		os.Exit(1)
 	}
 
 	// tls: prepate autocert
@@ -164,17 +205,22 @@ func (t *myTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	// geerate text log line based on success/error
 	var logLine string
+	userName := ""
+	userCookie, err := r.Cookie("proxy-fake-user")
+	if err == nil {
+		userName = userCookie.Value
+	}
 	if rterr != nil {
-		logLine = fmt.Sprintf("uuid=%s req: remoteAddr=%s requestURI=%s host=%s method=%s err=%v", uuid, r.RemoteAddr, r.RequestURI, r.Host, r.Method, rterr)
+		logLine = fmt.Sprintf("uuid=%s userName=%s req: remoteAddr=%s requestURI=%s host=%s method=%s err=%v", uuid, userName, r.RemoteAddr, r.RequestURI, r.Host, r.Method, rterr)
 	} else {
-		logLine = fmt.Sprintf("uuid=%s req: remoteAddr=%s requestURI=%s host=%s method=%s resp: status=%s contentLength=%d rtt=%s", uuid, r.RemoteAddr, r.RequestURI, r.Host, r.Method, w.Status, w.ContentLength, respTime.Sub(reqTime))
+		logLine = fmt.Sprintf("uuid=%s userName=%s req: remoteAddr=%s requestURI=%s host=%s method=%s resp: status=%s contentLength=%d rtt=%s", uuid, userName, r.RemoteAddr, r.RequestURI, r.Host, r.Method, w.Status, w.ContentLength, respTime.Sub(reqTime))
 	}
 
 	// print log line
 	log.Print(logLine)
 
 	// store text log line to file, with timestamp
-	_, err := fmt.Fprintf(t.TextLOG, "%s %s\n", time.Now().Format("2006/01/02 15:04:05"), logLine)
+	_, err = fmt.Fprintf(t.TextLOG, "%s %s\n", time.Now().Format("2006/01/02 15:04:05"), logLine)
 	if err != nil {
 		log.Printf("uuid=%s log:TextLOG.WriteString(logLine):%s", uuid, err)
 	}
