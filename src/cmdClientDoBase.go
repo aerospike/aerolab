@@ -478,7 +478,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	b.WorkOnClients()
 
 	if a.opts.Config.Backend.Type != "docker" && !extra.expiresTime.IsZero() {
-		log.Printf("CLUSTER EXPIRES: %s (in: %s); to extend, use: aerolab client configure expiry", extra.expiresTime.Format(time.RFC850), time.Until(extra.expiresTime).String())
+		log.Printf("CLUSTER EXPIRES: %s (in: %s); to extend, use: aerolab client configure expiry", extra.expiresTime.Format(time.RFC850), time.Until(extra.expiresTime).Truncate(time.Second).String())
 	}
 	log.Println("Done")
 	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new design will be explored during AeroLab's version 7's lifecycle and the current client creation methods will be removed in AeroLab 8.0")
