@@ -621,7 +621,7 @@ func (c *agiMonitorListenCmd) handleSizingDiskAndRAM(uuid string, event *ingest.
 
 func (c *agiMonitorListenCmd) handleSizingDiskDo(uuid string, event *ingest.NotifyEvent, newSize int64) {
 	_ = event
-	a.opts.Volume.Resize.Zone = a.opts.AGI.Create.Gcp.Zone
+	a.opts.Volume.Resize.Zone = a.opts.AGI.Create.Gcp.Zone.String()
 	a.opts.Volume.Resize.Name = string(a.opts.AGI.Create.ClusterName)
 	a.opts.Volume.Resize.Size = newSize
 	err := a.opts.Volume.Resize.Execute(nil)
