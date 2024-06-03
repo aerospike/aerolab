@@ -121,7 +121,7 @@ type agiCreateCmdAws struct {
 type agiCreateCmdGcp struct {
 	InstanceType        string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
 	Disks               []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
-	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
+	Zone                guiZone       `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"agi-managed-external"`
@@ -309,7 +309,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			a.opts.AGI.Monitor.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 			a.opts.AGI.Monitor.Create.Aws.SubnetID = c.Aws.SubnetID
 			a.opts.AGI.Monitor.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
-			a.opts.AGI.Monitor.Create.Gcp.Zone = c.Gcp.Zone
+			a.opts.AGI.Monitor.Create.Gcp.Zone = c.Gcp.Zone.String()
 			a.opts.AGI.Monitor.Create.AutoCertDomains = c.MonitorAutoCertDomains
 			a.opts.AGI.Monitor.Create.AutoCertEmail = c.MonitorAutoCertEmail
 			a.opts.AGI.Monitor.Create.CertFile = c.MonitorCertFile
@@ -467,7 +467,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		log.Println("Resolving supported Instance Types")
 		found := false
 		for _, narm := range []bool{true, false} {
-			itypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, narm, c.Gcp.Zone)
+			itypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, narm, c.Gcp.Zone.String())
 			if err != nil {
 				log.Printf("WARNING: Could not check instance size, ensure instance has 12GB RAM or more (%s)", err)
 			} else {
