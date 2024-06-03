@@ -1530,7 +1530,7 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 		log.Println("To connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP:SERVICE_PORT (default:3000)")
 	}
 	if a.opts.Config.Backend.Type != "docker" && !extra.expiresTime.IsZero() {
-		log.Printf("CLUSTER EXPIRES: %s (in: %s); to extend, use: aerolab cluster add expiry", extra.expiresTime.Format(time.RFC850), time.Until(extra.expiresTime).String())
+		log.Printf("CLUSTER EXPIRES: %s (in: %s); to extend, use: aerolab cluster add expiry", extra.expiresTime.Format(time.RFC850), time.Until(extra.expiresTime).Truncate(time.Second).String())
 	}
 	log.Println("Done")
 	return nil
