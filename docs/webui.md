@@ -25,7 +25,9 @@ Explanation of parameters:
 
 ## TLS for WebUI
 
-AeroLab WebUI does not provide TLS support out of the box. If TLS and/or authentication are required, use a TLS/Authenticating proxy in front of aerolab webui. Have a look at [this project](https://github.com/oauth2-proxy/oauth2-proxy/releases) as a useable example.
+AeroLab WebUI does not provide TLS support out of the box. If TLS and/or authentication are required, use a TLS/Authenticating proxy in front of aerolab webui. Have a look at [this project](https://github.com/oauth2-proxy/oauth2-proxy/releases) as a useable example. When using a proxy, either:
+* the proxy must not set OR override `Origin` header to match aerolab listen Host
+* or when starting aerolab, provide `--ws-proxy-origin=` parameter with host that will be allowed (for example `--ws-proxy-origin aerolab.example.com`)
 
 ## AGI Strict TLS
 
@@ -55,5 +57,5 @@ aerolab config defaults -k AGI.Create.Aws.Route53ZoneId -v XZ12784628
 aerolab config defaults -k AGI.Create.Aws.Route53DomainName -v example.com
 
 # start webui
-aerolab webui --listen 0.0.0.0:3333 --listen [::]:3333 --nobrowser --block-server-ls --unique-firewalls --agi-strict-tls
+aerolab webui --listen 0.0.0.0:3333 --listen [::]:3333 --nobrowser --block-server-ls --unique-firewalls --agi-strict-tls --ws-proxy-origin aerolab.example.com
 ```

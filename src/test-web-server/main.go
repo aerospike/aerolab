@@ -27,6 +27,7 @@ type opts struct {
 	LogTextFile    string        `long:"log-text-file" description:"path to a text file to log requests to" default:"proxy.log" yaml:"LogTextFile"`
 	LogJsonFile    string        `long:"log-json-file" description:"path to a json file to log requests to" default:"proxy.json" yaml:"LogJsonFile"`
 	DestURL        string        `long:"dest-url" description:"destination URL to send proxy requests to" default:"http://127.0.0.1:3333/" yaml:"DestURL"`
+	OverrideOrigin bool          `long:"override-origin" description:"if set, will override origin header to match --dest-url value"`
 	CookieLifeTime time.Duration `long:"user-cookie-life" description:"duration for which logged in user should remain logged in" default:"24h" yaml:"CookieLifeTime"`
 }
 
@@ -101,7 +102,9 @@ func main() {
 		r.Header.Set("x-auth-aerolab-user", userCookie.Value)
 		// override r.Host with destination URL host and fix origin header
 		r.Host = destUrl.Host
-		r.Header.Set("Origin", args.DestURL)
+		if args.OverrideOrigin {
+			r.Header.Set("Origin", args.DestURL)
+		}
 		// service proxy
 		proxy.ServeHTTP(w, r)
 	})
