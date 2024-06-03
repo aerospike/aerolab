@@ -217,7 +217,11 @@ func (t *myTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if rterr != nil {
 		logLine = fmt.Sprintf("uuid=%s userName=%s req(proto=%s remoteAddr=%s requestURI=%s host=%s method=%s) err=%v", uuid, userName, r.Proto, r.RemoteAddr, r.RequestURI, r.Host, r.Method, rterr)
 	} else {
-		logLine = fmt.Sprintf("uuid=%s userName=%s req(proto=%s remoteAddr=%s requestURI=%s host=%s method=%s) resp(status=%s contentLength=%d) rtt=%s", uuid, userName, r.Proto, r.RemoteAddr, r.RequestURI, r.Host, r.Method, w.Status, w.ContentLength, respTime.Sub(reqTime))
+		if w.StatusCode == http.StatusSwitchingProtocols {
+			logLine = fmt.Sprintf("uuid=%s userName=%s req(proto=%s remoteAddr=%s requestURI=%s host=%s method=%s) resp(status=%s contentLength=%d) upgrade(connection=%s upgrade=%s) rtt=%s", uuid, userName, r.Proto, r.RemoteAddr, r.RequestURI, r.Host, r.Method, w.Status, w.ContentLength, w.Header.Get("Connection"), w.Header.Get("Upgrade"), respTime.Sub(reqTime))
+		} else {
+			logLine = fmt.Sprintf("uuid=%s userName=%s req(proto=%s remoteAddr=%s requestURI=%s host=%s method=%s) resp(status=%s contentLength=%d) rtt=%s", uuid, userName, r.Proto, r.RemoteAddr, r.RequestURI, r.Host, r.Method, w.Status, w.ContentLength, respTime.Sub(reqTime))
+		}
 	}
 
 	// print log line
