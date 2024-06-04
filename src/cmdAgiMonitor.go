@@ -131,6 +131,38 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	} else if a.opts.Config.Backend.Type == "aws" {
 		printPrice("", c.Aws.InstanceType, 1, false)
 	}
+	if len(c.AutoCertDomains) > 0 {
+		log.Printf("Resolving firewalls")
+		inv, err := b.Inventory("", []int{InventoryItemFirewalls})
+		if err != nil {
+			return err
+		}
+		found := false
+		for _, item := range inv.FirewallRules {
+			if a.opts.Config.Backend.Type == "aws" && strings.HasPrefix(item.AWS.SecurityGroupName, "agi-autocert") {
+				found = true
+				break
+			}
+			if a.opts.Config.Backend.Type == "gcp" && strings.HasPrefix(item.GCP.FirewallName, "agi-autocert") {
+				found = true
+				break
+			}
+		}
+		b.WorkOnClients()
+		if !found {
+			err = b.CreateSecurityGroups("", "agi-autocert", true, []string{"80"}, true)
+			if err != nil {
+				return err
+			}
+		}
+		if a.opts.Config.Backend.Type == "aws" && !inslice.HasString(c.Aws.NamePrefix, "agi-autocert") {
+			c.Aws.NamePrefix = append(c.Aws.NamePrefix, "agi-autocert")
+		}
+		if a.opts.Config.Backend.Type == "gcp" && !inslice.HasString(c.Gcp.NamePrefix, "agi-autocert") {
+			c.Gcp.NamePrefix = append(c.Gcp.NamePrefix, "agi-autocert")
+		}
+	}
+
 	log.Printf("Creating base instance")
 	a.opts.Client.Create.None.ClientCount = 1
 	a.opts.Client.Create.None.ClientName = TypeClientName(c.Name)
@@ -280,6 +312,15 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 			Email:      c.AutoCertEmail,
 			HostPolicy: autocert.HostWhitelist(c.AutoCertDomains...),
 		}
+		go func() {
+			srv := &http.Server{
+				Addr:    ":80",
+				Handler: m.HTTPHandler(nil),
+			}
+			log.Println("AutoCert: Listening on 0.0.0.0:80")
+			err := srv.ListenAndServe()
+			log.Fatal(err)
+		}()
 		s := &http.Server{
 			Addr:      c.ListenAddress,
 			TLSConfig: m.TLSConfig(),
