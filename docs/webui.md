@@ -11,7 +11,7 @@ To use hosted-mode, extra parameters at the end of the `aerolab webui` command m
 The below outlines an example with just the hosted-mode specific parameters:
 
 ```
-aerolab webui --listen 0.0.0.0:3333 --listen [::]:3333 --nobrowser --block-server-ls --unique-firewalls --agi-strict-tls
+aerolab webui --listen 0.0.0.0:3333 --listen [::]:3333 --nobrowser --block-server-ls --unique-firewalls --agi-strict-tls --ws-proxy-origin aerolab.example.com --strict-agi-tls
 ```
 
 Explanation of parameters:
@@ -22,6 +22,7 @@ Explanation of parameters:
   * default behaviour is to allow `ls` if user is connecting from `localhost` and the following headers are not set: `X-Real-IP` and `X-Forwarded-For`.
 * have a unique firewall/security group name per user
 * (optional) enable strict TLS checks in all AGI components - this requires extra setup (see below)
+* (optional) when behind a proxy which sets an `Origin` header, specify which origin headers are allowed for WebSocket support
 
 ## TLS for WebUI
 
@@ -47,7 +48,7 @@ AGI Monitor | The AGI Monitor can have certificates provided either as part of d
 Example usage with auto domains (assumes AeroLab WebUI is deployed on a server, and the commands are being executed from said server, on AWS):
 ```
 # deploy AGI Monitor, use autocert for certificates, and configure route53 DNS automatically
-aerolab agi monitor create --autocert=agimonitor.eu-west-1.example.com --autocert-email=robert@example.com --route53-zoneid=XZ12784628 --route53-fqdn=agimonitor.eu-west-1.example.com
+aerolab agi monitor create --autocert=agimonitor.eu-west-1.example.com --autocert-email=robert@example.com --route53-zoneid=XZ12784628 --route53-fqdn=agimonitor.eu-west-1.example.com --strict-agi-tls
 
 # set the defaults for AGI so WebUI users don't have to fill them
 aerolab config defaults -k AGI.Create.WithAGIMonitorAuto -v true

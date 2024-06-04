@@ -4,12 +4,15 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/jessevdk/go-flags"
@@ -24,11 +27,13 @@ type opts struct {
 	TLS            bool          `long:"tls" description:"enable TLS; this will ignore ListenAddr" yaml:"TLS"`
 	HostWhitelist  []string      `long:"tls-host" description:"autocert: specify domain to respond on; this parameter can be specified multiple times" yaml:"HostWhitelist"`
 	CacheDir       string        `long:"tls-cache-dir" description:"autocert: directory to use for caching TLS certificates" default:"tls-cache" yaml:"CacheDir"`
+	Email          string        `long:"tls-email" description:"autocert: email address" yaml:"CertEmail"`
 	LogTextFile    string        `long:"log-text-file" description:"path to a text file to log requests to" default:"proxy.log" yaml:"LogTextFile"`
 	LogJsonFile    string        `long:"log-json-file" description:"path to a json file to log requests to" default:"proxy.json" yaml:"LogJsonFile"`
 	DestURL        string        `long:"dest-url" description:"destination URL to send proxy requests to" default:"http://127.0.0.1:3333/" yaml:"DestURL"`
 	OverrideOrigin bool          `long:"override-origin" description:"if set, will override origin header to match --dest-url value"`
 	CookieLifeTime time.Duration `long:"user-cookie-life" description:"duration for which logged in user should remain logged in" default:"24h" yaml:"CookieLifeTime"`
+	RunAerolab     bool          `long:"run-aerolab" description:"if set, will also run aerolab webui; extra parameters can be specified as tail of the parameters (--x=y ... -- HERE)"`
 }
 
 func main() {
@@ -38,8 +43,8 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
-	if len(tail) > 0 {
-		fmt.Fprintf(os.Stderr, "unknown trailing arguments: %v\n", tail)
+	if len(tail) > 0 && !args.RunAerolab {
+		fmt.Fprintf(os.Stderr, "trailing arguments get passed to aerolab webui command, but --run-aerolab is not specified: %v\n", tail)
 		os.Exit(1)
 	}
 
@@ -135,6 +140,11 @@ func main() {
 	})
 	fmt.Println(string(conf))
 
+	// run aerolab webui
+	if args.RunAerolab {
+		go runAerolab(tail)
+	}
+
 	// start webserver: non-tls
 	if !args.TLS {
 		log.Println("Listening on " + args.ListenAddr)
@@ -151,6 +161,7 @@ func main() {
 		Prompt:     autocert.AcceptTOS,
 		HostPolicy: autocert.HostWhitelist(args.HostWhitelist...),
 		Cache:      autocert.DirCache(args.CacheDir),
+		Email:      args.Email,
 	}
 
 	// tls: listen on port 80 for callback for certificate requests
@@ -236,7 +247,7 @@ func (t *myTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	// create struct object for json logger - note request, UUID and RTT
 	dlog := &dataLog{
 		UUID:          uuid,
-		RoundTripTime: respTime.Sub(reqTime),
+		RoundTripTime: respTime.Sub(reqTime).String(),
 		Request: &logRequest{
 			Time:       reqTime,
 			RemoteAddr: r.RemoteAddr,
@@ -282,7 +293,7 @@ type dataLog struct {
 	Request        *logRequest
 	Response       *logResponse
 	RoundTripError *rtError
-	RoundTripTime  time.Duration
+	RoundTripTime  string
 }
 
 type rtError struct {
@@ -305,4 +316,33 @@ type logResponse struct {
 	Status        string
 	ContentLength int
 	Headers       map[string][]string
+}
+
+// run aerolab and log to screen
+func runAerolab(args []string) {
+	if args[0] != "webui" {
+		args = append([]string{"webui"}, args...)
+	}
+	cmd := exec.Command("aerolab", args...)
+	cmd.Stdout = &appendWriter{os.Stdout}
+	cmd.Stderr = &appendWriter{os.Stderr}
+	err := cmd.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+type appendWriter struct {
+	dst io.Writer
+}
+
+func (a *appendWriter) Write(p []byte) (int, error) {
+	lines := strings.Split(string(p), "\n")
+	for i, line := range lines {
+		if i == len(lines)-1 && line == "" {
+			break
+		}
+		fmt.Fprintf(a.dst, "<AEROLAB> "+line+"\n")
+	}
+	return len(p), nil
 }
