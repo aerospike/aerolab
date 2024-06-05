@@ -29,6 +29,7 @@ type Page struct {
 	Inventory                               map[string]*InventoryItem
 	Backend                                 string
 	BetaTag                                 bool
+	CurrentUser                             string
 }
 
 type InventoryItem struct {

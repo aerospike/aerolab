@@ -1,4 +1,14 @@
 {{define "mainjs"}}
+function updateCurrentUser() {
+    var currentUser = "{{.CurrentUser}}";
+    if (currentUser == "" || currentUser == undefined || currentUser == null) {
+        $("#userShow").hide();
+    } else {
+        $("#userShow").show();
+        document.getElementById("currentUser").innerText = currentUser;
+    }
+}
+
 var updateJobListAllUsers = Cookies.get('AEROLAB_SHOW_ALL_USERS');
 function pendingActionShowAll(id) {
     let isChecked = $(id).is(":checked");
@@ -1849,6 +1859,7 @@ $(function () {
     initDatatable();
     updateJobList(true, true);
     $('.dtTooltip').tooltip({ trigger: "hover", placement: "bottom", fallbackPlacement:["right","top"], boundary: "viewport" });
+    updateCurrentUser();
   })
 
 // filebrowser - server-side

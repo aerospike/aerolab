@@ -1476,6 +1476,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		FormItems:                               formItems,
 		FormCommandTitle:                        title,
 		BetaTag:                                 isWebuiBeta,
+		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
