@@ -2261,7 +2261,10 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 		wg.Add(1)
 		defer wg.Wait()
 		go func() {
-			defer log.Print("DNS Cleanup done")
+			defer func() {
+				log.Print("DNS Cleanup done")
+				wg.Done()
+			}()
 			// get zoneInfo cache filled
 			zoneInfo := make(map[string][]DNSHost)
 			r53 := route53.New(d.sess)
@@ -2500,7 +2503,7 @@ func (d *backendAws) GetInstanceTags(name string) (map[string]map[string]string,
 			if *instance.State.Code != int64(48) {
 				tags := make(map[string]string)
 				for _, kv := range instance.Tags {
-					tags[*kv.Key] = tags[*kv.Value]
+					tags[*kv.Key] = *kv.Value
 				}
 				nodeList[*instance.InstanceId] = tags
 			}
