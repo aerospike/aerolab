@@ -67,3 +67,7 @@ aerolab webui --listen 0.0.0.0:3333 --listen [::]:3333 --nobrowser --block-serve
 ```
 certbot certonly --dns-route53 -n -d '*.ca-central-1.agi.aerolab.aerospike.me'
 ```
+
+## Notes
+
+While aerolab can be installed on the destination machine as `aerolab cluster add aerolab -n NAME` or `aerolab client configure aerolab -n NAME`, the version deployed will not be the full /embedded/ version. To then upgrade to a full aerolab version, run this: `aerolab attach shell -n NAME -- aerolab upgrade [--edge]` or `aerolab attach client -n NAME -- aerolab upgrade [--edge]`.
