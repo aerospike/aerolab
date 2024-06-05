@@ -151,7 +151,7 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 		}
 		b.WorkOnClients()
 		if !found {
-			err = b.CreateSecurityGroups("", "agi-autocert", true, []string{"80"}, true)
+			err = b.CreateSecurityGroups("", "agi-autocert", true, []string{"80", "443"}, true)
 			if err != nil {
 				return err
 			}
@@ -199,7 +199,7 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	b.WorkOnClients()
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
 		log.Printf("Configuring route53")
-		instIps, err := b.GetInstanceIpMap(string(c.Name), true)
+		instIps, err := b.GetInstanceIpMap(string(c.Name), false)
 		if err != nil {
 			log.Printf("ERROR: Could not get node IPs, DNS will not be updated: %s", err)
 		} else {
