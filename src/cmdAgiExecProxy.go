@@ -1042,6 +1042,7 @@ func (c *agiExecProxyCmd) grafanaHandler(w http.ResponseWriter, r *http.Request)
 	r.URL.Scheme = c.grafanaUrl.Scheme
 	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
 	r.Host = c.grafanaUrl.Host
+	r.Header.Del("Origin")
 	c.grafanaProxy.ServeHTTP(w, r)
 }
 
@@ -1055,6 +1056,7 @@ func (c *agiExecProxyCmd) ttydHandler(w http.ResponseWriter, r *http.Request) {
 	r.URL.Scheme = c.ttydUrl.Scheme
 	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
 	r.Host = c.ttydUrl.Host
+	r.Header.Del("Origin")
 	c.ttydProxy.ServeHTTP(w, r)
 }
 
@@ -1068,6 +1070,7 @@ func (c *agiExecProxyCmd) fbHandler(w http.ResponseWriter, r *http.Request) {
 	r.URL.Scheme = c.fbUrl.Scheme
 	r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
 	r.Host = c.fbUrl.Host
+	r.Header.Del("Origin")
 	c.fbProxy.ServeHTTP(w, r)
 }
 

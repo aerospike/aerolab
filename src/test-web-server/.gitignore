@@ -1,1 +1,4 @@
-test-web-server
+test-web-server.*
+proxy.json
+proxy.log
+tls-cache/*

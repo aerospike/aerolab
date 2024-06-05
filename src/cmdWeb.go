@@ -51,6 +51,7 @@ type webCmd struct {
 	AllowLsEverywhere   bool          `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
 	UniqueFirewalls     bool          `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
 	AGIStrictTLS        bool          `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
+	WSProxyOrigins      []string      `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
 	WebPath             string        `long:"web-path" hidden:"true"`
 	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
@@ -364,7 +365,7 @@ func (c *webCmd) allowls(r *http.Request) bool {
 		return true // allowed everywhere
 	}
 	if (strings.HasPrefix(r.Host, "127.0.0.1") || strings.HasPrefix(r.Host, "localhost") || strings.HasPrefix(r.Host, "[::1]")) && (strings.HasPrefix(r.RemoteAddr, "127.0.0.1") || strings.HasPrefix(r.RemoteAddr, "localhost") || strings.HasPrefix(r.RemoteAddr, "[::1]")) {
-		if r.Header.Get("X-Real-IP") != "" || r.Header.Get("X-Forwarded-For") != "" {
+		if r.Header.Get("X-Real-IP") != "" || r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("X-Forwarded-Host") != "" || r.Header.Get("Forwarded") != "" {
 			return false // localhost, but using proxy, blocked
 		}
 		return true // localhost, no proxy detected, allowed
@@ -1411,6 +1412,11 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		// if posting command, run and exit
 		c.command(w, r)
+		return
+	}
+
+	if _, ok := c.commandsIndex[strings.TrimPrefix(r.URL.Path, c.WebRoot)]; r.URL.Path != c.WebRoot && !ok {
+		http.Error(w, "command not found: "+r.URL.Path, http.StatusNotFound)
 		return
 	}
 

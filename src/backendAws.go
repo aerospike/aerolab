@@ -396,7 +396,7 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion 
 	_, err = d.iam.PutRolePolicy(&iam.PutRolePolicyInput{
 		PolicyName:     aws.String("aerolab-expiries-lambda-policy-" + a.opts.Config.Backend.Region),
 		RoleName:       aws.String("aerolab-expiries-lambda-" + a.opts.Config.Backend.Region),
-		PolicyDocument: aws.String(fmt.Sprintf(`{"Statement":[{"Action":"logs:CreateLogGroup","Effect":"Allow","Resource":"arn:aws:logs:%s:%s:*"},{"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Effect":"Allow","Resource":["arn:aws:logs:%s:%s:log-group:/aws/lambda/aerolab-expiries:*"]},{"Action":"eks:*","Effect":"Allow","Resource":"*"},{"Action":["ssm:GetParameter","ssm:GetParameters"],"Effect":"Allow","Resource":["arn:aws:ssm:*:%s:parameter/aws/*","arn:aws:ssm:*::parameter/aws/*"]},{"Action":["kms:CreateGrant","kms:DescribeKey"],"Effect":"Allow","Resource":"*"},{"Action":["logs:PutRetentionPolicy"],"Effect":"Allow","Resource":"*"},{"Action":["iam:CreateInstanceProfile","iam:DeleteInstanceProfile","iam:GetInstanceProfile","iam:RemoveRoleFromInstanceProfile","iam:GetRole","iam:CreateRole","iam:DeleteRole","iam:AttachRolePolicy","iam:PutRolePolicy","iam:AddRoleToInstanceProfile","iam:ListInstanceProfilesForRole","iam:PassRole","iam:DetachRolePolicy","iam:DeleteRolePolicy","iam:GetRolePolicy","iam:GetOpenIDConnectProvider","iam:CreateOpenIDConnectProvider","iam:DeleteOpenIDConnectProvider","iam:TagOpenIDConnectProvider","iam:ListOpenIDConnectProviders","iam:ListOpenIDConnectProviderTags","iam:DeleteOpenIDConnectProvider","iam:ListAttachedRolePolicies","iam:TagRole","iam:GetPolicy","iam:CreatePolicy","iam:DeletePolicy","iam:ListPolicyVersions"],"Effect":"Allow","Resource":["arn:aws:iam::%s:instance-profile/eksctl-*","arn:aws:iam::%s:role/eksctl-*","arn:aws:iam::%s:policy/eksctl-*","arn:aws:iam::%s:oidc-provider/*","arn:aws:iam::%s:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup","arn:aws:iam::%s:role/eksctl-managed-*"]},{"Action":["iam:GetRole"],"Effect":"Allow","Resource":["arn:aws:iam::%s:role/*"]},{"Action":["iam:CreateServiceLinkedRole"],"Condition":{"StringEquals":{"iam:AWSServiceName":["eks.amazonaws.com","eks-nodegroup.amazonaws.com","eks-fargate.amazonaws.com"]}},"Effect":"Allow","Resource":"*"}],"Version":"2012-10-17"}`, a.opts.Config.Backend.Region, accountId, a.opts.Config.Backend.Region, accountId, accountId, accountId, accountId, accountId, accountId, accountId, accountId, accountId)),
+		PolicyDocument: aws.String(fmt.Sprintf(`{"Statement":[{"Action":"logs:CreateLogGroup","Effect":"Allow","Resource":"arn:aws:logs:%s:%s:*"},{"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Effect":"Allow","Resource":["arn:aws:logs:%s:%s:log-group:/aws/lambda/aerolab-expiries:*"]},{"Action":"eks:*","Effect":"Allow","Resource":"*"},{"Action":["ssm:GetParameter","ssm:GetParameters"],"Effect":"Allow","Resource":["arn:aws:ssm:*:%s:parameter/aws/*","arn:aws:ssm:*::parameter/aws/*"]},{"Action":["kms:CreateGrant","kms:DescribeKey"],"Effect":"Allow","Resource":"*"},{"Action":["logs:PutRetentionPolicy"],"Effect":"Allow","Resource":"*"},{"Action":["iam:CreateInstanceProfile","iam:DeleteInstanceProfile","iam:GetInstanceProfile","iam:RemoveRoleFromInstanceProfile","iam:GetRole","iam:CreateRole","iam:DeleteRole","iam:AttachRolePolicy","iam:PutRolePolicy","iam:AddRoleToInstanceProfile","iam:ListInstanceProfilesForRole","iam:PassRole","iam:DetachRolePolicy","iam:DeleteRolePolicy","iam:GetRolePolicy","iam:GetOpenIDConnectProvider","iam:CreateOpenIDConnectProvider","iam:DeleteOpenIDConnectProvider","iam:TagOpenIDConnectProvider","iam:ListOpenIDConnectProviders","iam:ListOpenIDConnectProviderTags","iam:DeleteOpenIDConnectProvider","iam:ListAttachedRolePolicies","iam:TagRole","iam:GetPolicy","iam:CreatePolicy","iam:DeletePolicy","iam:ListPolicyVersions"],"Effect":"Allow","Resource":["arn:aws:iam::%s:instance-profile/eksctl-*","arn:aws:iam::%s:role/eksctl-*","arn:aws:iam::%s:policy/eksctl-*","arn:aws:iam::%s:oidc-provider/*","arn:aws:iam::%s:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup","arn:aws:iam::%s:role/eksctl-managed-*"]},{"Action":["iam:GetRole"],"Effect":"Allow","Resource":["arn:aws:iam::%s:role/*"]},{"Action":["iam:CreateServiceLinkedRole"],"Condition":{"StringEquals":{"iam:AWSServiceName":["eks.amazonaws.com","eks-nodegroup.amazonaws.com","eks-fargate.amazonaws.com"]}},"Effect":"Allow","Resource":"*"},{"Effect": "Allow","Action": ["route53:ChangeResourceRecordSets","route53:ListResourceRecordSets"],"Resource": ["arn:aws:route53:::hostedzone/*"]}],"Version":"2012-10-17"}`, a.opts.Config.Backend.Region, accountId, a.opts.Config.Backend.Region, accountId, accountId, accountId, accountId, accountId, accountId, accountId, accountId, accountId)),
 	})
 	if err != nil {
 		return err
@@ -2261,7 +2261,10 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 		wg.Add(1)
 		defer wg.Wait()
 		go func() {
-			defer log.Print("DNS Cleanup done")
+			defer func() {
+				log.Print("DNS Cleanup done")
+				wg.Done()
+			}()
 			// get zoneInfo cache filled
 			zoneInfo := make(map[string][]DNSHost)
 			r53 := route53.New(d.sess)
@@ -2500,7 +2503,7 @@ func (d *backendAws) GetInstanceTags(name string) (map[string]map[string]string,
 			if *instance.State.Code != int64(48) {
 				tags := make(map[string]string)
 				for _, kv := range instance.Tags {
-					tags[*kv.Key] = tags[*kv.Value]
+					tags[*kv.Key] = *kv.Value
 				}
 				nodeList[*instance.InstanceId] = tags
 			}

@@ -121,7 +121,7 @@ type agiCreateCmdAws struct {
 type agiCreateCmdGcp struct {
 	InstanceType        string        `long:"instance" description:"instance type to use" default:"c2d-highmem-4"`
 	Disks               []string      `long:"disk" description:"format type:sizeGB, ex: pd-ssd:20 ex: pd-balanced:40" default:"pd-ssd:40"`
-	Zone                string        `long:"zone" description:"zone name to deploy to" webrequired:"true"`
+	Zone                guiZone       `long:"zone" description:"zone name to deploy to" webrequired:"true"`
 	Tags                []string      `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels              []string      `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	NamePrefix          []string      `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"agi-managed-external"`
@@ -309,7 +309,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			a.opts.AGI.Monitor.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 			a.opts.AGI.Monitor.Create.Aws.SubnetID = c.Aws.SubnetID
 			a.opts.AGI.Monitor.Create.Gcp.NamePrefix = c.Gcp.NamePrefix
-			a.opts.AGI.Monitor.Create.Gcp.Zone = c.Gcp.Zone
+			a.opts.AGI.Monitor.Create.Gcp.Zone = c.Gcp.Zone.String()
 			a.opts.AGI.Monitor.Create.AutoCertDomains = c.MonitorAutoCertDomains
 			a.opts.AGI.Monitor.Create.AutoCertEmail = c.MonitorAutoCertEmail
 			a.opts.AGI.Monitor.Create.CertFile = c.MonitorCertFile
@@ -325,10 +325,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 				c.AGIMonitorCertIgnore = true // should notifier on AGI side expect AGI monitor to have a valid certificate
 			}
 		}
+		b.WorkOnClients()
 		agimUrl := ""
 		if a.opts.Config.Backend.Type == "aws" {
 			// get agimUrl (agimUrl aws tag) and use that as c.AGIMonitorUrl = "https://" + agimUrl
-			tags, err := b.GetInstanceTags(c.ClusterName.String())
+			tags, err := b.GetInstanceTags(a.opts.AGI.Monitor.Create.Name)
 			if err == nil {
 				for _, tgs := range tags {
 					if tg, ok := tgs["agimUrl"]; ok && tg != "" {
@@ -467,7 +468,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		log.Println("Resolving supported Instance Types")
 		found := false
 		for _, narm := range []bool{true, false} {
-			itypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, narm, c.Gcp.Zone)
+			itypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, narm, c.Gcp.Zone.String())
 			if err != nil {
 				log.Printf("WARNING: Could not check instance size, ensure instance has 12GB RAM or more (%s)", err)
 			} else {
@@ -636,15 +637,15 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		return fmt.Errorf("could not recover current working directory: %s", err)
 	}
 
+	wgDns := new(sync.WaitGroup)
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
 		instIps, err := b.GetInstanceIpMap(string(c.ClusterName), false)
 		if err != nil {
 			log.Printf("ERROR: Could not get node IPs, DNS will not be updated: %s", err)
 		} else {
-			wg := new(sync.WaitGroup)
-			wg.Add(2)
+			wgDns.Add(2)
 			go func() {
-				defer wg.Done()
+				defer wgDns.Done()
 				if c.Aws.Expires != 0 {
 					err := b.ExpiriesUpdateZoneID(c.Aws.Route53ZoneId)
 					if err != nil {
@@ -653,7 +654,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 				}
 			}()
 			go func() {
-				defer wg.Done()
+				defer wgDns.Done()
 				for inst, ip := range instIps {
 					err := b.DomainCreate(c.Aws.Route53ZoneId, fmt.Sprintf("%s.%s.agi.%s", inst, a.opts.Config.Backend.Region, c.Aws.Route53DomainName), ip, true)
 					if err != nil {
@@ -661,7 +662,6 @@ func (c *agiCreateCmd) Execute(args []string) error {
 					}
 				}
 			}()
-			defer wg.Wait()
 		}
 	}
 	log.Println("Cluster Node created, continuing AGI deployment...")
@@ -975,6 +975,10 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		if err != nil {
 			return err
 		}
+	}
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
+		log.Println("Waiting on Route53 update to complete...")
+		wgDns.Wait()
 	}
 	log.Println("Done")
 	log.Println("* aerolab agi help                 - list of available AGI commands")
