@@ -55,8 +55,15 @@ aerolab config defaults -k AGI.Create.WithAGIMonitorAuto -v true
 aerolab config defaults -k AGI.Create.ProxyCert -v cert.pem # cert for *.eu-west-1.agi.example.com
 aerolab config defaults -k AGI.Create.ProxyKey -v key.pem   # key for *.eu-west-1.agi.example.com
 aerolab config defaults -k AGI.Create.Aws.Route53ZoneId -v XZ12784628
-aerolab config defaults -k AGI.Create.Aws.Route53DomainName -v example.com
+aerolab config defaults -k AGI.Create.Aws.Route53DomainName -v eu-west-1.agi.example.com
+aerolab config defaults -k AGI.Create.Aws.WithEFS -v true
 
 # start webui
 aerolab webui --listen 0.0.0.0:3333 --listen [::]:3333 --nobrowser --block-server-ls --unique-firewalls --agi-strict-tls --ws-proxy-origin aerolab.example.com
+```
+
+## Certbot Example
+
+```
+certbot certonly --dns-route53 -n -d '*.ca-central-1.agi.aerolab.aerospike.me'
 ```
