@@ -655,7 +655,8 @@ func (d *backendAws) AssignSecurityGroups(clusterName string, names []string, vp
 	for _, name := range names {
 		found := false
 		for _, sg := range secGroups {
-			if strings.Split(sg.AWS.SecurityGroupName, "-")[0] == name {
+			prefix := strings.Split(sg.AWS.SecurityGroupName, "-")
+			if strings.Join(prefix[0:len(prefix)-1], "-") == name {
 				found = true
 				secGroupIds = append(secGroupIds, sg.AWS.SecurityGroupID)
 				break

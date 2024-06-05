@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -131,6 +132,38 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	} else if a.opts.Config.Backend.Type == "aws" {
 		printPrice("", c.Aws.InstanceType, 1, false)
 	}
+	if len(c.AutoCertDomains) > 0 {
+		log.Printf("Resolving firewalls")
+		inv, err := b.Inventory("", []int{InventoryItemFirewalls})
+		if err != nil {
+			return err
+		}
+		found := false
+		for _, item := range inv.FirewallRules {
+			if a.opts.Config.Backend.Type == "aws" && strings.HasPrefix(item.AWS.SecurityGroupName, "agi-autocert") {
+				found = true
+				break
+			}
+			if a.opts.Config.Backend.Type == "gcp" && strings.HasPrefix(item.GCP.FirewallName, "agi-autocert") {
+				found = true
+				break
+			}
+		}
+		b.WorkOnClients()
+		if !found {
+			err = b.CreateSecurityGroups("", "agi-autocert", true, []string{"80", "443"}, true)
+			if err != nil {
+				return err
+			}
+		}
+		if a.opts.Config.Backend.Type == "aws" && !inslice.HasString(c.Aws.NamePrefix, "agi-autocert") {
+			c.Aws.NamePrefix = append(c.Aws.NamePrefix, "agi-autocert")
+		}
+		if a.opts.Config.Backend.Type == "gcp" && !inslice.HasString(c.Gcp.NamePrefix, "agi-autocert") {
+			c.Gcp.NamePrefix = append(c.Gcp.NamePrefix, "agi-autocert")
+		}
+	}
+
 	log.Printf("Creating base instance")
 	a.opts.Client.Create.None.ClientCount = 1
 	a.opts.Client.Create.None.ClientName = TypeClientName(c.Name)
@@ -280,6 +313,15 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 			Email:      c.AutoCertEmail,
 			HostPolicy: autocert.HostWhitelist(c.AutoCertDomains...),
 		}
+		go func() {
+			srv := &http.Server{
+				Addr:    ":80",
+				Handler: m.HTTPHandler(nil),
+			}
+			log.Println("AutoCert: Listening on 0.0.0.0:80")
+			err := srv.ListenAndServe()
+			log.Fatal(err)
+		}()
 		s := &http.Server{
 			Addr:      c.ListenAddress,
 			TLSConfig: m.TLSConfig(),
@@ -482,13 +524,32 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqIp := strings.Split(r.RemoteAddr, ":")[0]
+	reqDomain := reqIp
+	if cluster.awsTags["agiDomain"] != "" {
+		reqDomain = cluster.InstanceId + "." + a.opts.Config.Backend.Region + ".agi." + cluster.awsTags["agiDomain"]
+		ips, err := net.LookupIP(reqDomain)
+		if err != nil {
+			c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:5.1 incorrect: DNS IP lookup failed (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
+			return
+		}
+		domainFound := false
+		for _, ip := range ips {
+			if inslice.HasString([]string{cluster.PrivateIp, cluster.PublicIp}, ip.String()) {
+				domainFound = true
+			}
+		}
+		if !domainFound {
+			c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:5.2 incorrect: request IP does not match DNS (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
+			return
+		}
+	}
 	if !inslice.HasString([]string{cluster.PrivateIp, cluster.PublicIp}, reqIp) {
-		c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:6 incorrect: request IP does not match (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
+		c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:6 incorrect: request IP does not match node IP (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
 		return
 	}
 	secretChallenge := r.Header.Get("Agi-Monitor-Secret")
 	var callbackFailure error
-	if accepted, err := c.challengeCallback(reqIp, secretChallenge); err != nil {
+	if accepted, err := c.challengeCallback(reqDomain, secretChallenge); err != nil {
 		callbackFailure = err
 	} else if !accepted {
 		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: challenge callback not accepted")
@@ -621,7 +682,7 @@ func (c *agiMonitorListenCmd) handleSizingDiskAndRAM(uuid string, event *ingest.
 
 func (c *agiMonitorListenCmd) handleSizingDiskDo(uuid string, event *ingest.NotifyEvent, newSize int64) {
 	_ = event
-	a.opts.Volume.Resize.Zone = a.opts.AGI.Create.Gcp.Zone
+	a.opts.Volume.Resize.Zone = a.opts.AGI.Create.Gcp.Zone.String()
 	a.opts.Volume.Resize.Name = string(a.opts.AGI.Create.ClusterName)
 	a.opts.Volume.Resize.Size = newSize
 	err := a.opts.Volume.Resize.Execute(nil)
