@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -198,7 +199,7 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	b.WorkOnClients()
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
 		log.Printf("Configuring route53")
-		instIps, err := b.GetInstanceIpMap(string(c.Name), false)
+		instIps, err := b.GetInstanceIpMap(string(c.Name), true)
 		if err != nil {
 			log.Printf("ERROR: Could not get node IPs, DNS will not be updated: %s", err)
 		} else {
@@ -523,13 +524,32 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqIp := strings.Split(r.RemoteAddr, ":")[0]
+	reqDomain := reqIp
+	if cluster.awsTags["agiDomain"] != "" {
+		reqDomain = cluster.InstanceId + "." + a.opts.Config.Backend.Region + ".agi." + cluster.awsTags["agiDomain"]
+		ips, err := net.LookupIP(reqDomain)
+		if err != nil {
+			c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:5.1 incorrect: DNS IP lookup failed (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
+			return
+		}
+		domainFound := false
+		for _, ip := range ips {
+			if inslice.HasString([]string{cluster.PrivateIp, cluster.PublicIp}, ip.String()) {
+				domainFound = true
+			}
+		}
+		if !domainFound {
+			c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:5.2 incorrect: request IP does not match DNS (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
+			return
+		}
+	}
 	if !inslice.HasString([]string{cluster.PrivateIp, cluster.PublicIp}, reqIp) {
-		c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:6 incorrect: request IP does not match (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
+		c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:6 incorrect: request IP does not match node IP (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))
 		return
 	}
 	secretChallenge := r.Header.Get("Agi-Monitor-Secret")
 	var callbackFailure error
-	if accepted, err := c.challengeCallback(reqIp, secretChallenge); err != nil {
+	if accepted, err := c.challengeCallback(reqDomain, secretChallenge); err != nil {
 		callbackFailure = err
 	} else if !accepted {
 		c.respond(w, r, uuid, 401, "auth: incorrect", "auth:7 incorrect: challenge callback not accepted")
