@@ -496,7 +496,7 @@ func (a *aerolab) telemetry(webuiData string) error {
 	ret := make(chan configValueCmd, 1)
 	a.opts.Config.Defaults.OnlyChanged = true
 	keyField := reflect.ValueOf(a.opts).Elem()
-	go a.opts.Config.Defaults.getValues(keyField, "", ret, "")
+	go a.opts.Config.Defaults.getValues(keyField, "", ret, "", a.opts.Config.Defaults.OnlyChanged)
 	for {
 		val, ok := <-ret
 		if !ok {

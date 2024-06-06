@@ -422,6 +422,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		IsInventory:                             true,
 		Inventory:                               c.inventoryNames,
 		BetaTag:                                 isWebuiBeta,
+		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{

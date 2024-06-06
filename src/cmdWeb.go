@@ -1463,6 +1463,20 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			isShowUsersChecked = true
 		}
 	}
+	isShowDefaults := false
+	isShowDefaultsC, err := r.Cookie("aerolab_default_switches")
+	if err == nil {
+		if isShowDefaultsC.Value == "true" {
+			isShowDefaults = true
+		}
+	}
+	isShortSwitches := false
+	isShortSwitchesC, err := r.Cookie("aerolab_short_switches")
+	if err == nil {
+		if isShortSwitchesC.Value == "true" {
+			isShortSwitches = true
+		}
+	}
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
@@ -1476,6 +1490,9 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		FormItems:                               formItems,
 		FormCommandTitle:                        title,
 		BetaTag:                                 isWebuiBeta,
+		ShortSwitches:                           isShortSwitches,
+		ShowDefaults:                            isShowDefaults,
+		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
@@ -1561,12 +1578,18 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	}
 	command := c.commands[cindex].Value
 	cjson := make(map[string]interface{})
+	logjson := make(map[string]interface{})
 	cmdline := append([]string{"aerolab"}, c.commands[cindex].pathStack...)
 	action := r.PostForm["action"]
 	useShortSwitchesTmp := r.PostForm["useShortSwitches"]
 	useShortSwitches := false
 	if len(useShortSwitchesTmp) > 0 && useShortSwitchesTmp[0] == "true" {
 		useShortSwitches = true
+	}
+	useShowDefaultsTmp := r.PostForm["useShowDefaults"]
+	useShowDefaults := false
+	if len(useShowDefaultsTmp) > 0 && useShowDefaultsTmp[0] == "true" {
+		useShowDefaults = true
 	}
 	if len(action) != 1 || (action[0] != "show" && action[0] != "run") {
 		http.Error(w, "invalid action specification in form", http.StatusBadRequest)
@@ -1671,6 +1694,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		v := kv[1].([]string)
 		cmd := reflect.Indirect(command)
 		cj := cjson
+		lj := logjson
 		commandPath := strings.Split(strings.TrimPrefix(k, "xx"), "xx")
 		for i, depth := range commandPath {
 			if i == 0 && depth == "" {
@@ -1684,6 +1708,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				cj[depth] = make(map[string]interface{})
 			}
 			cj = cj[depth].(map[string]interface{})
+			if _, ok := lj[depth]; !ok {
+				lj[depth] = make(map[string]interface{})
+			}
+			lj = lj[depth].(map[string]interface{})
 		}
 		param := commandPath[len(commandPath)-1]
 		field := cmd.FieldByName(param)
@@ -1692,12 +1720,16 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		switch field.Kind() {
 		case reflect.String:
 			if v[0] != field.String() {
+				cj[param] = v[0]
+				if tag.Get("webtype") == "password" {
+					v[0] = "****"
+				}
 				if tag.Get("long") == "" {
 					tail = append(tail, "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
 				} else {
 					cmdline = append(cmdline, c.switchName(useShortSwitches, tag), "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
 				}
-				cj[param] = v[0]
+				lj[param] = v[0]
 			}
 		case reflect.Bool:
 			val := false
@@ -1706,6 +1738,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 			if val != field.Bool() {
 				cj[param] = true
+				lj[param] = true
 				cmdline = append(cmdline, c.switchName(useShortSwitches, tag))
 			}
 		case reflect.Int:
@@ -1716,6 +1749,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 			if val != int(field.Int()) {
 				cj[param] = val
+				lj[param] = val
 				if tag.Get("long") == "" {
 					tail = append(tail, v[0])
 				} else {
@@ -1730,6 +1764,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 			if val != field.Float() {
 				cj[param] = val
+				lj[param] = val
 				if tag.Get("long") == "" {
 					tail = append(tail, v[0])
 				} else {
@@ -1738,6 +1773,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 		case reflect.Slice:
 			cj[param] = v
+			lj[param] = v
 			if tag.Get("long") == "" {
 				tail = append(tail, v...)
 			} else {
@@ -1754,6 +1790,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				}
 				if int64(dur) != field.Int() {
 					cj[param] = dur
+					lj[param] = dur
 					if tag.Get("long") == "" {
 						tail = append(tail, v[0])
 					} else {
@@ -1768,6 +1805,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				}
 				if val != int(field.Int()) {
 					cj[param] = val
+					lj[param] = val
 					if tag.Get("long") == "" {
 						tail = append(tail, v[0])
 					} else {
@@ -1782,6 +1820,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			if field.Type().String() == "*flags.Filename" {
 				if v[0] != field.Elem().String() {
 					cj[param] = v[0]
+					lj[param] = v[0]
 					if tag.Get("long") == "" {
 						tail = append(tail, v[0])
 					} else {
@@ -1796,6 +1835,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					}
 					if field.IsNil() || val != field.Elem().Bool() {
 						cj[param] = val
+						lj[param] = val
 						if val {
 							cmdline = append(cmdline, c.switchName(useShortSwitches, tag))
 						}
@@ -1811,6 +1851,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					}
 					if field.IsNil() || val != int(field.Elem().Int()) {
 						cj[param] = val
+						lj[param] = val
 						if tag.Get("long") == "" {
 							tail = append(tail, v[0])
 						} else {
@@ -1822,12 +1863,16 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				isSet := r.PostForm["isSet-"+k]
 				if len(isSet) > 0 && isSet[0] == "yes" {
 					if field.IsNil() || v[0] != field.Elem().String() {
+						cj[param] = v[0]
+						if tag.Get("webtype") == "password" {
+							v[0] = "****"
+						}
 						if tag.Get("long") == "" {
 							tail = append(tail, "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
 						} else {
 							cmdline = append(cmdline, c.switchName(useShortSwitches, tag), "'"+strings.ReplaceAll(v[0], "'", "\\'")+"'")
 						}
-						cj[param] = v[0]
+						lj[param] = v[0]
 					}
 				}
 			} else {
@@ -1850,8 +1895,80 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		if !found {
 			cmdline = append(cmdline, "-t", a.opts.Config.Backend.Type)
 			cjson["Type"] = a.opts.Config.Backend.Type
+			logjson["Type"] = a.opts.Config.Backend.Type
 		}
 	}
+
+	// run through the "user-defined defaults" that defer from actual defaults, and add those switched in (if they are not there yet)
+	// correct cmdline only
+	if useShowDefaults {
+		defs := a.opts.Config.Defaults.get(true)
+		defsorted := [][]string{}
+		for k, v := range defs {
+			defsorted = append(defsorted, []string{k, v})
+		}
+		sort.Slice(defsorted, func(i, j int) bool {
+			if defsorted[i][0] == defsorted[j][0] {
+				return defsorted[i][1] < defsorted[j][1]
+			}
+			return defsorted[i][0] < defsorted[j][0]
+		})
+		for _, kv := range defsorted {
+			k := kv[0]
+			v := kv[1]
+			kstack := strings.Split(k, ".")
+			if len(kstack) < len(c.commands[cindex].pathStack) {
+				continue
+			}
+			pathFound := true
+			for i, p := range c.commands[cindex].pathStack {
+				if strings.ToLower(kstack[i]) != p {
+					pathFound = false
+					break
+				}
+			}
+			if !pathFound {
+				continue
+			}
+			cj := cjson
+			paramFound := false
+			for _, nk := range kstack {
+				if item, ok := cj[nk]; ok {
+					switch ncj := item.(type) {
+					case map[string]interface{}:
+						cj = ncj
+					default:
+						paramFound = true
+					}
+				} else {
+					break
+				}
+			}
+			if !paramFound {
+				ncmd := command
+				var ncmdt reflect.StructField
+				for _, k := range kstack[len(c.commands[cindex].pathStack):] {
+					ncmdt, _ = ncmd.Type().FieldByName(k)
+					ncmd = ncmd.FieldByName(k)
+				}
+				sw := ""
+				if useShortSwitches {
+					sw = "-" + ncmdt.Tag.Get("short")
+				}
+				if sw == "" || sw == "-" {
+					sw = "--" + ncmdt.Tag.Get("long")
+				}
+				if sw == "" {
+					continue
+				}
+				if ncmdt.Tag.Get("webtype") == "password" {
+					v = "****"
+				}
+				cmdline = append(cmdline, sw, fmt.Sprintf("'%s'", strings.ReplaceAll(v, "'", "\\'")))
+			}
+		}
+	}
+
 	if action[0] == "show" {
 		if len(tail) == 1 {
 			json.NewEncoder(w).Encode(cmdline)
@@ -1918,7 +2035,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	f.WriteString("-=-=-=-=- [path] /" + strings.TrimPrefix(r.URL.Path, c.WebRoot) + " -=-=-=-=-\n")
 	f.WriteString("-=-=-=-=- [cmdline] " + strings.Join(cmdlineprint, " ") + " -=-=-=-=-\n")
 	f.WriteString("-=-=-=-=- [command] " + strings.Join(c.commands[cindex].pathStack, " ") + " -=-=-=-=-\n")
-	json.NewEncoder(f).Encode(cjson)
+	json.NewEncoder(f).Encode(logjson)
 	f.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	run.Stderr = f
 	run.Stdout = f
