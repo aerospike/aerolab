@@ -176,7 +176,7 @@ func (c *agiMonitorCreateCmd) create(args []string) error {
 	a.opts.Client.Create.None.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Client.Create.None.Aws.Expires = 0
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
-		a.opts.Client.Create.None.Aws.Tags = append(a.opts.Client.Create.None.Aws.Tags, "agimUrl="+c.Aws.Route53DomainName)
+		a.opts.Client.Create.None.Aws.Tags = append(a.opts.Client.Create.None.Aws.Tags, "agimUrl="+c.Aws.Route53DomainName, "agimZone="+c.Aws.Route53ZoneId)
 	}
 	a.opts.Client.Create.None.instanceRole = c.Aws.InstanceRole
 	if a.opts.Config.Backend.Type == "gcp" {

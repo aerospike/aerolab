@@ -556,6 +556,43 @@ func (d *backendAws) DomainCreate(zoneId string, fqdn string, IP string, wait bo
 	return nil
 }
 
+func (d *backendAws) domainCreateBatch(zoneId string, fqdnIP map[string]string, wait bool) (err error) {
+	changes := []*route53.Change{}
+	for fqdn, ip := range fqdnIP {
+		changes = append(changes, &route53.Change{
+			Action: aws.String("UPSERT"),
+			ResourceRecordSet: &route53.ResourceRecordSet{
+				Name: aws.String(fqdn),
+				TTL:  aws.Int64(int64(60)),
+				Type: aws.String("A"),
+				ResourceRecords: []*route53.ResourceRecord{
+					{
+						Value: aws.String(ip),
+					},
+				},
+			},
+		})
+	}
+	svc := route53.New(d.sess)
+	recordSetsOutput, err := svc.ChangeResourceRecordSets(&route53.ChangeResourceRecordSetsInput{
+		HostedZoneId: aws.String(zoneId),
+		ChangeBatch: &route53.ChangeBatch{
+			Changes: changes,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	if wait {
+		err = svc.WaitUntilResourceRecordSetsChanged(&route53.GetChangeInput{
+			Id: recordSetsOutput.ChangeInfo.Id,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
 func (d *backendAws) EnableServices() error {
 	return nil
 }
@@ -1890,6 +1927,7 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 			if *instance.State.Code != int64(48) {
 				var nodeNumber int
 				startTime := 0
+				tags := make(map[string]string)
 				for _, tag := range instance.Tags {
 					if *tag.Key == awsTagNodeNumber {
 						nodeNumber, err = strconv.Atoi(*tag.Value)
@@ -1902,6 +1940,7 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 							startTime = 0
 						}
 					}
+					tags[*tag.Key] = *tag.Value
 				}
 				if inslice.HasInt(nodes, nodeNumber) {
 					if instance.State.Code != &stateCodes[0] && instance.State.Code != &stateCodes[1] {
@@ -1965,6 +2004,41 @@ func (d *backendAws) ClusterStart(name string, nodes []int) error {
 		}
 		if time.Since(start) > time.Second*600 {
 			return errors.New("didn't get Public IP for 10 minutes, giving up")
+		}
+	}
+
+	updates := make(map[string]map[string]string) // map[zoneId]map[fqdn]ip
+	tags, err := d.GetInstanceTags(name)
+	if err == nil {
+		for instId, tgs := range tags {
+			if !inslice.HasString(aws.StringValueSlice(instList), instId) {
+				continue
+			}
+			if dom, ok := tgs["agimUrl"]; ok && dom != "" {
+				if zid, ok := tgs["agimZone"]; ok && zid != "" {
+					// found, update DNS
+					var nodeNumber int
+					if tg, ok := tgs[awsTagNodeNumber]; ok && tg != "" {
+						nodeNumber, err = strconv.Atoi(tg)
+						if err != nil {
+							return errors.New("problem with node numbers in the given cluster. Investigate manually")
+						}
+					}
+					if nip[nodeNumber] == "" || nip[nodeNumber] == "N/A" {
+						continue
+					}
+					if _, ok := updates[zid]; !ok {
+						updates[zid] = make(map[string]string)
+					}
+					updates[zid][dom] = nip[nodeNumber]
+				}
+			}
+		}
+		for zid, update := range updates {
+			err = d.domainCreateBatch(zid, update, true)
+			if err != nil {
+				log.Printf("Error updating DNS: %s", err)
+			}
 		}
 	}
 
@@ -2180,6 +2254,18 @@ func (d *backendAws) VacuumTemplates() error {
 			InstanceIds: instanceIds,
 		})
 	}
+	keys, err := d.ec2svc.DescribeKeyPairs(&ec2.DescribeKeyPairsInput{})
+	if err != nil {
+		return fmt.Errorf("failed to describe keyPairs: %s", err)
+	}
+	for _, key := range keys.KeyPairs {
+		if !strings.HasPrefix(*key.KeyName, "aerolab-template") {
+			continue
+		}
+		d.ec2svc.DeleteKeyPair(&ec2.DeleteKeyPairInput{
+			KeyName: key.KeyName,
+		})
+	}
 	return nil
 }
 
@@ -2207,6 +2293,7 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 	type instanceDomainInfo struct {
 		ZoneID     string
 		DomainName string
+		Exact      bool
 	}
 	instanceZones := make(map[string]instanceDomainInfo)
 
@@ -2251,6 +2338,13 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 							DomainName: tags["agiDomain"],
 						}
 					}
+					if tags["agimUrl"] != "" && tags["agimZone"] != "" {
+						instanceZones[*instance.InstanceId] = instanceDomainInfo{
+							ZoneID:     tags["agimZone"],
+							DomainName: tags["agimUrl"],
+							Exact:      true,
+						}
+					}
 				}
 			}
 		}
@@ -2282,7 +2376,7 @@ func (d *backendAws) ClusterDestroy(name string, nodes []int) error {
 			zoneChanges := make(map[string]*route53.ChangeBatch) // [zoneId]batch
 			for instId, instZone := range instanceZones {
 				for _, dnsHost := range zoneInfo[instZone.ZoneID] {
-					if strings.HasPrefix(dnsHost.Name, instId+".") {
+					if (!instZone.Exact && strings.HasPrefix(dnsHost.Name, instId+".")) || (instZone.Exact && strings.TrimSuffix(dnsHost.Name, ".") == strings.TrimSuffix(instZone.DomainName, ".")) {
 						if _, ok := zoneChanges[instZone.ZoneID]; !ok {
 							zoneChanges[instZone.ZoneID] = &route53.ChangeBatch{}
 						}
