@@ -344,6 +344,50 @@ func HandleLambdaEvent(event MyEvent) (MyResponse, error) {
 		log.Println("EKS: Cluster Expired")
 	}
 
+	// expire keys
+	log.Print("Expiring SSH keys")
+	clusters := []string{}
+	err = svc.DescribeInstancesPages(&ec2.DescribeInstancesInput{}, func(out *ec2.DescribeInstancesOutput, nextPage bool) bool {
+		for _, r := range out.Reservations {
+			for _, instance := range r.Instances {
+				tags := make(map[string]string)
+				for _, tag := range instance.Tags {
+					tags[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+				}
+				name := tags["Aerolab4ClusterName"]
+				if name == "" {
+					name = tags["Aerolab4clientClusterName"]
+				}
+				if name != "" && !inslice.HasString(clusters, name) {
+					clusters = append(clusters, name)
+				}
+			}
+		}
+		return true
+	})
+	log.Print(clusters)
+	if err != nil {
+		return makeErrorResponse("Could not DescribeInstancesPages: ", err)
+	}
+	keys, err := svc.DescribeKeyPairs(&ec2.DescribeKeyPairsInput{})
+	if err != nil {
+		return makeErrorResponse("Could not DescribeKeyPairs: ", err)
+	}
+	expRegion := os.Getenv("AWS_REGION")
+	for _, key := range keys.KeyPairs {
+		if !strings.HasPrefix(*key.KeyName, "aerolab-") {
+			continue
+		}
+		if strings.HasPrefix(*key.KeyName, "aerolab-template") {
+			continue
+		}
+		if !inslice.HasString(clusters, strings.TrimSuffix(strings.TrimPrefix(*key.KeyName, "aerolab-"), "_"+expRegion)) {
+			svc.DeleteKeyPair(&ec2.DeleteKeyPairInput{
+				KeyName: key.KeyName,
+			})
+		}
+	}
+
 	if os.Getenv("route53_zoneid") == "" {
 		return MyResponse{Message: "Completed", Status: "OK"}, nil
 	}

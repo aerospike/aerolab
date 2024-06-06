@@ -2254,6 +2254,18 @@ func (d *backendAws) VacuumTemplates() error {
 			InstanceIds: instanceIds,
 		})
 	}
+	keys, err := d.ec2svc.DescribeKeyPairs(&ec2.DescribeKeyPairsInput{})
+	if err != nil {
+		return fmt.Errorf("failed to describe keyPairs: %s", err)
+	}
+	for _, key := range keys.KeyPairs {
+		if !strings.HasPrefix(*key.KeyName, "aerolab-template") {
+			continue
+		}
+		d.ec2svc.DeleteKeyPair(&ec2.DeleteKeyPairInput{
+			KeyName: key.KeyName,
+		})
+	}
 	return nil
 }
 
