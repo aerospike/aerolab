@@ -30,6 +30,8 @@ type Page struct {
 	Backend                                 string
 	BetaTag                                 bool
 	CurrentUser                             string
+	ShortSwitches                           bool
+	ShowDefaults                            bool
 }
 
 type InventoryItem struct {

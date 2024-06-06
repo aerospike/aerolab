@@ -236,6 +236,7 @@
                 <div class="card-body">
                   <input type="hidden" name="action" value="" id="action">
                   <input type="hidden" name="useShortSwitches" value="" id="useShortSwitches">
+                  <input type="hidden" name="useShowDefaults" value="" id="useShowDefaults">
                   <input type="hidden" name="useBasicDefaults" value="" id="useBasicDefaults">
                   {{ range .FormItems }}
                   {{if .Type.Separator}}
@@ -340,7 +341,10 @@
               <div class="card-tools">
                 <ul class="nav nav-pills ml-auto">
                 <li class="nav-item">
-                  <div class="custom-control custom-switch" data-toggle="tooltiptop" title="Set to use short-format switches where available"><input type="checkbox" class="custom-control-input" id="shortSwitches" name="shortSwitches"><label class="custom-control-label" for="shortSwitches">Use short switches&nbsp;&nbsp;</label></div>
+                  <div class="custom-control custom-switch" data-toggle="tooltiptop" title="Set to use short-format switches where available"><input type="checkbox" class="custom-control-input" id="shortSwitches" name="shortSwitches"{{if .ShortSwitches}} checked{{end}}><label class="custom-control-label" for="shortSwitches">Use short switches&nbsp;&nbsp;</label></div>
+                </li>
+                <li class="nav-item">
+                  <div class="custom-control custom-switch" data-toggle="tooltiptop" title="Set to show all parameters, including user-defined default overrides"><input type="checkbox" class="custom-control-input" id="showDefaults" name="showDefaults"{{if .ShowDefaults}} checked{{end}}><label class="custom-control-label" for="showDefaults">Show defaults&nbsp;&nbsp;&nbsp;&nbsp;</label></div>
                 </li>
                 </ul>
               </div>

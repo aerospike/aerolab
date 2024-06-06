@@ -172,7 +172,7 @@ func (c *configDefaultsCmd) handleRecursive(args []string) error {
 	if err != nil {
 		return err
 	}
-	go c.getValues(keyField, "", ret, "")
+	go c.getValues(keyField, "", ret, "", c.OnlyChanged)
 	for {
 		val, ok := <-ret
 		if !ok {
@@ -193,6 +193,22 @@ func (c *configDefaultsCmd) handleRecursive(args []string) error {
 			}
 		}
 	}
+}
+
+func (c *configDefaultsCmd) get(onlyChanged bool) map[string]string {
+	keyField := reflect.ValueOf(a.opts).Elem()
+	var tags reflect.StructTag
+	ret := make(chan configValueCmd, 1)
+	vals := make(map[string]string)
+	go c.getValues(keyField, "", ret, tags, onlyChanged)
+	for {
+		val, ok := <-ret
+		if !ok {
+			break
+		}
+		vals[val.key] = val.value
+	}
+	return vals
 }
 
 func (c *configDefaultsCmd) Execute(args []string) error {
@@ -355,7 +371,7 @@ type configValueCmd struct {
 
 func (c *configDefaultsCmd) displayValues(keyField reflect.Value, start string, tags reflect.StructTag) {
 	ret := make(chan configValueCmd, 1)
-	go c.getValues(keyField, start, ret, tags)
+	go c.getValues(keyField, start, ret, tags, c.OnlyChanged)
 	for {
 		val, ok := <-ret
 		if !ok {
@@ -365,12 +381,12 @@ func (c *configDefaultsCmd) displayValues(keyField reflect.Value, start string, 
 	}
 }
 
-func (c *configDefaultsCmd) getValues(keyField reflect.Value, start string, ret chan configValueCmd, tags reflect.StructTag) {
+func (c *configDefaultsCmd) getValues(keyField reflect.Value, start string, ret chan configValueCmd, tags reflect.StructTag, onlyChanged bool) {
 	defer close(ret)
-	c.getValuesNext(keyField, start, ret, tags)
+	c.getValuesNext(keyField, start, ret, tags, onlyChanged)
 }
 
-func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, ret chan configValueCmd, tags reflect.StructTag) {
+func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, ret chan configValueCmd, tags reflect.StructTag, onlyChanged bool) {
 	var tagDefault string
 	if tags != "" {
 		tagDefault = tags.Get("default")
@@ -380,27 +396,27 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 		if tagDefault == "" {
 			tagDefault = "0"
 		}
-		if !c.OnlyChanged || tagDefault != fmt.Sprintf("%d", keyField.Int()) {
+		if !onlyChanged || tagDefault != fmt.Sprintf("%d", keyField.Int()) {
 			if keyField.Type().String() != "time.Duration" {
 				ret <- configValueCmd{start, fmt.Sprintf("%d", keyField.Int())}
 			} else {
 				defDuration, err := time.ParseDuration(tagDefault)
-				if !c.OnlyChanged || err != nil || defDuration != time.Duration(keyField.Int()) {
+				if !onlyChanged || err != nil || defDuration != time.Duration(keyField.Int()) {
 					ret <- configValueCmd{start, fmt.Sprintf("%v", time.Duration(keyField.Int()))}
 				}
 			}
 		}
 	case reflect.String:
-		if !c.OnlyChanged || keyField.String() != tagDefault {
+		if !onlyChanged || keyField.String() != tagDefault {
 			ret <- configValueCmd{start, keyField.String()}
 		}
 	case reflect.Bool:
-		if !c.OnlyChanged || keyField.Bool() { // false values are the defaults
+		if !onlyChanged || keyField.Bool() { // false values are the defaults
 			ret <- configValueCmd{start, fmt.Sprintf("%t", keyField.Bool())}
 		}
 	case reflect.Float64:
 		val, _ := strconv.ParseFloat(tagDefault, 64)
-		if !c.OnlyChanged || val != keyField.Float() {
+		if !onlyChanged || val != keyField.Float() {
 			ret <- configValueCmd{start, fmt.Sprintf("%f", keyField.Float())}
 		}
 	case reflect.Struct:
@@ -411,7 +427,7 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 				if keyField.Field(i).Type().Kind() != reflect.Struct {
 					continue
 				}
-				c.getValuesNext(keyField.Field(i), start, ret, fieldTag)
+				c.getValuesNext(keyField.Field(i), start, ret, fieldTag, onlyChanged)
 			}
 			if len(fieldName) == 0 || fieldName[0] < 65 || fieldName[0] > 90 {
 				continue
@@ -422,14 +438,14 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 			if strings.HasPrefix(fieldName, "Config.Defaults.") || fieldName == "DryRun" {
 				continue
 			}
-			c.getValuesNext(keyField.Field(i), fieldName, ret, fieldTag)
+			c.getValuesNext(keyField.Field(i), fieldName, ret, fieldTag, onlyChanged)
 		}
 	case reflect.Slice:
 	case reflect.Ptr:
 		if !keyField.IsNil() {
-			c.getValuesNext(reflect.Indirect(keyField), start, ret, tags)
+			c.getValuesNext(reflect.Indirect(keyField), start, ret, tags, onlyChanged)
 		} else {
-			if !c.OnlyChanged {
+			if !onlyChanged {
 				ret <- configValueCmd{start, tagDefault}
 			}
 		}

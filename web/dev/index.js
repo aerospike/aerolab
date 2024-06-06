@@ -137,6 +137,7 @@ function btnRun() {
     $("#loadingSpinner").show();
     document.getElementById("action").value = "run";
     document.getElementById("useShortSwitches").value = document.getElementById("shortSwitches").checked;
+    document.getElementById("useShowDefaults").value = document.getElementById("showDefaults").checked;
     $.post("", $("#mainForm").serialize(), function(data) {
         showCommandOut(data);
     })
@@ -246,6 +247,7 @@ function getCommand(supressError=false) {
     }
     document.getElementById("action").value = "show";
     document.getElementById("useShortSwitches").value = document.getElementById("shortSwitches").checked;
+    document.getElementById("useShowDefaults").value = document.getElementById("showDefaults").checked;
     $.post("", $("#mainForm").serialize(), function(data) {
         var switches = false;
         var inner = "";
@@ -273,6 +275,16 @@ function getCommand(supressError=false) {
         $("#loadingSpinner").hide();
     });
 }
+
+$("#shortSwitches").on('change',function(){ 
+    Cookies.set('aerolab_short_switches', document.getElementById("shortSwitches").checked, { expires: 360, path: '{{.WebRoot}}' });
+    getCommand();
+})
+
+$("#showDefaults").on('change',function(){ 
+    Cookies.set('aerolab_default_switches', document.getElementById("showDefaults").checked, { expires: 360, path: '{{.WebRoot}}' });
+    getCommand();
+})
 
 $("#btnShowCommand").click(function(){ 
     getCommand();
