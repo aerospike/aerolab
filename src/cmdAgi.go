@@ -84,7 +84,7 @@ func (c *agiStartCmd) Execute(args []string) error {
 	a.opts.Cluster.Start.ClusterName = c.ClusterName
 	a.opts.Cluster.Start.Nodes = "1"
 	a.opts.Cluster.Start.NoStart = true
-	return a.opts.Cluster.Start.Execute(args)
+	return a.opts.Cluster.Start.doStart("agi")
 }
 
 type agiStopCmd struct {
@@ -95,7 +95,7 @@ type agiStopCmd struct {
 func (c *agiStopCmd) Execute(args []string) error {
 	a.opts.Cluster.Stop.ClusterName = c.ClusterName
 	a.opts.Cluster.Stop.Nodes = "1"
-	return a.opts.Cluster.Stop.Execute(args)
+	return a.opts.Cluster.Stop.doStop("agi")
 }
 
 type agiAddTokenCmd struct {

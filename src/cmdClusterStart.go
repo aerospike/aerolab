@@ -15,16 +15,20 @@ type clusterStartCmd struct {
 	clusterStartStopDestroyCmd
 }
 
-func (c *clusterStartCmd) Execute(args []string) error {
+func (c *clusterStartCmd) Execute(args []string, nType string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	return c.doStart("cluster")
+}
+
+func (c *clusterStartCmd) doStart(nType string) error {
 	log.Println("Running cluster.start")
 	err := c.Nodes.ExpandNodes(string(c.ClusterName))
 	if err != nil {
 		return err
 	}
-	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String())
+	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String(), nType)
 	if err != nil {
 		return err
 	}
