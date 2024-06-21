@@ -57,6 +57,9 @@ func (c *clientCreateRestGatewayCmd) Execute(args []string) error {
 			c.Docker.ExposePortsToHost = strings.Trim("8081:8081,"+c.Docker.ExposePortsToHost, ",")
 		}
 	}
+	if c.DistroVersion == "latest" {
+		c.DistroVersion = "22.04"
+	}
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("RG is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}

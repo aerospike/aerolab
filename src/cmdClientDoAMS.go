@@ -74,7 +74,9 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 			c.Docker.ExposePortsToHost = strings.Trim("3000:3000,"+c.Docker.ExposePortsToHost, ",")
 		}
 	}
-
+	if c.DistroVersion == "latest" {
+		c.DistroVersion = "22.04"
+	}
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
@@ -141,6 +143,9 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 func (c *clientAddAMSCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if c.DistroVersion == "latest" {
+		c.DistroVersion = "22.04"
 	}
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)

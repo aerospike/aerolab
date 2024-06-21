@@ -12,13 +12,27 @@ import (
 type clusterStartStopDestroyCmd struct {
 }
 
-func (c *clusterStartStopDestroyCmd) getBasicData(clusterName string, Nodes string) (cList []string, nodes map[string][]int, err error) {
-	// check cluster exists
-	clusterList, err := b.ClusterList()
+// typeName == "agi" or "cluster"
+func (c *clusterStartStopDestroyCmd) getBasicData(clusterName string, Nodes string, typeName string) (cList []string, nodes map[string][]int, err error) {
+	// get cluster list
+	inv, err := b.Inventory("", []int{InventoryItemClusters})
 	if err != nil {
 		return nil, nil, err
 	}
-
+	var clusterList []string
+	for _, i := range inv.Clusters {
+		switch typeName {
+		case "agi":
+			if i.Features&ClusterFeatureAGI > 0 {
+				clusterList = append(clusterList, i.ClusterName)
+			}
+		default:
+			if i.Features&ClusterFeatureAGI <= 0 {
+				clusterList = append(clusterList, i.ClusterName)
+			}
+		}
+	}
+	// check cluster exists
 	if clusterName != "all" && clusterName != "ALL" {
 		cList = strings.Split(clusterName, ",")
 	} else {

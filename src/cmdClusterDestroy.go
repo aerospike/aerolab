@@ -31,7 +31,7 @@ func (c *clusterDestroyCmd) doDestroy(typeName string, args []string) error {
 	if err != nil {
 		return err
 	}
-	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String())
+	cList, nodes, err := c.getBasicData(string(c.ClusterName), c.Nodes.String(), typeName)
 	if err != nil {
 		return err
 	}
