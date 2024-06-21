@@ -63,7 +63,7 @@ func (c *clientAddTrinoCmd) Execute(args []string) error {
 		c.DistroVersion = "22.04"
 	}
 	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("22.04") {
-		return fmt.Errorf("trino is only supported on ubuntu:20.04, selected %s:%s", c.DistroName, c.DistroVersion)
+		return fmt.Errorf("trino is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 	return c.addTrino(args)
 }
