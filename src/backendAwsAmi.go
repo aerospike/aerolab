@@ -83,7 +83,7 @@ func (d *backendAws) lookupAmi(v backendVersion) (ami string, err error) {
 				}
 			}
 		case "ubuntu":
-			if !strings.HasPrefix(name, "ubuntu/images/hvm-ssd/") {
+			if !strings.HasPrefix(name, "ubuntu/images/hvm-ssd/") && !strings.HasPrefix(name, "ubuntu/images/hvm-ssd-gp3/") {
 				continue
 			}
 			vals := strings.Split(name, "/")
