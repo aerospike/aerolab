@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"sort"
+
+	"github.com/bestmethod/inslice"
 )
 
 type clientListCmd struct {
@@ -44,7 +46,9 @@ func (c *clientListCmd) Execute(args []string) error {
 			sort.Ints(nodesIS)
 			nodesES := make([]int, 0, len(nodesE))
 			for k := range nodesE {
-				nodesES = append(nodesES, k)
+				if !inslice.HasInt(nodesIS, k) {
+					nodesES = append(nodesES, k)
+				}
 			}
 			sort.Ints(nodesES)
 			for _, no := range nodesIS {

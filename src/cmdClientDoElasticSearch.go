@@ -45,6 +45,9 @@ func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
 	if c.ClientCount > 1 && c.RamLimit == 0 && a.opts.Config.Backend.Type == "docker" {
 		return fmt.Errorf("more than one elasticsearch node cannot be started without specifying RAM limits in docker - elasticsearch default will cause OOM-kills")
 	}
+	if c.DistroVersion == "latest" {
+		c.DistroVersion = "22.04"
+	}
 	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
 		return fmt.Errorf("ES is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}

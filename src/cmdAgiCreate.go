@@ -964,14 +964,14 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if a.opts.Config.Backend.Type == "docker" {
 		a.opts.Cluster.Stop.ClusterName = c.ClusterName
 		a.opts.Cluster.Stop.Nodes = "1"
-		err = a.opts.Cluster.Stop.Execute(nil)
+		err = a.opts.Cluster.Stop.doStop("agi")
 		if err != nil {
 			return err
 		}
 		a.opts.Cluster.Start.ClusterName = c.ClusterName
 		a.opts.Cluster.Start.Nodes = "1"
 		a.opts.Cluster.Start.NoStart = true
-		err = a.opts.Cluster.Start.Execute(nil)
+		err = a.opts.Cluster.Start.doStart("agi")
 		if err != nil {
 			return err
 		}
