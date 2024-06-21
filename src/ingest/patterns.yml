@@ -631,6 +631,11 @@ defs:
     - clusterName: "CONNECTORS"
       patterns:
         -
+            setName: "ConnectorError"
+            search: "ERROR metrics-ticker -"
+            export:
+                - "ERROR metrics-ticker - (?P<errMessage>.+) count=(?P<errCount>\\d+)"
+        -
             setName: "ConnectorReqTotal"
             search: "metrics-ticker - requests-total: rate(per second)"
             export:
