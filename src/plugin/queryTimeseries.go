@@ -416,7 +416,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 				windowStartTime = ts
 			}
 			if ts-windowStartTime > float64(reduceIntervalWindow) {
-				dps, dpCount, nullCount := getDatapoints(windowMinPoint, windowMaxPoint, windowNullTs)
+				dps, dpCount, nullCount := getDatapoints(windowMinPoint, windowMaxPoint, windowNullTs, bin.SingularSeriesExtend)
 				datapoints = append(datapoints, dps...)
 				nullDatapoints += nullCount
 				datapointCount += dpCount
@@ -434,18 +434,65 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		}
 		// store last unstored datapoint
 		if len(windowMinPoint) > 0 {
-			dps, dpCount, nullCount := getDatapoints(windowMinPoint, windowMaxPoint, windowNullTs)
+			dps, dpCount, nullCount := getDatapoints(windowMinPoint, windowMaxPoint, windowNullTs, target.Payload.Bins[resp[ri].binIdx].SingularSeriesExtend)
 			datapoints = append(datapoints, dps...)
 			nullDatapoints += nullCount
 			datapointCount += dpCount
 		}
+		// SingularSeriesExtend feature
+		if len(datapoints) == 1 {
+			sse := singularSeriesExtend(target.Payload.Bins[resp[ri].binIdx].SingularSeriesExtend, datapoints[0].point)
+			if len(sse) > 0 {
+				datapoints = []*responsePoint{sse[0], datapoints[0], sse[1]}
+			}
+		}
+		// save
 		resp[ri].Datapoints = datapoints
 	}
 	logger.Detail("Return values (type:timeseries) (remote:%s) (reduceWindowMs:%d) (datapoints:%d) (nullpoints:%d) (postProcessTime:%s)", remote, reduceIntervalWindow, datapointCount, nullDatapoints, time.Since(ntime).String())
 	return resp, nil
 }
 
-func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNullTs []float64) (datapoints []*responsePoint, dpCount int, nullCount int) {
+func singularSeriesExtend(extender interface{}, point []float64) []*responsePoint {
+	switch sse := extender.(type) {
+	case int:
+		return []*responsePoint{
+			{
+				isDataNull: false,
+				point:      []float64{float64(sse), point[1] - 1000},
+			}, {
+				isDataNull: false,
+				point:      []float64{float64(sse), point[1] + 1000},
+			},
+		}
+	case float64:
+		return []*responsePoint{
+			{
+				isDataNull: false,
+				point:      []float64{float64(sse), point[1] - 1000},
+			}, {
+				isDataNull: false,
+				point:      []float64{float64(sse), point[1] + 1000},
+			},
+		}
+	case string:
+		if sse != "REPEAT" {
+			return nil
+		}
+		return []*responsePoint{
+			{
+				isDataNull: false,
+				point:      []float64{float64(point[0]), point[1] - 1000},
+			}, {
+				isDataNull: false,
+				point:      []float64{float64(point[0]), point[1] + 1000},
+			},
+		}
+	}
+	return nil
+}
+
+func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNullTs []float64, extender interface{}) (datapoints []*responsePoint, dpCount int, nullCount int) {
 	nullTsBefore := float64(-1)
 	nullTsAfter := float64(-1)
 	nullTsMid := float64(-1)
@@ -488,6 +535,32 @@ func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNul
 	if nullTsAfter > -1 {
 		datapoints = append(datapoints, &responsePoint{point: []float64{0, nullTsAfter}, isDataNull: true})
 		nullCount++
+	}
+	if nullTsBefore > -1 && nullTsAfter > -1 && dpCount == 1 {
+		// single datapoint between 2 nulls, add sse
+		sse := singularSeriesExtend(extender, windowMinPoint)
+		if len(sse) > 0 {
+			datapoints = []*responsePoint{datapoints[0], sse[0], datapoints[1], sse[1], datapoints[2]}
+		}
+	}
+	if nullTsBefore > -1 && nullTsMid > -1 {
+		// add sse around the first datapoint[1] as [0] is null
+		sse := singularSeriesExtend(extender, windowMinPoint)
+		if len(sse) > 0 {
+			dpTemp := datapoints[2:]
+			datapoints = []*responsePoint{datapoints[0], sse[0], datapoints[1], sse[1]}
+			datapoints = append(datapoints, dpTemp...)
+		}
+	}
+	if nullTsAfter > -1 && nullTsMid > -1 {
+		// add sse around the second-to-last datapoint, as last is null
+		sse := singularSeriesExtend(extender, windowMinPoint)
+		if len(sse) > 0 {
+			lastNul := datapoints[len(datapoints)-1]
+			lastPoint := datapoints[len(datapoints)-2]
+			datapoints = datapoints[:len(datapoints)-2]
+			datapoints = append(datapoints, sse[0], lastPoint, sse[1], lastNul)
+		}
 	}
 	return
 }

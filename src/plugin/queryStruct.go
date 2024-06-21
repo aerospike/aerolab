@@ -51,15 +51,16 @@ type requestFilter struct {
 }
 
 type bin struct {
-	Name               string          `json:"name"`               // all: bin name
-	DisplayName        string          `json:"displayName"`        // all: display name for legend
-	Type               string          `json:"type"`               // all: string/number
-	Reverse            bool            `json:"reverse"`            // timeseries: reverse/mirror values (*-1 final results)
-	Required           bool            `json:"required"`           // timeseries: fail if bin not found
-	ProduceDelta       bool            `json:"produceDelta"`       // timeseries: for translating cumulative values to per/ticker
-	DeltaToPerSecond   bool            `json:"convertToPerSecond"` // timeseries: divide stat by timeX-timeY to get per-second values
-	MaxIntervalSeconds int             `json:"maxIntervalSeconds"` // timeseries: if breached, will insert 'null', value=0 disables
-	Limits             *responseLimits `json:"limits"`             // timeseries: floor/ceil at limit
+	Name                 string          `json:"name"`                // all: bin name
+	DisplayName          string          `json:"displayName"`         // all: display name for legend
+	Type                 string          `json:"type"`                // all: string/number
+	Reverse              bool            `json:"reverse"`             // timeseries: reverse/mirror values (*-1 final results)
+	Required             bool            `json:"required"`            // timeseries: fail if bin not found
+	ProduceDelta         bool            `json:"produceDelta"`        // timeseries: for translating cumulative values to per/ticker
+	DeltaToPerSecond     bool            `json:"convertToPerSecond"`  // timeseries: divide stat by timeX-timeY to get per-second values
+	MaxIntervalSeconds   int             `json:"maxIntervalSeconds"`  // timeseries: if breached, will insert 'null', value=0 disables
+	Limits               *responseLimits `json:"limits"`              // timeseries: floor/ceil at limit
+	SingularSeriesExtend interface{}     `json:"singlarSeriesExtend"` // timeseries: if series has 1 datapoint only, should we extend by adding data to left and right; either an int value, or "REPEAT" (repeat datapoint) to enable
 }
 
 type responseLimits struct {
