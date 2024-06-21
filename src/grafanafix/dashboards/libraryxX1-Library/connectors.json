@@ -1378,7 +1378,7 @@
             "h": 9,
             "w": 8,
             "x": 0,
-            "y": 15
+            "y": 6
           },
           "id": 130,
           "options": {
@@ -1478,7 +1478,7 @@
             "h": 9,
             "w": 8,
             "x": 8,
-            "y": 15
+            "y": 6
           },
           "id": 131,
           "options": {
@@ -1578,7 +1578,7 @@
             "h": 9,
             "w": 8,
             "x": 16,
-            "y": 15
+            "y": 6
           },
           "id": 132,
           "options": {
@@ -1678,7 +1678,7 @@
             "h": 9,
             "w": 8,
             "x": 0,
-            "y": 24
+            "y": 15
           },
           "id": 133,
           "options": {
@@ -1778,7 +1778,7 @@
             "h": 9,
             "w": 8,
             "x": 8,
-            "y": 24
+            "y": 15
           },
           "id": 134,
           "options": {
@@ -1878,7 +1878,7 @@
             "h": 9,
             "w": 8,
             "x": 16,
-            "y": 24
+            "y": 15
           },
           "id": 135,
           "options": {
@@ -1977,7 +1977,7 @@
             "h": 9,
             "w": 8,
             "x": 0,
-            "y": 33
+            "y": 24
           },
           "id": 136,
           "options": {
@@ -6556,7 +6556,7 @@
                 "uid": "${DS_JSON}"
               },
               "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true\n    },{\n      \"name\": \"errMessage\",\n      \"required\": true\n    }],\n    \"bins\": [{\n    \t\"name\": \"errCount\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true\n    },{\n      \"name\": \"errMessage\",\n      \"required\": true\n    }],\n    \"bins\": [{\n    \t\"name\": \"errCount\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n      \"singlarSeriesExtend\": 0,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
               "refId": "A",
               "target": "ConnectorError"
             }
@@ -7023,6 +7023,6 @@
   "timezone": "",
   "title": "Connectors",
   "uid": "connectors",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }
