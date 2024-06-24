@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log"
 	"math"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"os"
@@ -37,26 +38,28 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr          []string      `long:"listen" description:"host:port, or just :port, for IPv6 use for example '[::1]:3333'; can be specified multiple times" default:"127.0.0.1:3333"`
-	WebRoot             string        `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
-	AbsoluteTimeout     time.Duration `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
-	MaxConcurrentJobs   int           `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
-	MaxQueuedJobs       int           `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
-	JobHistoryExpiry    time.Duration `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
-	ShowMaxHistoryItems int           `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
-	NoBrowser           bool          `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
-	RefreshInterval     time.Duration `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
-	MinInterval         time.Duration `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
-	BlockServerLs       bool          `long:"block-server-ls" description:"block file exploration on the server altogether"`
-	AllowLsEverywhere   bool          `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
-	UniqueFirewalls     bool          `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
-	AGIStrictTLS        bool          `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
-	WSProxyOrigins      []string      `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
-	WebPath             string        `long:"web-path" hidden:"true"`
-	WebNoOverride       bool          `long:"web-no-override" hidden:"true"`
-	DebugRequests       bool          `long:"debug-requests" hidden:"true"`
-	Real                bool          `long:"real" hidden:"true"`
-	Help                helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
+	ListenAddr          []string       `long:"listen" description:"host:port, or just :port, for IPv6 use for example '[::1]:3333'; can be specified multiple times" default:"127.0.0.1:3333"`
+	WebRoot             string         `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
+	AbsoluteTimeout     time.Duration  `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
+	MaxConcurrentJobs   int            `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
+	MaxQueuedJobs       int            `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
+	JobHistoryExpiry    time.Duration  `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
+	ShowMaxHistoryItems int            `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
+	NoBrowser           bool           `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
+	RefreshInterval     time.Duration  `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
+	MinInterval         time.Duration  `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
+	BlockServerLs       bool           `long:"block-server-ls" description:"block file exploration on the server altogether"`
+	AllowLsEverywhere   bool           `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
+	MaxUploadSizeBytes  int            `long:"max-upload-size-bytes" description:"max size of files to allow uploading via the webui temp if server-ls is blocked (hosted mode); 0=disabled" default:"209715200"`
+	UploadTempDir       flags.Filename `long:"upload-temp-dir" description:"if sever ls is blocked, temporary directory to use for file uploads"`
+	UniqueFirewalls     bool           `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
+	AGIStrictTLS        bool           `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
+	WSProxyOrigins      []string       `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
+	WebPath             string         `long:"web-path" hidden:"true"`
+	WebNoOverride       bool           `long:"web-no-override" hidden:"true"`
+	DebugRequests       bool           `long:"debug-requests" hidden:"true"`
+	Real                bool           `long:"real" hidden:"true"`
+	Help                helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	menuItems           []*webui.MenuItem
 	commands            []*apiCommand
 	commandsIndex       map[string]int
@@ -207,6 +210,10 @@ func (c *webCmd) Execute(args []string) error {
 	}
 	if isWebuiBeta {
 		log.Print("Running webui; this feature is in beta.")
+	}
+	if c.UploadTempDir == "" {
+		utemp, _ := a.aerolabRootDir()
+		c.UploadTempDir = flags.Filename(path.Join(utemp, "web.tmp"))
 	}
 	c.agiTokens = NewAgiWebTokenHandler(c.AGIStrictTLS)
 	c.wsCount = new(wsCounters)
@@ -1097,12 +1104,16 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 			} else {
 				// input item text (possible multiple types)
 				isFile := false
-				if allowedLs && commandValue.Field(i).Type().String() == "flags.Filename" {
-					isFile = true
-				}
 				textType := tags.Get("webtype")
 				if textType == "" {
 					textType = "text"
+				}
+				if commandValue.Field(i).Type().String() == "flags.Filename" {
+					if allowedLs {
+						isFile = true
+					} else if c.MaxUploadSizeBytes > 0 && tags.Get("webtype") == "" {
+						textType = "file"
+					}
 				}
 				required := false
 				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
@@ -1262,9 +1273,15 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 					defStr = commandValue.Field(i).Elem().String()
 				}
 				// input type text
+				isFile := false
 				textType := tags.Get("webtype")
 				if textType == "" {
 					textType = "text"
+				}
+				if allowedLs {
+					isFile = true
+				} else if c.MaxUploadSizeBytes > 0 && tags.Get("webtype") == "" {
+					textType = "file"
 				}
 				required := false
 				if tags.Get("webrequired") == "true" && defStr == "" {
@@ -1282,7 +1299,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Description: tags.Get("description"),
 						Required:    required,
 						Optional:    true,
-						IsFile:      allowedLs,
+						IsFile:      isFile,
 					},
 				})
 			} else if commandValue.Field(i).Type().String() == "*bool" {
@@ -1554,8 +1571,16 @@ func (c *webCmd) getFieldNames(cmd reflect.Value) []string {
 }
 
 func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
+	if c.MaxUploadSizeBytes > 0 {
+		r.Body = http.MaxBytesReader(w, r.Body, int64(c.MaxUploadSizeBytes+(1024*1024)))
+	}
 	// log method, URI and parameters
-	err := r.ParseForm()
+	var err error
+	if strings.Contains(r.Header.Get("Content-Type"), "multipart/form-data") && c.MaxUploadSizeBytes > 0 {
+		err = r.ParseMultipartForm(1024 * 1024 * 10)
+	} else {
+		err = r.ParseForm()
+	}
 	if err != nil {
 		http.Error(w, "error parsing form: "+err.Error(), http.StatusBadRequest)
 		return
@@ -1607,6 +1632,35 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 		postForm = append(postForm, []interface{}{k, v})
 	}
+
+	// handle file upload details
+	tmpDir := ""
+	fileUploads := make(map[*multipart.FileHeader]string)
+	if action[0] != "show" && r.MultipartForm != nil {
+		tmpDir = path.Join(string(c.UploadTempDir), requestID)
+		fileNo := 0
+		for fn, fv := range r.MultipartForm.File {
+			for _, files := range fv {
+				fileNo++
+				newFile := path.Join(tmpDir, strconv.Itoa(fileNo))
+				found := false
+				for i := range postForm {
+					if postForm[i][0] == fn {
+						postForm[i][1] = []string{newFile}
+						found = true
+						break
+					}
+				}
+				if !found {
+					http.Error(w, "http form error", http.StatusInternalServerError)
+					return
+				}
+				hd := files
+				fileUploads[hd] = newFile
+			}
+		}
+	}
+
 	sort.Slice(postForm, func(i, j int) bool {
 		ki := postForm[i][0].(string)
 		kj := postForm[j][0].(string)
@@ -2042,6 +2096,50 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		c.jobqueue.Start()
+
+		// handle file upload storage
+		if tmpDir != "" {
+			err = os.MkdirAll(tmpDir, 0755)
+			if err != nil {
+				c.jobqueue.End()
+				c.jobqueue.Remove()
+				stdin.Close()
+				f.WriteString("-=-=-=-=- [failed to create temporary storage directory] -=-=-=-=-\n" + err.Error() + "\n")
+				f.Close()
+				cancel()
+				return
+			}
+			for src, dst := range fileUploads {
+				err = func() error {
+					f, err := src.Open()
+					if err != nil {
+						return fmt.Errorf("failed to open %s for reading: %s", src.Filename, err)
+					}
+					defer f.Close()
+					d, err := os.Create(dst)
+					if err != nil {
+						return fmt.Errorf("failed to open %s for storing %s: %s", dst, src.Filename, err)
+					}
+					defer d.Close()
+					_, err = io.Copy(d, f)
+					if err != nil {
+						return fmt.Errorf("failed to store contents in %s for %s: %s", dst, src.Filename, err)
+					}
+					return nil
+				}()
+				if err != nil {
+					c.jobqueue.End()
+					c.jobqueue.Remove()
+					stdin.Close()
+					f.WriteString("-=-=-=-=- [failed to temporarily store uploaded file] -=-=-=-=-\n" + err.Error() + "\n")
+					f.Close()
+					cancel()
+					os.RemoveAll(tmpDir)
+					return
+				}
+			}
+		}
+
 		err = run.Start()
 		if err != nil {
 			c.jobqueue.End()
@@ -2050,6 +2148,9 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			f.WriteString("-=-=-=-=- [Subprocess failed to start] -=-=-=-=-\n" + err.Error() + "\n")
 			f.Close()
 			cancel()
+			if tmpDir != "" {
+				os.RemoveAll(tmpDir)
+			}
 			return
 		}
 		go func() {
@@ -2061,6 +2162,9 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		c.joblist.Add(requestID, run)
 
 		go func(run *exec.Cmd, requestID string) {
+			if tmpDir != "" {
+				defer os.RemoveAll(tmpDir)
+			}
 			runerr := run.Wait()
 			exitCode := run.ProcessState.ExitCode()
 			if c.commands[cindex].reload || (c.commands[cindex].path == "config/defaults" && ((len(r.PostForm["xxxxReset"]) > 0 && r.PostForm["xxxxReset"][0] == "on") || (len(r.PostForm["xxxxValue"]) > 0 && r.PostForm["xxxxValue"][0] != ""))) || (c.commands[cindex].path == "config/backend" && len(r.PostForm["xxxxType"]) > 0 && r.PostForm["xxxxType"][0] != "") {

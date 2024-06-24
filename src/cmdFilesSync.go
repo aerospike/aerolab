@@ -134,7 +134,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 
 	a.opts.Files.Download.ClusterName = c.SourceClusterName
 	a.opts.Files.Download.Nodes = TypeNodes(strconv.Itoa(c.SourceNode.Int()))
-	a.opts.Files.Download.Files.Source = flags.Filename(c.Path)
+	a.opts.Files.Download.Files.Source = c.Path
 	a.opts.Files.Download.Files.Destination = flags.Filename(dir)
 	a.opts.Files.Download.IsClient = c.IsClientS
 	a.opts.Files.Download.doLegacy = true
@@ -149,7 +149,7 @@ func (c *filesSyncCmd) Execute(args []string) error {
 	_, src := path.Split(strings.TrimSuffix(c.Path, "/"))
 	a.opts.Files.Upload.Files.Source = flags.Filename(path.Join(dir, src))
 	dst, _ := path.Split(strings.TrimSuffix(c.Path, "/"))
-	a.opts.Files.Upload.Files.Destination = flags.Filename(dst)
+	a.opts.Files.Upload.Files.Destination = dst
 	a.opts.Files.Upload.doLegacy = true
 	a.opts.Files.Upload.ParallelThreads = c.ParallelThreads
 	err = a.opts.Files.Upload.Execute(nil)
