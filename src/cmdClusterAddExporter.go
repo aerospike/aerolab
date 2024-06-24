@@ -166,7 +166,7 @@ func (c *clusterAddExporterCmd) Execute(args []string) error {
 			a.opts.Files.Upload.IsClient = false
 			a.opts.Files.Upload.Nodes = TypeNodes(strings.Join(nodesTxt, ","))
 			a.opts.Files.Upload.Files.Source = c.CustomConf
-			a.opts.Files.Upload.Files.Destination = flags.Filename("/etc/aerospike-prometheus-exporter/ape.toml")
+			a.opts.Files.Upload.Files.Destination = "/etc/aerospike-prometheus-exporter/ape.toml"
 			a.opts.Files.Upload.doLegacy = true
 			a.opts.Files.Upload.ParallelThreads = c.ParallelThreads
 			err = a.opts.Files.Upload.runUpload(args)

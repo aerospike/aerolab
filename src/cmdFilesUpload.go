@@ -12,7 +12,8 @@ import (
 )
 
 type filesUploadCmd struct {
-	filesDownloadCmd
+	filesUploadDownloadCmd
+	Files filesRestUploadCmd `positional-args:"true"`
 }
 
 func init() {

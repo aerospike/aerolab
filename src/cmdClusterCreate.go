@@ -147,7 +147,7 @@ type osSelectorCmd struct {
 }
 
 type chDirCmd struct {
-	ChDir flags.Filename `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to"`
+	ChDir flags.Filename `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to" webtype:"text"`
 }
 
 type aerospikeVersionCmd struct {
