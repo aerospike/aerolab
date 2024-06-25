@@ -46,6 +46,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	log.Println("WARNING: Vector is in early development stage; things may break and stop working. If so, please report.")
 	if c.DistroName == "ubuntu" && c.DistroVersion == "latest" {
 		log.Println("WARNING: Ubuntu version 24.04 is not yet supported by prism/python process. Using 22.04 instead.")
 		c.DistroVersion = "22.04"
