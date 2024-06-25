@@ -590,7 +590,7 @@ func (d *backendDocker) Init() error {
 
 func (d *backendDocker) versionToReal(v *backendVersion) error {
 	switch v.distroName {
-	case "ubuntu", "centos", "debian":
+	case "ubuntu", "centos", "debian", "rocky":
 	case "amazon":
 		v.distroName = "centos"
 		v.distroVersion = "7"
@@ -960,6 +960,15 @@ func (d *backendDocker) DeployCluster(v backendVersion, name string, nodeCount i
 
 func (d *backendDocker) imageNaming(v backendVersion) (templName string) {
 	switch v.distroName {
+	case "rocky":
+		switch a.opts.Config.Backend.Arch {
+		case "amd64":
+			return "amd64/rockylinux:" + v.distroVersion
+		case "arm64":
+			return "arm64v8/rockylinux:" + v.distroVersion
+		default:
+			return "rockylinux:" + v.distroVersion
+		}
 	case "centos":
 		switch v.distroVersion {
 		case "6":
@@ -969,9 +978,9 @@ func (d *backendDocker) imageNaming(v backendVersion) (templName string) {
 		default:
 			switch a.opts.Config.Backend.Arch {
 			case "amd64":
-				return "quay.io/centos/amd64:stream" + v.distroVersion
+				return "quay.io/centos/amd64:stream" + v.distroVersion // centos stream is dev branch of RHEL; it gets abandoned as soon as RHEL reaches maintenance phase
 			case "arm64":
-				return "quay.io/centos/arm64v8:stream" + v.distroVersion
+				return "quay.io/centos/arm64v8:stream" + v.distroVersion // centos stream is dev branch of RHEL; it gets abandoned as soon as RHEL reaches maintenance phase
 			default:
 				return "quay.io/centos/centos:stream" + v.distroVersion
 			}

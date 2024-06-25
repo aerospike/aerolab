@@ -26,6 +26,8 @@ func getLatestVersionForDistro(distro string) string {
 		return "24.04"
 	case "centos":
 		return "9"
+	case "rocky":
+		return "9"
 	case "amazon":
 		return "2023"
 	case "debian":
@@ -43,7 +45,14 @@ func checkDistroVersion(distro string, version string) error {
 		}
 	case "centos":
 		switch version {
-		case "9", "8", "7":
+		case "9", "7":
+			return nil
+		case "8":
+			return fmt.Errorf("centos version 8 no longer supported, try 'rocky' distro with version 8")
+		}
+	case "rocky":
+		switch version {
+		case "9", "8":
 			return nil
 		}
 	case "amazon":

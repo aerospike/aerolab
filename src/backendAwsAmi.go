@@ -15,8 +15,10 @@ func (d *backendAws) lookupAmi(v backendVersion) (ami string, err error) {
 	switch v.distroName {
 	case "ubuntu":
 		owner = "099720109477"
+	case "rocky":
+		owner = "792107900819" // rocky
 	case "centos":
-		owner = "125523088429"
+		owner = "125523088429" // centos
 	case "amazon":
 		owner = "137112412989"
 	case "debian":
@@ -137,6 +139,31 @@ func (d *backendAws) lookupAmi(v backendVersion) (ami string, err error) {
 					}
 				}
 			}
+		case "rocky":
+			if !strings.HasPrefix(name, "Rocky-") {
+				continue
+			}
+			vals := strings.Split(name, "-")
+			if len(vals) < 6 {
+				continue
+			}
+			if vals[2] != "EC2" || vals[3] != "Base" {
+				continue
+			}
+			if vals[1] != v.distroVersion {
+				continue
+			}
+			cdstring := *ami.CreationDate
+			if len(cdstring) < 19 {
+				continue
+			}
+			cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
+			if err == nil {
+				if cd.After(creationDate) {
+					creationDate = cd
+					imageId = *ami.ImageId
+				}
+			}
 		case "amazon":
 			if v.distroVersion == "2" && ((!(strings.HasPrefix(name, "amzn2-ami-kernel-") || strings.HasPrefix(name, "amzn2-ami-hvm-")) || !strings.Contains(name, "-hvm-") || !strings.HasSuffix(name, "-gp2")) || (!strings.HasSuffix(name, "-x86_64-gp2") && !strings.HasSuffix(name, "-arm64-gp2"))) {
 				continue
@@ -170,10 +197,12 @@ func (d *backendAws) getUser(v backendVersion) string {
 		return "ubuntu"
 	case "centos":
 		switch v.distroVersion {
-		case "8", "7":
+		case "7":
 			return "centos"
 		}
 		return "ec2-user"
+	case "rocky":
+		return "rocky"
 	case "amazon":
 		return "ec2-user"
 	}

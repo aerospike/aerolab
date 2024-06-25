@@ -2418,6 +2418,10 @@ func (d *backendGcp) getImage(v backendVersion) (string, error) {
 		}
 		filter = fmt.Sprintf("(family:%s) AND (architecture:%s)", gcpTagEnclose("centos-"+dv+"*"), gcpTagEnclose(arch))
 		project = "centos-cloud"
+	case "rocky":
+		dv := v.distroVersion
+		project = "rocky-linux-cloud"
+		filter = fmt.Sprintf("(family:%s) AND (architecture:%s)", gcpTagEnclose("rocky-linux-"+dv+"-optimized-*"), gcpTagEnclose(arch))
 	case "ubuntu":
 		filter = fmt.Sprintf("(family:%s) AND (architecture:%s)", gcpTagEnclose("ubuntu-"+strings.ReplaceAll(v.distroVersion, ".", "")+"-lts*"), gcpTagEnclose(arch))
 		project = "ubuntu-os-cloud"
