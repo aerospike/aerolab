@@ -66,10 +66,14 @@ $ aerolab config backend -t docker [-d /path/to/tmpdir/for-aerolab/to/use]
 $ aerolab config backend -t aws [-r region] [-p /custom/path/to/store/ssh/keys/in/] [-d /path/to/tmpdir/for-aerolab/to/use]
 $ aerolab config backend -t gcp -o project-name [-d /path/to/tmpdir/for-aerolab/to/use] [-p /custom/path/to/store/ssh/keys/in/]
 
-Default file path is ${HOME}/.aerolab.conf
+Default aerolab home directory is ${HOME}/.aerolab
+Default config path is ${HOME}/.aerolab/conf
 
 To specify a custom configuration file, set the environment variable:
    $ export AEROLAB_CONFIG_FILE=/path/to/file.conf
+
+To specify a custom aerolab home directory, set:
+   $ export AEROLAB_HOME=/path/to/new/dir
 ```
 
 ### Configuring defaults
