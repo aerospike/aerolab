@@ -253,7 +253,15 @@
                   {{else}}
                   <div class="form-group">
                     {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
+                    {{ if eq .Input.Type "file" }}
+                    <div class="custom-file">
+                      <input type="{{.Input.Type}}" class="custom-file-input updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                      <label class="custom-file-label" for="{{.Input.ID}}">Choose file</label>
+                      <input type="hidden" class="xfileup" id="{{.Input.ID}}xfileup" name="{{.Input.ID}}">
+                    </div>
+                    {{ else }}
                     <input type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                    {{ end }}
                     {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>
                   {{end}}

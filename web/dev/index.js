@@ -138,6 +138,25 @@ function btnRun() {
     document.getElementById("action").value = "run";
     document.getElementById("useShortSwitches").value = document.getElementById("shortSwitches").checked;
     document.getElementById("useShowDefaults").value = document.getElementById("showDefaults").checked;
+    $.ajax({
+        url:"",
+        type: 'POST',
+        data: new FormData($('#mainForm')[0]),
+        processData: false,
+        contentType: false
+    }).done(function(data){
+        showCommandOut(data);
+    }).fail(function(data) {
+        let body = data.responseText;
+        if ((data.status == 0)&&(body == undefined)) {
+            body = "Connection Error";
+        }
+        toastr.error(data.statusText+": "+body);
+    })
+    .always(function() {
+        $("#loadingSpinner").hide();
+    });
+    /*
     $.post("", $("#mainForm").serialize(), function(data) {
         showCommandOut(data);
     })
@@ -151,6 +170,7 @@ function btnRun() {
     .always(function() {
         $("#loadingSpinner").hide();
     });
+    */
 }
 
 var commandOutXhr = false;
@@ -1872,6 +1892,13 @@ $(function () {
     updateJobList(true, true);
     $('.dtTooltip').tooltip({ trigger: "hover", placement: "bottom", fallbackPlacement:["right","top"], boundary: "viewport" });
     updateCurrentUser();
+    $('.custom-file-input').on('change',function(e){
+        //get the file name
+        var fileName = e.target.files[0].name;
+        //replace the "Choose a file" label
+        $(this).next('.custom-file-label').html(fileName);
+        $(this).next('.custom-file-label').next('.xfileup').val(fileName);
+    })
   })
 
 // filebrowser - server-side

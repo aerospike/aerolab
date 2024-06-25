@@ -14,20 +14,29 @@ import (
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
-type filesRestCmd struct {
-	Source      flags.Filename
+type filesRestDownloadCmd struct {
+	Source      string
 	Destination flags.Filename
 }
 
-type filesDownloadCmd struct {
+type filesRestUploadCmd struct {
+	Source      flags.Filename
+	Destination string
+}
+
+type filesUploadDownloadCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
 	IsClient    bool            `short:"c" long:"client" description:"set this to run the command against client groups instead of clusters"`
 	parallelThreadsCmd
 	Aws      filesDownloadCmdAws `no-flag:"true"`
 	Gcp      filesDownloadCmdAws `no-flag:"true"`
-	Files    filesRestCmd        `positional-args:"true"`
 	doLegacy bool                // set to do legacy if non-legacy fails
+}
+
+type filesDownloadCmd struct {
+	filesUploadDownloadCmd
+	Files filesRestDownloadCmd `positional-args:"true"`
 }
 
 type filesDownloadCmdAws struct {
