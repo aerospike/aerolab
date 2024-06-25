@@ -259,7 +259,7 @@ func (t *TypeXDRVersion) Complete(match string) []flags.Completion {
 }
 
 func (t *TypeDistro) Complete(match string) []flags.Completion {
-	clist := []string{"ubuntu", "amazon", "centos", "debian"}
+	clist := []string{"ubuntu", "amazon", "rocky", "centos", "debian"}
 	out := []flags.Completion{}
 	for _, item := range clist {
 		if match == "" || strings.HasPrefix(item, match) {

@@ -142,8 +142,8 @@ type clusterCreateCmd struct {
 }
 
 type osSelectorCmd struct {
-	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|amazon" default:"ubuntu" webchoice:"debian,ubuntu,centos,amazon"`
-	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:24.04|22.04|20.04|18.04 centos:9|8|7 amazon:2|2023 debian:12|11|10|9|8" default:"latest" webchoice:"latest,24.04,22.04,20.04,18.04,2023,2,12,11,10,9,8,7"`
+	DistroName    TypeDistro        `short:"d" long:"distro" description:"Linux distro, one of: debian|ubuntu|centos|rocky|amazon" default:"ubuntu" webchoice:"debian,ubuntu,rocky,centos,amazon"`
+	DistroVersion TypeDistroVersion `short:"i" long:"distro-version" description:"ubuntu:24.04|22.04|20.04|18.04 rocky:9,8 centos:9,7 amazon:2|2023 debian:12|11|10|9|8" default:"latest" webchoice:"latest,24.04,22.04,20.04,18.04,2023,2,12,11,10,9,8,7"`
 }
 
 type chDirCmd struct {
@@ -163,7 +163,7 @@ type aerospikeVersionSelectorCmd struct {
 }
 
 type clusterCreateCmdAws struct {
-	AMI                 string          `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
+	AMI                 string          `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos, rocky and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
 	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"instance type to use" default:"" webrequired:"true" webchoice:"method::List"`
 	Ebs                 string          `webhidden:"true" short:"E" long:"ebs" description:"Deprecated: EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
 	Disk                []string        `long:"aws-disk" description:"EBS disks, format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=gp2,size=20 --disk type=gp3,size=100,iops=5000,throughput=200,count=2 ; first one is root volume ; this parameter can be specified multiple times"`

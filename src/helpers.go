@@ -421,6 +421,13 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 			dlv.distroName = "centos"
 			dlv.distroVersion = strings.TrimPrefix(line, "el")
 			ret = append(ret, dlv)
+			dlvr := &dlVersion{
+				url:           dlv.url,
+				distroName:    "rocky",
+				distroVersion: dlv.distroVersion,
+				isArm:         dlv.isArm,
+			}
+			ret = append(ret, dlvr)
 			if bothArch {
 				dlvX := &dlVersion{
 					url:           dlv.url,
@@ -429,6 +436,13 @@ func aeroFindInstallers(baseUrl string, user string, pass string) ([]*dlVersion,
 					isArm:         !dlv.isArm,
 				}
 				ret = append(ret, dlvX)
+				dlvXr := &dlVersion{
+					url:           dlv.url,
+					distroName:    "rocky",
+					distroVersion: dlv.distroVersion,
+					isArm:         !dlv.isArm,
+				}
+				ret = append(ret, dlvXr)
 			}
 			if dlv.distroName == "centos" && dlv.distroVersion == "7" {
 				dlv2 := &dlVersion{

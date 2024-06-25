@@ -97,7 +97,7 @@ yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
 ########### tcconfig
-VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
 CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
@@ -140,7 +140,7 @@ yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
 ########### tcconfig
-VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
 CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
@@ -183,7 +183,7 @@ yum -y install nano lnav
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 ########### tcconfig
-VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
 [ "${VERSION_ID}" = "2023" ] && VERSION_ID=9
 CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
@@ -369,7 +369,7 @@ yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
 ########### tcconfig
-VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
 CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
@@ -462,7 +462,7 @@ yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
 ########### tcconfig
-VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
 CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
@@ -572,7 +572,7 @@ yum -y install nano lnav
 yum -y install initscripts || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
 ########### tcconfig
-VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9\.]+' /etc/os-release)
+VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
 CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
@@ -652,4 +652,10 @@ EOF
 chmod 755 /etc/init.d/aerospike
 `
 
+	aerospikeInstallScript["gcp:rocky:8"] = aerospikeInstallScript["gcp:centos:8"]
+	aerospikeInstallScript["gcp:rocky:9"] = aerospikeInstallScript["gcp:centos:9"]
+	aerospikeInstallScript["aws:rocky:8"] = aerospikeInstallScript["aws:centos:8"]
+	aerospikeInstallScript["aws:rocky:9"] = aerospikeInstallScript["aws:centos:9"]
+	aerospikeInstallScript["docker:rocky:8"] = aerospikeInstallScript["docker:centos:8"]
+	aerospikeInstallScript["docker:rocky:9"] = aerospikeInstallScript["docker:centos:9"]
 }
