@@ -46,6 +46,10 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.DistroName == "ubuntu" && c.DistroVersion == "latest" {
+		log.Println("WARNING: Ubuntu version 24.04 is not yet supported by prism/python process. Using 22.04 instead.")
+		c.DistroVersion = "22.04"
+	}
 	if !c.NoTouchServiceListen {
 		addr, err := net.ResolveTCPAddr("tcp", c.ServiceListen)
 		if err != nil {
