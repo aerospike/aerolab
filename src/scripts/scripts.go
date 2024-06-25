@@ -69,7 +69,7 @@ func GetVectorScript(isDocker bool, packaging string, downloadUrl string) []byte
 }
 
 func GetVectorExampleScript(proximusPort string, listenPort string) []byte {
-	return []byte(fmt.Sprintf(vectorExample, proximusPort, listenPort))
+	return []byte(fmt.Sprintf(vectorExample, proximusPort, proximusPort, listenPort))
 }
 
 func GetEksctlBootstrapScript() []byte {

@@ -12,6 +12,7 @@ if [ "$1" != "install" ]
 then
   set -e
   export PROXIMUS_PORT=%s
+  export AVS_PORT=%s
   cd /opt/proximus-examples/prism-image-search/prism
   waitress-serve --host 0.0.0.0 --port %s --threads 32 prism:app
 fi
