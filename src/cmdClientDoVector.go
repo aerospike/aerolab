@@ -28,7 +28,7 @@ type clientCreateVectorCmd struct {
 	NoTouchServiceListen       bool            `long:"no-touch-listen" description:"set this to prevent aerolab from touching the service: configuration part"`
 	NoTouchSeed                bool            `long:"no-touch-seed" description:"set this to prevent aerolab from configuring the aerospike seed ip and port"`
 	NoTouchAdvertisedListeners bool            `long:"no-touch-advertised" description:"set this to prevent aerolab from configuring the advertised listeners"`
-	VectorVersion              string          `long:"version" description:"vector version to install; only 0.3.1 is officially supported by aerolab (0.3.1-1 for rpm)" default:"0.3.1"`
+	VectorVersion              string          `long:"version" description:"vector version to install; only 0.3.1,0.4.0 are officially supported by aerolab (0.4.0-1 for rpm)" default:"0.4.0"`
 	CustomConf                 flags.Filename  `long:"custom-conf" description:"provide a custom aerospike-proximus.yml to ship"`
 	NoStart                    bool            `long:"no-start" description:"if set, service will not be started after installation"`
 	FeaturesFile               flags.Filename  `short:"f" long:"featurefile" description:"Features file to install; if not provided, the features.conf from the seed aerospike cluster will be taken"`
@@ -245,7 +245,10 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	}
 
 	// find download URL and generate script
-	dlUrl := "https://aerospike.jfrog.io/artifactory/deb/aerospike-proximus-" + c.VectorVersion + ".deb"
+	dlUrl := "https://aerospike.jfrog.io/artifactory/deb/aerospike-proximus-" + c.VectorVersion + ".all.deb"
+	if strings.HasPrefix(c.VectorVersion, "0.3.") {
+		dlUrl = "https://aerospike.jfrog.io/artifactory/deb/aerospike-proximus-" + c.VectorVersion + ".deb"
+	}
 	fExt := "deb"
 	if c.DistroName != "ubuntu" && c.DistroName != "debian" {
 		if !strings.Contains(c.VectorVersion, "-") {
