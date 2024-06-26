@@ -98,7 +98,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },{\n      \"name\": \"warnC\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true\n    },{\n      \"name\": \"warnC\",\n      \"required\": true\n    },{\n      \"name\": \"warnMessage\",\n      \"required\": true\n    }],\n    \"bins\": [{\n    \t\"name\": \"repeated\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },{\n      \"name\": \"warnC\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true\n    },{\n      \"name\": \"warnC\",\n      \"required\": true\n    },{\n      \"name\": \"warnMessage\",\n      \"required\": true\n    }],\n    \"bins\": [{\n    \t\"name\": \"repeated\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "warnings"
           }
@@ -958,6 +958,39 @@
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "0",
+          "value": "0"
+        },
+        "description": "Extend singular series datapoint to ensure it gets drawn when the graphs are zoomed out.",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "SingularSeriesExtend",
+        "options": [
+          {
+            "selected": true,
+            "text": "0",
+            "value": "0"
+          },
+          {
+            "selected": false,
+            "text": "REPEAT",
+            "value": "REPEAT"
+          },
+          {
+            "selected": false,
+            "text": "DISABLE",
+            "value": "DISABLE"
+          }
+        ],
+        "query": "0,REPEAT,DISABLE",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
       }
     ]
   },

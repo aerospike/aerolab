@@ -189,7 +189,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n    \t\"name\": \"NodePrefix\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n    \t\"name\": \"NodePrefix\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "clusterSize"
           }
@@ -290,7 +290,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ClusterSize\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ClusterSize\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}",
             "refId": "A",
             "target": "clusterSize"
           }
@@ -391,7 +391,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n    \t\"name\": \"HBForeign\",\n    \t\"displayName\": \"Foreign\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    },{\n      \"name\": \"HBSelf\",\n      \"displayName\": \"Self\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": true,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"maxValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n    \t\"name\": \"HBForeign\",\n    \t\"displayName\": \"Foreign\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    },{\n      \"name\": \"HBSelf\",\n      \"displayName\": \"Self\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": true,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"maxValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "hb"
           }
@@ -488,7 +488,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"restart\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"restart\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "restarts"
           }
@@ -585,7 +585,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"stop\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"stop\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "restarts"
           }
@@ -682,7 +682,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"stopDone\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"stopDone\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "restarts"
           }
@@ -782,7 +782,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ClockSkewMs\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ClockSkewMs\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "clockSkew"
           }
@@ -881,7 +881,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"quiesced\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"quiesced\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "quiesce"
           }
@@ -978,7 +978,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"configset\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"configset\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "configset"
           }
@@ -1078,7 +1078,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"TotalCpuPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"TotalCpuPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1178,7 +1178,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"UserCpuPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"UserCpuPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1278,7 +1278,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"KernelCpuPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"KernelCpuPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1378,7 +1378,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ProcessCpuPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ProcessCpuPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1479,7 +1479,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"HeapEfficPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"HeapEfficPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1579,7 +1579,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"HeapKBAlloc\",\n      \"displayName\": \"Alloc\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    },{\n      \"name\": \"HeapKBActive\",\n      \"displayName\": \"Active\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    },{\n      \"name\": \"HeapKBMapped\",\n      \"displayName\": \"Mapped\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"HeapKBAlloc\",\n      \"displayName\": \"Alloc\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    },{\n      \"name\": \"HeapKBActive\",\n      \"displayName\": \"Active\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    },{\n      \"name\": \"HeapKBMapped\",\n      \"displayName\": \"Mapped\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1680,7 +1680,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FreeMemKB\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FreeMemKB\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1781,7 +1781,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FreeMemPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FreeMemPct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1881,7 +1881,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ThreadJoin\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ThreadJoin\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -1981,7 +1981,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ThreadDetach\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ThreadDetach\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -2081,7 +2081,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ThreadPoolTot\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ThreadPoolTot\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -2181,7 +2181,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ThreadPoolAct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ThreadPoolAct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -2281,7 +2281,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"THPMemKB\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"THPMemKB\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "system"
           }
@@ -2381,7 +2381,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"TsvcQ\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"TsvcQ\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "inprogress"
           }
@@ -2481,7 +2481,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"InfoQ\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"InfoQ\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "inprogress"
           }
@@ -2581,7 +2581,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"NsupDelQ\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"NsupDelQ\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "inprogress"
           }
@@ -2681,7 +2681,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"RWHash\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"RWHash\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "inprogress"
           }
@@ -2781,7 +2781,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ProxyHash\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ProxyHash\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "inprogress"
           }
@@ -2881,7 +2881,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"TreeGcQ\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"TreeGcQ\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "inprogress"
           }
@@ -2981,7 +2981,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ProtoConnNow\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ProtoConnNow\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fds"
           }
@@ -3081,7 +3081,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricConnNow\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricConnNow\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fds"
           }
@@ -3181,7 +3181,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"HBConnNow\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"HBConnNow\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fds"
           }
@@ -3282,7 +3282,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ProtoConnOpen\",\n      \"displayName\": \"Opened\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    },{\n      \"name\": \"ProtoConnClose\",\n      \"displayName\": \"Closed\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": true,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"maxValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"ProtoConnOpen\",\n      \"displayName\": \"Opened\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    },{\n      \"name\": \"ProtoConnClose\",\n      \"displayName\": \"Closed\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": true,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"maxValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "fds"
           }
@@ -3383,7 +3383,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricConnOpen\",\n      \"displayName\": \"Opened\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    },{\n      \"name\": \"FabricConnClose\",\n      \"displayName\": \"Closed\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": true,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"maxValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricConnOpen\",\n      \"displayName\": \"Opened\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    },{\n      \"name\": \"FabricConnClose\",\n      \"displayName\": \"Closed\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": true,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"maxValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "fds"
           }
@@ -3484,7 +3484,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"HBConnOpen\",\n      \"displayName\": \"Opened\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    },{\n      \"name\": \"HBConnClose\",\n      \"displayName\": \"Closed\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": true,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"maxValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"HBConnOpen\",\n      \"displayName\": \"Opened\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    },{\n      \"name\": \"HBConnClose\",\n      \"displayName\": \"Closed\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": true,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"maxValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "fds"
           }
@@ -3584,7 +3584,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricBulkTx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricBulkTx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fabricpersec"
           }
@@ -3684,7 +3684,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricCtrlTx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricCtrlTx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fabricpersec"
           }
@@ -3784,7 +3784,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricMetaTx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricMetaTx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fabricpersec"
           }
@@ -3884,7 +3884,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricBulkRx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricBulkRx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fabricpersec"
           }
@@ -3984,7 +3984,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricCtrlRx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricCtrlRx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fabricpersec"
           }
@@ -4084,7 +4084,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricMetaRx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricMetaRx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fabricpersec"
           }
@@ -4184,7 +4184,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricRwTx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricRwTx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fabricpersec"
           }
@@ -4284,7 +4284,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricRwRx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"FabricRwRx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "fabricpersec"
           }
@@ -4384,7 +4384,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailDemar\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailDemar\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "earlyfail"
           }
@@ -4484,7 +4484,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailTsvc\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailTsvc\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "earlyfail"
           }
@@ -4584,7 +4584,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailFrmPrx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailFrmPrx\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "earlyfail"
           }
@@ -4684,7 +4684,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailBchSub\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailBchSub\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "earlyfail"
           }
@@ -4784,7 +4784,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFFPBchSub\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFFPBchSub\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "earlyfail"
           }
@@ -4884,7 +4884,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailUdfSub\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailUdfSub\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "earlyfail"
           }
@@ -4984,7 +4984,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailOpsSub\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"EarlyFailOpsSub\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "earlyfail"
           }
@@ -5084,7 +5084,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"BatchSuccess\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"BatchSuccess\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "batch"
           }
@@ -5184,7 +5184,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"BatchError\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"BatchError\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "batch"
           }
@@ -5284,7 +5284,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"BatchTimeout\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"BatchTimeout\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "batch"
           }
@@ -5384,7 +5384,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"BatchDelay\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"BatchDelay\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"reverse\": false,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
             "refId": "A",
             "target": "batch"
           }
@@ -5483,7 +5483,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"MigraFillCt\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"MigraFillCt\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "filldelay"
           }
@@ -5583,7 +5583,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"MigraFillSec\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"MigraFillSec\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "filldelay"
           }
@@ -6906,7 +6906,7 @@
                 "uid": "${DS_JSON}"
               },
               "editorMode": "code",
-              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true\n    },{\n      \"name\": \"secMessage\",\n      \"required\": true\n    }],\n    \"bins\": [{\n    \t\"name\": \"repeated\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },{\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true\n    },{\n      \"name\": \"secMessage\",\n      \"required\": true\n    }],\n    \"bins\": [{\n    \t\"name\": \"repeated\",\n    \t\"displayName\": \"\",\n    \t\"type\": \"number\",\n    \t\"required\": true,\n    \t\"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
               "refId": "A",
               "target": "security"
             }
@@ -7362,6 +7362,39 @@
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "0",
+          "value": "0"
+        },
+        "description": "Extend singular series datapoint to ensure it gets drawn when the graphs are zoomed out.",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "SingularSeriesExtend",
+        "options": [
+          {
+            "selected": true,
+            "text": "0",
+            "value": "0"
+          },
+          {
+            "selected": false,
+            "text": "REPEAT",
+            "value": "REPEAT"
+          },
+          {
+            "selected": false,
+            "text": "DISABLE",
+            "value": "DISABLE"
+          }
+        ],
+        "query": "0,REPEAT,DISABLE",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
       }
     ]
   },
