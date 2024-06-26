@@ -454,42 +454,77 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 }
 
 func singularSeriesExtend(extender interface{}, point []float64) []*responsePoint {
+	defaultPoints := []*responsePoint{
+		{
+			isDataNull: false,
+			point:      []float64{float64(0), point[1] - 500},
+		}, {
+			isDataNull: false,
+			point:      []float64{float64(0), point[1] + 500},
+		},
+	}
 	switch sse := extender.(type) {
 	case int:
 		return []*responsePoint{
 			{
 				isDataNull: false,
-				point:      []float64{float64(sse), point[1] - 1000},
+				point:      []float64{float64(sse), point[1] - 500},
 			}, {
 				isDataNull: false,
-				point:      []float64{float64(sse), point[1] + 1000},
+				point:      []float64{float64(sse), point[1] + 500},
 			},
 		}
 	case float64:
 		return []*responsePoint{
 			{
 				isDataNull: false,
-				point:      []float64{float64(sse), point[1] - 1000},
+				point:      []float64{float64(sse), point[1] - 500},
 			}, {
 				isDataNull: false,
-				point:      []float64{float64(sse), point[1] + 1000},
+				point:      []float64{float64(sse), point[1] + 500},
 			},
 		}
 	case string:
-		if sse != "REPEAT" {
+		if strings.ToUpper(sse) == "REPEAT" {
+			return []*responsePoint{
+				{
+					isDataNull: false,
+					point:      []float64{float64(point[0]), point[1] - 500},
+				}, {
+					isDataNull: false,
+					point:      []float64{float64(point[0]), point[1] + 500},
+				},
+			}
+		} else if strings.HasPrefix(strings.ToUpper(sse), "DISABLE") {
 			return nil
-		}
-		return []*responsePoint{
-			{
-				isDataNull: false,
-				point:      []float64{float64(point[0]), point[1] - 1000},
-			}, {
-				isDataNull: false,
-				point:      []float64{float64(point[0]), point[1] + 1000},
-			},
+		} else if sseNo, ok := stringToFloat(sse); ok {
+			return []*responsePoint{
+				{
+					isDataNull: false,
+					point:      []float64{float64(sseNo), point[1] - 500},
+				}, {
+					isDataNull: false,
+					point:      []float64{float64(sseNo), point[1] + 500},
+				},
+			}
+		} else {
+			return defaultPoints
 		}
 	}
-	return nil
+	return defaultPoints
+}
+
+func stringToFloat(s string) (f float64, ok bool) {
+	for _, r := range s {
+		if r != 46 && r != 45 && (r < 48 || r > 57) {
+			return 0, false
+		}
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return f, false
+	}
+	return f, true
 }
 
 func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNullTs []float64, extender interface{}) (datapoints []*responsePoint, dpCount int, nullCount int) {
@@ -542,6 +577,16 @@ func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNul
 		if len(sse) > 0 {
 			datapoints = []*responsePoint{datapoints[0], sse[0], datapoints[1], sse[1], datapoints[2]}
 		}
+	} else if nullTsAfter > -1 && dpCount == 1 {
+		sse := singularSeriesExtend(extender, windowMinPoint)
+		if len(sse) > 0 {
+			datapoints = []*responsePoint{datapoints[0], sse[1], datapoints[1]}
+		}
+	} else if nullTsBefore > -1 && dpCount == 1 {
+		sse := singularSeriesExtend(extender, windowMinPoint)
+		if len(sse) > 0 {
+			datapoints = []*responsePoint{datapoints[0], sse[0], datapoints[1]}
+		}
 	}
 	if nullTsBefore > -1 && nullTsMid > -1 {
 		// add sse around the first datapoint[1] as [0] is null
@@ -549,6 +594,14 @@ func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNul
 		if len(sse) > 0 {
 			dpTemp := datapoints[2:]
 			datapoints = []*responsePoint{datapoints[0], sse[0], datapoints[1], sse[1]}
+			datapoints = append(datapoints, dpTemp...)
+		}
+	} else if nullTsMid > -1 {
+		// before is not null but mid is, add just to the right of data
+		sse := singularSeriesExtend(extender, windowMinPoint)
+		if len(sse) > 0 {
+			dpTemp := datapoints[1:]
+			datapoints = []*responsePoint{datapoints[0], sse[0]}
 			datapoints = append(datapoints, dpTemp...)
 		}
 	}
@@ -560,6 +613,14 @@ func getDatapoints(windowMinPoint []float64, windowMaxPoint []float64, windowNul
 			lastPoint := datapoints[len(datapoints)-2]
 			datapoints = datapoints[:len(datapoints)-2]
 			datapoints = append(datapoints, sse[0], lastPoint, sse[1], lastNul)
+		}
+	} else if nullTsMid > -1 {
+		// add just to the left of data, as only mid point is null
+		sse := singularSeriesExtend(extender, windowMinPoint)
+		if len(sse) > 0 {
+			lastPoint := datapoints[len(datapoints)-1]
+			datapoints = datapoints[:len(datapoints)-1]
+			datapoints = append(datapoints, sse[1], lastPoint)
 		}
 	}
 	return
