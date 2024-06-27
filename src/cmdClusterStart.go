@@ -8,14 +8,16 @@ import (
 )
 
 type clusterStartCmd struct {
-	clusterStopCmd
-	NoFixMesh bool `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh"`
-	NoStart   bool `short:"s" long:"no-start" description:"Set to prevent Aerospike from starting on cluster-start"`
+	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
+	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	NoFixMesh   bool            `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh"`
+	NoStart     bool            `short:"s" long:"no-start" description:"Set to prevent Aerospike from starting on cluster-start"`
 	parallelThreadsCmd
 	clusterStartStopDestroyCmd
 }
 
-func (c *clusterStartCmd) Execute(args []string, nType string) error {
+func (c *clusterStartCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
@@ -23,7 +25,7 @@ func (c *clusterStartCmd) Execute(args []string, nType string) error {
 }
 
 func (c *clusterStartCmd) doStart(nType string) error {
-	log.Println("Running cluster.start")
+	log.Println("Running " + nType + ".start")
 	err := c.Nodes.ExpandNodes(string(c.ClusterName))
 	if err != nil {
 		return err
