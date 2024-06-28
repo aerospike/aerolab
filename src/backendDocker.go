@@ -355,7 +355,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 						DockerInternalPort: intPorts,
 						Features:           FeatureSystem(features),
 						AGILabel:           allLabels["agiLabel"],
-						dockerLabels:       allLabels,
+						DockerLabels:       allLabels,
 						Owner:              allLabels["owner"],
 					})
 				} else {
@@ -374,7 +374,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 						ClientType:         clientType,
 						DockerExposePorts:  exposePorts,
 						DockerInternalPort: intPorts,
-						dockerLabels:       allLabels,
+						DockerLabels:       allLabels,
 						Owner:              allLabels["owner"],
 					})
 				}
