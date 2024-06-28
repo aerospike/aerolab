@@ -1611,7 +1611,9 @@ func (d *backendAws) ClusterList() ([]string, error) {
 			if *instance.State.Code != int64(48) {
 				for _, tag := range instance.Tags {
 					if *tag.Key == awsTagClusterName {
-						clusterList = append(clusterList, *tag.Value)
+						if !inslice.HasString(clusterList, *tag.Value) {
+							clusterList = append(clusterList, *tag.Value)
+						}
 					}
 				}
 			}

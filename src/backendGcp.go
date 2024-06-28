@@ -1461,7 +1461,9 @@ func (d *backendGcp) ClusterList() ([]string, error) {
 		if len(instances) > 0 {
 			for _, instance := range instances {
 				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
-					clist = append(clist, instance.Labels[gcpTagClusterName])
+					if !inslice.HasString(clist, instance.Labels[gcpTagClusterName]) {
+						clist = append(clist, instance.Labels[gcpTagClusterName])
+					}
 				}
 			}
 		}
