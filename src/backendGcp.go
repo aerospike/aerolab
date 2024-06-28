@@ -387,7 +387,7 @@ func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZ
 		}
 		for _, jj := range j.Clusters {
 			if jj.ClusterName == clusterName {
-				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpMetadataFingerprint, jj.gcpMeta}
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpMetadataFingerprint, jj.GcpMeta}
 			}
 		}
 	} else {
@@ -398,7 +398,7 @@ func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZ
 		}
 		for _, jj := range j.Clients {
 			if jj.ClientName == clusterName {
-				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpMetadataFingerprint, jj.gcpMeta}
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpMetadataFingerprint, jj.GcpMeta}
 			}
 		}
 	}
@@ -444,7 +444,7 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 		for _, jj := range j.Clusters {
 			nodeNo, _ := strconv.Atoi(jj.NodeNo)
 			if jj.ClusterName == clusterName && (len(nodes) == 0 || inslice.HasInt(nodes, nodeNo)) {
-				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpLabelFingerprint, jj.gcpLabels}
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpLabelFingerprint, jj.GcpLabels}
 			}
 		}
 	} else {
@@ -456,7 +456,7 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 		for _, jj := range j.Clients {
 			nodeNo, _ := strconv.Atoi(jj.NodeNo)
 			if jj.ClientName == clusterName && (len(nodes) == 0 || inslice.HasInt(nodes, nodeNo)) {
-				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.gcpLabelFingerprint, jj.gcpLabels}
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpLabelFingerprint, jj.GcpLabels}
 			}
 		}
 	}
@@ -1232,12 +1232,12 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								Zone:                   zone,
 								InstanceRunningCost:    currentCost,
 								Owner:                  instance.Labels["owner"],
-								gcpLabelFingerprint:    *instance.LabelFingerprint,
+								GcpLabelFingerprint:    *instance.LabelFingerprint,
 								Expires:                expires,
 								AGILabel:               meta["agiLabel"],
-								gcpLabels:              instance.Labels,
-								gcpMeta:                meta,
-								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
+								GcpLabels:              instance.Labels,
+								GcpMeta:                meta,
+								GcpMetadataFingerprint: *instance.Metadata.Fingerprint,
 								Features:               FeatureSystem(features),
 								InstanceType:           *instance.MachineType,
 								GcpIsSpot:              isSpot,
@@ -1261,11 +1261,11 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								Zone:                   zone,
 								InstanceRunningCost:    currentCost,
 								Owner:                  instance.Labels["owner"],
-								gcpLabelFingerprint:    *instance.LabelFingerprint,
+								GcpLabelFingerprint:    *instance.LabelFingerprint,
 								Expires:                expires,
-								gcpLabels:              instance.Labels,
-								gcpMeta:                meta,
-								gcpMetadataFingerprint: *instance.Metadata.Fingerprint,
+								GcpLabels:              instance.Labels,
+								GcpMeta:                meta,
+								GcpMetadataFingerprint: *instance.Metadata.Fingerprint,
 								GcpIsSpot:              isSpot,
 							})
 						}
