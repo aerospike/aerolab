@@ -347,7 +347,7 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion 
 		funcConf, err := d.lambda.GetFunctionConfiguration(&lambda.GetFunctionConfigurationInput{
 			FunctionName: aws.String("aerolab-expiries"),
 		})
-		if err == nil && funcConf.Environment.Variables != nil {
+		if err == nil && funcConf.Environment != nil && funcConf.Environment.Variables != nil {
 			awsDnsZoneId = aws.StringValue(funcConf.Environment.Variables["route53_zoneid"])
 		}
 	}
