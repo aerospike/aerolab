@@ -525,8 +525,8 @@ func (c *agiMonitorListenCmd) handle(w http.ResponseWriter, r *http.Request) {
 
 	reqIp := strings.Split(r.RemoteAddr, ":")[0]
 	reqDomain := reqIp
-	if cluster.awsTags["agiDomain"] != "" {
-		reqDomain = cluster.InstanceId + "." + a.opts.Config.Backend.Region + ".agi." + cluster.awsTags["agiDomain"]
+	if cluster.AwsTags["agiDomain"] != "" {
+		reqDomain = cluster.InstanceId + "." + a.opts.Config.Backend.Region + ".agi." + cluster.AwsTags["agiDomain"]
 		ips, err := net.LookupIP(reqDomain)
 		if err != nil {
 			c.respond(w, r, uuid, 401, "auth: incorrect", fmt.Sprintf("auth:5.1 incorrect: DNS IP lookup failed (cluster:[%s,%s] req:%s)", cluster.PrivateIp, cluster.PublicIp, reqIp))

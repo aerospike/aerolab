@@ -168,13 +168,13 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 			srcSftp := ""
 			srcS3 := ""
 			if a.opts.Config.Backend.Type == "aws" {
-				srcLocal = unb46(inst.awsTags["agiSrcLocal"])
-				srcSftp = unb46(inst.awsTags["agiSrcSftp"])
-				srcS3 = unb46(inst.awsTags["agiSrcS3"])
+				srcLocal = unb46(inst.AwsTags["agiSrcLocal"])
+				srcSftp = unb46(inst.AwsTags["agiSrcSftp"])
+				srcS3 = unb46(inst.AwsTags["agiSrcS3"])
 			} else if a.opts.Config.Backend.Type == "gcp" {
-				srcLocal = unb46(inst.gcpMeta["agiSrcLocal"])
-				srcSftp = unb46(inst.gcpMeta["agiSrcSftp"])
-				srcS3 = unb46(inst.gcpMeta["agiSrcS3"])
+				srcLocal = unb46(inst.GcpMeta["agiSrcLocal"])
+				srcSftp = unb46(inst.GcpMeta["agiSrcSftp"])
+				srcS3 = unb46(inst.GcpMeta["agiSrcS3"])
 			}
 			if inva[idx].SourceLocal == "" {
 				inva[idx].SourceLocal = srcLocal
@@ -190,13 +190,13 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 			srcSftp := ""
 			srcS3 := ""
 			if a.opts.Config.Backend.Type == "aws" {
-				srcLocal = unb46(inst.awsTags["agiSrcLocal"])
-				srcSftp = unb46(inst.awsTags["agiSrcSftp"])
-				srcS3 = unb46(inst.awsTags["agiSrcS3"])
+				srcLocal = unb46(inst.AwsTags["agiSrcLocal"])
+				srcSftp = unb46(inst.AwsTags["agiSrcSftp"])
+				srcS3 = unb46(inst.AwsTags["agiSrcS3"])
 			} else if a.opts.Config.Backend.Type == "gcp" {
-				srcLocal = unb46(inst.gcpMeta["agiSrcLocal"])
-				srcSftp = unb46(inst.gcpMeta["agiSrcSftp"])
-				srcS3 = unb46(inst.gcpMeta["agiSrcS3"])
+				srcLocal = unb46(inst.GcpMeta["agiSrcLocal"])
+				srcSftp = unb46(inst.GcpMeta["agiSrcSftp"])
+				srcS3 = unb46(inst.GcpMeta["agiSrcS3"])
 			}
 			inva = append(inva, inventoryWebAGI{
 				Name:           inst.ClusterName,
@@ -301,12 +301,12 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			port = ":" + inv.Clusters[vi].DockerExposePorts
 		}
 		prot := "http://"
-		if v.gcpLabels["aerolab4ssl"] == "true" || v.awsTags["aerolab4ssl"] == "true" || v.DockerInternalPort == "443" {
+		if v.GcpLabels["aerolab4ssl"] == "true" || v.AwsTags["aerolab4ssl"] == "true" || v.DockerInternalPort == "443" {
 			prot = "https://"
 		}
 		if a.opts.Config.Backend.Type == "aws" {
-			if v.awsTags["agiDomain"] != "" {
-				nip = v.InstanceId + "." + a.opts.Config.Backend.Region + ".agi." + v.awsTags["agiDomain"]
+			if v.AwsTags["agiDomain"] != "" {
+				nip = v.InstanceId + "." + a.opts.Config.Backend.Region + ".agi." + v.AwsTags["agiDomain"]
 			}
 		}
 		if v.Features&ClusterFeatureAGI > 0 {
@@ -352,13 +352,13 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			inv.Clients[vi].AccessPort = "8182"
 		case "vector":
 			if port == "" {
-				port = ":" + inv.Clients[vi].gcpLabels["lport"]
+				port = ":" + inv.Clients[vi].GcpLabels["lport"]
 			}
 			if port == ":" {
-				port = ":" + inv.Clients[vi].awsTags["lport"]
+				port = ":" + inv.Clients[vi].AwsTags["lport"]
 			}
 			if port == ":" {
-				port = ":" + inv.Clients[vi].dockerLabels["lport"]
+				port = ":" + inv.Clients[vi].DockerLabels["lport"]
 			}
 			if port == ":" {
 				port = ":5000"

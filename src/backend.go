@@ -323,20 +323,20 @@ type inventoryCluster struct {
 	OSVersion              string `row:"DistroVer"`
 	Zone                   string `backends:"aws,gcp"`
 	InstanceId             string
-	ImageId                string        `backends:"docker"`
-	InstanceType           string        `backends:"aws,gcp"`
-	AwsIsSpot              bool          `row:"Spot" backends:"aws"`
-	GcpIsSpot              bool          `row:"Spot" backends:"gcp"`
-	AccessUrl              string        `hidden:"true"`
-	Features               FeatureSystem `hidden:"true"`
-	AGILabel               string        `hidden:"true"`
-	IsRunning              bool          `row:"Action"`
-	gcpLabelFingerprint    string
-	gcpLabels              map[string]string
-	gcpMetadataFingerprint string
-	gcpMeta                map[string]string
-	awsTags                map[string]string
-	dockerLabels           map[string]string
+	ImageId                string            `backends:"docker"`
+	InstanceType           string            `backends:"aws,gcp"`
+	AwsIsSpot              bool              `row:"Spot" backends:"aws"`
+	GcpIsSpot              bool              `row:"Spot" backends:"gcp"`
+	AccessUrl              string            `hidden:"true"`
+	Features               FeatureSystem     `hidden:"true"`
+	AGILabel               string            `hidden:"true"`
+	IsRunning              bool              `row:"Action"`
+	GcpLabelFingerprint    string            `hidden:"true"`
+	GcpLabels              map[string]string `hidden:"true"`
+	GcpMetadataFingerprint string            `hidden:"true"`
+	GcpMeta                map[string]string `hidden:"true"`
+	AwsTags                map[string]string `hidden:"true"`
+	DockerLabels           map[string]string `hidden:"true"`
 	awsSubnet              string
 	awsSecGroups           []string
 	AccessProtocol         string `hidden:"true"`
@@ -408,19 +408,19 @@ type inventoryClient struct {
 	OSVersion              string `row:"DistroVer"`
 	Zone                   string `backends:"aws,gcp"`
 	InstanceId             string
-	ImageId                string `backends:"docker"`
-	InstanceType           string `backends:"aws,gcp"`
-	DockerExposePorts      string `backends:"docker" row:"ExposePorts"`
-	DockerInternalPort     string `hidden:"true"`
-	AwsIsSpot              bool   `backends:"aws" row:"Spot"`
-	GcpIsSpot              bool   `backends:"gcp" row:"Spot"`
-	IsRunning              bool   `row:"Action"`
-	gcpLabelFingerprint    string
-	gcpLabels              map[string]string
-	gcpMeta                map[string]string
-	gcpMetadataFingerprint string
-	awsTags                map[string]string
-	dockerLabels           map[string]string
+	ImageId                string            `backends:"docker"`
+	InstanceType           string            `backends:"aws,gcp"`
+	DockerExposePorts      string            `backends:"docker" row:"ExposePorts"`
+	DockerInternalPort     string            `hidden:"true"`
+	AwsIsSpot              bool              `backends:"aws" row:"Spot"`
+	GcpIsSpot              bool              `backends:"gcp" row:"Spot"`
+	IsRunning              bool              `row:"Action"`
+	GcpLabelFingerprint    string            `hidden:"true"`
+	GcpLabels              map[string]string `hidden:"true"`
+	GcpMeta                map[string]string `hidden:"true"`
+	GcpMetadataFingerprint string            `hidden:"true"`
+	AwsTags                map[string]string `hidden:"true"`
+	DockerLabels           map[string]string `hidden:"true"`
 	awsSubnet              string
 	awsSecGroups           []string
 }
