@@ -347,7 +347,7 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion 
 		funcConf, err := d.lambda.GetFunctionConfiguration(&lambda.GetFunctionConfigurationInput{
 			FunctionName: aws.String("aerolab-expiries"),
 		})
-		if err == nil && funcConf.Environment.Variables != nil {
+		if err == nil && funcConf.Environment != nil && funcConf.Environment.Variables != nil {
 			awsDnsZoneId = aws.StringValue(funcConf.Environment.Variables["route53_zoneid"])
 		}
 	}
@@ -1333,7 +1333,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							Expires:             expires,
 							Features:            FeatureSystem(features),
 							AGILabel:            allTags["agiLabel"],
-							awsTags:             allTags,
+							AwsTags:             allTags,
 							awsSubnet:           aws.StringValue(instance.SubnetId),
 							awsSecGroups:        secGroups,
 							AwsIsSpot:           isSpot,
@@ -1359,7 +1359,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							InstanceRunningCost: currentCost,
 							Owner:               owner,
 							Expires:             expires,
-							awsTags:             allTags,
+							AwsTags:             allTags,
 							awsSubnet:           aws.StringValue(instance.SubnetId),
 							awsSecGroups:        secGroups,
 							AwsIsSpot:           isSpot,
@@ -1611,7 +1611,9 @@ func (d *backendAws) ClusterList() ([]string, error) {
 			if *instance.State.Code != int64(48) {
 				for _, tag := range instance.Tags {
 					if *tag.Key == awsTagClusterName {
-						clusterList = append(clusterList, *tag.Value)
+						if !inslice.HasString(clusterList, *tag.Value) {
+							clusterList = append(clusterList, *tag.Value)
+						}
 					}
 				}
 			}
