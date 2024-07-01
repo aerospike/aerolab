@@ -32,6 +32,7 @@ type Page struct {
 	CurrentUser                             string
 	ShortSwitches                           bool
 	ShowDefaults                            bool
+	FormDownload                            bool
 }
 
 type InventoryItem struct {
@@ -73,6 +74,7 @@ type FormItemInput struct {
 	Required    bool
 	Optional    bool
 	IsFile      bool
+	Disabled    bool
 }
 
 type FormItemSelect struct {
