@@ -16,7 +16,7 @@ import (
 
 type filesRestDownloadCmd struct {
 	Source      string
-	Destination flags.Filename //`webtype:"download"`
+	Destination flags.Filename `webtype:"download"`
 }
 
 type filesRestUploadCmd struct {
@@ -52,6 +52,9 @@ func init() {
 func (c *filesDownloadCmd) Execute(args []string) error {
 	if earlyProcessV2(args, false) {
 		return nil
+	}
+	if c.Files.Destination == "-" {
+		return fmt.Errorf("downloading through a zip stream to stdout not currently supported, please use `logs get` with a custom file path instead")
 	}
 	if string(c.Files.Source) == "help" && string(c.Files.Destination) == "" {
 		return printHelp("If more than one node is specified, files will be downloaded to {Destination}/{nodeNumber}/\n\n")
