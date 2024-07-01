@@ -16,7 +16,7 @@ import (
 
 type filesRestDownloadCmd struct {
 	Source      string
-	Destination flags.Filename
+	Destination flags.Filename //`webtype:"download"`
 }
 
 type filesRestUploadCmd struct {

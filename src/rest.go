@@ -39,6 +39,7 @@ type apiCommand struct {
 	isWebHidden bool
 	Value       reflect.Value
 	reload      bool
+	tags        reflect.StructTag
 }
 
 func (c *restCmd) Execute(args []string) error {

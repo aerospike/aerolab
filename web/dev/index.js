@@ -145,6 +145,9 @@ function btnRun() {
         processData: false,
         contentType: false
     }).done(function(data){
+        {{if .FormDownload}}
+        newDownloadWindow(data);
+        {{end}}
         showCommandOut(data);
     }).fail(function(data) {
         let body = data.responseText;
@@ -171,6 +174,11 @@ function btnRun() {
         $("#loadingSpinner").hide();
     });
     */
+}
+
+function newDownloadWindow(jobID) {
+    document.getElementById('mydownloader').src = '{{.WebRoot}}www/api/download/'+jobID;
+    //window.open('{{.WebRoot}}www/api/download/'+jobID, '_blank', 'width=200,height=200');
 }
 
 var commandOutXhr = false;

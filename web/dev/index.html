@@ -34,6 +34,7 @@
 </head>
 <body class="hold-transition sidebar-mini{{if .FixedFooter}} layout-footer-fixed{{end}}{{if .FixedNavbar}} layout-navbar-fixed{{end}}">
 <div id="filebrowser-wrapper"></div>
+<iframe id="mydownloader" style="display:none;"></iframe>
 <!-- spinner -->
 <div class="overlay-disable" id="loadingSpinner">
   <div class="overlay-spinner">
@@ -246,7 +247,7 @@
                   {{if .Input.Tags}}
                   <div class="form-group" data-toggle="tooltipleft" title="{{.Input.Description}}">
                     {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label>{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
-                    <select class="select2bs4tag updateCommandCli{{if .Input.Required}} aerolab-required{{end}}" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                    <select class="select2bs4tag updateCommandCli{{if .Input.Required}} aerolab-required{{end}}" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} disabled{{end}}>
                     </select>
                     {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>
@@ -255,12 +256,12 @@
                     {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
                     {{ if eq .Input.Type "file" }}
                     <div class="custom-file">
-                      <input type="{{.Input.Type}}" class="custom-file-input updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                      <input type="{{.Input.Type}}" class="custom-file-input updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} disabled{{end}}>
                       <label class="custom-file-label" for="{{.Input.ID}}">Choose file</label>
                       <input type="hidden" class="xfileup" id="{{.Input.ID}}xfileup" name="{{.Input.ID}}">
                     </div>
                     {{ else }}
-                    <input type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                    <input type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} readonly value="{{.Input.Default}}"{{end}}>
                     {{ end }}
                     {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>

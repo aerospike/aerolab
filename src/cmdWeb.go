@@ -71,6 +71,144 @@ type webCmd struct {
 	agiTokens           *agiWebTokens
 	cfgTs               time.Time
 	wsCount             *wsCounters
+	downloader          *webDownloader
+}
+
+type webDownloader struct {
+	sync.RWMutex
+	jobIDdownloader map[string]*webDownloadJob
+	statMutex       *sync.RWMutex
+	statWaiters     int
+	statClosers     int
+	statCleaners    int
+}
+
+type webDownloadJob struct {
+	sync.RWMutex
+	w      io.Writer
+	c      io.Closer
+	closed chan struct{}
+}
+
+func (w *webDownloader) Stat() (jobs int, closed int, waiters int, closers int, cleaners int) {
+	w.RLock()
+	jobs = len(w.jobIDdownloader)
+	closed = 0
+	for _, job := range w.jobIDdownloader {
+		if len(job.closed) > 0 {
+			closed++
+		}
+	}
+	w.RUnlock()
+	w.statMutex.RLock()
+	defer w.statMutex.RUnlock()
+	return jobs, closed, w.statWaiters, w.statClosers, w.statCleaners
+}
+
+func (w *webDownloader) Create(jobID string) {
+	w.Lock()
+	w.jobIDdownloader[jobID] = &webDownloadJob{
+		closed: make(chan struct{}, 1),
+	}
+	w.jobIDdownloader[jobID].Lock()
+	go func(job *webDownloadJob) {
+		w.statMutex.Lock()
+		w.statCleaners++
+		w.statMutex.Unlock()
+		defer func() {
+			w.statMutex.Lock()
+			w.statCleaners--
+			w.statMutex.Unlock()
+		}()
+		for ni := 0; ni < 30; ni++ {
+			time.Sleep(time.Second)
+			if !w.IsJob(jobID) {
+				return
+			}
+		}
+		if !job.TryLock() {
+			w.Close(jobID)
+		}
+	}(w.jobIDdownloader[jobID])
+	w.Unlock()
+}
+
+func (w *webDownloader) IsJob(jobID string) bool {
+	w.RLock()
+	_, ok := w.jobIDdownloader[jobID]
+	w.RUnlock()
+	return ok
+}
+
+func (w *webDownloader) Wait(jobID string) {
+	w.statMutex.Lock()
+	w.statWaiters++
+	w.statMutex.Unlock()
+	defer func() {
+		w.statMutex.Lock()
+		w.statWaiters--
+		w.statMutex.Unlock()
+	}()
+	w.RLock()
+	job, ok := w.jobIDdownloader[jobID]
+	w.RUnlock()
+	if !ok {
+		return
+	}
+	<-job.closed
+	job.closed <- struct{}{}
+}
+
+func (w *webDownloader) SetWriter(jobID string, wr io.Writer, c io.Closer) bool {
+	w.RLock()
+	if _, ok := w.jobIDdownloader[jobID]; !ok {
+		w.RUnlock()
+		return false
+	}
+	w.jobIDdownloader[jobID].TryLock()
+	w.jobIDdownloader[jobID].w = wr
+	w.jobIDdownloader[jobID].c = c
+	w.jobIDdownloader[jobID].Unlock()
+	w.RUnlock()
+	return true
+}
+
+func (w *webDownloader) Close(jobID string) {
+	w.statMutex.Lock()
+	w.statClosers++
+	w.statMutex.Unlock()
+	defer func() {
+		w.statMutex.Lock()
+		w.statClosers--
+		w.statMutex.Unlock()
+	}()
+	w.Lock()
+	if _, ok := w.jobIDdownloader[jobID]; !ok {
+		w.Unlock()
+		return
+	}
+	if w.jobIDdownloader[jobID].TryLock() {
+		w.jobIDdownloader[jobID].w = nil
+		if w.jobIDdownloader[jobID].c != nil {
+			w.jobIDdownloader[jobID].c.Close()
+		}
+	}
+	w.jobIDdownloader[jobID].Unlock()
+	w.jobIDdownloader[jobID].closed <- struct{}{}
+	delete(w.jobIDdownloader, jobID)
+	w.Unlock()
+}
+
+func (w *webDownloader) GetWriter(jobID string) io.Writer {
+	w.RLock()
+	wr, ok := w.jobIDdownloader[jobID]
+	w.RUnlock()
+	if !ok {
+		return nil
+	}
+	wr.RLock()
+	defer wr.RUnlock()
+	return wr.w
 }
 
 type jobTrack struct {
@@ -219,6 +357,10 @@ func (c *webCmd) Execute(args []string) error {
 	c.wsCount = new(wsCounters)
 	go c.wsCount.PrintTimer(time.Second)
 	c.cfgTs = time.Now()
+	c.downloader = &webDownloader{
+		jobIDdownloader: make(map[string]*webDownloadJob),
+		statMutex:       new(sync.RWMutex),
+	}
 	c.joblist = &jobTrack{
 		j: make(map[string]*exec.Cmd),
 	}
@@ -256,17 +398,23 @@ func (c *webCmd) Execute(args []string) error {
 		}
 	}()
 	go func() {
-		var statc, statq, statj int
+		var statc, statq, statj, statJobs, statClosed, statdw, statdc, statdcl int
 		for {
 			nstatj := c.joblist.GetStat()
 			nstatc, nstatq := c.jobqueue.GetSize()
-			if nstatc != statc || nstatq != statq || nstatj != statj {
+			dlJobs, dlClosed, dlw, dlc, dlcl := c.downloader.Stat()
+			if nstatc != statc || nstatq != statq || nstatj != statj || dlJobs != statJobs || dlClosed != statClosed || statdw != dlw || statdc != dlc || statdcl != dlcl {
 				statc = nstatc
 				statq = nstatq
 				statj = nstatj
-				log.Printf("STAT: queue_active_jobs=%d queued_jobs=%d jobs_tracked=%d", statc, statq, statj)
+				statJobs = dlJobs
+				statClosed = dlClosed
+				statdw = dlw
+				statdc = dlc
+				statdcl = dlcl
+				log.Printf("STAT: jobs(queue_active=%d queued=%d tracked=%d) downloader(tracked_jobs=%d closed_but_tracked=%d waiters=%d closers=%d cleaners=%d)", statc, statq, statj, statJobs, statClosed, statdw, statdc, statdcl)
 			}
-			time.Sleep(60 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 	}()
 	c.WebRoot = "/" + strings.Trim(c.WebRoot, "/") + "/"
@@ -304,6 +452,7 @@ func (c *webCmd) Execute(args []string) error {
 	http.HandleFunc(c.WebRoot+"www/dist/", c.static)
 	http.HandleFunc(c.WebRoot+"www/plugins/", c.static)
 	http.HandleFunc(c.WebRoot+"www/api/job/", c.job)
+	http.HandleFunc(c.WebRoot+"www/api/download/", c.download)
 	http.HandleFunc(c.WebRoot+"www/api/jobs/", c.jobs)
 	http.HandleFunc(c.WebRoot+"www/api/commands", c.commandScript)
 	http.HandleFunc(c.WebRoot+"www/api/commandh", c.commandHistory)
@@ -362,6 +511,16 @@ func (c *webCmd) Execute(args []string) error {
 		browser.OpenURL("http://" + openurl)
 	}
 	return <-ret
+}
+
+func (c *webCmd) download(w http.ResponseWriter, r *http.Request) {
+	jobId := strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot+"www/api/download"), "/")
+	w.Header().Set("Content-Type", "application/zip")
+	if !c.downloader.SetWriter(jobId, w, nil) {
+		http.Error(w, "job not found", http.StatusBadRequest)
+		return
+	}
+	c.downloader.Wait(jobId)
 }
 
 func (c *webCmd) allowls(r *http.Request) bool {
@@ -1105,14 +1264,19 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				// input item text (possible multiple types)
 				isFile := false
 				textType := tags.Get("webtype")
-				if textType == "" {
+				if textType == "" || textType == "download" {
 					textType = "text"
 				}
+				isDisabled := false
+				defaultValue := commandValue.Field(i).String()
 				if commandValue.Field(i).Type().String() == "flags.Filename" {
 					if allowedLs {
 						isFile = true
 					} else if c.MaxUploadSizeBytes > 0 && tags.Get("webtype") == "" {
 						textType = "file"
+					} else if tags.Get("webtype") == "download" {
+						isDisabled = true
+						defaultValue = "-"
 					}
 				}
 				required := false
@@ -1127,10 +1291,11 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name:        name,
 						ID:          "xx" + prefix + "xx" + name,
 						Type:        textType,
-						Default:     commandValue.Field(i).String(),
+						Default:     defaultValue,
 						Description: tags.Get("description"),
 						Required:    required,
 						IsFile:      isFile,
+						Disabled:    isDisabled,
 					},
 				})
 			}
@@ -1275,13 +1440,17 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				// input type text
 				isFile := false
 				textType := tags.Get("webtype")
-				if textType == "" {
+				if textType == "" || textType == "download" {
 					textType = "text"
 				}
+				isDisabled := false
 				if allowedLs {
 					isFile = true
 				} else if c.MaxUploadSizeBytes > 0 && tags.Get("webtype") == "" {
 					textType = "file"
+				} else if tags.Get("webtype") == "download" {
+					isDisabled = true
+					defStr = "-"
 				}
 				required := false
 				if tags.Get("webrequired") == "true" && defStr == "" {
@@ -1300,6 +1469,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Required:    required,
 						Optional:    true,
 						IsFile:      isFile,
+						Disabled:    isDisabled,
 					},
 				})
 			} else if commandValue.Field(i).Type().String() == "*bool" {
@@ -1494,6 +1664,10 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			isShortSwitches = true
 		}
 	}
+	formDownload := false
+	if c.commands[c.commandsIndex[strings.TrimPrefix(r.URL.Path, c.WebRoot)]].tags.Get("webcommandtype") == "download" {
+		formDownload = true
+	}
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
@@ -1509,6 +1683,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		BetaTag:                                 isWebuiBeta,
 		ShortSwitches:                           isShortSwitches,
 		ShowDefaults:                            isShowDefaults,
+		FormDownload:                            formDownload,
 		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
@@ -1602,6 +1777,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	command := c.commands[cindex].Value
+	isDownload := false
+	if !c.allowls(r) && c.commands[cindex].tags.Get("webcommandtype") == "download" {
+		isDownload = true
+	}
 	cjson := make(map[string]interface{})
 	logjson := make(map[string]interface{})
 	cmdline := append([]string{"aerolab"}, c.commands[cindex].pathStack...)
@@ -2093,6 +2272,9 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	f.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	run.Stderr = f
 	run.Stdout = f
+	if isDownload {
+		c.downloader.Create(requestID)
+	}
 
 	go func() {
 		c.jobqueue.Start()
@@ -2107,21 +2289,22 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				f.WriteString("-=-=-=-=- [failed to create temporary storage directory] -=-=-=-=-\n" + err.Error() + "\n")
 				f.Close()
 				cancel()
+				c.downloader.Close(requestID)
 				return
 			}
 			for src, dst := range fileUploads {
 				err = func() error {
-					f, err := src.Open()
+					fa, err := src.Open()
 					if err != nil {
 						return fmt.Errorf("failed to open %s for reading: %s", src.Filename, err)
 					}
-					defer f.Close()
+					defer fa.Close()
 					d, err := os.Create(dst)
 					if err != nil {
 						return fmt.Errorf("failed to open %s for storing %s: %s", dst, src.Filename, err)
 					}
 					defer d.Close()
-					_, err = io.Copy(d, f)
+					_, err = io.Copy(d, fa)
 					if err != nil {
 						return fmt.Errorf("failed to store contents in %s for %s: %s", dst, src.Filename, err)
 					}
@@ -2135,11 +2318,28 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					f.Close()
 					cancel()
 					os.RemoveAll(tmpDir)
+					c.downloader.Close(requestID)
 					return
 				}
 			}
 		}
 
+		if isDownload {
+			run.Stdout = c.downloader.GetWriter(requestID)
+			if run.Stdout == nil {
+				c.jobqueue.End()
+				c.jobqueue.Remove()
+				stdin.Close()
+				f.WriteString("-=-=-=-=- [Browser failed to start download] -=-=-=-=-\n" + err.Error() + "\n")
+				f.Close()
+				cancel()
+				if tmpDir != "" {
+					os.RemoveAll(tmpDir)
+				}
+				c.downloader.Close(requestID)
+				return
+			}
+		}
 		err = run.Start()
 		if err != nil {
 			c.jobqueue.End()
@@ -2151,6 +2351,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			if tmpDir != "" {
 				os.RemoveAll(tmpDir)
 			}
+			c.downloader.Close(requestID)
 			return
 		}
 		go func() {
@@ -2162,6 +2363,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		c.joblist.Add(requestID, run)
 
 		go func(run *exec.Cmd, requestID string) {
+			defer c.downloader.Close(requestID)
 			if tmpDir != "" {
 				defer os.RemoveAll(tmpDir)
 			}
