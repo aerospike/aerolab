@@ -1199,16 +1199,19 @@ func (c *webCmd) getMenu(simpleMode bool) []*webui.MenuItem {
 	return menuItems
 }
 
-func (c *webCmd) getFormItems(urlPath string, r *http.Request) ([]*webui.FormItem, error) {
+func (c *webCmd) getFormItems(urlPath string, r *http.Request, isSimpleMode bool) ([]*webui.FormItem, error) {
+	if c.ForceSimpleMode {
+		isSimpleMode = true
+	}
 	cindex, ok := c.commandsIndex[strings.TrimPrefix(urlPath, c.WebRoot)]
 	if !ok {
 		return nil, errors.New("command not found")
 	}
 	command := c.commands[cindex]
-	return c.getFormItemsRecursive(command.Value, "", r)
+	return c.getFormItemsRecursive(command, command.Value, "", r, isSimpleMode)
 }
 
-func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string, r *http.Request) ([]*webui.FormItem, error) {
+func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect.Value, prefix string, r *http.Request, isSimpleMode bool) ([]*webui.FormItem, error) {
 	allowedLs := c.allowls(r)
 	wf := []*webui.FormItem{}
 	for i := 0; i < commandValue.Type().NumField(); i++ {
@@ -1220,13 +1223,25 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 		}
 		if name[0] < 65 || name[0] > 90 {
 			if kind == reflect.Struct {
-				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), prefix, r)
+				wfs, err := c.getFormItemsRecursive(command, commandValue.Field(i), prefix, r, isSimpleMode)
 				if err != nil {
 					return nil, err
 				}
 				wf = append(wf, wfs...)
 			}
 			continue
+		}
+		if isSimpleMode {
+			var pathStack []string
+			if prefix != "" {
+				pathStack = append(command.pathStack, strings.ToLower(prefix), strings.ToLower(name))
+			} else {
+				pathStack = append(command.pathStack, strings.ToLower(name))
+			}
+			realPath := strings.Join(pathStack, ".")
+			if (tags.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+realPath) && !inslice.HasString(c.simpleMode, realPath)) || inslice.HasString(c.simpleMode, "-"+realPath) {
+				continue
+			}
 		}
 		switch kind {
 		case reflect.String:
@@ -1412,7 +1427,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name: sep,
 					},
 				})
-				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), sep, r)
+				wfs, err := c.getFormItemsRecursive(command, commandValue.Field(i), sep, r, isSimpleMode)
 				if err != nil {
 					return nil, err
 				}
@@ -1673,7 +1688,14 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	var errStr string
 	var errTitle string
 	var isError bool
-	formItems, err := c.getFormItems(r.URL.Path, r)
+	isSimpleMode := false
+	isSimpleModeC, err := r.Cookie("aerolab_simple_mode")
+	if err == nil {
+		if isSimpleModeC.Value == "true" {
+			isSimpleMode = true
+		}
+	}
+	formItems, err := c.getFormItems(r.URL.Path, r, isSimpleMode)
 	if err != nil {
 		errStr = err.Error()
 		errTitle = "Failed to generate form items"
@@ -1705,13 +1727,6 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		if isShortSwitchesC.Value == "true" {
 			isShortSwitches = true
-		}
-	}
-	isSimpleMode := false
-	isSimpleModeC, err := r.Cookie("aerolab_simple_mode")
-	if err == nil {
-		if isSimpleModeC.Value == "true" {
-			isSimpleMode = true
 		}
 	}
 	formDownload := false
@@ -1798,6 +1813,10 @@ func (c *webCmd) getFieldNames(cmd reflect.Value) []string {
 }
 
 func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
+	isSimpleMode := c.ForceSimpleMode
+	if isSimpleModeC, err := r.Cookie("aerolab_simple_mode"); err == nil && isSimpleModeC.Value == "true" {
+		isSimpleMode = true
+	}
 	if c.MaxUploadSizeBytes > 0 {
 		r.Body = http.MaxBytesReader(w, r.Body, int64(c.MaxUploadSizeBytes+(1024*1024)))
 	}
@@ -1827,6 +1846,12 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		http.Error(w, "command not found: "+r.URL.Path, http.StatusBadRequest)
 		return
+	}
+	if isSimpleMode {
+		if (c.commands[cindex].tags.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+strings.Join(c.commands[cindex].pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(c.commands[cindex].pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(c.commands[cindex].pathStack, ".")) {
+			http.Error(w, "command not allowed in this mode", http.StatusForbidden)
+			return
+		}
 	}
 	command := c.commands[cindex].Value
 	isDownload := false
@@ -1981,6 +2006,26 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		cj := cjson
 		lj := logjson
 		commandPath := strings.Split(strings.TrimPrefix(k, "xx"), "xx")
+		param := commandPath[len(commandPath)-1]
+		field := cmd.FieldByName(param)
+		fieldType, _ := cmd.Type().FieldByName(param)
+		tag := fieldType.Tag
+		if isSimpleMode {
+			pathStack := c.commands[cindex].pathStack
+			if commandPath[0] == "" {
+				for _, cp := range commandPath[1:] {
+					pathStack = append(pathStack, strings.ToLower(cp))
+				}
+			} else {
+				for _, cp := range commandPath {
+					pathStack = append(pathStack, strings.ToLower(cp))
+				}
+			}
+			if (tag.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+strings.Join(pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(pathStack, ".")) {
+				http.Error(w, "parameter not allowed in this mode", http.StatusForbidden)
+				return
+			}
+		}
 		for i, depth := range commandPath {
 			if i == 0 && depth == "" {
 				continue
@@ -1998,10 +2043,6 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 			lj = lj[depth].(map[string]interface{})
 		}
-		param := commandPath[len(commandPath)-1]
-		field := cmd.FieldByName(param)
-		fieldType, _ := cmd.Type().FieldByName(param)
-		tag := fieldType.Tag
 		switch field.Kind() {
 		case reflect.String:
 			if v[0] != field.String() {
