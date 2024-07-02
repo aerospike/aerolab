@@ -33,6 +33,8 @@ type Page struct {
 	ShortSwitches                           bool
 	ShowDefaults                            bool
 	FormDownload                            bool
+	ShowSimpleModeButton                    bool
+	SimpleMode                              bool
 }
 
 type InventoryItem struct {

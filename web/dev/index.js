@@ -130,6 +130,17 @@ $("#btnRun2").click(function(){
     btnRun();
 })
 
+$("#simpleMode").click(function(){
+    simpleModeSwitch();
+})
+
+function simpleModeSwitch() {
+    // set cookie aerolab_simple_mode to either 'true' or 'false'
+    Cookies.set('aerolab_simple_mode', $("#simpleMode").is(':checked'), { expires: 360, path: '{{.WebRoot}}' });
+    // reload page
+    window.location.reload();
+}
+
 function btnRun() {
     if (!checkRequiredFields()) {
         return;
