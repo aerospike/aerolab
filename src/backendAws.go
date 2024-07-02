@@ -1338,6 +1338,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							awsSecGroups:        secGroups,
 							AwsIsSpot:           isSpot,
 							InstanceType:        *instance.InstanceType,
+							SSHKeyPath:          d.getKeyPathNoCheck(clusterName),
 						})
 					} else {
 						ij.Clients = append(ij.Clients, inventoryClient{
@@ -1363,6 +1364,7 @@ func (d *backendAws) Inventory(filterOwner string, inventoryItems []int) (invent
 							awsSubnet:           aws.StringValue(instance.SubnetId),
 							awsSecGroups:        secGroups,
 							AwsIsSpot:           isSpot,
+							SSHKeyPath:          d.getKeyPathNoCheck(clusterName),
 						})
 					}
 				}
