@@ -55,14 +55,16 @@ type webCmd struct {
 	UniqueFirewalls     bool           `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
 	AGIStrictTLS        bool           `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
 	WSProxyOrigins      []string       `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
+	ForceSimpleMode     bool           `long:"force-simple-mode" description:"force use of simple mode, limiting the number of features and switches that show up"`
 	WebPath             string         `long:"web-path" hidden:"true"`
 	WebNoOverride       bool           `long:"web-no-override" hidden:"true"`
 	DebugRequests       bool           `long:"debug-requests" hidden:"true"`
 	Real                bool           `long:"real" hidden:"true"`
 	Help                helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
-	menuItems           []*webui.MenuItem
 	commands            []*apiCommand
 	commandsIndex       map[string]int
+	commandMap          map[string]interface{}
+	hiddenItems         []string
 	titler              cases.Caser
 	joblist             *jobTrack
 	jobqueue            *jobqueue.Queue
@@ -72,6 +74,8 @@ type webCmd struct {
 	cfgTs               time.Time
 	wsCount             *wsCounters
 	downloader          *webDownloader
+	simpleMode          []string // []{"+Cluster.Create","-Cluster.Start", etc} - lowercase version
+	simpleModeCamel     []string // []{"+Cluster.Create","-Cluster.Start", etc} - camelcase version
 }
 
 type webDownloader struct {
@@ -347,11 +351,30 @@ func (c *webCmd) Execute(args []string) error {
 		return c.runLoop()
 	}
 	if isWebuiBeta {
-		log.Print("Running webui; this feature is in beta.")
+		log.Print("Running webui; some web features are still in beta")
 	}
 	if c.UploadTempDir == "" {
 		utemp, _ := a.aerolabRootDir()
 		c.UploadTempDir = flags.Filename(path.Join(utemp, "web.tmp"))
+	}
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		file := path.Join(homeDir, "www-simple-mode.list")
+		if _, err := os.Stat(file); err == nil {
+			f, err := os.Open(file)
+			if err == nil {
+				s := bufio.NewScanner(f)
+				for s.Scan() {
+					line := strings.Trim(s.Text(), "\r\n\t ")
+					if line == "" {
+						continue
+					}
+					c.simpleMode = append(c.simpleMode, strings.ToLower(line))
+					c.simpleModeCamel = append(c.simpleModeCamel, line)
+				}
+				f.Close()
+			}
+		}
 	}
 	c.agiTokens = NewAgiWebTokenHandler(c.AGIStrictTLS)
 	c.wsCount = new(wsCounters)
@@ -421,7 +444,7 @@ func (c *webCmd) Execute(args []string) error {
 	if c.WebRoot == "//" {
 		c.WebRoot = "/"
 	}
-	err := c.genMenu()
+	err = c.genMenu()
 	if err != nil {
 		return err
 	}
@@ -1072,9 +1095,15 @@ func (c *webCmd) job(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser, commands []*apiCommand, commandsIndex map[string]int, spath string, hiddenItems []string) (ret []*webui.MenuItem) {
+func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser, commands []*apiCommand, commandsIndex map[string]int, spath string, hiddenItems []string, simpleMode bool) (ret []*webui.MenuItem) {
 	for comm, sub := range commandMap {
 		wpath := path.Join(spath, comm)
+		if simpleMode {
+			val := commands[commandsIndex[wpath]]
+			if (val.tags.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+strings.Join(val.pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(val.pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(val.pathStack, ".")) {
+				continue
+			}
+		}
 		isHidden := false
 		for _, hiddenItem := range hiddenItems {
 			if wpath == hiddenItem || strings.HasPrefix(wpath, hiddenItem+"/") {
@@ -1093,7 +1122,7 @@ func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser,
 			Tooltip: commands[commandsIndex[wpath]].description,
 		})
 		if len(sub.(map[string]interface{})) > 0 {
-			ret[len(ret)-1].Items = c.fillMenu(sub.(map[string]interface{}), titler, commands, commandsIndex, wpath, hiddenItems)
+			ret[len(ret)-1].Items = c.fillMenu(sub.(map[string]interface{}), titler, commands, commandsIndex, wpath, hiddenItems, simpleMode)
 		}
 	}
 	return ret
@@ -1130,6 +1159,11 @@ func (c *webCmd) genMenu() error {
 		if val.pathStack[len(val.pathStack)-1] == "help" {
 			continue
 		}
+		if c.ForceSimpleMode {
+			if (val.tags.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+strings.Join(val.pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(val.pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(val.pathStack, ".")) {
+				continue
+			}
+		}
 		commandsIndex[val.path] = len(commands)
 		commands = append(commands, &val)
 		cm := commandMap
@@ -1141,19 +1175,28 @@ func (c *webCmd) genMenu() error {
 		}
 	}
 	titler := cases.Title(language.English)
-	c.menuItems = append([]*webui.MenuItem{
+	c.commands = commands
+	c.commandsIndex = commandsIndex
+	c.commandMap = commandMap
+	c.hiddenItems = hiddenItems
+	c.titler = titler
+	return nil
+}
+
+func (c *webCmd) getMenu(simpleMode bool) []*webui.MenuItem {
+	if c.ForceSimpleMode {
+		simpleMode = true
+	}
+	menuItems := append([]*webui.MenuItem{
 		{
 			Icon:          "fas fa-list",
 			Name:          "Inventory",
 			Href:          c.WebRoot,
 			DrawSeparator: true,
 		},
-	}, c.fillMenu(commandMap, titler, commands, commandsIndex, "", hiddenItems)...)
-	c.sortMenu(c.menuItems, commandsIndex)
-	c.commands = commands
-	c.commandsIndex = commandsIndex
-	c.titler = titler
-	return nil
+	}, c.fillMenu(c.commandMap, c.titler, c.commands, c.commandsIndex, "", c.hiddenItems, simpleMode)...)
+	c.sortMenu(menuItems, c.commandsIndex)
+	return menuItems
 }
 
 func (c *webCmd) getFormItems(urlPath string, r *http.Request) ([]*webui.FormItem, error) {
@@ -1664,6 +1707,13 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			isShortSwitches = true
 		}
 	}
+	isSimpleMode := false
+	isSimpleModeC, err := r.Cookie("aerolab_simple_mode")
+	if err == nil {
+		if isSimpleModeC.Value == "true" {
+			isSimpleMode = true
+		}
+	}
 	formDownload := false
 	if c.commands[c.commandsIndex[strings.TrimPrefix(r.URL.Path, c.WebRoot)]].tags.Get("webcommandtype") == "download" {
 		formDownload = true
@@ -1684,6 +1734,8 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		ShortSwitches:                           isShortSwitches,
 		ShowDefaults:                            isShowDefaults,
 		FormDownload:                            formDownload,
+		ShowSimpleModeButton:                    !c.ForceSimpleMode,
+		SimpleMode:                              isSimpleMode,
 		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
@@ -1705,7 +1757,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		Menu: &webui.MainMenu{
-			Items: c.menuItems,
+			Items: c.getMenu(isSimpleMode),
 		},
 	}
 	p.Menu.Items.Set(r.URL.Path, c.WebRoot)
