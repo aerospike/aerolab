@@ -14,6 +14,16 @@ func (d *backendAws) GetKeyPath(clusterName string) (keyPath string, err error) 
 	return p, e
 }
 
+func (d *backendAws) getKeyPathNoCheck(clusterName string) (keyPath string) {
+	keyName := fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
+	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
+	fmt.Println(keyPath)
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		return ""
+	}
+	return keyPath
+}
+
 // get KeyPair
 func (d *backendAws) getKey(clusterName string) (keyName string, keyPath string, err error) {
 	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
