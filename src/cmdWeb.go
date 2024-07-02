@@ -1100,7 +1100,7 @@ func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser,
 		wpath := path.Join(spath, comm)
 		if simpleMode {
 			val := commands[commandsIndex[wpath]]
-			if (val.tags.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+strings.Join(val.pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(val.pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(val.pathStack, ".")) {
+			if (val.tags.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+strings.Join(val.pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(val.pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(val.pathStack, ".")) {
 				continue
 			}
 		}
@@ -1160,7 +1160,7 @@ func (c *webCmd) genMenu() error {
 			continue
 		}
 		if c.ForceSimpleMode {
-			if (val.tags.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+strings.Join(val.pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(val.pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(val.pathStack, ".")) {
+			if (val.tags.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+strings.Join(val.pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(val.pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(val.pathStack, ".")) {
 				continue
 			}
 		}
@@ -1239,7 +1239,7 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 				pathStack = append(command.pathStack, strings.ToLower(name))
 			}
 			realPath := strings.Join(pathStack, ".")
-			if (tags.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+realPath) && !inslice.HasString(c.simpleMode, realPath)) || inslice.HasString(c.simpleMode, "-"+realPath) {
+			if (tags.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+realPath) && !inslice.HasString(c.simpleMode, realPath)) || inslice.HasString(c.simpleMode, "-"+realPath) {
 				continue
 			}
 		}
@@ -1848,7 +1848,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isSimpleMode {
-		if (c.commands[cindex].tags.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+strings.Join(c.commands[cindex].pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(c.commands[cindex].pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(c.commands[cindex].pathStack, ".")) {
+		if (c.commands[cindex].tags.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+strings.Join(c.commands[cindex].pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(c.commands[cindex].pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(c.commands[cindex].pathStack, ".")) {
 			http.Error(w, "command not allowed in this mode", http.StatusForbidden)
 			return
 		}
@@ -2021,7 +2021,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					pathStack = append(pathStack, strings.ToLower(cp))
 				}
 			}
-			if (tag.Get("simplemode") != "true" && !inslice.HasString(c.simpleMode, "+"+strings.Join(pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(pathStack, ".")) {
+			if (tag.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+strings.Join(pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(pathStack, ".")) {
 				http.Error(w, "parameter not allowed in this mode", http.StatusForbidden)
 				return
 			}
