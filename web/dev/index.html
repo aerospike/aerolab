@@ -73,6 +73,18 @@
         <a href="{{.Href}}" class="nav-link" target="{{.Target}}">{{.Name}}</a>
       </li>
       {{end}}
+      {{if .ShowSimpleModeButton}}
+      <!-- simple mode -->
+      <li class="nav-item d-sm-inline-block">
+        <a style="text-align: center;" href="#" class="nav-link" data-toggle="tooltip" title="Turn simple mode on/off, hiding less frequently used features">
+          <p>&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" class="custom-control-input" id="simpleMode" name="simpleMode"{{if .SimpleMode}} checked{{end}}>
+            <label class="custom-control-label" for="simpleMode">Simple Mode</label>
+          </p>
+        </a>
+      </li>
+      <div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>
+      {{end}}
     </ul>
 
     <!-- Right navbar links -->
@@ -157,18 +169,6 @@
           </li>
           <div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>
           </div>
-          {{end}}
-          {{if .ShowSimpleModeButton}}
-          <!-- simple mode -->
-          <li class="nav-item">
-            <a style="text-align: center;" href="#" class="nav-link" data-toggle="tooltip" title="Turn simple mode on/off, hiding less frequently used features">
-              <p>
-                <input type="checkbox" class="custom-control-input" id="simpleMode" name="simpleMode"{{if .SimpleMode}} checked{{end}}>
-                <label class="custom-control-label" for="simpleMode">Simple Mode</label>
-              </p>
-            </a>
-          </li>
-          <div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>
           {{end}}
           <!-- actual menu -->          
           {{ template "menuItems" .Menu.Items }}
