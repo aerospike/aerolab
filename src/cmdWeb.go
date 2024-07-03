@@ -376,7 +376,7 @@ func (c *webCmd) Execute(args []string) error {
 			}
 		}
 	}
-	c.agiTokens = NewAgiWebTokenHandler(c.AGIStrictTLS)
+	c.agiTokens = NewAgiWebTokenHandler(!c.AGIStrictTLS)
 	c.wsCount = new(wsCounters)
 	go c.wsCount.PrintTimer(time.Second)
 	c.cfgTs = time.Now()
