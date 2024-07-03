@@ -38,13 +38,13 @@ func (c *netListCmd) Execute(args []string) error {
 		isColor = false
 	}
 	colorHiWhite := colorPrint{c: text.Colors{text.FgHiWhite}, enable: true}
-	warnExp := colorPrint{c: text.Colors{text.BgHiYellow, text.FgBlack}, enable: true}
-	errExp := colorPrint{c: text.Colors{text.BgHiRed, text.FgWhite}, enable: true}
+	//warnExp := colorPrint{c: text.Colors{text.BgHiYellow, text.FgBlack}, enable: true}
+	//errExp := colorPrint{c: text.Colors{text.BgHiRed, text.FgWhite}, enable: true}
 	if !isColor {
 		tb.SetStyle(table.StyleDefault)
 		colorHiWhite.enable = false
-		warnExp.enable = false
-		errExp.enable = false
+		//warnExp.enable = false
+		//errExp.enable = false
 		tstyle := tb.Style()
 		tstyle.Options.DrawBorder = false
 		tstyle.Options.SeparateColumns = false
