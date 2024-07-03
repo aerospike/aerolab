@@ -81,6 +81,9 @@ type agiStartCmd struct {
 }
 
 func (c *agiStartCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
 	a.opts.Cluster.Start.ClusterName = c.ClusterName
 	a.opts.Cluster.Start.Nodes = "1"
 	a.opts.Cluster.Start.NoStart = true
@@ -93,6 +96,9 @@ type agiStopCmd struct {
 }
 
 func (c *agiStopCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
 	a.opts.Cluster.Stop.ClusterName = c.ClusterName
 	a.opts.Cluster.Stop.Nodes = "1"
 	return a.opts.Cluster.Stop.doStop("agi")
