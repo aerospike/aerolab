@@ -1222,7 +1222,7 @@ func (c *webCmd) inventoryNodesActionStart(reqID string, invlog *os.File, clist 
 				"ClusterName": agiName,
 			}
 			ncmd := "/agi/start"
-			if len(nodes) > 1 && nodes[1] == "" {
+			if a.opts.Config.Backend.Type != "docker" && len(nodes) > 1 && nodes[1] == "" {
 				ncmd = "/agi/create"
 				cmdJson["Gcp"] = map[string]interface{}{
 					"Zone":    nodes[0],
