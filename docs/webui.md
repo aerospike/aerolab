@@ -71,3 +71,52 @@ certbot certonly --dns-route53 -n -d '*.ca-central-1.agi.aerolab.aerospike.me'
 ## Notes
 
 While aerolab can be installed on the destination machine as `aerolab cluster add aerolab -n NAME` or `aerolab client configure aerolab -n NAME`, the version deployed will not be the full /embedded/ version. To then upgrade to a full aerolab version, run this: `aerolab attach shell -n NAME -- aerolab upgrade [--edge]` or `aerolab attach client -n NAME -- aerolab upgrade [--edge]`.
+
+## Simple mode
+
+AeroLab WebUI comes with simple mode. By default the said mode can be switched on and off. In certain situations, such as when hosting aerolab for users, it may be useful to disable full mode and select which simple-mode features are allowed. To start aerolab, forcing simple-mode, add `--force-simple-mode` to the command.
+
+To configure extra options (such as enabling and disabling form fields and commands) in simple mode, create a file at `~/.aerolab/www-simple-mode.list` (or wherever `$AEROLAB_HOME` points to if set). The contents is a one-per-line list of commands and switches. Note that to enable subcommands, the top level commands must be enabled.
+
+All items can be obtained by executing `aerolab config defaults` option. Once that is done, put the keys in the list file.
+
+Prepend `-` to disallow or `+` to allow.
+
+For example, to disallow `cluster grow` command and all `cluster partition` commands, while explicitly enabling `cluster create` with `--count`:
+```
+-cluster.grow
+-cluster.partition
+-cluster.partition.create
+-cluster.partition.mkfs
+-cluster.partition.conf
+-cluster.partition.list
++clustr.create.count
+```
+
+### Modifiers
+
+While the defaults are ment to provide a sane single-user experience, special modifiers can be put in the first line to either start with allowing all options or start with disallowing all options (ignoring software defaults). The below allows all options in simple mode EXCEPT `cluster grow` command.
+
+```
++ALL
+-cluster.grow
+```
+
+Option `-ALL` is also allowed to perform the reverse.
+
+### WebUI Inventory - hiding tabs
+
+Tabs are always enabled by default (the `-ALL` modifier has no effect). If for example AGI is disabled in simple mode, you may wish to disable the `AGI` tab in the inventory listing from showing. To do that, just add `-INVENTORY:AGI` line in the list.
+
+Full list of tab disabling options for inventory tabs:
+
+```
+INVENTORY:CLUSTERS
+INVENTORY:CLIENTS
+INVENTORY:AGI
+INVENTORY:TEMPLATES
+INVENTORY:VOLUMES
+INVENTORY:FIREWALLS
+INVENTORY:EXPIRY
+INVENTORY:SUBNETS
+```
