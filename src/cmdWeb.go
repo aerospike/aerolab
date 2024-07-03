@@ -363,31 +363,68 @@ func (c *webCmd) Execute(args []string) error {
 		file := path.Join(homeDir, "www-simple-mode.list")
 		if _, err := os.Stat(file); err == nil {
 			f, err := os.Open(file)
-			if err == nil {
-				s := bufio.NewScanner(f)
-				isFirstLine := true
-				for s.Scan() {
-					line := strings.Trim(s.Text(), "\r\n\t ")
-					if line == "" {
-						continue
-					}
-					if isFirstLine {
-						switch strings.ToUpper(line) {
-						case "-ALL":
-							c.simpleModeTagsDefault = -1
-						case "+ALL", "ALL":
-							c.simpleModeTagsDefault = 1
-						default:
-							c.simpleMode = append(c.simpleMode, strings.ToLower(line))
-							c.simpleModeCamel = append(c.simpleModeCamel, line)
-						}
-						continue
-					}
-					c.simpleMode = append(c.simpleMode, strings.ToLower(line))
-					c.simpleModeCamel = append(c.simpleModeCamel, line)
-				}
-				f.Close()
+			if err != nil {
+				return fmt.Errorf("could not open www-simple-mode.list: %s", err)
 			}
+			s := bufio.NewScanner(f)
+			isFirstLine := true
+			for s.Scan() {
+				line := strings.Trim(s.Text(), "\r\n\t ")
+				if line == "" {
+					continue
+				}
+				if isFirstLine {
+					switch strings.ToUpper(line) {
+					case "-ALL":
+						c.simpleModeTagsDefault = -1
+					case "+ALL", "ALL":
+						c.simpleModeTagsDefault = 1
+					default:
+						c.simpleMode = append(c.simpleMode, strings.ToLower(line))
+						c.simpleModeCamel = append(c.simpleModeCamel, line)
+					}
+					continue
+				}
+				c.simpleMode = append(c.simpleMode, strings.ToLower(line))
+				c.simpleModeCamel = append(c.simpleModeCamel, line)
+			}
+			f.Close()
+			// TODO: test simpleMode has no typos by exploring it recursively
+			ret := make(chan apiCommand, 1)
+			keyField := reflect.ValueOf(a.opts).Elem()
+			pathStacks := []string{}
+			go a.opts.Rest.getCommands(keyField, "", ret, "")
+			for {
+				val, ok := <-ret
+				if !ok {
+					break
+				}
+				if val.isHidden || val.isWebHidden {
+					continue
+				}
+				if val.pathStack[len(val.pathStack)-1] == "help" {
+					continue
+				}
+				nPath := strings.Join(val.pathStack, ".")
+				pathStacks = append(pathStacks, nPath)
+				for _, item := range c.recursiveSimpleModeCheck(val.Value, "") {
+					pathStacks = append(pathStacks, nPath+"."+strings.ToLower(item))
+				}
+			}
+			invalidSel := []string{}
+			for _, i := range c.simpleMode {
+				if !inslice.HasString(pathStacks, strings.TrimPrefix(strings.TrimPrefix(i, "+"), "-")) {
+					invalidSel = append(invalidSel, i)
+				}
+			}
+			if len(invalidSel) > 0 {
+				fmt.Println("ERROR: invalid selections in www-simple-mode.list:")
+				for _, s := range invalidSel {
+					fmt.Println(s)
+				}
+				return errors.New("exiting due to error with www-simple-mode.list")
+			}
+			log.Printf("Loaded %s", file)
 		}
 	}
 	c.agiTokens = NewAgiWebTokenHandler(!c.AGIStrictTLS)
@@ -1243,6 +1280,48 @@ func (c *webCmd) getFormItems(urlPath string, r *http.Request, isSimpleMode bool
 	}
 	command := c.commands[cindex]
 	return c.getFormItemsRecursive(command, command.Value, "", r, isSimpleMode)
+}
+
+func (c *webCmd) recursiveSimpleModeCheck(commandValue reflect.Value, prefix string) []string {
+	wf := []string{}
+	for i := 0; i < commandValue.Type().NumField(); i++ {
+		name := commandValue.Type().Field(i).Name
+		kind := commandValue.Field(i).Kind()
+		tags := commandValue.Type().Field(i).Tag
+		if tags.Get("hidden") == "true" || tags.Get("webhidden") == "true" {
+			continue
+		}
+		if name[0] < 65 || name[0] > 90 {
+			if kind == reflect.Struct {
+				wfs := c.recursiveSimpleModeCheck(commandValue.Field(i), prefix)
+				wf = append(wf, wfs...)
+			}
+			continue
+		}
+		switch kind {
+		case reflect.Struct:
+			// recursion
+			if name == "Help" {
+				continue
+			}
+			if (name == "Aws" && a.opts.Config.Backend.Type == "aws") || (name == "Docker" && a.opts.Config.Backend.Type == "docker") || (name == "Gcp" && a.opts.Config.Backend.Type == "gcp") || (!inslice.HasString([]string{"Aws", "Gcp", "Docker"}, name)) {
+				sep := name
+				if prefix != "" {
+					sep = prefix + "." + name
+				}
+				wf = append(wf, sep)
+				wfs := c.recursiveSimpleModeCheck(commandValue.Field(i), sep)
+				wf = append(wf, wfs...)
+			}
+		default:
+			sep := name
+			if prefix != "" {
+				sep = prefix + "." + name
+			}
+			wf = append(wf, sep)
+		}
+	}
+	return wf
 }
 
 func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect.Value, prefix string, r *http.Request, isSimpleMode bool) ([]*webui.FormItem, error) {
