@@ -27,7 +27,7 @@ type dataInsertPkCmd struct {
 }
 
 type dataInsertCommonCmd struct {
-	RunDirect        bool              `short:"d" long:"run-direct" description:"If set, will ignore backend, cluster name and node ID and connect to SeedNode directly from running machine"`
+	RunDirect        bool              `short:"d" long:"run-direct" description:"If set, will ignore backend, cluster name and node ID and connect to SeedNode directly from running machine" simplemode:"false"`
 	UseMultiThreaded int               `short:"u" long:"multi-thread" description:"If set, will use multithreading. Set to the number of threads you want processing." default:"0"`
 	User             string            `short:"U" long:"username" description:"If set, will use this user to authenticate to aerospike cluster" default:""`
 	Pass             string            `short:"P" long:"password" description:"If set, will use this pass to authenticate to aerospike cluster" default:""`
@@ -43,7 +43,7 @@ type dataInsertSelectorCmd struct {
 	Node            TypeNode        `short:"l" long:"node" description:"Node to run aerolab on to do inserts" default:"1"`
 	IsClient        bool            `short:"I" long:"client" description:"set to indicate to run on a client machine instead of server node"`
 	SeedNode        string          `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
-	LinuxBinaryPath flags.Filename  `short:"t" long:"path" description:"Path to the linux compiled aerolab binary; this should not be required" default:""`
+	LinuxBinaryPath flags.Filename  `short:"t" long:"path" description:"Path to the linux compiled aerolab binary; this should not be required" default:"" simplemode:"false"`
 }
 
 type dataInsertCmd struct {
@@ -54,9 +54,9 @@ type dataInsertCmd struct {
 	ReadAfterWrite bool   `short:"f" long:"read-after-write" description:"Should we read (get) after write"`
 	dataInsertCommonCmd
 	TTL                   int              `short:"T" long:"ttl" description:"set ttl for records. Set to -1 to use server default, 0=don't expire" default:"-1"`
-	InsertToNodes         string           `short:"N" long:"to-nodes" description:"insert to specific node(s); provide comma-separated node IDs" default:""`
-	InsertToPartitions    int              `short:"C" long:"to-partitions" description:"insert to X number of partitions at most. to-partitions/to-nodes=partitions-per-node" default:"0"`
-	InsertToPartitionList string           `short:"L" long:"to-partition-list" description:"comma-separated list of partition numbers to insert data to. -P and -L  are ignored if this is specified" default:""`
+	InsertToNodes         string           `short:"N" long:"to-nodes" description:"insert to specific node(s); provide comma-separated node IDs" default:"" simplemode:"false"`
+	InsertToPartitions    int              `short:"C" long:"to-partitions" description:"insert to X number of partitions at most. to-partitions/to-nodes=partitions-per-node" default:"0" simplemode:"false"`
+	InsertToPartitionList string           `short:"L" long:"to-partition-list" description:"comma-separated list of partition numbers to insert data to. -P and -L  are ignored if this is specified" default:"" simplemode:"false"`
 	ExistsAction          TypeExistsAction `short:"E" long:"exists-action" description:"action policy: CREATE_ONLY | REPLACE_ONLY | REPLACE | UPDATE_ONLY | UPDATE" default:""`
 	dataInsertSelectorCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`

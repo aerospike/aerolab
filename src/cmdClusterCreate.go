@@ -120,19 +120,19 @@ type clusterCreateCmd struct {
 	CustomToolsFilePath     flags.Filename  `short:"z" long:"toolsconf" description:"Custom astools config file path to install"`
 	FeaturesFilePath        flags.Filename  `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool            `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
-	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default" default:"mesh" webchoice:"mesh,mcast,default"`
-	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file"`
-	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file"`
+	HeartbeatMode           TypeHBMode      `short:"m" long:"mode" description:"Heartbeat mode, one of: mcast|mesh|default" default:"mesh" webchoice:"mesh,mcast,default" simplemode:"false"`
+	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file" simplemode:"false"`
+	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file" simplemode:"false"`
 	aerospikeVersionSelectorCmd
 	AutoStartAerospike    TypeYesNo      `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
-	NoOverrideClusterName bool           `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name"`
-	NoSetHostname         bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
-	ScriptEarly           flags.Filename `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start"`
-	ScriptLate            flags.Filename `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop"`
+	NoOverrideClusterName bool           `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
+	NoSetHostname         bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change" simplemode:"false"`
+	ScriptEarly           flags.Filename `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
+	ScriptLate            flags.Filename `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
 	parallelThreadsCmd
-	NoVacuumOnFail bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation"`
-	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	NoVacuumOnFail bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
+	Owner          string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
+	PriceOnly      bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
 	Aws            clusterCreateCmdAws    `no-flag:"true"`
 	Gcp            clusterCreateCmdGcp    `no-flag:"true"`
 	Docker         clusterCreateCmdDocker `no-flag:"true"`
@@ -147,13 +147,13 @@ type osSelectorCmd struct {
 }
 
 type chDirCmd struct {
-	ChDir flags.Filename `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to" webtype:"text"`
+	ChDir flags.Filename `short:"W" long:"work-dir" description:"Specify working directory, this is where all installers will download and CA certs will initially generate to" webtype:"text" simplemode:"false"`
 }
 
 type aerospikeVersionCmd struct {
 	AerospikeVersion TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Aerospike server version; add 'c' to the end for community edition, or 'f' for federal edition" default:"latest"`
-	Username         string               `long:"username" description:"Required for downloading older enterprise editions"`
-	Password         string               `long:"password" description:"Required for downloading older enterprise editions" webtype:"password"`
+	Username         string               `long:"username" description:"Required for downloading older enterprise editions" simplemode:"false"`
+	Password         string               `long:"password" description:"Required for downloading older enterprise editions" webtype:"password" simplemode:"false"`
 }
 
 type aerospikeVersionSelectorCmd struct {
@@ -163,59 +163,59 @@ type aerospikeVersionSelectorCmd struct {
 }
 
 type clusterCreateCmdAws struct {
-	AMI                 string          `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos, rocky and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)"`
+	AMI                 string          `short:"A" long:"ami" description:"custom AMI to use (default debian, ubuntu, centos, rocky and amazon are supported in eu-west-1,us-west-1,us-east-1,ap-south-1)" simplemode:"false"`
 	InstanceType        guiInstanceType `short:"I" long:"instance-type" description:"instance type to use" default:"" webrequired:"true" webchoice:"method::List"`
-	Ebs                 string          `webhidden:"true" short:"E" long:"ebs" description:"Deprecated: EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12"`
+	Ebs                 string          `webhidden:"true" short:"E" long:"ebs" description:"Deprecated: EBS volume sizes in GB, comma-separated. First one is root size. Ex: 12,100,100" default:"12" simplemode:"false"`
 	Disk                []string        `long:"aws-disk" description:"EBS disks, format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=gp2,size=20 --disk type=gp3,size=100,iops=5000,throughput=200,count=2 ; first one is root volume ; this parameter can be specified multiple times"`
-	SecurityGroupID     string          `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage"`
-	SubnetID            string          `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC"`
+	SecurityGroupID     string          `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage" simplemode:"false"`
+	SubnetID            string          `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC" simplemode:"false"`
 	PublicIP            bool            `short:"L" long:"public-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	IsArm               bool            `long:"arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices     bool            `long:"no-best-practices" description:"set to stop best practices from being executed in setup"`
+	NoBestPractices     bool            `long:"no-best-practices" description:"set to stop best practices from being executed in setup" simplemode:"false"`
 	Tags                []string        `long:"tags" description:"apply custom tags to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix          []string        `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab"`
-	EFSMount            string          `long:"aws-efs-mount" description:"mount EFS volume; format: NAME:EfsPath:MountPath OR use NAME:MountPath to mount the EFS root"`
-	EFSCreate           bool            `long:"aws-efs-create" description:"set to create the EFS volume if it doesn't exist"`
-	EFSOneZone          bool            `long:"aws-efs-onezone" description:"set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments"`
-	TerminateOnPoweroff bool            `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
+	NamePrefix          []string        `long:"secgroup-name" description:"Name prefix to use for the security groups, can be specified multiple times" default:"AeroLab" simplemode:"false"`
+	EFSMount            string          `long:"aws-efs-mount" description:"mount EFS volume; format: NAME:EfsPath:MountPath OR use NAME:MountPath to mount the EFS root" simplemode:"false"`
+	EFSCreate           bool            `long:"aws-efs-create" description:"set to create the EFS volume if it doesn't exist" simplemode:"false"`
+	EFSOneZone          bool            `long:"aws-efs-onezone" description:"set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments" simplemode:"false"`
+	TerminateOnPoweroff bool            `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated" simplemode:"false"`
 	SpotInstance        bool            `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires             time.Duration   `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
-	EFSExpires          time.Duration   `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired"`
+	EFSExpires          time.Duration   `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired" simplemode:"false"`
 }
 
 type clusterCreateCmdGcp struct {
 	Image               string          `long:"image" description:"custom source image to use; format: full https selfLink from GCP; see: gcloud compute images list --uri"`
 	InstanceType        guiInstanceType `long:"instance" description:"instance type to use" default:"" webrequired:"true" webchoice:"method::List"`
-	Disks               []string        `webhidden:"true" long:"disk" description:"Deprecated: format type:sizeGB[:iops:throughputMb][@count] or local-ssd[@count]; ex: pd-ssd:20 pd-balanced:40@2 local-ssd local-ssd@5 hyperdisk-balanced:20:3060:155; first in list is root volume, cannot be local-ssd; can be specified multiple times"`
+	Disks               []string        `webhidden:"true" long:"disk" description:"Deprecated: format type:sizeGB[:iops:throughputMb][@count] or local-ssd[@count]; ex: pd-ssd:20 pd-balanced:40@2 local-ssd local-ssd@5 hyperdisk-balanced:20:3060:155; first in list is root volume, cannot be local-ssd; can be specified multiple times" simplemode:"false"`
 	Disk                []string        `long:"gcp-disk" description:"disks, format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2 ; first in list is root volume, cannot be local-ssd ; this parameter can be specified multiple times"`
 	PublicIP            bool            `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone                guiZone         `long:"zone" description:"zone name to deploy to" webrequired:"true" webchoice:"method::List"`
 	IsArm               bool            `long:"is-arm" hidden:"true" description:"indicate installing on an arm instance"`
-	NoBestPractices     bool            `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup"`
+	NoBestPractices     bool            `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup" simplemode:"false"`
 	Tags                []string        `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels              []string        `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	NamePrefix          []string        `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external"`
+	NamePrefix          []string        `long:"firewall" description:"Name to use for the firewall, can be specified multiple times" default:"aerolab-managed-external" simplemode:"false"`
 	SpotInstance        bool            `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires             time.Duration   `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
-	VolMount            string          `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath"`
-	VolCreate           bool            `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist"`
-	VolExpires          time.Duration   `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired"`
-	VolDescription      string          `long:"gcp-vol-desc" description:"set volume description field value"`
-	VolLabels           []string        `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times"`
-	TerminateOnPoweroff bool            `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated"`
+	VolMount            string          `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath" simplemode:"false"`
+	VolCreate           bool            `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist" simplemode:"false"`
+	VolExpires          time.Duration   `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired" simplemode:"false"`
+	VolDescription      string          `long:"gcp-vol-desc" description:"set volume description field value" simplemode:"false"`
+	VolLabels           []string        `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times" simplemode:"false"`
+	TerminateOnPoweroff bool            `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated" simplemode:"false"`
 	OnHostMaintenance   string          `long:"on-host-maintenance-policy" description:"optionally specify a custom policy onHostMaintenance"`
 }
 
 type clusterCreateCmdDocker struct {
 	ExposePortsToHost       string   `short:"e" long:"expose-ports" description:"If a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
 	NoAutoExpose            bool     `long:"no-autoexpose" description:"The easiest way to create multi-node clusters on docker desktop is to expose custom ports; this switch disables the functionality and leaves the listen/advertised IP:PORT in aerospike.conf untouched"`
-	CpuLimit                string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:""`
-	RamLimit                string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:""`
-	SwapLimit               string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:""`
-	NoFILELimit             int      `long:"nofile-limit" description:"for clusters, default will attempt to set to proto-fd-max+5000; you can set this manually or set to -1 to disable the parameter" default:"0"`
-	NoPatchV7Config         bool     `long:"nopatch-v7-config" description:"for clusters, if a custom aerospike.conf is not provided, by default the config file will be patched to remove bar namespace and set test to file backing; set to disable this"`
+	CpuLimit                string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:"" simplemode:"false"`
+	RamLimit                string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:"" simplemode:"false"`
+	SwapLimit               string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:"" simplemode:"false"`
+	NoFILELimit             int      `long:"nofile-limit" description:"for clusters, default will attempt to set to proto-fd-max+5000; you can set this manually or set to -1 to disable the parameter" default:"0" simplemode:"false"`
+	NoPatchV7Config         bool     `long:"nopatch-v7-config" description:"for clusters, if a custom aerospike.conf is not provided, by default the config file will be patched to remove bar namespace and set test to file backing; set to disable this" simplemode:"false"`
 	Privileged              bool     `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
-	NetworkName             string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:""`
+	NetworkName             string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:"" simplemode:"false"`
 	ClientType              string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
 	Labels                  []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	clientCustomDockerImage string

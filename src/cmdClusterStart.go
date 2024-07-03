@@ -11,7 +11,7 @@ type clusterStartCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
 	Help        helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
-	NoFixMesh   bool            `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh"`
+	NoFixMesh   bool            `short:"f" long:"no-fix-mesh" description:"Set to avoid running conf-fix-mesh" simplemode:"false"`
 	NoStart     bool            `short:"s" long:"no-start" description:"Set to prevent Aerospike from starting on cluster-start"`
 	parallelThreadsCmd
 	clusterStartStopDestroyCmd
