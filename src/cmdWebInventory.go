@@ -190,7 +190,7 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 			tr := &http.Transport{
 				DisableKeepAlives: true,
 				IdleConnTimeout:   10 * time.Second,
-				TLSClientConfig:   &tls.Config{InsecureSkipVerify: i.c.AGIStrictTLS}, // get AGI status, expect AGI to have real certificates
+				TLSClientConfig:   &tls.Config{InsecureSkipVerify: !i.c.AGIStrictTLS}, // get AGI status, expect AGI to have real certificates
 			}
 			client := &http.Client{
 				Timeout:   10 * time.Second,
