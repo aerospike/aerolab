@@ -1218,7 +1218,7 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 		name := commandValue.Type().Field(i).Name
 		kind := commandValue.Field(i).Kind()
 		tags := commandValue.Type().Field(i).Tag
-		if tags.Get("hidden") == "true" {
+		if tags.Get("hidden") == "true" || tags.Get("webhidden") == "true" {
 			continue
 		}
 		if name[0] < 65 || name[0] > 90 {
@@ -2006,6 +2006,23 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		cj := cjson
 		lj := logjson
 		commandPath := strings.Split(strings.TrimPrefix(k, "xx"), "xx")
+		for i, depth := range commandPath {
+			if i == 0 && depth == "" {
+				continue
+			}
+			if i == len(commandPath)-1 {
+				break
+			}
+			cmd = cmd.FieldByName(depth)
+			if _, ok := cj[depth]; !ok {
+				cj[depth] = make(map[string]interface{})
+			}
+			cj = cj[depth].(map[string]interface{})
+			if _, ok := lj[depth]; !ok {
+				lj[depth] = make(map[string]interface{})
+			}
+			lj = lj[depth].(map[string]interface{})
+		}
 		param := commandPath[len(commandPath)-1]
 		field := cmd.FieldByName(param)
 		fieldType, _ := cmd.Type().FieldByName(param)
@@ -2025,23 +2042,6 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "parameter not allowed in this mode", http.StatusForbidden)
 				return
 			}
-		}
-		for i, depth := range commandPath {
-			if i == 0 && depth == "" {
-				continue
-			}
-			if i == len(commandPath)-1 {
-				break
-			}
-			cmd = cmd.FieldByName(depth)
-			if _, ok := cj[depth]; !ok {
-				cj[depth] = make(map[string]interface{})
-			}
-			cj = cj[depth].(map[string]interface{})
-			if _, ok := lj[depth]; !ok {
-				lj[depth] = make(map[string]interface{})
-			}
-			lj = lj[depth].(map[string]interface{})
 		}
 		switch field.Kind() {
 		case reflect.String:
