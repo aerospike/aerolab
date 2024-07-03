@@ -38,44 +38,45 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr          []string       `long:"listen" description:"host:port, or just :port, for IPv6 use for example '[::1]:3333'; can be specified multiple times" default:"127.0.0.1:3333"`
-	WebRoot             string         `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
-	AbsoluteTimeout     time.Duration  `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
-	MaxConcurrentJobs   int            `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
-	MaxQueuedJobs       int            `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
-	JobHistoryExpiry    time.Duration  `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
-	ShowMaxHistoryItems int            `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
-	NoBrowser           bool           `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
-	RefreshInterval     time.Duration  `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
-	MinInterval         time.Duration  `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
-	BlockServerLs       bool           `long:"block-server-ls" description:"block file exploration on the server altogether"`
-	AllowLsEverywhere   bool           `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
-	MaxUploadSizeBytes  int            `long:"max-upload-size-bytes" description:"max size of files to allow uploading via the webui temp if server-ls is blocked (hosted mode); 0=disabled" default:"209715200"`
-	UploadTempDir       flags.Filename `long:"upload-temp-dir" description:"if sever ls is blocked, temporary directory to use for file uploads"`
-	UniqueFirewalls     bool           `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
-	AGIStrictTLS        bool           `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
-	WSProxyOrigins      []string       `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
-	ForceSimpleMode     bool           `long:"force-simple-mode" description:"force use of simple mode, limiting the number of features and switches that show up"`
-	WebPath             string         `long:"web-path" hidden:"true"`
-	WebNoOverride       bool           `long:"web-no-override" hidden:"true"`
-	DebugRequests       bool           `long:"debug-requests" hidden:"true"`
-	Real                bool           `long:"real" hidden:"true"`
-	Help                helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
-	commands            []*apiCommand
-	commandsIndex       map[string]int
-	commandMap          map[string]interface{}
-	hiddenItems         []string
-	titler              cases.Caser
-	joblist             *jobTrack
-	jobqueue            *jobqueue.Queue
-	cache               *inventoryCache
-	inventoryNames      map[string]*webui.InventoryItem
-	agiTokens           *agiWebTokens
-	cfgTs               time.Time
-	wsCount             *wsCounters
-	downloader          *webDownloader
-	simpleMode          []string // []{"+Cluster.Create","-Cluster.Start", etc} - lowercase version
-	simpleModeCamel     []string // []{"+Cluster.Create","-Cluster.Start", etc} - camelcase version
+	ListenAddr            []string       `long:"listen" description:"host:port, or just :port, for IPv6 use for example '[::1]:3333'; can be specified multiple times" default:"127.0.0.1:3333"`
+	WebRoot               string         `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
+	AbsoluteTimeout       time.Duration  `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
+	MaxConcurrentJobs     int            `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
+	MaxQueuedJobs         int            `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
+	JobHistoryExpiry      time.Duration  `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
+	ShowMaxHistoryItems   int            `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
+	NoBrowser             bool           `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
+	RefreshInterval       time.Duration  `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
+	MinInterval           time.Duration  `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
+	BlockServerLs         bool           `long:"block-server-ls" description:"block file exploration on the server altogether"`
+	AllowLsEverywhere     bool           `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
+	MaxUploadSizeBytes    int            `long:"max-upload-size-bytes" description:"max size of files to allow uploading via the webui temp if server-ls is blocked (hosted mode); 0=disabled" default:"209715200"`
+	UploadTempDir         flags.Filename `long:"upload-temp-dir" description:"if sever ls is blocked, temporary directory to use for file uploads"`
+	UniqueFirewalls       bool           `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
+	AGIStrictTLS          bool           `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
+	WSProxyOrigins        []string       `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
+	ForceSimpleMode       bool           `long:"force-simple-mode" description:"force use of simple mode, limiting the number of features and switches that show up"`
+	WebPath               string         `long:"web-path" hidden:"true"`
+	WebNoOverride         bool           `long:"web-no-override" hidden:"true"`
+	DebugRequests         bool           `long:"debug-requests" hidden:"true"`
+	Real                  bool           `long:"real" hidden:"true"`
+	Help                  helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	commands              []*apiCommand
+	commandsIndex         map[string]int
+	commandMap            map[string]interface{}
+	hiddenItems           []string
+	titler                cases.Caser
+	joblist               *jobTrack
+	jobqueue              *jobqueue.Queue
+	cache                 *inventoryCache
+	inventoryNames        map[string]*webui.InventoryItem
+	agiTokens             *agiWebTokens
+	cfgTs                 time.Time
+	wsCount               *wsCounters
+	downloader            *webDownloader
+	simpleMode            []string // []{"+Cluster.Create","-Cluster.Start", etc} - lowercase version
+	simpleModeCamel       []string // []{"+Cluster.Create","-Cluster.Start", etc} - camelcase version
+	simpleModeTagsDefault int      // -1 == ignore "simplemode" tag, all options disabled by default; 1 == ignore "simplemode" tag, all options enabled by default; 0 == use "simplemode" tag
 }
 
 type webDownloader struct {
@@ -364,9 +365,22 @@ func (c *webCmd) Execute(args []string) error {
 			f, err := os.Open(file)
 			if err == nil {
 				s := bufio.NewScanner(f)
+				isFirstLine := true
 				for s.Scan() {
 					line := strings.Trim(s.Text(), "\r\n\t ")
 					if line == "" {
+						continue
+					}
+					if isFirstLine {
+						switch strings.ToUpper(line) {
+						case "-ALL":
+							c.simpleModeTagsDefault = -1
+						case "+ALL", "ALL":
+							c.simpleModeTagsDefault = 1
+						default:
+							c.simpleMode = append(c.simpleMode, strings.ToLower(line))
+							c.simpleModeCamel = append(c.simpleModeCamel, line)
+						}
 						continue
 					}
 					c.simpleMode = append(c.simpleMode, strings.ToLower(line))
@@ -1095,12 +1109,32 @@ func (c *webCmd) job(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// returns true if allowed in simple mode, or false otherwise
+func (c *webCmd) testSimpleModeLogic(tagValue string, pathStack []string) bool {
+	pathString := strings.Join(pathStack, ".")
+	switch c.simpleModeTagsDefault {
+	case 1:
+		if inslice.HasString(c.simpleMode, "-"+pathString) {
+			return false
+		}
+	case -1:
+		if !inslice.HasString(c.simpleMode, "+"+pathString) && !inslice.HasString(c.simpleMode, pathString) {
+			return false
+		}
+	default:
+		if (tagValue == "false" && !inslice.HasString(c.simpleMode, "+"+pathString) && !inslice.HasString(c.simpleMode, pathString)) || inslice.HasString(c.simpleMode, "-"+pathString) {
+			return false
+		}
+	}
+	return true
+}
+
 func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser, commands []*apiCommand, commandsIndex map[string]int, spath string, hiddenItems []string, simpleMode bool) (ret []*webui.MenuItem) {
 	for comm, sub := range commandMap {
 		wpath := path.Join(spath, comm)
 		if simpleMode {
 			val := commands[commandsIndex[wpath]]
-			if (val.tags.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+strings.Join(val.pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(val.pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(val.pathStack, ".")) {
+			if !c.testSimpleModeLogic(val.tags.Get("simplemode"), val.pathStack) {
 				continue
 			}
 		}
@@ -1160,7 +1194,7 @@ func (c *webCmd) genMenu() error {
 			continue
 		}
 		if c.ForceSimpleMode {
-			if (val.tags.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+strings.Join(val.pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(val.pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(val.pathStack, ".")) {
+			if !c.testSimpleModeLogic(val.tags.Get("simplemode"), val.pathStack) {
 				continue
 			}
 		}
@@ -1238,8 +1272,7 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 			} else {
 				pathStack = append(command.pathStack, strings.ToLower(name))
 			}
-			realPath := strings.Join(pathStack, ".")
-			if (tags.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+realPath) && !inslice.HasString(c.simpleMode, realPath)) || inslice.HasString(c.simpleMode, "-"+realPath) {
+			if !c.testSimpleModeLogic(tags.Get("simplemode"), pathStack) {
 				continue
 			}
 		}
@@ -1848,7 +1881,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if isSimpleMode {
-		if (c.commands[cindex].tags.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+strings.Join(c.commands[cindex].pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(c.commands[cindex].pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(c.commands[cindex].pathStack, ".")) {
+		if !c.testSimpleModeLogic(c.commands[cindex].tags.Get("simplemode"), c.commands[cindex].pathStack) {
 			http.Error(w, "command not allowed in this mode", http.StatusForbidden)
 			return
 		}
@@ -2038,7 +2071,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					pathStack = append(pathStack, strings.ToLower(cp))
 				}
 			}
-			if (tag.Get("simplemode") == "false" && !inslice.HasString(c.simpleMode, "+"+strings.Join(pathStack, ".")) && !inslice.HasString(c.simpleMode, strings.Join(pathStack, "."))) || inslice.HasString(c.simpleMode, "-"+strings.Join(pathStack, ".")) {
+			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) {
 				http.Error(w, "parameter not allowed in this mode", http.StatusForbidden)
 				return
 			}
