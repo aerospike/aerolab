@@ -444,35 +444,51 @@
       <div class="card-header p-0 pt-1">
 
         <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
+          {{if not .HideInventory.Clusters}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabClusters-tab" data-toggle="pill" href="#inventoryTabClusters" role="tab" aria-controls="inventoryTabClusters" aria-selected="false">Clusters</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.Clients}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabClients-tab" data-toggle="pill" href="#inventoryTabClients" role="tab" aria-controls="inventoryTabClients" aria-selected="false">Clients</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.AGI}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabAGI-tab" data-toggle="pill" href="#inventoryTabAGI" role="tab" aria-controls="inventoryTabAGI" aria-selected="false">AGI</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.Templates}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="false">Templates</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.Volumes}}
           {{ if ne .Backend "docker" }}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryVolumes-tab" data-toggle="pill" href="#inventoryVolumes" role="tab" aria-controls="inventoryVolumes" aria-selected="false">{{if eq .Backend "aws"}}EFS{{end}}{{if eq .Backend "gcp"}}Volumes{{end}}</a>
           </li>
           {{end}}
+          {{end}}
+          {{if not .HideInventory.Firewalls}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabFirewalls-tab" data-toggle="pill" href="#inventoryTabFirewalls" role="tab" aria-controls="inventoryTabFirewalls" aria-selected="false">{{if eq .Backend "aws"}}SecurityGroups{{end}}{{if eq .Backend "gcp"}}Firewalls{{end}}{{if eq .Backend "docker"}}Networks{{end}}</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.Expiry}}
           {{ if ne .Backend "docker" }}
           <li class="nav-item">
           <a class="nav-link inventoryTab" id="inventoryTabExpirySystem-tab" data-toggle="pill" href="#inventoryTabExpirySystem" role="tab" aria-controls="inventoryTabExpirySystem" aria-selected="false">ExpirySystem</a>
           </li>
           {{end}}
+          {{end}}
+          {{if not .HideInventory.Subnets}}
           {{if eq .Backend "aws"}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabSubnets-tab" data-toggle="pill" href="#inventoryTabSubnets" role="tab" aria-controls="inventoryTabSubnets" aria-selected="false">Subnets</a>
           </li>
+          {{end}}
           {{end}}
         </ul>
 

@@ -77,6 +77,7 @@ type webCmd struct {
 	simpleMode            []string // []{"+Cluster.Create","-Cluster.Start", etc} - lowercase version
 	simpleModeCamel       []string // []{"+Cluster.Create","-Cluster.Start", etc} - camelcase version
 	simpleModeTagsDefault int      // -1 == ignore "simplemode" tag, all options disabled by default; 1 == ignore "simplemode" tag, all options enabled by default; 0 == use "simplemode" tag
+	inventoryHide         webui.HideInventory
 }
 
 type webDownloader struct {
@@ -367,26 +368,36 @@ func (c *webCmd) Execute(args []string) error {
 				return fmt.Errorf("could not open www-simple-mode.list: %s", err)
 			}
 			s := bufio.NewScanner(f)
-			isFirstLine := true
 			for s.Scan() {
 				line := strings.Trim(s.Text(), "\r\n\t ")
 				if line == "" {
 					continue
 				}
-				if isFirstLine {
-					switch strings.ToUpper(line) {
-					case "-ALL":
-						c.simpleModeTagsDefault = -1
-					case "+ALL", "ALL":
-						c.simpleModeTagsDefault = 1
-					default:
-						c.simpleMode = append(c.simpleMode, strings.ToLower(line))
-						c.simpleModeCamel = append(c.simpleModeCamel, line)
-					}
-					continue
+				switch strings.ToUpper(line) {
+				case "-ALL":
+					c.simpleModeTagsDefault = -1
+				case "+ALL", "ALL":
+					c.simpleModeTagsDefault = 1
+				case "INVENTORY:CLUSTERS", "-INVENTORY:CLUSTERS":
+					c.inventoryHide.Clusters = true
+				case "INVENTORY:CLIENTS", "-INVENTORY:CLIENTS":
+					c.inventoryHide.Clients = true
+				case "INVENTORY:AGI", "-INVENTORY:AGI":
+					c.inventoryHide.AGI = true
+				case "INVENTORY:TEMPLATES", "-INVENTORY:TEMPLATES":
+					c.inventoryHide.Templates = true
+				case "INVENTORY:VOLUMES", "-INVENTORY:VOLUMES":
+					c.inventoryHide.Volumes = true
+				case "INVENTORY:FIREWALLS", "-INVENTORY:FIREWALLS":
+					c.inventoryHide.Firewalls = true
+				case "INVENTORY:EXPIRY", "-INVENTORY:EXPIRY":
+					c.inventoryHide.Expiry = true
+				case "INVENTORY:SUBNETS", "-INVENTORY:SUBNETS":
+					c.inventoryHide.Subnets = true
+				default:
+					c.simpleMode = append(c.simpleMode, strings.ToLower(line))
+					c.simpleModeCamel = append(c.simpleModeCamel, line)
 				}
-				c.simpleMode = append(c.simpleMode, strings.ToLower(line))
-				c.simpleModeCamel = append(c.simpleModeCamel, line)
 			}
 			f.Close()
 			// TODO: test simpleMode has no typos by exploring it recursively
@@ -1800,7 +1811,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	var errStr string
 	var errTitle string
 	var isError bool
-	isSimpleMode := false
+	isSimpleMode := c.ForceSimpleMode
 	isSimpleModeC, err := r.Cookie("aerolab_simple_mode")
 	if err == nil {
 		if isSimpleModeC.Value == "true" {
@@ -1845,6 +1856,10 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	if c.commands[c.commandsIndex[strings.TrimPrefix(r.URL.Path, c.WebRoot)]].tags.Get("webcommandtype") == "download" {
 		formDownload = true
 	}
+	hideInv := webui.HideInventory{}
+	if isSimpleMode {
+		hideInv = c.inventoryHide
+	}
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
@@ -1864,6 +1879,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		ShowSimpleModeButton:                    !c.ForceSimpleMode,
 		SimpleMode:                              isSimpleMode,
 		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
+		HideInventory:                           hideInv,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{

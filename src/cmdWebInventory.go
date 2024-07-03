@@ -412,12 +412,16 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 			isShowUsersChecked = true
 		}
 	}
-	isSimpleMode := false
+	isSimpleMode := c.ForceSimpleMode
 	isSimpleModeC, err := r.Cookie("aerolab_simple_mode")
 	if err == nil {
 		if isSimpleModeC.Value == "true" {
 			isSimpleMode = true
 		}
+	}
+	hideInv := webui.HideInventory{}
+	if isSimpleMode {
+		hideInv = c.inventoryHide
 	}
 	p := &webui.Page{
 		Backend:                                 a.opts.Config.Backend.Type,
@@ -432,6 +436,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		ShowSimpleModeButton:                    !c.ForceSimpleMode,
 		SimpleMode:                              isSimpleMode,
 		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
+		HideInventory:                           hideInv,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
