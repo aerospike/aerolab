@@ -35,6 +35,18 @@ type Page struct {
 	FormDownload                            bool
 	ShowSimpleModeButton                    bool
 	SimpleMode                              bool
+	HideInventory                           HideInventory
+}
+
+type HideInventory struct {
+	Clusters  bool
+	Clients   bool
+	AGI       bool
+	Templates bool
+	Volumes   bool
+	Firewalls bool
+	Expiry    bool
+	Subnets   bool
 }
 
 type InventoryItem struct {
