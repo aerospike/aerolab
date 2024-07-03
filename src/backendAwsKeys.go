@@ -17,7 +17,6 @@ func (d *backendAws) GetKeyPath(clusterName string) (keyPath string, err error) 
 func (d *backendAws) getKeyPathNoCheck(clusterName string) (keyPath string) {
 	keyName := fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
-	fmt.Println(keyPath)
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
 		return ""
 	}
