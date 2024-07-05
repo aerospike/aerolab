@@ -332,7 +332,7 @@ function addEntry(title, code, meta, storeEach=true, uuid="") {
         master.className = "card execStep";
         master.innerHTML = `
         <div class="card-header">
-            <h3 class="card-title">`+title+`<button type="button" class="btn btn-tool" title="Edit" onclick='loadFormFromScript(this.parentNode.parentNode.parentNode);'><i class="fas fa-edit"></i></button></h3>
+            <h3 class="card-title"><span id="`+uuid+`-cd"></span><button type="button" class="btn btn-tool" title="Edit" onclick='loadFormFromScript(this.parentNode.parentNode.parentNode);'><i class="fas fa-edit"></i></button></h3>
             <div class="card-tools">
                 <button type="button" class="btn btn-tool removeCard" data-card-widget="remove" title="Remove">
                     <i class="fas fa-times"></i>
@@ -340,20 +340,25 @@ function addEntry(title, code, meta, storeEach=true, uuid="") {
             </div>
         </div>
         <div class="card-body">
-            <div hidden style="display:none;"><code><pre class="runStepMeta">`+meta+`</pre></code></div>
-            <div hidden style="display:none;"><code><pre class="runStepClean">`+code+`</pre></code></div>
-            <div hidden style="display:none;"><code><pre class="runStepUUID">`+uuid+`</pre></code></div>
-            <code><pre class="runStep">`+code+`</pre></code>
+            <div hidden style="display:none;"><code><pre class="runStepMeta" id="`+uuid+`-meta"></pre></code></div>
+            <div hidden style="display:none;"><code><pre class="runStepClean" id="`+uuid+`-clean"></pre></code></div>
+            <div hidden style="display:none;"><code><pre class="runStepUUID" id="`+uuid+`-uuid"></pre></code></div>
+            <code><pre class="runStep" id="`+uuid+`-run"></pre></code>
         </div>`;
         $(".execSteps").append(master);
+        document.getElementById(uuid+"-cd").innerText = title;
+        document.getElementById(uuid+"-meta").innerText = meta;
+        document.getElementById(uuid+"-clean").innerText = code;
+        document.getElementById(uuid+"-uuid").innerText = uuid;
+        document.getElementById(uuid+"-run").innerText = code;
     } else {
         $(document).find(".runStepUUID").map(function() {
             if (this.innerText != uuid) {
                 return;
             }
-            $(this).parent().parent().parent().find(".runStepMeta")[0].innerText = meta;
-            $(this).parent().parent().parent().find(".runStepClean")[0].innerText = code;
-            $($(this).parent().parent().parent().parent().children(".card-header")[0]).children(".card-title")[0].innerHTML = title + `<button type="button" class="btn btn-tool" title="Edit" onclick='loadFormFromScript(this.parentNode.parentNode.parentNode);'><i class="fas fa-edit"></i></button>`;
+            document.getElementById(uuid+"-meta").innerText = meta;
+            document.getElementById(uuid+"-clean").innerText = code;
+            document.getElementById(uuid+"-cd").innerText = title;
             master = $(this).parent().parent().parent().parent();
         })
     }
