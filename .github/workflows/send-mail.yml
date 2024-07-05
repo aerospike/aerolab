@@ -12,6 +12,14 @@ jobs:
         steps:
           - name: "Git checkout"
             uses: actions/checkout@v3
+          - name: "Patch release date"
+            run: |
+              grep '_Release Date: Month Day, Year_' CHANGELOG/${{inputs.VERSION}}.md
+              if [ $? -eq 0 ]
+              then
+                NDATE=$(date "+%B %d, %Y")
+                sed -i.bak "s/_Release Date: Month Day, Year_/_${NDATE}_/g" CHANGELOG/${{inputs.VERSION}}.md
+              fi
           - name: Send mail
             uses: dawidd6/action-send-mail@v3
             with:

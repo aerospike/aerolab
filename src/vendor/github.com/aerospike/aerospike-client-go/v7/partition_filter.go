@@ -74,6 +74,8 @@ func newPartitionFilter(begin, count int) *PartitionFilter {
 
 // IsDone returns - if using ScanPolicy.MaxRecords or QueryPolicy,MaxRecords -
 // if the previous paginated scans with this partition filter instance return all records?
+// This method is not synchronized and is not meant to be called while the Scan/Query is
+// ongoing. It should be called after all the records are received from the recordset.
 func (pf *PartitionFilter) IsDone() bool {
 	return pf.Done
 }

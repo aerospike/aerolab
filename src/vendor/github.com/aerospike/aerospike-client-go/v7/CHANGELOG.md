@@ -1,6 +1,24 @@
 # Change History
 
-## May 16 2024: v7.4.0
+## June 27 2024: v7.5.0
+
+  This a minor feature and fix release.
+
+- **New Features**
+  - [CLIENT-2968] Support new v71 proxy features:
+    - Info command.
+    - `QueryPolicy.QueryDuration`
+  - [CLIENT-3012] Support new server 7.1 info command error response strings.
+
+- **Improvements**
+  - [CLIENT-2997] Scans should work in a mixed cluster of v5.7 and v6.4 server nodes.
+  - [CLIENT-3012] Support new server 7.1 info command error response strings.
+  - [CLIENT-3020] Change ReadModeSC doc from server to client perspective.
+  
+- **Fixes**
+  - [CLIENT-3019] Prevent Goroutine leak in AuthInterceptor for the Proxy Client.
+
+## May 20 2024: v7.4.0
 
   This a minor fix release. We strongly suggest you upgrade to this version over the v7.3.0 if you use the `Client.BatchGetOperate` API.
 
@@ -16,7 +34,7 @@
 
 ## May 3 2024: v7.3.0
 
-> [!WARNING]  
+> [!WARNING]
 > Do not use this version if you are using the `Client.BatchGetOperate` API.
 
 This is a major feature release of the Go client and touches some of the fundamental aspects of the inner workings of it.

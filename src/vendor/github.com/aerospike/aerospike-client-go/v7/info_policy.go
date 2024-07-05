@@ -17,6 +17,8 @@ package aerospike
 import (
 	"context"
 	"time"
+
+	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 )
 
 // InfoPolicy contains attributes used for info commands.
@@ -61,4 +63,17 @@ func (p *InfoPolicy) grpcDeadlineContext() (context.Context, context.CancelFunc)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	return ctx, cancel
+}
+
+func (p *InfoPolicy) grpc() *kvs.InfoPolicy {
+	if p == nil {
+		return nil
+	}
+
+	Timeout := uint32(p.Timeout / time.Millisecond)
+	res := &kvs.InfoPolicy{
+		Timeout: &Timeout,
+	}
+
+	return res
 }
