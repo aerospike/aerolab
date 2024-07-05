@@ -3475,8 +3475,13 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 	}
 	if strings.HasSuffix(v.aerospikeVersion, "f") {
 		log.Print("NOTE: Remember to harden the instance with FIPS as well.")
+		log.Print("!!!!: At this point the OS is NOT in FIPS compliant, you just have the FIPS Aerospike installed")
 		if v.distroName == "amazon" && v.distroVersion == "2" {
+			log.Print("AWS FIPS Enablement Manual: https://docs.aws.amazon.com/linux/al2/ug/fips-mode.html")
+		} else if v.distroName == "amazon" && v.distroVersion == "" {
 			log.Print("AWS FIPS Enablement Manual: https://aws.amazon.com/blogs/publicsector/enabling-fips-mode-amazon-linux-2/")
+		} else {
+			log.Printf("Please PR official FIPS Enablement Manual for %s %s", v.distroName, v.distroVersion)
 		}
 		log.Print("Each command can be run on all nodes at the same time, like so:")
 		log.Print("  $ aerolab attach shell -n ClusterName -l all -- yum update -y")
