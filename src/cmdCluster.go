@@ -13,7 +13,7 @@ type clusterCmd struct {
 	Destroy   clusterDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy cluster" webicon:"fas fa-trash" invwebforce:"true"`
 	Add       clusterAddCmd       `command:"add" subcommands-optional:"true" description:"Add features to clusters, ex: ams" webicon:"fas fa-gear"`
 	Partition clusterPartitionCmd `command:"partition" subcommands-optional:"true" description:"node disk partitioner" webicon:"fas fa-divide"`
-	Attach    attachShellCmd      `command:"attach" subcommands-optional:"true" description:"symlink to: attach shell" webicon:"fas fa-terminal"`
+	Attach    attachShellCmd      `command:"attach" subcommands-optional:"true" description:"symlink to: attach shell" webicon:"fas fa-terminal" simplemode:"false"`
 	Share     clusterShareCmd     `command:"share" subcommands-optional:"true" description:"AWS/GCP: share the cluster by importing a provided ssh public key file" webicon:"fas fa-share"`
 	Help      helpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }

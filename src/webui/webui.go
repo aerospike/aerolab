@@ -32,6 +32,21 @@ type Page struct {
 	CurrentUser                             string
 	ShortSwitches                           bool
 	ShowDefaults                            bool
+	FormDownload                            bool
+	ShowSimpleModeButton                    bool
+	SimpleMode                              bool
+	HideInventory                           HideInventory
+}
+
+type HideInventory struct {
+	Clusters  bool
+	Clients   bool
+	AGI       bool
+	Templates bool
+	Volumes   bool
+	Firewalls bool
+	Expiry    bool
+	Subnets   bool
 }
 
 type InventoryItem struct {
@@ -73,6 +88,7 @@ type FormItemInput struct {
 	Required    bool
 	Optional    bool
 	IsFile      bool
+	Disabled    bool
 }
 
 type FormItemSelect struct {

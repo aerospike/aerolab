@@ -5,7 +5,7 @@ import (
 )
 
 type filesCmd struct {
-	Download filesDownloadCmd `command:"download" alias:"d" subcommands-optional:"true" description:"Download files from a node" webicon:"fas fa-download"`
+	Download filesDownloadCmd `command:"download" alias:"d" subcommands-optional:"true" description:"Download files from a node" webicon:"fas fa-download" webcommandtype:"download"`
 	Upload   filesUploadCmd   `command:"upload" alias:"u" subcommands-optional:"true" description:"Upload files to a node" webicon:"fas fa-upload"`
 	Edit     filesEditCmd     `command:"edit" subcommands-optional:"true" description:"Download, edit and re-upload a file" webicon:"fas fa-pen-to-square" webhidden:"true"`
 	Sync     filesSyncCmd     `command:"sync" subcommands-optional:"true" description:"Sync files or a directory from one node to others" webicon:"fas fa-rotate"`

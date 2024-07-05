@@ -34,6 +34,7 @@
 </head>
 <body class="hold-transition sidebar-mini{{if .FixedFooter}} layout-footer-fixed{{end}}{{if .FixedNavbar}} layout-navbar-fixed{{end}}">
 <div id="filebrowser-wrapper"></div>
+<iframe id="mydownloader" style="display:none;"></iframe>
 <!-- spinner -->
 <div class="overlay-disable" id="loadingSpinner">
   <div class="overlay-spinner">
@@ -71,6 +72,18 @@
       <li class="nav-item d-sm-inline-block">
         <a href="{{.Href}}" class="nav-link" target="{{.Target}}">{{.Name}}</a>
       </li>
+      {{end}}
+      {{if .ShowSimpleModeButton}}
+      <!-- simple mode -->
+      <li class="nav-item d-sm-inline-block">
+        <a style="text-align: center;" href="#" class="nav-link" data-toggle="tooltip" title="Turn simple mode on/off, hiding less frequently used features">
+          <p>&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" class="custom-control-input" id="simpleMode" name="simpleMode"{{if .SimpleMode}} checked{{end}}>
+            <label class="custom-control-label" for="simpleMode">Simple Mode</label>
+          </p>
+        </a>
+      </li>
+      <div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>
       {{end}}
     </ul>
 
@@ -157,6 +170,7 @@
           <div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>
           </div>
           {{end}}
+          <!-- actual menu -->          
           {{ template "menuItems" .Menu.Items }}
         </ul>
       </nav>
@@ -246,7 +260,7 @@
                   {{if .Input.Tags}}
                   <div class="form-group" data-toggle="tooltipleft" title="{{.Input.Description}}">
                     {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label>{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
-                    <select class="select2bs4tag updateCommandCli{{if .Input.Required}} aerolab-required{{end}}" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                    <select class="select2bs4tag updateCommandCli{{if .Input.Required}} aerolab-required{{end}}" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} disabled{{end}}>
                     </select>
                     {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>
@@ -255,12 +269,12 @@
                     {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
                     {{ if eq .Input.Type "file" }}
                     <div class="custom-file">
-                      <input type="{{.Input.Type}}" class="custom-file-input updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                      <input type="{{.Input.Type}}" class="custom-file-input updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} disabled{{end}}>
                       <label class="custom-file-label" for="{{.Input.ID}}">Choose file</label>
                       <input type="hidden" class="xfileup" id="{{.Input.ID}}xfileup" name="{{.Input.ID}}">
                     </div>
                     {{ else }}
-                    <input type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}>
+                    <input type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} readonly value="{{.Input.Default}}"{{end}}>
                     {{ end }}
                     {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>
@@ -430,35 +444,51 @@
       <div class="card-header p-0 pt-1">
 
         <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
+          {{if not .HideInventory.Clusters}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabClusters-tab" data-toggle="pill" href="#inventoryTabClusters" role="tab" aria-controls="inventoryTabClusters" aria-selected="false">Clusters</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.Clients}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabClients-tab" data-toggle="pill" href="#inventoryTabClients" role="tab" aria-controls="inventoryTabClients" aria-selected="false">Clients</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.AGI}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabAGI-tab" data-toggle="pill" href="#inventoryTabAGI" role="tab" aria-controls="inventoryTabAGI" aria-selected="false">AGI</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.Templates}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="false">Templates</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.Volumes}}
           {{ if ne .Backend "docker" }}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryVolumes-tab" data-toggle="pill" href="#inventoryVolumes" role="tab" aria-controls="inventoryVolumes" aria-selected="false">{{if eq .Backend "aws"}}EFS{{end}}{{if eq .Backend "gcp"}}Volumes{{end}}</a>
           </li>
           {{end}}
+          {{end}}
+          {{if not .HideInventory.Firewalls}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabFirewalls-tab" data-toggle="pill" href="#inventoryTabFirewalls" role="tab" aria-controls="inventoryTabFirewalls" aria-selected="false">{{if eq .Backend "aws"}}SecurityGroups{{end}}{{if eq .Backend "gcp"}}Firewalls{{end}}{{if eq .Backend "docker"}}Networks{{end}}</a>
           </li>
+          {{end}}
+          {{if not .HideInventory.Expiry}}
           {{ if ne .Backend "docker" }}
           <li class="nav-item">
           <a class="nav-link inventoryTab" id="inventoryTabExpirySystem-tab" data-toggle="pill" href="#inventoryTabExpirySystem" role="tab" aria-controls="inventoryTabExpirySystem" aria-selected="false">ExpirySystem</a>
           </li>
           {{end}}
+          {{end}}
+          {{if not .HideInventory.Subnets}}
           {{if eq .Backend "aws"}}
           <li class="nav-item">
             <a class="nav-link inventoryTab" id="inventoryTabSubnets-tab" data-toggle="pill" href="#inventoryTabSubnets" role="tab" aria-controls="inventoryTabSubnets" aria-selected="false">Subnets</a>
           </li>
+          {{end}}
           {{end}}
         </ul>
 

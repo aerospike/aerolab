@@ -190,7 +190,7 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 			tr := &http.Transport{
 				DisableKeepAlives: true,
 				IdleConnTimeout:   10 * time.Second,
-				TLSClientConfig:   &tls.Config{InsecureSkipVerify: i.c.AGIStrictTLS}, // get AGI status, expect AGI to have real certificates
+				TLSClientConfig:   &tls.Config{InsecureSkipVerify: !i.c.AGIStrictTLS}, // get AGI status, expect AGI to have real certificates
 			}
 			client := &http.Client{
 				Timeout:   10 * time.Second,
@@ -412,6 +412,17 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 			isShowUsersChecked = true
 		}
 	}
+	isSimpleMode := c.ForceSimpleMode
+	isSimpleModeC, err := r.Cookie("aerolab_simple_mode")
+	if err == nil {
+		if isSimpleModeC.Value == "true" {
+			isSimpleMode = true
+		}
+	}
+	hideInv := webui.HideInventory{}
+	if isSimpleMode {
+		hideInv = c.inventoryHide
+	}
 	p := &webui.Page{
 		Backend:                                 a.opts.Config.Backend.Type,
 		WebRoot:                                 c.WebRoot,
@@ -422,7 +433,10 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		IsInventory:                             true,
 		Inventory:                               c.inventoryNames,
 		BetaTag:                                 isWebuiBeta,
+		ShowSimpleModeButton:                    !c.ForceSimpleMode,
+		SimpleMode:                              isSimpleMode,
 		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
+		HideInventory:                           hideInv,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
@@ -443,7 +457,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		Menu: &webui.MainMenu{
-			Items: c.menuItems,
+			Items: c.getMenu(isSimpleMode),
 		},
 	}
 	p.Menu.Items.Set(r.URL.Path, c.WebRoot)
@@ -1213,7 +1227,7 @@ func (c *webCmd) inventoryNodesActionStart(reqID string, invlog *os.File, clist 
 				"ClusterName": agiName,
 			}
 			ncmd := "/agi/start"
-			if len(nodes) > 1 && nodes[1] == "" {
+			if a.opts.Config.Backend.Type != "docker" && len(nodes) > 1 && nodes[1] == "" {
 				ncmd = "/agi/create"
 				cmdJson["Gcp"] = map[string]interface{}{
 					"Zone":    nodes[0],

@@ -130,6 +130,17 @@ $("#btnRun2").click(function(){
     btnRun();
 })
 
+$("#simpleMode").click(function(){
+    simpleModeSwitch();
+})
+
+function simpleModeSwitch() {
+    // set cookie aerolab_simple_mode to either 'true' or 'false'
+    Cookies.set('aerolab_simple_mode', $("#simpleMode").is(':checked'), { expires: 360, path: '{{.WebRoot}}' });
+    // reload page
+    window.location.reload();
+}
+
 function btnRun() {
     if (!checkRequiredFields()) {
         return;
@@ -145,6 +156,9 @@ function btnRun() {
         processData: false,
         contentType: false
     }).done(function(data){
+        {{if .FormDownload}}
+        newDownloadWindow(data);
+        {{end}}
         showCommandOut(data);
     }).fail(function(data) {
         let body = data.responseText;
@@ -171,6 +185,11 @@ function btnRun() {
         $("#loadingSpinner").hide();
     });
     */
+}
+
+function newDownloadWindow(jobID) {
+    document.getElementById('mydownloader').src = '{{.WebRoot}}www/api/download/'+jobID;
+    //window.open('{{.WebRoot}}www/api/download/'+jobID, '_blank', 'width=200,height=200');
 }
 
 var commandOutXhr = false;
