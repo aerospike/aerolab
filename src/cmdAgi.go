@@ -32,14 +32,14 @@ type agiCmd struct {
 	Status    agiStatusCmd    `command:"status" subcommands-optional:"true" description:"Show status of an AGI instance" webicon:"fas fa-circle-question"`
 	Details   agiDetailsCmd   `command:"details" subcommands-optional:"true" description:"Show details of an AGI instance" webicon:"fas fa-circle-info"`
 	Destroy   agiDestroyCmd   `command:"destroy" subcommands-optional:"true" description:"Destroy AGI instance" webicon:"fas fa-trash" invwebforce:"true"`
-	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name" webicon:"fas fa-dumpster" invwebforce:"true"`
+	Delete    agiDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Destroy AGI instance and Delete AGI EFS volume of the same name" webicon:"fas fa-dumpster" invwebforce:"true" simplemode:"false"`
 	Relabel   agiRelabelCmd   `command:"change-label" subcommands-optional:"true" description:"Change instance name label" webicon:"fas fa-tag"`
 	Retrigger agiRetriggerCmd `command:"run-ingest" subcommands-optional:"true" description:"Retrigger log ingest again (will only do bits that have not been done before)" webicon:"fas fa-water"`
-	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance" webicon:"fas fa-terminal"`
+	Attach    agiAttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to an AGI Instance" webicon:"fas fa-terminal" simplemode:"false"`
 	AddToken  agiAddTokenCmd  `command:"add-auth-token" subcommands-optional:"true" description:"Add an auth token to AGI Proxy - only valid if token auth type was selected" webicon:"fas fa-key"`
 	Share     clusterShareCmd `command:"share" subcommands-optional:"true" description:"AWS/GCP: share the AGI node by importing a provided ssh public key file" webicon:"fas fa-share"`
 	Exec      agiExecCmd      `command:"exec" hidden:"true" subcommands-optional:"true" description:"Run an AGI subsystem"`
-	Monitor   agiMonitorCmd   `command:"monitor" subcommands-optional:"true" description:"AGI auto-sizing and spot->on-demand upgrading system monitor" webicon:"fas fa-equals"`
+	Monitor   agiMonitorCmd   `command:"monitor" subcommands-optional:"true" description:"AGI auto-sizing and spot->on-demand upgrading system monitor" webicon:"fas fa-equals" simplemode:"false"`
 	Help      helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -81,6 +81,9 @@ type agiStartCmd struct {
 }
 
 func (c *agiStartCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
 	a.opts.Cluster.Start.ClusterName = c.ClusterName
 	a.opts.Cluster.Start.Nodes = "1"
 	a.opts.Cluster.Start.NoStart = true
@@ -93,6 +96,9 @@ type agiStopCmd struct {
 }
 
 func (c *agiStopCmd) Execute(args []string) error {
+	if earlyProcess(args) {
+		return nil
+	}
 	a.opts.Cluster.Stop.ClusterName = c.ClusterName
 	a.opts.Cluster.Stop.Nodes = "1"
 	return a.opts.Cluster.Stop.doStop("agi")
@@ -291,30 +297,30 @@ func (c *agiAttachCmd) Execute(args []string) error {
 type agiRetriggerCmd struct {
 	ClusterName      TypeClusterName `short:"n" long:"name" description:"AGI name" default:"agi"`
 	LocalSource      *flags.Filename `long:"source-local" description:"get logs from a local directory"`
-	SftpEnable       *bool           `long:"source-sftp-enable" description:"enable sftp source"`
-	SftpThreads      *int            `long:"source-sftp-threads" description:"number of concurrent downloader threads"`
-	SftpHost         *string         `long:"source-sftp-host" description:"sftp host"`
-	SftpPort         *int            `long:"source-sftp-port" description:"sftp port"`
-	SftpUser         *string         `long:"source-sftp-user" description:"sftp user"`
-	SftpPass         *string         `long:"source-sftp-pass" description:"sftp password" webtype:"password"`
-	SftpKey          *flags.Filename `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password"`
-	SftpPath         *string         `long:"source-sftp-path" description:"path on sftp to download logs from"`
-	SftpRegex        *string         `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^"`
-	S3Enable         *bool           `long:"source-s3-enable" description:"enable s3 source"`
-	S3Threads        *int            `long:"source-s3-threads" description:"number of concurrent downloader threads"`
-	S3Region         *string         `long:"source-s3-region" description:"aws region where the s3 bucket is located"`
-	S3Bucket         *string         `long:"source-s3-bucket" description:"s3 bucket name"`
-	S3KeyID          *string         `long:"source-s3-key-id" description:"(optional) access key ID"`
-	S3Secret         *string         `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password"`
-	S3path           *string         `long:"source-s3-path" description:"path on s3 to download logs from"`
-	S3Regex          *string         `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^"`
-	TimeRanges       *bool           `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs"`
-	TimeRangesFrom   *string         `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00"`
-	TimeRangesTo     *string         `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00"`
-	CustomSourceName *string         `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana"`
-	PatternsFile     *flags.Filename `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system"`
-	IngestLogLevel   *int            `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL"`
-	IngestCpuProfile *bool           `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling"`
+	SftpEnable       *bool           `long:"source-sftp-enable" description:"enable sftp source" simplemode:"false"`
+	SftpThreads      *int            `long:"source-sftp-threads" description:"number of concurrent downloader threads" simplemode:"false"`
+	SftpHost         *string         `long:"source-sftp-host" description:"sftp host" simplemode:"false"`
+	SftpPort         *int            `long:"source-sftp-port" description:"sftp port" simplemode:"false"`
+	SftpUser         *string         `long:"source-sftp-user" description:"sftp user" simplemode:"false"`
+	SftpPass         *string         `long:"source-sftp-pass" description:"sftp password" webtype:"password" simplemode:"false"`
+	SftpKey          *flags.Filename `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password" simplemode:"false"`
+	SftpPath         *string         `long:"source-sftp-path" description:"path on sftp to download logs from" simplemode:"false"`
+	SftpRegex        *string         `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^" simplemode:"false"`
+	S3Enable         *bool           `long:"source-s3-enable" description:"enable s3 source" simplemode:"false"`
+	S3Threads        *int            `long:"source-s3-threads" description:"number of concurrent downloader threads" simplemode:"false"`
+	S3Region         *string         `long:"source-s3-region" description:"aws region where the s3 bucket is located" simplemode:"false"`
+	S3Bucket         *string         `long:"source-s3-bucket" description:"s3 bucket name" simplemode:"false"`
+	S3KeyID          *string         `long:"source-s3-key-id" description:"(optional) access key ID" simplemode:"false"`
+	S3Secret         *string         `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password" simplemode:"false"`
+	S3path           *string         `long:"source-s3-path" description:"path on s3 to download logs from" simplemode:"false"`
+	S3Regex          *string         `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^" simplemode:"false"`
+	TimeRanges       *bool           `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs" simplemode:"false"`
+	TimeRangesFrom   *string         `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00" simplemode:"false"`
+	TimeRangesTo     *string         `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00" simplemode:"false"`
+	CustomSourceName *string         `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana" simplemode:"false"`
+	PatternsFile     *flags.Filename `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system" simplemode:"false"`
+	IngestLogLevel   *int            `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" simplemode:"false"`
+	IngestCpuProfile *bool           `long:"ingest-cpu-profiling" description:"enable log ingest cpu profiling" simplemode:"false"`
 	Force            bool            `long:"force" description:"do not ask for confirmation, just continue" webdisable:"true" webset:"true"`
 	Help             helpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }

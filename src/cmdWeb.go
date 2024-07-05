@@ -38,39 +38,183 @@ import (
 )
 
 type webCmd struct {
-	ListenAddr          []string       `long:"listen" description:"host:port, or just :port, for IPv6 use for example '[::1]:3333'; can be specified multiple times" default:"127.0.0.1:3333"`
-	WebRoot             string         `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
-	AbsoluteTimeout     time.Duration  `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
-	MaxConcurrentJobs   int            `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
-	MaxQueuedJobs       int            `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
-	JobHistoryExpiry    time.Duration  `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
-	ShowMaxHistoryItems int            `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
-	NoBrowser           bool           `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
-	RefreshInterval     time.Duration  `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
-	MinInterval         time.Duration  `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
-	BlockServerLs       bool           `long:"block-server-ls" description:"block file exploration on the server altogether"`
-	AllowLsEverywhere   bool           `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
-	MaxUploadSizeBytes  int            `long:"max-upload-size-bytes" description:"max size of files to allow uploading via the webui temp if server-ls is blocked (hosted mode); 0=disabled" default:"209715200"`
-	UploadTempDir       flags.Filename `long:"upload-temp-dir" description:"if sever ls is blocked, temporary directory to use for file uploads"`
-	UniqueFirewalls     bool           `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
-	AGIStrictTLS        bool           `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
-	WSProxyOrigins      []string       `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
-	WebPath             string         `long:"web-path" hidden:"true"`
-	WebNoOverride       bool           `long:"web-no-override" hidden:"true"`
-	DebugRequests       bool           `long:"debug-requests" hidden:"true"`
-	Real                bool           `long:"real" hidden:"true"`
-	Help                helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
-	menuItems           []*webui.MenuItem
-	commands            []*apiCommand
-	commandsIndex       map[string]int
-	titler              cases.Caser
-	joblist             *jobTrack
-	jobqueue            *jobqueue.Queue
-	cache               *inventoryCache
-	inventoryNames      map[string]*webui.InventoryItem
-	agiTokens           *agiWebTokens
-	cfgTs               time.Time
-	wsCount             *wsCounters
+	ListenAddr            []string       `long:"listen" description:"host:port, or just :port, for IPv6 use for example '[::1]:3333'; can be specified multiple times" default:"127.0.0.1:3333"`
+	WebRoot               string         `long:"webroot" description:"set the web root that should be served, useful if proxying from eg /aerolab on a webserver" default:"/"`
+	AbsoluteTimeout       time.Duration  `long:"timeout" description:"Absolute timeout to set for command execution" default:"30m"`
+	MaxConcurrentJobs     int            `long:"max-concurrent-job" description:"Max number of jobs to run concurrently" default:"5"`
+	MaxQueuedJobs         int            `long:"max-queued-job" description:"Max number of jobs to queue for execution" default:"10"`
+	JobHistoryExpiry      time.Duration  `long:"history-expires" description:"time to keep job from their start in history" default:"72h"`
+	ShowMaxHistoryItems   int            `long:"show-max-history" description:"show only this amount of completed historical items max" default:"100"`
+	NoBrowser             bool           `long:"nobrowser" description:"set to prevent aerolab automatically opening a browser and navigating to the UI page"`
+	RefreshInterval       time.Duration  `long:"refresh-interval" description:"change interval at which the inventory is refreshed in the background" default:"30s"`
+	MinInterval           time.Duration  `long:"minimum-interval" description:"minimum interval between inventory refreshes (avoid API limit exhaustion)" default:"10s"`
+	BlockServerLs         bool           `long:"block-server-ls" description:"block file exploration on the server altogether"`
+	AllowLsEverywhere     bool           `long:"always-server-ls" description:"by default server filebrowser only works on localhost, enable this to allow from everywhere"`
+	MaxUploadSizeBytes    int            `long:"max-upload-size-bytes" description:"max size of files to allow uploading via the webui temp if server-ls is blocked (hosted mode); 0=disabled" default:"209715200"`
+	UploadTempDir         flags.Filename `long:"upload-temp-dir" description:"if sever ls is blocked, temporary directory to use for file uploads"`
+	UniqueFirewalls       bool           `long:"unique-firewalls" description:"for multi-user hosted mode: enable per-username firewalls"`
+	AGIStrictTLS          bool           `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
+	WSProxyOrigins        []string       `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
+	ForceSimpleMode       bool           `long:"force-simple-mode" description:"force use of simple mode, limiting the number of features and switches that show up"`
+	WebPath               string         `long:"web-path" hidden:"true"`
+	WebNoOverride         bool           `long:"web-no-override" hidden:"true"`
+	DebugRequests         bool           `long:"debug-requests" hidden:"true"`
+	Real                  bool           `long:"real" hidden:"true"`
+	Help                  helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	commands              []*apiCommand
+	commandsIndex         map[string]int
+	commandMap            map[string]interface{}
+	hiddenItems           []string
+	titler                cases.Caser
+	joblist               *jobTrack
+	jobqueue              *jobqueue.Queue
+	cache                 *inventoryCache
+	inventoryNames        map[string]*webui.InventoryItem
+	agiTokens             *agiWebTokens
+	cfgTs                 time.Time
+	wsCount               *wsCounters
+	downloader            *webDownloader
+	simpleMode            []string // []{"+Cluster.Create","-Cluster.Start", etc} - lowercase version
+	simpleModeCamel       []string // []{"+Cluster.Create","-Cluster.Start", etc} - camelcase version
+	simpleModeTagsDefault int      // -1 == ignore "simplemode" tag, all options disabled by default; 1 == ignore "simplemode" tag, all options enabled by default; 0 == use "simplemode" tag
+	inventoryHide         webui.HideInventory
+}
+
+type webDownloader struct {
+	sync.RWMutex
+	jobIDdownloader map[string]*webDownloadJob
+	statMutex       *sync.RWMutex
+	statWaiters     int
+	statClosers     int
+	statCleaners    int
+}
+
+type webDownloadJob struct {
+	sync.RWMutex
+	w      io.Writer
+	c      io.Closer
+	closed chan struct{}
+}
+
+func (w *webDownloader) Stat() (jobs int, closed int, waiters int, closers int, cleaners int) {
+	w.RLock()
+	jobs = len(w.jobIDdownloader)
+	closed = 0
+	for _, job := range w.jobIDdownloader {
+		if len(job.closed) > 0 {
+			closed++
+		}
+	}
+	w.RUnlock()
+	w.statMutex.RLock()
+	defer w.statMutex.RUnlock()
+	return jobs, closed, w.statWaiters, w.statClosers, w.statCleaners
+}
+
+func (w *webDownloader) Create(jobID string) {
+	w.Lock()
+	w.jobIDdownloader[jobID] = &webDownloadJob{
+		closed: make(chan struct{}, 1),
+	}
+	w.jobIDdownloader[jobID].Lock()
+	go func(job *webDownloadJob) {
+		w.statMutex.Lock()
+		w.statCleaners++
+		w.statMutex.Unlock()
+		defer func() {
+			w.statMutex.Lock()
+			w.statCleaners--
+			w.statMutex.Unlock()
+		}()
+		for ni := 0; ni < 30; ni++ {
+			time.Sleep(time.Second)
+			if !w.IsJob(jobID) {
+				return
+			}
+		}
+		if !job.TryLock() {
+			w.Close(jobID)
+		}
+	}(w.jobIDdownloader[jobID])
+	w.Unlock()
+}
+
+func (w *webDownloader) IsJob(jobID string) bool {
+	w.RLock()
+	_, ok := w.jobIDdownloader[jobID]
+	w.RUnlock()
+	return ok
+}
+
+func (w *webDownloader) Wait(jobID string) {
+	w.statMutex.Lock()
+	w.statWaiters++
+	w.statMutex.Unlock()
+	defer func() {
+		w.statMutex.Lock()
+		w.statWaiters--
+		w.statMutex.Unlock()
+	}()
+	w.RLock()
+	job, ok := w.jobIDdownloader[jobID]
+	w.RUnlock()
+	if !ok {
+		return
+	}
+	<-job.closed
+	job.closed <- struct{}{}
+}
+
+func (w *webDownloader) SetWriter(jobID string, wr io.Writer, c io.Closer) bool {
+	w.RLock()
+	if _, ok := w.jobIDdownloader[jobID]; !ok {
+		w.RUnlock()
+		return false
+	}
+	w.jobIDdownloader[jobID].TryLock()
+	w.jobIDdownloader[jobID].w = wr
+	w.jobIDdownloader[jobID].c = c
+	w.jobIDdownloader[jobID].Unlock()
+	w.RUnlock()
+	return true
+}
+
+func (w *webDownloader) Close(jobID string) {
+	w.statMutex.Lock()
+	w.statClosers++
+	w.statMutex.Unlock()
+	defer func() {
+		w.statMutex.Lock()
+		w.statClosers--
+		w.statMutex.Unlock()
+	}()
+	w.Lock()
+	if _, ok := w.jobIDdownloader[jobID]; !ok {
+		w.Unlock()
+		return
+	}
+	if w.jobIDdownloader[jobID].TryLock() {
+		w.jobIDdownloader[jobID].w = nil
+		if w.jobIDdownloader[jobID].c != nil {
+			w.jobIDdownloader[jobID].c.Close()
+		}
+	}
+	w.jobIDdownloader[jobID].Unlock()
+	w.jobIDdownloader[jobID].closed <- struct{}{}
+	delete(w.jobIDdownloader, jobID)
+	w.Unlock()
+}
+
+func (w *webDownloader) GetWriter(jobID string) io.Writer {
+	w.RLock()
+	wr, ok := w.jobIDdownloader[jobID]
+	w.RUnlock()
+	if !ok {
+		return nil
+	}
+	wr.RLock()
+	defer wr.RUnlock()
+	return wr.w
 }
 
 type jobTrack struct {
@@ -209,16 +353,99 @@ func (c *webCmd) Execute(args []string) error {
 		return c.runLoop()
 	}
 	if isWebuiBeta {
-		log.Print("Running webui; this feature is in beta.")
+		log.Print("Running webui; some web features are still in beta")
 	}
 	if c.UploadTempDir == "" {
 		utemp, _ := a.aerolabRootDir()
 		c.UploadTempDir = flags.Filename(path.Join(utemp, "web.tmp"))
 	}
-	c.agiTokens = NewAgiWebTokenHandler(c.AGIStrictTLS)
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		file := path.Join(homeDir, "www-simple-mode.list")
+		if _, err := os.Stat(file); err == nil {
+			f, err := os.Open(file)
+			if err != nil {
+				return fmt.Errorf("could not open www-simple-mode.list: %s", err)
+			}
+			s := bufio.NewScanner(f)
+			for s.Scan() {
+				line := strings.Trim(s.Text(), "\r\n\t ")
+				if line == "" {
+					continue
+				}
+				switch strings.ToUpper(line) {
+				case "-ALL":
+					c.simpleModeTagsDefault = -1
+				case "+ALL", "ALL":
+					c.simpleModeTagsDefault = 1
+				case "INVENTORY:CLUSTERS", "-INVENTORY:CLUSTERS":
+					c.inventoryHide.Clusters = true
+				case "INVENTORY:CLIENTS", "-INVENTORY:CLIENTS":
+					c.inventoryHide.Clients = true
+				case "INVENTORY:AGI", "-INVENTORY:AGI":
+					c.inventoryHide.AGI = true
+				case "INVENTORY:TEMPLATES", "-INVENTORY:TEMPLATES":
+					c.inventoryHide.Templates = true
+				case "INVENTORY:VOLUMES", "-INVENTORY:VOLUMES":
+					c.inventoryHide.Volumes = true
+				case "INVENTORY:FIREWALLS", "-INVENTORY:FIREWALLS":
+					c.inventoryHide.Firewalls = true
+				case "INVENTORY:EXPIRY", "-INVENTORY:EXPIRY":
+					c.inventoryHide.Expiry = true
+				case "INVENTORY:SUBNETS", "-INVENTORY:SUBNETS":
+					c.inventoryHide.Subnets = true
+				default:
+					c.simpleMode = append(c.simpleMode, strings.ToLower(line))
+					c.simpleModeCamel = append(c.simpleModeCamel, line)
+				}
+			}
+			f.Close()
+			// TODO: test simpleMode has no typos by exploring it recursively
+			ret := make(chan apiCommand, 1)
+			keyField := reflect.ValueOf(a.opts).Elem()
+			pathStacks := []string{}
+			go a.opts.Rest.getCommands(keyField, "", ret, "")
+			for {
+				val, ok := <-ret
+				if !ok {
+					break
+				}
+				if val.isHidden || val.isWebHidden {
+					continue
+				}
+				if val.pathStack[len(val.pathStack)-1] == "help" {
+					continue
+				}
+				nPath := strings.Join(val.pathStack, ".")
+				pathStacks = append(pathStacks, nPath)
+				for _, item := range c.recursiveSimpleModeCheck(val.Value, "") {
+					pathStacks = append(pathStacks, nPath+"."+strings.ToLower(item))
+				}
+			}
+			invalidSel := []string{}
+			for _, i := range c.simpleMode {
+				if !inslice.HasString(pathStacks, strings.TrimPrefix(strings.TrimPrefix(i, "+"), "-")) {
+					invalidSel = append(invalidSel, i)
+				}
+			}
+			if len(invalidSel) > 0 {
+				fmt.Println("ERROR: invalid selections in www-simple-mode.list:")
+				for _, s := range invalidSel {
+					fmt.Println(s)
+				}
+				return errors.New("exiting due to error with www-simple-mode.list")
+			}
+			log.Printf("Loaded %s", file)
+		}
+	}
+	c.agiTokens = NewAgiWebTokenHandler(!c.AGIStrictTLS)
 	c.wsCount = new(wsCounters)
 	go c.wsCount.PrintTimer(time.Second)
 	c.cfgTs = time.Now()
+	c.downloader = &webDownloader{
+		jobIDdownloader: make(map[string]*webDownloadJob),
+		statMutex:       new(sync.RWMutex),
+	}
 	c.joblist = &jobTrack{
 		j: make(map[string]*exec.Cmd),
 	}
@@ -256,24 +483,30 @@ func (c *webCmd) Execute(args []string) error {
 		}
 	}()
 	go func() {
-		var statc, statq, statj int
+		var statc, statq, statj, statJobs, statClosed, statdw, statdc, statdcl int
 		for {
 			nstatj := c.joblist.GetStat()
 			nstatc, nstatq := c.jobqueue.GetSize()
-			if nstatc != statc || nstatq != statq || nstatj != statj {
+			dlJobs, dlClosed, dlw, dlc, dlcl := c.downloader.Stat()
+			if nstatc != statc || nstatq != statq || nstatj != statj || dlJobs != statJobs || dlClosed != statClosed || statdw != dlw || statdc != dlc || statdcl != dlcl {
 				statc = nstatc
 				statq = nstatq
 				statj = nstatj
-				log.Printf("STAT: queue_active_jobs=%d queued_jobs=%d jobs_tracked=%d", statc, statq, statj)
+				statJobs = dlJobs
+				statClosed = dlClosed
+				statdw = dlw
+				statdc = dlc
+				statdcl = dlcl
+				log.Printf("STAT: jobs(queue_active=%d queued=%d tracked=%d) downloader(tracked_jobs=%d closed_but_tracked=%d waiters=%d closers=%d cleaners=%d)", statc, statq, statj, statJobs, statClosed, statdw, statdc, statdcl)
 			}
-			time.Sleep(60 * time.Second)
+			time.Sleep(5 * time.Second)
 		}
 	}()
 	c.WebRoot = "/" + strings.Trim(c.WebRoot, "/") + "/"
 	if c.WebRoot == "//" {
 		c.WebRoot = "/"
 	}
-	err := c.genMenu()
+	err = c.genMenu()
 	if err != nil {
 		return err
 	}
@@ -304,6 +537,7 @@ func (c *webCmd) Execute(args []string) error {
 	http.HandleFunc(c.WebRoot+"www/dist/", c.static)
 	http.HandleFunc(c.WebRoot+"www/plugins/", c.static)
 	http.HandleFunc(c.WebRoot+"www/api/job/", c.job)
+	http.HandleFunc(c.WebRoot+"www/api/download/", c.download)
 	http.HandleFunc(c.WebRoot+"www/api/jobs/", c.jobs)
 	http.HandleFunc(c.WebRoot+"www/api/commands", c.commandScript)
 	http.HandleFunc(c.WebRoot+"www/api/commandh", c.commandHistory)
@@ -362,6 +596,16 @@ func (c *webCmd) Execute(args []string) error {
 		browser.OpenURL("http://" + openurl)
 	}
 	return <-ret
+}
+
+func (c *webCmd) download(w http.ResponseWriter, r *http.Request) {
+	jobId := strings.Trim(strings.TrimPrefix(r.URL.Path, c.WebRoot+"www/api/download"), "/")
+	w.Header().Set("Content-Type", "application/zip")
+	if !c.downloader.SetWriter(jobId, w, nil) {
+		http.Error(w, "job not found", http.StatusBadRequest)
+		return
+	}
+	c.downloader.Wait(jobId)
 }
 
 func (c *webCmd) allowls(r *http.Request) bool {
@@ -913,9 +1157,35 @@ func (c *webCmd) job(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser, commands []*apiCommand, commandsIndex map[string]int, spath string, hiddenItems []string) (ret []*webui.MenuItem) {
+// returns true if allowed in simple mode, or false otherwise
+func (c *webCmd) testSimpleModeLogic(tagValue string, pathStack []string) bool {
+	pathString := strings.Join(pathStack, ".")
+	switch c.simpleModeTagsDefault {
+	case 1:
+		if inslice.HasString(c.simpleMode, "-"+pathString) {
+			return false
+		}
+	case -1:
+		if !inslice.HasString(c.simpleMode, "+"+pathString) && !inslice.HasString(c.simpleMode, pathString) {
+			return false
+		}
+	default:
+		if (tagValue == "false" && !inslice.HasString(c.simpleMode, "+"+pathString) && !inslice.HasString(c.simpleMode, pathString)) || inslice.HasString(c.simpleMode, "-"+pathString) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser, commands []*apiCommand, commandsIndex map[string]int, spath string, hiddenItems []string, simpleMode bool) (ret []*webui.MenuItem) {
 	for comm, sub := range commandMap {
 		wpath := path.Join(spath, comm)
+		if simpleMode {
+			val := commands[commandsIndex[wpath]]
+			if !c.testSimpleModeLogic(val.tags.Get("simplemode"), val.pathStack) {
+				continue
+			}
+		}
 		isHidden := false
 		for _, hiddenItem := range hiddenItems {
 			if wpath == hiddenItem || strings.HasPrefix(wpath, hiddenItem+"/") {
@@ -934,7 +1204,7 @@ func (c *webCmd) fillMenu(commandMap map[string]interface{}, titler cases.Caser,
 			Tooltip: commands[commandsIndex[wpath]].description,
 		})
 		if len(sub.(map[string]interface{})) > 0 {
-			ret[len(ret)-1].Items = c.fillMenu(sub.(map[string]interface{}), titler, commands, commandsIndex, wpath, hiddenItems)
+			ret[len(ret)-1].Items = c.fillMenu(sub.(map[string]interface{}), titler, commands, commandsIndex, wpath, hiddenItems, simpleMode)
 		}
 	}
 	return ret
@@ -971,6 +1241,11 @@ func (c *webCmd) genMenu() error {
 		if val.pathStack[len(val.pathStack)-1] == "help" {
 			continue
 		}
+		if c.ForceSimpleMode {
+			if !c.testSimpleModeLogic(val.tags.Get("simplemode"), val.pathStack) {
+				continue
+			}
+		}
 		commandsIndex[val.path] = len(commands)
 		commands = append(commands, &val)
 		cm := commandMap
@@ -982,49 +1257,114 @@ func (c *webCmd) genMenu() error {
 		}
 	}
 	titler := cases.Title(language.English)
-	c.menuItems = append([]*webui.MenuItem{
+	c.commands = commands
+	c.commandsIndex = commandsIndex
+	c.commandMap = commandMap
+	c.hiddenItems = hiddenItems
+	c.titler = titler
+	return nil
+}
+
+func (c *webCmd) getMenu(simpleMode bool) []*webui.MenuItem {
+	if c.ForceSimpleMode {
+		simpleMode = true
+	}
+	menuItems := append([]*webui.MenuItem{
 		{
 			Icon:          "fas fa-list",
 			Name:          "Inventory",
 			Href:          c.WebRoot,
 			DrawSeparator: true,
 		},
-	}, c.fillMenu(commandMap, titler, commands, commandsIndex, "", hiddenItems)...)
-	c.sortMenu(c.menuItems, commandsIndex)
-	c.commands = commands
-	c.commandsIndex = commandsIndex
-	c.titler = titler
-	return nil
+	}, c.fillMenu(c.commandMap, c.titler, c.commands, c.commandsIndex, "", c.hiddenItems, simpleMode)...)
+	c.sortMenu(menuItems, c.commandsIndex)
+	return menuItems
 }
 
-func (c *webCmd) getFormItems(urlPath string, r *http.Request) ([]*webui.FormItem, error) {
+func (c *webCmd) getFormItems(urlPath string, r *http.Request, isSimpleMode bool) ([]*webui.FormItem, error) {
+	if c.ForceSimpleMode {
+		isSimpleMode = true
+	}
 	cindex, ok := c.commandsIndex[strings.TrimPrefix(urlPath, c.WebRoot)]
 	if !ok {
 		return nil, errors.New("command not found")
 	}
 	command := c.commands[cindex]
-	return c.getFormItemsRecursive(command.Value, "", r)
+	return c.getFormItemsRecursive(command, command.Value, "", r, isSimpleMode)
 }
 
-func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string, r *http.Request) ([]*webui.FormItem, error) {
+func (c *webCmd) recursiveSimpleModeCheck(commandValue reflect.Value, prefix string) []string {
+	wf := []string{}
+	for i := 0; i < commandValue.Type().NumField(); i++ {
+		name := commandValue.Type().Field(i).Name
+		kind := commandValue.Field(i).Kind()
+		tags := commandValue.Type().Field(i).Tag
+		if tags.Get("hidden") == "true" || tags.Get("webhidden") == "true" {
+			continue
+		}
+		if name[0] < 65 || name[0] > 90 {
+			if kind == reflect.Struct {
+				wfs := c.recursiveSimpleModeCheck(commandValue.Field(i), prefix)
+				wf = append(wf, wfs...)
+			}
+			continue
+		}
+		switch kind {
+		case reflect.Struct:
+			// recursion
+			if name == "Help" {
+				continue
+			}
+			if (name == "Aws" && a.opts.Config.Backend.Type == "aws") || (name == "Docker" && a.opts.Config.Backend.Type == "docker") || (name == "Gcp" && a.opts.Config.Backend.Type == "gcp") || (!inslice.HasString([]string{"Aws", "Gcp", "Docker"}, name)) {
+				sep := name
+				if prefix != "" {
+					sep = prefix + "." + name
+				}
+				wf = append(wf, sep)
+				wfs := c.recursiveSimpleModeCheck(commandValue.Field(i), sep)
+				wf = append(wf, wfs...)
+			}
+		default:
+			sep := name
+			if prefix != "" {
+				sep = prefix + "." + name
+			}
+			wf = append(wf, sep)
+		}
+	}
+	return wf
+}
+
+func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect.Value, prefix string, r *http.Request, isSimpleMode bool) ([]*webui.FormItem, error) {
 	allowedLs := c.allowls(r)
 	wf := []*webui.FormItem{}
 	for i := 0; i < commandValue.Type().NumField(); i++ {
 		name := commandValue.Type().Field(i).Name
 		kind := commandValue.Field(i).Kind()
 		tags := commandValue.Type().Field(i).Tag
-		if tags.Get("hidden") == "true" {
+		if tags.Get("hidden") == "true" || tags.Get("webhidden") == "true" {
 			continue
 		}
 		if name[0] < 65 || name[0] > 90 {
 			if kind == reflect.Struct {
-				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), prefix, r)
+				wfs, err := c.getFormItemsRecursive(command, commandValue.Field(i), prefix, r, isSimpleMode)
 				if err != nil {
 					return nil, err
 				}
 				wf = append(wf, wfs...)
 			}
 			continue
+		}
+		if isSimpleMode {
+			var pathStack []string
+			if prefix != "" {
+				pathStack = append(command.pathStack, strings.ToLower(prefix), strings.ToLower(name))
+			} else {
+				pathStack = append(command.pathStack, strings.ToLower(name))
+			}
+			if !c.testSimpleModeLogic(tags.Get("simplemode"), pathStack) {
+				continue
+			}
 		}
 		switch kind {
 		case reflect.String:
@@ -1105,14 +1445,19 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				// input item text (possible multiple types)
 				isFile := false
 				textType := tags.Get("webtype")
-				if textType == "" {
+				if textType == "" || textType == "download" {
 					textType = "text"
 				}
+				isDisabled := false
+				defaultValue := commandValue.Field(i).String()
 				if commandValue.Field(i).Type().String() == "flags.Filename" {
 					if allowedLs {
 						isFile = true
 					} else if c.MaxUploadSizeBytes > 0 && tags.Get("webtype") == "" {
 						textType = "file"
+					} else if tags.Get("webtype") == "download" {
+						isDisabled = true
+						defaultValue = "-"
 					}
 				}
 				required := false
@@ -1127,10 +1472,11 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name:        name,
 						ID:          "xx" + prefix + "xx" + name,
 						Type:        textType,
-						Default:     commandValue.Field(i).String(),
+						Default:     defaultValue,
 						Description: tags.Get("description"),
 						Required:    required,
 						IsFile:      isFile,
+						Disabled:    isDisabled,
 					},
 				})
 			}
@@ -1204,7 +1550,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Name: sep,
 					},
 				})
-				wfs, err := c.getFormItemsRecursive(commandValue.Field(i), sep, r)
+				wfs, err := c.getFormItemsRecursive(command, commandValue.Field(i), sep, r, isSimpleMode)
 				if err != nil {
 					return nil, err
 				}
@@ -1275,13 +1621,17 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 				// input type text
 				isFile := false
 				textType := tags.Get("webtype")
-				if textType == "" {
+				if textType == "" || textType == "download" {
 					textType = "text"
 				}
+				isDisabled := false
 				if allowedLs {
 					isFile = true
 				} else if c.MaxUploadSizeBytes > 0 && tags.Get("webtype") == "" {
 					textType = "file"
+				} else if tags.Get("webtype") == "download" {
+					isDisabled = true
+					defStr = "-"
 				}
 				required := false
 				if tags.Get("webrequired") == "true" && defStr == "" {
@@ -1300,6 +1650,7 @@ func (c *webCmd) getFormItemsRecursive(commandValue reflect.Value, prefix string
 						Required:    required,
 						Optional:    true,
 						IsFile:      isFile,
+						Disabled:    isDisabled,
 					},
 				})
 			} else if commandValue.Field(i).Type().String() == "*bool" {
@@ -1460,7 +1811,14 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 	var errStr string
 	var errTitle string
 	var isError bool
-	formItems, err := c.getFormItems(r.URL.Path, r)
+	isSimpleMode := c.ForceSimpleMode
+	isSimpleModeC, err := r.Cookie("aerolab_simple_mode")
+	if err == nil {
+		if isSimpleModeC.Value == "true" {
+			isSimpleMode = true
+		}
+	}
+	formItems, err := c.getFormItems(r.URL.Path, r, isSimpleMode)
 	if err != nil {
 		errStr = err.Error()
 		errTitle = "Failed to generate form items"
@@ -1494,6 +1852,14 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			isShortSwitches = true
 		}
 	}
+	formDownload := false
+	if c.commands[c.commandsIndex[strings.TrimPrefix(r.URL.Path, c.WebRoot)]].tags.Get("webcommandtype") == "download" {
+		formDownload = true
+	}
+	hideInv := webui.HideInventory{}
+	if isSimpleMode {
+		hideInv = c.inventoryHide
+	}
 	p := &webui.Page{
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
@@ -1509,7 +1875,11 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		BetaTag:                                 isWebuiBeta,
 		ShortSwitches:                           isShortSwitches,
 		ShowDefaults:                            isShowDefaults,
+		FormDownload:                            formDownload,
+		ShowSimpleModeButton:                    !c.ForceSimpleMode,
+		SimpleMode:                              isSimpleMode,
 		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
+		HideInventory:                           hideInv,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
 				{
@@ -1530,7 +1900,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		Menu: &webui.MainMenu{
-			Items: c.menuItems,
+			Items: c.getMenu(isSimpleMode),
 		},
 	}
 	p.Menu.Items.Set(r.URL.Path, c.WebRoot)
@@ -1571,6 +1941,10 @@ func (c *webCmd) getFieldNames(cmd reflect.Value) []string {
 }
 
 func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
+	isSimpleMode := c.ForceSimpleMode
+	if isSimpleModeC, err := r.Cookie("aerolab_simple_mode"); err == nil && isSimpleModeC.Value == "true" {
+		isSimpleMode = true
+	}
 	if c.MaxUploadSizeBytes > 0 {
 		r.Body = http.MaxBytesReader(w, r.Body, int64(c.MaxUploadSizeBytes+(1024*1024)))
 	}
@@ -1601,7 +1975,17 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "command not found: "+r.URL.Path, http.StatusBadRequest)
 		return
 	}
+	if isSimpleMode {
+		if !c.testSimpleModeLogic(c.commands[cindex].tags.Get("simplemode"), c.commands[cindex].pathStack) {
+			http.Error(w, "command not allowed in this mode", http.StatusForbidden)
+			return
+		}
+	}
 	command := c.commands[cindex].Value
+	isDownload := false
+	if !c.allowls(r) && c.commands[cindex].tags.Get("webcommandtype") == "download" {
+		isDownload = true
+	}
 	cjson := make(map[string]interface{})
 	logjson := make(map[string]interface{})
 	cmdline := append([]string{"aerolab"}, c.commands[cindex].pathStack...)
@@ -1771,6 +2155,22 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		field := cmd.FieldByName(param)
 		fieldType, _ := cmd.Type().FieldByName(param)
 		tag := fieldType.Tag
+		if isSimpleMode {
+			pathStack := c.commands[cindex].pathStack
+			if commandPath[0] == "" {
+				for _, cp := range commandPath[1:] {
+					pathStack = append(pathStack, strings.ToLower(cp))
+				}
+			} else {
+				for _, cp := range commandPath {
+					pathStack = append(pathStack, strings.ToLower(cp))
+				}
+			}
+			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) {
+				http.Error(w, "parameter not allowed in this mode", http.StatusForbidden)
+				return
+			}
+		}
 		switch field.Kind() {
 		case reflect.String:
 			if v[0] != field.String() {
@@ -2093,6 +2493,9 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	f.WriteString("-=-=-=-=- [Log] -=-=-=-=-\n")
 	run.Stderr = f
 	run.Stdout = f
+	if isDownload {
+		c.downloader.Create(requestID)
+	}
 
 	go func() {
 		c.jobqueue.Start()
@@ -2107,21 +2510,22 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				f.WriteString("-=-=-=-=- [failed to create temporary storage directory] -=-=-=-=-\n" + err.Error() + "\n")
 				f.Close()
 				cancel()
+				c.downloader.Close(requestID)
 				return
 			}
 			for src, dst := range fileUploads {
 				err = func() error {
-					f, err := src.Open()
+					fa, err := src.Open()
 					if err != nil {
 						return fmt.Errorf("failed to open %s for reading: %s", src.Filename, err)
 					}
-					defer f.Close()
+					defer fa.Close()
 					d, err := os.Create(dst)
 					if err != nil {
 						return fmt.Errorf("failed to open %s for storing %s: %s", dst, src.Filename, err)
 					}
 					defer d.Close()
-					_, err = io.Copy(d, f)
+					_, err = io.Copy(d, fa)
 					if err != nil {
 						return fmt.Errorf("failed to store contents in %s for %s: %s", dst, src.Filename, err)
 					}
@@ -2135,11 +2539,28 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					f.Close()
 					cancel()
 					os.RemoveAll(tmpDir)
+					c.downloader.Close(requestID)
 					return
 				}
 			}
 		}
 
+		if isDownload {
+			run.Stdout = c.downloader.GetWriter(requestID)
+			if run.Stdout == nil {
+				c.jobqueue.End()
+				c.jobqueue.Remove()
+				stdin.Close()
+				f.WriteString("-=-=-=-=- [Browser failed to start download] -=-=-=-=-\n" + err.Error() + "\n")
+				f.Close()
+				cancel()
+				if tmpDir != "" {
+					os.RemoveAll(tmpDir)
+				}
+				c.downloader.Close(requestID)
+				return
+			}
+		}
 		err = run.Start()
 		if err != nil {
 			c.jobqueue.End()
@@ -2151,6 +2572,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			if tmpDir != "" {
 				os.RemoveAll(tmpDir)
 			}
+			c.downloader.Close(requestID)
 			return
 		}
 		go func() {
@@ -2162,6 +2584,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		c.joblist.Add(requestID, run)
 
 		go func(run *exec.Cmd, requestID string) {
+			defer c.downloader.Close(requestID)
 			if tmpDir != "" {
 				defer os.RemoveAll(tmpDir)
 			}

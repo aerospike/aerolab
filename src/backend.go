@@ -340,6 +340,7 @@ type inventoryCluster struct {
 	awsSubnet              string
 	awsSecGroups           []string
 	AccessProtocol         string `hidden:"true"`
+	SSHKeyPath             string `hidden:"true"`
 }
 
 type FeatureSystem int64
@@ -423,6 +424,7 @@ type inventoryClient struct {
 	DockerLabels           map[string]string `hidden:"true"`
 	awsSubnet              string
 	awsSecGroups           []string
+	SSHKeyPath             string `hidden:"true"`
 }
 
 type inventoryTemplate struct {

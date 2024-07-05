@@ -26,7 +26,7 @@ import (
 
 type inventoryListCmd struct {
 	Owner        string   `long:"owner" description:"Only show resources tagged with this owner"`
-	Pager        bool     `long:"pager" description:"set to enable vertical and horizontal pager"`
+	Pager        bool     `long:"pager" description:"set to enable vertical and horizontal pager" simplemode:"false"`
 	SortBy       []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
 	Json         bool     `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty   bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`

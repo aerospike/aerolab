@@ -1215,6 +1215,10 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 						if currentCost < 0 {
 							currentCost = 0
 						}
+						sshKeyPath, err := d.GetKeyPath(instance.Labels[gcpTagClusterName])
+						if err != nil {
+							sshKeyPath = ""
+						}
 						if i == 1 {
 							ij.Clusters = append(ij.Clusters, inventoryCluster{
 								ClusterName:            instance.Labels[gcpTagClusterName],
@@ -1241,6 +1245,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								Features:               FeatureSystem(features),
 								InstanceType:           *instance.MachineType,
 								GcpIsSpot:              isSpot,
+								SSHKeyPath:             sshKeyPath,
 							})
 						} else {
 							ij.Clients = append(ij.Clients, inventoryClient{
@@ -1267,6 +1272,7 @@ func (d *backendGcp) Inventory(filterOwner string, inventoryItems []int) (invent
 								GcpMeta:                meta,
 								GcpMetadataFingerprint: *instance.Metadata.Fingerprint,
 								GcpIsSpot:              isSpot,
+								SSHKeyPath:             sshKeyPath,
 							})
 						}
 					}

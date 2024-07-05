@@ -24,13 +24,13 @@ func init() {
 }
 
 type volumeCmd struct {
-	Create  volumeCreateCmd    `command:"create" subcommands-optional:"true" description:"Create a volume" webicon:"fas fa-circle-plus" invwebforce:"true"`
-	List    volumeListCmd      `command:"list" subcommands-optional:"true" description:"List volumes" webicon:"fas fa-list"`
-	Mount   volumeMountCmd     `command:"mount" subcommands-optional:"true" description:"Mount a volume on a node" webicon:"fas fa-hard-drive"`
-	Delete  volumeDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete a volume" webicon:"fas fa-trash" invwebforce:"true"`
-	Resize  volumeResizeCmd    `command:"grow" subcommands-optional:"true" description:"GCP only: grow a volume; if the volume is not attached, the filesystem will not be resized automatically" webicon:"fas fa-expand"`
-	Detach  volumeDetachCmd    `command:"detach" subcommands-optional:"true" description:"GCP only: detach a volume for an instance" webicon:"fas fa-square-minus"`
-	DoMount volumeExecMountCmd `command:"exec-mount" hidden:"true" subcommands-optional:"true" description:"Execute actual mounting operation"`
+	Create  volumeCreateCmd    `command:"create" subcommands-optional:"true" description:"Create a volume" webicon:"fas fa-circle-plus" invwebforce:"true" simplemode:"false"`
+	List    volumeListCmd      `command:"list" subcommands-optional:"true" description:"List volumes" webicon:"fas fa-list" simplemode:"false"`
+	Mount   volumeMountCmd     `command:"mount" subcommands-optional:"true" description:"Mount a volume on a node" webicon:"fas fa-hard-drive" simplemode:"false"`
+	Delete  volumeDeleteCmd    `command:"delete" subcommands-optional:"true" description:"Delete a volume" webicon:"fas fa-trash" invwebforce:"true" simplemode:"false"`
+	Resize  volumeResizeCmd    `command:"grow" subcommands-optional:"true" description:"GCP only: grow a volume; if the volume is not attached, the filesystem will not be resized automatically" webicon:"fas fa-expand" simplemode:"false"`
+	Detach  volumeDetachCmd    `command:"detach" subcommands-optional:"true" description:"GCP only: detach a volume for an instance" webicon:"fas fa-square-minus" simplemode:"false"`
+	DoMount volumeExecMountCmd `command:"exec-mount" hidden:"true" subcommands-optional:"true" description:"Execute actual mounting operation" simplemode:"false"`
 	Help    helpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
