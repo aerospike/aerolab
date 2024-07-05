@@ -1455,16 +1455,11 @@ func (cmd *baseCommand) setScan(policy *ScanPolicy, namespace *string, setName *
 		readAttr |= _INFO1_NOBINDATA
 	}
 
-	infoAttr := 0
-	if cmd.node == nil || cmd.node.cluster.supportsPartitionQuery.Get() {
-		infoAttr = _INFO3_PARTITION_DONE
-	}
-
 	operationCount := 0
 	if len(binNames) > 0 {
 		operationCount = len(binNames)
 	}
-	cmd.writeHeaderRead(&policy.BasePolicy, readAttr, 0, infoAttr, fieldCount, operationCount)
+	cmd.writeHeaderRead(&policy.BasePolicy, readAttr, 0, _INFO3_PARTITION_DONE, fieldCount, operationCount)
 
 	if namespace != nil {
 		cmd.writeFieldString(*namespace, NAMESPACE)
@@ -1735,7 +1730,7 @@ func (cmd *baseCommand) setQuery(policy *QueryPolicy, wpolicy *WritePolicy, stat
 			writeAttr |= _INFO2_RELAX_AP_LONG_QUERY
 		}
 		infoAttr := 0
-		if isNew {
+		if isNew || statement.Filter == nil {
 			infoAttr = _INFO3_PARTITION_DONE
 		}
 		cmd.writeHeaderRead(&policy.BasePolicy, readAttr, writeAttr, infoAttr, fieldCount, operationCount)

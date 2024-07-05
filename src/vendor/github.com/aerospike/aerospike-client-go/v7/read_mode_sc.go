@@ -25,19 +25,19 @@ type ReadModeSC int
 
 const (
 	// ReadModeSCSession ensures this client will only see an increasing sequence of record versions.
-	// Server only reads from master.  This is the default.
+	// Client only reads from master. This is the default.
 	ReadModeSCSession ReadModeSC = iota
 
-	// ReadModeSCLinearize ensures ALL clients will only see an increasing sequence of record versions.
-	// Server only reads from master.
+	// ReadModeSCLinearize ensures all clients will only see an increasing sequence of record versions.
+	// Client only reads from master.
 	ReadModeSCLinearize
 
-	// ReadModeSCAllowReplica indicates that the server may read from master or any full (non-migrating) replica.
+	// ReadModeSCAllowReplica indicates that the client may read from master or any full (non-migrating) replica.
 	// Increasing sequence of record versions is not guaranteed.
 	ReadModeSCAllowReplica
 
-	// ReadModeSCAllowUnavailable indicates that the server may read from master or any full (non-migrating) replica or from unavailable
-	// partitions.  Increasing sequence of record versions is not guaranteed.
+	// ReadModeSCAllowUnavailable indicates that the client may read from master or any full (non-migrating) replica or from unavailable
+	// partitions. Increasing sequence of record versions is not guaranteed.
 	ReadModeSCAllowUnavailable
 )
 

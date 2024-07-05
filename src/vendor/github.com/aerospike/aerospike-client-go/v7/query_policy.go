@@ -70,6 +70,7 @@ func (qp *QueryPolicy) grpc() *kvs.QueryPolicy {
 	FailOnClusterChange := false //qp.FailOnClusterChange
 	ShortQuery := qp.ShortQuery || qp.ExpectedDuration == SHORT
 	InfoTimeout := uint32(qp.SocketTimeout / time.Millisecond)
+	ExpectedDuration := qp.ExpectedDuration.grpc()
 
 	return &kvs.QueryPolicy{
 		Replica:             qp.ReplicaPolicy.grpc(),
@@ -85,5 +86,6 @@ func (qp *QueryPolicy) grpc() *kvs.QueryPolicy {
 		FailOnClusterChange: &FailOnClusterChange,
 		ShortQuery:          &ShortQuery,
 		InfoTimeout:         &InfoTimeout,
+		ExpectedDuration:    &ExpectedDuration,
 	}
 }
