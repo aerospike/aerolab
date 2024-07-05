@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -1089,7 +1090,7 @@ func (clnt *Client) ExecuteUDFNode(policy *QueryPolicy,
 
 // SetXDRFilter sets XDR filter for given datacenter name and namespace. The expression filter indicates
 // which records XDR should ship to the datacenter.
-// Pass nil as filter to remove the currentl filter on the server.
+// Pass nil as filter to remove the current filter on the server.
 func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespace string, filter *Expression) Error {
 	policy = clnt.getUsableInfoPolicy(policy)
 
@@ -1116,26 +1117,37 @@ func (clnt *Client) SetXDRFilter(policy *InfoPolicy, datacenter string, namespac
 		return nil
 	}
 
-	code := parseIndexErrorCode(response)
-	return newError(code, response)
+	return parseIndexErrorCode(response)
 }
 
-func parseIndexErrorCode(response string) types.ResultCode {
-	var code = types.OK
+var indexErrRegexp = regexp.MustCompile(`(?i)(fail|error)(:[0-9]+)?(:.+)?`)
 
-	list := strings.Split(response, ":")
-	if len(list) >= 2 && list[0] == "FAIL" {
-		i, err := strconv.ParseInt(list[1], 10, 64)
+func parseIndexErrorCode(response string) Error {
+	var code = types.SERVER_ERROR
+	var message = response
+
+	match := indexErrRegexp.FindStringSubmatch(response)
+
+	// invalid response
+	if len(match) != 4 {
+		return newError(types.PARSE_ERROR, response)
+	}
+
+	// error code
+	if len(match[2]) > 0 {
+		i, err := strconv.ParseInt(string(match[2][1:]), 10, 64)
 		if err == nil {
 			code = types.ResultCode(i)
+			message = types.ResultCodeToString(code)
 		}
 	}
 
-	if code == 0 {
-		code = types.SERVER_ERROR
+	// message
+	if len(match[3]) > 0 {
+		message = string(match[3][1:])
 	}
 
-	return code
+	return newError(code, message)
 }
 
 //--------------------------------------------------------
@@ -1296,12 +1308,7 @@ func (clnt *Client) CreateComplexIndex(
 		return NewIndexTask(clnt.cluster, namespace, indexName), nil
 	}
 
-	if strings.HasPrefix(response, "FAIL:200") {
-		// Index has already been created.  Do not need to poll for completion.
-		return nil, newError(types.INDEX_FOUND)
-	}
-
-	return nil, newError(types.INDEX_GENERIC, "Create index failed: "+response)
+	return nil, parseIndexErrorCode(response)
 }
 
 // DropIndex deletes a secondary index. It will block until index is dropped on all nodes.
@@ -1339,12 +1346,13 @@ func (clnt *Client) DropIndex(
 		return <-task.OnComplete()
 	}
 
-	if strings.HasPrefix(response, "FAIL:201") {
+	err = parseIndexErrorCode(response)
+	if err.Matches(types.INDEX_NOTFOUND) {
 		// Index did not previously exist. Return without error.
 		return nil
 	}
 
-	return newError(types.INDEX_GENERIC, "Drop index failed: "+response)
+	return err
 }
 
 // Truncate removes records in specified namespace/set efficiently.  This method is many orders of magnitude

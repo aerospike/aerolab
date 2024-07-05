@@ -244,7 +244,6 @@ func (p *BasePolicy) compress() bool {
 }
 
 func (p *BasePolicy) grpc() *kvs.ReadPolicy {
-	// TODO: support ReadTouchTTLPercent in the future for the proxy client
 	return &kvs.ReadPolicy{
 		Replica:    p.ReplicaPolicy.grpc(),
 		ReadModeSC: p.ReadModeSC.grpc(),

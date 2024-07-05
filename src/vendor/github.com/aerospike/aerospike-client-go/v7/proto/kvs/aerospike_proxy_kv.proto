@@ -3,6 +3,7 @@ syntax = "proto3";
 option go_package = "github.com/aerospike/aerospike-client-go/v7/proto/kvs;kvs";
 option java_package = "com.aerospike.proxy.client";
 
+
 // The about request message.
 message AboutRequest {
   // Empty for now.
@@ -75,6 +76,18 @@ enum Replica {
   RANDOM = 4;
 }
 
+enum QueryDuration {
+    // The query is expected to return more than 100 records per node. The server optimizes for a large record set.
+    LONG = 0;
+
+    // The query is expected to return less than 100 records per node. The server optimizes for a small record set.
+    SHORT = 1;
+
+    // Treat query as a LONG query, but relax read consistency for AP namespaces.
+    // This value is treated exactly like LONG for server versions &lt; 7.1.
+    LONG_RELAX_AP = 2;
+}
+
 // Read policy attributes used in read database commands that are not part of
 // the wire protocol.
 message ReadPolicy {
@@ -111,7 +124,9 @@ message AerospikeRequestPayload {
   // Unique identifier of the request in the stream.
   uint32 id = 1;
 
-  // Client retry iteration.
+  // Client iteration number starting at 1. On first attempt iteration should
+  // be 1. On first retry iteration should be 2, on second retry iteration
+  // should be 3, and so on.
   uint32 iteration = 2;
 
   // Aerospike wire format request payload.
@@ -137,6 +152,9 @@ message AerospikeRequestPayload {
 
   // Request for getting background task status.
   optional BackgroundTaskStatusRequest backgroundTaskStatusRequest = 10;
+
+  // Info request
+  optional InfoRequest infoRequest = 11;
 }
 
 // The request message containing the user's name.
@@ -431,6 +449,7 @@ message QueryPolicy {
   // Default: false
   optional bool failOnClusterChange = 11;
 
+  // Deprecated, use expectedDuration instead.
   // Is query expected to return less than 100 records per node.
   // If true, the server will optimize the query for a small record set.
   // This field is ignored for aggregation queries, background queries
@@ -440,9 +459,13 @@ message QueryPolicy {
 
   // Timeout in milliseconds for "cluster-stable" info command that is run when
   // failOnClusterChange is true and server version is less than 6.0.
-  //
   //  Default: 1000
   optional uint32 infoTimeout = 13;
+
+  // Expected query duration. The server treats the query in different ways depending on the expected duration.
+  // This field is ignored for aggregation queries, background queries and server versions less than 6.0.
+  // Default: QueryDuration.LONG
+  optional QueryDuration expectedDuration = 14;
 }
 
 
@@ -784,4 +807,25 @@ service Query {
   // Get status of a stream of background tasks.
   rpc BackgroundTaskStatusStreaming(stream AerospikeRequestPayload) returns
       (stream AerospikeResponsePayload) {}
+}
+
+// Info policy for info request
+message InfoPolicy {
+  // Info command socket timeout in milliseconds.
+  //
+  // Default: 1000
+  optional uint32 timeout = 1;
+}
+
+// Info request
+message InfoRequest {
+  optional InfoPolicy infoPolicy = 1;
+  repeated string commands = 2;
+}
+
+// Aerospike info requests
+service Info {
+  // Send an info request
+  rpc Info (AerospikeRequestPayload) returns
+      (AerospikeResponsePayload) {}
 }

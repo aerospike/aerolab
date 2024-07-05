@@ -238,7 +238,7 @@ const (
 	// MapWriteFlagsNoFail means: Do not raise error if a map item is denied due to write flag constraints.
 	MapWriteFlagsNoFail = 4
 
-	// MapWriteFlagsNoFail means: Allow other valid map items to be committed if a map item is denied due to
+	// MapWriteFlagsPartial means: Allow other valid map items to be committed if a map item is denied due to
 	// write flag constraints.
 	MapWriteFlagsPartial = 8
 )

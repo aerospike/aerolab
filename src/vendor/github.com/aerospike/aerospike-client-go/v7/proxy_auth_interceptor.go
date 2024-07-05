@@ -18,17 +18,21 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/aerospike/aerospike-client-go/v7/logger"
 	auth "github.com/aerospike/aerospike-client-go/v7/proto/auth"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
 type authInterceptor struct {
-	clnt *ProxyClient
+	clnt   *ProxyClient
+	closer chan struct{}
 
 	expiry    time.Time
 	fullToken string // "Bearer <token>"
@@ -36,7 +40,8 @@ type authInterceptor struct {
 
 func newAuthInterceptor(clnt *ProxyClient) (*authInterceptor, Error) {
 	interceptor := &authInterceptor{
-		clnt: clnt,
+		clnt:   clnt,
+		closer: make(chan struct{}),
 	}
 
 	err := interceptor.scheduleRefreshToken()
@@ -47,26 +52,62 @@ func newAuthInterceptor(clnt *ProxyClient) (*authInterceptor, Error) {
 	return interceptor, nil
 }
 
+func (interceptor *authInterceptor) close() {
+	if interceptor.active() {
+		close(interceptor.closer)
+	}
+}
+
+func (interceptor *authInterceptor) active() bool {
+	active := true
+	select {
+	case _, active = <-interceptor.closer:
+	default:
+	}
+	return active
+}
+
 func (interceptor *authInterceptor) scheduleRefreshToken() Error {
 	err := interceptor.refreshToken()
 	if err != nil {
 		return err
 	}
 
-	go func() {
-		wait := interceptor.expiry.Sub(time.Now()) - 5*time.Second
-		for {
-			time.Sleep(wait)
+	// launch the refresher go routine
+	go interceptor.tokenRefresher()
+
+	return nil
+}
+
+func (interceptor *authInterceptor) tokenRefresher() {
+	// make sure the goroutine is restarted if something panics downstream
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Logger.Error("Interceptor refresh goroutine crashed: %s", debug.Stack())
+			go interceptor.tokenRefresher()
+		}
+	}()
+
+	// provide 5 secs of buffer before expiry due to network latency
+	wait := interceptor.expiry.Sub(time.Now()) - 5*time.Second
+	for {
+		ticker := time.NewTicker(wait)
+		select {
+		case <-ticker.C:
+			ticker.Stop() // prevent goroutine leak
 			err := interceptor.refreshToken()
 			if err != nil {
 				wait = time.Second
 			} else {
 				wait = interceptor.expiry.Sub(time.Now()) - 5*time.Second
 			}
-		}
-	}()
 
-	return nil
+		case <-interceptor.closer:
+			ticker.Stop() // prevent goroutine leak
+			// channel closed; return from the goroutine
+			return
+		}
+	}
 }
 
 func (interceptor *authInterceptor) refreshToken() Error {
@@ -139,30 +180,30 @@ func (interceptor *authInterceptor) login() Error {
 
 	claims := strings.Split(res.GetToken(), ".")
 	decClaims, gerr := base64.RawURLEncoding.DecodeString(claims[1])
-	if err != nil {
-		return newGrpcError(false, err, "Invalid token encoding. Expected base64.")
+	if gerr != nil {
+		return newGrpcError(false, gerr, "Invalid token encoding. Expected base64.")
 	}
 
 	tokenMap := make(map[string]interface{}, 8)
 	gerr = json.Unmarshal(decClaims, &tokenMap)
-	if err != nil {
-		return newGrpcError(false, err, "Invalid token encoding. Expected json.")
+	if gerr != nil {
+		return newError(types.PARSE_ERROR, "Invalid token encoding. Expected json.")
 	}
 
 	expiryToken, ok := tokenMap["exp"].(float64)
 	if !ok {
-		return newGrpcError(false, err, "Invalid expiry value. Expected float64.")
+		return newError(types.PARSE_ERROR, "Invalid expiry value. Expected float64.")
 	}
 
 	iat, ok := tokenMap["iat"].(float64)
 	if !ok {
-		return newGrpcError(false, err, "Invalid iat value. Expected float64.")
+		return newError(types.PARSE_ERROR, "Invalid iat value. Expected float64.")
 
 	}
 
 	ttl := time.Duration(expiryToken-iat) * time.Second
 	if ttl <= 0 {
-		return newGrpcError(false, err, "Invalid token values. token 'iat' > 'exp'")
+		return newError(types.PARSE_ERROR, "Invalid token values. token 'iat' > 'exp'")
 	}
 
 	// Set expiry based on local clock.
