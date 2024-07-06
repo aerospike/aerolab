@@ -76,6 +76,7 @@ type upgradeCmd struct {
 	Edge   bool    `long:"edge" description:"Include pre-releases when discovering versions"`
 	BugFix bool    `long:"bugfix" description:"Download latest (pre-)release bugfix version"`
 	DryRun bool    `long:"dryrun" description:"Set to show the upgrade source URL and destination path, do not upgrade"`
+	Force  bool    `long:"force" description:"Force upgrade, even if the available version is the same as, or older than, the currently installed one"`
 	Help   helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -128,14 +129,14 @@ func (c *upgradeCmd) Execute(args []string) error {
 		if len(v.CommitHash) > 8 {
 			v.CommitHash = v.CommitHash[0:7]
 		}
-		if ved == "-unofficial" || ved == "-prerelease" || VersionCheck(v.CurrentVersion, v.LatestVersion) > 0 {
+		if c.Force || ved == "-unofficial" || ved == "-prerelease" || VersionCheck(v.CurrentVersion, v.LatestVersion) > 0 {
 			latestVersion = "v" + v.LatestVersion + "-" + v.CommitHash + "-stable"
 		} else {
 			log.Println("Already on latest stable")
 			return nil
 		}
 	} else {
-		if pre.LatestVersion+"-prerelease" != pre.CurrentVersion+"-"+strings.Trim(vCommit, "\r\t\n ")+strings.Trim(vEdition, "\r\t\n ") {
+		if c.Force || pre.LatestVersion+"-prerelease" != pre.CurrentVersion+"-"+strings.Trim(vCommit, "\r\t\n ")+strings.Trim(vEdition, "\r\t\n ") {
 			latestVersion = "v" + pre.LatestVersion + "-prerelease"
 			v = pre
 		} else {
