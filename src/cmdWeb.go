@@ -78,6 +78,7 @@ type webCmd struct {
 	simpleModeCamel       []string // []{"+Cluster.Create","-Cluster.Start", etc} - camelcase version
 	simpleModeTagsDefault int      // -1 == ignore "simplemode" tag, all options disabled by default; 1 == ignore "simplemode" tag, all options enabled by default; 0 == use "simplemode" tag
 	inventoryHide         webui.HideInventory
+	upgradeLock           chan struct{}
 }
 
 type webDownloader struct {
@@ -352,6 +353,7 @@ func (c *webCmd) Execute(args []string) error {
 	if !c.Real {
 		return c.runLoop()
 	}
+	c.upgradeLock = make(chan struct{}, 1)
 	if isWebuiBeta {
 		log.Print("Running webui; some web features are still in beta")
 	}
@@ -2432,9 +2434,13 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(c.upgradeLock) > 0 {
+		http.Error(w, "upgrade in progress, not accepting jobs", http.StatusNotAcceptable)
+		return
+	}
 	err = c.jobqueue.Add()
 	if err != nil {
-		http.Error(w, "job queue full", http.StatusNotAcceptable)
+		http.Error(w, err.Error(), http.StatusNotAcceptable)
 		return
 	}
 
@@ -2498,12 +2504,29 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 	}
 
 	go func() {
+		// mark job as started
 		c.jobqueue.Start()
+
+		// if upgrading, handle as special case - disallow new commands and wait for old commands to complete first
+		if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
+			c.upgradeLock <- struct{}{}
+			f.WriteString("WEBUI: Waiting for an empty job queue...\n")
+			for {
+				if concurrent, queued := c.jobqueue.GetSize(); concurrent == 1 && queued == 0 {
+					break
+				}
+				time.Sleep(time.Second)
+			}
+			f.WriteString("WEBUI: Job queue empty, continuing upgrade command...\n")
+		}
 
 		// handle file upload storage
 		if tmpDir != "" {
 			err = os.MkdirAll(tmpDir, 0755)
 			if err != nil {
+				if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
+					<-c.upgradeLock
+				}
 				c.jobqueue.End()
 				c.jobqueue.Remove()
 				stdin.Close()
@@ -2532,6 +2555,9 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					return nil
 				}()
 				if err != nil {
+					if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
+						<-c.upgradeLock
+					}
 					c.jobqueue.End()
 					c.jobqueue.Remove()
 					stdin.Close()
@@ -2548,6 +2574,9 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		if isDownload {
 			run.Stdout = c.downloader.GetWriter(requestID)
 			if run.Stdout == nil {
+				if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
+					<-c.upgradeLock
+				}
 				c.jobqueue.End()
 				c.jobqueue.Remove()
 				stdin.Close()
@@ -2563,6 +2592,9 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 		err = run.Start()
 		if err != nil {
+			if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
+				<-c.upgradeLock
+			}
 			c.jobqueue.End()
 			c.jobqueue.Remove()
 			stdin.Close()
@@ -2584,6 +2616,11 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		c.joblist.Add(requestID, run)
 
 		go func(run *exec.Cmd, requestID string) {
+			defer func() {
+				if c.commands[cindex].path == "upgrade" && len(r.PostForm["xxxxDryRun"]) == 0 {
+					<-c.upgradeLock
+				}
+			}()
 			defer c.downloader.Close(requestID)
 			if tmpDir != "" {
 				defer os.RemoveAll(tmpDir)
