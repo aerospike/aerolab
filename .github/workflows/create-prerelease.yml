@@ -38,7 +38,7 @@ jobs:
                 echo "Dependencies checked"
             - name: "Install golang"
               run: |
-                wget https://go.dev/dl/go1.22.5.darwin-arm64.pkg
+                wget https://go.dev/dl/go1.22.5.darwin-amd64.pkg
                 sudo installer -store -pkg go1.22.5.darwin-amd64.pkg -target /
             - name: "Install Packages.pkg for making macos PKG files"
               run: |
