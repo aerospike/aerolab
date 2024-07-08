@@ -131,7 +131,7 @@ jobs:
                   do
                     if [ "$line" != "${TAG}" ]
                     then
-                      if [[ $line =~ ^${VER}- ]]
+                      if [[ v$line =~ ^${VER}- ]]
                       then
                         echo "Removing $line"
                         gh release delete $line -R github.com/aerospike/aerolab --yes --cleanup-tag
