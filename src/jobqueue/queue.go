@@ -52,8 +52,8 @@ func (q *Queue) Remove() error {
 	return nil
 }
 
-var ErrQueueFull = errors.New("queue full")
-var ErrQueueEmpty = errors.New("queue empty")
+var ErrQueueFull = errors.New("job queue full")
+var ErrQueueEmpty = errors.New("job queue empty")
 
 func (q *Queue) GetSize() (concurrent int, queued int) {
 	q.Lock()
