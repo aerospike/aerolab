@@ -20,6 +20,7 @@ import (
 	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/bestmethod/inslice"
+	"github.com/lithammer/shortuuid"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"gopkg.in/yaml.v3"
 )
@@ -151,6 +152,12 @@ func init() {
 func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if c.ClusterName == "" {
+		c.ClusterName = TypeClusterName(shortuuid.New())
+	}
+	if c.S3Enable && c.S3path == "" {
+		return errors.New("S3 path cannot be left empty")
 	}
 	if a.opts.Config.Backend.Type == "aws" {
 		if (c.Aws.Route53DomainName == "" && c.Aws.Route53ZoneId != "") || (c.Aws.Route53DomainName != "" && c.Aws.Route53ZoneId == "") {
