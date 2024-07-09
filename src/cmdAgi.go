@@ -329,6 +329,9 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.S3Enable != nil && *c.S3Enable && c.S3path != nil && *c.S3path == "" {
+		return errors.New("S3 path cannot be left empty")
+	}
 	// if sftp key, local source or patterns file are specified, ensure they exist
 	for _, k := range []*string{(*string)(c.SftpKey), (*string)(c.PatternsFile), (*string)(c.LocalSource)} {
 		if k != nil && *k != "" {
