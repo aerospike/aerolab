@@ -10,7 +10,7 @@ Usage:
   aerolab [OPTIONS] volume [command]
 
 Global Options:
-  --beep     cause the terminal to beep on exit; if specificied multiple times, will be once on success and >1 on failure
+  --beep     cause the terminal to beep on exit; if specified multiple times, will be once on success and >1 on failure
   --beepf    like beep, but does not trigger beep on success, only failures
 
 Available commands:
