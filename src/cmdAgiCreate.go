@@ -153,6 +153,18 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if strings.HasPrefix(c.SftpUser, "ENV::") {
+		c.SftpUser = os.ExpandEnv(strings.Split(c.SftpUser, "::")[1])
+	}
+	if strings.HasPrefix(c.SftpPass, "ENV::") {
+		c.SftpPass = os.ExpandEnv(strings.Split(c.SftpPass, "::")[1])
+	}
+	if strings.HasPrefix(c.S3KeyID, "ENV::") {
+		c.S3KeyID = os.ExpandEnv(strings.Split(c.S3KeyID, "::")[1])
+	}
+	if strings.HasPrefix(c.S3Secret, "ENV::") {
+		c.S3Secret = os.ExpandEnv(strings.Split(c.S3Secret, "::")[1])
+	}
 	if c.ClusterName == "" {
 		c.ClusterName = TypeClusterName(shortuuid.New())
 	}
