@@ -20,6 +20,7 @@ import (
 	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/bestmethod/inslice"
+	"github.com/lithammer/shortuuid"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"gopkg.in/yaml.v3"
 )
@@ -151,6 +152,24 @@ func init() {
 func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if strings.HasPrefix(c.SftpUser, "ENV::") {
+		c.SftpUser = os.ExpandEnv(strings.Split(c.SftpUser, "::")[1])
+	}
+	if strings.HasPrefix(c.SftpPass, "ENV::") {
+		c.SftpPass = os.ExpandEnv(strings.Split(c.SftpPass, "::")[1])
+	}
+	if strings.HasPrefix(c.S3KeyID, "ENV::") {
+		c.S3KeyID = os.ExpandEnv(strings.Split(c.S3KeyID, "::")[1])
+	}
+	if strings.HasPrefix(c.S3Secret, "ENV::") {
+		c.S3Secret = os.ExpandEnv(strings.Split(c.S3Secret, "::")[1])
+	}
+	if c.ClusterName == "" {
+		c.ClusterName = TypeClusterName(shortuuid.New())
+	}
+	if c.S3Enable && c.S3path == "" {
+		return errors.New("S3 path cannot be left empty")
 	}
 	if a.opts.Config.Backend.Type == "aws" {
 		if (c.Aws.Route53DomainName == "" && c.Aws.Route53ZoneId != "") || (c.Aws.Route53DomainName != "" && c.Aws.Route53ZoneId == "") {

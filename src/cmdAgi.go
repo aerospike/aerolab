@@ -329,6 +329,25 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.SftpUser != nil && strings.HasPrefix(*c.SftpUser, "ENV::") {
+		aa := os.ExpandEnv(strings.Split(*c.SftpUser, "::")[1])
+		c.SftpUser = &aa
+	}
+	if c.SftpPass != nil && strings.HasPrefix(*c.SftpPass, "ENV::") {
+		aa := os.ExpandEnv(strings.Split(*c.SftpPass, "::")[1])
+		c.SftpPass = &aa
+	}
+	if c.S3KeyID != nil && strings.HasPrefix(*c.S3KeyID, "ENV::") {
+		aa := os.ExpandEnv(strings.Split(*c.S3KeyID, "::")[1])
+		c.S3KeyID = &aa
+	}
+	if c.S3Secret != nil && strings.HasPrefix(*c.S3Secret, "ENV::") {
+		aa := os.ExpandEnv(strings.Split(*c.S3Secret, "::")[1])
+		c.S3Secret = &aa
+	}
+	if c.S3Enable != nil && *c.S3Enable && c.S3path != nil && *c.S3path == "" {
+		return errors.New("S3 path cannot be left empty")
+	}
 	// if sftp key, local source or patterns file are specified, ensure they exist
 	for _, k := range []*string{(*string)(c.SftpKey), (*string)(c.PatternsFile), (*string)(c.LocalSource)} {
 		if k != nil && *k != "" {

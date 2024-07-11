@@ -204,6 +204,7 @@ type clusterCreateCmdGcp struct {
 	VolLabels           []string        `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times" simplemode:"false"`
 	TerminateOnPoweroff bool            `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated" simplemode:"false"`
 	OnHostMaintenance   string          `long:"on-host-maintenance-policy" description:"optionally specify a custom policy onHostMaintenance"`
+	MinCPUPlatform      string          `long:"gcp-min-cpu-platform" description:"set the minimum CPU platform; see https://cloud.google.com/compute/docs/instances/specify-min-cpu-platform"`
 }
 
 type clusterCreateCmdDocker struct {
@@ -997,6 +998,9 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 	}
 	extra.onHostMaintenance = c.Gcp.OnHostMaintenance
+	if c.Gcp.MinCPUPlatform != "" {
+		extra.gcpMinCpuPlatform = &c.Gcp.MinCPUPlatform
+	}
 	err = b.DeployCluster(*bv, string(c.ClusterName), c.NodeCount, extra)
 	if err != nil {
 		return err

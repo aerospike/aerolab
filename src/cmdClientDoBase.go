@@ -344,6 +344,9 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 		extra.spotInstance = c.Gcp.SpotInstance
 	}
 	extra.onHostMaintenance = c.Gcp.OnHostMaintenance
+	if c.Gcp.MinCPUPlatform != "" {
+		extra.gcpMinCpuPlatform = &c.Gcp.MinCPUPlatform
+	}
 	err = b.DeployCluster(*bv, string(c.ClientName), c.ClientCount, extra)
 	if err != nil {
 		return nil, err
