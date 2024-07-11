@@ -402,7 +402,7 @@ func (c *webCmd) Execute(args []string) error {
 				}
 			}
 			f.Close()
-			// TODO: test simpleMode has no typos by exploring it recursively
+			// test simpleMode has no typos by exploring it recursively
 			ret := make(chan apiCommand, 1)
 			keyField := reflect.ValueOf(a.opts).Elem()
 			pathStacks := []string{}
