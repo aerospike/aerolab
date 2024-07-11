@@ -3532,6 +3532,7 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 			Project: a.opts.Config.Backend.Project,
 			Zone:    extra.zone,
 			InstanceResource: &computepb.Instance{
+				MinCpuPlatform:  extra.gcpMinCpuPlatform,
 				ServiceAccounts: serviceAccounts,
 				Metadata: &computepb.Metadata{
 					Items: metaItems,

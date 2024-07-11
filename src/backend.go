@@ -60,6 +60,7 @@ type backendExtra struct {
 	onHostMaintenance   string    // gcp only
 	gcpMeta             map[string]string
 	cloudDisks          []*cloudDisk // gcp/aws only
+	gcpMinCpuPlatform   *string      // gcp only - min cpu platform string
 }
 
 type backendVersion struct {
