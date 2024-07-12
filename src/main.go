@@ -244,12 +244,12 @@ func (a *aerolab) main(args []string) error {
 	a.parseArgs(args)
 	a.early = false
 	_, err := a.parseFile()
-	if err != nil && os.Args[1] != "webui" && os.Args[1] != "upgrade" {
+	if err != nil && (len(os.Args) < 2 || (os.Args[1] != "webui" && os.Args[1] != "upgrade")) {
 		_, fna := path.Split(os.Args[0])
 		fmt.Printf(chooseBackendHelpMsg, fna, fna, fna)
 		os.Exit(1)
 	}
-	if !a.forceFileOptional && a.opts.Config.Backend.Type == "" && os.Args[1] != "webui" && os.Args[1] != "webrun" && os.Args[1] != "upgrade" {
+	if !a.forceFileOptional && a.opts.Config.Backend.Type == "" && (len(os.Args) < 2 || (os.Args[1] != "webui" && os.Args[1] != "webrun" && os.Args[1] != "upgrade")) {
 		_, fna := path.Split(os.Args[0])
 		fmt.Printf(chooseBackendHelpMsg, fna, fna, fna)
 		os.Exit(1)
@@ -398,7 +398,7 @@ func (a *aerolab) telemetry(webuiData string) error {
 		return nil
 	}
 	// do not ship config defaults command usage
-	if (os.Args[1] == "config" && os.Args[2] == "defaults") || (os.Args[1] == "webrun" && webuiData == "") || (slices.Equal(os.Args[1:], webuiInventoryListParams)) {
+	if (len(os.Args) > 2 && os.Args[1] == "config" && os.Args[2] == "defaults") || (os.Args[1] == "webrun" && webuiData == "") || (slices.Equal(os.Args[1:], webuiInventoryListParams)) {
 		return nil
 	}
 	// only enable if a feature file is present and belongs to Aerospike internal users
