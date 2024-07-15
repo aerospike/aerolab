@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -23,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -255,6 +257,22 @@ func (c *webCmd) runLoop() error {
 	if err != nil {
 		return fmt.Errorf("failed to get aerolab executable path: %s", err)
 	}
+	currentPid := -1
+	exitReady := make(chan struct{}, 1)
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGTERM)
+	go func() {
+		for sig := range sigs {
+			if c.DebugRequests {
+				log.Printf("Main Loop: Signal %s received: Shutting Down", sig)
+			}
+			if currentPid < 0 {
+				os.Exit(0)
+			}
+			exitReady <- struct{}{}
+			sendSigInt(currentPid)
+		}
+	}()
 	for {
 		args := append(os.Args[1:], "--real")
 		if !firstRun && !inslice.HasString(args, "--nobrowser") {
@@ -264,7 +282,16 @@ func (c *webCmd) runLoop() error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
-		err = cmd.Run()
+		err = cmd.Start()
+		if err != nil {
+			return err
+		}
+		currentPid = cmd.Process.Pid
+		err = cmd.Wait()
+		if len(exitReady) > 0 {
+			return nil
+		}
+		currentPid = -1
 		if err != nil {
 			return err
 		}
@@ -452,6 +479,22 @@ func (c *webCmd) Execute(args []string) error {
 		j: make(map[string]*exec.Cmd),
 	}
 	c.jobqueue = jobqueue.New(c.MaxConcurrentJobs, c.MaxQueuedJobs)
+	addShutdownHandler("webui", func(sig os.Signal) {
+		if c.DebugRequests {
+			log.Printf("Server: received signal %s, draining actions and shutting down", sig)
+		}
+		c.jobqueue.SetNoAccept(errors.New("server shutting down"))
+		for {
+			running, queued := c.jobqueue.GetSize()
+			if c.DebugRequests {
+				log.Printf("Shutting down, running_jobs=%d queued_jobs=%d", running, queued)
+			}
+			if running == 0 && queued == 0 {
+				return
+			}
+			time.Sleep(time.Second)
+		}
+	})
 	go c.jobCleaner()
 	c.cache = &inventoryCache{
 		RefreshInterval: c.RefreshInterval,
