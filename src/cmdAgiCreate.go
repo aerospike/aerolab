@@ -153,6 +153,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if strings.HasPrefix(c.SlackToken, "ENV::") {
+		c.SlackToken = os.ExpandEnv(strings.Split(c.SlackToken, "::")[1])
+	}
 	if strings.HasPrefix(c.SftpUser, "ENV::") {
 		c.SftpUser = os.ExpandEnv(strings.Split(c.SftpUser, "::")[1])
 	}

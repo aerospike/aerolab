@@ -36,6 +36,12 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if strings.HasPrefix(c.EksAwsKeyId, "ENV::") {
+		c.EksAwsKeyId = os.ExpandEnv(strings.Split(c.EksAwsKeyId, "::")[1])
+	}
+	if strings.HasPrefix(c.EksAwsSecretKey, "ENV::") {
+		c.EksAwsSecretKey = os.ExpandEnv(strings.Split(c.EksAwsSecretKey, "::")[1])
+	}
 	script := scripts.GetEksctlBootstrapScript()
 	if c.InstallYamls {
 		os.Mkdir("/root/eks", 0755)
