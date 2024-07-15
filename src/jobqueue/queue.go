@@ -10,6 +10,7 @@ type Queue struct {
 	jobs    chan struct{}
 	maxJobs int
 	qsize   int
+	err     error
 }
 
 func New(concurrent int, queued int) *Queue {
@@ -21,6 +22,10 @@ func New(concurrent int, queued int) *Queue {
 
 func (q *Queue) Add() error {
 	q.Lock()
+	if q.err != nil {
+		defer q.Unlock()
+		return q.err
+	}
 	if q.qsize >= q.maxJobs {
 		q.Unlock()
 		return ErrQueueFull
@@ -28,6 +33,13 @@ func (q *Queue) Add() error {
 	q.qsize++
 	q.Unlock()
 	return nil
+}
+
+// prevent being able to add items to queue, will output error specified in parameter
+func (q *Queue) SetNoAccept(err error) {
+	q.Lock()
+	q.err = err
+	q.Unlock()
 }
 
 func (q *Queue) Start() {
