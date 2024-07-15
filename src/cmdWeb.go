@@ -270,7 +270,7 @@ func (c *webCmd) runLoop() error {
 				os.Exit(0)
 			}
 			exitReady <- struct{}{}
-			syscall.Kill(currentPid, syscall.SIGINT)
+			sendSigInt(currentPid)
 		}
 	}()
 	for {
