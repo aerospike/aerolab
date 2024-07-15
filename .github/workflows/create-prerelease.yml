@@ -123,15 +123,23 @@ jobs:
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   DELPREV: ${{ inputs.deletePrevBuild }}
+                  ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
                 if [ "${DELPREV}" = "true" ]
                 then
                   set -e
+                  cd ~/work/aerolab/aerolab/bin/packages
+                  echo "${ADDCOMMIT}"
+                  COMMIT=$(git rev-parse --short HEAD)
+                  VER=$(cat ../../VERSION.md)
+                  TAG=${VER}-${COMMIT}
+                  [ "${ADDCOMMIT}" = "false" ] && TAG=${VER}
+                  echo "Protected tag: ${TAG}"
                   gh release list -R github.com/aerospike/aerolab -L 100 |grep Pre-release |awk -F'\t' '{print $3}' |while read line
                   do
                     if [ "$line" != "${TAG}" ]
                     then
-                      if [[ v$line =~ ^${VER}- ]]
+                      if [[ $line =~ ^${VER}- ]]
                       then
                         echo "Removing $line"
                         gh release delete $line -R github.com/aerospike/aerolab --yes --cleanup-tag
