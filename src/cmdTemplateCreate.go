@@ -24,6 +24,9 @@ func init() {
 }
 
 func (c *templateCreateCmd) Execute(args []string) error {
+	if c.DistroName == "centos" && c.DistroVersion == "7" {
+		a.opts.Config.Backend.Arch = "amd64"
+	}
 	if earlyProcess(args) {
 		return nil
 	}
@@ -37,10 +40,6 @@ func (c *templateCreateCmd) Execute(args []string) error {
 	templates, err := b.ListTemplates()
 	if err != nil {
 		return logFatal("Could not list templates: %s", err)
-	}
-
-	if c.DistroName == "centos" && c.DistroVersion == "7" {
-		a.opts.Config.Backend.Arch = "amd64"
 	}
 
 	// arm fill
