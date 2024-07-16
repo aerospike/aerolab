@@ -326,6 +326,10 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 	}
 
+	if c.DistroName == "centos" && c.DistroVersion == "7" {
+		a.opts.Config.Backend.Arch = "amd64"
+	}
+
 	if c.Owner == "" {
 		c.Owner = currentOwnerUser
 	}

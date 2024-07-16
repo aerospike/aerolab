@@ -39,6 +39,10 @@ func (c *templateCreateCmd) Execute(args []string) error {
 		return logFatal("Could not list templates: %s", err)
 	}
 
+	if c.DistroName == "centos" && c.DistroVersion == "7" {
+		a.opts.Config.Backend.Arch = "amd64"
+	}
+
 	// arm fill
 	c.Aws.IsArm, err = b.IsSystemArm(c.Aws.InstanceType.String())
 	if err != nil {
