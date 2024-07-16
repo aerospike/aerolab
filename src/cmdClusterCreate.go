@@ -311,6 +311,9 @@ func printPriceDo(zone string, iType string, instances int, spot bool, iter int)
 }
 
 func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
+	if c.DistroName == "centos" && c.DistroVersion == "7" {
+		a.opts.Config.Backend.Arch = "amd64"
+	}
 	if earlyProcessV2(nil, true) {
 		return nil
 	}
