@@ -91,6 +91,10 @@ sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo
 sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*.repo
 sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo
 yum -y update || exit 1
+yum -y install centos-release-scl
+sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*scl*.repo
+sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*scl*.repo
+sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*scl*.repo
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
@@ -98,7 +102,7 @@ yum -y install nano lnav
 yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
-yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
+yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
 ########### tcconfig
 VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
 CPUVER=amd64
@@ -366,6 +370,10 @@ sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo
 sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*.repo
 sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo
 yum -y update || exit 1
+yum -y install centos-release-scl
+sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*scl*.repo
+sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*scl*.repo
+sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*scl*.repo
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
@@ -373,7 +381,7 @@ yum -y install nano lnav
 yum -y install initscripts || exit 1
 yum -y install redhat-lsb || exit 1
 yum -y install telnet sysstat nc bind-utils iputils vim
-yum -y install centos-release-scl ; yum install -y rh-python36 ; yum -y install python38 || yum -y install python36
+yum install -y rh-python36 ; yum -y install python38 || yum -y install python36 || echo "python36 skip"
 ########### tcconfig
 VERSION_ID=$(grep -Po '(?<=VERSION_ID=")[0-9]+' /etc/os-release)
 CPUVER=amd64

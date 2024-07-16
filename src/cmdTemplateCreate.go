@@ -24,6 +24,9 @@ func init() {
 }
 
 func (c *templateCreateCmd) Execute(args []string) error {
+	if c.DistroName == "centos" && c.DistroVersion == "7" {
+		a.opts.Config.Backend.Arch = "amd64"
+	}
 	if earlyProcess(args) {
 		return nil
 	}
