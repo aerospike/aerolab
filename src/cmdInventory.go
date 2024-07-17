@@ -6,6 +6,7 @@ import (
 
 type inventoryCmd struct {
 	List          inventoryListCmd          `command:"list" subcommands-optional:"true" description:"List clusters, clients and templates" webicon:"fas fa-list"`
+	Ansible       inventoryAnsibleCmd       `command:"ansible" subcommands-optional:"true" description:"Export inventory as ansible inventory" webicon:"fas fa-list"`
 	InstanceTypes inventoryInstanceTypesCmd `command:"instance-types" subcommands-optional:"true" description:"Lookup GCP|AWS available instance types" webicon:"fas fa-table-list"`
 	Help          helpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
