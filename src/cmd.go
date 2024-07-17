@@ -57,7 +57,7 @@ func (c *showcommandsCmd) Execute(args []string) error {
 		return fmt.Errorf("failed to get absolute path os self: %s", err)
 	}
 	log.Printf("Discovered absolute path: %s", cur)
-	for _, dest := range []string{"showconf", "showsysinfo", "showinterrupts"} {
+	for _, dest := range []string{"showconf", "showsysinfo", "showinterrupts", "aerolab-ansible"} {
 		d := filepath.Join(c.DestDir, dest)
 		log.Printf("> ln -s %s %s", cur, d)
 		if _, err := os.Stat(d); err == nil {
