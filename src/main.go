@@ -22,11 +22,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/eksexpiry"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/bestmethod/inslice"
 	"github.com/google/uuid"
 	flags "github.com/rglonek/jeddevdk-goflags"
+
+	"github.com/aerospike/aerolab/eksexpiry"
 )
 
 type helpCmd struct{}
@@ -138,6 +139,10 @@ func main() {
 		showcommands()
 	case "eksexpiry":
 		eksexpiry.Expiry()
+	case "aerolab-ansible":
+		os.Args = []string{os.Args[0], "inventory", "ansible"}
+
+		fallthrough
 	default:
 		if beepenv := os.Getenv("AEROLAB_BEEP"); beepenv != "" {
 			bp, err := strconv.Atoi(beepenv)
