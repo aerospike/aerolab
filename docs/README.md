@@ -38,3 +38,4 @@
 * [Utility scripts](utility_scripts/index.md)
 * [Volume usage examples](volume-examples.md)
 * [WebUI Hosted Mode](webui.md)
+* [Ansible dynamic inventory with aerolab](usage/basic/ansible.md)
