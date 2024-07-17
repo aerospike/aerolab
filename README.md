@@ -98,6 +98,7 @@ An alternative method of access exists on MacOS and Linux, if using `--no-autoex
 * [Utility scripts](docs/utility_scripts/index.md)
 * [Volume usage examples](docs/volume-examples.md)
 * [WebUI Hosted Mode](docs/webui.md)
+* [Ansible dynamic inventory with aerolab](usage/basic/ansible.md)
 
 ## Changelog
 
