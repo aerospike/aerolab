@@ -2,4 +2,5 @@
 !bin/aerolabrpm
 .DS_Store
 .vscode
+.idea
 VERSION.md
