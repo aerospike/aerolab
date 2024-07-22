@@ -2141,7 +2141,8 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return indexi < indexj
 	})
 
-	if c.UniqueFirewalls && a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && cmdline[2] == "create") || (cmdline[1] == "client" && cmdline[2] == "create") || (cmdline[1] == "template" && cmdline[2] == "create")) {
+	specialAllowInSimpleMode := ""
+	if c.UniqueFirewalls && a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "client" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "template" && cmdline[2] == "create")) {
 		fwsw := "xxGcpxxNamePrefix"
 		if a.opts.Config.Backend.Type == "aws" {
 			fwsw = "xxAwsxxNamePrefix"
@@ -2167,6 +2168,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 			item := []interface{}{fwsw, []string{nFW}}
 			postForm = append(postForm, item)
+			specialAllowInSimpleMode = fwsw
 		}
 	}
 
@@ -2211,7 +2213,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					pathStack = append(pathStack, strings.ToLower(cp))
 				}
 			}
-			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) {
+			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) && (specialAllowInSimpleMode == "" || pathStack[len(pathStack)-1] != "nameprefix") {
 				http.Error(w, fmt.Sprintf("parameter %v not allowed in this mode", pathStack), http.StatusForbidden)
 				return
 			}
