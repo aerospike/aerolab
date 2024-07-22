@@ -2212,7 +2212,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) {
-				http.Error(w, "parameter not allowed in this mode", http.StatusForbidden)
+				http.Error(w, fmt.Sprintf("parameter %v not allowed in this mode", pathStack), http.StatusForbidden)
 				return
 			}
 		}
