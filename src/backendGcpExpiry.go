@@ -296,7 +296,7 @@ func (d *backendGcp) ExpiriesSystemInstall(intervalMinutes int, deployRegion str
 	deploy = append(deploy, "--allow-unauthenticated")
 	deploy = append(deploy, "--entry-point=AerolabExpire")
 	deploy = append(deploy, "--gen2")
-	deploy = append(deploy, "--runtime=go120")
+	deploy = append(deploy, "--runtime=go122")
 	deploy = append(deploy, "--serve-all-traffic-latest-revision")
 	deploy = append(deploy, "--source="+tmpDirPath)
 	deploy = append(deploy, "--memory=256M")

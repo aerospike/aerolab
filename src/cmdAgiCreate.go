@@ -168,7 +168,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if strings.HasPrefix(c.S3Secret, "ENV::") {
 		c.S3Secret = os.ExpandEnv(strings.Split(c.S3Secret, "::")[1])
 	}
-	if c.ClusterName == "" {
+	if c.ClusterName == "~auto~" {
 		c.ClusterName = TypeClusterName(shortuuid.New())
 	}
 	if c.S3Enable && c.S3path == "" {
