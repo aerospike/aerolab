@@ -19,6 +19,10 @@ import (
 
 	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
 	flags "github.com/rglonek/jeddevdk-goflags"
@@ -64,6 +68,7 @@ type agiCreateCmd struct {
 	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password" simplemode:"false"`
 	S3path           string          `long:"source-s3-path" description:"path on s3 to download logs from" simplemode:"false"`
 	S3Regex          string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^" simplemode:"false"`
+	S3SkipCheck      bool            `long:"source-s3-skipcheck" description:"set to prevent aerolab for checking from this machine if s3 is accessible with the given credentials" simplemode:"false"`
 	ProxyDisableSSL  bool            `long:"proxy-ssl-disable" description:"switch to disable TLS on the proxy" simplemode:"false"`
 	ProxyCert        flags.Filename  `long:"proxy-ssl-cert" description:"if not provided snakeoil will be used" simplemode:"false"`
 	ProxyKey         flags.Filename  `long:"proxy-ssl-key" description:"if not provided snakeoil will be used" simplemode:"false"`
@@ -282,6 +287,33 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		fileContents: bytes.NewReader(conf),
 		fileSize:     len(conf),
 	})
+
+	// test s3 access and directory
+	if c.S3Enable && !c.S3SkipCheck {
+		var s3creds *credentials.Credentials
+		if c.S3KeyID != "" || c.S3Secret != "" {
+			s3creds = credentials.NewStaticCredentials(c.S3KeyID, c.S3Secret, "")
+		}
+		sess, err := session.NewSession(&aws.Config{
+			Region:      aws.String(c.S3Region),
+			Credentials: s3creds,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to test s3 credentials: %s", err)
+		}
+		svc := s3.New(sess)
+		obj, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{
+			Bucket:  aws.String(c.S3Bucket),
+			MaxKeys: aws.Int64(5),
+			Prefix:  aws.String(c.S3path),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to list s3 objects: %s", err)
+		}
+		if len(obj.Contents) == 0 {
+			return fmt.Errorf("directory empty or path doesn't exist")
+		}
+	}
 
 	// test sftp access and directory
 	if c.SftpEnable && !c.SftpSkipCheck {
