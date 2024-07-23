@@ -918,10 +918,7 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		if nusr == "weblog" && !strings.HasSuffix(strings.TrimRight(ndir, "/"), "weblog/weblog") {
 			nusr = "N/A"
 		}
-		nUser := r.Header.Get("x-auth-aerolab-user")
-		if nUser == "" {
-			nUser = currentOwnerUser
-		}
+		nUser := getHeaderUserValue(r)
 		if r.FormValue("jobsAllUsers") != "true" {
 			if nUser != nusr && nusr != "N/A" {
 				return nil
@@ -1923,7 +1920,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		FormDownload:                            formDownload,
 		ShowSimpleModeButton:                    !c.ForceSimpleMode,
 		SimpleMode:                              isSimpleMode,
-		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
+		CurrentUser:                             getHeaderUserValue(r),
 		HideInventory:                           hideInv,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
@@ -2155,10 +2152,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !fwFound {
-			nUser := r.Header.Get("x-auth-aerolab-user")
-			if nUser == "" {
-				nUser = currentOwnerUser
-			}
+			nUser := getHeaderUserValue(r)
 			nUser = strings.ToLower(nUser)
 			nFW := ""
 			for _, c := range nUser {
@@ -2503,10 +2497,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nUser := r.Header.Get("x-auth-aerolab-user")
-	if nUser == "" {
-		nUser = currentOwnerUser
-	}
+	nUser := getHeaderUserValue(r)
 
 	nPath := path.Join(rootDir, "weblog")
 	os.Mkdir(nPath, 0755)
@@ -2752,4 +2743,17 @@ func (c *webCmd) defaultsRefresh() {
 	a.parseFile()
 	a.early = false
 	c.genMenu()
+}
+
+func getHeaderUserValue(r *http.Request) string {
+	if user := r.Header.Get("x-auth-aerolab-user"); user != "" {
+		return user
+	}
+	if user := r.Header.Get("X-Forwarded-Email"); user != "" {
+		return strings.Split(user, "@")[0]
+	}
+	if user := r.Header.Get("X-Forwarded-User"); user != "" {
+		return user
+	}
+	return currentOwnerUser
 }

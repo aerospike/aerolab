@@ -382,10 +382,7 @@ func (c *webCmd) inventoryLogFile(requestID string, r *http.Request) (*os.File, 
 	if err != nil {
 		return nil, err
 	}
-	nUser := r.Header.Get("x-auth-aerolab-user")
-	if nUser == "" {
-		nUser = currentOwnerUser
-	}
+	nUser := getHeaderUserValue(r)
 
 	nPath := path.Join(rootDir, "weblog")
 	os.Mkdir(nPath, 0755)
@@ -435,7 +432,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		BetaTag:                                 isWebuiBeta,
 		ShowSimpleModeButton:                    !c.ForceSimpleMode,
 		SimpleMode:                              isSimpleMode,
-		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
+		CurrentUser:                             getHeaderUserValue(r),
 		HideInventory:                           hideInv,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
