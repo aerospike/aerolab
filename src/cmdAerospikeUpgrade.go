@@ -42,8 +42,8 @@ func (c *aerospikeUpgradeCmd) Execute(args []string) error {
 	}
 
 	// check cluster name
-	if len(string(c.ClusterName)) == 0 || len(string(c.ClusterName)) > 20 {
-		return errors.New("max size for clusterName is 20 characters")
+	if len(string(c.ClusterName)) == 0 || len(string(c.ClusterName)) > 24 {
+		return errors.New("max size for clusterName is 24 characters")
 	}
 
 	if !inslice.HasString([]string{"YES", "NO", "Y", "N"}, strings.ToUpper(c.RestartAerospike.String())) {
