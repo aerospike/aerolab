@@ -174,7 +174,19 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		c.S3Secret = os.Getenv(strings.Split(c.S3Secret, "::")[1])
 	}
 	if c.ClusterName == "~auto~" {
-		c.ClusterName = TypeClusterName(shortuuid.New())
+		nName := ""
+		if c.LocalSource != "" {
+			nName = string(c.LocalSource)
+		}
+		nName = nName + "\nS3"
+		if c.S3Enable {
+			nName = nName + "\n" + c.S3Bucket + "\n" + c.S3path + "\n" + c.S3Regex
+		}
+		nName = nName + "\nSFTP"
+		if c.SftpEnable {
+			nName = nName + "\n" + c.SftpHost + "\n" + strconv.Itoa(c.SftpPort) + "\n" + c.SftpUser + "\n" + c.SftpPath + "\n" + c.SftpRegex
+		}
+		c.ClusterName = TypeClusterName(shortuuid.NewWithNamespace(nName))
 	}
 	if c.S3Enable && c.S3path == "" {
 		return errors.New("S3 path cannot be left empty")
