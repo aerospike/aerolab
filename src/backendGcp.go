@@ -2337,6 +2337,12 @@ func (d *backendGcp) GetKeyPath(clusterName string) (keyPath string, err error) 
 
 // get KeyPair
 func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "sshkey", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	// check keypath exists, if not, error
@@ -2349,6 +2355,12 @@ func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string,
 
 // get KeyPair
 func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "sshkey", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	_, _, err = d.getKey(clusterName)
@@ -2392,6 +2404,12 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 
 // get KeyPair
 func (d *backendGcp) killKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "sshkey", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	os.Remove(keyPath)
