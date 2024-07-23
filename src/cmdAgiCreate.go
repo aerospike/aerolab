@@ -159,19 +159,19 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		return nil
 	}
 	if strings.HasPrefix(c.SlackToken, "ENV::") {
-		c.SlackToken = os.ExpandEnv(strings.Split(c.SlackToken, "::")[1])
+		c.SlackToken = os.Getenv(strings.Split(c.SlackToken, "::")[1])
 	}
 	if strings.HasPrefix(c.SftpUser, "ENV::") {
-		c.SftpUser = os.ExpandEnv(strings.Split(c.SftpUser, "::")[1])
+		c.SftpUser = os.Getenv(strings.Split(c.SftpUser, "::")[1])
 	}
 	if strings.HasPrefix(c.SftpPass, "ENV::") {
-		c.SftpPass = os.ExpandEnv(strings.Split(c.SftpPass, "::")[1])
+		c.SftpPass = os.Getenv(strings.Split(c.SftpPass, "::")[1])
 	}
 	if strings.HasPrefix(c.S3KeyID, "ENV::") {
-		c.S3KeyID = os.ExpandEnv(strings.Split(c.S3KeyID, "::")[1])
+		c.S3KeyID = os.Getenv(strings.Split(c.S3KeyID, "::")[1])
 	}
 	if strings.HasPrefix(c.S3Secret, "ENV::") {
-		c.S3Secret = os.ExpandEnv(strings.Split(c.S3Secret, "::")[1])
+		c.S3Secret = os.Getenv(strings.Split(c.S3Secret, "::")[1])
 	}
 	if c.ClusterName == "~auto~" {
 		c.ClusterName = TypeClusterName(shortuuid.New())
