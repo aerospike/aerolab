@@ -83,8 +83,8 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		}
 	}
 
-	if len(string(c.ClientName)) == 0 || len(string(c.ClientName)) > 20 {
-		return nil, logFatal("Client name must be up to 20 characters long")
+	if len(string(c.ClientName)) == 0 || len(string(c.ClientName)) > 24 {
+		return nil, logFatal("Client name must be up to 24 characters long")
 	}
 
 	if !isLegalName(c.ClientName.String()) {
