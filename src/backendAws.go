@@ -2448,12 +2448,15 @@ func DNSListHosts(r53 *route53.Route53, zoneId string) (hosts []DNSHost, err err
 		return nil, err
 	}
 	for _, rset := range out.ResourceRecordSets {
+		if rset == nil || rset.Type == nil || rset.TTL == nil || rset.Name == nil {
+			continue
+		}
 		if *rset.Type != "A" {
 			continue
 		}
 		ips := []string{}
 		for _, rr := range rset.ResourceRecords {
-			ips = append(ips, *rr.Value)
+			ips = append(ips, aws.StringValue(rr.Value))
 		}
 		hosts = append(hosts, DNSHost{
 			Name: *rset.Name,
