@@ -2166,6 +2166,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	allowLs := c.allowls(r)
 	// fill command struct
 	tail := []string{"--"}
 	for _, kv := range postForm {
@@ -2215,6 +2216,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		switch field.Kind() {
 		case reflect.String:
 			if v[0] != field.String() {
+				if !allowLs && field.Type().String() == "flags.Filename" && v[0] == "" {
+					// if v[0] is flags.Filename and empty, skip
+					continue
+				}
 				cj[param] = v[0]
 				if tag.Get("webtype") == "password" {
 					v[0] = "****"
@@ -2314,6 +2319,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		case reflect.Ptr:
 			if field.Type().String() == "*flags.Filename" {
 				if v[0] != field.Elem().String() {
+					if !allowLs && v[0] == "" {
+						// if v[0] is empty, skip
+						continue
+					}
 					cj[param] = v[0]
 					lj[param] = v[0]
 					if tag.Get("long") == "" {
@@ -2462,6 +2471,16 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 				cmdline = append(cmdline, sw, fmt.Sprintf("'%s'", strings.ReplaceAll(v, "'", "\\'")))
 			}
 		}
+	}
+
+	if c.DebugRequests {
+		dbug, _ := json.Marshal(map[string]interface{}{
+			"cjson":   cjson,
+			"logjson": logjson,
+			"cmdline": cmdline,
+			"tail":    tail,
+		})
+		log.Printf("[%s]    %s", requestID, string(dbug))
 	}
 
 	if action[0] == "show" {
