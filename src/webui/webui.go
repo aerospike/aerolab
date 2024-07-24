@@ -12,6 +12,7 @@ const (
 )
 
 type Page struct {
+	PageTitle                               string
 	FixedFooter                             bool
 	FixedNavbar                             bool
 	PendingActionsShowAllUsersToggle        bool

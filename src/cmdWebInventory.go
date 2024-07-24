@@ -421,6 +421,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		hideInv = c.inventoryHide
 	}
 	p := &webui.Page{
+		PageTitle:                               c.PageTitle,
 		Backend:                                 a.opts.Config.Backend.Type,
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
