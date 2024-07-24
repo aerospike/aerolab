@@ -2140,6 +2140,30 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return indexi < indexj
 	})
 
+	// handle unique users feature
+	nUser := getHeaderUserValue(r)
+	nUserClean := ""
+	for _, c := range strings.ToLower(nUser) {
+		if (c >= 97 && c <= 122) || (c >= 48 && c <= 57) {
+			nUserClean = nUserClean + string(c)
+		}
+	}
+	if a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "client" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "template" && cmdline[2] == "create") || (cmdline[1] == "agi" && cmdline[2] == "create")) {
+		fwsw := "xxOwner"
+		fwFound := false
+		for _, kv := range postForm {
+			if kv[0].(string) == fwsw {
+				fwFound = true
+				break
+			}
+		}
+		if !fwFound {
+			item := []interface{}{fwsw, []string{nUserClean}}
+			postForm = append(postForm, item)
+		}
+	}
+
+	// handle unique firewalls feature
 	specialAllowInSimpleMode := ""
 	if c.UniqueFirewalls && a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "client" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "template" && cmdline[2] == "create")) {
 		fwsw := "xxGcpxxNamePrefix"
@@ -2154,15 +2178,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !fwFound {
-			nUser := getHeaderUserValue(r)
-			nUser = strings.ToLower(nUser)
-			nFW := ""
-			for _, c := range nUser {
-				if (c >= 97 && c <= 122) || (c >= 48 && c <= 57) {
-					nFW = nFW + string(c)
-				}
-			}
-			item := []interface{}{fwsw, []string{nFW}}
+			item := []interface{}{fwsw, []string{nUserClean}}
 			postForm = append(postForm, item)
 			specialAllowInSimpleMode = fwsw
 		}
@@ -2210,7 +2226,7 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					pathStack = append(pathStack, strings.ToLower(cp))
 				}
 			}
-			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) && (specialAllowInSimpleMode == "" || pathStack[len(pathStack)-1] != "nameprefix") {
+			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) && (specialAllowInSimpleMode == "" || pathStack[len(pathStack)-1] != "nameprefix") && pathStack[len(pathStack)-1] != "owner" {
 				http.Error(w, fmt.Sprintf("parameter %v not allowed in this mode", pathStack), http.StatusForbidden)
 				return
 			}
@@ -2517,8 +2533,6 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	nUser := getHeaderUserValue(r)
 
 	nPath := path.Join(rootDir, "weblog")
 	os.Mkdir(nPath, 0755)
