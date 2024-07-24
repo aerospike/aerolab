@@ -58,6 +58,7 @@ type webCmd struct {
 	AGIStrictTLS          bool           `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
 	WSProxyOrigins        []string       `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
 	ForceSimpleMode       bool           `long:"force-simple-mode" description:"force use of simple mode, limiting the number of features and switches that show up"`
+	PageTitle             string         `long:"page-title" description:"change the title of the webpages" default:"AeroLab Web UI"`
 	WebPath               string         `long:"web-path" hidden:"true"`
 	WebNoOverride         bool           `long:"web-no-override" hidden:"true"`
 	DebugRequests         bool           `long:"debug-requests" hidden:"true"`
@@ -1903,6 +1904,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		hideInv = c.inventoryHide
 	}
 	p := &webui.Page{
+		PageTitle:                               c.PageTitle,
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,

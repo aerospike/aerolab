@@ -176,6 +176,7 @@ type S3Source struct {
 	SecretKey   string `yaml:"secretKey" envconfig:"LOGINGEST_S3SOURCE_SECRET"`
 	PathPrefix  string `yaml:"pathPrefix" envconfig:"LOGINGEST_S3SOURCE_PATH"`
 	SearchRegex string `yaml:"searchRegex" envconfig:"LOGINGEST_S3SOURCE_REGEX"`
+	Endpoint    string `yaml:"endpoint" envconfig:"LOGINGEST_S3SOURCE_ENDPOINT"`
 	searchRegex *regexp.Regexp
 }
 

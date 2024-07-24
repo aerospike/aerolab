@@ -69,6 +69,7 @@ type agiCreateCmd struct {
 	S3path           string          `long:"source-s3-path" description:"path on s3 to download logs from" simplemode:"false"`
 	S3Regex          string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^" simplemode:"false"`
 	S3SkipCheck      bool            `long:"source-s3-skipcheck" description:"set to prevent aerolab for checking from this machine if s3 is accessible with the given credentials" simplemode:"false"`
+	S3Endpoint       string          `long:"source-s3-endpoint" description:"specify a custom endpoint for the S3 source bucket"`
 	ProxyDisableSSL  bool            `long:"proxy-ssl-disable" description:"switch to disable TLS on the proxy" simplemode:"false"`
 	ProxyCert        flags.Filename  `long:"proxy-ssl-cert" description:"if not provided snakeoil will be used" simplemode:"false"`
 	ProxyKey         flags.Filename  `long:"proxy-ssl-key" description:"if not provided snakeoil will be used" simplemode:"false"`
@@ -286,6 +287,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	config.Downloader.S3Source.SecretKey = c.S3Secret
 	config.Downloader.S3Source.PathPrefix = c.S3path
 	config.Downloader.S3Source.SearchRegex = c.S3Regex
+	config.Downloader.S3Source.Endpoint = c.S3Endpoint
 	var encBuf bytes.Buffer
 	enc := yaml.NewEncoder(&encBuf)
 	enc.SetIndent(2)
@@ -306,9 +308,14 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		if c.S3KeyID != "" || c.S3Secret != "" {
 			s3creds = credentials.NewStaticCredentials(c.S3KeyID, c.S3Secret, "")
 		}
+		var endpoint *string
+		if c.S3Endpoint != "" {
+			endpoint = aws.String(c.S3Endpoint)
+		}
 		sess, err := session.NewSession(&aws.Config{
 			Region:      aws.String(c.S3Region),
 			Credentials: s3creds,
+			Endpoint:    endpoint,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to test s3 credentials: %s", err)
