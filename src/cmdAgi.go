@@ -172,6 +172,8 @@ func (c *agiAddTokenCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	b.RunCommands(c.ClusterName.String(), [][]string{{"bash", "-c", "kill -HUP $(systemctl show --property MainPID --value agi-proxy)"}}, []int{1})
+	time.Sleep(time.Second)
 	if !c.GenURL {
 		fmt.Println(newToken)
 	} else {

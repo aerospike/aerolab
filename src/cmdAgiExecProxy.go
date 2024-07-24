@@ -18,12 +18,14 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -92,7 +94,11 @@ type tokens struct {
 	tokens []string
 }
 
-func (c *agiExecProxyCmd) loadTokensDo() {
+func (c *agiExecProxyCmd) loadTokensDo(lockEarly bool) {
+	if lockEarly {
+		c.tokens.Lock()
+		defer c.tokens.Unlock()
+	}
 	tokens := []string{}
 	err := filepath.Walk(c.TokenAuthLocation, func(fpath string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -118,16 +124,32 @@ func (c *agiExecProxyCmd) loadTokensDo() {
 		logger.Error("failed to read tokens: %s", err)
 		return
 	}
-	c.tokens.Lock()
+	if !lockEarly {
+		c.tokens.Lock()
+	}
 	c.tokens.tokens = tokens
-	c.tokens.Unlock()
+	if !lockEarly {
+		c.tokens.Unlock()
+	}
 }
 
 func (c *agiExecProxyCmd) loadTokensInterval() {
 	for {
-		c.loadTokensDo()
+		c.loadTokensDo(false)
 		time.Sleep(time.Minute)
 	}
+}
+
+func (c *agiExecProxyCmd) tokenViaHUP() {
+	s := make(chan os.Signal, 1)
+	signal.Notify(s, syscall.SIGHUP)
+
+	go func() {
+		for sig := range s {
+			log.Printf("Hot %s signal, reloading tokens", sig)
+			c.loadTokensDo(true)
+		}
+	}()
 }
 
 func (c *agiExecProxyCmd) loadTokens() {
@@ -136,6 +158,7 @@ func (c *agiExecProxyCmd) loadTokens() {
 	}
 	os.MkdirAll(c.TokenAuthLocation, 0755)
 	go c.loadTokensInterval()
+	go c.tokenViaHUP()
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		logger.Error("fsnotify could not be started, tokens will not be dynamically monitored; switching to once-a-minute system: %s", err)
@@ -155,7 +178,7 @@ func (c *agiExecProxyCmd) loadTokens() {
 				return
 			}
 			logger.Detail("fsnotify event:", event)
-			c.loadTokensDo()
+			c.loadTokensDo(false)
 		case err, ok := <-watcher.Errors:
 			logger.Error("fsnotify watcher error, tokens will not be dynamically monitored; switching to once-a-minute system (ok:%t err:%s)", ok, err)
 			return
