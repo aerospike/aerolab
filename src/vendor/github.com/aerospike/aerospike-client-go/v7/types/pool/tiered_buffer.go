@@ -26,7 +26,7 @@ type TieredBufferPool struct {
 	// Min is Minimum the minimum buffer size.
 	Min int
 
-	// Max is the maximum buffer is. The pool will allocate buffers of that size,
+	// Max is the maximum buffer size. The pool will allocate buffers of that size,
 	// But will not store them back.
 	Max int
 

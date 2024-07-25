@@ -16,8 +16,6 @@ package aerospike
 
 import (
 	"fmt"
-
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 )
 
 // IndexCollectionType is the secondary index collection type.
@@ -37,24 +35,6 @@ const (
 	// ICT_MAPVALUES is Index map values.
 	ICT_MAPVALUES
 )
-
-func (ict IndexCollectionType) grpc() kvs.IndexCollectionType {
-	switch ict {
-	// Normal scalar index.
-	case ICT_DEFAULT:
-		return kvs.IndexCollectionType_DEFAULT
-	// Index list elements.
-	case ICT_LIST:
-		return kvs.IndexCollectionType_LIST
-	// Index map keys.
-	case ICT_MAPKEYS:
-		return kvs.IndexCollectionType_MAPKEYS
-	// Index map values.
-	case ICT_MAPVALUES:
-		return kvs.IndexCollectionType_MAPVALUES
-	}
-	panic(unreachable)
-}
 
 func (ict IndexCollectionType) String() string {
 	switch ict {

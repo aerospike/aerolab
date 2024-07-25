@@ -55,7 +55,7 @@ var batchObjectParser func(
 ) Error
 
 func newBatchCommandGet(
-	node *Node,
+	client clientIfc,
 	batch *batchNode,
 	policy *BatchPolicy,
 	keys []*Key,
@@ -65,8 +65,14 @@ func newBatchCommandGet(
 	readAttr int,
 	isOperation bool,
 ) *batchCommandGet {
+	var node *Node
+	if batch != nil {
+		node = batch.Node
+	}
+
 	res := &batchCommandGet{
 		batchCommand: batchCommand{
+			client:           client,
 			baseMultiCommand: *newMultiCommand(node, nil, isOperation),
 			policy:           policy,
 			batch:            batch,
@@ -158,7 +164,6 @@ func (cmd *batchCommandGet) parseRecordResults(ifc command, receiveSize int) (bo
 					cmd.objectsFound[batchIndex] = true
 					if err := batchObjectParser(cmd, batchIndex, opCount, fieldCount, generation, expiration); err != nil {
 						return false, err
-
 					}
 				}
 			}
@@ -216,7 +221,7 @@ func (cmd *batchCommandGet) transactionType() transactionType {
 	return ttBatchRead
 }
 
-func (cmd *batchCommandGet) executeSingle(client *Client) Error {
+func (cmd *batchCommandGet) executeSingle(client clientIfc) Error {
 	for _, offset := range cmd.batch.offsets {
 		var err Error
 		if len(cmd.ops) > 0 {
@@ -226,7 +231,7 @@ func (cmd *batchCommandGet) executeSingle(client *Client) Error {
 					return newError(types.PARAMETER_ERROR, "Write operations not allowed in batch read").setNode(cmd.node)
 				}
 			}
-			cmd.records[offset], err = client.Operate(cmd.policy.toWritePolicy(), cmd.keys[offset], cmd.ops...)
+			cmd.records[offset], err = client.operate(cmd.policy.toWritePolicy(), cmd.keys[offset], true, cmd.ops...)
 		} else if (cmd.readAttr & _INFO1_NOBINDATA) == _INFO1_NOBINDATA {
 			cmd.records[offset], err = client.GetHeader(&cmd.policy.BasePolicy, cmd.keys[offset])
 		} else {
@@ -254,7 +259,7 @@ func (cmd *batchCommandGet) executeSingle(client *Client) Error {
 
 func (cmd *batchCommandGet) Execute() Error {
 	if cmd.objects == nil && len(cmd.batch.offsets) == 1 {
-		return cmd.executeSingle(cmd.node.cluster.client)
+		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
 }

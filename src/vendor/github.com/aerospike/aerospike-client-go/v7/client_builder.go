@@ -14,8 +14,6 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v7/types"
-
 // ClientType determines the type of client to build.
 type ClientType int
 
@@ -26,23 +24,3 @@ const (
 	// CTProxy means: Create a proxy client.
 	CTProxy
 )
-
-// CreateClientWithPolicyAndHost generates a new Client of the specified type
-// with the specified ClientPolicy and sets up the cluster using the provided hosts.
-// If the policy is nil, the default relevant policy will be used.
-func CreateClientWithPolicyAndHost(typ ClientType, policy *ClientPolicy, hosts ...*Host) (ClientIfc, Error) {
-	if len(hosts) == 0 {
-		return nil, newError(types.SERVER_NOT_AVAILABLE, "No hosts were provided")
-	}
-
-	switch typ {
-	case CTNative:
-		return NewClientWithPolicyAndHost(policy, hosts...)
-	case CTProxy:
-		if len(hosts) > 1 {
-			return nil, newError(types.GRPC_ERROR, "Only one proxy host is acceptable")
-		}
-		return NewProxyClientWithPolicyAndHost(policy, hosts[0])
-	}
-	return nil, newError(types.SERVER_NOT_AVAILABLE, "Invalid client type")
-}

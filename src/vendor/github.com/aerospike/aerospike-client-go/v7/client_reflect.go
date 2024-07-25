@@ -1,5 +1,4 @@
 //go:build !as_performance
-// +build !as_performance
 
 // Copyright 2014-2022 Aerospike, Inc.
 //
@@ -128,7 +127,7 @@ func (clnt *Client) BatchGetObjects(policy *BatchPolicy, keys []*Key, objects []
 	}
 
 	objectsFound := make([]bool, len(keys))
-	cmd := newBatchCommandGet(nil, nil, policy, keys, binNames, nil, nil, _INFO1_READ, false)
+	cmd := newBatchCommandGet(clnt, nil, policy, keys, binNames, nil, nil, _INFO1_READ, false)
 	cmd.objects = objectsVal
 	cmd.objectsFound = objectsFound
 

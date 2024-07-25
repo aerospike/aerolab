@@ -14,8 +14,6 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
-
 // RecordExistsAction determines how to handle writes when
 // the record already exists.
 type RecordExistsAction int
@@ -45,19 +43,3 @@ const (
 	// CREATE_ONLY means: Create only. Fail if record exists.
 	CREATE_ONLY
 )
-
-func (rea RecordExistsAction) grpc() kvs.RecordExistsAction {
-	switch rea {
-	case UPDATE:
-		return kvs.RecordExistsAction_UPDATE
-	case UPDATE_ONLY:
-		return kvs.RecordExistsAction_UPDATE_ONLY
-	case REPLACE:
-		return kvs.RecordExistsAction_REPLACE
-	case REPLACE_ONLY:
-		return kvs.RecordExistsAction_REPLACE_ONLY
-	case CREATE_ONLY:
-		return kvs.RecordExistsAction_CREATE_ONLY
-	}
-	panic(unreachable)
-}

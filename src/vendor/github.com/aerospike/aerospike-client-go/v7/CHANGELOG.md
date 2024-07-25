@@ -1,22 +1,37 @@
 # Change History
 
-## June 27 2024: v7.5.0
+## July 19 2024: v7.6.0
+
+  Minor fix release.
+
+- **Improvements**
+  - [CLIENT-3045] Move proxy client build behind a build flag.
+    This removes the GRPC compilation and potential namespace conflict from the default build and moves it behind the compiler build flag "as_proxy".
+
+- **Fixes**
+  - [CLIENT-3022] `Close()` throws a `nil` pointer error on `ProxyClient` without Authentication.
+  - [CLIENT-3044] Circular reference in between `Client`<->`Cluster` causes memory leak when the client is not closed manually.
+  - [CLIENT-3046] Wrong return type in Single Key Batch Operations with Multiple Ops per Bin.
+  - [CLIENT-3047] Fix pointer value assignment in baseMultiCommand.parseKey (#443).
+  - [CLIENT-3048] Use precomputed ops variable in batchIndexCommandGet.executeSingle (#442).
+  - [CLIENT-3049] Use a specialized pool for grpc conns to prevent premature reaping.
+
+## July 1 2024: v7.5.0
 
   This a minor feature and fix release.
 
 - **New Features**
-  - [CLIENT-2968] Support new v71 proxy features:
-    - Info command.
+  - [CLIENT-2968] Support new v7.1 proxy server features:
+    - `Info` command.
     - `QueryPolicy.QueryDuration`
   - [CLIENT-3012] Support new server 7.1 info command error response strings.
 
 - **Improvements**
   - [CLIENT-2997] Scans should work in a mixed cluster of v5.7 and v6.4 server nodes.
-  - [CLIENT-3012] Support new server 7.1 info command error response strings.
-  - [CLIENT-3020] Change ReadModeSC doc from server to client perspective.
+  - [CLIENT-3020] Change `ReadModeSC` doc from server to client perspective.
   
 - **Fixes**
-  - [CLIENT-3019] Prevent Goroutine leak in AuthInterceptor for the Proxy Client.
+  - [CLIENT-3019] Prevent Goroutine leak in `AuthInterceptor` for the Proxy Client.
 
 ## May 20 2024: v7.4.0
 
