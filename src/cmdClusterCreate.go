@@ -127,6 +127,7 @@ type clusterCreateCmd struct {
 	AutoStartAerospike    TypeYesNo      `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
 	NoOverrideClusterName bool           `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
 	NoSetHostname         bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change" simplemode:"false"`
+	NoSetDNS              bool           `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
 	ScriptEarly           flags.Filename `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
 	ScriptLate            flags.Filename `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
 	parallelThreadsCmd
@@ -1191,6 +1192,23 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	}
 	b.WorkOnServers()
 	returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(nnode int) error {
+		if a.opts.Config.Backend.Type != "docker" && !c.NoSetDNS {
+			dnsScript := `mkdir -p /etc/systemd/resolved.conf.d
+cat <<'EOF' > /etc/systemd/resolved.conf.d/aerolab.conf
+[Resolve]
+DNS=1.1.1.1
+FallbackDNS=8.8.8.8
+EOF
+systemctl restart systemd-resolved
+`
+			if err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{filePath: "/tmp/fix-dns.sh", fileContents: strings.NewReader(dnsScript), fileSize: len(dnsScript)}}, []int{nnode}); err == nil {
+				if _, err = b.RunCommands(string(c.ClusterName), [][]string{{"/bin/bash", "-c", "chmod 755 /tmp/fix-dns.sh; bash /tmp/fix-dns.sh"}}, []int{nnode}); err != nil {
+					log.Print("Failed to set DNS resolvers by running /tmp/fix-dns.sh")
+				}
+			} else {
+				log.Printf("Failed to upload DNS resolver script to /tmp/fix-dns.sh: %s", err)
+			}
+		}
 		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{nnode})
 		if err != nil {
 			return err
