@@ -15,13 +15,9 @@
 package aerospike
 
 import (
-	"context"
-	"math/rand"
 	"strconv"
 	"strings"
-	"time"
 
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
@@ -32,7 +28,7 @@ type ExecuteTask struct {
 	taskID uint64
 	scan   bool
 
-	clnt *ProxyClient
+	clnt ClientIfc
 
 	// The following map keeps an account of what nodes were ever observed with the job registered on them.
 	// If the job was ever observed, the task will return true for it is not found anymore (purged from task queue after completion)
@@ -46,16 +42,6 @@ func NewExecuteTask(cluster *Cluster, statement *Statement) *ExecuteTask {
 		taskID:   statement.TaskId,
 		scan:     statement.IsScan(),
 		observed: make(map[string]struct{}, len(cluster.GetNodes())),
-	}
-}
-
-// newGRPCExecuteTask initializes task with fields needed to query server nodes.
-func newGRPCExecuteTask(clnt *ProxyClient, statement *Statement) *ExecuteTask {
-	return &ExecuteTask{
-		baseTask: newTask(nil),
-		taskID:   statement.TaskId,
-		scan:     statement.IsScan(),
-		clnt:     clnt,
 	}
 }
 
@@ -159,57 +145,4 @@ func (etsk *ExecuteTask) IsDone() (bool, Error) {
 // will be sent on the channel.
 func (etsk *ExecuteTask) OnComplete() chan Error {
 	return etsk.onComplete(etsk)
-}
-
-func (etsk *ExecuteTask) grpcIsDone() (bool, Error) {
-	statusReq := &kvs.BackgroundTaskStatusRequest{
-		TaskId: int64(etsk.taskID),
-		IsScan: etsk.scan,
-	}
-
-	req := kvs.AerospikeRequestPayload{
-		Id:                          rand.Uint32(),
-		Iteration:                   1,
-		BackgroundTaskStatusRequest: statusReq,
-	}
-
-	conn, err := etsk.clnt.grpcConn()
-	if err != nil {
-		return false, err
-	}
-
-	client := kvs.NewQueryClient(conn)
-
-	ctx, cancel := context.WithTimeout(context.Background(), NewInfoPolicy().Timeout)
-	defer cancel()
-
-	streamRes, gerr := client.BackgroundTaskStatus(ctx, &req)
-	if gerr != nil {
-		return false, newGrpcError(true, gerr, gerr.Error())
-	}
-
-	for {
-		time.Sleep(time.Second)
-
-		res, gerr := streamRes.Recv()
-		if gerr != nil {
-			e := newGrpcError(true, gerr)
-			return false, e
-		}
-
-		if res.GetStatus() != 0 {
-			e := newGrpcStatusError(res)
-			etsk.clnt.returnGrpcConnToPool(conn)
-			return false, e
-		}
-
-		switch res.GetBackgroundTaskStatus() {
-		case kvs.BackgroundTaskStatus_COMPLETE:
-			etsk.clnt.returnGrpcConnToPool(conn)
-			return true, nil
-		default:
-			etsk.clnt.returnGrpcConnToPool(conn)
-			return false, nil
-		}
-	}
 }

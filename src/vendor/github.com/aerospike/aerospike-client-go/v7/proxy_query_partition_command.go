@@ -1,3 +1,5 @@
+//go:build as_proxy
+
 // Copyright 2014-2022 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

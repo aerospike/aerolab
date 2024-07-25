@@ -17,8 +17,6 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
-
 // ReadModeSC is the read policy in SC (strong consistency) mode namespaces.
 // Determines SC read consistency options.
 type ReadModeSC int
@@ -40,17 +38,3 @@ const (
 	// partitions. Increasing sequence of record versions is not guaranteed.
 	ReadModeSCAllowUnavailable
 )
-
-func (rm ReadModeSC) grpc() kvs.ReadModeSC {
-	switch rm {
-	case ReadModeSCSession:
-		return kvs.ReadModeSC_SESSION
-	case ReadModeSCLinearize:
-		return kvs.ReadModeSC_LINEARIZE
-	case ReadModeSCAllowReplica:
-		return kvs.ReadModeSC_ALLOW_REPLICA
-	case ReadModeSCAllowUnavailable:
-		return kvs.ReadModeSC_ALLOW_UNAVAILABLE
-	}
-	panic(unreachable)
-}

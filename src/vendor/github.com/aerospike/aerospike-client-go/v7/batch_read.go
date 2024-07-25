@@ -155,5 +155,5 @@ func (br *BatchRead) String() string {
 }
 
 func (br *BatchRead) headerOnly() bool {
-	return len(br.BinNames) == 0 && !br.ReadAllBins
+	return len(br.Ops) == 0 && len(br.BinNames) == 0 && !br.ReadAllBins
 }

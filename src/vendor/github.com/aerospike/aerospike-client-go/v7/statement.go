@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"math/rand"
 
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v7/types"
 )
 
@@ -113,42 +112,4 @@ func (stmt *Statement) terminationError() types.ResultCode {
 // Always set the taskID client-side to a non-zero random value
 func (stmt *Statement) prepare(returnData bool) {
 	stmt.ReturnData = returnData
-}
-
-func (stmt *Statement) grpc(policy *QueryPolicy, ops []*Operation) *kvs.Statement {
-	IndexName := stmt.IndexName
-	// reset taskID every time
-	TaskId := rand.Int63()
-	SetName := stmt.SetName
-
-	MaxRecords := uint64(policy.MaxRecords)
-	RecordsPerSecond := uint32(policy.RecordsPerSecond)
-
-	funcArgs := make([][]byte, 0, len(stmt.functionArgs))
-	for i := range stmt.functionArgs {
-		funcArgs = append(funcArgs, grpcValuePacked(stmt.functionArgs[i]))
-	}
-
-	return &kvs.Statement{
-		Namespace:        stmt.Namespace,
-		SetName:          &SetName,
-		IndexName:        &IndexName,
-		BinNames:         stmt.BinNames,
-		Filter:           stmt.Filter.grpc(),
-		PackageName:      stmt.packageName,
-		FunctionName:     stmt.functionName,
-		FunctionArgs:     funcArgs,
-		Operations:       grpcOperations(ops),
-		TaskId:           &TaskId,
-		MaxRecords:       &MaxRecords,
-		RecordsPerSecond: &RecordsPerSecond,
-	}
-}
-
-func grpcOperations(ops []*Operation) []*kvs.Operation {
-	res := make([]*kvs.Operation, 0, len(ops))
-	for i := range ops {
-		res = append(res, ops[i].grpc())
-	}
-	return res
 }

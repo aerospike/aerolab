@@ -1,3 +1,5 @@
+//go:build as_proxy
+
 // Copyright 2014-2022 Aerospike, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -90,11 +92,13 @@ func (interceptor *authInterceptor) tokenRefresher() {
 
 	// provide 5 secs of buffer before expiry due to network latency
 	wait := interceptor.expiry.Sub(time.Now()) - 5*time.Second
+	ticker := time.NewTicker(wait)
+	defer ticker.Stop()
+
 	for {
-		ticker := time.NewTicker(wait)
+		ticker.Reset(wait)
 		select {
 		case <-ticker.C:
-			ticker.Stop() // prevent goroutine leak
 			err := interceptor.refreshToken()
 			if err != nil {
 				wait = time.Second
@@ -103,7 +107,6 @@ func (interceptor *authInterceptor) tokenRefresher() {
 			}
 
 		case <-interceptor.closer:
-			ticker.Stop() // prevent goroutine leak
 			// channel closed; return from the goroutine
 			return
 		}

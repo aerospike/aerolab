@@ -17,8 +17,6 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
-
 // CommitLevel indicates the desired consistency guarantee when committing a transaction on the server.
 type CommitLevel int
 
@@ -29,13 +27,3 @@ const (
 	// COMMIT_MASTER indicates the server should wait until successfully committing master only.
 	COMMIT_MASTER
 )
-
-func (cl CommitLevel) grpc() kvs.CommitLevel {
-	switch cl {
-	case COMMIT_ALL:
-		return kvs.CommitLevel_COMMIT_ALL
-	case COMMIT_MASTER:
-		return kvs.CommitLevel_COMMIT_MASTER
-	}
-	panic(unreachable)
-}

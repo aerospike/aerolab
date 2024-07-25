@@ -16,11 +16,9 @@ package aerospike
 
 import (
 	"fmt"
-	"math/rand"
 	"reflect"
 
 	"github.com/aerospike/aerospike-client-go/v7/logger"
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v7/types"
 
 	Buffer "github.com/aerospike/aerospike-client-go/v7/utils/buffer"
@@ -197,8 +195,7 @@ func (cmd *readCommand) parseRecord(
 	var bins BinMap
 	receiveOffset := 0
 
-	type opList []interface{}
-	_, isOperate := ifc.(*operateCommand)
+	opCmd, isOperate := ifc.(*operateCommand)
 	var binNamesSet []string
 
 	// There can be fields in the response (setname etc).
@@ -235,12 +232,12 @@ func (cmd *readCommand) parseRecord(
 		if isOperate {
 			// for operate list command results
 			if prev, exists := bins[name]; exists {
-				if res, ok := prev.(opList); ok {
+				if res, ok := prev.(OpResults); ok {
 					// List already exists.  Add to it.
 					bins[name] = append(res, value)
 				} else {
 					// Make a list to store all values.
-					bins[name] = opList{prev, value}
+					bins[name] = OpResults{prev, value}
 					binNamesSet = append(binNamesSet, name)
 				}
 			} else {
@@ -251,9 +248,10 @@ func (cmd *readCommand) parseRecord(
 		}
 	}
 
-	if isOperate {
+	// TODO: Remove this in the next major release
+	if isOperate && !opCmd.useOpResults {
 		for i := range binNamesSet {
-			bins[binNamesSet[i]] = []interface{}(bins[binNamesSet[i]].(opList))
+			bins[binNamesSet[i]] = []interface{}(bins[binNamesSet[i]].(OpResults))
 		}
 	}
 
@@ -270,51 +268,4 @@ func (cmd *readCommand) Execute() Error {
 
 func (cmd *readCommand) transactionType() transactionType {
 	return ttGet
-}
-
-func (cmd *readCommand) ExecuteGRPC(clnt *ProxyClient) Error {
-	defer cmd.grpcPutBufferBack()
-
-	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
-	if err != nil {
-		return err
-	}
-
-	req := kvs.AerospikeRequestPayload{
-		Id:         rand.Uint32(),
-		Iteration:  1,
-		Payload:    cmd.dataBuffer[:cmd.dataOffset],
-		ReadPolicy: cmd.policy.grpc(),
-	}
-
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return err
-	}
-
-	client := kvs.NewKVSClient(conn)
-
-	ctx, cancel := cmd.policy.grpcDeadlineContext()
-	defer cancel()
-
-	res, gerr := client.Read(ctx, &req)
-	if gerr != nil {
-		return newGrpcError(!cmd.isRead(), gerr, gerr.Error())
-	}
-
-	cmd.commandWasSent = true
-
-	defer clnt.returnGrpcConnToPool(conn)
-
-	if res.GetStatus() != 0 {
-		return newGrpcStatusError(res)
-	}
-
-	cmd.conn = newGrpcFakeConnection(res.GetPayload(), nil)
-	err = cmd.parseResult(cmd, cmd.conn)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
