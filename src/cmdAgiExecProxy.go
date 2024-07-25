@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"log"
@@ -87,6 +88,7 @@ type agiExecProxyCmd struct {
 	notifyJSON           bool
 	deployJson           string
 	wwwSimple            bool
+	prettySource         string
 }
 
 type tokens struct {
@@ -283,6 +285,27 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		c.isTokenAuth = true
 	}
 	go c.getDeps()
+	// pretty source
+	ingestConfig, err := ingest.MakeConfig(true, "/opt/agi/ingest.yaml", true)
+	if err != nil {
+		log.Printf("could not load ingest config for slack notifier: %s", err)
+	} else {
+		if ingestConfig.Downloader.S3Source.Enabled {
+			c.prettySource = fmt.Sprintf("S3 Source: %s:%s %s", ingestConfig.Downloader.S3Source.BucketName, ingestConfig.Downloader.S3Source.PathPrefix, ingestConfig.Downloader.S3Source.SearchRegex)
+		}
+		if ingestConfig.Downloader.SftpSource.Enabled {
+			if c.prettySource != "" {
+				c.prettySource = c.prettySource + "<br>"
+			}
+			c.prettySource = c.prettySource + fmt.Sprintf("SFTP Source: %s:%s %s", ingestConfig.Downloader.SftpSource.Host, ingestConfig.Downloader.SftpSource.PathPrefix, ingestConfig.Downloader.SftpSource.SearchRegex)
+		}
+		if ingestConfig.CustomSourceName != "" {
+			if c.prettySource != "" {
+				c.prettySource = c.prettySource + "<br>"
+			}
+			c.prettySource = c.prettySource + fmt.Sprintf("Custom Source: %s", ingestConfig.CustomSourceName)
+		}
+	}
 	// notifier load start
 	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
 	if err == nil {
@@ -487,9 +510,12 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 		Description string
 	}
 	nlabel, _ := os.ReadFile("/opt/agi/label")
+	if string(nlabel) == "" {
+		nlabel = []byte(c.AGIName)
+	}
 	p := np{
-		Title:       c.AGIName,
-		Description: string(nlabel),
+		Title:       html.EscapeString(c.prettySource),
+		Description: html.EscapeString(string(nlabel)),
 	}
 	err = t.ExecuteTemplate(w, "index", p)
 	if err != nil {
