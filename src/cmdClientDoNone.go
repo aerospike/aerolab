@@ -17,6 +17,7 @@ type clientCreateNoneCmd struct {
 	ClientName    TypeClientName         `short:"n" long:"group-name" description:"Client group name" default:"client"`
 	ClientCount   int                    `short:"c" long:"count" description:"Number of clients" default:"1"`
 	NoSetHostname bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
+	NoSetDNS      bool                   `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
 	StartScript   flags.Filename         `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	Aws           clusterCreateCmdAws    `no-flag:"true"`
 	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
@@ -383,6 +384,23 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 		log.Printf("Node IP map: %v", nip)
 	}
 	returns := parallelize.MapLimit(nodeListNew, c.ParallelThreads, func(nnode int) error {
+		if a.opts.Config.Backend.Type != "docker" && !c.NoSetDNS {
+			dnsScript := `mkdir -p /etc/systemd/resolved.conf.d
+cat <<'EOF' > /etc/systemd/resolved.conf.d/aerolab.conf
+[Resolve]
+DNS=1.1.1.1
+FallbackDNS=8.8.8.8
+EOF
+systemctl restart systemd-resolved
+`
+			if err = b.CopyFilesToClusterReader(string(c.ClientName), []fileListReader{{filePath: "/tmp/fix-dns.sh", fileContents: strings.NewReader(dnsScript), fileSize: len(dnsScript)}}, []int{nnode}); err == nil {
+				if _, err = b.RunCommands(string(c.ClientName), [][]string{{"/bin/bash", "-c", "chmod 755 /tmp/fix-dns.sh; bash /tmp/fix-dns.sh"}}, []int{nnode}); err != nil {
+					log.Print("Failed to set DNS resolvers by running /tmp/fix-dns.sh")
+				}
+			} else {
+				log.Printf("Failed to upload DNS resolver script to /tmp/fix-dns.sh: %s", err)
+			}
+		}
 		// set hostnames for cloud
 		if a.opts.Config.Backend.Type != "docker" && !c.NoSetHostname {
 			newHostname := fmt.Sprintf("%s-%d", string(c.ClientName), nnode)
