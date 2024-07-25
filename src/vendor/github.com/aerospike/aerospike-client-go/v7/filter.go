@@ -17,7 +17,6 @@ package aerospike
 import (
 	"fmt"
 
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 	ParticleType "github.com/aerospike/aerospike-client-go/v7/types/particle_type"
 )
 
@@ -124,23 +123,6 @@ func (fltr *Filter) String() string {
 		fltr.end,
 		fltr.ctx,
 	)
-}
-
-func (fltr *Filter) grpc() *kvs.Filter {
-	if fltr == nil {
-		return nil
-	}
-
-	res := &kvs.Filter{
-		Name:      fltr.name,
-		ColType:   fltr.idxType.grpc(),
-		PackedCtx: fltr.grpcPackCtxPayload(),
-		ValType:   int32(fltr.valueParticleType),
-		Begin:     grpcValuePacked(fltr.begin),
-		End:       grpcValuePacked(fltr.end),
-	}
-
-	return res
 }
 
 // IndexCollectionType returns filter's index type.

@@ -17,8 +17,6 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
-
 // QueryDuration defines the expected query duration. The server treats the query in different ways depending on the expected duration.
 // This enum is ignored for aggregation queries, background queries and server versions < 6.0.
 type QueryDuration int
@@ -48,15 +46,3 @@ const (
 	// This value is treated exactly like LONG for server versions < 7.1.
 	LONG_RELAX_AP
 )
-
-func (qd QueryDuration) grpc() kvs.QueryDuration {
-	switch qd {
-	case LONG:
-		return kvs.QueryDuration(kvs.QueryDuration_LONG)
-	case SHORT:
-		return kvs.QueryDuration(kvs.QueryDuration_SHORT)
-	case LONG_RELAX_AP:
-		return kvs.QueryDuration(kvs.QueryDuration_LONG_RELAX_AP)
-	}
-	panic(unreachable)
-}

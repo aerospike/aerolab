@@ -15,17 +15,14 @@
 package aerospike
 
 import (
-	"math/rand"
 	"reflect"
 
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v7/types"
 	Buffer "github.com/aerospike/aerospike-client-go/v7/utils/buffer"
 )
 
 type batchCommandOperate struct {
 	batchCommand
-	client ClientIfc
 
 	attr    *batchAttr
 	records []BatchRecordIfc
@@ -36,19 +33,23 @@ type batchCommandOperate struct {
 }
 
 func newBatchCommandOperate(
-	client ClientIfc,
-	node *Node,
+	client clientIfc,
 	batch *batchNode,
 	policy *BatchPolicy,
 	records []BatchRecordIfc,
 ) *batchCommandOperate {
+	var node *Node
+	if batch != nil {
+		node = batch.Node
+	}
+
 	res := &batchCommandOperate{
 		batchCommand: batchCommand{
+			client:           client,
 			baseMultiCommand: *newMultiCommand(node, nil, true),
 			policy:           policy,
 			batch:            batch,
 		},
-		client:  client,
 		records: records,
 	}
 	return res
@@ -228,7 +229,7 @@ func (cmd *batchCommandOperate) parseRecord(key *Key, opCount int, generation, e
 	return newRecord(cmd.node, key, bins, generation, expiration), nil
 }
 
-func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
+func (cmd *batchCommandOperate) executeSingle(client clientIfc) Error {
 	var res *Record
 	var err Error
 	for _, br := range cmd.records {
@@ -245,16 +246,14 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 			} else if len(ops) == 0 {
 				ops = append(ops, GetOp())
 			}
-			res, err = client.Operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy), br.Key, ops...)
+			res, err = client.operate(cmd.client.getUsableBatchReadPolicy(br.Policy).toWritePolicy(cmd.policy), br.Key, true, ops...)
 		case *BatchWrite:
 			policy := cmd.client.getUsableBatchWritePolicy(br.Policy).toWritePolicy(cmd.policy)
 			policy.RespondPerEachOp = true
-			res, err = client.Operate(policy, br.Key, br.Ops...)
-			br.setRecord(res)
+			res, err = client.operate(policy, br.Key, true, br.Ops...)
 		case *BatchDelete:
 			policy := cmd.client.getUsableBatchDeletePolicy(br.Policy).toWritePolicy(cmd.policy)
-			res, err = client.Operate(policy, br.Key, DeleteOp())
-			br.setRecord(res)
+			res, err = client.operate(policy, br.Key, true, DeleteOp())
 		case *BatchUDF:
 			policy := cmd.client.getUsableBatchUDFPolicy(br.Policy).toWritePolicy(cmd.policy)
 			policy.RespondPerEachOp = true
@@ -287,7 +286,7 @@ func (cmd *batchCommandOperate) executeSingle(client *Client) Error {
 
 func (cmd *batchCommandOperate) Execute() Error {
 	if cmd.objects == nil && len(cmd.records) == 1 {
-		return cmd.executeSingle(cmd.node.cluster.client)
+		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
 }
@@ -301,69 +300,4 @@ func (cmd *batchCommandOperate) transactionType() transactionType {
 
 func (cmd *batchCommandOperate) generateBatchNodes(cluster *Cluster) ([]*batchNode, Error) {
 	return newBatchOperateNodeListIfcRetry(cluster, cmd.policy, cmd.records, cmd.sequenceAP, cmd.sequenceSC, cmd.batch)
-}
-
-func (cmd *batchCommandOperate) ExecuteGRPC(clnt *ProxyClient) Error {
-	defer cmd.grpcPutBufferBack()
-
-	err := cmd.prepareBuffer(cmd, cmd.policy.deadline())
-	if err != nil {
-		return err
-	}
-
-	req := kvs.AerospikeRequestPayload{
-		Id:          rand.Uint32(),
-		Iteration:   1,
-		Payload:     cmd.dataBuffer[:cmd.dataOffset],
-		ReadPolicy:  cmd.policy.grpc(),
-		WritePolicy: cmd.policy.grpc_write(),
-	}
-
-	conn, err := clnt.grpcConn()
-	if err != nil {
-		return err
-	}
-
-	client := kvs.NewKVSClient(conn)
-
-	ctx, cancel := cmd.policy.grpcDeadlineContext()
-	defer cancel()
-
-	streamRes, gerr := client.BatchOperate(ctx, &req)
-	if gerr != nil {
-		return newGrpcError(!cmd.isRead(), gerr, gerr.Error())
-	}
-
-	cmd.commandWasSent = true
-
-	readCallback := func() ([]byte, Error) {
-		if cmd.grpcEOS {
-			return nil, errGRPCStreamEnd
-		}
-
-		res, gerr := streamRes.Recv()
-		if gerr != nil {
-			e := newGrpcError(!cmd.isRead(), gerr)
-			return nil, e
-		}
-
-		if res.GetStatus() != 0 {
-			e := newGrpcStatusError(res)
-			return res.GetPayload(), e
-		}
-
-		cmd.grpcEOS = !res.GetHasNext()
-
-		return res.GetPayload(), nil
-	}
-
-	cmd.conn = newGrpcFakeConnection(nil, readCallback)
-	err = cmd.parseResult(cmd, cmd.conn)
-	if err != nil && err != errGRPCStreamEnd {
-		return err
-	}
-
-	clnt.returnGrpcConnToPool(conn)
-
-	return nil
 }

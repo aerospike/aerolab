@@ -14,13 +14,16 @@
 
 package aerospike
 
-import "github.com/aerospike/aerospike-client-go/v7/types"
+import (
+	"github.com/aerospike/aerospike-client-go/v7/types"
+)
 
 type batchIndexCommandGet struct {
 	batchCommandGet
 }
 
 func newBatchIndexCommandGet(
+	client clientIfc,
 	batch *batchNode,
 	policy *BatchPolicy,
 	records []*BatchRead,
@@ -34,6 +37,7 @@ func newBatchIndexCommandGet(
 	res := &batchIndexCommandGet{
 		batchCommandGet{
 			batchCommand: batchCommand{
+				client:           client,
 				baseMultiCommand: *newMultiCommand(node, nil, isOperation),
 				policy:           policy,
 				batch:            batch,
@@ -59,12 +63,12 @@ func (cmd *batchIndexCommandGet) writeBuffer(ifc command) Error {
 
 func (cmd *batchIndexCommandGet) Execute() Error {
 	if len(cmd.batch.offsets) == 1 {
-		return cmd.executeSingle(cmd.node.cluster.client)
+		return cmd.executeSingle(cmd.client)
 	}
 	return cmd.execute(cmd)
 }
 
-func (cmd *batchIndexCommandGet) executeSingle(client *Client) Error {
+func (cmd *batchIndexCommandGet) executeSingle(client clientIfc) Error {
 	for i, br := range cmd.indexRecords {
 		var ops []*Operation
 		if br.headerOnly() {
@@ -76,7 +80,7 @@ func (cmd *batchIndexCommandGet) executeSingle(client *Client) Error {
 		} else {
 			ops = br.Ops
 		}
-		res, err := client.Operate(cmd.policy.toWritePolicy(), br.Key, br.Ops...)
+		res, err := client.operate(cmd.policy.toWritePolicy(), br.Key, true, ops...)
 		cmd.indexRecords[i].setRecord(res)
 		if err != nil {
 			cmd.indexRecords[i].setRawError(err)

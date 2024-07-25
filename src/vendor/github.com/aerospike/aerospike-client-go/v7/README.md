@@ -2,10 +2,11 @@
 
 [![Aerospike Client Go](https://goreportcard.com/badge/github.com/aerospike/aerospike-client-go/v7)](https://goreportcard.com/report/github.com/aerospike/aerospike-client-go/v7)
 [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go/v7?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v7)
+[![Tests](https://github.com/aerospike/aerospike-client-go/actions/workflows/build.yml/badge.svg?branch=v7&event=push)](github.com/aerospike/aerospike-client-go/actions)
 
 An Aerospike library for Go.
 
-This library is compatible with Go 1.21+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
+This library is compatible with Go 1.20+ and supports the following operating systems: Linux, Mac OS X (Windows builds are possible, but untested).
 
 Up-to-date documentation is available in the [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go/v7?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v7).
 
@@ -26,6 +27,7 @@ Please refer to [`CHANGELOG.md`](CHANGELOG.md) for release notes, or if you enco
   - [API Documentation](#api-documentation)
   - [Google App Engine](#google-app-engine)
   - [Reflection, and Object API](#reflection-and-object-api)
+  - [Proxy Client / DBAAS](#proxy-client--dbaas)
   - [License](#license)
 
 ## Usage
@@ -87,7 +89,7 @@ Details about the API are available in the [`docs`](docs) directory.
 <a name="Prerequisites"></a>
 ## Prerequisites
 
-[Go](http://golang.org) version v1.21+ is required.
+[Go](http://golang.org) version v1.20+ is required.
 
 To install the latest stable version of Go, visit
 [http://golang.org/dl/](http://golang.org/dl/)
@@ -115,7 +117,7 @@ Using [gopkg.in](https://gopkg.in/) is also supported: `go get -u gopkg.in/aeros
 
 - To run a go program directly: ```go run <filename.go>```
 - to build:  ```go build -o <output> <filename.go>```
-- example: ```go build -o benchmark tools/benchmark/benchmark.go```
+- example: ```go build -tags as_proxy -o benchmark tools/benchmark/benchmark.go```
 
 <a name="Performance"></a>
 ## Performance Tweaking
@@ -138,40 +140,46 @@ To run all the test cases with race detection:
     $ ginkgo -r -race
 
 
-<a name="Examples"></a>
+<a name="examples"></a>
 ## Examples
 
 A variety of example applications are provided in the [`examples`](examples) directory.
 
-<a name="Tools"></a>
+<a name="tools"></a>
 ### Tools
 
 A variety of clones of original tools are provided in the [`tools`](tools) directory.
 They show how to use more advanced features of the library to re-implement the same functionality in a more concise way.
 
-<a name="Benchmarks"></a>
+<a name="benchmarks"></a>
 ## Benchmarks
 
 Benchmark utility is provided in the [`tools/benchmark`](tools/benchmark) directory.
 See the [`tools/benchmark/README.md`](tools/benchmark/README.md) for details.
 
-<a name="API-Documentation"></a>
+<a name="api-documentation"></a>
 ## API Documentation
 
 A simple API documentation is available in the [`docs`](docs/README.md) directory. The latest up-to-date docs can be found in [![Godoc](https://godoc.org/github.com/aerospike/aerospike-client-go?status.svg)](https://pkg.go.dev/github.com/aerospike/aerospike-client-go/v7).
 
-<a name="App-Engine"></a>
+<a name="google-app-engine"></a>
 ## Google App Engine
 
 To build the library for App Engine, build it with the build tag `app_engine`. Aggregation functionality is not available in this build.
 
 
-<a name="Reflection"></a>
+<a name="reflection-and-object-api"></a>
 ## Reflection, and Object API
 
 To make the library both flexible and fast, we had to integrate the reflection API (methods with `[Get/Put/...]Object` names) tightly in the library. In case you wanted to avoid mixing those API in your app inadvertently, you can use the build tag `as_performance` to remove those APIs from the build.
 
 
+<a name="proxy-client--dbaas"></a>
+## Proxy Client / DBAAS
+
+To compile the client for the proxy server in our database-as-a-service (dbaas) environment, pass `-tags as_proxy` to the compiler on build.
+
+<a name="license"></a>
 ## License
 
 The Aerospike Go Client is made available under the terms of the Apache License, Version 2, as stated in the file `LICENSE`.

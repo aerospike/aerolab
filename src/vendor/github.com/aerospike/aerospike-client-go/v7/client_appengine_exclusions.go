@@ -1,5 +1,4 @@
 //go:build !app_engine
-// +build !app_engine
 
 // Copyright 2014-2022 Aerospike, Inc.
 //
@@ -152,15 +151,4 @@ func (clnt *Client) QueryAggregate(policy *QueryPolicy, statement *Statement, pa
 	}()
 
 	return recSet, nil
-}
-
-// QueryAggregate executes a Map/Reduce query and returns the results.
-// The query executor puts records on the channel from separate goroutines.
-// The caller can concurrently pop records off the channel through the
-// Recordset.Records channel.
-//
-// This method is only supported by Aerospike 3+ servers.
-// If the policy is nil, the default relevant policy will be used.
-func (clnt *ProxyClient) QueryAggregate(policy *QueryPolicy, statement *Statement, packageName, functionName string, functionArgs ...Value) (*Recordset, Error) {
-	panic("NOT SUPPORTED")
 }
