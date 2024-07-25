@@ -139,6 +139,7 @@ type clusterCreateCmd struct {
 	gcpMeta        map[string]string
 	useAgiFirewall bool
 	volExtraTags   map[string]string
+	spotFallback   bool
 }
 
 type osSelectorCmd struct {
@@ -973,6 +974,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		extra.spotInstance = c.Gcp.SpotInstance
 		extra.terminateOnPoweroff = c.Gcp.TerminateOnPoweroff
 	}
+	extra.spotFallback = c.spotFallback
 
 	// limitnofile check
 	if a.opts.Config.Backend.Type == "docker" {

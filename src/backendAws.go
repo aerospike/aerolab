@@ -3384,13 +3384,20 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 		reservationsX, err := d.ec2svc.RunInstances(&input)
 		if err != nil {
-			if os.Getenv("AEROLAB_BACKEND_DEBUG") == "on" {
-				jenc := json.NewEncoder(os.Stdout)
-				jenc.SetIndent("", "  ")
-				jenc.Encode(input)
+			if strings.Contains(err.Error(), "InsufficientInstanceCapacity") && extra.spotInstance && extra.spotFallback {
+				extra.spotInstance = false
+				input.InstanceMarketOptions = nil
+				reservationsX, err = d.ec2svc.RunInstances(&input)
 			}
-			fmt.Print(mappings)
-			return fmt.Errorf("could not run RunInstances\n%s", err)
+			if err != nil {
+				if os.Getenv("AEROLAB_BACKEND_DEBUG") == "on" {
+					jenc := json.NewEncoder(os.Stdout)
+					jenc.SetIndent("", "  ")
+					jenc.Encode(input)
+				}
+				fmt.Print(mappings)
+				return fmt.Errorf("could not run RunInstances\n%s", err)
+			}
 		}
 		reservations = append(reservations, reservationsX)
 	}
