@@ -16,9 +16,6 @@ package aerospike
 
 import (
 	"math"
-	"time"
-
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 )
 
 const (
@@ -93,57 +90,6 @@ func NewWritePolicy(generation, expiration uint32) *WritePolicy {
 	// Writes may not be idempotent.
 	// do not allow retries on writes by default.
 	res.MaxRetries = 0
-
-	return res
-}
-
-func (p *WritePolicy) grpc() *kvs.WritePolicy {
-	return &kvs.WritePolicy{
-		Replica:    p.ReplicaPolicy.grpc(),
-		ReadModeSC: p.ReadModeSC.grpc(),
-		ReadModeAP: p.ReadModeAP.grpc(),
-	}
-}
-
-func (p *WritePolicy) grpc_exec(expr *Expression) *kvs.BackgroundExecutePolicy {
-	if p == nil {
-		return nil
-	}
-
-	SendKey := p.SendKey
-	TotalTimeout := uint32(p.TotalTimeout / time.Millisecond)
-	RecordExistsAction := p.RecordExistsAction.grpc()
-	GenerationPolicy := p.GenerationPolicy.grpc()
-	CommitLevel := p.CommitLevel.grpc()
-	Generation := p.Generation
-	Expiration := p.Expiration
-	RespondAllOps := p.RespondPerEachOp
-	DurableDelete := p.DurableDelete
-
-	fe := expr
-	if fe == nil {
-		fe = p.FilterExpression
-	}
-
-	res := &kvs.BackgroundExecutePolicy{
-		Replica:      p.ReplicaPolicy.grpc(),
-		ReadModeAP:   p.ReadModeAP.grpc(),
-		ReadModeSC:   p.ReadModeSC.grpc(),
-		SendKey:      &SendKey,
-		Compress:     p.UseCompression,
-		Expression:   fe.grpc(),
-		TotalTimeout: &TotalTimeout,
-
-		Xdr: nil,
-
-		RecordExistsAction: &RecordExistsAction,
-		GenerationPolicy:   &GenerationPolicy,
-		CommitLevel:        &CommitLevel,
-		Generation:         &Generation,
-		Expiration:         &Expiration,
-		RespondAllOps:      &RespondAllOps,
-		DurableDelete:      &DurableDelete,
-	}
 
 	return res
 }

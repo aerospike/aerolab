@@ -17,8 +17,6 @@ package aerospike
 
 import (
 	"fmt"
-
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 )
 
 // PartitionStatus encapsulates the pagination status in partitions.
@@ -48,16 +46,4 @@ func (ps *PartitionStatus) String() string {
 		r = 'T'
 	}
 	return fmt.Sprintf("%04d:%c", ps.Id, r)
-}
-
-func (ps *PartitionStatus) grpc() *kvs.PartitionStatus {
-	id := uint32(ps.Id)
-	bVal := ps.BVal
-	digest := ps.Digest
-	return &kvs.PartitionStatus{
-		Id:     &id,
-		BVal:   &bVal,
-		Digest: digest,
-		Retry:  ps.Retry,
-	}
 }

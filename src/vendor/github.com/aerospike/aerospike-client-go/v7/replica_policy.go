@@ -17,8 +17,6 @@
 
 package aerospike
 
-import kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
-
 // ReplicaPolicy defines type of node partition targeted by read commands.
 type ReplicaPolicy int
 
@@ -48,19 +46,3 @@ const (
 	// in order to function properly.
 	PREFER_RACK
 )
-
-func (rp ReplicaPolicy) grpc() kvs.Replica {
-	switch rp {
-	case MASTER:
-		return kvs.Replica_MASTER
-	case MASTER_PROLES:
-		return kvs.Replica_MASTER_PROLES
-	case RANDOM:
-		return kvs.Replica_RANDOM
-	case SEQUENCE:
-		return kvs.Replica_SEQUENCE
-	case PREFER_RACK:
-		return kvs.Replica_PREFER_RACK
-	}
-	panic(unreachable)
-}

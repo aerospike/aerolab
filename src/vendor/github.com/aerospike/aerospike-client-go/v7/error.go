@@ -22,7 +22,6 @@ import (
 	"strconv"
 	"strings"
 
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 	"github.com/aerospike/aerospike-client-go/v7/types"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -207,58 +206,6 @@ func newGrpcError(isWrite bool, e error, messages ...string) Error {
 	ne := newError(types.GRPC_ERROR, messages...).markInDoubt(isWrite)
 	ne.wrap(e)
 	return ne
-}
-
-func newGrpcStatusError(res *kvs.AerospikeResponsePayload) Error {
-	if res.GetStatus() >= 0 {
-		return newError(types.ResultCode(res.GetStatus())).markInDoubt(res.GetInDoubt())
-	}
-
-	var resultCode = types.OK
-	switch res.GetStatus() {
-	case -16:
-		// BATCH_FAILED
-		resultCode = types.BATCH_FAILED
-	case -15:
-		// NO_RESPONSE
-		resultCode = types.NO_RESPONSE
-	case -12:
-		// MAX_ERROR_RATE
-		resultCode = types.MAX_ERROR_RATE
-	case -11:
-		// MAX_RETRIES_EXCEEDED
-		resultCode = types.MAX_RETRIES_EXCEEDED
-	case -10:
-		// SERIALIZE_ERROR
-		resultCode = types.SERIALIZE_ERROR
-	case -9:
-		// ASYNC_QUEUE_FULL
-		// resultCode = types.ASYNC_QUEUE_FULL
-		return newError(types.SERVER_ERROR, "Server ASYNC_QUEUE_FULL").markInDoubt(res.GetInDoubt())
-	case -8:
-		// SERVER_NOT_AVAILABLE
-		resultCode = types.SERVER_NOT_AVAILABLE
-	case -7:
-		// NO_MORE_CONNECTIONS
-		resultCode = types.NO_AVAILABLE_CONNECTIONS_TO_NODE
-	case -5:
-		// QUERY_TERMINATED
-		resultCode = types.QUERY_TERMINATED
-	case -4:
-		// SCAN_TERMINATED
-		resultCode = types.SCAN_TERMINATED
-	case -3:
-		// INVALID_NODE_ERROR
-		resultCode = types.INVALID_NODE_ERROR
-	case -2:
-		// PARSE_ERROR
-		resultCode = types.PARSE_ERROR
-	case -1:
-		// CLIENT_ERROR
-		resultCode = types.COMMON_ERROR
-	}
-
-	return newError(resultCode).markInDoubt(res.GetInDoubt())
 }
 
 // SetInDoubt sets whether it is possible that the write transaction may have completed

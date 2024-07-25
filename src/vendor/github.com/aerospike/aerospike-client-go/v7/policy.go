@@ -15,10 +15,7 @@
 package aerospike
 
 import (
-	"context"
 	"time"
-
-	kvs "github.com/aerospike/aerospike-client-go/v7/proto/kvs"
 )
 
 // Policy Interface
@@ -241,22 +238,4 @@ func (p *BasePolicy) deadline() time.Time {
 
 func (p *BasePolicy) compress() bool {
 	return p.UseCompression
-}
-
-func (p *BasePolicy) grpc() *kvs.ReadPolicy {
-	return &kvs.ReadPolicy{
-		Replica:    p.ReplicaPolicy.grpc(),
-		ReadModeSC: p.ReadModeSC.grpc(),
-		ReadModeAP: p.ReadModeAP.grpc(),
-	}
-}
-
-func (p *BasePolicy) grpcDeadlineContext() (context.Context, context.CancelFunc) {
-	timeout := p.timeout()
-	if timeout <= 0 {
-		return context.Background(), simpleCancelFunc
-
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	return ctx, cancel
 }
