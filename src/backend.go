@@ -61,6 +61,7 @@ type backendExtra struct {
 	gcpMeta             map[string]string
 	cloudDisks          []*cloudDisk // gcp/aws only
 	gcpMinCpuPlatform   *string      // gcp only - min cpu platform string
+	spotFallback        bool         // aws only - if spot capacity request fails, try on-demand
 }
 
 type backendVersion struct {
