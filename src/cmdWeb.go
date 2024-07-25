@@ -82,6 +82,7 @@ type webCmd struct {
 	simpleModeTagsDefault int      // -1 == ignore "simplemode" tag, all options disabled by default; 1 == ignore "simplemode" tag, all options enabled by default; 0 == use "simplemode" tag
 	inventoryHide         webui.HideInventory
 	upgradeLock           chan struct{}
+	webchoice             map[string]string
 }
 
 type webDownloader struct {
@@ -389,6 +390,7 @@ func (c *webCmd) Execute(args []string) error {
 		utemp, _ := a.aerolabRootDir()
 		c.UploadTempDir = flags.Filename(path.Join(utemp, "web.tmp"))
 	}
+	c.webchoice = make(map[string]string)
 	homeDir, err := a.aerolabRootDir()
 	if err == nil {
 		file := path.Join(homeDir, "www-simple-mode.list")
@@ -425,8 +427,13 @@ func (c *webCmd) Execute(args []string) error {
 				case "INVENTORY:SUBNETS", "-INVENTORY:SUBNETS":
 					c.inventoryHide.Subnets = true
 				default:
-					c.simpleMode = append(c.simpleMode, strings.ToLower(line))
-					c.simpleModeCamel = append(c.simpleModeCamel, line)
+					linesplit := []string{line}
+					if strings.Contains(line, ":") {
+						linesplit = strings.Split(line, ":")
+						c.webchoice[strings.ToLower(linesplit[0])] = linesplit[1]
+					}
+					c.simpleMode = append(c.simpleMode, strings.ToLower(linesplit[0]))
+					c.simpleModeCamel = append(c.simpleModeCamel, linesplit[0])
 				}
 			}
 			f.Close()
@@ -1398,21 +1405,26 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 			}
 			continue
 		}
+		var pathStack []string
+		if prefix != "" {
+			pathStack = append(command.pathStack, strings.ToLower(prefix), strings.ToLower(name))
+		} else {
+			pathStack = append(command.pathStack, strings.ToLower(name))
+		}
+		pathString := strings.Join(pathStack, ".")
 		if isSimpleMode {
-			var pathStack []string
-			if prefix != "" {
-				pathStack = append(command.pathStack, strings.ToLower(prefix), strings.ToLower(name))
-			} else {
-				pathStack = append(command.pathStack, strings.ToLower(name))
-			}
 			if !c.testSimpleModeLogic(tags.Get("simplemode"), pathStack) {
 				continue
 			}
 		}
 		switch kind {
 		case reflect.String:
+			webchoice := tags.Get("webchoice")
+			if d, ok := c.webchoice[pathString]; ok {
+				webchoice = d
+			}
 			// select items - choice/multichoice
-			if tags.Get("webchoice") != "" {
+			if webchoice != "" {
 				multi := false
 				if tags.Get("webmulti") != "" {
 					multi = true
@@ -1422,8 +1434,8 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
 					required = true
 				}
-				if strings.HasPrefix(tags.Get("webchoice"), "method::") {
-					method := strings.TrimPrefix(tags.Get("webchoice"), "method::")
+				if strings.HasPrefix(webchoice, "method::") {
+					method := strings.TrimPrefix(webchoice, "method::")
 					nt := commandValue.Field(i).MethodByName(method)
 					if nt.IsValid() && !nt.IsNil() {
 						zone := "us-central1-a"
@@ -1459,7 +1471,7 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 						}
 					}
 				} else {
-					for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
+					for _, choice := range strings.Split(webchoice, ",") {
 						isSelected := false
 						if choice == commandValue.Field(i).String() {
 							isSelected = true
