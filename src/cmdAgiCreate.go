@@ -598,6 +598,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	sourceStringLocal = base64.RawStdEncoding.EncodeToString([]byte(sourceStringLocal))
 	sourceStringSftp = base64.RawStdEncoding.EncodeToString([]byte(sourceStringSftp))
 	sourceStringS3 = base64.RawStdEncoding.EncodeToString([]byte(sourceStringS3))
+	if a.opts.Config.Backend.Type == "aws" && c.Aws.WithEFS {
+		a.opts.Cluster.Create.NoSetDNS = true
+	}
 	a.opts.Cluster.Create.ClusterName = c.ClusterName
 	a.opts.Cluster.Create.NodeCount = 1
 	a.opts.Cluster.Create.CustomConfigFilePath = ""
