@@ -19,6 +19,10 @@ import (
 
 	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/ingest"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
 	flags "github.com/rglonek/jeddevdk-goflags"
@@ -64,6 +68,8 @@ type agiCreateCmd struct {
 	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password" simplemode:"false"`
 	S3path           string          `long:"source-s3-path" description:"path on s3 to download logs from" simplemode:"false"`
 	S3Regex          string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^" simplemode:"false"`
+	S3SkipCheck      bool            `long:"source-s3-skipcheck" description:"set to prevent aerolab for checking from this machine if s3 is accessible with the given credentials" simplemode:"false"`
+	S3Endpoint       string          `long:"source-s3-endpoint" description:"specify a custom endpoint for the S3 source bucket"`
 	ProxyDisableSSL  bool            `long:"proxy-ssl-disable" description:"switch to disable TLS on the proxy" simplemode:"false"`
 	ProxyCert        flags.Filename  `long:"proxy-ssl-cert" description:"if not provided snakeoil will be used" simplemode:"false"`
 	ProxyKey         flags.Filename  `long:"proxy-ssl-key" description:"if not provided snakeoil will be used" simplemode:"false"`
@@ -113,6 +119,7 @@ type agiCreateCmdAws struct {
 	EFSMultiZone        bool          `long:"aws-efs-multizone" description:"by default the EFS volume will be one-zone to save on costs; set this to enable multi-AZ support" simplemode:"false"`
 	TerminateOnPoweroff bool          `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself (or it reaches max inactive/uptime), it will be stopped AND terminated" simplemode:"false"`
 	SpotInstance        bool          `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
+	SpotFallback        bool          `long:"aws-spot-fallback" description:"if set, and spot instance errors with capacity not available, request an on-demand instead"`
 	Expires             time.Duration `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 	EFSExpires          time.Duration `long:"aws-efs-expire" description:"if EFS is not remounted using aerolab for this amount of time, it will be expired" default:"96h" simplemode:"false"`
 	Route53ZoneId       string        `long:"route53-zoneid" description:"if set, will automatically update a route53 DNS domain with an entry of {instanceId}.{region}.agi.; expiry system will also be updated accordingly" simplemode:"false"`
@@ -154,22 +161,34 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		return nil
 	}
 	if strings.HasPrefix(c.SlackToken, "ENV::") {
-		c.SlackToken = os.ExpandEnv(strings.Split(c.SlackToken, "::")[1])
+		c.SlackToken = os.Getenv(strings.Split(c.SlackToken, "::")[1])
 	}
 	if strings.HasPrefix(c.SftpUser, "ENV::") {
-		c.SftpUser = os.ExpandEnv(strings.Split(c.SftpUser, "::")[1])
+		c.SftpUser = os.Getenv(strings.Split(c.SftpUser, "::")[1])
 	}
 	if strings.HasPrefix(c.SftpPass, "ENV::") {
-		c.SftpPass = os.ExpandEnv(strings.Split(c.SftpPass, "::")[1])
+		c.SftpPass = os.Getenv(strings.Split(c.SftpPass, "::")[1])
 	}
 	if strings.HasPrefix(c.S3KeyID, "ENV::") {
-		c.S3KeyID = os.ExpandEnv(strings.Split(c.S3KeyID, "::")[1])
+		c.S3KeyID = os.Getenv(strings.Split(c.S3KeyID, "::")[1])
 	}
 	if strings.HasPrefix(c.S3Secret, "ENV::") {
-		c.S3Secret = os.ExpandEnv(strings.Split(c.S3Secret, "::")[1])
+		c.S3Secret = os.Getenv(strings.Split(c.S3Secret, "::")[1])
 	}
-	if c.ClusterName == "" {
-		c.ClusterName = TypeClusterName(shortuuid.New())
+	if c.ClusterName == "~auto~" {
+		nName := ""
+		if c.LocalSource != "" {
+			nName = string(c.LocalSource)
+		}
+		nName = nName + "\nS3"
+		if c.S3Enable {
+			nName = nName + "\n" + c.S3Bucket + "\n" + c.S3path + "\n" + c.S3Regex
+		}
+		nName = nName + "\nSFTP"
+		if c.SftpEnable {
+			nName = nName + "\n" + c.SftpHost + "\n" + strconv.Itoa(c.SftpPort) + "\n" + c.SftpUser + "\n" + c.SftpPath + "\n" + c.SftpRegex
+		}
+		c.ClusterName = TypeClusterName(shortuuid.NewWithNamespace(nName))
 	}
 	if c.S3Enable && c.S3path == "" {
 		return errors.New("S3 path cannot be left empty")
@@ -269,6 +288,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	config.Downloader.S3Source.SecretKey = c.S3Secret
 	config.Downloader.S3Source.PathPrefix = c.S3path
 	config.Downloader.S3Source.SearchRegex = c.S3Regex
+	config.Downloader.S3Source.Endpoint = c.S3Endpoint
 	var encBuf bytes.Buffer
 	enc := yaml.NewEncoder(&encBuf)
 	enc.SetIndent(2)
@@ -282,6 +302,38 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		fileContents: bytes.NewReader(conf),
 		fileSize:     len(conf),
 	})
+
+	// test s3 access and directory
+	if c.S3Enable && !c.S3SkipCheck {
+		var s3creds *credentials.Credentials
+		if c.S3KeyID != "" || c.S3Secret != "" {
+			s3creds = credentials.NewStaticCredentials(c.S3KeyID, c.S3Secret, "")
+		}
+		var endpoint *string
+		if c.S3Endpoint != "" {
+			endpoint = aws.String(c.S3Endpoint)
+		}
+		sess, err := session.NewSession(&aws.Config{
+			Region:      aws.String(c.S3Region),
+			Credentials: s3creds,
+			Endpoint:    endpoint,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to test s3 credentials: %s", err)
+		}
+		svc := s3.New(sess)
+		obj, err := svc.ListObjectsV2(&s3.ListObjectsV2Input{
+			Bucket:  aws.String(c.S3Bucket),
+			MaxKeys: aws.Int64(5),
+			Prefix:  aws.String(c.S3path),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to list s3 objects: %s", err)
+		}
+		if len(obj.Contents) == 0 {
+			return fmt.Errorf("directory empty or path doesn't exist")
+		}
+	}
 
 	// test sftp access and directory
 	if c.SftpEnable && !c.SftpSkipCheck {
@@ -612,6 +664,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.TerminateOnPoweroff = c.Aws.TerminateOnPoweroff
 	a.opts.Cluster.Create.Gcp.TerminateOnPoweroff = c.Gcp.TerminateOnPoweroff
 	a.opts.Cluster.Create.Aws.SpotInstance = c.Aws.SpotInstance
+	a.opts.Cluster.Create.spotFallback = c.Aws.SpotFallback
 	a.opts.Cluster.Create.Gcp.SpotInstance = c.Gcp.SpotInstance
 	a.opts.Cluster.Create.Gcp.Image = ""
 	a.opts.Cluster.Create.Gcp.InstanceType = guiInstanceType(c.Gcp.InstanceType)

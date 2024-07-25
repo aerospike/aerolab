@@ -65,6 +65,10 @@ func (c *inventoryListCmd) getAGIStatus(inv *inventoryJson) {
 			defer func() {
 				<-statusThreads
 			}()
+			// if status is prefilled to indicate sizing is taking place, do not attempt to get alternative status
+			if strings.HasPrefix(v.Status, "sizing-") {
+				return
+			}
 			statusMsg := "unknown"
 			if (v.PublicIP != "" && strings.ToLower(v.State) == "running") || (a.opts.Config.Backend.Type == "docker" && v.PrivateIP != "" && strings.HasPrefix(v.State, "Up")) {
 				outx, err := b.RunCommands(v.Name, [][]string{{"aerolab", "agi", "exec", "ingest-status"}}, []int{1})
@@ -144,11 +148,19 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 		})
 	}
 	for _, inst := range inv.Clusters {
+		status := ""
+		if ntag, ok := inst.AwsTags["monitorState"]; ok {
+			status = ntag
+		}
+		if ntag, ok := inst.GcpLabels["monitorState"]; ok {
+			status = ntag
+		}
 		if inst.Features&ClusterFeatureAGI <= 0 {
 			continue
 		}
 		if idx, ok := agiVolNames[inst.ClusterName]; ok {
 			inva[idx].State = inst.State
+			inva[idx].Status = status
 			inva[idx].Expires = inst.Expires
 			inva[idx].Owner = inst.Owner
 			inva[idx].AccessURL = inst.AccessUrl
@@ -201,6 +213,7 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 			inva = append(inva, inventoryWebAGI{
 				Name:           inst.ClusterName,
 				State:          inst.State,
+				Status:         status,
 				Expires:        inst.Expires,
 				Owner:          inst.Owner,
 				AccessURL:      inst.AccessUrl,

@@ -93,6 +93,9 @@ func (i *Ingest) Download() error {
 func (i *Ingest) DownloadS3() error {
 	logger.Debug("Connecting to s3")
 	cfg := aws.NewConfig()
+	if i.config.Downloader.S3Source.Endpoint != "" {
+		cfg = cfg.WithEndpoint(i.config.Downloader.S3Source.Endpoint)
+	}
 	if i.config.Downloader.S3Source.Region != "" {
 		cfg.Region = aws.String(i.config.Downloader.S3Source.Region)
 	}
@@ -449,9 +452,7 @@ func SftpCheckLogin(config *Config, getFileList bool) (map[string]*DownloaderFil
 		config.Downloader.SftpSource.searchRegex = regex
 	}
 	i := &Ingest{
-		config:   config,
-		patterns: nil,
-		progress: nil,
+		config: config,
 	}
 	client := &SSH{
 		Ip:   fmt.Sprintf("%s:%d", i.config.Downloader.SftpSource.Host, i.config.Downloader.SftpSource.Port),

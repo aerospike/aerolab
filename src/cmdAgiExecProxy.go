@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"log"
@@ -18,12 +19,14 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -85,6 +88,7 @@ type agiExecProxyCmd struct {
 	notifyJSON           bool
 	deployJson           string
 	wwwSimple            bool
+	prettySource         string
 }
 
 type tokens struct {
@@ -92,7 +96,11 @@ type tokens struct {
 	tokens []string
 }
 
-func (c *agiExecProxyCmd) loadTokensDo() {
+func (c *agiExecProxyCmd) loadTokensDo(lockEarly bool) {
+	if lockEarly {
+		c.tokens.Lock()
+		defer c.tokens.Unlock()
+	}
 	tokens := []string{}
 	err := filepath.Walk(c.TokenAuthLocation, func(fpath string, info fs.FileInfo, err error) error {
 		if err != nil {
@@ -118,16 +126,32 @@ func (c *agiExecProxyCmd) loadTokensDo() {
 		logger.Error("failed to read tokens: %s", err)
 		return
 	}
-	c.tokens.Lock()
+	if !lockEarly {
+		c.tokens.Lock()
+	}
 	c.tokens.tokens = tokens
-	c.tokens.Unlock()
+	if !lockEarly {
+		c.tokens.Unlock()
+	}
 }
 
 func (c *agiExecProxyCmd) loadTokensInterval() {
 	for {
-		c.loadTokensDo()
+		c.loadTokensDo(false)
 		time.Sleep(time.Minute)
 	}
+}
+
+func (c *agiExecProxyCmd) tokenViaHUP() {
+	s := make(chan os.Signal, 1)
+	signal.Notify(s, syscall.SIGHUP)
+
+	go func() {
+		for sig := range s {
+			log.Printf("Hot %s signal, reloading tokens", sig)
+			c.loadTokensDo(true)
+		}
+	}()
 }
 
 func (c *agiExecProxyCmd) loadTokens() {
@@ -136,6 +160,7 @@ func (c *agiExecProxyCmd) loadTokens() {
 	}
 	os.MkdirAll(c.TokenAuthLocation, 0755)
 	go c.loadTokensInterval()
+	go c.tokenViaHUP()
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		logger.Error("fsnotify could not be started, tokens will not be dynamically monitored; switching to once-a-minute system: %s", err)
@@ -155,7 +180,7 @@ func (c *agiExecProxyCmd) loadTokens() {
 				return
 			}
 			logger.Detail("fsnotify event:", event)
-			c.loadTokensDo()
+			c.loadTokensDo(false)
 		case err, ok := <-watcher.Errors:
 			logger.Error("fsnotify watcher error, tokens will not be dynamically monitored; switching to once-a-minute system (ok:%t err:%s)", ok, err)
 			return
@@ -260,6 +285,27 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		c.isTokenAuth = true
 	}
 	go c.getDeps()
+	// pretty source
+	ingestConfig, err := ingest.MakeConfig(true, "/opt/agi/ingest.yaml", true)
+	if err != nil {
+		log.Printf("could not load ingest config for slack notifier: %s", err)
+	} else {
+		if ingestConfig.Downloader.S3Source.Enabled {
+			c.prettySource = fmt.Sprintf("S3 Source: %s:%s %s", ingestConfig.Downloader.S3Source.BucketName, ingestConfig.Downloader.S3Source.PathPrefix, ingestConfig.Downloader.S3Source.SearchRegex)
+		}
+		if ingestConfig.Downloader.SftpSource.Enabled {
+			if c.prettySource != "" {
+				c.prettySource = c.prettySource + "<br>"
+			}
+			c.prettySource = c.prettySource + fmt.Sprintf("SFTP Source: %s:%s %s", ingestConfig.Downloader.SftpSource.Host, ingestConfig.Downloader.SftpSource.PathPrefix, ingestConfig.Downloader.SftpSource.SearchRegex)
+		}
+		if ingestConfig.CustomSourceName != "" {
+			if c.prettySource != "" {
+				c.prettySource = c.prettySource + "<br>"
+			}
+			c.prettySource = c.prettySource + fmt.Sprintf("Custom Source: %s", ingestConfig.CustomSourceName)
+		}
+	}
 	// notifier load start
 	nstring, err := os.ReadFile("/opt/agi/notifier.yaml")
 	if err == nil {
@@ -464,9 +510,12 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 		Description string
 	}
 	nlabel, _ := os.ReadFile("/opt/agi/label")
+	if string(nlabel) == "" {
+		nlabel = []byte(c.AGIName)
+	}
 	p := np{
-		Title:       c.AGIName,
-		Description: string(nlabel),
+		Title:       html.EscapeString(c.prettySource),
+		Description: html.EscapeString(string(nlabel)),
 	}
 	err = t.ExecuteTemplate(w, "index", p)
 	if err != nil {

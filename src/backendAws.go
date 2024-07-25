@@ -2448,12 +2448,15 @@ func DNSListHosts(r53 *route53.Route53, zoneId string) (hosts []DNSHost, err err
 		return nil, err
 	}
 	for _, rset := range out.ResourceRecordSets {
+		if rset == nil || rset.Type == nil || rset.TTL == nil || rset.Name == nil {
+			continue
+		}
 		if *rset.Type != "A" {
 			continue
 		}
 		ips := []string{}
 		for _, rr := range rset.ResourceRecords {
-			ips = append(ips, *rr.Value)
+			ips = append(ips, aws.StringValue(rr.Value))
 		}
 		hosts = append(hosts, DNSHost{
 			Name: *rset.Name,
@@ -2579,6 +2582,39 @@ func (d *backendAws) GetInstanceIpMap(name string, internalIPs bool) (map[string
 		}
 	}
 	return nodeList, nil
+}
+
+func (d *backendAws) Tag(name string, key string, value string) error {
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagClusterName),
+				Values: []*string{aws.String(name)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	resources := []string{}
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code != int64(48) {
+				resources = append(resources, *instance.InstanceId)
+			}
+		}
+	}
+	_, err = d.ec2svc.CreateTags(&ec2.CreateTagsInput{
+		Resources: aws.StringSlice(resources),
+		Tags: []*ec2.Tag{
+			{
+				Key:   aws.String(key),
+				Value: aws.String(value),
+			},
+		},
+	})
+	return err
 }
 
 // map[instanceId]map[key]value
@@ -3348,13 +3384,20 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		}
 		reservationsX, err := d.ec2svc.RunInstances(&input)
 		if err != nil {
-			if os.Getenv("AEROLAB_BACKEND_DEBUG") == "on" {
-				jenc := json.NewEncoder(os.Stdout)
-				jenc.SetIndent("", "  ")
-				jenc.Encode(input)
+			if strings.Contains(err.Error(), "InsufficientInstanceCapacity") && extra.spotInstance && extra.spotFallback {
+				extra.spotInstance = false
+				input.InstanceMarketOptions = nil
+				reservationsX, err = d.ec2svc.RunInstances(&input)
 			}
-			fmt.Print(mappings)
-			return fmt.Errorf("could not run RunInstances\n%s", err)
+			if err != nil {
+				if os.Getenv("AEROLAB_BACKEND_DEBUG") == "on" {
+					jenc := json.NewEncoder(os.Stdout)
+					jenc.SetIndent("", "  ")
+					jenc.Encode(input)
+				}
+				fmt.Print(mappings)
+				return fmt.Errorf("could not run RunInstances\n%s", err)
+			}
 		}
 		reservations = append(reservations, reservationsX)
 	}

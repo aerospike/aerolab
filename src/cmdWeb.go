@@ -58,6 +58,7 @@ type webCmd struct {
 	AGIStrictTLS          bool           `long:"agi-strict-tls" description:"when performing inventory lookup, expect valid AGI certificates"`
 	WSProxyOrigins        []string       `long:"ws-proxy-origin" description:"when using proxies, set this to host (or host:port) URI that Origin header should also be accepted for (the URI browser uses to connect)"`
 	ForceSimpleMode       bool           `long:"force-simple-mode" description:"force use of simple mode, limiting the number of features and switches that show up"`
+	PageTitle             string         `long:"page-title" description:"change the title of the webpages" default:"AeroLab Web UI"`
 	WebPath               string         `long:"web-path" hidden:"true"`
 	WebNoOverride         bool           `long:"web-no-override" hidden:"true"`
 	DebugRequests         bool           `long:"debug-requests" hidden:"true"`
@@ -81,6 +82,7 @@ type webCmd struct {
 	simpleModeTagsDefault int      // -1 == ignore "simplemode" tag, all options disabled by default; 1 == ignore "simplemode" tag, all options enabled by default; 0 == use "simplemode" tag
 	inventoryHide         webui.HideInventory
 	upgradeLock           chan struct{}
+	webchoice             map[string]string
 }
 
 type webDownloader struct {
@@ -388,6 +390,7 @@ func (c *webCmd) Execute(args []string) error {
 		utemp, _ := a.aerolabRootDir()
 		c.UploadTempDir = flags.Filename(path.Join(utemp, "web.tmp"))
 	}
+	c.webchoice = make(map[string]string)
 	homeDir, err := a.aerolabRootDir()
 	if err == nil {
 		file := path.Join(homeDir, "www-simple-mode.list")
@@ -424,8 +427,13 @@ func (c *webCmd) Execute(args []string) error {
 				case "INVENTORY:SUBNETS", "-INVENTORY:SUBNETS":
 					c.inventoryHide.Subnets = true
 				default:
-					c.simpleMode = append(c.simpleMode, strings.ToLower(line))
-					c.simpleModeCamel = append(c.simpleModeCamel, line)
+					linesplit := []string{line}
+					if strings.Contains(line, ":") {
+						linesplit = strings.Split(line, ":")
+						c.webchoice[strings.ToLower(linesplit[0])] = linesplit[1]
+					}
+					c.simpleMode = append(c.simpleMode, strings.ToLower(linesplit[0]))
+					c.simpleModeCamel = append(c.simpleModeCamel, linesplit[0])
 				}
 			}
 			f.Close()
@@ -918,10 +926,7 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 		if nusr == "weblog" && !strings.HasSuffix(strings.TrimRight(ndir, "/"), "weblog/weblog") {
 			nusr = "N/A"
 		}
-		nUser := r.Header.Get("x-auth-aerolab-user")
-		if nUser == "" {
-			nUser = currentOwnerUser
-		}
+		nUser := getHeaderUserValue(r)
 		if r.FormValue("jobsAllUsers") != "true" {
 			if nUser != nusr && nusr != "N/A" {
 				return nil
@@ -1400,21 +1405,26 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 			}
 			continue
 		}
+		var pathStack []string
+		if prefix != "" {
+			pathStack = append(command.pathStack, strings.ToLower(prefix), strings.ToLower(name))
+		} else {
+			pathStack = append(command.pathStack, strings.ToLower(name))
+		}
+		pathString := strings.Join(pathStack, ".")
 		if isSimpleMode {
-			var pathStack []string
-			if prefix != "" {
-				pathStack = append(command.pathStack, strings.ToLower(prefix), strings.ToLower(name))
-			} else {
-				pathStack = append(command.pathStack, strings.ToLower(name))
-			}
 			if !c.testSimpleModeLogic(tags.Get("simplemode"), pathStack) {
 				continue
 			}
 		}
 		switch kind {
 		case reflect.String:
+			webchoice := tags.Get("webchoice")
+			if d, ok := c.webchoice[pathString]; ok {
+				webchoice = d
+			}
 			// select items - choice/multichoice
-			if tags.Get("webchoice") != "" {
+			if webchoice != "" {
 				multi := false
 				if tags.Get("webmulti") != "" {
 					multi = true
@@ -1424,8 +1434,8 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 				if tags.Get("webrequired") == "true" && commandValue.Field(i).String() == "" {
 					required = true
 				}
-				if strings.HasPrefix(tags.Get("webchoice"), "method::") {
-					method := strings.TrimPrefix(tags.Get("webchoice"), "method::")
+				if strings.HasPrefix(webchoice, "method::") {
+					method := strings.TrimPrefix(webchoice, "method::")
 					nt := commandValue.Field(i).MethodByName(method)
 					if nt.IsValid() && !nt.IsNil() {
 						zone := "us-central1-a"
@@ -1461,7 +1471,7 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 						}
 					}
 				} else {
-					for _, choice := range strings.Split(tags.Get("webchoice"), ",") {
+					for _, choice := range strings.Split(webchoice, ",") {
 						isSelected := false
 						if choice == commandValue.Field(i).String() {
 							isSelected = true
@@ -1906,6 +1916,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		hideInv = c.inventoryHide
 	}
 	p := &webui.Page{
+		PageTitle:                               c.PageTitle,
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
 		FixedFooter:                             true,
@@ -1923,7 +1934,7 @@ func (c *webCmd) serve(w http.ResponseWriter, r *http.Request) {
 		FormDownload:                            formDownload,
 		ShowSimpleModeButton:                    !c.ForceSimpleMode,
 		SimpleMode:                              isSimpleMode,
-		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
+		CurrentUser:                             getHeaderUserValue(r),
 		HideInventory:                           hideInv,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
@@ -2141,7 +2152,32 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		return indexi < indexj
 	})
 
-	if c.UniqueFirewalls && a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && cmdline[2] == "create") || (cmdline[1] == "client" && cmdline[2] == "create") || (cmdline[1] == "template" && cmdline[2] == "create")) {
+	// handle unique users feature
+	nUser := getHeaderUserValue(r)
+	nUserClean := ""
+	for _, c := range strings.ToLower(nUser) {
+		if (c >= 97 && c <= 122) || (c >= 48 && c <= 57) {
+			nUserClean = nUserClean + string(c)
+		}
+	}
+	if a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "client" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "template" && cmdline[2] == "create") || (cmdline[1] == "agi" && cmdline[2] == "create")) {
+		fwsw := "xxOwner"
+		fwFound := false
+		for _, kv := range postForm {
+			if kv[0].(string) == fwsw {
+				fwFound = true
+				break
+			}
+		}
+		if !fwFound {
+			item := []interface{}{fwsw, []string{nUserClean}}
+			postForm = append(postForm, item)
+		}
+	}
+
+	// handle unique firewalls feature
+	specialAllowInSimpleMode := ""
+	if c.UniqueFirewalls && a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "client" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "template" && cmdline[2] == "create")) {
 		fwsw := "xxGcpxxNamePrefix"
 		if a.opts.Config.Backend.Type == "aws" {
 			fwsw = "xxAwsxxNamePrefix"
@@ -2154,22 +2190,13 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if !fwFound {
-			nUser := r.Header.Get("x-auth-aerolab-user")
-			if nUser == "" {
-				nUser = currentOwnerUser
-			}
-			nUser = strings.ToLower(nUser)
-			nFW := ""
-			for _, c := range nUser {
-				if (c >= 97 && c <= 122) || (c >= 48 && c <= 57) {
-					nFW = nFW + string(c)
-				}
-			}
-			item := []interface{}{fwsw, []string{nFW}}
+			item := []interface{}{fwsw, []string{nUserClean}}
 			postForm = append(postForm, item)
+			specialAllowInSimpleMode = fwsw
 		}
 	}
 
+	allowLs := c.allowls(r)
 	// fill command struct
 	tail := []string{"--"}
 	for _, kv := range postForm {
@@ -2211,14 +2238,18 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 					pathStack = append(pathStack, strings.ToLower(cp))
 				}
 			}
-			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) {
-				http.Error(w, "parameter not allowed in this mode", http.StatusForbidden)
+			if !c.testSimpleModeLogic(tag.Get("simplemode"), pathStack) && (specialAllowInSimpleMode == "" || pathStack[len(pathStack)-1] != "nameprefix") && pathStack[len(pathStack)-1] != "owner" {
+				http.Error(w, fmt.Sprintf("parameter %v not allowed in this mode", pathStack), http.StatusForbidden)
 				return
 			}
 		}
 		switch field.Kind() {
 		case reflect.String:
 			if v[0] != field.String() {
+				if !allowLs && field.Type().String() == "flags.Filename" && v[0] == "" {
+					// if v[0] is flags.Filename and empty, skip
+					continue
+				}
 				cj[param] = v[0]
 				if tag.Get("webtype") == "password" {
 					v[0] = "****"
@@ -2318,6 +2349,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		case reflect.Ptr:
 			if field.Type().String() == "*flags.Filename" {
 				if v[0] != field.Elem().String() {
+					if !allowLs && v[0] == "" {
+						// if v[0] is empty, skip
+						continue
+					}
 					cj[param] = v[0]
 					lj[param] = v[0]
 					if tag.Get("long") == "" {
@@ -2468,6 +2503,16 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if c.DebugRequests {
+		dbug, _ := json.Marshal(map[string]interface{}{
+			"cjson":   cjson,
+			"logjson": logjson,
+			"cmdline": cmdline,
+			"tail":    tail,
+		})
+		log.Printf("[%s]    %s", requestID, string(dbug))
+	}
+
 	if action[0] == "show" {
 		if len(tail) == 1 {
 			json.NewEncoder(w).Encode(cmdline)
@@ -2499,11 +2544,6 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		c.jobqueue.Remove()
 		http.Error(w, "unable to get aerolab root dir: "+err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	nUser := r.Header.Get("x-auth-aerolab-user")
-	if nUser == "" {
-		nUser = currentOwnerUser
 	}
 
 	nPath := path.Join(rootDir, "weblog")
@@ -2750,4 +2790,17 @@ func (c *webCmd) defaultsRefresh() {
 	a.parseFile()
 	a.early = false
 	c.genMenu()
+}
+
+func getHeaderUserValue(r *http.Request) string {
+	if user := r.Header.Get("x-auth-aerolab-user"); user != "" {
+		return user
+	}
+	if user := r.Header.Get("X-Forwarded-Email"); user != "" {
+		return strings.Split(user, "@")[0]
+	}
+	if user := r.Header.Get("X-Forwarded-User"); user != "" {
+		return user
+	}
+	return currentOwnerUser
 }
