@@ -2584,6 +2584,39 @@ func (d *backendAws) GetInstanceIpMap(name string, internalIPs bool) (map[string
 	return nodeList, nil
 }
 
+func (d *backendAws) Tag(name string, key string, value string) error {
+	filter := ec2.DescribeInstancesInput{
+		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:" + awsTagClusterName),
+				Values: []*string{aws.String(name)},
+			},
+		},
+	}
+	instances, err := d.ec2svc.DescribeInstances(&filter)
+	if err != nil {
+		return fmt.Errorf("could not run DescribeInstances\n%s", err)
+	}
+	resources := []string{}
+	for _, reservation := range instances.Reservations {
+		for _, instance := range reservation.Instances {
+			if *instance.State.Code != int64(48) {
+				resources = append(resources, *instance.InstanceId)
+			}
+		}
+	}
+	_, err = d.ec2svc.CreateTags(&ec2.CreateTagsInput{
+		Resources: aws.StringSlice(resources),
+		Tags: []*ec2.Tag{
+			{
+				Key:   aws.String(key),
+				Value: aws.String(value),
+			},
+		},
+	})
+	return err
+}
+
 // map[instanceId]map[key]value
 func (d *backendAws) GetInstanceTags(name string) (map[string]map[string]string, error) {
 	filter := ec2.DescribeInstancesInput{

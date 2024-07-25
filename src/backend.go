@@ -191,6 +191,7 @@ type backend interface {
 	GetInstanceIpMap(name string, internalIPs bool) (map[string]string, error)
 	ExpiriesUpdateZoneID(zoneId string) error
 	GetInstanceTags(name string) (map[string]map[string]string, error)
+	Tag(name string, key string, value string) error
 }
 
 type inventoryJson struct {

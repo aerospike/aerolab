@@ -32,6 +32,10 @@ func init() {
 
 var dockerNameHeader = "aerolab-"
 
+func (d *backendDocker) Tag(name string, key string, value string) error {
+	return nil
+}
+
 func (d *backendDocker) GetAZName(subnetId string) (string, error) {
 	return "", nil
 }
