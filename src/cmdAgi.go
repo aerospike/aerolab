@@ -172,6 +172,8 @@ func (c *agiAddTokenCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	b.RunCommands(c.ClusterName.String(), [][]string{{"bash", "-c", "kill -HUP $(systemctl show --property MainPID --value agi-proxy)"}}, []int{1})
+	time.Sleep(time.Second)
 	if !c.GenURL {
 		fmt.Println(newToken)
 	} else {
@@ -330,19 +332,19 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 		return nil
 	}
 	if c.SftpUser != nil && strings.HasPrefix(*c.SftpUser, "ENV::") {
-		aa := os.ExpandEnv(strings.Split(*c.SftpUser, "::")[1])
+		aa := os.Getenv(strings.Split(*c.SftpUser, "::")[1])
 		c.SftpUser = &aa
 	}
 	if c.SftpPass != nil && strings.HasPrefix(*c.SftpPass, "ENV::") {
-		aa := os.ExpandEnv(strings.Split(*c.SftpPass, "::")[1])
+		aa := os.Getenv(strings.Split(*c.SftpPass, "::")[1])
 		c.SftpPass = &aa
 	}
 	if c.S3KeyID != nil && strings.HasPrefix(*c.S3KeyID, "ENV::") {
-		aa := os.ExpandEnv(strings.Split(*c.S3KeyID, "::")[1])
+		aa := os.Getenv(strings.Split(*c.S3KeyID, "::")[1])
 		c.S3KeyID = &aa
 	}
 	if c.S3Secret != nil && strings.HasPrefix(*c.S3Secret, "ENV::") {
-		aa := os.ExpandEnv(strings.Split(*c.S3Secret, "::")[1])
+		aa := os.Getenv(strings.Split(*c.S3Secret, "::")[1])
 		c.S3Secret = &aa
 	}
 	if c.S3Enable != nil && *c.S3Enable && c.S3path != nil && *c.S3path == "" {

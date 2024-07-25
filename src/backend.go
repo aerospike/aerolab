@@ -61,6 +61,7 @@ type backendExtra struct {
 	gcpMeta             map[string]string
 	cloudDisks          []*cloudDisk // gcp/aws only
 	gcpMinCpuPlatform   *string      // gcp only - min cpu platform string
+	spotFallback        bool         // aws only - if spot capacity request fails, try on-demand
 }
 
 type backendVersion struct {
@@ -191,6 +192,7 @@ type backend interface {
 	GetInstanceIpMap(name string, internalIPs bool) (map[string]string, error)
 	ExpiriesUpdateZoneID(zoneId string) error
 	GetInstanceTags(name string) (map[string]map[string]string, error)
+	Tag(name string, key string, value string) error
 }
 
 type inventoryJson struct {

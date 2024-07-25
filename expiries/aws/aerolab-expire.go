@@ -469,6 +469,9 @@ func DNSListHosts(r53 *route53.Route53, zoneId string) (hosts []DNSHost, err err
 		return nil, err
 	}
 	for _, rset := range out.ResourceRecordSets {
+		if rset == nil || rset.Type == nil || rset.TTL == nil || rset.Name == nil {
+			continue
+		}
 		if *rset.Type != "A" {
 			continue
 		}

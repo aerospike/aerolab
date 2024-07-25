@@ -139,6 +139,7 @@ type clusterCreateCmd struct {
 	gcpMeta        map[string]string
 	useAgiFirewall bool
 	volExtraTags   map[string]string
+	spotFallback   bool
 }
 
 type osSelectorCmd struct {
@@ -509,8 +510,8 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 	}
 
-	if len(string(c.ClusterName)) == 0 || len(string(c.ClusterName)) > 20 {
-		return logFatal("Cluster name must be up to 20 characters long")
+	if len(string(c.ClusterName)) == 0 || len(string(c.ClusterName)) > 24 {
+		return logFatal("Cluster name must be up to 24 characters long")
 	}
 
 	if !isLegalName(c.ClusterName.String()) {
@@ -973,6 +974,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		extra.spotInstance = c.Gcp.SpotInstance
 		extra.terminateOnPoweroff = c.Gcp.TerminateOnPoweroff
 	}
+	extra.spotFallback = c.spotFallback
 
 	// limitnofile check
 	if a.opts.Config.Backend.Type == "docker" {

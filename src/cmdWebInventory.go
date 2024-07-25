@@ -141,7 +141,7 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		if len(apipsplit) >= 3 {
 			accessProtIP = strings.Join(apipsplit[0:3], "/")
 		}
-		if a.opts.Config.Backend.Type != "docker" || accessProtIP == "" {
+		if a.opts.Config.Backend.Type == "docker" || accessProtIP == "" {
 			if i.PublicIP != "" {
 				accessProtIP = i.AccessProtocol + i.PublicIP
 			} else if i.PrivateIP != "" {
@@ -215,7 +215,7 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 			}
 			if response.StatusCode == http.StatusUnauthorized {
 				if i.c.DebugRequests {
-					log.Printf("error getting agi status for %s with ip %s: %s", agis.Name, ip, "got unauthorized, attempting to invalidate token and try again")
+					log.Printf("error getting agi status with token %s for %s with ip %s: %s", token, agis.Name, ip, "got unauthorized, attempting to invalidate token and try again")
 				}
 				token, err = i.c.agiTokens.GetNewToken(*agis)
 				if err != nil {
@@ -227,7 +227,7 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 				req, err = http.NewRequest("GET", ip+"/agi/status", nil)
 				if err != nil {
 					if i.c.DebugRequests {
-						log.Printf("error getting agi status request for %s with ip %s: %s", agis.Name, ip, err)
+						log.Printf("error getting agi status with token %s for %s with ip %s: %s", token, agis.Name, ip, err)
 					}
 					return
 				}
@@ -236,7 +236,7 @@ func (i *inventoryCache) asyncGetAGIStatus(agiList []*agiWebTokenRequest) {
 				response, err = client.Do(req)
 				if err != nil {
 					if i.c.DebugRequests {
-						log.Printf("error getting agi status for %s with ip %s: %s", agis.Name, ip, err)
+						log.Printf("error getting agi status with token %s for %s with ip %s: %s", token, agis.Name, ip, err)
 					}
 					return
 				}
@@ -382,10 +382,7 @@ func (c *webCmd) inventoryLogFile(requestID string, r *http.Request) (*os.File, 
 	if err != nil {
 		return nil, err
 	}
-	nUser := r.Header.Get("x-auth-aerolab-user")
-	if nUser == "" {
-		nUser = currentOwnerUser
-	}
+	nUser := getHeaderUserValue(r)
 
 	nPath := path.Join(rootDir, "weblog")
 	os.Mkdir(nPath, 0755)
@@ -424,6 +421,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		hideInv = c.inventoryHide
 	}
 	p := &webui.Page{
+		PageTitle:                               c.PageTitle,
 		Backend:                                 a.opts.Config.Backend.Type,
 		WebRoot:                                 c.WebRoot,
 		FixedNavbar:                             true,
@@ -435,7 +433,7 @@ func (c *webCmd) inventory(w http.ResponseWriter, r *http.Request) {
 		BetaTag:                                 isWebuiBeta,
 		ShowSimpleModeButton:                    !c.ForceSimpleMode,
 		SimpleMode:                              isSimpleMode,
-		CurrentUser:                             r.Header.Get("X-Auth-Aerolab-User"),
+		CurrentUser:                             getHeaderUserValue(r),
 		HideInventory:                           hideInv,
 		Navigation: &webui.Nav{
 			Top: []*webui.NavTop{
@@ -845,7 +843,7 @@ func (c *webCmd) inventoryAGIConnect(w http.ResponseWriter, r *http.Request) {
 			if len(apipsplit) >= 3 {
 				accessProtIP = strings.Join(apipsplit[0:3], "/")
 			}
-			if a.opts.Config.Backend.Type != "docker" || accessProtIP == "" {
+			if a.opts.Config.Backend.Type == "docker" || accessProtIP == "" {
 				if agi.PublicIP != "" {
 					accessProtIP = agi.AccessProtocol + agi.PublicIP
 				} else if agi.PrivateIP != "" {

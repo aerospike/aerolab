@@ -267,11 +267,64 @@ func (d *backendGcp) GetInstanceTags(name string) (map[string]map[string]string,
 	return nil, nil
 }
 
+func (d *backendGcp) Tag(name string, key string, value string) error {
+	ctx := context.Background()
+	client, err := compute.NewInstancesRESTClient(ctx)
+	if err != nil {
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
+	}
+	defer client.Close()
+
+	// get instances
+	req := &computepb.AggregatedListInstancesRequest{
+		Project: a.opts.Config.Backend.Project,
+		Filter:  proto.String("labels." + gcpTagUsedBy + "=" + gcpTagEnclose(gcpTagUsedByValue)),
+	}
+	it := client.AggregatedList(ctx, req)
+	for {
+		pair, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		instances := pair.Value.Instances
+		if len(instances) > 0 {
+			for _, instance := range instances {
+				if instance.Labels[gcpTagUsedBy] == gcpTagUsedByValue {
+					if instance.Labels[gcpTagClusterName] == name {
+						// tag instances
+						instance.Labels[key] = value
+						op, err := client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+							Zone:     *instance.Zone,
+							Project:  a.opts.Config.Backend.Project,
+							Instance: *instance.Name,
+							InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+								LabelFingerprint: instance.Fingerprint,
+								Labels:           instance.Labels,
+							},
+						})
+						if err != nil {
+							return err
+						}
+						if err := op.Wait(ctx); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 func (d *backendGcp) DetachVolume(name string, clusterName string, node int, zone string) error {
 	ctx := context.Background()
 	client, err := compute.NewInstancesRESTClient(ctx)
 	if err != nil {
-		return fmt.Errorf("NewDisksRESTClient: %w", err)
+		return fmt.Errorf("NewInstancesRESTClient: %w", err)
 	}
 	defer client.Close()
 	op, err := client.DetachDisk(ctx, &computepb.DetachDiskInstanceRequest{
@@ -2337,6 +2390,12 @@ func (d *backendGcp) GetKeyPath(clusterName string) (keyPath string, err error) 
 
 // get KeyPair
 func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "sshkey", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	// check keypath exists, if not, error
@@ -2349,6 +2408,12 @@ func (d *backendGcp) getKey(clusterName string) (keyName string, keyPath string,
 
 // get KeyPair
 func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "sshkey", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	_, _, err = d.getKey(clusterName)
@@ -2392,6 +2457,12 @@ func (d *backendGcp) makeKey(clusterName string) (keyName string, keyPath string
 
 // get KeyPair
 func (d *backendGcp) killKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "sshkey", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-gcp-%s", clusterName)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	os.Remove(keyPath)

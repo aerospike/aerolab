@@ -631,6 +631,7 @@ func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEv
 	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
 		return
 	}
+	b.Tag(event.AGIName, "monitorState", "sizing-capacity")
 	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
 	a.opts.Cluster.Destroy.Force = true
 	a.opts.Cluster.Destroy.Nodes = "1"
@@ -693,6 +694,7 @@ func (c *agiMonitorListenCmd) handleSizingDiskDo(uuid string, event *ingest.Noti
 }
 
 func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool) {
+	b.Tag(event.AGIName, "monitorState", "sizing-instance")
 	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
 	a.opts.Cluster.Destroy.Force = true
 	a.opts.Cluster.Destroy.Nodes = "1"
