@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -605,6 +606,11 @@ func (c *clientAddAMSCmd) addAMS(args []string) error {
 		}
 	}
 	backendRestoreTerminal()
+	reset := exec.Command("reset")
+	reset.Stderr = os.Stderr
+	reset.Stdout = os.Stdout
+	reset.Stdin = os.Stdin
+	reset.Run()
 	log.Printf("Username:Password is admin:admin")
 	log.Print("Done")
 	log.Print("NOTE: Remember to install the aerospike-prometheus-exporter on the Aerospike server nodes, using `aerolab cluster add exporter` command")
