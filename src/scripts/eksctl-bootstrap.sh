@@ -11,7 +11,7 @@ function aws_region() {
 
 function install_packages() {
 	apt update
-	DEBIAN_FRONTEND=noninteractive apt -y install curl vim openssh-client zip git jq less wget
+	DEBIAN_FRONTEND=noninteractive apt -y install curl vim openssh-client zip git jq less wget tmux
 	DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends tzdata
 }
 
@@ -81,6 +81,14 @@ function initial_bootstrap() {
 	aerolab config aws expiry-install || echo "WARNING: EXPIRY system could not be installed; EKS clusters may not expire"
 	set -e
 	aerolab client create eksctl --install-yamls -r ${AWS_REGION}
+}
+
+function enable_tmux() {
+cat <<'EOF' >> /root/.bashrc
+if command -v tmux &> /dev/null && [ -n "$PS1" ] && [[ ! "$TERM" =~ screen ]] && [[ ! "$TERM" =~ tmux ]] && [ -z "$TMUX" ] && [ $# -eq 0 ]; then
+  exec tmux new-session -A -s eksctl
+fi
+EOF
 }
 
 usage() { echo "Usage: $0 [-k <AWS_KEY_ID>] -s [<AWS_SECRET_KEY>] [-r <AWS_DEFAULT_REGION>]" 1>&2; exit 1; }
@@ -165,6 +173,8 @@ then
 else
 	echo "File '/etc/aerolab-eks-bootstrapped' exists, skipping initial install commands"
 fi
+echo "Enable tmux"
+enable_tmux
 echo "Cleanup"
 cd ${cwd}
 rm -rf /tmp/eks-installer
