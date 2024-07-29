@@ -56,7 +56,7 @@ type agiExecProxyCmd struct {
 	EntryDir             string        `short:"d" long:"entry-dir" default:"/opt/agi/files" description:"Entrypoint for ttyd and filebrowser"`
 	MaxInactivity        time.Duration `short:"m" long:"max-inactivity" default:"1h" description:"Max user inactivity period after which the system will be shut down; 0=disable"`
 	MaxUptime            time.Duration `short:"M" long:"max-uptime" default:"24h" description:"Max hard instance uptime; 0=disable"`
-	ShutdownCommand      string        `short:"c" long:"shutdown-command" default:"/sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached"`
+	ShutdownCommand      string        `short:"c" long:"shutdown-command" default:"/sbin/poweroff -p || /sbin/poweroff" description:"Command to execute on max uptime or max inactivity being breached"`
 	AuthType             string        `short:"a" long:"auth-type" default:"none" description:"Authentication type; supported: none|basic|token"`
 	BasicAuthUser        string        `short:"u" long:"basic-auth-user" default:"admin" description:"Basic authentication username"`
 	BasicAuthPass        string        `short:"p" long:"basic-auth-pass" default:"secure" description:"Basic authentication password"`
@@ -643,12 +643,7 @@ func (c *agiExecProxyCmd) handlePoweroff(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Poweroff..."))
 	go func() {
-		shcomm := strings.Split(c.ShutdownCommand, " ")
-		shparams := []string{}
-		if len(shcomm) > 1 {
-			shparams = shcomm[1:]
-		}
-		out, err := exec.Command(shcomm[0], shparams...).CombinedOutput()
+		out, err := exec.Command("/bin/bash", "-c", c.ShutdownCommand).CombinedOutput()
 		if err != nil {
 			log.Printf("ERROR: INACTIVITY MONITOR: could not poweroff the instance: %s : %s", err, string(out))
 		} else {
@@ -680,12 +675,7 @@ func (c *agiExecProxyCmd) maxUptime() {
 		}
 	}()
 	time.Sleep(time.Minute)
-	shcomm := strings.Split(c.ShutdownCommand, " ")
-	shparams := []string{}
-	if len(shcomm) > 1 {
-		shparams = shcomm[1:]
-	}
-	out, err := exec.Command(shcomm[0], shparams...).CombinedOutput()
+	out, err := exec.Command("/bin/bash", "-c", c.ShutdownCommand).CombinedOutput()
 	if err != nil {
 		log.Printf("ERROR: INACTIVITY MONITOR: could not poweroff the instance: %s : %s", err, string(out))
 	} else {
@@ -978,12 +968,7 @@ func (c *agiExecProxyCmd) activityMonitor() {
 			c.shuttingDownMutex.Lock()
 			c.shuttingDown = true
 			c.shuttingDownMutex.Unlock()
-			shcomm := strings.Split(c.ShutdownCommand, " ")
-			shparams := []string{}
-			if len(shcomm) > 1 {
-				shparams = shcomm[1:]
-			}
-			out, err := exec.Command(shcomm[0], shparams...).CombinedOutput()
+			out, err := exec.Command("/bin/bash", "-c", c.ShutdownCommand).CombinedOutput()
 			if err != nil {
 				log.Printf("ERROR: INACTIVITY MONITOR: could not poweroff the instance: %s : %s", err, string(out))
 			} else {
