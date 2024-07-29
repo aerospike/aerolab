@@ -126,5 +126,17 @@ cat <<'EOF' > /opt/agi/notifier.yaml
 %s
 EOF
 fi
+
+if [ $override -eq 1 -o ! -f /opt/agi/ingest.yaml ]
+then
+    mv /tmp/ingest.yaml /opt/agi/ingest.yaml
+fi
+
+if [ $override -eq 1 -o ! -f /opt/agi/deployment.json.gz ]
+then
+    mv /tmp/deployment.json.gz /opt/agi/deployment.json.gz
+fi
+rm -f /tmp/ingest.yaml /tmp/deployment.json.gz
+
 chmod 755 /opt/autoload/*
 rm -rf /root/agiinstaller.sh && exit 0 || exit 0
