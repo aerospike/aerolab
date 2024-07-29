@@ -978,6 +978,12 @@ function initDatatable() {
                             window.location.href = "{{.WebRoot}}client/create/vector";
                         }
                     },
+                    {
+                        text: 'EksCtl',
+                        action: function ( e, dt, node, config ) {
+                            window.location.href = "{{.WebRoot}}client/create/eksctl";
+                        }
+                    },
                 ]
             },
             {extend: 'myspacer'},
@@ -1075,6 +1081,15 @@ function initDatatable() {
                             dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
                             if (arr.length != 1) {toastr.error("Select one row.");return;}
                             window.location.href = "{{.WebRoot}}client/grow/vector?ClientName="+arr[0]["ClientName"];
+                        }
+                    },
+                    {
+                        text: 'EksCtl',
+                        action: function ( e, dt, node, config ) {
+                            let arr = [];
+                            dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
+                            if (arr.length != 1) {toastr.error("Select one row.");return;}
+                            window.location.href = "{{.WebRoot}}client/grow/eksctl?ClientName="+arr[0]["ClientName"];
                         }
                     },
                 ]
