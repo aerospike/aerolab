@@ -157,6 +157,20 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		})
 	}
 	i.Lock()
+	for x := range inv.AGI {
+		if !inv.AGI[x].IsRunning {
+			continue
+		}
+		name := inv.AGI[x].Name
+		status := ""
+		for _, item := range i.inv.AGI {
+			if item.Name == name {
+				status = item.Status
+				break
+			}
+		}
+		inv.AGI[x].Status = status
+	}
 	i.inv = inv
 	go i.asyncGetAGIStatus(agiList)
 	i.Unlock()
@@ -1234,6 +1248,8 @@ func (c *webCmd) inventoryNodesActionStart(reqID string, invlog *os.File, clist 
 				cmdJson["Aws"] = map[string]interface{}{
 					"WithEFS": true,
 				}
+				cmdJson["S3Enable"] = false
+				cmdJson["SftpEnable"] = false
 			}
 			err = c.runInvCmd(reqID, ncmd, cmdJson, invlog)
 			if err != nil {

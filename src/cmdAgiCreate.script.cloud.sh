@@ -185,6 +185,17 @@ cat <<'EOF' > /opt/agi/notifier.yaml
 EOF
 fi
 
+if [ $override -eq 1 -o ! -f /opt/agi/ingest.yaml ]
+then
+    mv /tmp/ingest.yaml /opt/agi/ingest.yaml
+fi
+
+if [ $override -eq 1 -o ! -f /opt/agi/deployment.json.gz ]
+then
+    mv /tmp/deployment.json.gz /opt/agi/deployment.json.gz
+fi
+rm -f /tmp/ingest.yaml /tmp/deployment.json.gz
+
 chmod 755 /etc/systemd/system/agi-plugin.service /etc/systemd/system/agi-proxy.service /etc/systemd/system/agi-grafanafix.service /etc/systemd/system/agi-ingest.service
 systemctl enable agi-plugin && systemctl enable agi-proxy && systemctl enable agi-grafanafix && systemctl enable agi-ingest && systemctl daemon-reload
 systemctl start agi-plugin ; systemctl start agi-proxy ; systemctl start agi-grafanafix ; systemctl start agi-ingest
