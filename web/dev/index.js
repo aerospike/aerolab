@@ -1866,8 +1866,10 @@ function xRunAttach(tbutton, target, name, node, row, accessURL="") {
         var tbText = $(tbutton).text();
         $(tbutton).html('<span class="fa-solid fa-circle-notch fa-spin"></span>');
         $.post("{{.WebRoot}}www/api/inventory/agi/connect", "name="+name, function(data) {
-            var url = accessURL+"?AGI_TOKEN="+data
-            window.open(url, '_blank').focus();
+            var url = accessURL+"?AGI_TOKEN="+data;
+            setTimeout(function() {
+                window.open(url, '_blank').focus();
+            }, 0);
         })
         .fail(function(data) {
             let body = data.responseText;
