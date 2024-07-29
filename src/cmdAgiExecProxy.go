@@ -66,19 +66,19 @@ type agiExecProxyCmd struct {
 	Help                 helpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 	isBasicAuth          bool
 	isTokenAuth          bool
-	lastActivity         *activity
-	grafanaUrl           *url.URL
-	grafanaProxy         *httputil.ReverseProxy
-	ttydUrl              *url.URL
-	ttydProxy            *httputil.ReverseProxy
-	fbUrl                *url.URL
-	fbProxy              *httputil.ReverseProxy
-	gottyConns           *counter
-	srv                  *http.Server
-	tokens               *tokens
-	notify               notifier.HTTPSNotify
+	lastActivity         *activity              `no-default:"true"`
+	grafanaUrl           *url.URL               `no-default:"true"`
+	grafanaProxy         *httputil.ReverseProxy `no-default:"true"`
+	ttydUrl              *url.URL               `no-default:"true"`
+	ttydProxy            *httputil.ReverseProxy `no-default:"true"`
+	fbUrl                *url.URL               `no-default:"true"`
+	fbProxy              *httputil.ReverseProxy `no-default:"true"`
+	gottyConns           *counter               `no-default:"true"`
+	srv                  *http.Server           `no-default:"true"`
+	tokens               *tokens                `no-default:"true"`
+	notify               notifier.HTTPSNotify   `no-default:"true"`
 	shuttingDown         bool
-	shuttingDownMutex    *sync.Mutex
+	shuttingDownMutex    *sync.Mutex `no-default:"true"`
 	slacks3source        string
 	slacksftpsource      string
 	slackcustomsource    string

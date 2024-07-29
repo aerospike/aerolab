@@ -267,6 +267,7 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 					value = "0"
 				}
 			}
+		case reflect.Slice:
 		default:
 			fmt.Printf("ERROR: Key is not a parameter (%s)\n", keyField.Type().Kind())
 			beepExit(1)
@@ -295,6 +296,12 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 			}
 			keyField.SetInt(int64(v))
 		}
+	case reflect.Slice:
+		if keyField.Type().String() != "[]string" {
+			fmt.Println("Only string slices are supported; invalid key")
+			beepExit(1)
+		}
+		keyField.Set(reflect.ValueOf([]string{value}))
 	case reflect.String:
 		keyField.SetString(value)
 	case reflect.Bool:
@@ -423,6 +430,9 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 		for i := 0; i < keyField.NumField(); i++ {
 			fieldName := keyField.Type().Field(i).Name
 			fieldTag := keyField.Type().Field(i).Tag
+			if fieldTag.Get("no-default") == "true" {
+				continue
+			}
 			if len(fieldName) > 0 && fieldName[0] >= 97 && fieldName[0] <= 122 {
 				if keyField.Field(i).Type().Kind() != reflect.Struct {
 					continue
@@ -441,6 +451,12 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 			c.getValuesNext(keyField.Field(i), fieldName, ret, fieldTag, onlyChanged)
 		}
 	case reflect.Slice:
+		if keyField.Type().String() == "[]string" {
+			val := keyField.Interface().([]string)
+			if !onlyChanged || (tagDefault != "" && (len(val) != 1 || val[0] != tagDefault)) {
+				ret <- configValueCmd{start, fmt.Sprintf("%v", val)}
+			}
+		}
 	case reflect.Ptr:
 		if !keyField.IsNil() {
 			c.getValuesNext(reflect.Indirect(keyField), start, ret, tags, onlyChanged)
