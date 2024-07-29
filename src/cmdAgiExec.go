@@ -43,11 +43,11 @@ func (c *agiExecCmd) Execute(args []string) error {
 }
 
 type agiExecSimulateCmd struct {
-	Path       string  `long:"path" description:"path to a json file to use for notification" default:"notify.sim.json"`
-	Make       bool    `long:"make" description:"set to make the notification file using resource manager code instead of sending it"`
-	AGIName    string  `long:"agi-name" description:"set agiName when making the notificaiton json" default:"agi"`
-	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	notify     notifier.HTTPSNotify
+	Path       string               `long:"path" description:"path to a json file to use for notification" default:"notify.sim.json"`
+	Make       bool                 `long:"make" description:"set to make the notification file using resource manager code instead of sending it"`
+	AGIName    string               `long:"agi-name" description:"set agiName when making the notificaiton json" default:"agi"`
+	Help       helpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
+	notify     notifier.HTTPSNotify `no-default:"true"`
 	deployJson string
 }
 
@@ -287,10 +287,10 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 }
 
 type agiExecIngestCmd struct {
-	AGIName    string `long:"agi-name"`
-	Async      bool   `long:"async" description:"if set, will asynchonously process logs and collectinfo"`
-	YamlFile   string `short:"y" long:"yaml" description:"Yaml config file"`
-	notify     notifier.HTTPSNotify
+	AGIName    string               `long:"agi-name"`
+	Async      bool                 `long:"async" description:"if set, will asynchonously process logs and collectinfo"`
+	YamlFile   string               `short:"y" long:"yaml" description:"Yaml config file"`
+	notify     notifier.HTTPSNotify `no-default:"true"`
 	notifyJSON bool
 	deployJson string
 	Help       helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
