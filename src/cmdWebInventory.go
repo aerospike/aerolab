@@ -157,6 +157,17 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 		})
 	}
 	i.Lock()
+	for x := range inv.AGI {
+		name := inv.AGI[x].Name
+		status := ""
+		for _, item := range i.inv.AGI {
+			if item.Name == name {
+				status = item.Status
+				break
+			}
+		}
+		inv.AGI[x].Status = status
+	}
 	i.inv = inv
 	go i.asyncGetAGIStatus(agiList)
 	i.Unlock()
