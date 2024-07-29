@@ -298,7 +298,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	conf := encBuf.Bytes()
 	flist = append(flist, fileListReader{
-		filePath:     "/opt/agi/ingest.yaml",
+		filePath:     "/tmp/ingest.yaml",
 		fileContents: bytes.NewReader(conf),
 		fileSize:     len(conf),
 	})
@@ -1013,7 +1013,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	deploymentDetail, _ := json.Marshal(c)
 	deploymentDetail, _ = gz(deploymentDetail)
 	flist = append(flist, fileListReader{
-		filePath:     "/opt/agi/deployment.json.gz",
+		filePath:     "/tmp/deployment.json.gz",
 		fileContents: bytes.NewReader(deploymentDetail),
 		fileSize:     len(deploymentDetail),
 	})
