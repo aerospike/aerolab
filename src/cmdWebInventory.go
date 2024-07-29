@@ -1234,6 +1234,8 @@ func (c *webCmd) inventoryNodesActionStart(reqID string, invlog *os.File, clist 
 				cmdJson["Aws"] = map[string]interface{}{
 					"WithEFS": true,
 				}
+				cmdJson["S3Enable"] = false
+				cmdJson["SftpEnable"] = false
 			}
 			err = c.runInvCmd(reqID, ncmd, cmdJson, invlog)
 			if err != nil {
