@@ -158,6 +158,9 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 	}
 	i.Lock()
 	for x := range inv.AGI {
+		if !inv.AGI[x].IsRunning {
+			continue
+		}
 		name := inv.AGI[x].Name
 		status := ""
 		for _, item := range i.inv.AGI {
