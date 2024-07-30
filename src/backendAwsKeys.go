@@ -15,6 +15,12 @@ func (d *backendAws) GetKeyPath(clusterName string) (keyPath string, err error) 
 }
 
 func (d *backendAws) getKeyPathNoCheck(clusterName string) (keyPath string) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return path.Join(homeDir, "sshkey")
+		}
+	}
 	keyName := fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
@@ -25,6 +31,12 @@ func (d *backendAws) getKeyPathNoCheck(clusterName string) (keyPath string) {
 
 // get KeyPair
 func (d *backendAws) getKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "manual-aerolab-agi-shared", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	// check keyName exists, if not, error
@@ -47,6 +59,12 @@ func (d *backendAws) getKey(clusterName string) (keyName string, keyPath string,
 
 // get KeyPair
 func (d *backendAws) makeKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "manual-aerolab-agi-shared", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	_, _, err = d.getKey(clusterName)
@@ -74,6 +92,12 @@ func (d *backendAws) makeKey(clusterName string) (keyName string, keyPath string
 
 // get KeyPair
 func (d *backendAws) killKey(clusterName string) (keyName string, keyPath string, err error) {
+	homeDir, err := a.aerolabRootDir()
+	if err == nil {
+		if _, err := os.Stat(path.Join(homeDir, "sshkey")); err == nil {
+			return "manual-aerolab-agi-shared", path.Join(homeDir, "sshkey"), nil
+		}
+	}
 	keyName = fmt.Sprintf("aerolab-%s_%s", clusterName, a.opts.Config.Backend.Region)
 	keyPath = path.Join(string(a.opts.Config.Backend.SshKeyPath), keyName)
 	os.Remove(keyPath)
