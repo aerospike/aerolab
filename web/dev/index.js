@@ -833,7 +833,7 @@ function initDatatable() {
             {
                 className: 'btn btn-warning dtTooltip',
                 titleAttr: 'Open form: Extend node(s) expiry time',
-                text: 'Extend Expiry',
+                text: 'Change Expiry',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
                     dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
@@ -1135,8 +1135,8 @@ function initDatatable() {
             {extend: 'myspacer'},
             {
                 className: 'btn btn-warning dtTooltip',
-                titleAttr: 'Go to form: extend expiry of instance(s)',
-                text: 'Extend Expiry',
+                titleAttr: 'Go to form: Change Expiry of instance(s)',
+                text: 'Change Expiry',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
                     dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
@@ -1276,7 +1276,7 @@ function initDatatable() {
             {
                 className: 'btn btn-warning dtTooltip',
                 titleAttr: 'Open form: Extend node(s) expiry time',
-                text: 'Extend Expiry',
+                text: 'Change Expiry',
                 action: function ( e, dt, node, config ) {
                     let arr = [];
                     dt.rows({selected: true}).every(function(rowIdx, tableLoop, rowLoop) {arr.push(this.data());});
