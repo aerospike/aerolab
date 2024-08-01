@@ -141,6 +141,7 @@ type clusterCreateCmd struct {
 	useAgiFirewall bool
 	volExtraTags   map[string]string
 	spotFallback   bool
+	efsDelOnError  bool
 }
 
 type osSelectorCmd struct {
@@ -340,6 +341,20 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		log.Println("Running cluster.grow")
 	}
 
+	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
+		return logFatal("Docker backend does not support pricing")
+	}
+	iType := c.Aws.InstanceType
+	if a.opts.Config.Backend.Type == "gcp" {
+		iType = c.Gcp.InstanceType
+		printPrice(c.Gcp.Zone.String(), iType.String(), c.NodeCount, false)
+	} else if a.opts.Config.Backend.Type == "aws" {
+		printPrice(c.Gcp.Zone.String(), iType.String(), c.NodeCount, c.Aws.SpotInstance)
+	}
+	if c.PriceOnly {
+		return nil
+	}
+
 	var foundVol *inventoryVolume
 	var efsName, efsLocalPath, efsPath string
 	isArm := false
@@ -375,6 +390,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			if foundVol == nil && !c.Aws.EFSCreate {
 				return logFatal("EFS Volume not found, and is not set to be created")
 			} else if foundVol == nil {
+				a.opts.Volume.Delete.Name = efsName
 				a.opts.Volume.Create.Name = efsName
 				if c.Aws.EFSOneZone {
 					a.opts.Volume.Create.Aws.Zone, err = b.GetAZName(c.Aws.SubnetID)
@@ -389,6 +405,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				if err != nil {
 					return err
 				}
+				c.efsDelOnError = true
 			} else {
 				err = b.TagVolume(foundVol.FileSystemId, "expireDuration", c.Aws.EFSExpires.String(), foundVol.AvailabilityZoneName)
 				if err != nil {
@@ -444,6 +461,8 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			if foundVol == nil && !c.Gcp.VolCreate {
 				return logFatal("Volume not found, and is not set to be created")
 			} else if foundVol == nil {
+				a.opts.Volume.Delete.Name = efsName
+				a.opts.Volume.Delete.Gcp.Zone = string(c.Gcp.Zone)
 				a.opts.Volume.Create.Name = efsName
 				a.opts.Volume.Create.Owner = c.Owner
 				a.opts.Volume.Create.Expires = c.Gcp.VolExpires
@@ -454,6 +473,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 				if err != nil {
 					return err
 				}
+				c.efsDelOnError = true
 			} else {
 				err = b.TagVolume(foundVol.FileSystemId, "expireduration", strings.ToLower(strings.ReplaceAll(c.Gcp.VolExpires.String(), ".", "_")), foundVol.AvailabilityZoneName)
 				if err != nil {
@@ -476,20 +496,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		}
 		b.WorkOnServers()
 	}
-	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
-		return logFatal("Docker backend does not support pricing")
-	}
-	iType := c.Aws.InstanceType
-	if a.opts.Config.Backend.Type == "gcp" {
-		iType = c.Gcp.InstanceType
-		printPrice(c.Gcp.Zone.String(), iType.String(), c.NodeCount, false)
-	} else if a.opts.Config.Backend.Type == "aws" {
-		printPrice(c.Gcp.Zone.String(), iType.String(), c.NodeCount, c.Aws.SpotInstance)
-	}
-	if c.PriceOnly {
-		return nil
-	}
-
+	defer c.delVolume()
 	c.preChDir()
 	if err := chDir(string(c.ChDir)); err != nil {
 		return logFatal("ChDir failed: %s", err)
@@ -1560,6 +1567,7 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 		log.Printf("CLUSTER EXPIRES: %s (in: %s); to extend, use: aerolab cluster add expiry", extra.expiresTime.Format(time.RFC850), time.Until(extra.expiresTime).Truncate(time.Second).String())
 	}
 	log.Println("Done")
+	c.efsDelOnError = false
 	return nil
 }
 
@@ -1699,4 +1707,11 @@ func disk2backend(ds []string) (disks []*cloudDisk, err error) {
 		}
 	}
 	return
+}
+
+func (c *clusterCreateCmd) delVolume() {
+	if c.efsDelOnError {
+		log.Println("ErrorCleanupHandler: Removing stale volume")
+		a.opts.Volume.Delete.Execute(nil)
+	}
 }
