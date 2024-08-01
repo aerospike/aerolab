@@ -56,18 +56,18 @@ $ aerolab inventory hostfile
 10.128.0.82   aerolab4-ann-client-1           ann-client-1
 10.128.0.22   aerolab4-ghost-rider-1          ghost-rider-1
 10.128.0.19   aerolab4-darkhold-1             darkhold-1
-10.128.0.29   aerolab4-maphisto-1             maphisto-1
+10.128.0.29   aerolab4-mephisto-1             mephisto-1
 ```
 
 And you can filter,
 
 ```shell
-$ PROJECT_NAME=maphisto aerolab inventory hostfile
+$ PROJECT_NAME=mephisto aerolab inventory hostfile
 10.128.0.3              aerolab4-aerospike-1         aerospike-1
 10.128.0.4              aerolab4-aerospike-2         aerospike-2
 10.128.0.34             aerolab4-aerospike-client-1  aerospike-client-1
 10.128.0.19             aerolab4-darkhold-1          darkhold-1
-10.128.0.29             aerolab4-maphisto-1          maphisto-1
+10.128.0.29             aerolab4-mephisto-1          mephisto-1
 ```
 
 ### Ansible Inventory
@@ -80,7 +80,7 @@ that busybox does, where it changes its behavior based on what the shell invokes
 binary can be symlinked to masquerade as many separate utilities. To set this up, run `aerolab` like so:
 
 ```shell
-[root@aerolab4-maphisto-1 maphisto]# aerolab showcommands
+[root@aerolab4-mephisto-1 mephisto]# aerolab showcommands
 2024/08/01 17:39:20 +0000 Discovered absolute path: /usr/bin/aerolab
 2024/08/01 17:39:20 +0000 > ln -s /usr/bin/aerolab /usr/local/bin/showconf
 2024/08/01 17:39:20 +0000 > ln -s /usr/bin/aerolab /usr/local/bin/showsysinfo
@@ -92,7 +92,7 @@ binary can be symlinked to masquerade as many separate utilities. To set this up
 This then enables the following behaviour
 
 ```shell
-[root@aerolab4-maphisto-1 maphisto]# aerolab-ansible
+[root@aerolab4-mephisto-1 mephisto]# aerolab-ansible
 {
   "_meta": {
     "hostvars": {
@@ -104,7 +104,7 @@ This then enables the following behaviour
         "ansible_user": "root",
         "instance_id": "aerolab4-aerospike-client-1",
         "node_name": "aerospike-client-1",
-        "project": "maphisto"
+        "project": "mephisto"
       },
       "10.128.0.27": {
         "aerolab_cluster": "aerospike",
@@ -113,7 +113,7 @@ This then enables the following behaviour
         "ansible_user": "root",
         "instance_id": "aerolab4-aerospike-3",
         "node_name": "aerospike-3",
-        "project": "maphisto"
+        "project": "mephisto"
       },
       ...
     }
@@ -165,29 +165,29 @@ the `aerolab inventory genders` command generated a file that is conventionally 
 
 ```shell
 $ aerolab inventory genders
-aerospike-1             aerospike,group=aerospike,project=maphisto,all,pdsh_rcmd_type=ssh
-aerospike-2             aerospike,group=aerospike,project=maphisto,all,pdsh_rcmd_type=ssh
+aerospike-1             aerospike,group=aerospike,project=mephisto,all,pdsh_rcmd_type=ssh
+aerospike-2             aerospike,group=aerospike,project=mephisto,all,pdsh_rcmd_type=ssh
 ghost-rider-cluster-1   ghost-rider-cluster,group=aerospike,project=ghost-rider,all,pdsh_rcmd_type=ssh
 ghost-rider-cluster-2   ghost-rider-cluster,group=aerospike,project=ghost-rider,all,pdsh_rcmd_type=ssh
 ghost-rider-cluster-3   ghost-rider-cluster,group=aerospike,project=ghost-rider,all,pdsh_rcmd_type=ssh
 ghost-rider-cluster-4   ghost-rider-cluster,group=aerospike,project=ghost-rider,all,pdsh_rcmd_type=ssh
 ghost-rider-cluster-5   ghost-rider-cluster,group=aerospike,project=ghost-rider,all,pdsh_rcmd_type=ssh
-aerospike-client-1      aerospike-client,group=tools,project=maphisto,all,pdsh_rcmd_type=ssh
+aerospike-client-1      aerospike-client,group=tools,project=mephisto,all,pdsh_rcmd_type=ssh
 ann-client-1            ann-client,group=jumpbox,project=ann-client,all,pdsh_rcmd_type=ssh
 ghost-rider-1           ghost-rider,group=jumpbox,project=ghost-rider,all,pdsh_rcmd_type=ssh
-darkhold-1              darkhold,group=avs,project=maphisto,all,pdsh_rcmd_type=ssh
-maphisto-1              maphisto,group=jumpbox,project=maphisto,all,pdsh_rcmd_type=ssh
+darkhold-1              darkhold,group=avs,project=mephisto,all,pdsh_rcmd_type=ssh
+mephisto-1              mephisto,group=jumpbox,project=mephisto,all,pdsh_rcmd_type=ssh
 ```
 
 and to filter down to a specific project
 
 ```shell
-$ PROJECT_NAME=maphisto aerolab inventory genders
-aerospike-1             aerospike,group=aerospike,project=maphisto,all,pdsh_rcmd_type=ssh
-aerospike-2             aerospike,group=aerospike,project=maphisto,all,pdsh_rcmd_type=ssh
-aerospike-client-1      aerospike-client,group=tools,project=maphisto,all,pdsh_rcmd_type=ssh
-darkhold-1              darkhold,group=avs,project=maphisto,all,pdsh_rcmd_type=ssh
-maphisto-1              maphisto,group=jumpbox,project=maphisto,all,pdsh_rcmd_type=ssh
+$ PROJECT_NAME=mephisto aerolab inventory genders
+aerospike-1             aerospike,group=aerospike,project=mephisto,all,pdsh_rcmd_type=ssh
+aerospike-2             aerospike,group=aerospike,project=mephisto,all,pdsh_rcmd_type=ssh
+aerospike-client-1      aerospike-client,group=tools,project=mephisto,all,pdsh_rcmd_type=ssh
+darkhold-1              darkhold,group=avs,project=mephisto,all,pdsh_rcmd_type=ssh
+mephisto-1              mephisto,group=jumpbox,project=mephisto,all,pdsh_rcmd_type=ssh
 ```
 
 Perhaps the biggest reason to leverage tools like `pdsh` or `rpdcp` over `aerolab cluster attach` or `aerolab files` is that 
