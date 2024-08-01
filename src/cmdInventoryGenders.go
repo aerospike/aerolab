@@ -35,7 +35,7 @@ func (c *inventoryGendersCmd) run() error {
 		project string,
 	) {
 		nodeName := fmt.Sprintf("%s-%s", clusterName, nodeNo)
-		entry := fmt.Sprintf("%s\t\t%s,group=%s,project=%s,all,pdsh_rcmd_type=ssh", nodeName, clusterName, groupName, project)
+		entry := fmt.Sprintf("%s\t%s,group=%s,project=%s,all,pdsh_rcmd_type=ssh", nodeName, clusterName, groupName, project)
 		processedInventory = append(processedInventory, entry)
 	}
 

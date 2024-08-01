@@ -35,7 +35,7 @@ func (c *inventoryHostfileCmd) run() error {
 		nodeNo string,
 	) {
 		nodeName := fmt.Sprintf("%s-%s", clusterName, nodeNo)
-		entry := fmt.Sprintf("%s\t\t%s\t\t%s", privateIP, instanceId, nodeName)
+		entry := fmt.Sprintf("%s\t%s\t%s", privateIP, instanceId, nodeName)
 		processedInventory = append(processedInventory, entry)
 	}
 
