@@ -3382,6 +3382,9 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 				Name: aws.String(extra.instanceRole),
 			}
 		}
+		input.MetadataOptions = &ec2.InstanceMetadataOptionsRequest{
+			HttpTokens: aws.String("optional"),
+		}
 		reservationsX, err := d.ec2svc.RunInstances(&input)
 		if err != nil {
 			if strings.Contains(err.Error(), "InsufficientInstanceCapacity") && extra.spotInstance && extra.spotFallback {

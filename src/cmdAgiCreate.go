@@ -948,12 +948,12 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if c.ProxyCert != "" {
 		proxyCert = "/opt/agi/proxy.cert"
 	} else if c.ProxyCert == "" && !c.ProxyDisableSSL {
-		proxyCert = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
+		proxyCert = "/opt/agi/proxy.cert" //"/etc/ssl/certs/ssl-cert-snakeoil.pem"
 	}
 	if c.ProxyKey != "" {
 		proxyKey = "/opt/agi/proxy.key"
 	} else if c.ProxyKey == "" && !c.ProxyDisableSSL {
-		proxyKey = "/etc/ssl/private/ssl-cert-snakeoil.key"
+		proxyKey = "/opt/agi/proxy.key" //"/etc/ssl/private/ssl-cert-snakeoil.key"
 	}
 	proxyMaxInactive := c.ProxyMaxInactive.String()
 	proxyMaxUptime := c.ProxyMaxUptime.String()
