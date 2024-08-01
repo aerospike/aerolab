@@ -108,6 +108,7 @@ type agiCreateCmd struct {
 
 type agiCreateCmdAws struct {
 	InstanceType        string        `short:"I" long:"instance-type" description:"optional instance type to use; min RAM: 16GB; default in order, as available: edition: g/a/i, family:r7/r6/r5, size:xlarge"`
+	InstanceTypeArm     bool          `long:"instance-arch-arm" description:"if not specifying InstanceType, optionally specify this parameter to prefer ARM over amd64 type instances"`
 	Ebs                 string        `short:"E" long:"ebs" description:"EBS volume size GB" default:"40"`
 	SecurityGroupID     string        `short:"S" long:"secgroup-id" description:"security group IDs to use, comma-separated; default: empty: create and auto-manage" simplemode:"false"`
 	SubnetID            string        `short:"U" long:"subnet-id" description:"subnet-id, availability-zone name, or empty; default: empty: first found in default VPC" simplemode:"false"`
@@ -475,63 +476,54 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.InstanceType == "" {
 		log.Println("Resolving supported Instance Types")
-		sup := make([]bool, 8)
+		sup := make([]string, 8)
+		cnt := 6
+		if c.Aws.InstanceTypeArm {
+			cnt = 0
+		}
 		itypes, err := b.GetInstanceTypes(0, 0, 0, 0, 0, 0, true, "")
 		if err != nil {
-			sup[0] = true
+			sup[cnt] = "r7g.xlarge"
 		} else {
 			for _, itype := range itypes {
 				switch itype.InstanceName {
 				case "r7g.xlarge":
-					sup[0] = true
+					sup[cnt] = "r7g.xlarge"
 				case "r6g.xlarge":
-					sup[1] = true
+					sup[cnt+1] = "r6g.xlarge"
 				}
 			}
 		}
+		cnt = 0
+		if c.Aws.InstanceTypeArm {
+			cnt = 2
+		}
 		itypes, err = b.GetInstanceTypes(0, 0, 0, 0, 0, 0, false, "")
 		if err != nil {
-			sup[2] = true
+			sup[cnt] = "r7a.xlarge"
 		} else {
 			for _, itype := range itypes {
 				switch itype.InstanceName {
 				case "r7a.xlarge":
-					sup[2] = true
+					sup[cnt] = "r7a.xlarge"
 				case "r7i.xlarge":
-					sup[3] = true
+					sup[cnt+1] = "r7i.xlarge"
 				case "r6a.xlarge":
-					sup[4] = true
+					sup[cnt+2] = "r6a.xlarge"
 				case "r6i.xlarge":
-					sup[5] = true
+					sup[cnt+3] = "r6i.xlarge"
 				case "r5a.xlarge":
-					sup[6] = true
+					sup[cnt+4] = "r5a.xlarge"
 				case "r5.xlarge":
-					sup[7] = true
+					sup[cnt+5] = "r5.xlarge"
 				}
 			}
 		}
 		for i := range sup {
-			if !sup[i] {
+			if sup[i] == "" {
 				continue
 			}
-			switch i {
-			case 0:
-				c.Aws.InstanceType = "r7g.xlarge"
-			case 1:
-				c.Aws.InstanceType = "r6g.xlarge"
-			case 2:
-				c.Aws.InstanceType = "r7a.xlarge"
-			case 3:
-				c.Aws.InstanceType = "r7i.xlarge"
-			case 4:
-				c.Aws.InstanceType = "r6a.xlarge"
-			case 5:
-				c.Aws.InstanceType = "r6i.xlarge"
-			case 6:
-				c.Aws.InstanceType = "r5a.xlarge"
-			case 7:
-				c.Aws.InstanceType = "r5.xlarge"
-			}
+			c.Aws.InstanceType = sup[i]
 			break
 		}
 	} else if (a.opts.Config.Backend.Type == "aws" && c.Aws.InstanceType != "") || (a.opts.Config.Backend.Type == "gcp" && c.Gcp.InstanceType != "") {
