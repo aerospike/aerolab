@@ -593,7 +593,24 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		sourceStringS3 = sourceStringS3[0:188] + "..."
 	}
 	if a.opts.Config.Backend.Type == "aws" && c.Aws.Route53ZoneId != "" {
-		c.Aws.Tags = append(c.Aws.Tags, "agiDomain="+c.Aws.Route53DomainName, "agiZoneID="+c.Aws.Route53ZoneId)
+		agiDomainFound := false
+		agiZoneIDFound := false
+		for itag, ntag := range c.Aws.Tags {
+			if strings.HasPrefix(ntag, "agiDomain=") {
+				agiDomainFound = true
+				c.Aws.Tags[itag] = "agiDomain=" + c.Aws.Route53DomainName
+			}
+			if strings.HasPrefix(ntag, "agiZoneID=") {
+				agiZoneIDFound = true
+				c.Aws.Tags[itag] = "agiZoneID=" + c.Aws.Route53ZoneId
+			}
+		}
+		if !agiDomainFound {
+			c.Aws.Tags = append(c.Aws.Tags, "agiDomain="+c.Aws.Route53DomainName)
+		}
+		if !agiZoneIDFound {
+			c.Aws.Tags = append(c.Aws.Tags, "agiZoneID="+c.Aws.Route53ZoneId)
+		}
 	}
 	sourceStringLocal = base64.RawStdEncoding.EncodeToString([]byte(sourceStringLocal))
 	sourceStringSftp = base64.RawStdEncoding.EncodeToString([]byte(sourceStringSftp))

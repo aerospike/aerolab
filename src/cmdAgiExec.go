@@ -491,6 +491,12 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		go c.resourceMonitor()
 	}
 	if !steps.Download {
+		if config.Downloader.S3Source.Enabled && config.Downloader.S3Source.PathPrefix == "" {
+			return fmt.Errorf("Download: S3 enabled, but path is empty; refusing to AGI a whole bucket")
+		}
+		if config.Downloader.SftpSource.Enabled && config.Downloader.SftpSource.PathPrefix == "" {
+			return fmt.Errorf("Download: Sftp enabled, but path is empty; refusing to AGI a whole sftp server")
+		}
 		err = i.Download()
 		if err != nil {
 			return fmt.Errorf("Download: %s", err)
