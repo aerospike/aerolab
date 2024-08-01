@@ -9,3 +9,5 @@
 [Encryption at rest](encryption.md)
 
 [Custom Aerospike build](custom-build.md)
+
+[Exporting Inventory](export-inventory.md)
