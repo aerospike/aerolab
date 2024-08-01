@@ -20,6 +20,8 @@ else
     openssl req -new -x509 -nodes -out /etc/ssl/certs/ssl-cert-snakeoil.pem -keyout /etc/ssl/private/ssl-cert-snakeoil.key -days 3650 -subj '/CN=www.example.com'
     yum install -y https://dl.grafana.com/oss/release/grafana-10.2.0-1.%s.rpm
 fi
+[ ! -f /opt/agi/proxy.cert ] && cp /etc/ssl/certs/ssl-cert-snakeoil.pem /opt/agi/proxy.cert
+[ ! -f /opt/agi/proxy.key ] && cp /etc/ssl/private/ssl-cert-snakeoil.key /opt/agi/proxy.key
 chmod 755 /usr/local/bin/aerolab
 aerolab config backend -t none
 %s
