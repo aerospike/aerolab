@@ -161,6 +161,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	c.S3path = strings.Trim(c.S3path, "\t\n\r ")
 	if strings.HasPrefix(c.SlackToken, "ENV::") {
 		c.SlackToken = os.Getenv(strings.Split(c.SlackToken, "::")[1])
 	}
