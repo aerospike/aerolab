@@ -5,6 +5,11 @@ var aerospikeInstallScript = make(map[string]string) //docker:centos:7 = script;
 func init() {
 
 	aerospikeInstallScript["aws:ubuntu:22.04"] = `#!/bin/bash
+systemctl stop unattended-upgrades || echo "1:OK"
+pkill --signal SIGKILL unattended-upgrades || echo "2:OK"
+systemctl disable unattended-upgrades || echo "3:OK"
+apt-get -y -f install || echo "4:OK"
+apt-get -y purge unattended-upgrades || echo "5:OK"
 sed -i.bak "/#\$nrconf{restart} = .*/s/.*/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf || echo "No sed"
 cat <<'EOF' > /usr/local/bin/early.sh
 #!/bin/bash
