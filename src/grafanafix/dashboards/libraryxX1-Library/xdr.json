@@ -4059,6 +4059,9 @@
           },
           "overrides": []
         },
+        "libraryPanel": {
+          "uid": "py0IbbEVz"
+        },
         "options": {
           "legend": {
             "calcs": [
@@ -5179,6 +5182,12 @@
       "id": "text",
       "name": "Text",
       "version": ""
+    },
+    {
+      "type": "panel",
+      "id": "timeseries",
+      "name": "Time series",
+      "version": ""
     }
   ],
   "annotations": {
@@ -5731,6 +5740,102 @@
             "uid": "kVTE1bP4k"
           },
           "title": "xdr-dc (5+): tomb-raider done: total-ms"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 47
+          },
+          "id": 70,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"xdr5dc\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"xdr5dc\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"bins\": [{\n      \"name\": \"xdr5bship\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds,\n      \"produceDelta\": $ProduceDelta,\n      \"convertToPerSecond\": $ProduceDelta,\n      \"limits\": {\n        \"minValue\": 0,\n        \"replaceWithOriginal\": true\n      }\n    }]\n}\n",
+              "refId": "A",
+              "target": "xdr5Dc"
+            }
+          ],
+          "title": "xdr-dc (5+): Bytes Shipped Per Sec",
+          "type": "timeseries"
         }
       ],
       "title": "XDR5+",
