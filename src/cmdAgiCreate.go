@@ -212,9 +212,15 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if (c.WithAGIMonitorAuto || c.hTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "gcp" && !c.Gcp.WithVol {
 		return errors.New("AGI monitor can only be enabled for instances with extra Volume storage enabled (use --gcp-with-vol)")
 	}
-
+	// upload file list start - add logtags
+	flist := []fileListReader{
+		{
+			filePath:     "/usr/local/bin/logtags",
+			fileContents: strings.NewReader(agiCreateLogTags),
+			fileSize:     len(agiCreateLogTags),
+		},
+	}
 	// generate ingest.yaml
-	flist := []fileListReader{}
 	var tfrom, tto time.Time
 	var err error
 	if c.TimeRangesFrom != "" {
@@ -1078,6 +1084,9 @@ var agiCreateScript string
 
 //go:embed cmdAgiCreate.script.docker.sh
 var agiCreateScriptDocker string
+
+//go:embed cmdAgiCreateLogtags.py
+var agiCreateLogTags string
 
 func gz(p []byte) (r []byte, err error) {
 	buf := &bytes.Buffer{}
