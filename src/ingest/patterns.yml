@@ -303,6 +303,9 @@ defs:
                 - "quiesced this (?P<thisQuiesce>\\d+) node"
         -
             setName: "restarts"
+            labels:
+                - "build"
+                - "signal"
             search: "<><><><><><><><>"
             replace:
                 -
@@ -321,6 +324,9 @@ defs:
                 - "config-set (?P<configset>\\d+) command completed: params (?P<command>.*)"
         -
             setName: "restarts"
+            labels:
+                - "build"
+                - "signal"
             search: "shutting down Aerospike"
             replace:
                 -
@@ -331,6 +337,9 @@ defs:
                 - "(?P<stop>\\d+) build (?P<build>[^ ]+)"
         -
             setName: "restarts"
+            labels:
+                - "build"
+                - "signal"
             search: "aborting Aerospike"
             replace:
                 -
@@ -341,6 +350,9 @@ defs:
                 - "(?P<stop>\\d+) build (?P<build>[^ ]+)"
         -
             setName: "restarts"
+            labels:
+                - "build"
+                - "signal"
             search: "shutting down"
             replace:
                 -
@@ -351,6 +363,9 @@ defs:
                 - "(?P<stop>\\d+) shutting down"
         -
             setName: "restarts"
+            labels:
+                - "build"
+                - "signal"
             search: "starting normal shutdown"
             replace:
                 -
@@ -361,6 +376,9 @@ defs:
                 - "(?P<stop>\\d+) starting normal shutdown"
         -
             setName: "restarts"
+            labels:
+                - "build"
+                - "signal"
             search: "finished clean shutdown - exiting"
             replace:
                 -
