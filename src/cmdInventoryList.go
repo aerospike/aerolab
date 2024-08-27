@@ -388,6 +388,67 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	}
 
 	c.fillAGIStruct(&inv)
+
+	// sort before json
+	sort.Slice(inv.Templates, func(i, j int) bool {
+		if inv.Templates[i].AerospikeVersion > inv.Templates[j].AerospikeVersion {
+			return true
+		} else if inv.Templates[i].AerospikeVersion < inv.Templates[j].AerospikeVersion {
+			return false
+		} else {
+			if inv.Templates[i].Arch < inv.Templates[j].Arch {
+				return true
+			} else if inv.Templates[i].Arch > inv.Templates[j].Arch {
+				return false
+			} else {
+				if inv.Templates[i].Distribution < inv.Templates[j].Distribution {
+					return true
+				} else if inv.Templates[i].Distribution > inv.Templates[j].Distribution {
+					return false
+				} else {
+					return inv.Templates[i].OSVersion < inv.Templates[j].OSVersion
+				}
+			}
+		}
+	})
+
+	sort.Slice(inv.Clusters, func(i, j int) bool {
+		if inv.Clusters[i].ClusterName < inv.Clusters[j].ClusterName {
+			return true
+		} else if inv.Clusters[i].ClusterName > inv.Clusters[j].ClusterName {
+			return false
+		} else {
+			return inv.Clusters[i].NodeNo < inv.Clusters[j].NodeNo
+		}
+	})
+
+	sort.Slice(inv.Clients, func(i, j int) bool {
+		if inv.Clients[i].ClientName < inv.Clients[j].ClientName {
+			return true
+		} else if inv.Clients[i].ClientName > inv.Clients[j].ClientName {
+			return false
+		} else {
+			return inv.Clients[i].NodeNo < inv.Clients[j].NodeNo
+		}
+	})
+
+	sort.Slice(inv.FirewallRules, func(i, j int) bool {
+		switch a.opts.Config.Backend.Type {
+		case "gcp":
+			return inv.FirewallRules[i].GCP.FirewallName < inv.FirewallRules[j].GCP.FirewallName
+		case "aws":
+			if inv.FirewallRules[i].AWS.VPC < inv.FirewallRules[j].AWS.VPC {
+				return true
+			} else if inv.FirewallRules[i].AWS.VPC > inv.FirewallRules[j].AWS.VPC {
+				return false
+			} else {
+				return inv.FirewallRules[i].AWS.SecurityGroupName < inv.FirewallRules[j].AWS.SecurityGroupName
+			}
+		default:
+			return inv.FirewallRules[i].Docker.NetworkName < inv.FirewallRules[j].Docker.NetworkName
+		}
+	})
+
 	if c.Json {
 		enc := json.NewEncoder(os.Stdout)
 		if c.JsonPretty {
@@ -452,65 +513,6 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 		return nil
 	}
-
-	sort.Slice(inv.Templates, func(i, j int) bool {
-		if inv.Templates[i].AerospikeVersion > inv.Templates[j].AerospikeVersion {
-			return true
-		} else if inv.Templates[i].AerospikeVersion < inv.Templates[j].AerospikeVersion {
-			return false
-		} else {
-			if inv.Templates[i].Arch < inv.Templates[j].Arch {
-				return true
-			} else if inv.Templates[i].Arch > inv.Templates[j].Arch {
-				return false
-			} else {
-				if inv.Templates[i].Distribution < inv.Templates[j].Distribution {
-					return true
-				} else if inv.Templates[i].Distribution > inv.Templates[j].Distribution {
-					return false
-				} else {
-					return inv.Templates[i].OSVersion < inv.Templates[j].OSVersion
-				}
-			}
-		}
-	})
-
-	sort.Slice(inv.Clusters, func(i, j int) bool {
-		if inv.Clusters[i].ClusterName < inv.Clusters[j].ClusterName {
-			return true
-		} else if inv.Clusters[i].ClusterName > inv.Clusters[j].ClusterName {
-			return false
-		} else {
-			return inv.Clusters[i].NodeNo < inv.Clusters[j].NodeNo
-		}
-	})
-
-	sort.Slice(inv.Clients, func(i, j int) bool {
-		if inv.Clients[i].ClientName < inv.Clients[j].ClientName {
-			return true
-		} else if inv.Clients[i].ClientName > inv.Clients[j].ClientName {
-			return false
-		} else {
-			return inv.Clients[i].NodeNo < inv.Clients[j].NodeNo
-		}
-	})
-
-	sort.Slice(inv.FirewallRules, func(i, j int) bool {
-		switch a.opts.Config.Backend.Type {
-		case "gcp":
-			return inv.FirewallRules[i].GCP.FirewallName < inv.FirewallRules[j].GCP.FirewallName
-		case "aws":
-			if inv.FirewallRules[i].AWS.VPC < inv.FirewallRules[j].AWS.VPC {
-				return true
-			} else if inv.FirewallRules[i].AWS.VPC > inv.FirewallRules[j].AWS.VPC {
-				return false
-			} else {
-				return inv.FirewallRules[i].AWS.SecurityGroupName < inv.FirewallRules[j].AWS.SecurityGroupName
-			}
-		default:
-			return inv.FirewallRules[i].Docker.NetworkName < inv.FirewallRules[j].Docker.NetworkName
-		}
-	})
 
 	colorHiWhite := colorPrint{c: text.Colors{text.FgHiWhite}, enable: true}
 	warnExp := colorPrint{c: text.Colors{text.BgHiYellow, text.FgBlack}, enable: true}
