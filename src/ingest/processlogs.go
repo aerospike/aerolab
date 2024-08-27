@@ -13,9 +13,11 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v7"
+	"github.com/aerospike/aerospike-client-go/v7/types"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 	"github.com/rglonek/sbs"
+	"golang.org/x/exp/rand"
 )
 
 type MetaEntries map[string]*metaEntries
@@ -187,9 +189,19 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 					<-threads
 					return
 				}
-				err = i.db.Put(i.wp, key, data)
-				if err != nil {
-					logger.Error("Log Processor: could not insert data for %s: %s", fn, err)
+				for {
+					err = i.db.Put(i.wp, key, data)
+					if err != nil {
+						if err.Matches(types.ResultCode(types.DEVICE_OVERLOAD)) {
+							logger.Error("Log Processor: DEVICE_OVERLOAD, backoff and try again...")
+							time.Sleep(time.Duration(10+rand.Intn(1000-10)) * time.Millisecond)
+						} else {
+							logger.Error("Log Processor: could not insert data for %s: %s", fn, err)
+							break
+						}
+					} else {
+						break
+					}
 				}
 				wg.Done()
 				<-threads
