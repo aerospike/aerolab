@@ -233,7 +233,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("create.ingest.MakeConfig: %s", err)
 	}
-	config.Aerospike.MaxPutThreads = 1024
+	config.Aerospike.MaxPutThreads = 128
 	if a.opts.Config.Backend.Type == "docker" {
 		config.Aerospike.MaxPutThreads = 64
 	}
@@ -958,8 +958,9 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	nver := strings.Split(c.AerospikeVersion.String(), ".")
 	//memory-size %dG
-	var memSizeStr, storEngine, dimStr, rpcStr, wbs string
+	var memSizeStr, storEngine, dimStr, rpcStr, wbs, maxWriteCache string
 	var fileSizeInt int
+	maxWriteCache = "max-write-cache 1024M"
 	if inslice.HasString([]string{"6", "5", "4", "3"}, nver[0]) {
 		memSizeStr = "memory-size " + strconv.Itoa(memSize/1024/1024/1024) + "G"
 		storEngine = "device"
@@ -1005,7 +1006,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	} else {
 		shutdownCmd := "/sbin/poweroff -p || /sbin/poweroff"
-		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, c.ClusterName, shutdownCmd, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, maxWriteCache, c.ClusterName, shutdownCmd, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 

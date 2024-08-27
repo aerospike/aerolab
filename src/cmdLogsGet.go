@@ -39,6 +39,7 @@ func (c *logsGetCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	c.LogLocation = strings.Trim(c.LogLocation, "\r\n\t ")
 	if len(c.Tail) == 0 {
 		c.Tail = args
 	}
