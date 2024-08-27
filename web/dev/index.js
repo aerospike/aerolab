@@ -619,6 +619,7 @@ function initDatatable() {
         scrollY: '70vh',
         scrollX: true,
         stateSave: true,
+        stateDuration: 0,
         fixedHeader: true,
         select: true,
         dom: 'Bfrtip',
