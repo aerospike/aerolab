@@ -349,6 +349,9 @@ golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
+# golang.org/x/exp v0.0.0-20190121172915-509febef88a4
+## explicit
+golang.org/x/exp/rand
 # golang.org/x/net v0.27.0
 ## explicit; go 1.18
 golang.org/x/net/html
