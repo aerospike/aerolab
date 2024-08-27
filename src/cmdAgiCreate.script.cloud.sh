@@ -66,6 +66,7 @@ namespace agi {
         %s
         %s
         %s
+        %s
     }
 }
 EOF
