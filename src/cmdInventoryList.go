@@ -349,7 +349,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			if port == "" {
 				port = ":9200"
 			}
-			inv.Clients[vi].AccessUrl = "http://" + nip + port + "/NAMESPACE/_search"
+			inv.Clients[vi].AccessUrl = "https://" + nip + port + "/NAMESPACE/_search"
 			inv.Clients[vi].AccessPort = "9200"
 		case "rest-gateway":
 			if port == "" {
