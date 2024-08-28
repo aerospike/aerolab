@@ -1,5 +1,12 @@
 # Change History
 
+## August 12 2024: v7.6.1
+
+  Minor improvement release.
+
+- **Improvements**
+  - [CLIENT-3071] Increase info command max response buffer size to 64 MiB.
+
 ## July 19 2024: v7.6.0
 
   Minor fix release.
