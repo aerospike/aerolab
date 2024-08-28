@@ -57,7 +57,7 @@ type agiCreateCmd struct {
 	SftpPass         string          `long:"source-sftp-pass" description:"sftp password" webtype:"password" simplemode:"false"`
 	SftpKey          flags.Filename  `long:"source-sftp-key" description:"key to use for sftp login for log download, alternative to password" simplemode:"false"`
 	SftpPath         string          `long:"source-sftp-path" description:"path on sftp to download logs from" simplemode:"false"`
-	SftpRegex        string          `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path; start wih ^" simplemode:"false"`
+	SftpRegex        string          `long:"source-sftp-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the sftp-path specification, not the whole path" simplemode:"false"`
 	SftpSkipCheck    bool            `long:"source-sftp-skipcheck" description:"set to prevent aerolab for checking from this machine if sftp is accessible with the given credentials" simplemode:"false"`
 	SftpFullCheck    bool            `long:"source-sftp-listfiles" description:"set this to make aerolab login to sftp and list files prior to starting AGI; this will interactively prompt to continue" simplemode:"false"`
 	S3Enable         bool            `long:"source-s3-enable" description:"enable s3 source" simplemode:"false"`
@@ -67,7 +67,7 @@ type agiCreateCmd struct {
 	S3KeyID          string          `long:"source-s3-key-id" description:"(optional) access key ID" simplemode:"false"`
 	S3Secret         string          `long:"source-s3-secret-key" description:"(optional) secret key" webtype:"password" simplemode:"false"`
 	S3path           string          `long:"source-s3-path" description:"path on s3 to download logs from" simplemode:"false"`
-	S3Regex          string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path; start wih ^" simplemode:"false"`
+	S3Regex          string          `long:"source-s3-regex" description:"regex to apply for choosing what to download, the regex is applied on paths AFTER the s3-path specification, not the whole path" simplemode:"false"`
 	S3SkipCheck      bool            `long:"source-s3-skipcheck" description:"set to prevent aerolab for checking from this machine if s3 is accessible with the given credentials" simplemode:"false"`
 	S3Endpoint       string          `long:"source-s3-endpoint" description:"specify a custom endpoint for the S3 source bucket"`
 	ProxyDisableSSL  bool            `long:"proxy-ssl-disable" description:"switch to disable TLS on the proxy" simplemode:"false"`
@@ -212,9 +212,15 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if (c.WithAGIMonitorAuto || c.hTTPSNotify.AGIMonitorUrl != "") && a.opts.Config.Backend.Type == "gcp" && !c.Gcp.WithVol {
 		return errors.New("AGI monitor can only be enabled for instances with extra Volume storage enabled (use --gcp-with-vol)")
 	}
-
+	// upload file list start - add logtags
+	flist := []fileListReader{
+		{
+			filePath:     "/usr/local/bin/logtags",
+			fileContents: strings.NewReader(agiCreateLogTags),
+			fileSize:     len(agiCreateLogTags),
+		},
+	}
 	// generate ingest.yaml
-	flist := []fileListReader{}
 	var tfrom, tto time.Time
 	var err error
 	if c.TimeRangesFrom != "" {
@@ -1078,6 +1084,9 @@ var agiCreateScript string
 
 //go:embed cmdAgiCreate.script.docker.sh
 var agiCreateScriptDocker string
+
+//go:embed cmdAgiCreateLogtags.py
+var agiCreateLogTags string
 
 func gz(p []byte) (r []byte, err error) {
 	buf := &bytes.Buffer{}

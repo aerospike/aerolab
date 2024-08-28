@@ -13,7 +13,19 @@ ISAPT=$?
 set -e
 if [ $ISAPT -eq 0 ]
 then
-    apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
+    ANS=1
+    TOUT=0
+    while [ $ANS -ne 0 ]
+    do
+        apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
+        ANS=$?
+        if [ $ANS -ne 0 ]
+        then
+            TOUT=$((TOUT + 1))
+            [ $TOUT -gt 900 ] && exit 1
+            sleep 1
+        fi
+    done
 else
     yum install -y wget mod_ssl
     mkdir -p /etc/ssl/certs /etc/ssl/private

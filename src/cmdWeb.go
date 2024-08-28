@@ -2160,19 +2160,17 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 			nUserClean = nUserClean + string(c)
 		}
 	}
-	if a.opts.Config.Backend.Type != "docker" && len(cmdline) >= 3 && ((cmdline[1] == "cluster" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "client" && (cmdline[2] == "create" || cmdline[2] == "grow")) || (cmdline[1] == "template" && cmdline[2] == "create") || (cmdline[1] == "agi" && cmdline[2] == "create")) {
-		fwsw := "xxOwner"
-		fwFound := false
-		for _, kv := range postForm {
-			if kv[0].(string) == fwsw {
-				fwFound = true
-				break
-			}
+	fwsw := "xxOwner"
+	fwFound := false
+	for _, kv := range postForm {
+		if kv[0].(string) == fwsw {
+			fwFound = true
+			break
 		}
-		if !fwFound {
-			item := []interface{}{fwsw, []string{nUserClean}}
-			postForm = append(postForm, item)
-		}
+	}
+	if !fwFound {
+		item := []interface{}{fwsw, []string{nUserClean}}
+		postForm = append(postForm, item)
 	}
 
 	// handle unique firewalls feature
@@ -2225,7 +2223,10 @@ func (c *webCmd) command(w http.ResponseWriter, r *http.Request) {
 		}
 		param := commandPath[len(commandPath)-1]
 		field := cmd.FieldByName(param)
-		fieldType, _ := cmd.Type().FieldByName(param)
+		fieldType, fieldFound := cmd.Type().FieldByName(param)
+		if !fieldFound {
+			continue
+		}
 		tag := fieldType.Tag
 		if isSimpleMode {
 			pathStack := c.commands[cindex].pathStack

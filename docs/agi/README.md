@@ -18,6 +18,10 @@ This document explains the basic usage, and examples, of AGI.
 
 See [this page](usage.md) for usage.
 
+## Supported log formats
+
+See [this page](supported_log_formats.md) for a list of supported log formats.
+
 ## AWS EFS and GCP extra volumes
 
 See [this page](efs.md) for usage with persistent elastic volumes for data storage.
