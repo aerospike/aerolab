@@ -49,17 +49,13 @@ sometext        node_a1        prod_cluster        May 19 2021 23:59:57 GMT: INF
 
 ### GKE default logger
 
-Supported log json definition is defined below. Optional json fields may be provided and will be ignored. One line per Aerospike log line. Do NOT encapsulate in list enumerator `[]`. Multiple node logs may be encapsulated in the same json log file.
+Supported log json definition is defined below. Optional json fields may be provided and will be ignored. One line per Aerospike log line. Multiple node logs may be encapsulated in the same json log file.
+
+***Do NOT encapsulate in list enumerator `[]`.***
 
 ```
-{
-    "textPayload": "LOG_LINE",
-    "resource":{
-        "labels":{
-            "pod_name": "NODE_NAME"
-        }
-    }
-}
+{"textPayload": "LOG_LINE","resource":{"labels":{"pod_name": "NODE_NAME"}}}
+{"textPayload": "LOG_LINE","resource":{"labels":{"pod_name": "NODE_NAME_2"}}}
 ```
 
 Example:
@@ -72,12 +68,12 @@ Example:
 
 ### K8s JSON default logs
 
-Each node must be logged in seaprate JSON file, as node markers are not present in this format. Optional json fields may be provided and will be ignored. One line per Aerospike log line. Do NOT encapsulate in list enumerator `[]`.
+Each node must be logged in seaprate JSON file, as node markers are not present in this format. Optional json fields may be provided and will be ignored. One line per Aerospike log line.
+
+***Do NOT encapsulate in list enumerator `[]`.***
 
 ```
-{
-    "log": "LOG_LINE"
-}
+{"log": "LOG_LINE"}
 ```
 
 Example:
@@ -89,14 +85,12 @@ Example:
 
 ### K8s JSON alternative log format
 
-Each node must be logged in seaprate JSON file, as node markers are not present in this format. Optional json fields may be provided and will be ignored. One line per Aerospike log line. Do NOT encapsulate in list enumerator `[]`.
+Each node must be logged in seaprate JSON file, as node markers are not present in this format. Optional json fields may be provided and will be ignored. One line per Aerospike log line.
+
+***Do NOT encapsulate in list enumerator `[]`.***
 
 ```
-{
-    "jsonPayload":{
-        "log": "LOG_LINE"
-    }
-}
+{"jsonPayload":{"log": "LOG_LINE"}}
 ```
 
 Example:
@@ -114,7 +108,9 @@ Note that AWS CloudWatch CSV encapsulation is not supported. If exporting logs f
 
 Further to the above logging formats, separated line logging is also supported.
 
-Each node must be logged in seaprate JSON file, as node markers are not present in this format. Optional json fields may be provided and will be ignored. One line per Aerospike log line. Do NOT encapsulate in list enumerator `[]`. JSON format is as follows:
+Each node must be logged in seaprate JSON file, as node markers are not present in this format. Optional json fields may be provided and will be ignored. One line per Aerospike log line. JSON format is as follows:
+
+***Do NOT encapsulate in list enumerator `[]`.***
 
 ```
 {
