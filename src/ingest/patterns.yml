@@ -683,12 +683,6 @@ defs:
                 - "count=(?P<skippedCnt>\\d+)"
         -
             setName: "ConnectorReqDetail"
-            search: "metrics-ticker - requests-queued-migrator"
-            export:
-                - "requests-queued-migrator-(?P<espDC>[^ ]+) count=(?P<queMigrCnt>\\d+)"
-                - "count=(?P<queMigrCnt>\\d+)"
-        -
-            setName: "ConnectorReqDetail"
             search: "metrics-ticker - requests-queued"
             export:
                 - "requests-queued-(?P<espDC>[^ ]+) count=(?P<queuedCnt>\\d+)"
@@ -812,22 +806,10 @@ defs:
                 - "mean=(?P<mean>[0-9\\.-Ee]+), m1=(?P<m1>[0-9\\.-Ee]+), m5=(?P<m5>[0-9\\.-Ee]+), m15=(?P<m15>[0-9\\.-Ee]+)"
         -
             setName: "ConnectorHealth"
-            search: "metrics-ticker - health-check-errors-migrator"
-            export:
-                - "health-check-errors-migrator-(?P<espDC>[^ ]+) count=(?P<errMigraCnt>\\d+)"
-                - "count=(?P<errMigraCnt>\\d+)"
-        -
-            setName: "ConnectorHealth"
             search: "metrics-ticker - health-check-errors"
             export:
                 - "health-check-errors-(?P<espDC>[^ ]+) count=(?P<errCnt>\\d+)"
                 - "count=(?P<errCnt>\\d+)"
-        -
-            setName: "ConnectorHealth"
-            search: "metrics-ticker - health-check-successes-migrator"
-            export:
-                - "health-check-successes-migrator-(?P<espDC>[^ ]+) count=(?P<okMigraCnt>\\d+)"
-                - "count=(?P<okMigraCnt>\\d+)"
         -
             setName: "ConnectorHealth"
             search: "metrics-ticker - health-check-successes"
