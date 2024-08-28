@@ -1765,10 +1765,10 @@ func (c *webCmd) inventoryClusterClientWs(w http.ResponseWriter, r *http.Request
 		nargs = append(nargs, "-m", namespace)
 	}
 	if target == "graph" {
-		nargs = append(nargs, "--", "docker", "run", "-it", "--rm", "tinkerpop/gremlin-console")
+		nargs = append(nargs, "--", "docker", "run", "-it", "--rm", "--net=host", "tinkerpop/gremlin-console")
 		if a.opts.Config.Backend.Type == "docker" {
 			ex = "docker"
-			nargs = []string{"run", "-it", "--rm", "tinkerpop/gremlin-console"}
+			nargs = []string{"run", "-it", "--rm", "--net=host", "tinkerpop/gremlin-console"}
 		}
 	}
 	cmd := exec.Command(ex, nargs...)
