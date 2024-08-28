@@ -46,18 +46,18 @@ func (i *Ingest) enum() (map[string]*EnumFile, error) {
 		}
 		defer fd.Close()
 		buffer := make([]byte, 4096)
-		_, err = fd.Read(buffer)
+		rdCnt, err := fd.Read(buffer)
 		if err != nil && err != io.EOF {
 			logger.Warn("Could not read file, skipping: %s", filePath)
 			return nil
 		}
-		contentType := mimetype.Detect(buffer)
+		contentType := mimetype.Detect(buffer[0:rdCnt])
 
 		// workaround for log files starting with binary 000s, start detection at 4k mark after the 000s
 		emptyBuffer := make([]byte, 4096)
 		if contentType.Is("application/octet-stream") {
 			for bytes.Equal(buffer, emptyBuffer) {
-				_, err = fd.Read(buffer)
+				rdCnt, err = fd.Read(buffer)
 				if err != nil && err != io.EOF {
 					logger.Warn("Could not read file, skipping: %s", filePath)
 					return nil
@@ -72,7 +72,7 @@ func (i *Ingest) enum() (map[string]*EnumFile, error) {
 				logger.Warn("Could not read file, skipping: %s", filePath)
 				return nil
 			}
-			contentType = mimetype.Detect(buffer)
+			contentType = mimetype.Detect(buffer[0:rdCnt])
 		}
 
 		file.mimeType = contentType

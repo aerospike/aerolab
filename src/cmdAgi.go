@@ -493,7 +493,22 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	var encBuf bytes.Buffer
 	enc := yaml.NewEncoder(&encBuf)
 	enc.SetIndent(2)
+	s3secret := conf.Downloader.S3Source.SecretKey
+	sftpSecret := conf.Downloader.SftpSource.Password
+	keySecret := conf.Downloader.SftpSource.KeyFile
+	if conf.Downloader.S3Source.SecretKey != "" {
+		conf.Downloader.S3Source.SecretKey = "<redacted>"
+	}
+	if conf.Downloader.SftpSource.Password != "" {
+		conf.Downloader.SftpSource.Password = "<redacted>"
+	}
+	if conf.Downloader.SftpSource.KeyFile != "" {
+		conf.Downloader.SftpSource.KeyFile = "<redacted>"
+	}
 	err = enc.Encode(conf)
+	conf.Downloader.S3Source.SecretKey = s3secret
+	conf.Downloader.SftpSource.Password = sftpSecret
+	conf.Downloader.SftpSource.KeyFile = keySecret
 	if err != nil {
 		return fmt.Errorf("could not marshal new config to yaml: %s", err)
 	}

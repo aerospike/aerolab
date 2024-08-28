@@ -50,11 +50,11 @@ func isTarGz(file string) bool {
 	}
 	defer fdgzip.Close()
 	buffer := make([]byte, 4096)
-	_, err = fdgzip.Read(buffer)
+	rdCnt, err := fdgzip.Read(buffer)
 	if err != nil {
 		return false
 	}
-	contentType := mimetype.Detect(buffer)
+	contentType := mimetype.Detect(buffer[0:rdCnt])
 	return contentType.Is("application/x-tar")
 }
 
@@ -66,11 +66,11 @@ func isTarBz(file string) bool {
 	defer fd.Close()
 	fdgzip := bzip2.NewReader(fd)
 	buffer := make([]byte, 4096)
-	_, err = fdgzip.Read(buffer)
+	rdCnt, err := fdgzip.Read(buffer)
 	if err != nil {
 		return false
 	}
-	contentType := mimetype.Detect(buffer)
+	contentType := mimetype.Detect(buffer[0:rdCnt])
 	return contentType.Is("application/x-tar")
 }
 
