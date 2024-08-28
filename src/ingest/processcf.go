@@ -456,11 +456,11 @@ func (i *Ingest) processCollectInfoFileRead(filePath string, cf *CfFile, ct *cfC
 	}
 	defer fd.Close()
 	buffer := make([]byte, 4096)
-	_, err = fd.Read(buffer)
+	rdCnt, err := fd.Read(buffer)
 	if err != nil && err != io.EOF {
 		return fmt.Errorf("could not read file: %s", err)
 	}
-	contentType := mimetype.Detect(buffer)
+	contentType := mimetype.Detect(buffer[0:rdCnt])
 	if !contentType.Is("application/gzip") {
 		return errors.New("file not gzip")
 	}
