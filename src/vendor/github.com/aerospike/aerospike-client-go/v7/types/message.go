@@ -63,7 +63,7 @@ func NewMessage(mtype messageType, data []byte) *Message {
 	}
 }
 
-const maxAllowedBufferSize = 1024 * 1024
+const maxAllowedBufferSize = 64 * 1024 * 1024 // 64MiB max
 
 // Resize changes the internal buffer size for the message.
 func (msg *Message) Resize(newSize int64) error {
