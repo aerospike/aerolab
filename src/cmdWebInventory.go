@@ -147,6 +147,9 @@ func (i *inventoryCache) run(jobEndTimestamp time.Time) error {
 			} else if i.PrivateIP != "" {
 				accessProtIP = i.AccessProtocol + i.PrivateIP
 			}
+			if strings.Contains(i.AccessURL, "127.0.0.1") {
+				accessProtIP = i.AccessProtocol + strings.Split(i.AccessURL, "/")[2]
+			}
 		}
 		agiList = append(agiList, &agiWebTokenRequest{
 			Name:         i.Name,
@@ -862,6 +865,9 @@ func (c *webCmd) inventoryAGIConnect(w http.ResponseWriter, r *http.Request) {
 					accessProtIP = agi.AccessProtocol + agi.PublicIP
 				} else if agi.PrivateIP != "" {
 					accessProtIP = agi.AccessProtocol + agi.PrivateIP
+				}
+				if strings.Contains(agi.AccessURL, "127.0.0.1") {
+					accessProtIP = agi.AccessProtocol + strings.Split(agi.AccessURL, "/")[2]
 				}
 			}
 			req = agiWebTokenRequest{
