@@ -238,6 +238,11 @@ func (c *inventoryListCmd) fillAGIStruct(inv *inventoryJson) {
 	inv.AGI = inva
 }
 
+func atoi(s string) (i int) {
+	i, _ = strconv.Atoi(s)
+	return
+}
+
 func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplates bool, showFirewalls bool, showSubnets bool, showOthers ...int) error {
 	if c.JsonPretty {
 		c.Json = true
@@ -418,7 +423,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		} else if inv.Clusters[i].ClusterName > inv.Clusters[j].ClusterName {
 			return false
 		} else {
-			return inv.Clusters[i].NodeNo < inv.Clusters[j].NodeNo
+			return atoi(inv.Clusters[i].NodeNo) < atoi(inv.Clusters[j].NodeNo)
 		}
 	})
 
@@ -428,7 +433,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		} else if inv.Clients[i].ClientName > inv.Clients[j].ClientName {
 			return false
 		} else {
-			return inv.Clients[i].NodeNo < inv.Clients[j].NodeNo
+			return atoi(inv.Clients[i].NodeNo) < atoi(inv.Clients[j].NodeNo)
 		}
 	})
 
