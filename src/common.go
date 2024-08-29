@@ -48,7 +48,7 @@ func checkDistroVersion(distro string, version string) error {
 		case "9", "7":
 			return nil
 		case "8":
-			return fmt.Errorf("centos version 8 no longer supported, try 'rocky' distro with version 8")
+			return nil
 		}
 	case "rocky":
 		switch version {
