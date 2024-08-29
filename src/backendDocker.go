@@ -178,11 +178,16 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 		var lineError error
 		lineErrorLock := new(sync.Mutex)
 		invLock := new(sync.Mutex)
+		rateLimit := make(chan struct{}, 5)
 		for scanner.Scan() {
 			t := scanner.Text()
 			lineWait.Add(1)
+			rateLimit <- struct{}{}
 			go func(t string) {
-				defer lineWait.Done()
+				defer func() {
+					<-rateLimit
+					lineWait.Done()
+				}()
 				t = strings.Trim(t, "'\" \t\r\n")
 				tt := strings.Split(t, "\t")
 				if len(tt) < 4 || len(tt) > 6 {
@@ -201,7 +206,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 				outl, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.Labels}}", tt[1]).CombinedOutput()
 				if err != nil {
 					lineErrorLock.Lock()
-					lineError = err
+					lineError = fmt.Errorf("%s: %s", err, string(outl))
 					lineErrorLock.Unlock()
 					return
 				}
@@ -220,7 +225,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					out2, err := exec.Command("docker", "container", "inspect", "--format", "{{json .Config.ExposedPorts}} {{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", tt[1]).CombinedOutput()
 					if err != nil {
 						lineErrorLock.Lock()
-						lineError = err
+						lineError = fmt.Errorf("%s: %s", err, string(out2))
 						lineErrorLock.Unlock()
 						return
 					}
@@ -245,7 +250,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 					out2, err := exec.Command("podman", "container", "inspect", "--format", `{{json .NetworkSettings.Ports}} {{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}`, tt[1]).CombinedOutput()
 					if err != nil {
 						lineErrorLock.Lock()
-						lineError = err
+						lineError = fmt.Errorf("%s: %s", err, string(out2))
 						lineErrorLock.Unlock()
 						return
 					}
@@ -386,7 +391,7 @@ func (d *backendDocker) Inventory(owner string, inventoryItems []int) (inventory
 		}
 		lineWait.Wait()
 		if lineError != nil {
-			return ij, err
+			return ij, lineError
 		}
 	}
 	return ij, nil

@@ -92,14 +92,14 @@ ExecStopPost=/bin/bash /usr/local/bin/late.sh
 EOF
 chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
 systemctl daemon-reload
-sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo
-sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*.repo
-sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo
+sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo
+sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo
+sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo
 yum -y update || exit 1
 yum -y install centos-release-scl
-sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*scl*.repo
-sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*scl*.repo
-sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*scl*.repo
+sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo
+sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo
+sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
@@ -142,6 +142,9 @@ ExecStopPost=/bin/bash /usr/local/bin/late.sh
 EOF
 chmod 755 /etc/systemd/system/aerospike.service.d/aerolab-early-late.conf
 systemctl daemon-reload
+sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo
+sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo
+sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo
 yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
@@ -371,14 +374,14 @@ chmod 755 /etc/init.d/aerospike
 
 	aerospikeInstallScript["docker:centos:7"] = `#!/bin/bash
 set -o xtrace
-sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo
-sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*.repo
-sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo
+sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo
+sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo
+sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo
 yum -y update || exit 1
 yum -y install centos-release-scl
-sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*scl*.repo
-sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*scl*.repo
-sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*scl*.repo
+sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo
+sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo
+sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-openssl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
 yum -y install python
@@ -471,6 +474,9 @@ chmod 755 /etc/init.d/aerospike
 
 	aerospikeInstallScript["docker:centos:8"] = `#!/bin/bash
 set -o xtrace
+sed -i 's/mirror.centos.org/vault.centos.org/g' /etc/yum.repos.d/*.repo
+sed -i 's/^#.*baseurl=http/baseurl=http/g' /etc/yum.repos.d/*.repo
+sed -i 's/^mirrorlist=http/#mirrorlist=http/g' /etc/yum.repos.d/*.repo
 yum -y update || exit 1
 yum -y install iptables wget tcpdump which redhat-lsb-core initscripts binutils iproute iproute-tc libcurl-devel || exit 1
 yum -y install dnsutils || yum -y install bind-utils
