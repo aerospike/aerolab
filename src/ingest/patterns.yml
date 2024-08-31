@@ -236,6 +236,9 @@ defs:
             setName: "nsEvict" #v7
             search: "breached eviction limit"
             export:
+                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) + (?P<evictSetIdx>\\d+) + (?P<evictSetSIdx>\\d+)\\) used-pct:(?P<evictMIdxUsePct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
+                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) + (?P<evictSetIdx>\\d+) + (?P<evictSetSIdx>\\d+)\\) used-pct:(?P<evictMIdxUsePct>\\d+), index-device sz:(?P<evictIdxDev>\\d+) used-pct (?P<evictUsedPct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
+                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) + (?P<evictSetIdx>\\d+) + (?P<evictSetSIdx>\\d+)\\), data used-pct:(?P<evictDataUsed>\\d+)"
                 - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) + (?P<evictSetIdx>\\d+) + (?P<evictSetSIdx>\\d+)\\), index-device sz:(?P<evictIdxDev>\\d+) used-pct (?P<evictUsedPct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
         -
             setName: "nsMemory"
@@ -316,6 +319,8 @@ defs:
                 - "(?P<restart>\\d+) build (?P<build>[^ ]+)"
         -
             setName: "configset"
+            labels:
+                - "command"
             search: "config-set"
             replace:
                 -
@@ -398,6 +403,11 @@ defs:
             search: "special-errors: key-busy"
             export:
                 - "{(?P<Namespace>[^}]+)} special-errors: key-busy (?P<ErrKeyBusy>\\d+) record-too-big (?P<ErrRecTooBig>\\d+)"
+        -
+            setName: "nsTouch"
+            search: "read-touch: tsvc"
+            export:
+                - "{(?P<Namespace>[^}]+)} read-touch: tsvc \\((?P<touchTsvcErr>\\d+),(?P<touchTsvcTout>\\d+)\\) all-triggers \\((?P<touchOk>\\d+),(?P<touchErr>\\d+),(?P<touchTout>\\d+),(?P<touchSkip>\\d+)\\)"
         -
             setName: "nsClient"
             search: "client: tsvc"
