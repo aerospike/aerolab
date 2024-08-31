@@ -466,6 +466,9 @@
           },
           "overrides": []
         },
+        "libraryPanel": {
+          "uid": "LaenKWPVz"
+        },
         "options": {
           "legend": {
             "calcs": [],
@@ -559,6 +562,9 @@
             }
           },
           "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "0e74FWP4z"
         },
         "options": {
           "legend": {
@@ -950,9 +956,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "ov_IKWPVk"
-        },
         "options": {
           "legend": {
             "calcs": [],
@@ -972,7 +975,7 @@
               "uid": "json"
             },
             "editorMode": "code",
-            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"configset\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+            "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },{\n      \"name\": \"command\",\n      \"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"configset\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
             "refId": "A",
             "target": "configset"
           }
@@ -6912,7 +6915,7 @@
       "type": "row"
     }
   ],
-  "refresh": false,
+  "refresh": "",
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",

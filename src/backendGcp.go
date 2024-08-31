@@ -127,6 +127,7 @@ type gcpInstancePricing struct {
 type gcpClusterExpiryInstances struct {
 	labelFingerprint string
 	labels           map[string]string
+	zone             string
 }
 
 func (d *backendGcp) GetAZName(subnetId string) (string, error) {
@@ -440,7 +441,7 @@ func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZ
 		}
 		for _, jj := range j.Clusters {
 			if jj.ClusterName == clusterName {
-				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpMetadataFingerprint, jj.GcpMeta}
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpMetadataFingerprint, jj.GcpMeta, jj.Zone}
 			}
 		}
 	} else {
@@ -451,7 +452,7 @@ func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZ
 		}
 		for _, jj := range j.Clients {
 			if jj.ClientName == clusterName {
-				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpMetadataFingerprint, jj.GcpMeta}
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpMetadataFingerprint, jj.GcpMeta, jj.Zone}
 			}
 		}
 	}
@@ -473,7 +474,7 @@ func (d *backendGcp) SetLabel(clusterName string, key string, value string, gcpZ
 		_, err = instancesClient.SetMetadata(ctx, &computepb.SetMetadataInstanceRequest{
 			Instance: iName,
 			Project:  a.opts.Config.Backend.Project,
-			Zone:     gcpZone,
+			Zone:     iMeta.zone,
 			MetadataResource: &computepb.Metadata{
 				Fingerprint: proto.String(iMeta.labelFingerprint),
 				Items:       items,
@@ -497,7 +498,7 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 		for _, jj := range j.Clusters {
 			nodeNo, _ := strconv.Atoi(jj.NodeNo)
 			if jj.ClusterName == clusterName && (len(nodes) == 0 || inslice.HasInt(nodes, nodeNo)) {
-				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpLabelFingerprint, jj.GcpLabels}
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpLabelFingerprint, jj.GcpLabels, jj.Zone}
 			}
 		}
 	} else {
@@ -509,7 +510,7 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 		for _, jj := range j.Clients {
 			nodeNo, _ := strconv.Atoi(jj.NodeNo)
 			if jj.ClientName == clusterName && (len(nodes) == 0 || inslice.HasInt(nodes, nodeNo)) {
-				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpLabelFingerprint, jj.GcpLabels}
+				instances[jj.InstanceId] = gcpClusterExpiryInstances{jj.GcpLabelFingerprint, jj.GcpLabels, jj.Zone}
 			}
 		}
 	}
@@ -532,7 +533,7 @@ func (d *backendGcp) ClusterExpiry(zone string, clusterName string, expiry time.
 		newLabels["aerolab4expires"] = newExpiry
 		_, err = instancesClient.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 			Project:  a.opts.Config.Backend.Project,
-			Zone:     zone,
+			Zone:     labelData.zone,
 			Instance: instanceName,
 			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
 				LabelFingerprint: proto.String(labelData.labelFingerprint),

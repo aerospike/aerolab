@@ -11575,6 +11575,9 @@
           },
           "overrides": []
         },
+        "libraryPanel": {
+          "uid": "Zij1iKE4z"
+        },
         "options": {
           "legend": {
             "calcs": [
@@ -12071,6 +12074,9 @@
             "unit": "short"
           },
           "overrides": []
+        },
+        "libraryPanel": {
+          "uid": "N0AomKP4z"
         },
         "options": {
           "legend": {
@@ -14215,6 +14221,105 @@
             "uid": "edcca7d6-e5ef-4fe6-8b50-bfcc6b0cebe9"
           },
           "title": "eviction - sindex-memory"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 8,
+            "x": 16,
+            "y": 25
+          },
+          "id": 197,
+          "options": {
+            "legend": {
+              "calcs": [
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n      \"name\": \"ClusterName\",\n      \"required\": true\n    },{\n      \"name\": \"NodeIdent\",\n      \"required\": true    \n    },\n    {\n      \"name\": \"Namespace\",\n      \"mustExist\": false\n    },\n    {\n      \"name\": \"evictReason\",\n      \"mustExist\": true\n    }],\n    \"bins\": [{\n      \"name\": \"evictMIdxUsePct\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}\n",
+              "refId": "A",
+              "target": "nsEvict"
+            }
+          ],
+          "title": "eviction - index-memory used-pct",
+          "type": "timeseries"
         }
       ],
       "title": "Eviction Breaches (asd v7+)",
@@ -15526,8 +15631,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -15681,8 +15785,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -15780,8 +15883,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -15879,8 +15981,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -15978,8 +16079,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16077,8 +16177,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16176,8 +16275,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16275,8 +16373,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16374,8 +16471,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -17118,7 +17214,7 @@
       "type": "row"
     }
   ],
-  "refresh": false,
+  "refresh": "",
   "revision": 1,
   "schemaVersion": 38,
   "style": "dark",
