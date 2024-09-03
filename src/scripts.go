@@ -46,8 +46,8 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-${VERSION_ID}-${CPUVER}.deb"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-dpkg --force-architecture -i ${tcfn}
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+dpkg --force-architecture -i ${tcfn} || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -114,9 +114,9 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-centos-${VERSION_ID}-${CPUVER}.tgz"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-tar -C /usr/local/bin -zxvf ${tcfn}
-chmod 755 /usr/local/bin/tc*
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+tar -C /usr/local/bin -zxvf ${tcfn} || echo "no net-loss-delay support"
+chmod 755 /usr/local/bin/tc* || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -160,9 +160,9 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-centos-stream${VERSION_ID}-${CPUVER}.tgz"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-tar -C /usr/local/bin -zxvf ${tcfn}
-chmod 755 /usr/local/bin/tc*
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+tar -C /usr/local/bin -zxvf ${tcfn} || echo "no net-loss-delay support"
+chmod 755 /usr/local/bin/tc* || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -204,9 +204,9 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-centos-stream${VERSION_ID}-${CPUVER}.tgz"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-tar -C /usr/local/bin -zxvf ${tcfn}
-chmod 755 /usr/local/bin/tc*
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+tar -C /usr/local/bin -zxvf ${tcfn} || echo "no net-loss-delay support"
+chmod 755 /usr/local/bin/tc* || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -251,9 +251,9 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-centos-7-${CPUVER}.tgz"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-tar -C /usr/local/bin -zxvf ${tcfn}
-chmod 755 /usr/local/bin/tc*
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+tar -C /usr/local/bin -zxvf ${tcfn} || echo "no net-loss-delay support"
+chmod 755 /usr/local/bin/tc* || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -280,8 +280,8 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-${VERSION_ID}-${CPUVER}.deb"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-dpkg --force-architecture -i ${tcfn}
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+dpkg --force-architecture -i ${tcfn} || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -396,9 +396,9 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-centos-${VERSION_ID}-${CPUVER}.tgz"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-tar -C /usr/local/bin -zxvf ${tcfn}
-chmod 755 /usr/local/bin/tc*
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+tar -C /usr/local/bin -zxvf ${tcfn} || echo "no net-loss-delay support"
+chmod 755 /usr/local/bin/tc* || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -492,9 +492,9 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-centos-stream${VERSION_ID}-${CPUVER}.tgz"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-tar -C /usr/local/bin -zxvf ${tcfn}
-chmod 755 /usr/local/bin/tc*
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+tar -C /usr/local/bin -zxvf ${tcfn} || echo "no net-loss-delay support"
+chmod 755 /usr/local/bin/tc* || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
@@ -602,9 +602,9 @@ CPUVER=amd64
 [ "$(uname -p)" = "arm64" ] && CPUVER=arm64
 [ "$(uname -p)" = "aarch64" ] && CPUVER=arm64
 tcfn="tcconfig-centos-stream${VERSION_ID}-${CPUVER}.tgz"
-wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.28.0-2/${tcfn}
-tar -C /usr/local/bin -zxvf ${tcfn}
-chmod 755 /usr/local/bin/tc*
+wget https://github.com/rglonek/tcconfig-builds/releases/download/v0.29.1-1/${tcfn} || echo "no net-loss-delay support"
+tar -C /usr/local/bin -zxvf ${tcfn} || echo "no net-loss-delay support"
+chmod 755 /usr/local/bin/tc* || echo "no net-loss-delay support"
 ########## tcconfig end
 cd /root && tar -zxvf installer.tgz || exit 1
 cd aerospike-server-* ; ./asinstall || exit 1
