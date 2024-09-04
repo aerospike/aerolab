@@ -491,8 +491,11 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 
 	// marshal new config
 	var encBuf bytes.Buffer
+	var encBufPretty bytes.Buffer
 	enc := yaml.NewEncoder(&encBuf)
 	enc.SetIndent(2)
+	encPretty := yaml.NewEncoder(&encBufPretty)
+	encPretty.SetIndent(2)
 	s3secret := conf.Downloader.S3Source.SecretKey
 	sftpSecret := conf.Downloader.SftpSource.Password
 	keySecret := conf.Downloader.SftpSource.KeyFile
@@ -505,17 +508,22 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 	if conf.Downloader.SftpSource.KeyFile != "" {
 		conf.Downloader.SftpSource.KeyFile = "<redacted>"
 	}
-	err = enc.Encode(conf)
+	err = encPretty.Encode(conf)
 	conf.Downloader.S3Source.SecretKey = s3secret
 	conf.Downloader.SftpSource.Password = sftpSecret
 	conf.Downloader.SftpSource.KeyFile = keySecret
 	if err != nil {
 		return fmt.Errorf("could not marshal new config to yaml: %s", err)
 	}
+	err = enc.Encode(conf)
+	if err != nil {
+		return fmt.Errorf("could not marshal new config to yaml: %s", err)
+	}
+	newConfigPretty := encBufPretty.Bytes()
 	newConfig := encBuf.Bytes()
 
 	// diff old and new config and show diff, ask if sure to continue
-	fmt.Println(string(diff.Diff("old", []byte(oldConfig), "new", newConfig)))
+	fmt.Println(string(diff.Diff("old", []byte(oldConfig), "new", newConfigPretty)))
 	if !c.Force {
 		for {
 			reader := bufio.NewReader(os.Stdin)
