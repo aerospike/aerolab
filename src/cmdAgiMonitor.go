@@ -747,6 +747,10 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 	performRamSizing := func() (performRamSizing bool) {
 		switch event.Event {
 		case AgiEventServiceDown:
+			if event.IngestStatus.AerospikeRunning && event.IngestStatus.PluginRunning {
+				// ingest or grafana helper is down, do NOT size; only Plugin and Aerospike crashes should be sized
+				return
+			}
 			if event.IsDataInMemory && c.SizingNoDIMFirst {
 				disableDim = true
 			} else {
