@@ -30,10 +30,13 @@ jobs:
               run: |
                 /usr/local/bin/brew install --overwrite python@3.11 || echo "I1.1"
                 /usr/local/bin/brew link --overwrite python@3.11 || echo "I1.2"
-                /usr/local/bin/brew install --overwrite dpkg upx zip make wget jq rpm || echo "I2"
+                /usr/local/bin/brew install --overwrite dpkg zip make wget jq rpm || echo "I2"
                 /usr/local/bin/brew link --overwrite python@3.11 || echo "I1.3"
                 /usr/local/bin/brew install python-gdbm@3.11 || echo "I1.4"
                 /usr/local/bin/brew install python-tk@3.11 || echo "I1.5"
+                pushd ~/work/aerolab/aerolab/brew
+                /usr/local/bin/brew install ./upx.rb
+                popd
                 for i in dpkg upx zip make wget jq rpm python3.11; do command -v $i || exit 1; done
                 echo "Dependencies checked"
             - name: "Install golang"
