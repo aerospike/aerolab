@@ -26,7 +26,7 @@ require (
 	github.com/nwaples/rardecode v1.1.3
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/sftp v1.13.6
-	github.com/rglonek/aerospike-config-file-parser v1.0.3
+	github.com/rglonek/aerospike-config-file-parser v1.0.4
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
 	github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
 	github.com/rglonek/sbs v1.0.1
