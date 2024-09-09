@@ -263,7 +263,7 @@ github.com/pkg/browser
 ## explicit; go 1.15
 github.com/pkg/sftp
 github.com/pkg/sftp/internal/encoding/ssh/filexfer
-# github.com/rglonek/aerospike-config-file-parser v1.0.3
+# github.com/rglonek/aerospike-config-file-parser v1.0.4
 ## explicit; go 1.19
 github.com/rglonek/aerospike-config-file-parser
 # github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744

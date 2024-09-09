@@ -186,7 +186,11 @@ func (s Stanza) writeLine(w io.Writer, prefix string, indent string, currentInde
 		}
 	case []*string:
 		for _, vv := range v {
-			_, err = w.Write([]byte(prefix + currentIndent + k + " " + *vv + "\n"))
+			if vv == nil {
+				_, err = w.Write([]byte(prefix + currentIndent + k + "\n"))
+			} else {
+				_, err = w.Write([]byte(prefix + currentIndent + k + " " + *vv + "\n"))
+			}
 			if err != nil {
 				return errors.New("cannot write: " + err.Error())
 			}
