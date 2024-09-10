@@ -909,7 +909,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						aeroConfig.Stanza("namespace test").Delete("storage-engine memory")
 					}
 					aeroConfig.Stanza("namespace test").NewStanza("storage-engine device")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("file", "/opt/aerospike/data/bar.dat")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("file", "/opt/aerospike/data/test.dat")
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("filesize", "4G")
 				} else {
 					for _, key := range aeroConfig.Stanza("namespace test").ListKeys() {
@@ -922,7 +922,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 				if change.Selected {
 					aeroConfig.Stanza("namespace test").Delete("storage-engine device")
 					aeroConfig.Stanza("namespace test").NewStanza("storage-engine memory")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("file", "/opt/aerospike/data/bar.dat")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("file", "/opt/aerospike/data/test.dat")
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").SetValue("filesize", "4G")
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine memory").Delete("data-size")
 				} else {

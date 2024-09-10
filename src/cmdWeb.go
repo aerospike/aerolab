@@ -927,7 +927,14 @@ func (c *webCmd) jobsAndCommands(w http.ResponseWriter, r *http.Request, jobType
 			nusr = "N/A"
 		}
 		nUser := getHeaderUserValue(r)
-		if r.FormValue("jobsAllUsers") != "true" {
+		jobsAllUsers := ""
+		if allUserCookie, err := r.Cookie("AEROLAB_SHOW_ALL_USERS"); err == nil && allUserCookie != nil {
+			jobsAllUsers = allUserCookie.Value
+		}
+		if r.FormValue("jobsAllUsers") != "" {
+			jobsAllUsers = r.FormValue("jobsAllUsers")
+		}
+		if jobsAllUsers != "true" {
 			if nUser != nusr && nusr != "N/A" {
 				return nil
 			}
