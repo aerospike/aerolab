@@ -889,7 +889,7 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						}
 					}
 					aeroConfig.Stanza("namespace test").NewStanza("storage-engine device")
-					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("file", "/opt/aerospike/data/bar.dat")
+					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("file", "/opt/aerospike/data/test.dat")
 					aeroConfig.Stanza("namespace test").Stanza("storage-engine device").SetValue("filesize", "1G")
 				} else {
 					for _, key := range aeroConfig.Stanza("namespace test").ListKeys() {
