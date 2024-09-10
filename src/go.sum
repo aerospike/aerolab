@@ -159,8 +159,8 @@ github.com/pkg/sftp v1.13.6/go.mod h1:tz1ryNURKu77RL+GuCzmoJYxQczL3wLNNpPWagdg4Q
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4/go.mod h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=
-github.com/rglonek/aerospike-config-file-parser v1.0.3 h1:KMkyHToAhFfNph/BUx3a8Fh7PH9vF4EHb0W4rquzuNY=
-github.com/rglonek/aerospike-config-file-parser v1.0.3/go.mod h1:MDD2s/4HAhTn8OcXUNcrppGBHpaW81INfNYeFHkS/eg=
+github.com/rglonek/aerospike-config-file-parser v1.0.4 h1:o9NV5UFs8xOXBn389FebKZnJAW1HEHX14mq5AFGAhfw=
+github.com/rglonek/aerospike-config-file-parser v1.0.4/go.mod h1:MDD2s/4HAhTn8OcXUNcrppGBHpaW81INfNYeFHkS/eg=
 github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744 h1:HyBW093bA2fLY2ZnoYf2mYaC9ATDBX90kj++W5I3mTs=
 github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744/go.mod h1:CS128EIeoFCR4HBOwZDqzicTdDDcwzAWSqPUof2r8vI=
 github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible h1:YetOOw5mSL6xmwbF5GMcmvMbpthp03tmGLx3U/ke/YA=
