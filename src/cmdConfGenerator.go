@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/aerospike/aerolab/confeditor"
 	"github.com/aerospike/aerolab/confeditor7"
 	flags "github.com/rglonek/jeddevdk-goflags"
@@ -16,6 +19,11 @@ type confGeneratorCmd struct {
 func (c *confGeneratorCmd) Execute(args []string) error {
 	if earlyProcessV2(args, false) {
 		return nil
+	}
+	if _, err := os.Stat(string(c.Path)); err == nil {
+		fmt.Printf("WARNING!\nFile '%s' already exists. If you continue, aerolab will attempt to read and parse the file.\nNote that aerolab will not automatically recognise whether the config is for aerospike 7+ or older. The `--pre-7` flag must be provided for older versions.\n\nPress ENTER to continue or CTRL+C to abort.\n", c.Path)
+		var ignoreMe string
+		fmt.Scanln(&ignoreMe)
 	}
 	if c.Pre7 {
 		e := &confeditor.Editor{
