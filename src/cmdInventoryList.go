@@ -28,6 +28,8 @@ type inventoryListCmd struct {
 	Owner        string   `long:"owner" description:"Only show resources tagged with this owner"`
 	Pager        bool     `long:"pager" description:"set to enable vertical and horizontal pager" simplemode:"false"`
 	SortBy       []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
+	Theme        string   `long:"theme" description:"for standard output, pick a theme: default|nocolor|frame|box"`
+	NoNotes      bool     `long:"no-notes" description:"for standard output, do not print extra notes below the tables"`
 	Json         bool     `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty   bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	AWSFull      bool     `long:"aws-full" description:"set to iterate through all regions and provide full output"`
@@ -523,6 +525,9 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 	warnExp := colorPrint{c: text.Colors{text.BgHiYellow, text.FgBlack}, enable: true}
 	errExp := colorPrint{c: text.Colors{text.BgHiRed, text.FgWhite}, enable: true}
 	isColor := true
+	if c.Theme == "nocolor" || c.Theme == "frame" || c.Theme == "box" {
+		isColor = false
+	}
 	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
 		isColor = false
 	}
@@ -561,9 +566,20 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		colorHiWhite.enable = false
 		warnExp.enable = false
 		errExp.enable = false
-		tstyle := t.Style()
-		tstyle.Options.DrawBorder = false
-		tstyle.Options.SeparateColumns = false
+		if c.Theme == "frame" {
+			t.SetStyle(table.StyleRounded)
+			tstyle := t.Style()
+			tstyle.Options.DrawBorder = true
+			tstyle.Options.SeparateColumns = false
+		} else if c.Theme == "box" {
+			t.SetStyle(table.StyleRounded)
+			tstyle := t.Style()
+			tstyle.Options.SeparateColumns = true
+		} else {
+			tstyle := t.Style()
+			tstyle.Options.DrawBorder = false
+			tstyle.Options.SeparateColumns = false
+		}
 	} else {
 		t.SetStyle(table.StyleColoredBlackOnCyanWhite)
 	}
@@ -716,12 +732,15 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.AppendRow(vv)
 		}
 		fmt.Println(render())
-		if a.opts.Config.Backend.Type != "docker" {
-			fmt.Fprint(os.Stderr, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n\n")
-		} else {
-			fmt.Fprint(os.Stderr, "* to connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP on the given exposed port (or configured aerospike services port - default 3000)\n")
-			fmt.Fprint(os.Stderr, "* to connect to the cluster when using Docker Desktop, execute 'aerolab cluster list` and connect to IP 127.0.0.1:EXPOSED_PORT with a connect policy of `--services-alternate`\n\n")
+		if !c.NoNotes {
+			if a.opts.Config.Backend.Type != "docker" {
+				fmt.Fprint(os.Stdout, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n")
+			} else {
+				fmt.Fprint(os.Stdout, "* to connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP on the given exposed port (or configured aerospike services port - default 3000)\n")
+				fmt.Fprint(os.Stdout, "* to connect to the cluster when using Docker Desktop, execute 'aerolab cluster list` and connect to IP 127.0.0.1:EXPOSED_PORT with a connect policy of `--services-alternate`\n")
+			}
 		}
+		fmt.Println("")
 	}
 
 	if showClients {
@@ -784,11 +803,14 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 			t.AppendRow(vv)
 		}
 		fmt.Println(render())
-		if a.opts.Config.Backend.Type == "docker" {
-			fmt.Fprint(os.Stderr, "* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL\n\n")
-		} else {
-			fmt.Fprint(os.Stderr, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n\n")
+		if !c.NoNotes {
+			if a.opts.Config.Backend.Type == "docker" {
+				fmt.Fprint(os.Stdout, "* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL\n")
+			} else {
+				fmt.Fprint(os.Stdout, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n")
+			}
 		}
+		fmt.Println("")
 	}
 
 	for _, showOther := range showOthers {
@@ -1209,12 +1231,15 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 				}
 			}
 			fmt.Println(render())
-			if a.opts.Config.Backend.Type != "docker" {
-				fmt.Fprint(os.Stderr, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n\n")
-			} else {
-				fmt.Fprint(os.Stderr, "* to connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP on the given exposed port (or configured aerospike services port - default 3000)\n")
-				fmt.Fprint(os.Stderr, "* to connect to the cluster when using Docker Desktop, execute 'aerolab cluster list` and connect to IP 127.0.0.1:EXPOSED_PORT with a connect policy of `--services-alternate`\n\n")
+			if !c.NoNotes {
+				if a.opts.Config.Backend.Type != "docker" {
+					fmt.Fprint(os.Stdout, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n")
+				} else {
+					fmt.Fprint(os.Stdout, "* to connect directly to the cluster (non-docker-desktop), execute 'aerolab cluster list' and connect to the node IP on the given exposed port (or configured aerospike services port - default 3000)\n")
+					fmt.Fprint(os.Stdout, "* to connect to the cluster when using Docker Desktop, execute 'aerolab cluster list` and connect to IP 127.0.0.1:EXPOSED_PORT with a connect policy of `--services-alternate`\n")
+				}
 			}
+			fmt.Println("")
 		}
 	}
 

@@ -2646,22 +2646,26 @@ func (d *backendAws) GetInstanceTags(name string) (map[string]map[string]string,
 	return nodeList, nil
 }
 
-func (d *backendAws) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string, renderer string) (string, error) {
+func (d *backendAws) ClusterListFull(isJson bool, owner string, pager bool, isPretty bool, sort []string, renderer string, theme string, noNotes bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Owner = owner
 	a.opts.Inventory.List.Pager = pager
 	a.opts.Inventory.List.JsonPretty = isPretty
 	a.opts.Inventory.List.SortBy = sort
 	a.opts.Inventory.List.RenderType = renderer
+	a.opts.Inventory.List.Theme = theme
+	a.opts.Inventory.List.NoNotes = noNotes
 	return "", a.opts.Inventory.List.run(d.server, d.client, false, false, false)
 }
 
-func (d *backendAws) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string, renderer string) (string, error) {
+func (d *backendAws) TemplateListFull(isJson bool, pager bool, isPretty bool, sort []string, renderer string, theme string, noNotes bool) (string, error) {
 	a.opts.Inventory.List.Json = isJson
 	a.opts.Inventory.List.Pager = pager
 	a.opts.Inventory.List.JsonPretty = isPretty
 	a.opts.Inventory.List.SortBy = sort
 	a.opts.Inventory.List.RenderType = renderer
+	a.opts.Inventory.List.Theme = theme
+	a.opts.Inventory.List.NoNotes = noNotes
 	return "", a.opts.Inventory.List.run(false, false, true, false, false)
 }
 
