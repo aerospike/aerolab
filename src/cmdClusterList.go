@@ -10,6 +10,8 @@ import (
 type clusterListCmd struct {
 	Owner      string   `long:"owner" description:"Only show resources tagged with this owner"`
 	SortBy     []string `long:"sort-by" description:"sort by field name; must match exact header name; can be specified multiple times; format: asc:name dsc:name ascnum:name dscnum:name"`
+	Theme      string   `long:"theme" description:"for standard output, pick a theme: default|nocolor|frame|box"`
+	NoNotes    bool     `long:"no-notes" description:"for standard output, do not print extra notes below the tables"`
 	Json       bool     `short:"j" long:"json" description:"Provide output in json format"`
 	JsonPretty bool     `short:"p" long:"pretty" description:"Provide json output with line-feeds and indentations"`
 	Pager      bool     `long:"pager" description:"set to enable vertical and horizontal pager" simplemode:"false"`
@@ -63,7 +65,7 @@ func (c *clusterListCmd) Execute(args []string) error {
 		}
 		return nil
 	}
-	f, e := b.ClusterListFull(c.Json, c.Owner, c.Pager, c.JsonPretty, c.SortBy, c.RenderType)
+	f, e := b.ClusterListFull(c.Json, c.Owner, c.Pager, c.JsonPretty, c.SortBy, c.RenderType, c.Theme, c.NoNotes)
 	if e != nil {
 		return e
 	}
