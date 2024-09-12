@@ -155,9 +155,9 @@ type backend interface {
 	// returns a map of [int]string for a given cluster, where int is node number and string is the IP of said node
 	GetNodeIpMap(name string, internalIPs bool) (map[int]string, error)
 	// return formatted for printing cluster list
-	ClusterListFull(json bool, owner string, noPager bool, isPretty bool, sort []string, renderer string) (string, error)
+	ClusterListFull(json bool, owner string, noPager bool, isPretty bool, sort []string, renderer string, theme string, noNotes bool) (string, error)
 	// return formatted for printing template list
-	TemplateListFull(json bool, noPager bool, isPretty bool, sort []string, renderer string) (string, error)
+	TemplateListFull(json bool, noPager bool, isPretty bool, sort []string, renderer string, theme string, noNotes bool) (string, error)
 	// upload files to node
 	Upload(clusterName string, node int, source string, destination string, verbose bool, legacy bool) error
 	// download files from node
