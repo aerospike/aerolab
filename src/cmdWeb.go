@@ -1507,6 +1507,7 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 				// input item text (possible multiple types)
 				isFile := false
 				textType := tags.Get("webtype")
+				mask := tags.Get("web-input-mask")
 				if textType == "" || textType == "download" {
 					textType = "text"
 				}
@@ -1539,6 +1540,7 @@ func (c *webCmd) getFormItemsRecursive(command *apiCommand, commandValue reflect
 						Required:    required,
 						IsFile:      isFile,
 						Disabled:    isDisabled,
+						Mask:        mask,
 					},
 				})
 			}

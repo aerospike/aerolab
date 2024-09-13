@@ -76,8 +76,8 @@ type agiCreateCmd struct {
 	ProxyMaxInactive time.Duration   `long:"proxy-max-inactive" description:"maximum duration of inactivity by the user over which the server will poweroff" default:"1h"`
 	ProxyMaxUptime   time.Duration   `long:"proxy-max-uptime" description:"maximum uptime of the instance, after which the server will poweroff" default:"24h"`
 	TimeRanges       bool            `long:"ingest-timeranges-enable" description:"enable importing statistics only on a specified time range found in the logs" simplemode:"false"`
-	TimeRangesFrom   string          `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00" simplemode:"false"`
-	TimeRangesTo     string          `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00" simplemode:"false"`
+	TimeRangesFrom   string          `long:"ingest-timeranges-from" description:"time range from, format: 2006-01-02T15:04:05Z07:00 or '2006/01/02 15:03:05'" simplemode:"false" web-input-mask:"yyyy/mm/dd HH:MM:ss"`
+	TimeRangesTo     string          `long:"ingest-timeranges-to" description:"time range to, format: 2006-01-02T15:04:05Z07:00 or '2006/01/02 15:03:05'" simplemode:"false" web-input-mask:"yyyy/mm/dd HH:MM:ss"`
 	CustomSourceName string          `long:"ingest-custom-source-name" description:"custom source name to disaplay in grafana" simplemode:"false"`
 	PatternsFile     flags.Filename  `long:"ingest-patterns-file" description:"provide a custom patterns YAML file to the log ingest system" simplemode:"false"`
 	IngestLogLevel   int             `long:"ingest-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4" simplemode:"false"`
@@ -226,13 +226,19 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	if c.TimeRangesFrom != "" {
 		tfrom, err = time.Parse("2006-01-02T15:04:05Z07:00", c.TimeRangesFrom)
 		if err != nil {
-			return fmt.Errorf("from time range invalid: %s", err)
+			tfrom, err = time.Parse("2006/01/02 15:04:05 GMT", c.TimeRangesFrom+" GMT")
+			if err != nil {
+				return fmt.Errorf("from time range invalid: %s", err)
+			}
 		}
 	}
 	if c.TimeRangesTo != "" {
 		tto, err = time.Parse("2006-01-02T15:04:05Z07:00", c.TimeRangesTo)
 		if err != nil {
-			return fmt.Errorf("to time range invalid: %s", err)
+			tto, err = time.Parse("2006/01/02 15:04:05 GMT", c.TimeRangesTo+" GMT")
+			if err != nil {
+				return fmt.Errorf("to time range invalid: %s", err)
+			}
 		}
 	}
 	config, err := ingest.MakeConfigReader(true, nil, true)

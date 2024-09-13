@@ -90,6 +90,7 @@ type FormItemInput struct {
 	Optional    bool
 	IsFile      bool
 	Disabled    bool
+	Mask        string
 }
 
 type FormItemSelect struct {
