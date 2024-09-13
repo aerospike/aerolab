@@ -274,7 +274,7 @@
                       <input type="hidden" class="xfileup" id="{{.Input.ID}}xfileup" name="{{.Input.ID}}">
                     </div>
                     {{ else }}
-                    <input type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} readonly value="{{.Input.Default}}"{{end}}>
+                    <input{{if ne .Input.Mask "" }} data-inputmask-alias="datetime" data-inputmask-inputformat="{{.Input.Mask}}" data-mask{{end}} type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} readonly value="{{.Input.Default}}"{{end}}>
                     {{ end }}
                     {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
                   </div>
@@ -410,6 +410,11 @@
 {{if .IsInventory}}
 <script src="{{.WebRoot}}www/plugins/datatables-full/datatables.min.js"></script>
 {{end}}
+<script src="{{.WebRoot}}www/plugins/inputmask/jquery.inputmask.min.js"></script>
+<script>
+  //$('#datemask').inputmask('dd/mm/yyyy', { 'placeholder': 'dd/mm/yyyy' });
+  $('[data-mask]').inputmask();
+</script>
 <!-- builtin -->
 <script>{{template "mainjs" .}}</script>
 </body>

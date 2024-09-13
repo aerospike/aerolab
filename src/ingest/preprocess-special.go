@@ -50,6 +50,10 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 				logger.Detail("PreProcess-Special: %s is tab-4 format but found line without 4 tabs: %s", fn, line)
 				continue
 			}
+			if line[1] == "pod_name" && strings.TrimSuffix(line[3], "\n") == "text_payload" { // timestamp       pod_name        text_payload
+				logger.Detail("PreProcess-Special: %s tab-4 header found, ignoring", fn)
+				continue
+			}
 			ident := strings.Trim(line[2], "\r\n\t ") + "-" + strings.Trim(line[1], "\r\t\n ")
 			logline := strings.Trim(line[3], "\r\t\n ") + "\n"
 			if _, ok := tracker[fn+"_special-split_"+ident]; !ok {
@@ -79,7 +83,11 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 			}
 			line := strings.Split(s.Text(), "\t")
 			if len(line) < 3 {
-				logger.Detail("PreProcess-Special: %s is tab-3 format but found line without 4 tabs: %s", fn, line)
+				logger.Detail("PreProcess-Special: %s is tab-3 format but found line without 3 tabs: %s", fn, line)
+				continue
+			}
+			if line[1] == "pod_name" && strings.TrimSuffix(line[2], "\n") == "text_payload" { // timestamp       pod_name        text_payload
+				logger.Detail("PreProcess-Special: %s tab-3 header found, ignoring", fn)
 				continue
 			}
 			ident := strings.Trim(line[1], "\r\n\t ")
