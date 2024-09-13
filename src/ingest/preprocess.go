@@ -146,40 +146,51 @@ func (i *Ingest) preProcessTextFile(fn string, files map[string]*EnumFile) error
 		fnlist = []string{fn}
 	}
 	outpaths := []string{}
+	var errors error
 	for _, fna := range fnlist {
-		clusterName, nodeId, err := i.preProcessGetClusterNode(fna)
+		err = func(fna string) error {
+			clusterName, nodeId, err := i.preProcessGetClusterNode(fna)
+			if err != nil {
+				return err
+			}
+			var prefix, suffix int
+			i.progress.Lock()
+			if _, ok := i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId]; !ok {
+				i.progress.PreProcessor.LastUsedPrefix++
+				prefix = i.progress.PreProcessor.LastUsedPrefix
+				i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId] = prefix
+				suffix = 1
+				i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix] = suffix
+			} else {
+				prefix = i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId]
+				i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix]++
+				suffix = i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix]
+			}
+			outpath := path.Join(i.config.Directories.Logs, clusterName, strconv.Itoa(prefix)+"_"+nodeId+"_"+strconv.Itoa(suffix))
+			outpaths = append(outpaths, outpath)
+			files[fn].PreProcessOutPaths = outpaths
+			i.progress.PreProcessor.Files[fn] = files[fn]
+			i.progress.PreProcessor.changed = true
+			i.progress.Unlock()
+			err = os.MkdirAll(path.Join(i.config.Directories.Logs, clusterName), 0755)
+			if err != nil {
+				return fmt.Errorf("failed to create %s: %s", path.Join(i.config.Directories.Logs, clusterName), err)
+			}
+			err = os.Rename(fna, outpath)
+			if err != nil {
+				return err
+			}
+			return nil
+		}(fna)
 		if err != nil {
-			return err
-		}
-		var prefix, suffix int
-		i.progress.Lock()
-		if _, ok := i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId]; !ok {
-			i.progress.PreProcessor.LastUsedPrefix++
-			prefix = i.progress.PreProcessor.LastUsedPrefix
-			i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId] = prefix
-			suffix = 1
-			i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix] = suffix
-		} else {
-			prefix = i.progress.PreProcessor.NodeToPrefix[clusterName+"_"+nodeId]
-			i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix]++
-			suffix = i.progress.PreProcessor.LastUsedSuffixForPrefix[prefix]
-		}
-		outpath := path.Join(i.config.Directories.Logs, clusterName, strconv.Itoa(prefix)+"_"+nodeId+"_"+strconv.Itoa(suffix))
-		outpaths = append(outpaths, outpath)
-		files[fn].PreProcessOutPaths = outpaths
-		i.progress.PreProcessor.Files[fn] = files[fn]
-		i.progress.PreProcessor.changed = true
-		i.progress.Unlock()
-		err = os.MkdirAll(path.Join(i.config.Directories.Logs, clusterName), 0755)
-		if err != nil {
-			return fmt.Errorf("failed to create %s: %s", path.Join(i.config.Directories.Logs, clusterName), err)
-		}
-		err = os.Rename(fna, outpath)
-		if err != nil {
-			return err
+			if errors == nil {
+				errors = err
+			} else {
+				errors = fmt.Errorf("%s; %s", errors, err)
+			}
 		}
 	}
-	return nil
+	return errors
 }
 
 var errPreProcessNotSpecial = errors.New("STANDARD-LOG")
