@@ -14,8 +14,9 @@ jobs:
             uses: actions/checkout@v3
           - name: "Patch release date"
             run: |
-              grep '_Release Date: Month Day, Year_' CHANGELOG/${{inputs.VERSION}}.md
-              if [ $? -eq 0 ]
+              RET=0
+              grep '_Release Date: Month Day, Year_' CHANGELOG/${{inputs.VERSION}}.md || RET=1
+              if [ $RET -eq 0 ]
               then
                 NDATE=$(date "+%B %d, %Y")
                 sed -i.bak "s/_Release Date: Month Day, Year_/_${NDATE}_/g" CHANGELOG/${{inputs.VERSION}}.md
