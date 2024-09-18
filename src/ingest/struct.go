@@ -419,4 +419,9 @@ type NotifyEvent struct {
 	IngestStatus               *IngestStatusStruct
 	DeploymentJsonGzB64        string
 	SSHAuthorizedKeysFileGzB64 string
+	Owner                      string
+	S3Source                   string
+	SftpSource                 string
+	LocalSource                string
+	Label                      string
 }
