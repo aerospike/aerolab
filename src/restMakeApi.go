@@ -23,6 +23,16 @@ func (c *restCmd) makeApi(keyField reflect.Value, start string, tags reflect.Str
 		if !ok {
 			return
 		}
+		skip := false
+		for _, ac := range c.apiCommands {
+			if ac.path == val.path {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
 		c.apiCommands = append(c.apiCommands, val)
 		http.HandleFunc("/"+val.path, c.handleApi)
 		http.HandleFunc("/"+val.path+"/", c.handleApi)
