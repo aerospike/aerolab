@@ -683,9 +683,9 @@ func (c *agiMonitorListenCmd) sendNotify(nnotify *agiMonitorNotify) {
 	stageMsg := ""
 	switch nnotify.Stage {
 	case agiMonitorNotifyStageStart:
-		stageMsg = "*Stage*: Start"
+		stageMsg = "*Stage*: Job Start"
 	case agiMonitorNotifyStageDone:
-		stageMsg = "*Stage*: Done"
+		stageMsg = "*Stage*: Job Done"
 	case agiMonitorNotifyStageError:
 		stageMsg = fmt.Sprintf("*Stage*: Error (%s)", aws.StringValue(nnotify.Error))
 	default:
@@ -693,11 +693,11 @@ func (c *agiMonitorListenCmd) sendNotify(nnotify *agiMonitorNotify) {
 	}
 	switch nnotify.Action {
 	case agiMonitorNotifyActionDisk:
-		c.notifier.NotifySlack("INSTANCE_SIZING_DISK", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increating disk size*\n> %s", "MONITOR_INSTANCE_SIZING_DISK", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
+		c.notifier.NotifySlack("INSTANCE_SIZING_DISK", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increasing disk size*\n> %s", "MONITOR_INSTANCE_SIZING_DISK", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
 	case agiMonitorNotifyActionRAM:
-		c.notifier.NotifySlack("INSTANCE_SIZING_RAM", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increating instance size*\n> %s", "MONITOR_INSTANCE_SIZING_RAM", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
+		c.notifier.NotifySlack("INSTANCE_SIZING_RAM", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increasing instance size*\n> %s", "MONITOR_INSTANCE_SIZING_RAM", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
 	case agiMonitorNotifyActionDiskRAM:
-		c.notifier.NotifySlack("INSTANCE_SIZING_DISK_RAM", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increating instance and disk size*\n> %s", "MONITOR_INSTANCE_SIZING_DISK_RAM", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
+		c.notifier.NotifySlack("INSTANCE_SIZING_DISK_RAM", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increasing instance and disk size*\n> %s", "MONITOR_INSTANCE_SIZING_DISK_RAM", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
 	case agiMonitorNotifyActionSpotCapacity:
 		c.notifier.NotifySlack("INSTANCE_SPOT_CAPACITY", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor rotating instance from SPOT to ON_DEMAND*\n> %s", "MONITOR_INSTANCE_SPOT_CAPACITY", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
 	default:
