@@ -302,14 +302,6 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	c.notifier = &notifier.HTTPSNotify{
-		Endpoint:     c.NotifyURL,
-		Headers:      []string{c.NotifyHeader},
-		SlackToken:   c.SlackToken,
-		SlackChannel: c.SlackChannel,
-		SlackEvents:  "INSTANCE_SIZING_DISK_RAM,INSTANCE_SIZING_DISK,INSTANCE_SIZING_RAM,INSTANCE_SPOT_CAPACITY",
-	}
-	c.notifier.Init()
 	if c.DisablePricingAPI {
 		b.DisablePricingAPI()
 	}
@@ -336,6 +328,14 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	}
 	log.Print("Configuration:")
 	yaml.NewEncoder(os.Stderr).Encode(c)
+	c.notifier = &notifier.HTTPSNotify{
+		Endpoint:     c.NotifyURL,
+		Headers:      []string{c.NotifyHeader},
+		SlackToken:   c.SlackToken,
+		SlackChannel: c.SlackChannel,
+		SlackEvents:  "INSTANCE_SIZING_DISK_RAM,INSTANCE_SIZING_DISK,INSTANCE_SIZING_RAM,INSTANCE_SPOT_CAPACITY",
+	}
+	c.notifier.Init()
 	c.invLock = new(sync.Mutex)
 	if len(c.AutoCertDomains) > 0 && c.AutoCertEmail == "" {
 		return errors.New("if autocert domains is in use, a valid email must be provided for letsencrypt registration")
@@ -688,6 +688,8 @@ func (c *agiMonitorListenCmd) sendNotify(nnotify *agiMonitorNotify) {
 		stageMsg = "*Stage*: Done"
 	case agiMonitorNotifyStageError:
 		stageMsg = fmt.Sprintf("*Stage*: Error (%s)", aws.StringValue(nnotify.Error))
+	default:
+		log.Printf("NOTIFIER: Should have never got here, got a stage that is not recognised, %v", nnotify)
 	}
 	switch nnotify.Action {
 	case agiMonitorNotifyActionDisk:
@@ -698,6 +700,8 @@ func (c *agiMonitorListenCmd) sendNotify(nnotify *agiMonitorNotify) {
 		c.notifier.NotifySlack("INSTANCE_SIZING_DISK_RAM", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increating instance and disk size*\n> %s", "MONITOR_INSTANCE_SIZING_DISK_RAM", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
 	case agiMonitorNotifyActionSpotCapacity:
 		c.notifier.NotifySlack("INSTANCE_SPOT_CAPACITY", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor rotating instance from SPOT to ON_DEMAND*\n> %s", "MONITOR_INSTANCE_SPOT_CAPACITY", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
+	default:
+		log.Printf("NOTIFIER: Should have never got here, got an action that is not recognised, %v", nnotify)
 	}
 }
 
@@ -987,14 +991,15 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 	if !performRamSizing {
 		newType = ""
 		disableDim = false
+	} else {
+		nnotify.RAM = &agiMonitorNotifyRAM{
+			InitialInstanceType: currentType,
+			FinalInstanceType:   newType,
+			DisableDIM:          disableDim,
+		}
 	}
 	if newType == "" && disableDim {
 		newType = currentType
-	}
-	nnotify.RAM = &agiMonitorNotifyRAM{
-		InitialInstanceType: currentType,
-		FinalInstanceType:   newType,
-		DisableDIM:          disableDim,
 	}
 	testJson := &agiCreateCmd{}
 	if diskNewSize > 0 && newType == "" && !disableDim {
