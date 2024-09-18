@@ -100,6 +100,7 @@ type agiCreateCmd struct {
 	NoVacuumOnFail                bool   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
 	Owner                         string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	NonInteractive                bool   `long:"non-interactive" description:"set to disable interactive mode" webdisable:"true" webset:"true"`
+	GrafanaVersion                string `long:"grafana-version" description:"grafana version to install" default:"11.2.0" simplemode:"false"`
 	uploadAuthorizedContentsGzB64 string
 	Aws                           agiCreateCmdAws    `no-flag:"true"`
 	Gcp                           agiCreateCmdGcp    `no-flag:"true"`
@@ -1015,10 +1016,10 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 
 	if a.opts.Config.Backend.Type == "docker" {
-		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScriptDocker, override, c.NoDIM, c.Owner, c.GrafanaVersion, edition, c.GrafanaVersion, edition, c.GrafanaVersion, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, c.ClusterName, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	} else {
 		shutdownCmd := "/usr/bin/systemctl stop aerospike; /usr/bin/sync; /sbin/poweroff -p || /sbin/poweroff"
-		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, edition, edition, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, maxWriteCache, c.ClusterName, shutdownCmd, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
+		installScript = fmt.Sprintf(agiCreateScript, override, c.NoDIM, c.Owner, c.GrafanaVersion, edition, c.GrafanaVersion, edition, c.GrafanaVersion, cedition, toolsUpgrade, memSizeStr, storEngine, fileSizeInt, dimStr, rpcStr, wbs, maxWriteCache, c.ClusterName, shutdownCmd, c.ClusterName, c.AGILabel, proxyPort, proxySSL, proxyCert, proxyKey, proxyMaxInactive, proxyMaxUptime, maxDp, c.PluginLogLevel, cpuProfiling, notifierYaml)
 	}
 	flist = append(flist, fileListReader{filePath: "/root/agiinstaller.sh", fileContents: strings.NewReader(installScript), fileSize: len(installScript)})
 

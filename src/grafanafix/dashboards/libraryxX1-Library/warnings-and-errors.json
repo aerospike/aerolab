@@ -74,9 +74,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "hvUUvAE4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -170,9 +167,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "qmgwvAEVz"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -209,7 +203,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "10.1.2"
+      "version": "11.2.0"
     },
     {
       "type": "datasource",
@@ -362,7 +356,7 @@
         "content": "<center><h1><font color=yellow>${ClusterName}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -397,7 +391,7 @@
         "content": "<center><h1><font color=green>${Label}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -434,7 +428,7 @@
         "content": "<center><pre><h2><font color=green>${Sources}</font></h2></pre></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -471,7 +465,7 @@
         "content": "<center><h1><font color=orange>${TimeRange}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -516,8 +510,7 @@
   ],
   "refresh": "",
   "revision": 1,
-  "schemaVersion": 38,
-  "style": "dark",
+  "schemaVersion": 39,
   "tags": [
     "library"
   ],
@@ -961,7 +954,7 @@
       },
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "0",
           "value": "0"
         },
