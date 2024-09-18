@@ -22,11 +22,43 @@ import (
 
 	"github.com/aerospike/aerolab/ingest"
 	"github.com/aerospike/aerolab/notifier"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
 	"golang.org/x/crypto/acme/autocert"
 	"gopkg.in/yaml.v3"
 )
+
+const (
+	agiMonitorNotifyActionSpotCapacity = "spot-capacity"
+	agiMonitorNotifyActionRAM          = "sizing-ram"
+	agiMonitorNotifyActionDisk         = "sizing-disk"
+	agiMonitorNotifyActionDiskRAM      = "sizing-disk-ram"
+	agiMonitorNotifyStageStart         = "start"
+	agiMonitorNotifyStageDone          = "done"
+	agiMonitorNotifyStageError         = "error"
+)
+
+type agiMonitorNotify struct {
+	Name   string
+	Action string
+	Stage  string
+	Error  *string
+	Disk   *agiMonitorNotifyDisk
+	RAM    *agiMonitorNotifyRAM
+	Event  *ingest.NotifyEvent
+}
+
+type agiMonitorNotifyDisk struct {
+	InitialSizeGB int
+	FinalSizeGB   int
+}
+
+type agiMonitorNotifyRAM struct {
+	InitialInstanceType string
+	FinalInstanceType   string
+	DisableDIM          bool
+}
 
 type agiMonitorCmd struct {
 	Listen agiMonitorListenCmd `command:"listen" subcommands-optional:"true" description:"Run AGI monitor listener" webicon:"fas fa-headset" simplemode:"false"`
@@ -61,10 +93,15 @@ type agiMonitorListenCmd struct {
 	NoDimMultiplier     float64  `long:"sizing-multiplier-nodim" description:"log size * multiplier = how much RAM is needed" yaml:"ramMultiplierNoDim" default:"0.4"`
 	DebugEvents         bool     `long:"debug-events" description:"Log all events for debugging purposes" yaml:"debugEvents"`
 	DisablePricingAPI   bool     `long:"disable-pricing-api" description:"Set to disable pricing queries for cost tracking" yaml:"disablePricingAPI"`
+	NotifyURL           string   `long:"notify-url" description:"optional: specify a notification URL to send action notifications to" yaml:"notifyUrl"`
+	NotifyHeader        string   `long:"notify-header" description:"optional: set a header in the notification; format: key=value" yaml:"notifyHeader"`
+	SlackToken          string   `long:"notify-slack-token" description:"set to enable slack notifications for events" yaml:"notifySlackToken"`
+	SlackChannel        string   `long:"notify-slack-channel" description:"set to the channel to notify to" yaml:"notifySlackChannel"`
 	invCache            inventoryJson
 	invCacheTimeout     time.Time
 	invLock             *sync.Mutex
 	execLock            *sync.Mutex
+	notifier            *notifier.HTTPSNotify
 	Help                helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -265,6 +302,14 @@ func (c *agiMonitorListenCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	c.notifier = &notifier.HTTPSNotify{
+		Endpoint:     c.NotifyURL,
+		Headers:      []string{c.NotifyHeader},
+		SlackToken:   c.SlackToken,
+		SlackChannel: c.SlackChannel,
+		SlackEvents:  "INSTANCE_SIZING_DISK_RAM,INSTANCE_SIZING_DISK,INSTANCE_SIZING_RAM,INSTANCE_SPOT_CAPACITY",
+	}
+	c.notifier.Init()
 	if c.DisablePricingAPI {
 		b.DisablePricingAPI()
 	}
@@ -625,18 +670,59 @@ func (c *agiMonitorListenCmd) getDeploymentJSON(uuid string, event *ingest.Notif
 	return true
 }
 
+func errStr(e error) *string {
+	if e == nil {
+		return nil
+	}
+	n := e.Error()
+	return &n
+}
+
+func (c *agiMonitorListenCmd) sendNotify(nnotify *agiMonitorNotify) {
+	c.notifier.NotifyJSON(nnotify)
+	stageMsg := ""
+	switch nnotify.Stage {
+	case agiMonitorNotifyStageStart:
+		stageMsg = "*Stage*: Start"
+	case agiMonitorNotifyStageDone:
+		stageMsg = "*Stage*: Done"
+	case agiMonitorNotifyStageError:
+		stageMsg = fmt.Sprintf("*Stage*: Error (%s)", aws.StringValue(nnotify.Error))
+	}
+	switch nnotify.Action {
+	case agiMonitorNotifyActionDisk:
+		c.notifier.NotifySlack("INSTANCE_SIZING_DISK", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increating disk size*\n> %s", "MONITOR_INSTANCE_SIZING_DISK", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
+	case agiMonitorNotifyActionRAM:
+		c.notifier.NotifySlack("INSTANCE_SIZING_RAM", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increating instance size*\n> %s", "MONITOR_INSTANCE_SIZING_RAM", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
+	case agiMonitorNotifyActionDiskRAM:
+		c.notifier.NotifySlack("INSTANCE_SIZING_DISK_RAM", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor increating instance and disk size*\n> %s", "MONITOR_INSTANCE_SIZING_DISK_RAM", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
+	case agiMonitorNotifyActionSpotCapacity:
+		c.notifier.NotifySlack("INSTANCE_SPOT_CAPACITY", fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s\n> *AGI Monitor rotating instance from SPOT to ON_DEMAND*\n> %s", "MONITOR_INSTANCE_SPOT_CAPACITY", time.Now().Format(time.RFC822), nnotify.Name, nnotify.Event.Label, nnotify.Event.Owner, nnotify.Event.S3Source, nnotify.Event.SftpSource, nnotify.Event.LocalSource, stageMsg), "")
+	}
+}
+
 func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEvent) {
 	c.execLock.Lock()
 	defer c.execLock.Unlock()
 	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
 		return
 	}
+	nnotify := &agiMonitorNotify{
+		Name:   event.AGIName,
+		Action: agiMonitorNotifyActionSpotCapacity,
+		Stage:  agiMonitorNotifyStageStart,
+		Event:  event,
+	}
+	c.sendNotify(nnotify)
 	b.Tag(event.AGIName, "monitorState", "sizing-capacity")
 	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
 	a.opts.Cluster.Destroy.Force = true
 	a.opts.Cluster.Destroy.Nodes = "1"
 	err := a.opts.Cluster.Destroy.doDestroy("agi", nil)
 	if err != nil {
+		nnotify.Stage = agiMonitorNotifyStageError
+		nnotify.Error = errStr(err)
+		c.sendNotify(nnotify)
 		c.log(uuid, "capacity", fmt.Sprintf("Error destroying instance, attempting to continue (%s)", err))
 		return
 	}
@@ -648,41 +734,86 @@ func (c *agiMonitorListenCmd) handleCapacity(uuid string, event *ingest.NotifyEv
 	err = a.opts.AGI.Create.Execute(nil)
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
+		nnotify.Stage = agiMonitorNotifyStageError
+		nnotify.Error = errStr(err)
+		c.sendNotify(nnotify)
 		c.log(uuid, "capacity", fmt.Sprintf("Error creating new instance (%s)", err))
 		return
 	}
+	nnotify.Stage = agiMonitorNotifyStageDone
+	c.sendNotify(nnotify)
 	c.log(uuid, "capacity", "rotated to on-demand instance")
 }
 
-func (c *agiMonitorListenCmd) handleSizingDisk(uuid string, event *ingest.NotifyEvent, newSize int64) {
+func (c *agiMonitorListenCmd) handleSizingDisk(uuid string, event *ingest.NotifyEvent, newSize int64, nnotify *agiMonitorNotify) {
 	c.execLock.Lock()
 	defer c.execLock.Unlock()
 	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
 		return
 	}
-	c.handleSizingDiskDo(uuid, event, newSize)
+	nnotify.Action = agiMonitorNotifyActionDisk
+	nnotify.Stage = agiMonitorNotifyStageStart
+	c.sendNotify(nnotify)
+	err := c.handleSizingDiskDo(uuid, event, newSize)
+	if err != nil {
+		nnotify.Stage = agiMonitorNotifyStageError
+		nnotify.Error = errStr(err)
+		c.sendNotify(nnotify)
+		return
+	}
+	nnotify.Stage = agiMonitorNotifyStageDone
+	c.sendNotify(nnotify)
 }
 
-func (c *agiMonitorListenCmd) handleSizingRAM(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool) {
+func (c *agiMonitorListenCmd) handleSizingRAM(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool, nnotify *agiMonitorNotify) {
 	c.execLock.Lock()
 	defer c.execLock.Unlock()
 	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
 		return
 	}
-	c.handleSizingRAMDo(uuid, event, newType, disableDim)
+	nnotify.Action = agiMonitorNotifyActionRAM
+	nnotify.Stage = agiMonitorNotifyStageStart
+	c.sendNotify(nnotify)
+	err := c.handleSizingRAMDo(uuid, event, newType, disableDim)
+	if err != nil {
+		nnotify.Stage = agiMonitorNotifyStageError
+		nnotify.Error = errStr(err)
+		c.sendNotify(nnotify)
+		return
+	}
+	nnotify.Stage = agiMonitorNotifyStageDone
+	c.sendNotify(nnotify)
 }
 
-func (c *agiMonitorListenCmd) handleSizingDiskAndRAM(uuid string, event *ingest.NotifyEvent, newSize int64, newType string, disableDim bool) {
+func (c *agiMonitorListenCmd) handleSizingDiskAndRAM(uuid string, event *ingest.NotifyEvent, newSize int64, newType string, disableDim bool, nnotify *agiMonitorNotify) {
 	c.execLock.Lock()
 	defer c.execLock.Unlock()
 	if !c.getDeploymentJSON(uuid, event, &a.opts.AGI.Create) {
 		return
 	}
-	c.handleSizingDiskDo(uuid, event, newSize)
-	c.handleSizingRAMDo(uuid, event, newType, disableDim)
+	nnotify.Action = agiMonitorNotifyActionDiskRAM
+	nnotify.Stage = agiMonitorNotifyStageStart
+	c.sendNotify(nnotify)
+	erra := c.handleSizingDiskDo(uuid, event, newSize)
+	errb := c.handleSizingRAMDo(uuid, event, newType, disableDim)
+	if erra != nil || errb != nil {
+		var ea, eb string
+		if erra != nil {
+			ea = erra.Error()
+		}
+		if errb != nil {
+			eb = errb.Error()
+		}
+		nnotify.Stage = agiMonitorNotifyStageError
+		nnotify.Error = errStr(fmt.Errorf("%s ; %s", ea, eb))
+		c.sendNotify(nnotify)
+		return
+	}
+	nnotify.Stage = agiMonitorNotifyStageDone
+	c.sendNotify(nnotify)
 }
 
-func (c *agiMonitorListenCmd) handleSizingDiskDo(uuid string, event *ingest.NotifyEvent, newSize int64) {
+func (c *agiMonitorListenCmd) handleSizingDiskDo(uuid string, event *ingest.NotifyEvent, newSize int64) error {
 	_ = event
 	a.opts.Volume.Resize.Zone = a.opts.AGI.Create.Gcp.Zone.String()
 	a.opts.Volume.Resize.Name = string(a.opts.AGI.Create.ClusterName)
@@ -690,11 +821,12 @@ func (c *agiMonitorListenCmd) handleSizingDiskDo(uuid string, event *ingest.Noti
 	err := a.opts.Volume.Resize.Execute(nil)
 	if err != nil {
 		c.log(uuid, "volume", fmt.Sprintf("Error resizing (%s)", err))
-		return
+		return err
 	}
+	return nil
 }
 
-func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool) {
+func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.NotifyEvent, newType string, disableDim bool) error {
 	b.Tag(event.AGIName, "monitorState", "sizing-instance")
 	a.opts.Cluster.Destroy.ClusterName = TypeClusterName(event.AGIName)
 	a.opts.Cluster.Destroy.Force = true
@@ -702,7 +834,7 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 	err := a.opts.Cluster.Destroy.doDestroy("agi", nil)
 	if err != nil {
 		c.log(uuid, "sizing", fmt.Sprintf("Error destroying instance, attempting to continue (%s)", err))
-		return
+		return err
 	}
 	a.opts.AGI.Create.Aws.InstanceType = newType
 	a.opts.AGI.Create.Gcp.InstanceType = newType
@@ -716,16 +848,21 @@ func (c *agiMonitorListenCmd) handleSizingRAMDo(uuid string, event *ingest.Notif
 	a.opts.AGI.Create.uploadAuthorizedContentsGzB64 = ""
 	if err != nil {
 		c.log(uuid, "sizing", fmt.Sprintf("Error creating new instance (%s)", err))
-		return
+		return err
 	}
 	if disableDim {
 		c.log(uuid, "sizing", "disabled data-in-memory, rotated to instance type: "+newType)
 	} else {
 		c.log(uuid, "sizing", "rotated to instance type: "+newType)
 	}
+	return nil
 }
 
 func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.Request, uuid string, event *ingest.NotifyEvent, currentType string, zone string) {
+	nnotify := &agiMonitorNotify{
+		Name:  event.AGIName,
+		Event: event,
+	}
 	// check for required disk sizing on GCP
 	diskNewSize := uint64(0)
 	if a.opts.Config.Backend.Type == "gcp" {
@@ -735,6 +872,10 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 					diskNewSize = (event.IngestStatus.System.DiskTotalBytes / 1024 / 1024 / 1024) + uint64(c.GCPDiskIncreaseGB)
 					if diskNewSize > uint64(c.SizingMaxDiskGB) {
 						diskNewSize = uint64(c.SizingMaxDiskGB)
+					}
+					nnotify.Disk = &agiMonitorNotifyDisk{
+						InitialSizeGB: int(event.IngestStatus.System.DiskTotalBytes / 1024 / 1024 / 1024),
+						FinalSizeGB:   int(diskNewSize),
 					}
 				}
 			}
@@ -848,6 +989,11 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 	if newType == "" && disableDim {
 		newType = currentType
 	}
+	nnotify.RAM = &agiMonitorNotifyRAM{
+		InitialInstanceType: currentType,
+		FinalInstanceType:   newType,
+		DisableDIM:          disableDim,
+	}
 	testJson := &agiCreateCmd{}
 	if diskNewSize > 0 && newType == "" && !disableDim {
 		if !c.getDeploymentJSON(uuid, event, testJson) {
@@ -855,21 +1001,21 @@ func (c *agiMonitorListenCmd) handleCheckSizing(w http.ResponseWriter, r *http.R
 			return
 		}
 		c.respond(w, r, uuid, 200, "sizing: adding disk capacity", fmt.Sprintf("Sizing: changing disk capacity from %d GiB to %d GiB", event.IngestStatus.System.DiskTotalBytes/1024/1024/1024, diskNewSize))
-		go c.handleSizingDisk(uuid, event, int64(diskNewSize))
+		go c.handleSizingDisk(uuid, event, int64(diskNewSize), nnotify)
 	} else if diskNewSize == 0 && (newType != "" || disableDim) {
 		if !c.getDeploymentJSON(uuid, event, testJson) {
 			c.respond(w, r, uuid, 400, "sizing: invalid deployment json", "Sizing: abort on invalid deployment json")
 			return
 		}
 		c.respond(w, r, uuid, 418, "sizing: instance-ram", fmt.Sprintf("Sizing: instance-ram currentType=%s newType=%s disableDim=%t", currentType, newType, disableDim))
-		go c.handleSizingRAM(uuid, event, newType, disableDim)
+		go c.handleSizingRAM(uuid, event, newType, disableDim, nnotify)
 	} else if diskNewSize > 0 && (newType != "" || disableDim) {
 		if !c.getDeploymentJSON(uuid, event, testJson) {
 			c.respond(w, r, uuid, 400, "sizing: invalid deployment json", "Sizing: abort on invalid deployment json")
 			return
 		}
 		c.respond(w, r, uuid, 418, "sizing: instance-disk-and-ram", fmt.Sprintf("Sizing: instance-disk-and-ram old-disk=%dGiB new-disk=%dGiB currentType=%s newType=%s disableDim=%t", event.IngestStatus.System.DiskTotalBytes/1024/1024/1024, diskNewSize, currentType, newType, disableDim))
-		go c.handleSizingDiskAndRAM(uuid, event, int64(diskNewSize), newType, disableDim)
+		go c.handleSizingDiskAndRAM(uuid, event, int64(diskNewSize), newType, disableDim, nnotify)
 	} else {
 		c.respond(w, r, uuid, 200, "sizing: not required", "sizing: not required")
 	}
