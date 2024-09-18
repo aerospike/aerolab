@@ -16,7 +16,7 @@ func (c *restCmd) resetBoolsDo(keyField reflect.Value, start string) {
 	case reflect.Struct:
 		for i := 0; i < keyField.NumField(); i++ {
 			fieldName := keyField.Type().Field(i).Name
-			if len(fieldName) > 0 && fieldName[0] >= 97 && fieldName[0] <= 122 {
+			if len(fieldName) > 0 && fieldName[0] >= 65 && fieldName[0] <= 90 {
 				if keyField.Field(i).Type().Kind() != reflect.Struct {
 					continue
 				}
