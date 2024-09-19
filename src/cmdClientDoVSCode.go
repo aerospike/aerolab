@@ -272,7 +272,7 @@ function kpython() {
 
 function kjava() {
 	apt-get update || return 1
-	DEBIAN_FRONTEND=noninteractive apt-get -qq -y install openjdk-17-jdk || return 2
+	DEBIAN_FRONTEND=noninteractive apt-get -qq -y install openjdk-21-jdk || return 2
 	code-server --install-extension redhat.java || return 7
 	code-server --install-extension vscjava.vscode-java-debug || return 3
 	code-server --install-extension vscjava.vscode-maven || return 4
