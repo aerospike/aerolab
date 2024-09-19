@@ -165,7 +165,7 @@ clean:
 
 OS := $(shell uname -o)
 CPU := $(shell uname -m)
-ver:=$(shell V=$$(git branch --show-current); if [[ $$V == v* ]]; then printf $${V:1} > ../VERSION.md; fi; cat ../VERSION.md)
+ver:=$(shell bash -c 'V=$$(git branch --show-current); if [[ $$V == v* ]]; then printf $${V:1} > ../VERSION.md; fi; cat ../VERSION.md')
 define _amddebscript
 ver=$(cat ../VERSION.md)
 cat <<EOF > ../bin/deb/DEBIAN/control
