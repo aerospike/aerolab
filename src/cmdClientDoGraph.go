@@ -161,7 +161,7 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 		}
 		c.Docker.clientCustomDockerImage = c.GraphImage
 		log.Println("Pulling and running dockerized aerospike-graph, this may take a while...")
-		machines, err := c.createBase([]string{"-v", confFile + ":/opt/aerospike-graph/aerospike-graph.properties"}, "graph")
+		machines, err := c.createBase(append(args, "-v", confFile+":/opt/aerospike-graph/aerospike-graph.properties"), "graph")
 		if err != nil {
 			return err
 		}
