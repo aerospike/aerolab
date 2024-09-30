@@ -87,6 +87,10 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		vals = nil
 		p.cache.lock.RLock()
 		for _, v := range req.selectedVars[filter.Name] {
+			if n, ok := p.cache.metadata[filter.Name]; !ok || n == nil {
+				logger.Detail("Grafana requsted a filter which results in nil dereference, skipping (ok:%t filter.Name:%s v:%s)", ok, filter.Name, v)
+				continue
+			}
 			idxval := inslice.StringMatch(p.cache.metadata[filter.Name].Entries, v)
 			if idxval == -1 {
 				continue

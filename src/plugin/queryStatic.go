@@ -46,5 +46,5 @@ func (p *Plugin) handleQueryStatic(req *queryRequest, i int, remote string) (*st
 		responseRows = append(responseRows, dataValue)
 	}
 	response.Rows = append(response.Rows, responseRows)
-	return nil, nil
+	return response, nil
 }

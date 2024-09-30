@@ -1146,7 +1146,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 		}
 		switch action {
 		case "start":
-			hasError := c.inventoryNodesActionStart(reqID, invlog, clist, ntype)
+			hasError := c.inventoryNodesActionStart(reqID, invlog, clist, ntype, getHeaderUserValue(r))
 			if hasError {
 				isError = true
 			}
@@ -1204,7 +1204,7 @@ func (c *webCmd) inventoryNodesActionDo(w http.ResponseWriter, r *http.Request, 
 	w.Write([]byte(reqID))
 }
 
-func (c *webCmd) inventoryNodesActionStart(reqID string, invlog *os.File, clist map[string][]string, ntype string) (isError bool) {
+func (c *webCmd) inventoryNodesActionStart(reqID string, invlog *os.File, clist map[string][]string, ntype string, user string) (isError bool) {
 	var err error
 	for name, nodes := range clist {
 		nodeNo := strings.Join(nodes, ",")
@@ -1256,6 +1256,7 @@ func (c *webCmd) inventoryNodesActionStart(reqID string, invlog *os.File, clist 
 				}
 				cmdJson["S3Enable"] = false
 				cmdJson["SftpEnable"] = false
+				cmdJson["Owner"] = user
 			}
 			err = c.runInvCmd(reqID, ncmd, cmdJson, invlog)
 			if err != nil {

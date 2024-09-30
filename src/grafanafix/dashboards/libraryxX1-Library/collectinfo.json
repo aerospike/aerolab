@@ -49,9 +49,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "TqZqCxP4z"
-        },
         "options": {
           "cellHeight": "sm",
           "footer": {
@@ -120,9 +117,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "owfqCxPVk"
-        },
         "options": {
           "cellHeight": "sm",
           "footer": {
@@ -158,7 +152,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "10.1.2"
+      "version": "11.2.0"
     },
     {
       "type": "datasource",
@@ -250,7 +244,7 @@
         "content": "<center><h1><font color=green>${Label}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -285,7 +279,7 @@
         "content": "<center><pre><h2><font color=green>${sources}</font></h2></pre></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -320,7 +314,7 @@
         "content": "<center><h2><font color=orange>${timerange}</font></h2></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -363,8 +357,7 @@
   ],
   "refresh": "",
   "revision": 1,
-  "schemaVersion": 38,
-  "style": "dark",
+  "schemaVersion": 39,
   "tags": [
     "library"
   ],

@@ -368,7 +368,7 @@ func putSSHAuthorizedKeys(ContentsGzB64 string) {
 	kfile.Write(keys)
 }
 
-func (c *agiExecIngestCmd) resourceMonitor() {
+func (c *agiExecIngestCmd) resourceMonitor(owner, slacks3source, slacksftpsource, slackcustomsource string) {
 	isDim := true
 	if _, err := os.Stat("/opt/agi/nodim"); err == nil {
 		isDim = false
@@ -379,7 +379,13 @@ func (c *agiExecIngestCmd) resourceMonitor() {
 		if err != nil {
 			continue
 		}
+		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 		notifyItem := &ingest.NotifyEvent{
+			Label:                      string(slackagiLabel),
+			Owner:                      owner,
+			S3Source:                   slacks3source,
+			SftpSource:                 slacksftpsource,
+			LocalSource:                slackcustomsource,
 			IsDataInMemory:             isDim,
 			IngestStatus:               notifyData,
 			Event:                      AgiEventResourceMonitor,
@@ -472,7 +478,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	}
 	notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 	if err == nil {
+		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 		notifyItem := &ingest.NotifyEvent{
+			Label:                      string(slackagiLabel),
+			Owner:                      owner,
+			S3Source:                   slacks3source,
+			SftpSource:                 slacksftpsource,
+			LocalSource:                slackcustomsource,
 			IsDataInMemory:             isDim,
 			IngestStatus:               notifyData,
 			Event:                      AgiEventInitComplete,
@@ -484,11 +496,10 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("notify: %s", err)
 		}
-		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 		c.notify.NotifySlack(AgiEventInitComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventInitComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 	}
 	if c.notifyJSON {
-		go c.resourceMonitor()
+		go c.resourceMonitor(owner, slacks3source, slacksftpsource, slackcustomsource)
 	}
 	if !steps.Download {
 		if config.Downloader.S3Source.Enabled && config.Downloader.S3Source.PathPrefix == "" {
@@ -512,7 +523,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			notifyItem := &ingest.NotifyEvent{
+				Label:                      string(slackagiLabel),
+				Owner:                      owner,
+				S3Source:                   slacks3source,
+				SftpSource:                 slacksftpsource,
+				LocalSource:                slackcustomsource,
 				IsDataInMemory:             isDim,
 				IngestStatus:               notifyData,
 				Event:                      AgiEventDownloadComplete,
@@ -524,7 +541,6 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
-			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			c.notify.NotifySlack(AgiEventDownloadComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventDownloadComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 		if c.YamlFile != "" {
@@ -573,7 +589,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			notifyItem := &ingest.NotifyEvent{
+				Label:                      string(slackagiLabel),
+				Owner:                      owner,
+				S3Source:                   slacks3source,
+				SftpSource:                 slacksftpsource,
+				LocalSource:                slackcustomsource,
 				IsDataInMemory:             isDim,
 				IngestStatus:               notifyData,
 				Event:                      AgiEventUnpackComplete,
@@ -585,7 +607,6 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
-			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			c.notify.NotifySlack(AgiEventUnpackComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventUnpackComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 	}
@@ -613,7 +634,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			notifyItem := &ingest.NotifyEvent{
+				Label:                      string(slackagiLabel),
+				Owner:                      owner,
+				S3Source:                   slacks3source,
+				SftpSource:                 slacksftpsource,
+				LocalSource:                slackcustomsource,
 				IsDataInMemory:             isDim,
 				IngestStatus:               notifyData,
 				Event:                      AgiEventPreProcessComplete,
@@ -625,7 +652,6 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
-			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			c.notify.NotifySlack(AgiEventPreProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventPreProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 	}
@@ -674,7 +700,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		}
 		notifyData, err := getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 		if err == nil {
+			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			notifyItem := &ingest.NotifyEvent{
+				Label:                      string(slackagiLabel),
+				Owner:                      owner,
+				S3Source:                   slacks3source,
+				SftpSource:                 slacksftpsource,
+				LocalSource:                slackcustomsource,
 				IsDataInMemory:             isDim,
 				IngestStatus:               notifyData,
 				Event:                      AgiEventProcessComplete,
@@ -686,7 +718,6 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			if err != nil {
 				return fmt.Errorf("notify: %s", err)
 			}
-			slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 			c.notify.NotifySlack(AgiEventProcessComplete, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventProcessComplete, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 		}
 	}
@@ -702,7 +733,13 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	}
 	notifyData, err = getAgiStatus(c.notifyJSON, "/opt/agi/ingest/")
 	if err == nil {
+		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 		notifyItem := &ingest.NotifyEvent{
+			Label:                      string(slackagiLabel),
+			Owner:                      owner,
+			S3Source:                   slacks3source,
+			SftpSource:                 slacksftpsource,
+			LocalSource:                slackcustomsource,
 			IsDataInMemory:             isDim,
 			IngestStatus:               notifyData,
 			Event:                      AgiEventIngestFinish,
@@ -714,7 +751,6 @@ func (c *agiExecIngestCmd) run(args []string) error {
 		if err != nil {
 			return fmt.Errorf("notify: %s", err)
 		}
-		slackagiLabel, _ := os.ReadFile("/opt/agi/label")
 		c.notify.NotifySlack(AgiEventIngestFinish, fmt.Sprintf("*%s* _@ %s_\n> *AGI Name*: %s\n> *AGI Label*: %s\n> *Owner*: %s%s%s%s", AgiEventIngestFinish, time.Now().Format(time.RFC822), c.AGIName, string(slackagiLabel), owner, slacks3source, slacksftpsource, slackcustomsource), slackAccessDetails)
 	}
 	return nil
