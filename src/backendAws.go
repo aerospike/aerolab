@@ -2785,7 +2785,7 @@ func (d *backendAws) DeployTemplate(v backendVersion, script string, files []fil
 	if err != nil {
 		return fmt.Errorf("could not run DescribeImages\n%s", err)
 	}
-	if images.Images == nil || len(images.Images) == 0 || images.Images[0] == nil {
+	if images.Images == nil || images.Images[0] == nil {
 		return errors.New("image not found")
 	}
 	myImage := images.Images[0]

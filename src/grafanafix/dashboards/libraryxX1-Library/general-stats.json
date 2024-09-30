@@ -73,9 +73,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "FuyjJYP4k"
-        },
         "options": {
           "legend": {
             "calcs": [],
@@ -166,9 +163,6 @@
             }
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "RVwLw9P4k"
         },
         "options": {
           "legend": {
@@ -264,9 +258,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "pIdnFZPVk"
         },
         "options": {
           "legend": {
@@ -366,9 +357,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "vsxnFWE4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -466,9 +454,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "LaenKWPVz"
-        },
         "options": {
           "legend": {
             "calcs": [],
@@ -563,9 +548,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "0e74FWP4z"
-        },
         "options": {
           "legend": {
             "calcs": [],
@@ -659,9 +641,6 @@
             }
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "7Ph4FWEVz"
         },
         "options": {
           "legend": {
@@ -758,9 +737,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "FyEVKZP4z"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -856,9 +832,6 @@
             }
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "GQq4KWPVk"
         },
         "options": {
           "legend": {
@@ -1051,9 +1024,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "giONKWP4z"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -1150,9 +1120,6 @@
             "unit": "percent"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "yBENKZEVz"
         },
         "options": {
           "legend": {
@@ -1251,9 +1218,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "ZaCNKZP4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -1351,9 +1315,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "a2GDFZP4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -1450,9 +1411,6 @@
             "unit": "percent"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "_6OvKWEVz"
         },
         "options": {
           "legend": {
@@ -1552,9 +1510,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "yZaDKZP4z"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -1651,9 +1606,6 @@
             "unit": "kbytes"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "D1mtpfyVz"
         },
         "options": {
           "legend": {
@@ -1753,9 +1705,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "flHTFZP4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -1854,9 +1803,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "yatKKZP4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -1953,9 +1899,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "lsYKFZP4z"
         },
         "options": {
           "legend": {
@@ -2054,9 +1997,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "IjjFFZP4z"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -2153,9 +2093,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "GzGcKWE4z"
         },
         "options": {
           "legend": {
@@ -2254,9 +2191,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "ovKptBsVz"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -2353,9 +2287,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "r3g0KZE4z"
         },
         "options": {
           "legend": {
@@ -2454,9 +2385,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "D-HAFZP4z"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -2553,9 +2481,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "S2o0KWPVk"
         },
         "options": {
           "legend": {
@@ -2654,9 +2579,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "1dPAKZEVk"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -2753,9 +2675,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "uu9AKWEVk"
         },
         "options": {
           "legend": {
@@ -2854,9 +2773,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "oEGJKZP4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -2953,9 +2869,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "1K21FWEVz"
         },
         "options": {
           "legend": {
@@ -3054,9 +2967,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "1mr1KZE4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -3154,9 +3064,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "iNObKZEVz"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -3253,9 +3160,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "6bP1FWEVz"
         },
         "options": {
           "legend": {
@@ -3355,9 +3259,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "b9ibFWPVk"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -3455,9 +3356,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "eQAxFZEVk"
         },
         "options": {
           "legend": {
@@ -3557,9 +3455,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "j4g-FZEVk"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -3656,9 +3551,6 @@
             "unit": "bytes"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "bP2aKWE4z"
         },
         "options": {
           "legend": {
@@ -3757,9 +3649,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "s6X-FZE4z"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -3856,9 +3745,6 @@
             "unit": "bytes"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "TmI-KWEVk"
         },
         "options": {
           "legend": {
@@ -3957,9 +3843,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "rWL-FWP4z"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -4056,9 +3939,6 @@
             "unit": "bytes"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "30ZfKZPVk"
         },
         "options": {
           "legend": {
@@ -4157,9 +4037,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "hFKfFWEVk"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -4256,9 +4133,6 @@
             "unit": "bytes"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "5BbBFWE4k"
         },
         "options": {
           "legend": {
@@ -4357,9 +4231,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "B9ufFZPVk"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -4456,9 +4327,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "ctkYKWE4z"
         },
         "options": {
           "legend": {
@@ -4557,9 +4425,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "O0NLKZPVz"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -4656,9 +4521,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "IQhYFWP4z"
         },
         "options": {
           "legend": {
@@ -4757,9 +4619,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "1KfLKWPVk"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -4856,9 +4715,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "PdlYFZPVz"
         },
         "options": {
           "legend": {
@@ -4957,9 +4813,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "TIRPKZPVz"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -5056,9 +4909,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "CHKPKWPVk"
         },
         "options": {
           "legend": {
@@ -5157,9 +5007,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "q60PKWP4k"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -5256,9 +5103,6 @@
             "unit": "short"
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "VtyEFWP4k"
         },
         "options": {
           "legend": {
@@ -5357,9 +5201,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "136PFZEVz"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -5455,9 +5296,6 @@
             }
           },
           "overrides": []
-        },
-        "libraryPanel": {
-          "uid": "HNvsFWE4z"
         },
         "options": {
           "legend": {
@@ -5556,9 +5394,6 @@
           },
           "overrides": []
         },
-        "libraryPanel": {
-          "uid": "5pAyFZEVk"
-        },
         "options": {
           "legend": {
             "calcs": [
@@ -5595,7 +5430,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "10.1.2"
+      "version": "11.2.0"
     },
     {
       "type": "datasource",
@@ -5754,7 +5589,7 @@
         "content": "<center><h1><font color=yellow>${ClusterName}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -5789,7 +5624,7 @@
         "content": "<center><h1><font color=green>${Label}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -5824,7 +5659,7 @@
         "content": "<center><pre><h2><font color=green>${Sources}</font></h2></pre></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -5861,7 +5696,7 @@
         "content": "<center><h1><font color=orange>${TimeRange}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "10.1.2",
+      "pluginVersion": "11.2.0",
       "targets": [
         {
           "datasource": {
@@ -6917,8 +6752,7 @@
   ],
   "refresh": "",
   "revision": 1,
-  "schemaVersion": 38,
-  "style": "dark",
+  "schemaVersion": 39,
   "tags": [
     "library"
   ],
@@ -7361,7 +7195,7 @@
       },
       {
         "current": {
-          "selected": true,
+          "selected": false,
           "text": "0",
           "value": "0"
         },
@@ -7402,6 +7236,6 @@
   "timezone": "",
   "title": "General Stats",
   "uid": "vfXTPgPVk",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

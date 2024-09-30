@@ -12,12 +12,12 @@ ISAPT=$?
 set -e
 if [ $ISAPT -eq 0 ]
 then
-    apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_10.1.2_%s.deb && dpkg -i grafana_10.1.2_%s.deb
+    apt update && apt -y install wget adduser libfontconfig1 musl ssl-cert && wget -q https://dl.grafana.com/oss/release/grafana_%s_%s.deb && dpkg -i grafana_%s_%s.deb
 else
     yum install -y wget mod_ssl
     mkdir -p /etc/ssl/certs /etc/ssl/private
     openssl req -new -x509 -nodes -out /etc/ssl/certs/ssl-cert-snakeoil.pem -keyout /etc/ssl/private/ssl-cert-snakeoil.key -days 3650 -subj '/CN=www.example.com'
-    yum install -y https://dl.grafana.com/oss/release/grafana-10.2.0-1.%s.rpm
+    yum install -y https://dl.grafana.com/oss/release/grafana-%s-1.%s.rpm
 fi
 [ ! -f /opt/agi/proxy.cert ] && cp /etc/ssl/certs/ssl-cert-snakeoil.pem /opt/agi/proxy.cert
 [ ! -f /opt/agi/proxy.key ] && cp /etc/ssl/private/ssl-cert-snakeoil.key /opt/agi/proxy.key
