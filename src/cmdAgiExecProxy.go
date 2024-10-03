@@ -89,6 +89,9 @@ type agiExecProxyCmd struct {
 	deployJson           string
 	wwwSimple            bool
 	prettySource         string
+	imageExportJobsLock  *sync.RWMutex
+	imageExport          *sync.Mutex
+	imageExportJobs      map[string]string
 }
 
 type tokens struct {
@@ -278,6 +281,9 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	c.fbUrl = furl
 	c.fbProxy = fproxy
 	c.tokens = new(tokens)
+	c.imageExport = new(sync.Mutex)
+	c.imageExportJobsLock = new(sync.RWMutex)
+	c.imageExportJobs = make(map[string]string)
 	if c.AuthType == "basic" {
 		c.isBasicAuth = true
 	}
@@ -365,6 +371,9 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 		}
 	}
 
+	http.HandleFunc("/agi/export/images/do", c.exportImagesDo)
+	http.HandleFunc("/agi/export/images/list", c.exportImagesList)
+	http.HandleFunc("/agi/export/images/cancel", c.exportImagesCancel)
 	http.HandleFunc("/agi/ok", c.handleTokenTest)            // test token, returns ok or lack of success
 	http.HandleFunc("/agi/menu", c.handleList)               // URL list and status
 	http.HandleFunc("/agi/dist/", c.wwwstatic)               // static files for URL list
@@ -402,6 +411,354 @@ func (c *agiExecProxyCmd) Execute(args []string) error {
 	} else {
 		return nil
 	}
+}
+
+func parseInt(s string, defaultValue int) (int, error) {
+	if s == "" {
+		return defaultValue, nil
+	}
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return defaultValue, err
+	}
+	return i, nil
+}
+
+func (c *agiExecProxyCmd) exportImagesDo(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuth(w, r) {
+		return
+	}
+	r.ParseForm()
+	allDash := strings.ToUpper(r.FormValue("all"))
+	all := false
+	if allDash == "YES" || allDash == "Y" || allDash == "T" || allDash == "TRUE" || allDash == "CHECKED" || allDash == "SELECTED" || allDash == "ON" {
+		all = true
+	}
+	gurl := r.FormValue("url")
+	if gurl == "" || !strings.HasPrefix(gurl, "http") {
+		http.Error(w, "invalid grafana url, copy url from grafana you wish to export and paste it in", http.StatusBadRequest)
+		return
+	}
+	width, err := parseInt(r.FormValue("width"), 2000)
+	if err != nil {
+		http.Error(w, "width must be an integer or empty", http.StatusBadRequest)
+		return
+	}
+	if width < 200 || width > 4000 {
+		http.Error(w, "width must be between 200 and 4000", http.StatusBadRequest)
+		return
+	}
+	height := width / 2
+	scale, err := parseInt(r.FormValue("scale"), 2)
+	if err != nil {
+		http.Error(w, "scale must be an integer or empty", http.StatusBadRequest)
+		return
+	}
+	if scale < 1 || scale > 10 {
+		http.Error(w, "scale must be in range 1-10", http.StatusBadRequest)
+		return
+	}
+	go c.exportImagesJob(gurl, width, height, scale, all)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Job queued"))
+}
+
+func (c *agiExecProxyCmd) exportImagesJob(gurl string, w int, h int, scale int, allDashboards bool) {
+	// add job to list of jobs
+	c.imageExportJobsLock.Lock()
+	c.imageExportJobs[gurl] = "pending"
+	c.imageExportJobsLock.Unlock()
+
+	// one at a time please
+	c.imageExport.Lock()
+	defer c.imageExport.Unlock()
+
+	// update job status to running
+	c.imageExportJobsLock.Lock()
+	c.imageExportJobs[gurl] = "running"
+	c.imageExportJobsLock.Unlock()
+
+	timestamp := time.Now()
+	folder := "/opt/agi/files/images/" + timestamp.Format("2006-01-02_15-04-05")
+	err := c.exportImagesJobDo(gurl, w, h, scale, allDashboards, timestamp, folder)
+	c.imageExportJobsLock.Lock()
+	defer c.imageExportJobsLock.Unlock()
+	if c.imageExportJobs[gurl] == "cancelling" {
+		c.imageExportJobs[gurl] = "cancelled"
+		// also update meta json, setting Status to the cancelled
+		f, err := os.ReadFile(path.Join(folder, "meta.json"))
+		if err != nil {
+			return
+		}
+		meta := make(map[string]interface{})
+		err = json.Unmarshal(f, &meta)
+		if err != nil {
+			return
+		}
+		meta["Status"] = "cancelled"
+		metaJson, err := jsonMarshalNoEscape(meta)
+		if err != nil {
+			return
+		}
+		err = os.WriteFile(path.Join(folder, "meta.json"), metaJson, 0644)
+		if err != nil {
+			return
+		}
+		return
+	}
+	if err != nil {
+		xerr := err
+		c.imageExportJobs[gurl] = "error: " + err.Error()
+		// also update meta json, setting Status to the error
+		f, err := os.ReadFile(path.Join(folder, "meta.json"))
+		if err != nil {
+			return
+		}
+		meta := make(map[string]interface{})
+		err = json.Unmarshal(f, &meta)
+		if err != nil {
+			return
+		}
+		meta["Status"] = "error: " + xerr.Error()
+		metaJson, err := jsonMarshalNoEscape(meta)
+		if err != nil {
+			return
+		}
+		err = os.WriteFile(path.Join(folder, "meta.json"), metaJson, 0644)
+		if err != nil {
+			return
+		}
+		return
+	}
+
+	// success
+	c.imageExportJobs[gurl] = "done"
+}
+
+type panels struct {
+	Id     int      `json:"id"`
+	Title  string   `json:"title"`
+	Type   string   `json:"type"` // could be `row`
+	Panels []panels `json:"panels"`
+}
+
+func jsonMarshalNoEscape(v any) ([]byte, error) {
+	buf := &bytes.Buffer{}
+	x := json.NewEncoder(buf)
+	x.SetIndent("", "  ")
+	x.SetEscapeHTML(false)
+	err := x.Encode(v)
+	return buf.Bytes(), err
+}
+
+func (c *agiExecProxyCmd) exportImagesJobDo(gurl string, w int, h int, scale int, allDashboards bool, timestamp time.Time, folder string) error {
+	type dashboard struct {
+		Dashboard struct {
+			Panels []panels `json:"panels"`
+		} `json:"dashboard"`
+		urlSolo string
+		name    string
+	}
+	type searchresult struct { // folder will be currentTimestamp/FolderTitle/Title and files will be called with panel names
+		Type        string `json:"type"` // must be "dash-db"
+		Url         string `json:"url"`  // if allDashboards, we iterate, otherwise we only export dashboard where the URL matches the /.../ before '?' portion of URL from gurl variable
+		urlSolo     string // convert /d/Cs9G8bEVk/collectinfo to /render/d-solo/Cs9G8bEVk/collectinfo (replace prefix /d/ with /render/d-solo/)
+		Title       string `json:"title"`
+		FolderTitle string `json:"folderTitle"`
+		Uid         string `json:"uid"`
+	}
+	type searchresults []searchresult
+	type exportMeta struct { // metadata json for what we exporting - to be stored in currentTimestamp/meta.json
+		GrafanaUrl    string
+		UrlPath       string
+		Width         int
+		Height        int
+		Scale         int
+		AllDashboards bool
+		From          string
+		To            string
+		Variables     map[string][]string
+		QueryVars     string
+		ExportTime    time.Time
+		Status        string
+	}
+	// parse gurl to get the required vars
+	u, err := url.Parse(gurl)
+	if err != nil {
+		return err
+	}
+	m, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return err
+	}
+	from := ""
+	to := ""
+	if len(m["from"]) > 0 {
+		from = m["from"][0]
+	}
+	if len(m["to"]) > 0 {
+		to = m["to"][0]
+	}
+	// create folders and store exportMeta as meta.json
+	meta := &exportMeta{
+		GrafanaUrl:    gurl,
+		UrlPath:       u.Path,
+		Width:         w,
+		Height:        h,
+		Scale:         scale,
+		AllDashboards: allDashboards,
+		QueryVars:     u.RawQuery,
+		Variables:     m,
+		From:          from,
+		To:            to,
+		ExportTime:    timestamp,
+		Status:        "Exporting",
+	}
+	err = os.MkdirAll(folder, 0755)
+	if err != nil {
+		return err
+	}
+	metaJson, err := jsonMarshalNoEscape(meta)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(path.Join(folder, "meta.json"), metaJson, 0644)
+	if err != nil {
+		return err
+	}
+	// http://127.0.0.1:8850/api/search -> unmarshal to searchresults, parse Url to urlSolo
+	res, err := wget("http://127.0.0.1:8850/api/search", 10*time.Second)
+	if err != nil {
+		return fmt.Errorf("1: %s", err)
+	}
+	sres := searchresults{}
+	err = json.Unmarshal(res, &sres)
+	if err != nil {
+		return fmt.Errorf("2: %s", err)
+	}
+	for i := range sres {
+		if sres[i].Type != "dash-db" {
+			continue
+		}
+		sres[i].urlSolo = strings.Replace(sres[i].Url, "/d/", "/render/d-solo/", 1)
+	}
+	// check if status changed to "cancelling", as if it did we need to abort
+	c.imageExportJobsLock.RLock()
+	isStatus := c.imageExportJobs[gurl]
+	c.imageExportJobsLock.RUnlock()
+	if isStatus == "cancelling" {
+		return nil
+	}
+	c.lastActivity.Set(time.Now())
+	// http://127.0.0.1:8850/api/dashboards/uid/... -> unmarshal to dashboard (just the one we need or all, depending on whether allDashboards is ticked), append to dashboards var
+	dashboards := []*dashboard{}
+	for _, dash := range sres {
+		if dash.Type != "dash-db" {
+			continue
+		}
+		if !allDashboards && dash.Url != meta.UrlPath {
+			continue
+		}
+		res, err := wget("http://127.0.0.1:8850/api/dashboards/uid/"+dash.Uid, 15*time.Second)
+		if err != nil {
+			return fmt.Errorf("3: (%s) %s", dash.Uid, err)
+		}
+		db := new(dashboard)
+		err = json.Unmarshal(res, &db)
+		if err != nil {
+			return fmt.Errorf("4: %s", err)
+		}
+		db.urlSolo = dash.urlSolo
+		db.name = dash.Title
+		dashboards = append(dashboards, db)
+	}
+	// check if status changed to "cancelling", as if it did we need to abort
+	c.imageExportJobsLock.RLock()
+	isStatus = c.imageExportJobs[gurl]
+	c.imageExportJobsLock.RUnlock()
+	if isStatus == "cancelling" {
+		return nil
+	}
+	c.lastActivity.Set(time.Now())
+	// kick off downloader
+	for _, d := range dashboards {
+		for _, p := range d.Dashboard.Panels {
+			err = c.exportImagesJobDoRecursive(gurl, p, d.urlSolo, meta.QueryVars, w, h, scale, path.Join(folder, strings.ReplaceAll(d.name, "/", "-")))
+			if err != nil {
+				return fmt.Errorf("5: %s", err)
+			}
+		}
+	}
+	// done
+	meta.Status = "Done"
+	metaJson, err = jsonMarshalNoEscape(meta)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(path.Join(folder, "meta.json"), metaJson, 0644)
+	if err != nil {
+		return fmt.Errorf("6: %s", err)
+	}
+	return nil
+}
+
+func (c *agiExecProxyCmd) exportImagesJobDoRecursive(gurl string, p panels, urlSolo string, vars string, w int, h int, s int, folder string) error {
+	// download panel and save to file in currentTimestamp/DashboardTitle/PanelTitle.png
+	if p.Type != "row" {
+		nUrl := fmt.Sprintf("http://127.0.0.1:8850%s?%s&width=%d&height=%d&scale=%d&panelId=%d", urlSolo, vars, w, h, s, p.Id)
+		res, err := wget(nUrl, 60*time.Second)
+		if err != nil {
+			return fmt.Errorf("7: (%s) %s", nUrl, err)
+		}
+		os.MkdirAll(folder, 0755)
+		fname := path.Join(folder, strings.ReplaceAll(p.Title, "/", "-"))
+		err = os.WriteFile(fname+".png", res, 0644)
+		if err != nil {
+			return fmt.Errorf("8: %s", err)
+		}
+	}
+
+	// recursive
+	for _, pp := range p.Panels {
+		c.imageExportJobsLock.RLock()
+		isStatus := c.imageExportJobs[gurl]
+		c.imageExportJobsLock.RUnlock()
+		if isStatus == "cancelling" {
+			return nil
+		}
+		err := c.exportImagesJobDoRecursive(gurl, pp, urlSolo, vars, w, h, s, path.Join(folder, p.Title))
+		if err != nil {
+			return fmt.Errorf("9: %s", err)
+		}
+	}
+	c.imageExportJobsLock.RLock()
+	isStatus := c.imageExportJobs[gurl]
+	c.imageExportJobsLock.RUnlock()
+	if isStatus == "cancelling" {
+		return nil
+	}
+	c.lastActivity.Set(time.Now())
+	return nil
+}
+
+// TODO: test first if exporting works, by hitting the export URL with the required parameters and see what happens (we may need a form to urlEncode the query for me duh)
+// TODO: then do the 2 functions below
+// TODO: then do the frontend
+// TODO: on startup (restart) or proxy (in execute, early), go through image exports, and any in state "exporting" change to state "cancelled"; we do not support retrying
+//       we *could* support retrying on reboot by essentially reloading that export and attempting it again, but I think at this stage cancelling it is better
+
+func (c *agiExecProxyCmd) exportImagesList(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuth(w, r) {
+		return
+	}
+	// TODO list jobs, for running and complete jobs, poke at the disk to get details too
+}
+
+func (c *agiExecProxyCmd) exportImagesCancel(w http.ResponseWriter, r *http.Request) {
+	if !c.checkAuth(w, r) {
+		return
+	}
+	// TODO: set the jobs[gurl] status to "cancelling"
 }
 
 func (c *agiExecProxyCmd) secretValidate(w http.ResponseWriter, r *http.Request) {

@@ -255,6 +255,8 @@ func (c *agiExecGrafanaFixCmd) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
+	log.Print("Image renderer (optional)")
+	grafanafix.InstallImageRenderer()
 	log.Print("Starting grafana")
 	out, err := exec.Command("service", "grafana-server", "start").CombinedOutput()
 	if err != nil {

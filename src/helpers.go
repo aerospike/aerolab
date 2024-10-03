@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 )
@@ -19,6 +20,27 @@ type dlVersion struct {
 	distroVersion string
 	url           string
 	isArm         bool
+}
+
+func wget(url string, timeout time.Duration) ([]byte, error) {
+	client := &http.Client{}
+	client.Timeout = timeout
+	defer client.CloseIdleConnections()
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		body, _ := io.ReadAll(response.Body)
+		err = fmt.Errorf("exit code (%d), message: %s", response.StatusCode, string(body))
+		return nil, err
+	}
+	return io.ReadAll(response.Body)
 }
 
 func fixClusterNameConfig(conf string, cluster_name string) (newconf string, err error) {
