@@ -805,7 +805,7 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		fmt.Println(render())
 		if !c.NoNotes {
 			if a.opts.Config.Backend.Type == "docker" {
-				fmt.Fprint(os.Stdout, "* if using Docker Desktop and forwaring ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL\n")
+				fmt.Fprint(os.Stdout, "* if using Docker Desktop and forwarding ports by exposing them (-e ...), use IP 127.0.0.1 for the Access URL\n")
 			} else {
 				fmt.Fprint(os.Stdout, "* instance Running Cost displays only the cost of owning the instance in a running state for the duration it was running so far. It does not account for taxes, disk, network or transfer costs.\n")
 			}
