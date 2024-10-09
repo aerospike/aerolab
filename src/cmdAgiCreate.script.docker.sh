@@ -68,6 +68,9 @@ namespace agi {
 }
 EOF
 
+echo "%s" > /opt/agi/label
+echo "%s" > /opt/agi/name
+
 if [ $override -eq 1 -o ! -f /opt/autoload/plugin.sh ]
 then
 cat <<'EOF' > /opt/autoload/plugin.sh
@@ -104,6 +107,9 @@ dashboards:
   loadEmbedded: true
 grafanaURL: "http://127.0.0.1:8850"
 annotationFile: "/opt/agi/annotations.json"
+labelFiles:
+  - "/opt/agi/label"
+  - "/opt/agi/name"
 EOF
 fi
 
