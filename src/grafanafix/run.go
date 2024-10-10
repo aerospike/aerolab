@@ -1,10 +1,13 @@
 package grafanafix
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"math/rand"
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/creasty/defaults"
@@ -27,8 +30,9 @@ type GrafanaFix struct {
 		FromDir      string `yaml:"fromDir" envconfig:"GRAFANAFIX_SOURCE_DIR"`
 		LoadEmbedded bool   `yaml:"loadEmbedded" envconfig:"GRAFANAFIX_SOURCE_EMBEDDED" default:"true"`
 	} `yaml:"dashboards"`
-	GrafanaURL     string `yaml:"grafanaURL" envconfig:"GRAFANAFIX_URL" default:"http://127.0.0.1:8850"`
-	AnnotationFile string `yaml:"annotationFile" envconfig:"GRAFANAFIX_ANNOTATIONS" default:"annotations.json"`
+	GrafanaURL     string   `yaml:"grafanaURL" envconfig:"GRAFANAFIX_URL" default:"http://127.0.0.1:8850"`
+	AnnotationFile string   `yaml:"annotationFile" envconfig:"GRAFANAFIX_ANNOTATIONS" default:"annotations.json"`
+	LabelFiles     []string `yaml:"labelFiles" envconfig:"GRAFANAFIX_LABEL_FILE"`
 }
 
 func MakeConfig(setDefaults bool, configYaml io.Reader, parseEnv bool) (*GrafanaFix, error) {
@@ -91,6 +95,13 @@ func Run(g *GrafanaFix) {
 	if err != nil {
 		log.Print(err)
 	}
+	if len(g.LabelFiles) > 0 {
+		fmt.Println("Setting HTML Title to Label")
+		err := g.setLabel()
+		if err != nil {
+			log.Println(err)
+		}
+	}
 	log.Println("Entering sleep-save-annotation loop")
 	for {
 		time.Sleep(time.Minute * 5)
@@ -99,4 +110,46 @@ func Run(g *GrafanaFix) {
 			log.Print(err)
 		}
 	}
+}
+
+func (g *GrafanaFix) setLabel() error {
+	for _, labelFile := range g.LabelFiles {
+		if _, err := os.Stat(labelFile); err != nil {
+			return errors.New("file does not exist")
+		}
+	}
+	nlabel := []byte{}
+	for _, labelFile := range g.LabelFiles {
+		nlabela, _ := os.ReadFile(labelFile)
+		if string(nlabela) == "" {
+			continue
+		}
+		if len(nlabel) == 0 {
+			nlabel = nlabela
+		} else {
+			nlabel = append(nlabel, []byte(" - ")...)
+			nlabel = append(nlabel, nlabela...)
+		}
+	}
+	for i := range nlabel {
+		if nlabel[i] == 32 || nlabel[i] == 45 || nlabel[i] == 46 || nlabel[i] == 61 || nlabel[i] == 95 {
+			continue
+		}
+		if nlabel[i] >= 48 && nlabel[i] <= 58 {
+			continue
+		}
+		if nlabel[i] >= 65 && nlabel[i] <= 90 {
+			continue
+		}
+		if nlabel[i] >= 97 && nlabel[i] <= 122 {
+			continue
+		}
+		nlabel[i] = ' '
+	}
+	fmt.Println("Grafana Label Override to: " + string(nlabel))
+	out, err := exec.Command("find", "/usr/share/grafana/public/build/", "-name", "*.js", "-exec", "sed", "-i", "-E", fmt.Sprintf(`s/this.AppTitle="[^"]+"/this.AppTitle="%s"/g`, string(nlabel)), "{}", ";").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %s", err, string(out))
+	}
+	return nil
 }

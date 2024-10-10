@@ -644,7 +644,7 @@ func (c *volumeExecMountCmd) installEFSUtilsDeb() error {
 	}
 	// git clone
 	if _, err := os.Stat("efs-utils"); err != nil {
-		command := []string{"git", "clone", "https://github.com/aws/efs-utils"}
+		command := []string{"git", "clone", "--depth", "1", "--branch", "v2.1.0", "https://github.com/aws/efs-utils"}
 		out, err := exec.Command(command[0], command[1:]...).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("%s: %s", err, string(out))
