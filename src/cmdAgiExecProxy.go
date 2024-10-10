@@ -506,14 +506,40 @@ func (c *agiExecProxyCmd) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type np struct {
+		HTTPTitle   string
 		Title       string
 		Description string
 	}
-	nlabel, _ := os.ReadFile("/opt/agi/label")
-	if string(nlabel) == "" {
-		nlabel = []byte(c.AGIName)
+	nlabel := []byte{}
+	for _, labelFile := range []string{"/opt/agi/label", "/opt/agi/name"} {
+		nlabela, _ := os.ReadFile(labelFile)
+		if string(nlabela) == "" {
+			continue
+		}
+		if len(nlabel) == 0 {
+			nlabel = nlabela
+		} else {
+			nlabel = append(nlabel, []byte(" - ")...)
+			nlabel = append(nlabel, nlabela...)
+		}
+	}
+	for i := range nlabel {
+		if nlabel[i] == 32 || nlabel[i] == 45 || nlabel[i] == 46 || nlabel[i] == 61 || nlabel[i] == 95 {
+			continue
+		}
+		if nlabel[i] >= 48 && nlabel[i] <= 58 {
+			continue
+		}
+		if nlabel[i] >= 65 && nlabel[i] <= 90 {
+			continue
+		}
+		if nlabel[i] >= 97 && nlabel[i] <= 122 {
+			continue
+		}
+		nlabel[i] = ' '
 	}
 	p := np{
+		HTTPTitle:   html.EscapeString(string(nlabel)),
 		Title:       html.EscapeString(c.prettySource),
 		Description: html.EscapeString(string(nlabel)),
 	}
@@ -1165,7 +1191,35 @@ func (c *agiExecProxyCmd) getDeps() {
 			return
 		}
 		logger.Info("Running gotty!")
-		com := exec.Command("/usr/local/bin/ttyd", "-p", "8852", "-i", "lo", "-P", "5", "-b", "/agi/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* lnav tool is installed for log analysis' && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
+		nlabel := []byte{}
+		for _, labelFile := range []string{"/opt/agi/label", "/opt/agi/name"} {
+			nlabela, _ := os.ReadFile(labelFile)
+			if string(nlabela) == "" {
+				continue
+			}
+			if len(nlabel) == 0 {
+				nlabel = nlabela
+			} else {
+				nlabel = append(nlabel, []byte(" - ")...)
+				nlabel = append(nlabel, nlabela...)
+			}
+		}
+		for i := range nlabel {
+			if nlabel[i] == 32 || nlabel[i] == 45 || nlabel[i] == 46 || nlabel[i] == 61 || nlabel[i] == 95 {
+				continue
+			}
+			if nlabel[i] >= 48 && nlabel[i] <= 58 {
+				continue
+			}
+			if nlabel[i] >= 65 && nlabel[i] <= 90 {
+				continue
+			}
+			if nlabel[i] >= 97 && nlabel[i] <= 122 {
+				continue
+			}
+			nlabel[i] = ' '
+		}
+		com := exec.Command("/usr/local/bin/ttyd", "-t", "titleFixed="+string(nlabel), "-p", "8852", "-i", "lo", "-P", "5", "-b", "/agi/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* lnav tool is installed for log analysis' && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
 		com.Dir = c.EntryDir
 		sout, err := com.StdoutPipe()
 		if err != nil {

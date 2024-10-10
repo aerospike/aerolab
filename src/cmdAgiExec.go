@@ -618,9 +618,6 @@ func (c *agiExecIngestCmd) run(args []string) error {
 			return fmt.Errorf("PreProcess: %s", err)
 		}
 		steps.PreProcess = true
-		if !steps.ProcessLogs {
-			steps.ProcessLogsStartTime = time.Now().UTC()
-		}
 		f, err := json.Marshal(steps)
 		if err == nil {
 			err = os.WriteFile("/opt/agi/ingest/steps.json.new", f, 0644)
@@ -659,6 +656,7 @@ func (c *agiExecIngestCmd) run(args []string) error {
 	nerrLock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	if !steps.ProcessLogs {
+		steps.ProcessLogsStartTime = time.Now().UTC()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

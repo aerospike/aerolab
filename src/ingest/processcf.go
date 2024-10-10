@@ -297,7 +297,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		logger.Detail("ProcessCollectInfo: could not insert record for %s: %s", new, err)
 		return newName, fmt.Errorf("aerospike.PutBins: %s", err)
 	}
-	if len(ct.infoNetJson.Groups) > 0 {
+	if ct.infoNetJson != nil && len(ct.infoNetJson.Groups) > 0 {
 		for _, record := range ct.infoNetJson.Groups[0].Records {
 			bins := make(map[string]interface{})
 			bins["cfName"] = fname
@@ -347,11 +347,11 @@ func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents, lo
 	}
 	// process info network as a json
 	infoNet, err := i.processCollectInfoInfoNetwork(filePath, logs)
+	ct.infoNetJson = infoNet
 	if err != nil {
 		logger.Warn("Failed to get 'info network' for %s: %s", filePath, err)
 		return nil
 	}
-	ct.infoNetJson = infoNet
 	return nil
 }
 
