@@ -3409,16 +3409,33 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 		reservations = append(reservations, reservationsX)
 	}
 	// wait for instances to be made available via SSH
-	instanceCount := 0
+	readyInstanceTrack := make(map[string]bool) // map[instanceId]ready
 	for _, reservation := range reservations {
-		instanceCount = instanceCount + len(reservation.Instances)
+		for _, instance := range reservation.Instances {
+			if instance.InstanceId == nil {
+				continue
+			}
+			readyInstanceTrack[*instance.InstanceId] = false
+		}
 	}
-	instanceReady := 0
 	timeStart := time.Now()
 	var nout *ec2.DescribeInstancesOutput
-	for instanceReady < instanceCount {
+	for {
+		instancesReady := true
+		for _, r := range readyInstanceTrack {
+			if !r {
+				instancesReady = false
+				break
+			}
+		}
+		if instancesReady {
+			break
+		}
 		for _, reservation := range reservations {
 			for _, instance := range reservation.Instances {
+				if readyInstanceTrack[aws.StringValue(instance.InstanceId)] {
+					continue
+				}
 				err := d.ec2svc.WaitUntilInstanceRunning(&ec2.DescribeInstancesInput{
 					InstanceIds: []*string{instance.InstanceId},
 				})
@@ -3511,7 +3528,7 @@ func (d *backendAws) DeployCluster(v backendVersion, name string, nodeCount int,
 							return fmt.Errorf("chmod auth_keys failed on %s: %s\n%s", pubIp, string(out), err)
 						}
 					}
-					instanceReady = instanceReady + 1
+					readyInstanceTrack[aws.StringValue(instance.InstanceId)] = true
 				} else {
 					fmt.Printf("Not up yet, waiting (%s:22 using %s): %s\n", pubIp, keyPath, err)
 					time.Sleep(time.Second)
