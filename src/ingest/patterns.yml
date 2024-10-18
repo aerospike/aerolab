@@ -232,15 +232,15 @@ defs:
             setName: "nsStopWrites" #v7
             search: "breached stop-writes limit"
             export:
-                - "{(?P<Namespace>[^}]+)} breached stop-writes limit \\((?P<stopWrReason>[^)]+)\\), sys-memory pct:(?P<stopWrSysMemPct>\\d+), indexes-memory sz:(?P<stopWrIdxMemSz>\\d+) \\((?P<stopWrIdx>\\d+) + (?P<stopWrSetIdx>\\d+) + (?P<stopWrSetSIdx>\\d+)\\), data avail-pct:(?P<stopWrDatAvail>\\d+) used-pct:(?P<stopWrUsed>\\d+)"
+                - "{(?P<Namespace>[^}]+)} breached stop-writes limit \\((?P<stopWrReason>[^)]+)\\), sys-memory pct:(?P<stopWrSysMemPct>\\d+), indexes-memory sz:(?P<stopWrIdxMemSz>\\d+) \\((?P<stopWrIdx>\\d+) \\+ (?P<stopWrSetIdx>\\d+) \\+ (?P<stopWrSetSIdx>\\d+)\\), data avail-pct:(?P<stopWrDatAvail>\\d+) used-pct:(?P<stopWrUsed>\\d+)"
         -
             setName: "nsEvict" #v7
             search: "breached eviction limit"
             export:
-                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) + (?P<evictSetIdx>\\d+) + (?P<evictSetSIdx>\\d+)\\) used-pct:(?P<evictMIdxUsePct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
-                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) + (?P<evictSetIdx>\\d+) + (?P<evictSetSIdx>\\d+)\\) used-pct:(?P<evictMIdxUsePct>\\d+), index-device sz:(?P<evictIdxDev>\\d+) used-pct (?P<evictUsedPct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
-                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) + (?P<evictSetIdx>\\d+) + (?P<evictSetSIdx>\\d+)\\), data used-pct:(?P<evictDataUsed>\\d+)"
-                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) + (?P<evictSetIdx>\\d+) + (?P<evictSetSIdx>\\d+)\\), index-device sz:(?P<evictIdxDev>\\d+) used-pct (?P<evictUsedPct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
+                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) \\+ (?P<evictSetIdx>\\d+) \\+ (?P<evictSetSIdx>\\d+)\\) used-pct:(?P<evictMIdxUsePct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
+                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) \\+ (?P<evictSetIdx>\\d+) \\+ (?P<evictSetSIdx>\\d+)\\) used-pct:(?P<evictMIdxUsePct>\\d+), index-device sz:(?P<evictIdxDev>\\d+) used-pct (?P<evictUsedPct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
+                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) \\+ (?P<evictSetIdx>\\d+) \\+ (?P<evictSetSIdx>\\d+)\\), data used-pct:(?P<evictDataUsed>\\d+)"
+                - "{(?P<Namespace>[^}]+)} breached eviction limit \\((?P<evictReason>[^)]+)\\), sys-memory pct:(?P<evictSysMemPct>\\d+), indexes-memory sz:(?P<evictIdxMemSz>\\d+) \\((?P<evictIdx>\\d+) \\+ (?P<evictSetIdx>\\d+) \\+ (?P<evictSetSIdx>\\d+)\\), index-device sz:(?P<evictIdxDev>\\d+) used-pct (?P<evictUsedPct>\\d+), data used-pct:(?P<evictDataUsed>\\d+)"
         -
             setName: "nsMemory"
             search: "memory-usage: total-bytes"
