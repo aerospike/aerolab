@@ -33,7 +33,9 @@ func backendRestoreTerminal() {
 		}
 		restoreTerminalState = nil
 	}
-	sttySane()
+	if term.IsTerminal(int(os.Stdout.Fd())) {
+		sttySane()
+	}
 }
 
 func (ssh_client *SSH) RunAttachCmd(cmd string, stdin io.Reader, stdout io.Writer, stderr io.Writer, isInteractive bool) error {
