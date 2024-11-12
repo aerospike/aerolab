@@ -33,6 +33,7 @@ jobs:
                   version: ${{ inputs.version }}
                   isLatest: ${{ inputs.isLatest }}
               run: |
+                cd Formula
                 cp aerolab-template aerolab@${version}.rb
                 sed -i.bak "s/AVERSION/${version}/g" aerolab@${version}.rb
                 nsum=$(shasum -a 256 /tmp/binaries/aerolab-macos-amd64-${version}.zip| awk '{print $1}')
@@ -50,6 +51,7 @@ jobs:
                 fi
                 vernodot=${version//./}
                 sed -i.bak "s/ACLASS/AerolabAT${vernodot}/g" aerolab@${version}.rb
+                cd ..
             - name: Configure Git
               run: |
                 git config --global user.name "github-actions[bot]"
@@ -60,7 +62,7 @@ jobs:
                 version: ${{ inputs.version }}
                 isLatest: ${{ inputs.isLatest }}
               run: |
-                git add aerolab@${version}.rb
-                [ "${isLatest}" = "true" ] && git add aerolab.rb
+                git add Formula/aerolab@${version}.rb
+                [ "${isLatest}" = "true" ] && git add Formula/aerolab.rb
                 git commit -m "Release aerolab ${version}"
                 git push origin HEAD:${{ github.ref_name }}
