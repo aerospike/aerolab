@@ -1,0 +1,43 @@
+class ACLASS < Formula
+  desc ""
+  homepage "https://github.com/robertglonek/homebrew-tools"
+  version "AVERSION"
+
+  on_macos do
+    if Hardware::CPU.intel?
+      url "https://github.com/aerospike/aerolab/releases/download/AVERSION/aerolab-macos-amd64-AVERSION.zip"
+      sha256 "MACOSAMD"
+
+      def install
+        bin.install "aerolab"
+      end
+    end
+    if Hardware::CPU.arm?
+      url "https://github.com/aerospike/aerolab/releases/download/AVERSION/aerolab-macos-arm64-AVERSION.zip"
+      sha256 "MACOSARM"
+
+      def install
+        bin.install "aerolab"
+      end
+    end
+  end
+
+  on_linux do
+    if Hardware::CPU.intel?
+      url "https://github.com/aerospike/aerolab/releases/download/AVERSION/aerolab-linux-amd64-AVERSION.zip"
+      sha256 "LINUXAMD"
+
+      def install
+        bin.install "aerolab"
+      end
+    end
+    if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
+      url "https://github.com/aerospike/aerolab/releases/download/AVERSION/aerolab-linux-arm64-AVERSION.zip"
+      sha256 "LINUXARM"
+
+      def install
+        bin.install "aerolab"
+      end
+    end
+  end
+end
