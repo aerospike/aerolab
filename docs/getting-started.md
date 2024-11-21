@@ -24,7 +24,13 @@ See [aws-setup.md](aws-setup.md)
 
 See [gcp-setup.md](gcp-setup.md)
 
-### Download AeroLab from the releases page
+### Install aerolab on MacOS or Linux using homebrew
+
+```
+$ brew install aerospike/tools/aerolab
+```
+
+### Download AeroLab from the releases page and install manually
 
 The [releases page](https://github.com/aerospike/aerolab/releases) has links to installers for all the
 supported platforms
@@ -44,7 +50,7 @@ Linux (centos) | Intel/AMD | `aerolab-linux-x86_64-VERSION.rpm` | RPM for instal
 Linux (ubuntu) | arm | `aerolab-linux-arm64-VERSION.deb` | DEB for installing on ubuntu/debian-based distros
 Linux (ubuntu) | Intel/AMD | `aerolab-linux-amd64-VERSION.deb` | DEB for installing on ubuntu/debian-based distros
 
-### Install
+#### Install
 
 Installation with the provided installer files is the recommended method. After download, run the executable
 and the `aerolab` command will become available.
