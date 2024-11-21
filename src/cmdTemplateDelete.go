@@ -30,6 +30,10 @@ func (c *templateDeleteCmd) Execute(args []string) error {
 		return nil
 	}
 
+	if c.AerospikeVersion == "" || c.DistroName == "" || c.DistroVersion == "" {
+		return errors.New("--aerospike-version, --distro, --distro-version must all be specified; set any parameter to 'all' for all inclusive")
+	}
+
 	log.Print("Running template.destroy")
 	isArm := c.Aws.IsArm
 	if a.opts.Config.Backend.Type == "gcp" {
