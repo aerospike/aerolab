@@ -11,6 +11,12 @@ AeroLab is a tool that creates Aerospike development and testing clusters in Doc
 
 NOTE: AeroLab 7.0.0 implements an instance expiry system. By default your instances will terminate after 30 hours. To modify this behaviour, create clusters with `--aws-expires TIME` or `--gcp-expires`. For example `--aws-expires 50h`. To disable expiry, set to `0`.
 
+## Install using homebrew on MacOS or Linux
+
+```
+$ brew install aerospike/tools/aerolab
+```
+
 ## Releases
 
 The [releases page](https://github.com/aerospike/aerolab/releases) contains links to current installer
