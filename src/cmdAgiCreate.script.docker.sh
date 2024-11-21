@@ -148,3 +148,8 @@ rm -f /tmp/ingest.yaml /tmp/deployment.json.gz
 
 chmod 755 /opt/autoload/*
 rm -rf /root/agiinstaller.sh && exit 0 || exit 0
+
+cat <<'EOF'> /usr/local/bin/erro
+grep -i 'error|warn|timeout' "$@"
+EOF
+chmod 755 /usr/local/bin/erro
