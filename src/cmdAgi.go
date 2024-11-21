@@ -381,8 +381,17 @@ func (c *agiRetriggerCmd) Execute(args []string) error {
 		}
 	}
 
+	// check if agi is installed
+	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"cat", "/opt/agi-installed"}}, []int{1})
+	if len(out) == 0 {
+		out = append(out, []byte{})
+	}
+	if len(out[0]) == 0 || err != nil {
+		return errors.New("instance is missing file `/opt/agi-installed', most likely it is still starting")
+	}
+
 	// check if ingest is already running
-	out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "cat /opt/agi/ingest.pid"}}, []int{1})
+	out, err = b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "cat /opt/agi/ingest.pid"}}, []int{1})
 	if err == nil {
 		_, err = b.RunCommands(c.ClusterName.String(), [][]string{{"/bin/bash", "-c", "ls /proc |egrep '^" + strings.Trim(string(out[0]), "\r\n\t ") + "$'"}}, []int{1})
 		if err == nil {
