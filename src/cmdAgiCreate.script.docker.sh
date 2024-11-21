@@ -153,3 +153,4 @@ cat <<'EOF'> /usr/local/bin/erro
 grep -i 'error|warn|timeout' "$@"
 EOF
 chmod 755 /usr/local/bin/erro
+date > /opt/agi-installed
