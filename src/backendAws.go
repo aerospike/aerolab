@@ -442,7 +442,7 @@ func (d *backendAws) ExpiriesSystemInstall(intervalMinutes int, gcpDeployRegion 
 		PackageType:  aws.String("Zip"),
 		Timeout:      aws.Int64(900),
 		Publish:      aws.Bool(true),
-		Runtime:      aws.String("provided.al2"),
+		Runtime:      aws.String("provided.al2023"),
 		Environment: &lambda.Environment{
 			Variables: aws.StringMap(map[string]string{
 				"EKS_ROLE":       aws.StringValue(lambdaRole.Role.Arn),
