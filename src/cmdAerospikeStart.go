@@ -7,6 +7,10 @@ type aerospikeStartCmd struct {
 	parallelThreadsCmd
 }
 
+type aerospikeColdStartCmd struct {
+	aerospikeStartCmd
+}
+
 type aerospikeStartSelectorCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
@@ -15,4 +19,8 @@ type aerospikeStartSelectorCmd struct {
 
 func (c *aerospikeStartCmd) Execute(args []string) error {
 	return c.run(args, "start", os.Stdout)
+}
+
+func (c *aerospikeColdStartCmd) Execute(args []string) error {
+	return c.run(args, "cold-start", os.Stdout)
 }
