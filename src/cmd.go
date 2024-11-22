@@ -164,8 +164,12 @@ func (c *upgradeCmd) Execute(args []string) error {
 	}
 	from := ""
 	fn := "aerolab-"
+	inzip := "aerolab"
 	switch runtime.GOOS {
-	case "windows", "linux":
+	case "windows":
+		inzip = "aerolab.exe"
+		fn = fn + runtime.GOOS + "-"
+	case "linux":
 		fn = fn + runtime.GOOS + "-"
 	case "darwin", "macos":
 		fn = fn + "macos-"
@@ -229,7 +233,7 @@ func (c *upgradeCmd) Execute(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open body as zip file: %s", err)
 	}
-	f, err := zipc.Open("aerolab")
+	f, err := zipc.Open(inzip)
 	if err != nil {
 		return fmt.Errorf("failed to open file 'aerolab' inside zip: %s", err)
 	}
@@ -241,6 +245,14 @@ func (c *upgradeCmd) Execute(args []string) error {
 	err = dest.Sync()
 	if err != nil {
 		return fmt.Errorf("failed to sync temp file to storage: %s", err)
+	}
+	if runtime.GOOS == "windows" {
+		dest.Close()
+		os.Remove(cur + "-old")
+		err = os.Rename(cur, cur+"-old")
+		if err != nil {
+			return fmt.Errorf("failed to rename current executable '%s' to destination '%s': %s", cur, cur+"-old", err)
+		}
 	}
 	err = os.Rename(cur+"-upgrade", cur)
 	if err != nil {

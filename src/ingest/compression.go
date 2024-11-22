@@ -15,6 +15,7 @@ import (
 
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/rglonek/sbs"
+	"github.com/xi2/xz"
 
 	"github.com/nwaples/rardecode"
 )
@@ -83,6 +84,28 @@ func ungz(sourceFile string, destFile string) error {
 	decompressed, err := gzip.NewReader(fd)
 	if err != nil {
 		return fmt.Errorf("open gzip reader: %s", err)
+	}
+	fdDest, err := os.OpenFile(destFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("open destination file: %s", err)
+	}
+	defer fdDest.Close()
+	_, err = io.Copy(fdDest, decompressed)
+	if err != nil {
+		return fmt.Errorf("unpack: %s", err)
+	}
+	return nil
+}
+
+func unxz(sourceFile string, destFile string) error {
+	fd, err := os.Open(sourceFile)
+	if err != nil {
+		return fmt.Errorf("open source file: %s", err)
+	}
+	defer fd.Close()
+	decompressed, err := xz.NewReader(fd, 0)
+	if err != nil {
+		return fmt.Errorf("open xz reader: %s", err)
 	}
 	fdDest, err := os.OpenFile(destFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {

@@ -168,7 +168,7 @@ defs:
             setName: "earlyfail"
             search: "early-fail: demarshal"
             export:
-                - 'early-fail: demarshal (?P<EarlyFailDemar>\\d+) tsvc-client (?P<EarlyFailTsvc>\\d+) tsvc-from-proxy (?P<EarlyFailFrmPrx>\\d+) tsvc-from-proxy-batch-sub (?P<EarlyFFPBchSub>\\d+)'
+                - "early-fail: demarshal (?P<EarlyFailDemar>\\d+) tsvc-client (?P<EarlyFailTsvc>\\d+) tsvc-from-proxy (?P<EarlyFailFrmPrx>\\d+) tsvc-from-proxy-batch-sub (?P<EarlyFFPBchSub>\\d+)"
                 - "early-fail: demarshal (?P<EarlyFailDemar>\\d+) tsvc-client (?P<EarlyFailTsvc>\\d+) tsvc-from-proxy (?P<EarlyFailFrmPrx>\\d+) tsvc-batch-sub (?P<EarlyFailBchSub>\\d+) tsvc-from-proxy-batch-sub (?P<EarlyFFPBchSub>\\d+) tsvc-udf-sub (?P<EarlyFailUdfSub>\\d+) tsvc-ops-sub (?P<EarlyFailOpsSub>\\d+)"
                 - "early-fail: demarshal (?P<EarlyFailDemar>\\d+) tsvc-client (?P<EarlyFailTsvc>\\d+) tsvc-from-proxy (?P<EarlyFailFrmPrx>\\d+) tsvc-batch-sub (?P<EarlyFailBchSub>\\d+) tsvc-from-proxy-batch-sub (?P<EarlyFFPBchSub>\\d+) tsvc-udf-sub (?P<EarlyFailUdfSub>\\d+)"
                 - "early-fail: demarshal (?P<EarlyFailDemar>\\d+) tsvc-client (?P<EarlyFailTsvc>\\d+) tsvc-batch-sub (?P<EarlyFailBchSub>\\d+) tsvc-udf-sub (?P<EarlyFailUdfSub>\\d+)"
@@ -403,6 +403,8 @@ defs:
             setName: "specialerrors"
             search: "special-errors: key-busy"
             export:
+                - "{(?P<Namespace>[^}]+)} special-errors: key-busy \\((?P<ErrKeyBusy>\\d+),(?P<ErrKeyBusyXdr>\\d+)\\) record-too-big (?P<ErrRecTooBig>\\d+) lost-conflict \\((?P<ErrLostConflict>\\d+),(?P<ErrLostConflXdr>\\d+)\\)"
+                - "{(?P<Namespace>[^}]+)} special-errors: key-busy \\((?P<ErrKeyBusy>\\d+),(?P<ErrKeyBusyXdr>\\d+)\\) record-too-big (?P<ErrRecTooBig>\\d+)"
                 - "{(?P<Namespace>[^}]+)} special-errors: key-busy (?P<ErrKeyBusy>\\d+) record-too-big (?P<ErrRecTooBig>\\d+)"
         -
             setName: "nsTouch"
