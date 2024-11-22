@@ -210,6 +210,20 @@ func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
 			return err
 		}
 		err = os.Remove(fileName)
+	} else if contentType.Is("application/x-xz") {
+		ndir, nfile := filepath.Split(fileName)
+		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
+		if err != nil {
+			return err
+		}
+		nNewFile := nfile
+		nNewFile = strings.TrimSuffix(nNewFile, ".xz")
+		nNewFile = filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile), nNewFile)
+		err = unxz(fileName, nNewFile)
+		if err != nil {
+			return err
+		}
+		err = os.Remove(fileName)
 	} else if contentType.Is("application/zip") {
 		ndir, nfile := filepath.Split(fileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))

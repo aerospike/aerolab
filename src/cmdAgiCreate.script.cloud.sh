@@ -221,3 +221,9 @@ chmod 755 /etc/systemd/system/agi-plugin.service /etc/systemd/system/agi-proxy.s
 systemctl enable agi-plugin && systemctl enable agi-proxy && systemctl enable agi-grafanafix && systemctl enable agi-ingest && systemctl daemon-reload
 systemctl start agi-plugin ; systemctl start agi-proxy ; systemctl start agi-grafanafix ; systemctl start agi-ingest
 rm -rf /root/agiinstaller.sh && exit 0 || exit 0
+
+cat <<'EOF'> /usr/local/bin/erro
+grep -i 'error|warn|timeout' "$@"
+EOF
+chmod 755 /usr/local/bin/erro
+date > /opt/agi-installed

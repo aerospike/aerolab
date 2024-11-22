@@ -31,14 +31,6 @@ func sttySane() {
 	cmd.Run()
 }
 
-func sttyReset() {
-	cmd := exec.Command("reset")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Run()
-}
-
 func fixClusterNameConfig(conf string, cluster_name string) (newconf string, err error) {
 	newconf = ""
 	changed := false
