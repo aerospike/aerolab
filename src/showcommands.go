@@ -19,6 +19,7 @@ import (
 	"sync"
 
 	"github.com/aerospike/aerolab/contextio"
+	"github.com/gabriel-vasile/mimetype"
 )
 
 var wait = new(sync.WaitGroup)
@@ -69,14 +70,19 @@ func handleCollectInfo(collectName string, fileNameEnd string, out io.Writer) []
 		log.Fatalf("Could not open file for reading: %s", err)
 	}
 	defer fd.Close()
+	var tarReader io.Reader = fd
 
-	fdgzip, err := gzip.NewReader(fd)
-	if err != nil {
-		log.Fatalf("Could not open file as gzip: %s", err)
+	ntype, err := mimetype.DetectFile(collectName)
+	if err != nil || ntype.Is("application/gzip") {
+		fdgzip, err := gzip.NewReader(fd)
+		if err != nil {
+			log.Fatalf("Could not open file as gzip: %s", err)
+		}
+		defer fdgzip.Close()
+		tarReader = fdgzip
 	}
-	defer fdgzip.Close()
 
-	tr := tar.NewReader(fdgzip)
+	tr := tar.NewReader(tarReader)
 
 	ret := []byte{}
 
