@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v6"
+	"github.com/aerospike/aerospike-client-go/v7"
 )
 
 // build TLS configuration
