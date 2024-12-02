@@ -3,5 +3,4 @@ go 1.19
 use (
 	./go/simple
 	./go/tls_and_auth
-        ./go
 )
