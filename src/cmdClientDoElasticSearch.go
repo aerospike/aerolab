@@ -14,17 +14,19 @@ import (
 
 type clientCreateElasticSearchCmd struct {
 	clientCreateBaseCmd
-	RamLimit int  `long:"mem-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
-	JustDoIt bool `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
+	RamLimit         int    `long:"mem-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
+	JustDoIt         bool   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
+	ConnectorVersion string `long:"connector-version" default:"2.2.5" description:"set a specific connector version"`
 }
 
 type clientAddElasticSearchCmd struct {
-	ClientName    TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
-	Machines      TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
-	StartScript   flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
-	RamLimit      int            `long:"mem-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
-	existingNodes []int
-	Help          helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClientName       TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
+	Machines         TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
+	StartScript      flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
+	RamLimit         int            `long:"mem-limit" description:"By Default ES will use most of any machine RAM; set this to a number of GB to limit each ES instance" default:"0"`
+	ConnectorVersion string         `long:"connector-version" default:"2.2.5" description:"set a specific connector version"`
+	existingNodes    []int
+	Help             helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
@@ -46,10 +48,10 @@ func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
 		return fmt.Errorf("more than one elasticsearch node cannot be started without specifying RAM limits in docker - elasticsearch default will cause OOM-kills")
 	}
 	if c.DistroVersion == "latest" {
-		c.DistroVersion = "22.04"
+		c.DistroVersion = "24.04"
 	}
-	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
-		return fmt.Errorf("ES is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("24.04") && c.DistroVersion != TypeDistroVersion("latest")) {
+		return fmt.Errorf("ES is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 	b.WorkOnClients()
 	clusters, err := b.ClusterList()
@@ -77,6 +79,7 @@ func (c *clientCreateElasticSearchCmd) Execute(args []string) error {
 	a.opts.Client.Add.ElasticSearch.StartScript = c.StartScript
 	a.opts.Client.Add.ElasticSearch.Machines = TypeMachines(intSliceToString(machines, ","))
 	a.opts.Client.Add.ElasticSearch.RamLimit = c.RamLimit
+	a.opts.Client.Add.ElasticSearch.ConnectorVersion = c.ConnectorVersion
 	return a.opts.Client.Add.ElasticSearch.addElasticSearch(args)
 }
 
@@ -93,7 +96,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 	isDocker := false
 	if a.opts.Config.Backend.Type == "docker" {
 		isDocker = true
-		out, err := exec.Command("docker", "run", "--rm", "-i", "--privileged", "ubuntu:22.04", "sysctl", "-w", "vm.max_map_count=262144").CombinedOutput()
+		out, err := exec.Command("docker", "run", "--rm", "-i", "--privileged", "ubuntu:24.04", "sysctl", "-w", "vm.max_map_count=262144").CombinedOutput()
 		if err != nil {
 			fmt.Println("Workaround `sysctl -w vm.max_map_count=262144` for docker failed, elasticsearch might fail to start...")
 			fmt.Println(err)
@@ -103,7 +106,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 	b.WorkOnClients()
 	masterNode := 1
 	if len(c.existingNodes) == 0 {
-		script := c.installScriptAllNodes(c.RamLimit, isDocker) + c.installScriptMasterNode()
+		script := c.installScriptAllNodes(c.RamLimit, isDocker, c.ConnectorVersion) + c.installScriptMasterNode()
 		err := b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/root/install.sh", fileContents: script, fileSize: len(script)}}, []int{1})
 		if err != nil {
 			return err
@@ -149,7 +152,7 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 			return err
 		}
 		cert := base64.StdEncoding.EncodeToString(out[0])
-		script := c.installScriptAllNodes(c.RamLimit, isDocker) + c.installScriptSlaveNodesOnSlaves(token, cert)
+		script := c.installScriptAllNodes(c.RamLimit, isDocker, c.ConnectorVersion) + c.installScriptSlaveNodesOnSlaves(token, cert)
 		err = b.CopyFilesToCluster(c.ClientName.String(), []fileList{{filePath: "/root/install.sh", fileContents: script, fileSize: len(script)}}, []int{node})
 		if err != nil {
 			return err
@@ -175,10 +178,10 @@ func (c *clientAddElasticSearchCmd) addElasticSearch(args []string) error {
 ES username/password is: elastic/elastic
 
 Usage examples to query in browser:
- * https://ELASTICIP:9200/test/_search
- * https://ELASTICIP:9200/test/_search?size=50
- * https://ELASTICIP:9200/test/_search?q=mybin:binvalue
- * https://ELASTICIP:9200/test/_search?q=metadata.set:myset
+ * https://ELASTICIP:9200/aerospike/_search
+ * https://ELASTICIP:9200/aerospike/_search?size=50
+ * https://ELASTICIP:9200/aerospike/_search?q=mybin:binvalue
+ * https://ELASTICIP:9200/aerospike/_search?q=metadata.set:myset
 
 For best results, use FireFox, as it has a built-in JSON explorer features. It also accepts invalid slef-signed certificates that ES provides, while Chrome doesn't allow to continue.
 
@@ -191,10 +194,10 @@ For best results, use FireFox, as it has a built-in JSON explorer features. It a
 	return nil
 }
 
-func (c *clientAddElasticSearchCmd) installScriptAllNodes(ramlimit int, isDocker bool) string {
+func (c *clientAddElasticSearchCmd) installScriptAllNodes(ramlimit int, isDocker bool, esVersion string) string {
 	script := `#!/bin/bash
 apt-get update
-apt-get -y install apt-transport-https ca-certificates curl gnupg wget openjdk-8-jre
+apt-get -y install apt-transport-https ca-certificates curl gnupg wget openjdk-21-jre
 echo "deb https://artifacts.elastic.co/packages/8.x/apt stable main" | tee /etc/apt/sources.list.d/elastic-8.x.list
 curl -L https://artifacts.elastic.co/GPG-KEY-elasticsearch |apt-key add -
 apt-get update && apt-get -y install elasticsearch
@@ -210,8 +213,8 @@ EOF
 `, ramlimit, ramlimit)
 	}
 	script = script + `cd /root
-wget https://download.aerospike.com/artifacts/enterprise/aerospike-elasticsearch/1.0.0/aerospike-elasticsearch-outbound-1.0.0.all.deb
-dpkg -i aerospike-elasticsearch-outbound-1.0.0.all.deb
+wget https://download.aerospike.com/artifacts/enterprise/aerospike-elasticsearch/` + esVersion + `/aerospike-elasticsearch-outbound-` + esVersion + `.all.deb
+dpkg -i aerospike-elasticsearch-outbound-` + esVersion + `.all.deb
 sed -i -E 's/(.*)port: 9200/\1port: 9200\n\1scheme: https/g' /etc/aerospike-elasticsearch-outbound/aerospike-elasticsearch-outbound.yml
 printf "  auth-config:\n    type: basic\n    username: elastic\n    password-file: /etc/aerospike-elasticsearch-outbound/password.conf\n" >> /etc/aerospike-elasticsearch-outbound/aerospike-elasticsearch-outbound.yml
 printf "elastic" > /etc/aerospike-elasticsearch-outbound/password.conf
