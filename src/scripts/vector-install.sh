@@ -1,25 +1,52 @@
 set -e
 DOCKER=%s
 ISDEB=%s
+ASVEC_AMD=%s
+ASVEC_ARM=%s
 if [ ${ISDEB} -eq 0 ]
 then
     yum -y --allowerasing --nobest install curl
-else
-    apt update && apt -y install curl
-fi
-curl -L -o /tmp/installer.%s '%s'
-[ -f /tmp/installer.deb ] && apt -y install openjdk-21-jdk-headless /tmp/installer.deb
-if [ -f /tmp/installer.rpm ]; then
+    cat << EOF > /etc/yum.repos.d/aerospike.repo
+[aerospike]
+name=Aerospike
+baseurl=https://aerospike.jfrog.io/artifactory/rpm
+enabled=1
+gpgcheck=1
+gpgkey=https://aerospike.jfrog.io/artifactory/api/security/keypair/aerospike/public
+autorefresh=1
+type=rpm-md
+EOF
     yum -y install epel-release
     yum -y install java-latest-openjdk
     alternatives --set java java-latest-openjdk.x86_64
-    yum -y localinstall /tmp/installer.rpm
+    yum -y install aerospike-vector-search unzip git
+else
+    apt update && apt -y install curl wget gpg openjdk-21-jdk-headless unzip
+    wget -qO - https://aerospike.jfrog.io/artifactory/api/security/keypair/aerospike/public | gpg --dearmor -o /usr/share/keyrings/aerospike.gpg
+    echo 'deb [signed-by=/usr/share/keyrings/aerospike.gpg] https://aerospike.jfrog.io/artifactory/deb stable main' > /etc/apt/sources.list.d/aerospike.list
+    apt update && apt -y install aerospike-vector-search git
 fi
 if [ ${DOCKER} -eq 0 ]
 then
-    systemctl enable aerospike-proximus
+    systemctl enable aerospike-vector-search
 else
     mkdir -p /opt/autoload
-    echo "nohup /opt/aerospike-proximus/bin/aerospike-proximus -f /etc/aerospike-proximus/aerospike-proximus.yml >>/var/log/aerospike-proximus.out.log 2>&1 &" > /opt/autoload/10-proximus
-    chmod 755 /opt/autoload/10-proximus
+    echo "nohup /opt/aerospike-vector-search/bin/aerospike-vector-search -f /etc/aerospike-vector-search/aerospike-vector-search.yml >>/var/log/aerospike-vector-search.out.log 2>&1 &" > /opt/autoload/10-vector
+    chmod 755 /opt/autoload/10-vector
 fi
+
+UN=$(uname -m)
+arch=amd64
+[ "$UN" = "aarch64" ] && arch=arm64
+[ "$UN" = "arm64" ] && arch=arm64
+if [ "$arch" = "amd64" ]; then
+  wget -O /tmp/asvec.zip $ASVEC_AMD
+else
+  wget -O /tmp/asvec.zip $ASVEC_ARM
+fi
+unzip /tmp/asvec.zip
+mv asvec /usr/local/bin/
+
+cd /root
+set +e
+git clone https://github.com/aerospike/aerospike-vector.git || exit 0

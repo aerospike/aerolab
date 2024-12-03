@@ -18,9 +18,6 @@ var graphProperties string
 //go:embed vector-install.sh
 var vectorInstall string
 
-//go:embed vector-example.sh
-var vectorExample string
-
 //go:embed eksctl-bootstrap.sh
 var eksctlBootstrap string
 
@@ -56,7 +53,8 @@ func GetCloudGraphScript(propertiesFilePath string, extraParams string, imageNam
 	return append(installScript, []byte(fmt.Sprintf(startGraph, "aerospike-graph", propertiesFilePath, extraParams, imageName))...)
 }
 
-func GetVectorScript(isDocker bool, packaging string, downloadUrl string) []byte {
+// asvec["amd64|arm64"] = downloadUrl
+func GetVectorScript(isDocker bool, packaging string, asvec map[string]string) []byte {
 	dockerVal := "0"
 	if isDocker {
 		dockerVal = "1"
@@ -65,11 +63,7 @@ func GetVectorScript(isDocker bool, packaging string, downloadUrl string) []byte
 	if packaging == "deb" {
 		debVal = "1"
 	}
-	return []byte(fmt.Sprintf(vectorInstall, dockerVal, debVal, packaging, downloadUrl))
-}
-
-func GetVectorExampleScript(proximusPort string, listenPort string) []byte {
-	return []byte(fmt.Sprintf(vectorExample, proximusPort, listenPort))
+	return []byte(fmt.Sprintf(vectorInstall, dockerVal, debVal, asvec["amd64"], asvec["arm64"]))
 }
 
 func GetEksctlBootstrapScript() []byte {

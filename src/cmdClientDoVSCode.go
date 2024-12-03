@@ -42,10 +42,10 @@ func (c *clientCreateVSCodeCmd) Execute(args []string) error {
 		}
 	}
 	if c.DistroVersion == "latest" {
-		c.DistroVersion = "20.04"
+		c.DistroVersion = "24.04"
 	}
-	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("20.04") {
-		return fmt.Errorf("VSCode is only supported on ubuntu:20.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("24.04") {
+		return fmt.Errorf("VSCode is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 	var err error
 	machines, err := c.createBase(args, "VSCode")
@@ -118,8 +118,8 @@ func (c *clientAddVSCodeCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("20.04") {
-		return fmt.Errorf("VSCode is only supported on ubuntu:20.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("24.04") {
+		return fmt.Errorf("VSCode is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 	b.WorkOnServers()
 	return c.addVSCode(args)
@@ -245,9 +245,9 @@ EOF
 
 function kgo() {
 	apt-get install -y gcc || return 1
-	url="https://go.dev/dl/go1.22.5.linux-amd64.tar.gz"
+	url="https://go.dev/dl/go1.23.3.linux-amd64.tar.gz"
 	uname -p |egrep 'x86_64|amd64'
-	[ $? -ne 0 ] && url="https://go.dev/dl/go1.22.5.linux-amd64.tar.gz"
+	[ $? -ne 0 ] && url="https://go.dev/dl/go1.23.3.linux-amd64.tar.gz"
 	cd /
 	wget -O go.tgz ${url} || return 2
 	tar -C /usr/local -xzf go.tgz || return 3
@@ -266,7 +266,7 @@ function kgo() {
 
 function kpython() {
 	apt-get update && apt-get -y install python3 python3-pip python3-wheel python3-setuptools || return 1
-	pip3 install aerospike || return 2
+	python3 -m pip install --break-system-packages aerospike || return 2
 	code-server --install-extension ms-python.python || return 3
 }
 
@@ -279,23 +279,23 @@ function kjava() {
 	code-server --install-extension vscjava.vscode-java-dependency || return 5
 	code-server --install-extension vscjava.vscode-java-test || return 6
 	cd /tmp && \
-	wget https://dlcdn.apache.org/maven/maven-3/3.8.8/binaries/apache-maven-3.8.8-bin.tar.gz && \
-	tar xvf apache-maven-3.8.8-bin.tar.gz && \
+	wget https://dlcdn.apache.org/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz && \
+	tar xvf apache-maven-3.9.9-bin.tar.gz && \
 	mkdir -p /usr/share/maven && \
 	cd /usr/share/maven && \
-	cp -r /tmp/apache-maven-3.8.8/* . && \
+	cp -r /tmp/apache-maven-3.9.9/* . && \
 	ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
 }
 
 function knet() {
-	url=https://download.visualstudio.microsoft.com/download/pr/dc930bff-ef3d-4f6f-8799-6eb60390f5b4/1efee2a8ea0180c94aff8f15eb3af981/dotnet-sdk-6.0.300-linux-x64.tar.gz
+	url=https://download.visualstudio.microsoft.com/download/pr/4e3b04aa-c015-4e06-a42e-05f9f3c54ed2/74d1bb68e330eea13ecfc47f7cf9aeb7/dotnet-sdk-8.0.404-linux-x64.tar.gz
 	uname -p |egrep 'x86_64|amd64'
-	[ $? -ne 0 ] && url=https://download.visualstudio.microsoft.com/download/pr/7c62b503-4ede-4ff2-bc38-50f250a86d89/3b5e9db04cbe0169e852cb050a0dffce/dotnet-sdk-6.0.300-linux-arm64.tar.gz
+	[ $? -ne 0 ] && url=https://download.visualstudio.microsoft.com/download/pr/5ac82fcb-c260-4c46-b62f-8cde2ddfc625/feb12fc704a476ea2227c57c81d18cdf/dotnet-sdk-8.0.404-linux-arm64.tar.gz
 	cd /root
 	wget -O dotnet.tar.gz ${url} || return 1
 	mkdir -p /root/dotnet && tar zxf dotnet.tar.gz -C /root/dotnet || return 2
 	export DOTNET_ROOT=/root/dotnet
-	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive --version 1.0.355307
+	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive --version 1.0.556801
 	code-server --install-extension ms-dotnettools.vscode-dotnet-runtime
 	code-server --install-extension muhammad-sammy.csharp
 	cd /opt/code/dotnet && /root/dotnet/dotnet restore

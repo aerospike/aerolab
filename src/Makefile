@@ -35,6 +35,7 @@ help:
 	\n\
 	INSTALL COMMANDS:\n\
 	\tinstall            - Install a previously built aerolab on the current system (linux and mac only)\n\
+	\tnosudo-install     - Install a previously built aerolab on the current system (linux and mac only), no sudo\n\
 	\n\
 	CLEAN COMMANDS:\n\
 	\tclean              - Remove remainders of a build and reset source modified during build\n\
@@ -224,6 +225,22 @@ ifeq ($(CPU), x86_64)
 	sudo cp ../bin/aerolab-linux-amd64 /usr/local/bin/aerolab
 else
 	sudo cp ../bin/aerolab-linux-arm64 /usr/local/bin/aerolab
+endif
+endif
+
+.PHONY: nosudo-install
+nosudo-install:
+ifeq ($(OS), Darwin)
+ifeq ($(CPU), x86_64)
+	cp ../bin/aerolab-macos-amd64 /usr/local/bin/aerolab
+else
+	cp ../bin/aerolab-macos-arm64 /usr/local/bin/aerolab
+endif
+else
+ifeq ($(CPU), x86_64)
+	cp ../bin/aerolab-linux-amd64 /usr/local/bin/aerolab
+else
+	cp ../bin/aerolab-linux-arm64 /usr/local/bin/aerolab
 endif
 endif
 
