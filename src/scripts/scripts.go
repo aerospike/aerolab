@@ -21,6 +21,9 @@ var vectorInstall string
 //go:embed eksctl-bootstrap.sh
 var eksctlBootstrap string
 
+//go:embed netLossDelay.sh
+var netLossDelay string
+
 // docker login details
 type DockerLogin struct {
 	URL  string
@@ -68,4 +71,8 @@ func GetVectorScript(isDocker bool, packaging string, asvec map[string]string) [
 
 func GetEksctlBootstrapScript() []byte {
 	return []byte(eksctlBootstrap)
+}
+
+func GetNetLossDelay() string {
+	return netLossDelay
 }
