@@ -1,11 +1,17 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/aerospike/aerolab/parallelize"
+	"github.com/aerospike/aerolab/scripts"
 
 	"github.com/bestmethod/inslice"
 )
@@ -17,14 +23,124 @@ type netLossDelayCmd struct {
 	DestinationClusterName TypeClusterName   `short:"d" long:"destination" description:"Destination Cluster name/Client group" default:"mydc-xdr"`
 	DestinationNodeList    TypeNodes         `short:"i" long:"destination-node-list" description:"List of destination nodes. Empty=ALL." default:""`
 	IsDestinationClient    bool              `short:"C" long:"destination-client" description:"set to indicate the destination is a client group"`
-	Action                 TypeNetLossAction `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show" webchoice:"show,set,del,delall"`
-	ShowNames              bool              `short:"n" long:"show-names" description:"if action is show, this will cause IPs to resolve to names in output"`
-	Delay                  string            `short:"D" long:"delay" description:"Delay (packet latency), e.g. 100ms or 0.5sec" default:""`
-	Loss                   string            `short:"L" long:"loss" description:"Network loss in % packets. E.g. 0.1% or 20%" default:""`
-	Rate                   string            `short:"R" long:"rate" description:"Max link speed, e.g. 100Kbps" default:""`
+	Action                 TypeNetLossAction `short:"a" long:"action" description:"One of: set|del|delall|show. delall does not require dest dc, as it removes all rules" default:"show" webchoice:"show,set,del,reset"`
+	LatencyMs              string            `short:"D" long:"latency-ms" description:"optional: specify latency (number) of milliseconds"`
+	PacketLossPct          string            `short:"L" long:"loss-pct" description:"optional: specify packet loss percentage"`
+	LinkSpeedRateBytes     string            `short:"E" long:"rate-bytes" description:"optional: specify link speed rate, in bytes"`
+	CorruptPct             string            `short:"O" long:"corrupt-pct" description:"optional: currupt packets (percentage)"`
 	RunOnDestination       bool              `short:"o" long:"on-destination" description:"if set, the rules will be created on destination nodes (avoid EPERM on source, true simulation)"`
 	DstPort                int               `short:"p" long:"dst-port" description:"only apply the rule to a specific destination port"`
 	SrcPort                int               `short:"P" long:"src-port" description:"only apply the rule to a specific source port"`
+	Verbose                bool              `short:"v" long:"verbose" description:"run easytc in verbose mode"`
+	parallelThreadsCmd
+}
+
+func expandNodeList(nodes string) ([]int, error) {
+	if nodes == "" {
+		return []int{}, nil
+	}
+	ret := []int{}
+	for _, i := range strings.Split(nodes, ",") {
+		if !strings.Contains(i, "-") {
+			n, err := strconv.Atoi(i)
+			if err != nil {
+				return nil, err
+			}
+			if !inslice.HasInt(ret, n) {
+				ret = append(ret, n)
+			}
+			continue
+		}
+		ii := strings.Split(i, "-")
+		if len(ii) != 2 {
+			return nil, errors.New("double-minus in node range list")
+		}
+		start, err := strconv.Atoi(ii[0])
+		if err != nil {
+			return nil, err
+		}
+		end, err := strconv.Atoi(ii[1])
+		if err != nil {
+			return nil, err
+		}
+		for x := start; x <= end; x++ {
+			if !inslice.HasInt(ret, x) {
+				ret = append(ret, x)
+			}
+		}
+	}
+	sort.Ints(ret)
+	return ret, nil
+}
+
+func (c *netLossDelayCmd) findClient(inv inventoryJson, name string, nodes string, optional bool) ([]inventoryClient, error) {
+	n, err := expandNodeList(nodes)
+	if err != nil {
+		return nil, err
+	}
+	ret := []inventoryClient{}
+	for _, i := range inv.Clients {
+		if i.ClientName != name {
+			continue
+		}
+		if len(n) == 0 {
+			ret = append(ret, i)
+			continue
+		}
+		nno, err := strconv.Atoi(i.NodeNo)
+		if err != nil {
+			return nil, err
+		}
+		if inslice.HasInt(n, nno) {
+			ret = append(ret, i)
+		}
+	}
+	if optional {
+		return ret, nil
+	}
+	if len(ret) == 0 {
+		err = errors.New("client group not found")
+		return ret, err
+	}
+	if len(ret) < len(n) {
+		err = errors.New("not all nodes selected exist")
+	}
+	return ret, err
+}
+
+func (c *netLossDelayCmd) findCluster(inv inventoryJson, name string, nodes string, optional bool) ([]inventoryCluster, error) {
+	n, err := expandNodeList(nodes)
+	if err != nil {
+		return nil, err
+	}
+	ret := []inventoryCluster{}
+	for _, i := range inv.Clusters {
+		if i.ClusterName != name {
+			continue
+		}
+		if len(n) == 0 {
+			ret = append(ret, i)
+			continue
+		}
+		nno, err := strconv.Atoi(i.NodeNo)
+		if err != nil {
+			return nil, err
+		}
+		if inslice.HasInt(n, nno) {
+			ret = append(ret, i)
+		}
+	}
+	if optional {
+		return ret, nil
+	}
+	if len(ret) == 0 {
+		err = errors.New("cluster not found")
+		return ret, err
+	}
+	if len(ret) < len(n) {
+		err = errors.New("not all nodes selected exist")
+	}
+	return ret, err
 }
 
 func (c *netLossDelayCmd) Execute(args []string) error {
@@ -34,298 +150,231 @@ func (c *netLossDelayCmd) Execute(args []string) error {
 
 	log.Print("Running net.loss-delay")
 
-	// check cluster exists already
-	clusterList := make(map[string]bool)
-	ccClusters, err := b.ClusterList()
+	// inventory, get items
+	var srcCluster, dstCluster []inventoryCluster
+	var srcClient, dstClient []inventoryClient
+	inv, err := b.Inventory("", []int{InventoryItemClusters, InventoryItemClients})
 	if err != nil {
 		return err
 	}
-	for _, c := range ccClusters {
-		clusterList[c] = false
+	isSrcOptional := false
+	isDstOptional := false
+	if c.Action != "set" && c.Action != "del" {
+		if c.RunOnDestination {
+			isSrcOptional = true
+		} else {
+			isDstOptional = true
+		}
 	}
-	b.WorkOnClients()
-	ccClients, err := b.ClusterList()
-	b.WorkOnServers()
-	if err != nil {
-		return err
-	}
-	for _, c := range ccClients {
-		clusterList[c] = true
-	}
-
 	if c.IsSourceClient {
-		b.WorkOnClients()
-	}
-	err = c.SourceNodeList.ExpandNodes(string(c.SourceClusterName))
-	b.WorkOnServers()
-	if err != nil {
-		return err
+		srcClient, err = c.findClient(inv, string(c.SourceClusterName), string(c.SourceNodeList), isSrcOptional)
+		if err != nil {
+			return err
+		}
+	} else {
+		srcCluster, err = c.findCluster(inv, string(c.SourceClusterName), string(c.SourceNodeList), isSrcOptional)
+		if err != nil {
+			return err
+		}
 	}
 	if c.IsDestinationClient {
-		b.WorkOnClients()
-	}
-	err = c.DestinationNodeList.ExpandNodes(string(c.DestinationClusterName))
-	b.WorkOnServers()
-	if err != nil {
-		return err
-	}
-
-	fullIpMap := make(map[string]string)
-	if c.Action == "show" {
-		for cluster, isClient := range clusterList {
-			if isClient {
-				b.WorkOnClients()
-			}
-			ips, err := b.GetNodeIpMap(cluster, false)
-			b.WorkOnServers()
-			if err != nil {
-				return err
-			}
-			for n, v := range ips {
-				fullIpMap[v] = fmt.Sprintf("CLUSTER=%s NODE=%d", cluster, n)
-			}
-		}
-	}
-
-	if (c.IsSourceClient && !inslice.HasString(ccClients, string(c.SourceClusterName))) || (!c.IsSourceClient && !inslice.HasString(ccClusters, string(c.SourceClusterName))) {
-		err = fmt.Errorf("error, does not exist: %s", string(c.SourceClusterName))
-		return err
-	}
-
-	if c.Action != "show" && c.Action != "delall" {
-		if (c.IsDestinationClient && !inslice.HasString(ccClients, string(c.DestinationClusterName))) || (!c.IsDestinationClient && !inslice.HasString(ccClusters, string(c.DestinationClusterName))) {
-			err = fmt.Errorf("error, does not exist: %s", string(c.DestinationClusterName))
-			return err
-		}
-	}
-
-	sourceNodeList := []int{}
-	var sourceNodeIpMap map[int]string
-	var sourceNodeIpMapInternal map[int]string
-	if c.SourceNodeList == "" {
-		if c.IsSourceClient {
-			b.WorkOnClients()
-		}
-		sourceNodeList, err = b.NodeListInCluster(string(c.SourceClusterName))
-		b.WorkOnServers()
+		dstClient, err = c.findClient(inv, string(c.DestinationClusterName), string(c.DestinationNodeList), isDstOptional)
 		if err != nil {
 			return err
 		}
 	} else {
-		if c.IsSourceClient {
-			b.WorkOnClients()
-		}
-		snl, err := b.NodeListInCluster(string(c.SourceClusterName))
-		b.WorkOnServers()
+		dstCluster, err = c.findCluster(inv, string(c.DestinationClusterName), string(c.DestinationNodeList), isDstOptional)
 		if err != nil {
 			return err
 		}
-		sn := strings.Split(c.SourceNodeList.String(), ",")
-		for _, i := range sn {
-			snInt, err := strconv.Atoi(i)
-			if err != nil {
-				return err
+	}
+	ips := make(map[string]string)
+	for _, a := range inv.Clients {
+		if a.PrivateIp != "" {
+			ips[a.PrivateIp] = fmt.Sprintf("client:%s:%s", a.ClientName, a.NodeNo)
+		}
+		if a.PublicIp != "" && a.PublicIp != a.PrivateIp {
+			ips[a.PublicIp] = fmt.Sprintf("client:%s:%s", a.ClientName, a.NodeNo)
+		}
+	}
+	for _, a := range inv.Clusters {
+		if a.PrivateIp != "" {
+			ips[a.PrivateIp] = fmt.Sprintf("cluster:%s:%s", a.ClusterName, a.NodeNo)
+		}
+		if a.PublicIp != "" && a.PublicIp != a.PrivateIp {
+			ips[a.PublicIp] = fmt.Sprintf("cluster:%s:%s", a.ClusterName, a.NodeNo)
+		}
+	}
+
+	comm := []string{"easytc"}
+	switch c.Action {
+	case "reset", "delall":
+		comm = append(comm, "reset")
+		if a.opts.Config.Backend.Type == "docker" {
+			comm = append(comm, "--no-check-module")
+		}
+	case "show":
+		comm = append(comm, "show", "rules", "--quiet")
+	case "set", "del":
+		comm = append(comm, c.Action.String())
+		if c.SrcPort != 0 {
+			comm = append(comm, "-S", strconv.Itoa(c.SrcPort))
+		}
+		if c.DstPort != 0 {
+			comm = append(comm, "-D", strconv.Itoa(c.DstPort))
+		}
+		if c.Action == "set" {
+			if c.CorruptPct != "" {
+				comm = append(comm, "-c", c.CorruptPct)
 			}
-			if !inslice.HasInt(snl, snInt) {
-				return fmt.Errorf("source node %d not found", snInt)
+			if c.LinkSpeedRateBytes != "" {
+				comm = append(comm, "-e", c.LinkSpeedRateBytes)
 			}
-			sourceNodeList = append(sourceNodeList, snInt)
-		}
-	}
-
-	if c.IsSourceClient {
-		b.WorkOnClients()
-	}
-	sourceNodeIpMap, err = b.GetNodeIpMap(string(c.SourceClusterName), false)
-	if err != nil {
-		return err
-	}
-
-	sourceNodeIpMapInternal, err = b.GetNodeIpMap(string(c.SourceClusterName), true)
-	if err != nil {
-		return err
-	}
-	b.WorkOnServers()
-
-	destNodeList := []int{}
-	var destNodeIpMap map[int]string
-	var destNodeIpMapInternal map[int]string
-	if c.DestinationNodeList == "" {
-		if c.IsDestinationClient {
-			b.WorkOnClients()
-		}
-		destNodeList, err = b.NodeListInCluster(string(c.DestinationClusterName))
-		b.WorkOnServers()
-		if err != nil {
-			return err
-		}
-	} else {
-		if c.IsDestinationClient {
-			b.WorkOnClients()
-		}
-		dnl, err := b.NodeListInCluster(string(c.DestinationClusterName))
-		b.WorkOnServers()
-		if err != nil {
-			return err
-		}
-		dn := strings.Split(c.DestinationNodeList.String(), ",")
-		for _, i := range dn {
-			dnInt, err := strconv.Atoi(i)
-			if err != nil {
-				return err
+			if c.PacketLossPct != "" {
+				comm = append(comm, "-p", c.PacketLossPct)
 			}
-			if !inslice.HasInt(dnl, dnInt) {
-				return fmt.Errorf("destination node %d not found", dnInt)
+			if c.LatencyMs != "" {
+				comm = append(comm, "-l", c.LatencyMs)
 			}
-			destNodeList = append(destNodeList, dnInt)
+		}
+		if a.opts.Config.Backend.Type == "docker" {
+			comm = append(comm, "--no-check-module")
 		}
 	}
-
-	if c.IsDestinationClient {
-		b.WorkOnClients()
-	}
-	destNodeIpMap, err = b.GetNodeIpMap(string(c.DestinationClusterName), false)
-	if err != nil {
-		return err
+	if c.Verbose {
+		comm = append(comm, "--verbose")
 	}
 
-	destNodeIpMapInternal, err = b.GetNodeIpMap(string(c.DestinationClusterName), true)
-	if err != nil {
-		return err
-	}
-	b.WorkOnServers()
-
-	sysRunOnClient := c.IsSourceClient
-	sysRunOnClusterName := string(c.SourceClusterName)
-	sysLogTheOther := string(c.DestinationClusterName)
-	sysRunOnNodeList := sourceNodeList
-	sysRunOnDestNodeList := destNodeList
-	sysRunOnDestIpMap := destNodeIpMap
-	sysRunOnDestIpMapInternal := destNodeIpMapInternal
-	rule := "--direction=outgoing --network"
-	if c.RunOnDestination {
-		rule = "--direction=incoming --src-network"
-		sysRunOnClient = c.IsDestinationClient
-		sysRunOnClusterName = string(c.DestinationClusterName)
-		sysLogTheOther = string(c.SourceClusterName)
-		sysRunOnNodeList = destNodeList
-		sysRunOnDestNodeList = sourceNodeList
-		sysRunOnDestIpMap = sourceNodeIpMap
-		sysRunOnDestIpMapInternal = sourceNodeIpMapInternal
-	}
-	if c.DstPort != 0 {
-		rule = fmt.Sprintf("--port %d %s", c.DstPort, rule)
-	}
-	if c.SrcPort != 0 {
-		rule = fmt.Sprintf("--src-port %d %s", c.SrcPort, rule)
-	}
-
-	iface := "eth0"
-	found := false
-	for _, sourceNode := range sysRunOnNodeList {
-		command := []string{"ip", "route", "ls"}
-		if sysRunOnClient {
-			b.WorkOnClients()
-		}
-		out, err := b.RunCommands(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
-		b.WorkOnServers()
-		if err != nil {
-			continue
-		}
-		for _, line := range strings.Split(string(out[0]), "\n") {
-			line = strings.Trim(line, "\r\n\t ")
-			if !strings.HasPrefix(line, "default via") {
-				continue
-			}
-			lines := strings.Split(line, " ")
-			for i, item := range lines {
-				if item == "dev" {
-					iface = lines[i+1]
-					found = true
-					break
+	comms := [][]string{}
+	if c.Action == "set" || c.Action == "del" {
+		if c.RunOnDestination {
+			// add sourceIPs to list of commands
+			for _, node := range srcClient {
+				if node.PrivateIp != "" {
+					new := append(slices.Clone(comm), "-s", node.PrivateIp)
+					comms = append(comms, new)
+				}
+				if node.PublicIp != "" && node.PublicIp != node.PrivateIp {
+					new := append(slices.Clone(comm), "-s", node.PublicIp)
+					comms = append(comms, new)
 				}
 			}
-			if found {
-				break
-			}
-		}
-		if found {
-			break
-		}
-	}
-	rest := ""
-	if c.Action == "set" {
-		rest = "tcset " + iface + " --change"
-	} else if c.Action == "del" {
-		rest = "tcdel " + iface
-	} else if c.Action == "delall" {
-		rest = "tcdel " + iface + " --all"
-	} else {
-		rest = "tcshow " + iface
-	}
-	if c.Rate != "" {
-		rest = rest + " --rate " + c.Rate
-	}
-	if c.Delay != "" {
-		rest = rest + " --delay " + c.Delay
-	}
-	if c.Loss != "" {
-		rest = rest + " --loss " + c.Loss
-	}
-
-	log.Printf("Run on '%s' nodes '%v', implement loss/delay against '%s' nodes '%v' with IPs '%v' and optional IPs '%v'", sysRunOnClusterName, sysRunOnNodeList, sysLogTheOther, sysRunOnDestNodeList, sysRunOnDestIpMap, sysRunOnDestIpMapInternal)
-	for _, sourceNode := range sysRunOnNodeList {
-		container := fmt.Sprintf("cluster %s node %d", sysRunOnClusterName, sourceNode)
-		if c.Action != "show" && c.Action != "delall" {
-			for _, destNode := range sysRunOnDestNodeList {
-				destNodeIp := sysRunOnDestIpMap[destNode]
-				command := []string{"/bin/bash", "-c", fmt.Sprintf("%s %s %s", rest, rule, destNodeIp)}
-				if sysRunOnClient {
-					b.WorkOnClients()
+			for _, node := range srcCluster {
+				if node.PrivateIp != "" {
+					new := append(slices.Clone(comm), "-s", node.PrivateIp)
+					comms = append(comms, new)
 				}
-				out, err := b.RunCommands(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
-				b.WorkOnServers()
-				if err != nil {
-					log.Printf("ERROR: %s %s %s", container, err, string(out[0]))
-				}
-				if sysRunOnDestIpMapInternal != nil {
-					destNodeIpInternal := sysRunOnDestIpMapInternal[destNode]
-					command := []string{"/bin/bash", "-c", fmt.Sprintf("%s %s %s", rest, rule, destNodeIpInternal)}
-					if sysRunOnClient {
-						b.WorkOnClients()
-					}
-					out, err = b.RunCommands(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
-					b.WorkOnServers()
-					if err != nil {
-						log.Printf("ERROR: %s %s %s", container, err, string(out[0]))
-					}
+				if node.PublicIp != "" && node.PublicIp != node.PrivateIp {
+					new := append(slices.Clone(comm), "-s", node.PublicIp)
+					comms = append(comms, new)
 				}
 			}
 		} else {
-			command := []string{"/bin/bash", "-c", rest}
-			if sysRunOnClient {
-				b.WorkOnClients()
-			}
-			out, err := b.RunCommands(sysRunOnClusterName, [][]string{command}, []int{sourceNode})
-			b.WorkOnServers()
-			if err != nil {
-				log.Printf("ERROR: %s %s %s", container, err, string(out[0]))
-			} else if c.Action == "show" {
-				fmt.Printf("========== %s ==========\n", container)
-				prt := string(out[0])
-				if c.ShowNames {
-					for _, ip := range findIP(prt) {
-						if fullIpMap[ip] != "" {
-							prt = strings.Replace(prt, fmt.Sprintf("%s/32", ip), fullIpMap[ip], -1)
-							prt = strings.Replace(prt, ip, fullIpMap[ip], -1)
-						}
-					}
+			// add destIPs to list of commands
+			for _, node := range dstClient {
+				if node.PrivateIp != "" {
+					new := append(slices.Clone(comm), "-d", node.PrivateIp)
+					comms = append(comms, new)
 				}
-				fmt.Println(prt)
+				if node.PublicIp != "" && node.PublicIp != node.PrivateIp {
+					new := append(slices.Clone(comm), "-d", node.PublicIp)
+					comms = append(comms, new)
+				}
+			}
+			for _, node := range dstCluster {
+				if node.PrivateIp != "" {
+					new := append(slices.Clone(comm), "-d", node.PrivateIp)
+					comms = append(comms, new)
+				}
+				if node.PublicIp != "" && node.PublicIp != node.PrivateIp {
+					new := append(slices.Clone(comm), "-d", node.PublicIp)
+					comms = append(comms, new)
+				}
 			}
 		}
+	} else {
+		comms = append(comms, comm)
+	}
+
+	// comms is a full list of commands to execute on either source or destination
+	script := scripts.GetNetLossDelay()
+	for _, c := range comms {
+		script = script + "\n" + strings.Join(c, " ")
+	}
+
+	isError := false
+	runListClient := srcClient
+	runListCluster := srcCluster
+	if c.RunOnDestination {
+		runListClient = dstClient
+		runListCluster = dstCluster
+	}
+	// parallel run on each client/cluster from the list
+	b.WorkOnClients()
+	returns := parallelize.MapLimit(runListClient, c.ParallelThreads, func(node inventoryClient) error {
+		return netLossRun(node.ClientName, node.NodeNo, script, ips)
+	})
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %s returned %s", runListClient[i].NodeNo, ret)
+			isError = true
+		}
+	}
+	b.WorkOnServers()
+	returns = parallelize.MapLimit(runListCluster, c.ParallelThreads, func(node inventoryCluster) error {
+		return netLossRun(node.ClusterName, node.NodeNo, script, ips)
+	})
+	for i, ret := range returns {
+		if ret != nil {
+			log.Printf("Node %s returned %s", runListCluster[i].NodeNo, ret)
+			isError = true
+		}
+	}
+
+	if isError {
+		return errors.New("some nodes returned errors")
 	}
 	log.Print("Done")
+	return nil
+}
+
+func netLossRun(name string, node string, script string, ipmap map[string]string) error {
+	nno, _ := strconv.Atoi(node)
+	err := b.CopyFilesToCluster(name, []fileList{
+		{
+			filePath:     "/tmp/runtc.sh",
+			fileContents: script,
+			fileSize:     len(script),
+		},
+	}, []int{nno})
+	if err != nil {
+		return err
+	}
+	out, err := b.RunCommands(name, [][]string{{"/bin/bash", "/tmp/runtc.sh"}}, []int{nno})
+	if err != nil {
+		if len(out) == 0 {
+			out = [][]byte{{'-'}}
+		}
+		return fmt.Errorf("(%s:%d) %s: %s", name, nno, err, string(out[0]))
+	}
+	lines := strings.Split(string(out[0]), "\n")
+	ret := fmt.Sprintf("================== %s:%d ==================", name, nno)
+	for _, line := range lines {
+		if strings.Contains(line, "TcFilterHandle") {
+			line = line + " IPNode "
+		} else if strings.Contains(line, "-----------") {
+			line = line + "--------"
+		} else {
+			ips := findIP(line)
+			if len(ips) > 0 {
+				if val, ok := ipmap[ips[0]]; ok {
+					line = line + " " + val
+				}
+			}
+		}
+		ret = ret + "\n" + line
+	}
+	fmt.Print(ret)
 	return nil
 }
 
