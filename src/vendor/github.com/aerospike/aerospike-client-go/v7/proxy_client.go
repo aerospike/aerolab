@@ -21,7 +21,6 @@ import (
 	"math/rand"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc"
@@ -44,7 +43,7 @@ type ProxyClient struct {
 	grpcHost     *Host
 	dialOptions  []grpc.DialOption
 
-	authToken       atomic.Value
+	authToken       iatomic.TypedVal[string]
 	authInterceptor *authInterceptor
 
 	active iatomic.Bool
@@ -89,6 +88,11 @@ func grpcClientFinalizer(f *ProxyClient) {
 // If the policy is nil, the default relevant policy will be used.
 // Pass "dns:///<address>:<port>" (note the 3 slashes) for dns load balancing,
 // automatically supported internally by grpc-go.
+// The connection pool after connecting to the database is initially empty,
+// and connections are established on a per need basis, which can be slow and
+// time out some initial commands.
+// It is recommended to call the client.WarmUp() method right after connecting to the database
+// to fill up the connection pool to the required service level.
 func NewProxyClientWithPolicyAndHost(policy *ClientPolicy, host *Host, dialOptions ...grpc.DialOption) (*ProxyClient, Error) {
 	if policy == nil {
 		policy = NewClientPolicy()
@@ -255,11 +259,11 @@ func (clnt *ProxyClient) SetDefaultInfoPolicy(policy *InfoPolicy) {
 //-------------------------------------------------------
 
 func (clnt *ProxyClient) token() string {
-	return clnt.authToken.Load().(string)
+	return clnt.authToken.Get()
 }
 
 func (clnt *ProxyClient) setAuthToken(token string) {
-	clnt.authToken.Store(token)
+	clnt.authToken.Set(token)
 }
 
 func (clnt *ProxyClient) grpcConn() (*grpc.ClientConn, Error) {
@@ -601,6 +605,11 @@ func (clnt *ProxyClient) GetHeader(policy *BasePolicy, key *Key) (*Record, Error
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *ProxyClient) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...string) ([]*Record, Error) {
 	policy = clnt.getUsableBatchPolicy(policy)
+
+	if len(keys) == 0 {
+		return []*Record{}, nil
+	}
+
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
@@ -629,6 +638,11 @@ func (clnt *ProxyClient) BatchGet(policy *BatchPolicy, keys []*Key, binNames ...
 // If a batch request to a node fails, the entire batch is cancelled.
 func (clnt *ProxyClient) BatchGetOperate(policy *BatchPolicy, keys []*Key, ops ...*Operation) ([]*Record, Error) {
 	policy = clnt.getUsableBatchPolicy(policy)
+
+	if len(keys) == 0 {
+		return []*Record{}, nil
+	}
+
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
@@ -678,6 +692,11 @@ func (clnt *ProxyClient) BatchGetComplex(policy *BatchPolicy, records []*BatchRe
 // If the policy is nil, the default relevant policy will be used.
 func (clnt *ProxyClient) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Record, Error) {
 	policy = clnt.getUsableBatchPolicy(policy)
+
+	if len(keys) == 0 {
+		return []*Record{}, nil
+	}
+
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	for _, key := range keys {
 		batchRecordsIfc = append(batchRecordsIfc, NewBatchReadHeader(clnt.DefaultBatchReadPolicy, key))
@@ -702,6 +721,11 @@ func (clnt *ProxyClient) BatchGetHeader(policy *BatchPolicy, keys []*Key) ([]*Re
 // Requires server version 6.0+
 func (clnt *ProxyClient) BatchDelete(policy *BatchPolicy, deletePolicy *BatchDeletePolicy, keys []*Key) ([]*BatchRecord, Error) {
 	policy = clnt.getUsableBatchPolicy(policy)
+
+	if len(keys) == 0 {
+		return []*BatchRecord{}, nil
+	}
+
 	deletePolicy = clnt.getUsableBatchDeletePolicy(deletePolicy)
 
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
@@ -751,6 +775,10 @@ func (clnt *ProxyClient) BatchOperate(policy *BatchPolicy, records []BatchRecord
 //
 // Requires server version 6.0+
 func (clnt *ProxyClient) BatchExecute(policy *BatchPolicy, udfPolicy *BatchUDFPolicy, keys []*Key, packageName string, functionName string, args ...Value) ([]*BatchRecord, Error) {
+	if len(keys) == 0 {
+		return []*BatchRecord{}, nil
+	}
+
 	batchRecordsIfc := make([]BatchRecordIfc, 0, len(keys))
 	batchRecords := make([]*BatchRecord, 0, len(keys))
 	for _, key := range keys {
