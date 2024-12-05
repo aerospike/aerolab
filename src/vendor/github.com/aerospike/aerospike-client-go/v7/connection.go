@@ -484,7 +484,7 @@ func (ctn *Connection) login(policy *ClientPolicy, hashedPassword []byte, sessio
 
 		si := command.sessionInfo()
 		if ctn.node != nil && si.isValid() {
-			ctn.node.sessionInfo.Store(si)
+			ctn.node.sessionInfo.Set(si)
 		}
 	}
 
