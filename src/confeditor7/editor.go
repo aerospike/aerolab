@@ -50,6 +50,9 @@ const (
 	itemStorageEngineAllFlash        = 20
 	itemStorageEngineEncryptionMem   = 21
 	itemStorageEngineCompressionMem  = 22
+	itemRF1                          = 23
+	itemRF2                          = 24
+	itemRF3                          = 25
 )
 
 var menuItems = []menuItem{}
@@ -104,6 +107,27 @@ func fillMenuItems() {
 					Type:  typeMenuItemCheckbox,
 					Label: "all-flash index on disk",
 					Item:  itemStorageEngineAllFlash,
+				},
+				{
+					Type:  typeMenuItemText,
+					Label: "replication-factor",
+					Children: []menuItem{
+						{
+							Type:  typeMenuItemRadio,
+							Label: "1",
+							Item:  itemRF1,
+						},
+						{
+							Type:  typeMenuItemRadio,
+							Label: "2",
+							Item:  itemRF2,
+						},
+						{
+							Type:  typeMenuItemRadio,
+							Label: "3",
+							Item:  itemRF3,
+						},
+					},
 				},
 			},
 		},
@@ -548,7 +572,7 @@ network {
 }
 namespace test {
     default-ttl 0
-    replication-factor 2
+    replication-factor 1
     storage-engine memory {
         data-size 4G
 	}
@@ -589,6 +613,30 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 	var retErr error
 	for i, item := range items {
 		switch item.Item {
+		case itemRF1:
+			val, err := aeroConfig.Stanza("namespace test").GetValues("replication-factor")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && *val[0] == "1" {
+				items[i].Selected = true
+			}
+		case itemRF2:
+			val, err := aeroConfig.Stanza("namespace test").GetValues("replication-factor")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && *val[0] == "2" {
+				items[i].Selected = true
+			}
+		case itemRF3:
+			val, err := aeroConfig.Stanza("namespace test").GetValues("replication-factor")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && *val[0] == "3" {
+				items[i].Selected = true
+			}
 		case itemRackAwareness:
 			val, err := aeroConfig.Stanza("namespace test").GetValues("rack-id")
 			if err != nil {
@@ -849,6 +897,18 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 		aeroConfig, _ := aeroconf.Parse(strings.NewReader(e.confView.Buffer()))
 		for _, change := range changes {
 			switch change.Item {
+			case itemRF1:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "1")
+				}
+			case itemRF2:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "2")
+				}
+			case itemRF3:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "3")
+				}
 			case itemRackAwareness:
 				if change.Selected {
 					aeroConfig.Stanza("namespace test").SetValue("rack-id", "1")
