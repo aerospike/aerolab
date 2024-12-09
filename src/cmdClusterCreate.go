@@ -230,6 +230,7 @@ type featureFile struct {
 	version    string    // feature-key-version              1
 	validUntil time.Time // valid-until-date                 2024-01-15
 	serial     int       // serial-number                    680515527
+	maxNodes   int       // asdb-cluster-nodes-limit 0
 }
 
 func init() {
@@ -836,6 +837,10 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 						ffser := strings.TrimLeft(strings.TrimPrefix(line, "serial-number"), " \t")
 						ffser = strings.TrimRight(ffser, " \t\n")
 						ffFiles1.serial, _ = strconv.Atoi(ffser)
+					} else if strings.HasPrefix(line, "asdb-cluster-nodes-limit") {
+						ffser := strings.TrimLeft(strings.TrimPrefix(line, "asdb-cluster-nodes-limit"), " \t")
+						ffser = strings.TrimRight(ffser, " \t\n")
+						ffFiles1.maxNodes, _ = strconv.Atoi(ffser)
 					}
 				}
 				if ffFiles1.version != "" {
@@ -895,7 +900,7 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 			}
 			if c.FeaturesFilePrintDetail {
 				for _, ffFile := range ffFiles {
-					log.Printf("feature-file=%s version=%s valid-until=%s serial=%d", ffFile.name, ffFile.version, ffFile.validUntil.String(), ffFile.serial)
+					log.Printf("feature-file=%s version=%s valid-until=%s serial=%d maxNodes=%d", ffFile.name, ffFile.version, ffFile.validUntil.String(), ffFile.serial, ffFile.maxNodes)
 				}
 			}
 			if string(featuresFilePath) == "" && (aver_major == 5 || (aver_major == 4 && aver_minor > 5) || (aver_major == 6 && aver_minor == 0)) {
@@ -910,6 +915,10 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 					var ignoreMe string
 					fmt.Scanln(&ignoreMe)
 				}
+			} else if string(featuresFilePath) != "" && foundFile.maxNodes > 0 && foundFile.maxNodes < c.NodeCount {
+				log.Printf("WARNING: selected cluster size %d is larger than the feature file allows (%d). This will cause the cluster to not form.\n\nPress ENTER if you still wish to proceed", c.NodeCount, foundFile.maxNodes)
+				var ignoreMe string
+				fmt.Scanln(&ignoreMe)
 			} else if (aver_major == 4 && aver_minor > 5) || aver_major > 4 {
 				log.Printf("Features file: %s", featuresFilePath)
 			} else {
