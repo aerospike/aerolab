@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/bestmethod/inslice"
+	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 )
 
 type rosterApplyCmd struct {
@@ -31,7 +33,12 @@ func (c *rosterApplyCmd) Execute(args []string) error {
 	return nil
 }
 
-func (c *rosterApplyCmd) findNodes(n int) []string {
+type rosterNodes struct {
+	nodes             []string
+	replicationFactor int
+}
+
+func (c *rosterApplyCmd) findNodes(n int) *rosterNodes {
 	out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
 	if err != nil {
 		log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, err)
@@ -42,10 +49,30 @@ func (c *rosterApplyCmd) findNodes(n int) []string {
 		log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, out[0])
 		return nil
 	}
-	return strings.Split(observedNodesSplit[1], ",")
+	// RunCommands and find RF (will need to parse aerospike.conf using the conf parser)
+	out, err = b.RunCommands(string(c.ClusterName), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{n})
+	if err != nil {
+		log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, err)
+		return nil
+	}
+	rf := 0
+	ac, err := aeroconf.Parse(bytes.NewReader(out[0]))
+	if err == nil {
+		ac = ac.Stanza("namespace " + c.Namespace)
+		if ac != nil {
+			vals, err := ac.GetValues("replication-factor")
+			if err == nil && len(vals) > 0 {
+				rf, _ = strconv.Atoi(*vals[0])
+			}
+		}
+	}
+	return &rosterNodes{
+		nodes:             strings.Split(observedNodesSplit[1], ","),
+		replicationFactor: rf,
+	}
 }
 
-func (c *rosterApplyCmd) findNodesParallel(node int, parallel chan int, wait *sync.WaitGroup, ob chan []string) {
+func (c *rosterApplyCmd) findNodesParallel(node int, parallel chan int, wait *sync.WaitGroup, ob chan *rosterNodes) {
 	defer func() {
 		<-parallel
 		wait.Done()
@@ -86,13 +113,17 @@ func (c *rosterApplyCmd) runApply() error {
 	}
 
 	newRoster := c.Roster
+	rf := 0
 
 	if newRoster == "" {
 		foundNodes := []string{}
 		if c.ParallelThreads == 1 || len(nodesList) == 1 {
 			for _, n := range nodesList {
 				observedNodes := c.findNodes(n)
-				for _, on := range observedNodes {
+				if observedNodes.replicationFactor > rf {
+					rf = observedNodes.replicationFactor
+				}
+				for _, on := range observedNodes.nodes {
 					if !inslice.HasString(foundNodes, on) {
 						foundNodes = append(foundNodes, on)
 					}
@@ -101,7 +132,7 @@ func (c *rosterApplyCmd) runApply() error {
 		} else {
 			parallel := make(chan int, c.ParallelThreads)
 			wait := new(sync.WaitGroup)
-			observedNodes := make(chan []string, len(nodesList))
+			observedNodes := make(chan *rosterNodes, len(nodesList))
 			for _, n := range nodesList {
 				parallel <- 1
 				wait.Add(1)
@@ -109,15 +140,24 @@ func (c *rosterApplyCmd) runApply() error {
 			}
 			wait.Wait()
 			if len(observedNodes) > 0 {
-				for _, on := range <-observedNodes {
-					if !inslice.HasString(foundNodes, on) {
-						foundNodes = append(foundNodes, on)
+				close(observedNodes)
+				for ona := range observedNodes {
+					if ona.replicationFactor > rf {
+						rf = ona.replicationFactor
+					}
+					for _, on := range ona.nodes {
+						if !inslice.HasString(foundNodes, on) {
+							foundNodes = append(foundNodes, on)
+						}
 					}
 				}
 			}
 		}
 		if len(foundNodes) == 0 || inslice.HasString(foundNodes, "null") {
 			return errors.New("found at least one node which thinks the observed list is 'null' or failed to find any nodes in roster")
+		}
+		if rf > len(foundNodes) {
+			log.Printf("WARNING: Found %d nodes while replication-factor is %d. This will fail to satisfy strong-consistency requirements!", len(foundNodes), rf)
 		}
 		newRoster = strings.Join(foundNodes, ",")
 	}
