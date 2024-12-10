@@ -1,29 +1,23 @@
-# Launch a Vector (Proximus) client with AeroLab
+> [!NOTE]
+> Aerospike Vector Search (AVS) requires a feature key. [Request one](https://aerospike.com/docs/vector?utm_medium=web&utm_source=aerospike-github).
 
-AeroLab supports installing Vector (Proximus) client to Aerospike.
+
+# Launch a Vector client with AeroLab
+
+AeroLab supports installing Vector client to Aerospike.
 
 ## Version
 
-AeroLab supports vector version `0.3.1` by default. Version can be overriden using the `--version=...` parameter. Note that due to the current state of Vector development, only the default version has been tested to work with AeroLab.
+AeroLab supports vector version `1.0.0` by default. Version can be overriden using the `--version=...` parameter. Note that due to the current state of Vector development, only the default version has been tested to work with AeroLab.
 
 ## Basic usage
-
-### Generate an example aerospike configuration file
-
-Vector has specific 2-or-more-namespaces requirement from Aerospike servers. An example can be generated as follows:
-
-```bash
-aerolab conf generate
-```
-
-Tick the `vector` checkbox and optionally the `on-disk` checkbox for the vector namespace. Press `CTRL+X` to save as `aerospike.conf`.
 
 ### Create an aerospike cluster
 
 In this example, create `2` nodes, specifying `GCP` details. Use the generated `aerospike.conf`.
 
 ```bash
-aerolab cluster create -n vectordb -c 2  -o aerospike.conf --zone us-central1-a --instance e2-standard-4
+aerolab cluster create -n vectordb -c 2  --zone us-central1-a --instance e2-standard-4
 ```
 
 ### Create a vector client machine
@@ -34,7 +28,7 @@ aerolab client create vector -n vector -C vectordb --confirm --zone us-central1-
 
 ### Other options
 
-The following vector-specific command-line parameters apply to your proximus cluster:
+The following vector-specific command-line parameters apply to your AVS cluster:
 ```
 -C, --cluster-name=        aerospike cluster name to seed from (default: mydc)
     --seed=                specify an aerospike cluster seed IP:PORT instead of providing a ClusterName; if this parameter is provided, ClusterName is ignored
@@ -42,40 +36,44 @@ The following vector-specific command-line parameters apply to your proximus clu
     --no-touch-listen      set this to prevent aerolab from touching the service: configuration part
     --no-touch-seed        set this to prevent aerolab from configuring the aerospike seed ip and port
     --no-touch-advertised  set this to prevent aerolab from configuring the advertised listeners
-    --version=             vector version to install; only 0.3.1 is officially supported by aerolab (0.3.1-1 for rpm) (default: 0.3.1)
-    --custom-conf=         provide a custom aerospike-proximus.yml to ship
+    --version=             vector version to install; only 1.0.0 is officially supported by aerolab (1.0.0 for rpm) (default: 1.0.0)
+    --custom-conf=         provide a custom aerospike-vector-search.yml to ship
     --no-start             if set, service will not be started after installation
 -f, --featurefile=         Features file to install; if not provided, the features.conf from the seed aerospike cluster will be taken
-    --metans=              configure the metadata namespace name (default: proximus-meta)
+    --metans=              configure the metadata namespace name (default: test)
     --confirm              set this parameter to confirm any warning questions without being asked to press ENTER to continue
 ```
 
 ### Usage
 
-The vector client is best paired with a set of [examples](https://github.com/aerospike/proximus-examples) you can utilize.
+The vector client is best paired with a set of [examples](https://github.com/aerospike/aerospike-vector) you can utilize.
 Follow these instructions to install in the /opt/ director and be invoked with the following steps.
 
+Attach a shell to the vector client.
 ```shell
 aerolab attach client -n vector
-apt -y install python3 python3-pip git
-cd /opt && git clone https://github.com/aerospike/proximus-examples.git
 ```
 
-
-Or develop your own application using the aerospike [vector python client](https://github.com/aerospike/aerospike-proximus-client-python).
-
-### Example image search
-
-Install the prism example image search application:
-
-```bash
-aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh install
+Install python and clone the examples repo. 
+```
+apt -y install python3 python3-pip git && \
+cd /opt && git clone https://github.com/aerospike/aerospike-vector.git
 ```
 
-Once the install finishes, upload images:
+Or develop your own application using the aerospike [vector python client](https://github.com/aerospike/aerospike-vector).
+
+### Run example image search
+
+In your aerolab shell install the prism example image search application:
 
 ```bash
-aerolab files upload -c -n vector {path-to-pictures-file-or-directory} /opt/proximus-examples/prism-image-search/prism/static/images/data/
+./prism-example.sh install
+```
+
+Once the install finishes, exit the shell and upload images:
+
+```bash
+aerolab files upload -c -n vector {path-to-pictures-file-or-directory} /opt/aerospike-vector/prism-image-search/prism/static/images/data/
 ```
 
 Run the web server:
@@ -136,7 +134,7 @@ aerolab client create ams -n ams --clusters=vectordb --vector=vector -e 9090:909
 aerolab client attach -n vector -- /bin/bash /opt/prism-example.sh install
 
 # upload example images
-aerolab files upload -c -n vector {path-to-image-folder-or-file} /opt/proximus-examples/prism-image-search/prism/static/images/data/
+aerolab files upload -c -n vector {path-to-image-folder-or-file} /opt/aerospike-vector/prism-image-search/prism/static/images/data/
 
 # create and upload prism example startup script
 echo "nohup /bin/bash /opt/prism-example.sh >> /var/log/prism.log 2>&1 &" > 15-prism
