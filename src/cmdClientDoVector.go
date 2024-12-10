@@ -314,7 +314,11 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	if c.DistroName != "ubuntu" && c.DistroName != "debian" {
 		fExt = "rpm"
 	}
-	script := scripts.GetVectorScript(a.opts.Config.Backend.Type == "docker", fExt, asvec)
+	var vectorSeed string
+	if !c.NoTouchServiceListen {
+		vectorSeed = strings.ReplaceAll(c.serviceip, "0.0.0.0", "127.0.0.1") + ":" + c.serviceport
+	}
+	script := scripts.GetVectorScript(a.opts.Config.Backend.Type == "docker", fExt, asvec, vectorSeed)
 
 	aoptslock := new(sync.Mutex)
 	returns := parallelize.MapLimit(machines, c.ParallelThreads, func(node int) error {
