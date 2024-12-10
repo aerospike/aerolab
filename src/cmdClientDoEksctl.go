@@ -36,6 +36,12 @@ func (c *clientCreateEksCtlCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
+	if c.DistroVersion == "latest" {
+		c.DistroVersion = "24.04"
+	}
+	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("24.04") {
+		return fmt.Errorf("eksctl is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	}
 	if strings.HasPrefix(c.EksAwsKeyId, "ENV::") {
 		c.EksAwsKeyId = os.Getenv(strings.Split(c.EksAwsKeyId, "::")[1])
 	}

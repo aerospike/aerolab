@@ -141,12 +141,14 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 	if err != nil {
 		return err
 	}
+	invItem := InventoryItemClusters
 	if c.isConnector {
 		b.WorkOnClients()
+		invItem = InventoryItemClients
 	}
 	var inv inventoryJson
 	if a.opts.Config.Backend.Type == "docker" {
-		inv, err = b.Inventory("", []int{InventoryItemClusters})
+		inv, err = b.Inventory("", []int{invItem})
 		if err != nil {
 			return err
 		}
@@ -162,12 +164,20 @@ func (c *xdrConnectRealCmd) runXdrConnect(args []string) error {
 		}
 		var destIps []string
 		if a.opts.Config.Backend.Type == "docker" {
-			for _, item := range inv.Clusters {
-				if item.ClusterName == destination {
-					if item.DockerExposePorts == "" {
+			if c.isConnector {
+				for _, item := range inv.Clients {
+					if item.ClientName == destination {
 						destIps = append(destIps, item.PrivateIp)
-					} else {
-						destIps = append(destIps, item.PrivateIp+" "+item.DockerExposePorts)
+					}
+				}
+			} else {
+				for _, item := range inv.Clusters {
+					if item.ClusterName == destination {
+						if item.DockerExposePorts == "" {
+							destIps = append(destIps, item.PrivateIp)
+						} else {
+							destIps = append(destIps, item.PrivateIp+" "+item.DockerExposePorts)
+						}
 					}
 				}
 			}

@@ -172,6 +172,9 @@ const (
 	// LOST_CONFLICT defines write command loses conflict to XDR.
 	LOST_CONFLICT = 28
 
+	// Write can't complete until XDR finishes shipping.
+	XDR_KEY_BUSY = 32
+
 	// QUERY_END defines there are no more records left for query.
 	QUERY_END ResultCode = 50
 
@@ -454,6 +457,9 @@ func ResultCodeToString(resultCode ResultCode) string {
 	case LOST_CONFLICT:
 		return "Write command loses conflict to XDR."
 
+	case XDR_KEY_BUSY:
+		return "Write can't complete until XDR finishes shipping."
+
 	case QUERY_END:
 		return "Query end"
 
@@ -691,6 +697,8 @@ func (rc ResultCode) String() string {
 		return "FILTERED_OUT"
 	case LOST_CONFLICT:
 		return "LOST_CONFLICT"
+	case XDR_KEY_BUSY:
+		return "XDR_KEY_BUSY"
 	case QUERY_END:
 		return "QUERY_END"
 	case SECURITY_NOT_SUPPORTED:

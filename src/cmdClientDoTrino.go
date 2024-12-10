@@ -11,8 +11,8 @@ import (
 type clientCreateTrinoCmd struct {
 	clientCreateBaseCmd
 	ConnectCluster   string `short:"s" long:"seed" description:"seed IP:PORT (can be changed later using client configure command)" default:"127.0.0.1:3000"`
-	TrinoVersion     string `long:"trino-version" description:"trino version" default:"435"`
-	ConnectorVersion string `long:"connector-version" description:"aerospike connector version" default:"4.5.0-431"`
+	TrinoVersion     string `long:"trino-version" description:"trino version" default:"446"`
+	ConnectorVersion string `long:"connector-version" description:"aerospike connector version" default:"4.6.0-436"`
 	chDirCmd
 }
 
@@ -22,8 +22,8 @@ type clientAddTrinoCmd struct {
 	StartScript flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	osSelectorCmd
 	ConnectCluster   string  `short:"s" long:"seed" description:"seed IP:PORT (can be changed later using client configure command)" default:"127.0.0.1:3000"`
-	TrinoVersion     string  `long:"trino-version" description:"trino version" default:"435"`
-	ConnectorVersion string  `long:"connector-version" description:"aerospike connector version" default:"4.5.0-431"`
+	TrinoVersion     string  `long:"trino-version" description:"trino version" default:"446"`
+	ConnectorVersion string  `long:"connector-version" description:"aerospike connector version" default:"4.6.0-436"`
 	Help             helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -32,10 +32,10 @@ func (c *clientCreateTrinoCmd) Execute(args []string) error {
 		return nil
 	}
 	if c.DistroVersion == "latest" {
-		c.DistroVersion = "22.04"
+		c.DistroVersion = "24.04"
 	}
-	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("22.04") {
-		return fmt.Errorf("trino is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("24.04") {
+		return fmt.Errorf("trino is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 	machines, err := c.createBase(args, "trino")
 	if err != nil {
@@ -60,10 +60,10 @@ func (c *clientAddTrinoCmd) Execute(args []string) error {
 		return nil
 	}
 	if c.DistroVersion == "latest" {
-		c.DistroVersion = "22.04"
+		c.DistroVersion = "24.04"
 	}
-	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("22.04") {
-		return fmt.Errorf("trino is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	if c.DistroName != TypeDistro("ubuntu") || c.DistroVersion != TypeDistroVersion("24.04") {
+		return fmt.Errorf("trino is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 	return c.addTrino(args)
 }
@@ -198,7 +198,7 @@ cd /home/trino
 
 # Update and install necessary packages
 apt-get update
-apt-get install unzip openjdk-17-jdk python-is-python3 uuid-runtime -y
+apt-get install unzip openjdk-21-jdk python-is-python3 uuid-runtime -y
 
 # Update limits.conf with suggested limits
 sed -i.bak 's/# End of file/trino      soft        nofile      131072\ntrino       hard        nofile      131072\n\n# End of file/' /etc/security/limits.conf
@@ -274,7 +274,6 @@ aerospike.scanpolicy.recordsPerSecond=0
 aerospike.clientpolicy.timeout=60000
 aerospike.clientpolicy.tendInterval=1000
 aerospike.clientpolicy.maxSocketIdle=30
-aerospike.clientpolicy.sharedThreadPool=true
 aerospike.clientpolicy.connPoolsPerNode=1
 aerospike.scanpolicy.maxConcurrentNodes=0
 aerospike.policy.socketTimeout=600000

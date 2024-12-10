@@ -58,10 +58,10 @@ func (c *clientCreateRestGatewayCmd) Execute(args []string) error {
 		}
 	}
 	if c.DistroVersion == "latest" {
-		c.DistroVersion = "22.04"
+		c.DistroVersion = "24.04"
 	}
-	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
-		return fmt.Errorf("RG is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("24.04") && c.DistroVersion != TypeDistroVersion("latest")) {
+		return fmt.Errorf("RG is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 
 	url, err := c.Version.GetDownloadURL()
@@ -228,7 +228,7 @@ func (c *clientAddRestGatewayCmd) addRestGateway(args []string) error {
 func (c *clientAddRestGatewayCmd) installScript(seedPort string) string {
 	return fmt.Sprintf(`set -e
 apt-get update
-apt-get -y install openjdk-19-jre openjdk-19-jre-headless curl wget
+apt-get -y install openjdk-21-jre openjdk-21-jre-headless curl wget
 cd /opt
 wget %s
 tar -zxvf %s.tgz

@@ -48,8 +48,9 @@ const (
 	itemSecurityLoggingDetail        = 18
 	itemStorageEngineCompression     = 19
 	itemStorageEngineAllFlash        = 20
-	itemOtherVector                  = 23
-	itemOtherVectorDisk              = 24
+	itemRF1                          = 23
+	itemRF2                          = 24
+	itemRF3                          = 25
 )
 
 var menuItems = []menuItem{}
@@ -104,6 +105,27 @@ func fillMenuItems() {
 					Type:  typeMenuItemCheckbox,
 					Label: "all-flash index on disk",
 					Item:  itemStorageEngineAllFlash,
+				},
+				{
+					Type:  typeMenuItemText,
+					Label: "replication-factor",
+					Children: []menuItem{
+						{
+							Type:  typeMenuItemRadio,
+							Label: "1",
+							Item:  itemRF1,
+						},
+						{
+							Type:  typeMenuItemRadio,
+							Label: "2",
+							Item:  itemRF2,
+						},
+						{
+							Type:  typeMenuItemRadio,
+							Label: "3",
+							Item:  itemRF3,
+						},
+					},
 				},
 			},
 		},
@@ -255,24 +277,6 @@ func fillMenuItems() {
 		},
 		{
 			Type: typeMenuItemEmpty,
-		},
-		{
-			Type:  typeMenuItemText,
-			Label: "other",
-			Children: []menuItem{
-				{
-					Type:  typeMenuItemCheckbox,
-					Label: "vector(proximus) metadata namespace",
-					Item:  itemOtherVector,
-					Children: []menuItem{
-						{
-							Type:  typeMenuItemCheckbox,
-							Label: "on-disk storage",
-							Item:  itemOtherVectorDisk,
-						},
-					},
-				},
-			},
 		},
 	}
 }
@@ -555,7 +559,7 @@ network {
 namespace test {
     default-ttl 0
     memory-size 4G
-    replication-factor 2
+    replication-factor 1
     storage-engine memory
 }
 `
@@ -594,6 +598,30 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 	var retErr error
 	for i, item := range items {
 		switch item.Item {
+		case itemRF1:
+			val, err := aeroConfig.Stanza("namespace test").GetValues("replication-factor")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && *val[0] == "1" {
+				items[i].Selected = true
+			}
+		case itemRF2:
+			val, err := aeroConfig.Stanza("namespace test").GetValues("replication-factor")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && *val[0] == "2" {
+				items[i].Selected = true
+			}
+		case itemRF3:
+			val, err := aeroConfig.Stanza("namespace test").GetValues("replication-factor")
+			if err != nil {
+				retErr = err
+			}
+			if err == nil && len(val) > 0 && val[0] != nil && *val[0] == "3" {
+				items[i].Selected = true
+			}
 		case itemRackAwareness:
 			val, err := aeroConfig.Stanza("namespace test").GetValues("rack-id")
 			if err != nil {
@@ -799,14 +827,6 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 					}
 				}
 			}
-		case itemOtherVector:
-			if aeroConfig.Type("namespace proximus-meta") != aeroconf.ValueNil {
-				items[i].Selected = true
-			}
-		case itemOtherVectorDisk:
-			if aeroConfig.Type("namespace proximus-meta") != aeroconf.ValueNil && aeroConfig.Stanza("namespace proximus-meta").Type("storage-engine device") != aeroconf.ValueNil {
-				items[i].Selected = true
-			}
 		}
 		if len(item.Children) > 0 {
 			var err error
@@ -852,6 +872,18 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 		aeroConfig, _ := aeroconf.Parse(strings.NewReader(e.confView.Buffer()))
 		for _, change := range changes {
 			switch change.Item {
+			case itemRF1:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "1")
+				}
+			case itemRF2:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "2")
+				}
+			case itemRF3:
+				if change.Selected {
+					aeroConfig.Stanza("namespace test").SetValue("replication-factor", "3")
+				}
 			case itemRackAwareness:
 				if change.Selected {
 					aeroConfig.Stanza("namespace test").SetValue("rack-id", "1")
@@ -1152,32 +1184,6 @@ func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 						}
 						aeroConfig.Stanza("logging").Stanza(key).SetValues("context", newdat)
 					}
-				}
-			case itemOtherVector:
-				aeroConfig.Delete("namespace proximus-meta")
-				if change.Selected {
-					if aeroConfig.Type("namespace proximus-meta") == aeroconf.ValueNil {
-						aeroConfig.NewStanza("namespace proximus-meta")
-						aeroConfig.Stanza("namespace proximus-meta").SetValue("replication-factor", "2")
-						aeroConfig.Stanza("namespace proximus-meta").SetValue("nsup-period", "10")
-						aeroConfig.Stanza("namespace proximus-meta").SetValue("default-ttl", "0")
-						aeroConfig.Stanza("namespace proximus-meta").SetValue("storage-engine", "memory")
-						aeroConfig.Stanza("namespace proximus-meta").SetValue("memory-size", "4G")
-					}
-				}
-			case itemOtherVectorDisk:
-				for _, key := range aeroConfig.Stanza("namespace proximus-meta").ListKeys() {
-					if strings.HasPrefix(key, "storage-engine") {
-						aeroConfig.Stanza("namespace proximus-meta").Delete(key)
-					}
-				}
-				if change.Selected {
-					aeroConfig.Stanza("namespace proximus-meta").NewStanza("storage-engine device")
-					aeroConfig.Stanza("namespace proximus-meta").Stanza("storage-engine device").SetValue("file", "/opt/aerospike/data/proximus-meta.dat")
-					aeroConfig.Stanza("namespace proximus-meta").Stanza("storage-engine device").SetValue("filesize", "4G")
-				} else {
-					aeroConfig.Stanza("namespace proximus-meta").SetValue("storage-engine", "memory")
-					aeroConfig.Stanza("namespace proximus-meta").SetValue("memory-size", "4G")
 				}
 			}
 		}
