@@ -3,15 +3,19 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/aerospike/aerolab/scripts"
@@ -28,11 +32,11 @@ type clientCreateVectorCmd struct {
 	NoTouchServiceListen       bool            `long:"no-touch-listen" description:"set this to prevent aerolab from touching the service: configuration part"`
 	NoTouchSeed                bool            `long:"no-touch-seed" description:"set this to prevent aerolab from configuring the aerospike seed ip and port"`
 	NoTouchAdvertisedListeners bool            `long:"no-touch-advertised" description:"set this to prevent aerolab from configuring the advertised listeners"`
-	VectorVersion              string          `long:"version" description:"vector version to install; only 0.3.1,0.4.0 are officially supported by aerolab (0.4.0-1 for rpm)" default:"0.4.0"`
-	CustomConf                 flags.Filename  `long:"custom-conf" description:"provide a custom aerospike-proximus.yml to ship"`
+	NoCheckNsup                bool            `long:"no-check-nsup" description:"set this to prevent aerolab from checking and modifying cluster nsup parameter (nsup must be enabled for vector)"`
+	CustomConf                 flags.Filename  `long:"custom-conf" description:"provide a custom aerospike-vector-search.yml to ship"`
 	NoStart                    bool            `long:"no-start" description:"if set, service will not be started after installation"`
 	FeaturesFile               flags.Filename  `short:"f" long:"featurefile" description:"Features file to install; if not provided, the features.conf from the seed aerospike cluster will be taken"`
-	MetadataNamespace          string          `long:"metans" description:"configure the metadata namespace name" default:"proximus-meta"`
+	MetadataNamespace          string          `long:"metans" description:"configure the metadata namespace name" default:"test"`
 	JustDoIt                   bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	seedip                     string
 	seedport                   string
@@ -46,10 +50,8 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
 	}
-	log.Println("WARNING: Vector is in early development stage; things may break and stop working. If so, please report.")
 	if c.DistroName == "ubuntu" && c.DistroVersion == "latest" {
-		log.Println("WARNING: Ubuntu version 24.04 is not yet supported by prism/python process. Using 22.04 instead.")
-		c.DistroVersion = "22.04"
+		c.DistroVersion = "24.04"
 	}
 	if !c.NoTouchServiceListen {
 		addr, err := net.ResolveTCPAddr("tcp", c.ServiceListen)
@@ -89,6 +91,43 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	if c.CustomConf != "" {
 		if _, err := os.Stat(string(c.CustomConf)); err != nil {
 			return err
+		}
+	}
+
+	// early check cluster has nsup enabled
+	if !c.NoCheckNsup && c.Seed == "" {
+		log.Print("Checking and fixing nsup-period on the cluster metadata namespace if necessary...")
+		out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "namespace/" + c.MetadataNamespace, "-l"}}, []int{1})
+		if err != nil {
+			if len(out) == 0 {
+				out = [][]byte{{'-'}}
+			}
+			log.Printf("WARNING: Could not verify if the namespace has nsup-period>0; err=%s out=%s", err, string(out[0]))
+		} else {
+			fix := false
+			for _, line := range strings.Split(string(out[0]), "\n") {
+				if strings.Contains(line, "nsup-period=0") {
+					fix = true
+					break
+				}
+			}
+			if fix {
+				out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asadm", "-e", "enable; manage config namespace " + c.MetadataNamespace + " param nsup-period to 120"}}, []int{1})
+				if err != nil {
+					if len(out) == 0 {
+						out = [][]byte{{'-'}}
+					}
+					log.Printf("WARNING: Could not fix running config for namespace nsup-period>0; err=%s out=%s", err, string(out[0]))
+				}
+				a.opts.Conf.Adjust.ClusterName = c.ClusterName
+				a.opts.Conf.Adjust.Command = "set"
+				a.opts.Conf.Adjust.Key = "namespace " + c.MetadataNamespace + ".nsup-period"
+				a.opts.Conf.Adjust.Values = []string{"120"}
+				err = a.opts.Conf.Adjust.Execute(nil)
+				if err != nil {
+					log.Printf("WARNING: Could not adjust aerospike.conf to enable nsup-period>0; err=%s", err)
+				}
+			}
 		}
 	}
 
@@ -144,18 +183,6 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		} else {
 			fmt.Println("\nWARNING: The given feature key file does not have vector-service enabled. This will not work.\nTo provide a feature key file, use `-f /path/to/file` in the create command. Continuing regardless...")
 		}
-	}
-
-	// confirm at least 2 namespaces exist in cluster, and one has the same name as c.MetadataNamespace and has nsup enabled
-	if !c.JustDoIt {
-		fmt.Printf("\n-> The Vector client (Proximus) requires at least 2 namespaces, one of which must be called '%s' and have `nsup-period` enabled.\n-> If this is not the case, CTRL+C now and reconfigure the cluster.\n-> Example `aerospike.conf` can be obtained by running `aerolab conf generate` and ticking the `vector` checkbox.\n\nPress ENTER to continue...", c.MetadataNamespace)
-		reader := bufio.NewReader(os.Stdin)
-		_, err := reader.ReadString('\n')
-		if err != nil {
-			logExit(err)
-		}
-	} else {
-		fmt.Printf("\n-> The Vector client (Proximus) requires at least 2 namespaces, one of which must be called '%s' and have `nsup-period` enabled.\n-> Example `aerospike.conf` can be obtained by running `aerolab conf generate` and ticking the `vector` checkbox.\n\n", c.MetadataNamespace)
 	}
 
 	if c.Seed == "" && !c.NoTouchSeed {
@@ -244,21 +271,54 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		}
 	}
 
-	// find download URL and generate script
-	dlUrl := "https://aerospike.jfrog.io/artifactory/deb/aerospike-proximus-" + c.VectorVersion + ".all.deb"
-	if strings.HasPrefix(c.VectorVersion, "0.3.") {
-		dlUrl = "https://aerospike.jfrog.io/artifactory/deb/aerospike-proximus-" + c.VectorVersion + ".deb"
+	// find asvec
+	v := &GitHubRelease{}
+	client := &http.Client{}
+	client.Timeout = 5 * time.Second
+	defer client.CloseIdleConnections()
+	req, err := http.NewRequest("GET", "https://api.github.com/repos/aerospike/asvec/releases/latest", nil)
+	if err != nil {
+		return err
 	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	response, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != 200 {
+		body, _ := io.ReadAll(response.Body)
+		err = fmt.Errorf("GET 'https://api.github.com/repos/aerospike/asvec/releases/latest': exit code (%d), message: %s", response.StatusCode, string(body))
+		return err
+	}
+	err = json.NewDecoder(response.Body).Decode(v)
+	if err != nil {
+		return err
+	}
+	asvec := make(map[string]string)
+	for _, asset := range v.Assets {
+		if !strings.HasSuffix(asset.FileName, ".zip") {
+			continue
+		}
+		if strings.HasPrefix(asset.FileName, "asvec-linux-amd64-") {
+			asvec["amd64"] = asset.DownloadUrl
+		}
+		if strings.HasPrefix(asset.FileName, "asvec-linux-arm64-") {
+			asvec["arm64"] = asset.DownloadUrl
+		}
+	}
+
+	// find download URL and generate script
 	fExt := "deb"
 	if c.DistroName != "ubuntu" && c.DistroName != "debian" {
-		if !strings.Contains(c.VectorVersion, "-") {
-			c.VectorVersion = c.VectorVersion + "-1"
-		}
-		dlUrl = "https://aerospike.jfrog.io/artifactory/rpm/aerospike-proximus-" + c.VectorVersion + ".noarch.rpm"
 		fExt = "rpm"
 	}
-	script := scripts.GetVectorScript(a.opts.Config.Backend.Type == "docker", fExt, dlUrl)
-	log.Printf("Download URL: %s", dlUrl)
+	var vectorSeed string
+	if !c.NoTouchServiceListen {
+		vectorSeed = strings.ReplaceAll(c.serviceip, "0.0.0.0", "127.0.0.1") + ":" + c.serviceport
+	}
+	script := scripts.GetVectorScript(a.opts.Config.Backend.Type == "docker", fExt, asvec, vectorSeed)
 
 	aoptslock := new(sync.Mutex)
 	returns := parallelize.MapLimit(machines, c.ParallelThreads, func(node int) error {
@@ -297,7 +357,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				return err
 			}
 			newconf := fc
-			if !c.NoTouchSeed || !c.NoTouchServiceListen || c.MetadataNamespace != "proximus-meta" || !c.NoTouchAdvertisedListeners {
+			if !c.NoTouchSeed || !c.NoTouchServiceListen || !c.NoTouchAdvertisedListeners || c.MetadataNamespace != "avs-meta" {
 				log.Printf("client=%d patch custom conf file", node)
 				// patch the custom conf
 				newconf, err = c.vectorConfigPatch(fc, listeners)
@@ -307,7 +367,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 			}
 			// upload custom conf
 			log.Printf("client=%d upload custom conf file", node)
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-proximus/aerospike-proximus.yml", string(newconf), len(newconf)}}, []int{node})
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-vector-search/aerospike-vector-search.yml", string(newconf), len(newconf)}}, []int{node})
 			if err != nil {
 				return err
 			}
@@ -327,11 +387,11 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 			return err
 		}
 
-		if c.CustomConf == "" && (!c.NoTouchSeed || !c.NoTouchServiceListen || c.MetadataNamespace != "proximus-meta" || !c.NoTouchAdvertisedListeners) {
+		if c.CustomConf == "" && (!c.NoTouchSeed || !c.NoTouchServiceListen || !c.NoTouchAdvertisedListeners || c.MetadataNamespace != "avs-meta") {
 			log.Printf("client=%d download, patch and upload conf file", node)
 			// download, patch and reupload config file /etc/aerospike-proximus/aerospike-proximus.yml
 			// download
-			oldconf, err := b.RunCommands(string(c.ClientName), [][]string{{"cat", "/etc/aerospike-proximus/aerospike-proximus.yml"}}, []int{node})
+			oldconf, err := b.RunCommands(string(c.ClientName), [][]string{{"cat", "/etc/aerospike-vector-search/aerospike-vector-search.yml"}}, []int{node})
 			if err != nil {
 				if len(oldconf) > 0 {
 					err = fmt.Errorf("%s\n%s", err, oldconf[0])
@@ -344,7 +404,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				return err
 			}
 			// upload custom conf
-			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-proximus/aerospike-proximus.yml", string(newconf), len(newconf)}}, []int{node})
+			err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-vector-search/aerospike-vector-search.yml", string(newconf), len(newconf)}}, []int{node})
 			if err != nil {
 				return err
 			}
@@ -352,7 +412,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 
 		// features file
 		log.Printf("client=%d upload features file", node)
-		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-proximus/features.conf", string(ffc), len(ffc)}}, []int{node})
+		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-vector-search/features.conf", string(ffc), len(ffc)}}, []int{node})
 		if err != nil {
 			return err
 		}
@@ -369,7 +429,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				a.opts.Attach.Client.Machine = TypeMachines(strconv.Itoa(node))
 				a.opts.Attach.Client.Detach = true
 				defer backendRestoreTerminal()
-				err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/autoload/10-proximus"})
+				err = a.opts.Attach.Client.run([]string{"/bin/bash", "/opt/autoload/10-vector"})
 				if err != nil {
 					aoptslock.Unlock()
 					return err
@@ -378,25 +438,13 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				a.opts.Attach.Client.ClientName = c.ClientName
 				a.opts.Attach.Client.Machine = TypeMachines(strconv.Itoa(node))
 				defer backendRestoreTerminal()
-				err = a.opts.Attach.Client.run([]string{"systemctl", "start", "aerospike-proximus"})
+				err = a.opts.Attach.Client.run([]string{"systemctl", "start", "aerospike-vector-search"})
 				if err != nil {
 					aoptslock.Unlock()
 					return err
 				}
 			}
 			aoptslock.Unlock()
-		}
-
-		// upload prism-example script
-		log.Printf("client=%d upload example script", node)
-		listenPort := "8080"
-		if a.opts.Config.Backend.Type == "docker" {
-			listenPort = "8998"
-		}
-		ex := scripts.GetVectorExampleScript(c.serviceport, listenPort)
-		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/opt/prism-example.sh", string(ex), len(ex)}}, []int{node})
-		if err != nil {
-			return err
 		}
 		log.Printf("client=%d done", node)
 		return nil
@@ -412,10 +460,8 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		return errors.New("some nodes returned errors")
 	}
 	log.Println("Done")
-	log.Println(" * Proximus python client manual: https://github.com/aerospike/aerospike-proximus-client-python")
-	log.Println(" * Proximus usage examples:       https://github.com/aerospike/proximus-examples")
-	fmt.Printf("\nTo download examples:\n  $ aerolab attach client -n %s\n  $ apt -y install python3 python3-pip git\n  $ cd /opt && git clone https://github.com/aerospike/proximus-examples.git\n  $ cd /opt/proximus-examples\n  $ ls\n", c.ClientName)
-	fmt.Println("\nPrism image search example installation script and manual are provided. For instructions, see https://github.com/aerospike/aerolab/blob/master/docs/deploy_clients/vector.md")
+	log.Println(" * Vector usage examples: https://github.com/aerospike/aerospike-vector")
+	log.Println(" * Examples cloned to the vector instance in: /root/aerospike-vector/")
 	return nil
 }
 
@@ -498,16 +544,6 @@ func (c *clientCreateVectorCmd) vectorConfigPatch(fc []byte, listeners vectorAdv
 	if err != nil {
 		return fc, err
 	}
-	if !c.NoTouchAdvertisedListeners && len(listeners) > 0 {
-		err = mapDelete(config, []interface{}{"service", "advertised-listeners"})
-		if err != nil {
-			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "advertised-listeners"})
-		}
-		err = mapMakeSet(config, []interface{}{"service", "advertised-listeners"}, listeners)
-		if err != nil {
-			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "advertised-listeners"})
-		}
-	}
 	if !c.NoTouchServiceListen {
 		err = mapDelete(config, []interface{}{"service", "ports"})
 		if err != nil {
@@ -517,13 +553,23 @@ func (c *clientCreateVectorCmd) vectorConfigPatch(fc []byte, listeners vectorAdv
 		if err != nil {
 			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "ports", c.serviceport, "addresses"})
 		}
+		if !c.NoTouchAdvertisedListeners && len(listeners) > 0 {
+			err = mapDelete(config, []interface{}{"service", "ports", c.serviceport, "advertised-listeners"})
+			if err != nil {
+				return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "ports", c.serviceport, "advertised-listeners"})
+			}
+			err = mapMakeSet(config, []interface{}{"service", "ports", c.serviceport, "advertised-listeners"}, listeners)
+			if err != nil {
+				return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "ports", c.serviceport, "advertised-listeners"})
+			}
+		}
 	}
 	if !c.NoTouchSeed {
-		err = mapDelete(config, []interface{}{"aerospike", "seeds"})
+		err = mapDelete(config, []interface{}{"storage", "seeds"})
 		if err != nil {
-			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"aerospike", "seeds"})
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"storage", "seeds"})
 		}
-		err = mapMakeSet(config, []interface{}{"aerospike", "seeds"}, []map[string]interface{}{
+		err = mapMakeSet(config, []interface{}{"storage", "seeds"}, []map[string]interface{}{
 			{
 				c.seedip: map[string]int{
 					"port": c.seedportint,
@@ -534,10 +580,10 @@ func (c *clientCreateVectorCmd) vectorConfigPatch(fc []byte, listeners vectorAdv
 			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"aerospike", "seeds"})
 		}
 	}
-	if c.MetadataNamespace != "proximus-meta" {
-		err = mapMakeSet(config, []interface{}{"aerospike", "metadata-namespace"}, c.MetadataNamespace)
+	if c.MetadataNamespace != "avs-meta" {
+		err = mapMakeSet(config, []interface{}{"service", "metadata-namespace"}, c.MetadataNamespace)
 		if err != nil {
-			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"aerospike", "metadata-namespace"})
+			return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "metadata-namespace"})
 		}
 	}
 	buf := &bytes.Buffer{}

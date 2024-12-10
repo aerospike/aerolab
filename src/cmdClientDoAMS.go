@@ -75,10 +75,10 @@ func (c *clientCreateAMSCmd) Execute(args []string) error {
 		}
 	}
 	if c.DistroVersion == "latest" {
-		c.DistroVersion = "22.04"
+		c.DistroVersion = "24.04"
 	}
-	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
-		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("24.04") && c.DistroVersion != TypeDistroVersion("latest")) {
+		return fmt.Errorf("AMS is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 	custom := []CustomAMSDashboard{}
 	if c.Dashboards != "" {
@@ -145,10 +145,10 @@ func (c *clientAddAMSCmd) Execute(args []string) error {
 		return nil
 	}
 	if c.DistroVersion == "latest" {
-		c.DistroVersion = "22.04"
+		c.DistroVersion = "24.04"
 	}
-	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("22.04") && c.DistroVersion != TypeDistroVersion("latest")) {
-		return fmt.Errorf("AMS is only supported on ubuntu:22.04, selected %s:%s", c.DistroName, c.DistroVersion)
+	if c.DistroName != TypeDistro("ubuntu") || (c.DistroVersion != TypeDistroVersion("24.04") && c.DistroVersion != TypeDistroVersion("latest")) {
+		return fmt.Errorf("AMS is only supported on ubuntu:24.04, selected %s:%s", c.DistroName, c.DistroVersion)
 	}
 	if c.ConnectClusters != "" {
 		nodes, err := c.checkClustersExist(c.ConnectClusters.String())
@@ -626,10 +626,10 @@ func installLokiScript(isArm bool) (script string, size int) {
 	}
 	script = `apt-get update && apt-get -y install wget curl unzip || exit 1
 cd /root
-wget https://github.com/grafana/loki/releases/download/v2.5.0/loki-linux-` + arch + `.zip || exit 1
+wget https://github.com/grafana/loki/releases/download/v3.3.0/loki-linux-` + arch + `.zip || exit 1
 unzip loki-linux-` + arch + `.zip || exit 1
 mv loki-linux-` + arch + ` /usr/bin/loki || exit 1
-wget https://github.com/grafana/loki/releases/download/v2.5.0/logcli-linux-` + arch + `.zip || exit 1
+wget https://github.com/grafana/loki/releases/download/v3.3.0/logcli-linux-` + arch + `.zip || exit 1
 unzip logcli-linux-` + arch + `.zip || exit 1
 mv logcli-linux-` + arch + ` /usr/bin/logcli || exit 1
 chmod 755 /usr/bin/logcli /usr/bin/loki || exit 1
@@ -685,7 +685,7 @@ function grafana_fallback() {
     [[ $(uname -m) =~ arm ]] && platform=arm64
     [[ $(uname -p) =~ arm ]] && platform=arm64
 	apt-get install -y adduser libfontconfig1 musl
-	wget https://dl.grafana.com/oss/release/grafana_10.4.1_amd64.deb
+	wget https://dl.grafana.com/oss/release/grafana_11.3.1_amd64.deb
 	dpkg -i grafana_10.4.1_${platform}.deb
 }
 
