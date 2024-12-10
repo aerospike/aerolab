@@ -2,8 +2,6 @@ import re
 import sys
 import yaml
 
-G_GIAI_PATTERNS_GITHUB_URL = "https://raw.githubusercontent.com/aerospike/agi-stack/refs/heads/main/ingest/app/patterns.yml?token=GHSAT0AAAAAAB4VMHQ4M4XT45OA267N4CBQZX2JMYA"
-
 # local patterns file
 G_GIAI_DOWNLOADED_PATTERNS_FILENAME="../patterns.yml"
 G_TOOL_LOG_FILENAME="/tmp/process_output.log"
