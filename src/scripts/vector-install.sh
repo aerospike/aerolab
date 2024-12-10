@@ -3,6 +3,7 @@ DOCKER=%s
 ISDEB=%s
 ASVEC_AMD=%s
 ASVEC_ARM=%s
+VECSEED=%s
 if [ ${ISDEB} -eq 0 ]
 then
     yum -y --allowerasing --nobest install curl
@@ -46,6 +47,16 @@ else
 fi
 unzip /tmp/asvec.zip
 mv asvec /usr/local/bin/
+
+if [ "${VECSEED}" != "" ]
+then
+mkdir -p /etc/aerospike
+cat <<EOF > /etc/aerospike/asvec.yml
+default:
+  host: ${VECSEED}
+  #seeds: ${VECSEED},${VECSEED}
+EOF
+fi
 
 cd /root
 set +e

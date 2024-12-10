@@ -57,7 +57,7 @@ func GetCloudGraphScript(propertiesFilePath string, extraParams string, imageNam
 }
 
 // asvec["amd64|arm64"] = downloadUrl
-func GetVectorScript(isDocker bool, packaging string, asvec map[string]string) []byte {
+func GetVectorScript(isDocker bool, packaging string, asvec map[string]string, vectorSeed string) []byte {
 	dockerVal := "0"
 	if isDocker {
 		dockerVal = "1"
@@ -66,7 +66,7 @@ func GetVectorScript(isDocker bool, packaging string, asvec map[string]string) [
 	if packaging == "deb" {
 		debVal = "1"
 	}
-	return []byte(fmt.Sprintf(vectorInstall, dockerVal, debVal, asvec["amd64"], asvec["arm64"]))
+	return []byte(fmt.Sprintf(vectorInstall, dockerVal, debVal, asvec["amd64"], asvec["arm64"], vectorSeed))
 }
 
 func GetEksctlBootstrapScript() []byte {
