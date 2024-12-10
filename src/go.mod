@@ -1,12 +1,10 @@
 module github.com/aerospike/aerolab
 
-go 1.22.7
-
-toolchain go1.23.1
+go 1.23.4
 
 require (
 	cloud.google.com/go/compute v1.29.0
-	cloud.google.com/go/storage v1.47.0
+	cloud.google.com/go/storage v1.48.0
 	github.com/aerospike/aerospike-client-go v4.5.2+incompatible
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
 	github.com/aerospike/aerospike-client-go/v7 v7.7.3
@@ -20,7 +18,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.7
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/jedib0t/go-pretty/v6 v6.6.3
+	github.com/jedib0t/go-pretty/v6 v6.6.4
 	github.com/jroimartin/gocui v0.5.0
 	github.com/lithammer/shortuuid v3.0.0+incompatible
 	github.com/mattn/go-isatty v0.0.20
@@ -44,9 +42,9 @@ require (
 )
 
 require (
-	cel.dev/expr v0.19.0 // indirect
+	cel.dev/expr v0.19.1 // indirect
 	cloud.google.com/go v0.116.0 // indirect
-	cloud.google.com/go/auth v0.12.0 // indirect
+	cloud.google.com/go/auth v0.12.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	cloud.google.com/go/iam v1.3.0 // indirect
@@ -86,9 +84,9 @@ require (
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/time v0.8.0 // indirect
-	google.golang.org/genproto v0.0.0-20241202173237-19429a94021a // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20241202173237-19429a94021a // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241202173237-19429a94021a // indirect
+	google.golang.org/genproto v0.0.0-20241209162323-e6fa225c2576 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576 // indirect
 	google.golang.org/grpc v1.68.1 // indirect
 	google.golang.org/grpc/stats/opentelemetry v0.0.0-20241028142157-ada6787961b3 // indirect
 )
