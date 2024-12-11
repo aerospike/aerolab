@@ -175,7 +175,6 @@ jobs:
               run: |
                 set -e
                 echo "${ADDCOMMIT}"
-                cd ~/work/aerolab/aerolab/bin/packages
                 COMMIT=$(git rev-parse --short HEAD)
                 VER=$(cat ../../VERSION.md)
                 BRANCH=$(git rev-parse --abbrev-ref HEAD)
