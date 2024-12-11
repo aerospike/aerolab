@@ -47,8 +47,51 @@ jobs:
               run: |
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
                 cd ~/work/aerolab/aerolab/src && make pkg-linux
+            ## TODO - confirm internally
+            #- name: "Prep GPG"
+            #  run: |
+            #    echo "EXT=_ORG" >> $GITHUB_ENV
+            #    echo "KEY_ID=Aerospike" >> $GITHUB_ENV
+            #    echo "PRIVATE_KEY=GPG_SECRET_KEY${{ env.EXT }}" >> $GITHUB_ENV
+            #    echo "PUBLIC_KEY=GPG_PUBLIC_KEY${{ env.EXT }}" >> $GITHUB_ENV
+            #    echo "PASS_KEY=GPG_PASS${{ env.EXT }}" >> $GITHUB_ENV
+            #- name: setup GPG
+            #  uses: citrusleaf/snyk-demo/setup-gpg@main
+            #  with:
+            #    gpg-private-key: ${{ secrets[env.PRIVATE_KEY] }}
+            #    gpg-public-key: ${{ secrets[env.PUBLIC_KEY] }}
+            #    gpg-key-pass: ${{ secrets[env.PASS_KEY] }}
+            #    gpg-key-name: ${{ env.KEY_ID }}
             #- name: "Sign linux packages"
-            #  //TODO
+            #  env:
+            #    GPG_TTY: no-tty
+            #    GPG_PASSPHRASE: ${{ secrets[env.PASS_KEY] }}
+            #  run: |
+            #    # GPG sign rpm packages 
+            #    cd ~/work/aerolab/aerolab/bin/packages
+            #    ls *.rpm |while read file; do
+            #      rpm --addsign "${file}" > /dev/null 2>&1
+            #      OUTPUT=$(rpm --checksig "${file}")
+            #      if [[ "$OUTPUT" =~ 'digests signatures OK' ]]; then
+            #        echo "Successfully GPG Signing $file"
+            #      else
+            #        echo "$OUTPUT"
+            #        echo "GPG Signing $file has failed."
+            #        exit 1
+            #      fi
+            #    done
+            #    # GPG sign deb packages
+            #    ls *.deb |while read file; do
+            #      dpkg-sig --sign builder "${file}" > /dev/null 2>&1
+            #      OUTPUT=$(dpkg-sig --verify "${file}")
+            #      if [[ "$OUTPUT" =~ 'GOODSIG _gpgbuilder' ]]; then
+            #        echo "Successfully GPG Signing $file"
+            #      else
+            #        echo "$OUTPUT"
+            #        echo "GPG Signing $file has failed."
+            #      exit 1
+            #      fi
+            #    done
             - name: "Export artifacts"
               uses: actions/upload-artifact@v4
               with:
@@ -168,8 +211,51 @@ jobs:
               with:
                 name: darwin
                 path: Rdarwin/
-            #- name: "Generate sha256 and asc signatures"
-            #  //TODO
+            - name: "Generate sha256 signatures"
+              run: |
+                cd Rlinux
+                ls |while read f; do shasum -a 256 $f > $f.sha256; done
+                cd ../Rwindows
+                ls |while read f; do shasum -a 256 $f > $f.sha256; done
+                cd ../Rdarwin
+                ls |while read f; do shasum -a 256 $f > $f.sha256; done
+                cd ..
+            ## TODO - confirm internally
+            #- name: "Prep GPG"
+            #  run: |
+            #    echo "EXT=_ORG" >> $GITHUB_ENV
+            #    echo "KEY_ID=Aerospike" >> $GITHUB_ENV
+            #    echo "PRIVATE_KEY=GPG_SECRET_KEY${{ env.EXT }}" >> $GITHUB_ENV
+            #    echo "PUBLIC_KEY=GPG_PUBLIC_KEY${{ env.EXT }}" >> $GITHUB_ENV
+            #    echo "PASS_KEY=GPG_PASS${{ env.EXT }}" >> $GITHUB_ENV
+            #- name: setup GPG
+            #  uses: citrusleaf/snyk-demo/setup-gpg@main
+            #  with:
+            #    gpg-private-key: ${{ secrets[env.PRIVATE_KEY] }}
+            #    gpg-public-key: ${{ secrets[env.PUBLIC_KEY] }}
+            #    gpg-key-pass: ${{ secrets[env.PASS_KEY] }}
+            #    gpg-key-name: ${{ env.KEY_ID }}
+            #- name: "Generate asc signatures"
+            #  env:
+            #    GPG_TTY: no-tty
+            #    GPG_PASSPHRASE: ${{ secrets[env.PASS_KEY] }}
+            #  run: |
+            #    cd Rlinux
+            #    ls |while read file; do
+            #      gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
+            #      gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
+            #    done
+            #    cd cd ../Rwindows
+            #    ls |while read file; do
+            #      gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
+            #      gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
+            #    done
+            #    cd ../Rdarwin
+            #    ls |while read file; do
+            #      gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
+            #      gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
+            #    done
+            #    cd ..
             - name: "Create a new release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -178,7 +264,7 @@ jobs:
                 set -e
                 echo "${ADDCOMMIT}"
                 COMMIT=$(git rev-parse --short HEAD)
-                VER=$(cat ../../VERSION.md)
+                VER=$(cat VERSION.md)
                 BRANCH=$(git rev-parse --abbrev-ref HEAD)
                 TAG=${VER}-${COMMIT}
                 [ "${ADDCOMMIT}" = "false" ] && TAG=${VER}
