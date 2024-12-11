@@ -20,7 +20,7 @@ on:
                 required: true
 jobs:
     build-linux:
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-22.04
       steps:
             - name: "Git checkout"
               uses: actions/checkout@v3
@@ -90,7 +90,7 @@ jobs:
                 name: linux
                 path: ~/work/aerolab/aerolab/bin/packages
     build-windows:
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-22.04
       steps:
             - name: "Git checkout"
               uses: actions/checkout@v3
@@ -184,7 +184,7 @@ jobs:
                 path: ~/work/aerolab/aerolab/bin/packages
     release:
       needs: [build-macos, build-windows, build-linux]
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-22.04
       steps:
             - name: "Git checkout"
               uses: actions/checkout@v3
@@ -264,7 +264,7 @@ jobs:
                 gh release create -R github.com/aerospike/aerolab --notes-file RELEASE.md ${PRE_PARAM} --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} Rlinux/* Rwindows/* Rdarwin/*
     post-release:
       needs: release
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-22.04
       steps:
             - name: "Git checkout"
               uses: actions/checkout@v3
