@@ -230,16 +230,19 @@ jobs:
               run: |
                 cd Rlinux
                 ls |while read file; do
+                  echo "Generating asc for ${file}"
                   gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
                   gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
                 done
-                cd cd ../Rwindows
+                cd ../Rwindows
                 ls |while read file; do
+                  echo "Generating asc for ${file}"
                   gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
                   gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
                 done
                 cd ../Rdarwin
                 ls |while read file; do
+                  echo "Generating asc for ${file}"
                   gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
                   gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
                 done
