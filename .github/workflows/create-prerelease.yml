@@ -94,7 +94,6 @@ jobs:
                 name: linux
                 path: ~/work/aerolab/aerolab/bin/packages
     build-windows:
-      needs: build-linux
       runs-on: ubuntu-22.04
       steps:
             - name: "Git checkout"
@@ -128,7 +127,6 @@ jobs:
                 name: windows
                 path: ~/work/aerolab/aerolab/bin/packages
     build-macos:
-      needs: build-linux
       runs-on: macos-13
       steps:
             - name: "Git checkout"
@@ -228,7 +226,7 @@ jobs:
             - name: "Generate asc signatures"
               env:
                 GPG_TTY: no-tty
-                GPG_PASSPHRASE: ${{ secrets[env.PASS_KEY] }}
+                GPG_PASSPHRASE: ${{ secrets.GPG_PASS }}
               run: |
                 cd Rlinux
                 ls |while read file; do
@@ -301,6 +299,21 @@ jobs:
                       fi
                     fi
                   done
+                fi
+            - name: "Trigger homebrew-tools workflow"
+              env:
+                  PAT: ${{ secrets.PAT }}
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                if [ "${ADDCOMMIT}" = "false" ]; then
+                  version=$(cat VERSION.md)
+                  curl -L \
+                    -X POST \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer ${{ secrets.PAT }}" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    https://api.github.com/repos/aerospike/homebrew-tools/dispatches \
+                    -d "{\"event_type\": \"aerolab\", \"client_payload\": {\"isLatest\": true, \"version\": \"$version\"}}"
                 fi
             - name: "Send slack notification"
               env:
