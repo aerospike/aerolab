@@ -62,7 +62,8 @@ jobs:
                 # GPG sign rpm packages 
                 cd ~/work/aerolab/aerolab/bin/packages
                 ls *.rpm |while read file; do
-                  rpm --addsign "${file}" > /dev/null 2>&1
+                  echo "Signing ${file}..."
+                  rpm --addsign "${file}"
                   OUTPUT=$(rpm --checksig "${file}")
                   if [[ "$OUTPUT" =~ 'digests signatures OK' ]]; then
                     echo "Successfully GPG Signing $file"
@@ -74,7 +75,8 @@ jobs:
                 done
                 # GPG sign deb packages
                 ls *.deb |while read file; do
-                  dpkg-sig --sign builder "${file}" > /dev/null 2>&1
+                  echo "Signing ${file}..."
+                  dpkg-sig --sign builder "${file}"
                   OUTPUT=$(dpkg-sig --verify "${file}")
                   if [[ "$OUTPUT" =~ 'GOODSIG _gpgbuilder' ]]; then
                     echo "Successfully GPG Signing $file"
