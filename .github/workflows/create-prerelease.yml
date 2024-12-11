@@ -55,7 +55,7 @@ jobs:
                 echo "PUBLIC_KEY=GPG_PUBLIC_KEY${EXT}" >> $GITHUB_ENV
                 echo "PASS_KEY=GPG_PASS${EXT}" >> $GITHUB_ENV
             - name: setup GPG
-              uses: aerospike/shared-workflows/devops/setup-gpg@feat/setup-gpg-composite
+              uses: aerospike/shared-workflows/devops/setup-gpg@main
               with:
                 gpg-private-key: ${{ secrets[env.PRIVATE_KEY] }}
                 gpg-public-key: ${{ secrets[env.PUBLIC_KEY] }}
@@ -227,7 +227,7 @@ jobs:
                 echo "PUBLIC_KEY=GPG_PUBLIC_KEY${EXT}" >> $GITHUB_ENV
                 echo "PASS_KEY=GPG_PASS${EXT}" >> $GITHUB_ENV
             - name: setup GPG
-              uses: aerospike/shared-workflows/devops/setup-gpg@feat/setup-gpg-composite
+              uses: aerospike/shared-workflows/devops/setup-gpg@main
               with:
                 gpg-private-key: ${{ secrets[env.PRIVATE_KEY] }}
                 gpg-public-key: ${{ secrets[env.PUBLIC_KEY] }}
