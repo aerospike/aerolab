@@ -47,20 +47,13 @@ jobs:
               run: |
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
                 cd ~/work/aerolab/aerolab/src && make pkg-linux
-            - name: "Prep GPG"
-              run: |
-                EXT=_ORG
-                echo "KEY_ID=Aerospike" >> $GITHUB_ENV
-                echo "PRIVATE_KEY=GPG_SECRET_KEY${EXT}" >> $GITHUB_ENV
-                echo "PUBLIC_KEY=GPG_PUBLIC_KEY${EXT}" >> $GITHUB_ENV
-                echo "PASS_KEY=GPG_PASS${EXT}" >> $GITHUB_ENV
             - name: setup GPG
               uses: aerospike/shared-workflows/devops/setup-gpg@main
               with:
-                gpg-private-key: ${{ secrets[env.PRIVATE_KEY] }}
-                gpg-public-key: ${{ secrets[env.PUBLIC_KEY] }}
-                gpg-key-pass: ${{ secrets[env.PASS_KEY] }}
-                gpg-key-name: ${{ env.KEY_ID }}
+                gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
+                gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
+                gpg-key-pass: ${{ secrets.GPG_PASS }}
+                gpg-key-name: "aerospike-inc"
             - name: "Sign linux packages"
               env:
                 GPG_TTY: no-tty
@@ -219,20 +212,13 @@ jobs:
                 cd ../Rdarwin
                 ls |while read f; do shasum -a 256 $f > $f.sha256; done
                 cd ..
-            - name: "Prep GPG"
-              run: |
-                EXT=_ORG
-                echo "KEY_ID=Aerospike" >> $GITHUB_ENV
-                echo "PRIVATE_KEY=GPG_SECRET_KEY${EXT}" >> $GITHUB_ENV
-                echo "PUBLIC_KEY=GPG_PUBLIC_KEY${EXT}" >> $GITHUB_ENV
-                echo "PASS_KEY=GPG_PASS${EXT}" >> $GITHUB_ENV
             - name: setup GPG
               uses: aerospike/shared-workflows/devops/setup-gpg@main
               with:
-                gpg-private-key: ${{ secrets[env.PRIVATE_KEY] }}
-                gpg-public-key: ${{ secrets[env.PUBLIC_KEY] }}
-                gpg-key-pass: ${{ secrets[env.PASS_KEY] }}
-                gpg-key-name: ${{ env.KEY_ID }}
+                gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
+                gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
+                gpg-key-pass: ${{ secrets.GPG_PASS }}
+                gpg-key-name: "aerospike-inc"
             - name: "Generate asc signatures"
               env:
                 GPG_TTY: no-tty
