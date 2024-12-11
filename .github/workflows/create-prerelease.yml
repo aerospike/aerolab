@@ -183,6 +183,12 @@ jobs:
                 FULLCOMMIT=$(git rev-parse HEAD)
                 PRE_PARAM="--prerelease"
                 [ "${ADDCOMMIT}" = "false" ] && PRE_PARAM="--latest"
+                echo "Linux artifacts:"
+                ls linux/
+                echo "Windows artifacts:"
+                ls windows/
+                echo "Darwin artifacts:"
+                ls darwin/
                 gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md ${PRE_PARAM} --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} linux/* windows/* darwin/*
     post-release:
       needs: release
