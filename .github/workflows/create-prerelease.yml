@@ -74,8 +74,10 @@ jobs:
                   fi
                 done
                 # GPG sign deb packages
+                sudo chmod 777 ../packages
                 ls *.deb |while read file; do
                   echo "Signing ${file}..."
+                  sudo chmod 777 ${file}
                   dpkg-sig --sign builder "${file}"
                   OUTPUT=$(dpkg-sig --verify "${file}")
                   if [[ "$OUTPUT" =~ 'GOODSIG _gpgbuilder' ]]; then
@@ -92,6 +94,7 @@ jobs:
                 name: linux
                 path: ~/work/aerolab/aerolab/bin/packages
     build-windows:
+      needs: build-linux
       runs-on: ubuntu-22.04
       steps:
             - name: "Git checkout"
@@ -125,6 +128,7 @@ jobs:
                 name: windows
                 path: ~/work/aerolab/aerolab/bin/packages
     build-macos:
+      needs: build-linux
       runs-on: macos-13
       steps:
             - name: "Git checkout"
