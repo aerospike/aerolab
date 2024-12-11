@@ -19,26 +19,120 @@ on:
                 description: "What changed (for slack message)"
                 required: true
 jobs:
-    build-and-release:
-        runs-on: macos-13
-        steps:
+    build-linux:
+      runs-on: ubuntu-22.04
+      steps:
             - name: "Git checkout"
               uses: actions/checkout@v3
-            - name: "Install Homebrew"
-              run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-            - name: "Install Dependencies"
+            - name: "Install Golang"
               run: |
-                /usr/local/bin/brew install --overwrite python@3.11 || echo "I1.1"
-                /usr/local/bin/brew link --overwrite python@3.11 || echo "I1.2"
-                /usr/local/bin/brew install --overwrite dpkg zip make wget jq rpm || echo "I2"
-                /usr/local/bin/brew link --overwrite python@3.11 || echo "I1.3"
-                /usr/local/bin/brew install python-gdbm@3.11 || echo "I1.4"
-                /usr/local/bin/brew install python-tk@3.11 || echo "I1.5"
-                pushd ~/work/aerolab/aerolab/brew
-                /usr/local/bin/brew install ./upx.rb
+                set -e
+                pushd /tmp
+                wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
+                sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
                 popd
-                for i in dpkg upx zip make wget jq rpm python3.11; do command -v $i || exit 1; done
-                echo "Dependencies checked"
+                export PATH=/usr/local/go/bin:$PATH
+                go version
+            - name: "Compile"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make cleanall
+                if [ "${ADDCOMMIT}" = "false" ]; then make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2; fi
+                if [ "${ADDCOMMIT}" != "false" ]; then make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2; fi
+                exit 0
+            - name: "Create linux packages"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make pkg-linux
+            - name: setup GPG
+              uses: aerospike/shared-workflows/devops/setup-gpg@main
+              with:
+                gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
+                gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
+                gpg-key-pass: ${{ secrets.GPG_PASS }}
+                gpg-key-name: "aerospike-inc"
+            - name: "Sign linux packages"
+              env:
+                GPG_TTY: no-tty
+                GPG_PASSPHRASE: ${{ secrets[env.PASS_KEY] }}
+              run: |
+                # GPG sign rpm packages 
+                cd ~/work/aerolab/aerolab/bin/packages
+                ls *.rpm |while read file; do
+                  echo "Signing ${file}..."
+                  rpm --addsign "${file}"
+                  OUTPUT=$(rpm --checksig "${file}")
+                  if [[ "$OUTPUT" =~ 'digests signatures OK' ]]; then
+                    echo "Successfully GPG Signing $file"
+                  else
+                    echo "$OUTPUT"
+                    echo "GPG Signing $file has failed."
+                    exit 1
+                  fi
+                done
+                # GPG sign deb packages
+                sudo chmod 777 ../packages
+                ls *.deb |while read file; do
+                  echo "Signing ${file}..."
+                  sudo chmod 777 ${file}
+                  dpkg-sig --sign builder "${file}"
+                  OUTPUT=$(dpkg-sig --verify "${file}")
+                  if [[ "$OUTPUT" =~ 'GOODSIG _gpgbuilder' ]]; then
+                    echo "Successfully GPG Signing $file"
+                  else
+                    echo "$OUTPUT"
+                    echo "GPG Signing $file has failed."
+                  exit 1
+                  fi
+                done
+            - name: "Export artifacts"
+              uses: actions/upload-artifact@v4
+              with:
+                name: linux
+                path: ~/work/aerolab/aerolab/bin/packages
+    build-windows:
+      runs-on: ubuntu-22.04
+      steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
+            - name: "Install Golang"
+              run: |
+                set -e
+                pushd /tmp
+                wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
+                sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
+                popd
+                export PATH=/usr/local/go/bin:$PATH
+                go version
+            - name: "Compile"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make cleanall
+                if [ "${ADDCOMMIT}" = "false" ]; then make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2; fi
+                if [ "${ADDCOMMIT}" != "false" ]; then make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2; fi
+                exit 0
+            - name: "Create windows zips"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make pkg-windows-zip
+            - name: "Export artifacts"
+              uses: actions/upload-artifact@v4
+              with:
+                name: windows
+                path: ~/work/aerolab/aerolab/bin/packages
+    build-macos:
+      runs-on: macos-13
+      steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
             - name: "Install golang"
               run: |
                 wget https://go.dev/dl/go1.23.4.darwin-amd64.pkg
@@ -53,28 +147,11 @@ jobs:
               env:
                   ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
-                buildcmd="build-prerelease"
-                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
-                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
-                cd ~/work/aerolab/aerolab/src && make cleanall && make ${buildcmd}
-            - name: "Create linux packages"
-              env:
-                  ADDCOMMIT: ${{ inputs.addCommit }}
-              run: |
-                buildcmd="build-prerelease"
-                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
-                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
-                cd ~/work/aerolab/aerolab/src && make pkg-linux
-            - name: "Create windows zips"
-              env:
-                  ADDCOMMIT: ${{ inputs.addCommit }}
-              run: |
-                buildcmd="build-prerelease"
-                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
-                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
-                cd ~/work/aerolab/aerolab/src && make pkg-windows-zip
-            - name: "Print aerolab version"
-              run: cd ~/work/aerolab/aerolab/src && ../bin/aerolab-macos-amd64 version
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make cleanall
+                if [ "${ADDCOMMIT}" = "false" ]; then make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2; fi
+                if [ "${ADDCOMMIT}" != "false" ]; then make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2; fi
+                exit 0
             - name: "Prepare keychain for signing MacOS"
               env:
                   keypw: ${{ secrets.APPLEPW }}
@@ -92,7 +169,7 @@ jobs:
                 security import app.p12 -k build.keychain -P $keypw -A
                 security import install.p12 -k build.keychain -P $keypw -A
                 security set-key-partition-list -S apple-tool:,apple: -s -k mysecretpassword build.keychain
-            - name: "Sign and build MacOS"
+            - name: "Sign, package and notarize MacOS"
               env:
                   xaerolab_appleid: ${{ secrets.APPLEUSER }}
                   xaerolab_applepw: ${{ secrets.APPLEPW }}
@@ -106,22 +183,105 @@ jobs:
                 export aerolab_signer="${xaerolab_signer}"
                 export aerolab_installsigner="${xaerolab_installsigner}"
                 export aerolab_teamid="${xaerolab_teamid}"
-                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
-            - name: "Create a new pre-release"
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
+            - name: "Export artifacts"
+              uses: actions/upload-artifact@v4
+              with:
+                name: darwin
+                path: ~/work/aerolab/aerolab/bin/packages
+    release:
+      needs: [build-macos, build-windows, build-linux]
+      runs-on: ubuntu-22.04
+      steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
+            - name: "Download linux artifacts"
+              uses: actions/download-artifact@v4
+              with:
+                name: linux
+                path: Rlinux/
+            - name: "Download windows artifacts"
+              uses: actions/download-artifact@v4
+              with:
+                name: windows
+                path: Rwindows/
+            - name: "Download macos artifacts"
+              uses: actions/download-artifact@v4
+              with:
+                name: darwin
+                path: Rdarwin/
+            - name: "Generate sha256 signatures"
+              run: |
+                cd Rlinux
+                ls |while read f; do shasum -a 256 $f > $f.sha256; done
+                cd ../Rwindows
+                ls |while read f; do shasum -a 256 $f > $f.sha256; done
+                cd ../Rdarwin
+                ls |while read f; do shasum -a 256 $f > $f.sha256; done
+                cd ..
+            - name: setup GPG
+              uses: aerospike/shared-workflows/devops/setup-gpg@main
+              with:
+                gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
+                gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
+                gpg-key-pass: ${{ secrets.GPG_PASS }}
+                gpg-key-name: "aerospike-inc"
+            - name: "Generate asc signatures"
+              env:
+                GPG_TTY: no-tty
+                GPG_PASSPHRASE: ${{ secrets.GPG_PASS }}
+              run: |
+                cd Rlinux
+                ls |while read file; do
+                  DO=0
+                  echo "${file}" |egrep '(\.deb|\.rpm)$' &>/dev/null || DO=1
+                  if [ $DO -ne 0 ]; then
+                    echo "Generating asc for ${file}"
+                    gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
+                    gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
+                  fi
+                done
+                cd ../Rwindows
+                ls |while read file; do
+                  echo "Generating asc for ${file}"
+                  gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
+                  gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
+                done
+                cd ../Rdarwin
+                ls |while read file; do
+                  echo "Generating asc for ${file}"
+                  gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
+                  gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
+                done
+                cd ..
+            - name: "Create a new release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
                 set -e
                 echo "${ADDCOMMIT}"
-                cd ~/work/aerolab/aerolab/bin/packages
                 COMMIT=$(git rev-parse --short HEAD)
-                VER=$(cat ../../VERSION.md)
+                VER=$(cat VERSION.md)
                 BRANCH=$(git rev-parse --abbrev-ref HEAD)
                 TAG=${VER}-${COMMIT}
                 [ "${ADDCOMMIT}" = "false" ] && TAG=${VER}
                 FULLCOMMIT=$(git rev-parse HEAD)
-                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md --prerelease --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} aerolab-linux-amd64-${VER}.deb aerolab-linux-amd64-${VER}.rpm aerolab-linux-amd64-${VER}.zip aerolab-linux-arm64-${VER}.deb aerolab-linux-arm64-${VER}.rpm aerolab-linux-arm64-${VER}.zip aerolab-macos-${VER}.pkg aerolab-macos-amd64-${VER}.zip aerolab-macos-arm64-${VER}.zip aerolab-windows-amd64-${VER}.zip aerolab-windows-arm64-${VER}.zip
+                PRE_PARAM="--prerelease"
+                [ "${ADDCOMMIT}" = "false" ] && PRE_PARAM="--latest"
+                echo "Linux artifacts:"
+                ls Rlinux/
+                echo "Windows artifacts:"
+                ls Rwindows/
+                echo "Darwin artifacts:"
+                ls Rdarwin/
+                gh release create -R github.com/aerospike/aerolab --notes-file RELEASE.md ${PRE_PARAM} --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} Rlinux/* Rwindows/* Rdarwin/*
+    post-release:
+      needs: release
+      runs-on: ubuntu-22.04
+      steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
             - name: "Delete previous pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,10 +291,10 @@ jobs:
                 if [ "${DELPREV}" = "true" ]
                 then
                   set -e
-                  cd ~/work/aerolab/aerolab/bin/packages
+                  cd ~/work/aerolab/aerolab
                   echo "${ADDCOMMIT}"
                   COMMIT=$(git rev-parse --short HEAD)
-                  VER=$(cat ../../VERSION.md)
+                  VER=$(cat VERSION.md)
                   TAG=${VER}-${COMMIT}
                   [ "${ADDCOMMIT}" = "false" ] && TAG=${VER}
                   echo "Protected tag: ${TAG}"
@@ -149,6 +309,21 @@ jobs:
                       fi
                     fi
                   done
+                fi
+            - name: "Trigger homebrew-tools workflow"
+              env:
+                  PAT: ${{ secrets.PAT }}
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                if [ "${ADDCOMMIT}" = "false" ]; then
+                  version=$(cat VERSION.md)
+                  curl -L \
+                    -X POST \
+                    -H "Accept: application/vnd.github+json" \
+                    -H "Authorization: Bearer ${{ secrets.PAT }}" \
+                    -H "X-GitHub-Api-Version: 2022-11-28" \
+                    https://api.github.com/repos/aerospike/homebrew-tools/dispatches \
+                    -d "{\"event_type\": \"aerolab\", \"client_payload\": {\"isLatest\": true, \"version\": \"$version\"}}"
                 fi
             - name: "Send slack notification"
               env:
@@ -170,6 +345,6 @@ jobs:
                       curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
                   else
                       TAG=${VER}
-                      curl -d "text=A new pre-release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                      curl -d "text=A new release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
                   fi
                 fi
