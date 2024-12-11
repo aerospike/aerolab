@@ -151,21 +151,23 @@ jobs:
       needs: [build-macos, build-windows, build-linux]
       runs-on: ubuntu-24.04
       steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
             - name: "Download linux artifacts"
               uses: actions/download-artifact@v4
               with:
                 name: linux
-                path: linux/
+                path: Rlinux/
             - name: "Download windows artifacts"
               uses: actions/download-artifact@v4
               with:
                 name: windows
-                path: windows/
+                path: Rwindows/
             - name: "Download macos artifacts"
               uses: actions/download-artifact@v4
               with:
                 name: darwin
-                path: darwin/
+                path: Rdarwin/
             #- name: "Generate sha256 and asc signatures"
             #  //TODO
             - name: "Create a new release"
@@ -184,16 +186,18 @@ jobs:
                 PRE_PARAM="--prerelease"
                 [ "${ADDCOMMIT}" = "false" ] && PRE_PARAM="--latest"
                 echo "Linux artifacts:"
-                ls linux/
+                ls Rlinux/
                 echo "Windows artifacts:"
-                ls windows/
+                ls Rwindows/
                 echo "Darwin artifacts:"
-                ls darwin/
-                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md ${PRE_PARAM} --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} linux/* windows/* darwin/*
+                ls Rdarwin/
+                gh release create -R github.com/aerospike/aerolab --notes-file RELEASE.md ${PRE_PARAM} --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} Rlinux/* Rwindows/* Rdarwin/*
     post-release:
       needs: release
       runs-on: ubuntu-24.04
       steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
             - name: "Delete previous pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -203,7 +207,7 @@ jobs:
                 if [ "${DELPREV}" = "true" ]
                 then
                   set -e
-                  cd ~/work/aerolab/aerolab/bin/packages
+                  cd ~/work/aerolab/aerolab
                   echo "${ADDCOMMIT}"
                   COMMIT=$(git rev-parse --short HEAD)
                   VER=$(cat ../../VERSION.md)
