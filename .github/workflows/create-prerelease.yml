@@ -39,8 +39,9 @@ jobs:
               run: |
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
                 cd ~/work/aerolab/aerolab/src && make cleanall
-                [ "${ADDCOMMIT}" = "false" ] && make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2
-                [ "${ADDCOMMIT}" != "false" ] && make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2
+                if [ "${ADDCOMMIT}" = "false" ]; then make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2; fi
+                if [ "${ADDCOMMIT}" != "false" ]; then make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2; fi
+                exit 0
             - name: "Create linux packages"
               env:
                   ADDCOMMIT: ${{ inputs.addCommit }}
@@ -113,8 +114,9 @@ jobs:
               run: |
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
                 cd ~/work/aerolab/aerolab/src && make cleanall
-                [ "${ADDCOMMIT}" = "false" ] && make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2
-                [ "${ADDCOMMIT}" != "false" ] && make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2
+                if [ "${ADDCOMMIT}" = "false" ]; then make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2; fi
+                if [ "${ADDCOMMIT}" != "false" ]; then make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2; fi
+                exit 0
             - name: "Create windows zips"
               env:
                   ADDCOMMIT: ${{ inputs.addCommit }}
@@ -147,8 +149,9 @@ jobs:
               run: |
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
                 cd ~/work/aerolab/aerolab/src && make cleanall
-                [ "${ADDCOMMIT}" = "false" ] && make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2
-                [ "${ADDCOMMIT}" != "false" ] && make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2
+                if [ "${ADDCOMMIT}" = "false" ]; then make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2; fi
+                if [ "${ADDCOMMIT}" != "false" ]; then make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2; fi
+                exit 0
             - name: "Prepare keychain for signing MacOS"
               env:
                   keypw: ${{ secrets.APPLEPW }}
