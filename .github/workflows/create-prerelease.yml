@@ -230,9 +230,12 @@ jobs:
               run: |
                 cd Rlinux
                 ls |while read file; do
-                  echo "Generating asc for ${file}"
-                  gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
-                  gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
+                  echo "${file}" |egrep '(\.deb|\.rpm)$' &>/dev/null
+                  if [ $? -ne 0 ]; then
+                    echo "Generating asc for ${file}"
+                    gpg --detach-sign --no-tty --batch --yes --output "${file}.asc" --passphrase "$GPG_PASSPHRASE" "${file}" || exit 1
+                    gpg --verify "${file}.asc" "${file}" &>/dev/null || exit 1
+                  fi
                 done
                 cd ../Rwindows
                 ls |while read file; do
