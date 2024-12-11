@@ -345,6 +345,6 @@ jobs:
                       curl -d "text=A new dev build is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
                   else
                       TAG=${VER}
-                      curl -d "text=A new pre-release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
+                      curl -d "text=A new release is available at https://github.com/aerospike/aerolab/releases/tag/${TAG} Changes: ${MESSAGE}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0
                   fi
                 fi
