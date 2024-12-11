@@ -19,26 +19,79 @@ on:
                 description: "What changed (for slack message)"
                 required: true
 jobs:
-    build-and-release:
-        runs-on: macos-13
-        steps:
+    build-linux:
+      runs-on: ubuntu-24.04
+      steps:
             - name: "Git checkout"
               uses: actions/checkout@v3
-            - name: "Install Homebrew"
-              run: /bin/bash -c "NONINTERACTIVE=1 $(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-            - name: "Install Dependencies"
+            - name: "Install Golang"
               run: |
-                /usr/local/bin/brew install --overwrite python@3.11 || echo "I1.1"
-                /usr/local/bin/brew link --overwrite python@3.11 || echo "I1.2"
-                /usr/local/bin/brew install --overwrite dpkg zip make wget jq rpm || echo "I2"
-                /usr/local/bin/brew link --overwrite python@3.11 || echo "I1.3"
-                /usr/local/bin/brew install python-gdbm@3.11 || echo "I1.4"
-                /usr/local/bin/brew install python-tk@3.11 || echo "I1.5"
-                pushd ~/work/aerolab/aerolab/brew
-                /usr/local/bin/brew install ./upx.rb
+                set -e
+                pushd /tmp
+                wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
+                rm -rf /usr/local/go && tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
                 popd
-                for i in dpkg upx zip make wget jq rpm python3.11; do command -v $i || exit 1; done
-                echo "Dependencies checked"
+                export PATH=/usr/local/go/bin:$PATH
+                go version
+            - name: "Compile"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make cleanall
+                [ "${ADDCOMMIT}" = "false" ] && make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2
+                [ "${ADDCOMMIT}" != "false" ] && make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_linux_amd64 compile_linux_arm64 reset2
+            - name: "Create linux packages"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make pkg-linux
+            #- name: "Sign linux packages"
+            #  //TODO
+            - name: "Export artifacts"
+              uses: actions/upload-artifact@v4
+              with:
+                name: linux
+                path: ~/work/aerolab/aerolab/bin/packages
+    build-windows:
+      runs-on: ubuntu-24.04
+      steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
+            - name: "Install Golang"
+              run: |
+                set -e
+                pushd /tmp
+                wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
+                rm -rf /usr/local/go && tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
+                popd
+                export PATH=/usr/local/go/bin:$PATH
+                go version
+            - name: "Compile"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make cleanall
+                [ "${ADDCOMMIT}" = "false" ] && make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2
+                [ "${ADDCOMMIT}" != "false" ] && make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_windows reset2
+            - name: "Create windows zips"
+              env:
+                  ADDCOMMIT: ${{ inputs.addCommit }}
+              run: |
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make pkg-windows-zip
+            - name: "Export artifacts"
+              uses: actions/upload-artifact@v4
+              with:
+                name: windows
+                path: ~/work/aerolab/aerolab/bin/packages
+    build-macos:
+      runs-on: macos-13
+      steps:
+            - name: "Git checkout"
+              uses: actions/checkout@v3
             - name: "Install golang"
               run: |
                 wget https://go.dev/dl/go1.23.4.darwin-amd64.pkg
@@ -53,28 +106,10 @@ jobs:
               env:
                   ADDCOMMIT: ${{ inputs.addCommit }}
               run: |
-                buildcmd="build-prerelease"
-                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
-                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
-                cd ~/work/aerolab/aerolab/src && make cleanall && make ${buildcmd}
-            - name: "Create linux packages"
-              env:
-                  ADDCOMMIT: ${{ inputs.addCommit }}
-              run: |
-                buildcmd="build-prerelease"
-                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
-                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
-                cd ~/work/aerolab/aerolab/src && make pkg-linux
-            - name: "Create windows zips"
-              env:
-                  ADDCOMMIT: ${{ inputs.addCommit }}
-              run: |
-                buildcmd="build-prerelease"
-                [ "${ADDCOMMIT}" = "false" ] && buildcmd="build-official"
-                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin
-                cd ~/work/aerolab/aerolab/src && make pkg-windows-zip
-            - name: "Print aerolab version"
-              run: cd ~/work/aerolab/aerolab/src && ../bin/aerolab-macos-amd64 version
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
+                cd ~/work/aerolab/aerolab/src && make cleanall
+                [ "${ADDCOMMIT}" = "false" ] && make official compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2
+                [ "${ADDCOMMIT}" != "false" ] && make prerelease compile_linux_wip_amd64 compile_linux_wip_arm64 reset1 compile_darwin reset2
             - name: "Prepare keychain for signing MacOS"
               env:
                   keypw: ${{ secrets.APPLEPW }}
@@ -92,7 +127,7 @@ jobs:
                 security import app.p12 -k build.keychain -P $keypw -A
                 security import install.p12 -k build.keychain -P $keypw -A
                 security set-key-partition-list -S apple-tool:,apple: -s -k mysecretpassword build.keychain
-            - name: "Sign and build MacOS"
+            - name: "Sign, package and notarize MacOS"
               env:
                   xaerolab_appleid: ${{ secrets.APPLEUSER }}
                   xaerolab_applepw: ${{ secrets.APPLEPW }}
@@ -106,8 +141,34 @@ jobs:
                 export aerolab_signer="${xaerolab_signer}"
                 export aerolab_installsigner="${xaerolab_installsigner}"
                 export aerolab_teamid="${xaerolab_teamid}"
-                export PATH=$PATH:/usr/local/bin:/usr/local/go/bin && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
-            - name: "Create a new pre-release"
+                export PATH=/usr/local/go/bin:/usr/local/bin:$PATH && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
+            - name: "Export artifacts"
+              uses: actions/upload-artifact@v4
+              with:
+                name: darwin
+                path: ~/work/aerolab/aerolab/bin/packages
+    release:
+      needs: [build-macos, build-windows, build-linux]
+      runs-on: ubuntu-24.04
+      steps:
+            - name: "Download linux artifacts"
+              uses: actions/download-artifact@v4
+              with:
+                name: linux
+                path: linux/
+            - name: "Download windows artifacts"
+              uses: actions/download-artifact@v4
+              with:
+                name: windows
+                path: windows/
+            - name: "Download macos artifacts"
+              uses: actions/download-artifact@v4
+              with:
+                name: darwin
+                path: darwin/
+            #- name: "Generate sha256 and asc signatures"
+            #  //TODO
+            - name: "Create a new release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   ADDCOMMIT: ${{ inputs.addCommit }}
@@ -121,7 +182,13 @@ jobs:
                 TAG=${VER}-${COMMIT}
                 [ "${ADDCOMMIT}" = "false" ] && TAG=${VER}
                 FULLCOMMIT=$(git rev-parse HEAD)
-                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md --prerelease --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} aerolab-linux-amd64-${VER}.deb aerolab-linux-amd64-${VER}.rpm aerolab-linux-amd64-${VER}.zip aerolab-linux-arm64-${VER}.deb aerolab-linux-arm64-${VER}.rpm aerolab-linux-arm64-${VER}.zip aerolab-macos-${VER}.pkg aerolab-macos-amd64-${VER}.zip aerolab-macos-arm64-${VER}.zip aerolab-windows-amd64-${VER}.zip aerolab-windows-arm64-${VER}.zip
+                PRE_PARAM="--prerelease"
+                [ "${ADDCOMMIT}" = "false" ] && PRE_PARAM="--latest"
+                gh release create -R github.com/aerospike/aerolab --notes-file ../../RELEASE.md ${PRE_PARAM} --target ${FULLCOMMIT} --title "AeroLab - v${TAG}" ${TAG} linux/* windows/* darwin/*
+    post-release:
+      needs: release
+      runs-on: ubuntu-24.04
+      steps:
             - name: "Delete previous pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
