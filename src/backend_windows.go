@@ -4,7 +4,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -17,11 +16,14 @@ var restoreTerminalLock = new(sync.Mutex)
 var restoreTerminalState *console.Console
 
 func sttyReset() {
-	cmd := exec.Command("reset")
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Run()
+	return
+	/*
+		cmd := exec.Command("reset")
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Run()
+	*/
 }
 
 func init() {
