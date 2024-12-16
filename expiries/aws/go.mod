@@ -1,6 +1,6 @@
 module aerolab-expire
 
-go 1.22
+go 1.23
 
 require (
 	github.com/aws/aws-lambda-go v1.47.0
