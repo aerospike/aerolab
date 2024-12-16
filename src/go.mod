@@ -1,6 +1,6 @@
 module github.com/aerospike/aerolab
 
-go 1.23.4
+go 1.23
 
 require (
 	cloud.google.com/go/compute v1.29.0
