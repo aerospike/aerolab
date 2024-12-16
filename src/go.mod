@@ -31,7 +31,7 @@ require (
 	github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
 	github.com/rglonek/sbs v1.0.1
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
-	golang.org/x/crypto v0.30.0
+	golang.org/x/crypto v0.31.0
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d
 	golang.org/x/sys v0.28.0
 	golang.org/x/term v0.27.0
