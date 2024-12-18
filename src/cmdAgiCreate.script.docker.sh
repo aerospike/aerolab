@@ -147,10 +147,11 @@ fi
 rm -f /tmp/ingest.yaml /tmp/deployment.json.gz
 
 chmod 755 /opt/autoload/*
-rm -rf /root/agiinstaller.sh && exit 0 || exit 0
+set +e
+rm -rf /root/agiinstaller.sh
 
 cat <<'EOF'> /usr/local/bin/erro
 grep -i 'error|warn|timeout' "$@"
 EOF
 chmod 755 /usr/local/bin/erro
-date > /opt/agi-installed
+date > /opt/agi-installed && exit 0 || exit 0
