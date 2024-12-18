@@ -667,6 +667,7 @@ defs:
             setName: "ConnectorError"
             search: "ERROR metrics-ticker -"
             export:
+                - "ERROR metrics-ticker - (?P<errMessage>.+)@[a-f0-9]+ -> java.lang.ClassCastException: count=(?P<errCount>\\d+)"
                 - "ERROR metrics-ticker - (?P<errMessage>.+) count=(?P<errCount>\\d+)"
         -
             setName: "ConnectorReqTotal"

@@ -218,16 +218,17 @@ def parse_patterns_yaml():
     with open(G_GIAI_DOWNLOADED_PATTERNS_FILENAME, "r") as fh:
         data = yaml.safe_load(fh)
         defs= data.get("defs")
+        unique_regex_str = ""
+        ignored_line_str = ""
         for each_def in defs:                
             patterns = each_def.get("patterns")
-            unique_regex_str = ""
-            ignored_line_str = ""
             for item in patterns:
                 for rex in item["export"]:
                     output, is_valid=parse_export_regex(rex)
                     if is_valid:
                         unique_regex_str = unique_regex_str + output +"\n"
                     else:
+                        # print(" invalid reg ", output)
                         ignored_line_str = ignored_line_str + output +"\n"         
                 
         # save to modified patterns to file
@@ -317,6 +318,4 @@ if __name__ == '__main__':
        
     if is_splunk_conf==True:    
        generate_splunk_conf_files()
-    
-
     
