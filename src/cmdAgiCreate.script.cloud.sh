@@ -220,10 +220,11 @@ rm -f /tmp/ingest.yaml /tmp/deployment.json.gz
 chmod 755 /etc/systemd/system/agi-plugin.service /etc/systemd/system/agi-proxy.service /etc/systemd/system/agi-grafanafix.service /etc/systemd/system/agi-ingest.service
 systemctl enable agi-plugin && systemctl enable agi-proxy && systemctl enable agi-grafanafix && systemctl enable agi-ingest && systemctl daemon-reload
 systemctl start agi-plugin ; systemctl start agi-proxy ; systemctl start agi-grafanafix ; systemctl start agi-ingest
-rm -rf /root/agiinstaller.sh && exit 0 || exit 0
+set +e
+rm -rf /root/agiinstaller.sh
 
 cat <<'EOF'> /usr/local/bin/erro
 grep -i 'error|warn|timeout' "$@"
 EOF
 chmod 755 /usr/local/bin/erro
-date > /opt/agi-installed
+date > /opt/agi-installed && exit 0 || exit 0
