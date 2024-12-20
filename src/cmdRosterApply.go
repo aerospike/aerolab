@@ -41,7 +41,10 @@ type rosterNodes struct {
 func (c *rosterApplyCmd) findNodes(n int) *rosterNodes {
 	out, err := b.RunCommands(string(c.ClusterName), [][]string{{"asinfo", "-v", "roster:namespace=" + c.Namespace}}, []int{n})
 	if err != nil {
-		log.Printf("ERROR skipping node, running asinfo on node %d: %s", n, err)
+		if len(out) == 0 {
+			out = [][]byte{{'-'}}
+		}
+		log.Printf("ERROR skipping node, running asinfo on node %d: %s: %s", n, err, string(out[0]))
 		return nil
 	}
 	observedNodesSplit := strings.Split(strings.Trim(string(out[0]), "\t\r\n "), ":observed_nodes=")
@@ -142,6 +145,9 @@ func (c *rosterApplyCmd) runApply() error {
 			if len(observedNodes) > 0 {
 				close(observedNodes)
 				for ona := range observedNodes {
+					if ona == nil {
+						continue
+					}
 					if ona.replicationFactor > rf {
 						rf = ona.replicationFactor
 					}
