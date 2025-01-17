@@ -17,6 +17,7 @@ type rosterApplyCmd struct {
 	rosterShowCmd
 	Roster      string `short:"r" long:"roster" description:"set this to specify customer roster; leave empty to apply observed nodes automatically" default:""`
 	NoRecluster bool   `short:"c" long:"no-recluster" description:"if set, will not apply recluster command after roster-set"`
+	Quiet       bool   `long:"quiet" description:"Do not print the roster after applying"`
 }
 
 func (c *rosterApplyCmd) Execute(args []string) error {
@@ -123,6 +124,9 @@ func (c *rosterApplyCmd) runApply() error {
 		if c.ParallelThreads == 1 || len(nodesList) == 1 {
 			for _, n := range nodesList {
 				observedNodes := c.findNodes(n)
+				if observedNodes == nil {
+					continue
+				}
 				if observedNodes.replicationFactor > rf {
 					rf = observedNodes.replicationFactor
 				}
@@ -223,9 +227,11 @@ func (c *rosterApplyCmd) runApply() error {
 		}
 		wait.Wait()
 	}
-	err = c.show()
-	if err != nil {
-		return err
+	if !c.Quiet {
+		err = c.show()
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

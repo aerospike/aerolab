@@ -27,6 +27,9 @@ func (c *confAdjustCmd) Execute(args []string) error {
 	if earlyProcessV2(nil, true) {
 		return nil
 	}
+	if c.Command == "get" {
+		c.Values = []string{}
+	}
 	if len(args) < 1 {
 		if c.Command != "" || c.Key != "" || len(c.Values) > 0 {
 			args = append([]string{c.Command, c.Key}, c.Values...)
@@ -126,6 +129,7 @@ func (c *confAdjustCmd) Execute(args []string) error {
 							valstring = valstring + *vv
 						}
 						fmt.Printf("%s%s %s\n", prefix, i, valstring)
+						c.Values = append(c.Values, valstring)
 						return nil
 					} else {
 						sa = sa.Stanza(i)

@@ -53,7 +53,12 @@ func (c *aerospikeStartCmd) run(args []string, command string, stdout *os.File) 
 
 	if c.ParallelThreads == 1 || len(nodes) == 1 {
 		var out [][]byte
-		if command == "start" {
+		if command == "cold-start" {
+			var commands [][]string
+			commands = append(commands, []string{"ipcrm", "--all"})
+			commands = append(commands, []string{"service", "aerospike", "start"})
+			out, err = b.RunCommands(string(c.ClusterName), commands, nodes)
+		} else if command == "start" {
 			var commands [][]string
 			commands = append(commands, []string{"service", "aerospike", "start"})
 			out, err = b.RunCommands(string(c.ClusterName), commands, nodes)
