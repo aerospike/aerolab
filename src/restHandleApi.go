@@ -70,7 +70,7 @@ func (c *restCmd) handleApiDoLoop() {
 	subcommands := false
 	for _, command := range c.apiCommands {
 		if !strings.HasSuffix(command.path, "/help") && strings.HasPrefix(command.path, urlpath) && len(command.path) > len(urlpath) {
-			fmt.Fprintf(w, command.path+"\n")
+			fmt.Fprint(w, command.path+"\n")
 			subcommands = true
 		}
 	}
