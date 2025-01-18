@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"strconv"
 
@@ -17,6 +18,8 @@ type confSCCmd struct {
 	Namespace   string          `short:"m" long:"namespace" description:"Namespace to change" default:"test"`
 	Path        string          `short:"p" long:"path" description:"Path to aerospike.conf" default:"/etc/aerospike/aerospike.conf"`
 	Force       bool            `short:"f" long:"force" description:"If set, will zero out the devices even if strong-consistency was already configured"`
+	Racks       int             `short:"r" long:"racks" description:"If rack-aware feature is required, set this to the number of racks you want to divide the cluster into"`
+	WithDisks   bool            `short:"d" long:"with-disks" description:"If set, will attempt to configure device storage engine for the namespace, using all available devices"`
 	parallelThreadsCmd
 }
 
@@ -32,6 +35,26 @@ func (c *confSCCmd) Execute(args []string) error {
 	err := a.opts.Aerospike.Stop.run(nil, "stop", os.Stdout)
 	if err != nil {
 		return err
+	}
+	// use partitioner
+	if c.WithDisks {
+		log.Println("conf.sc: Partitioning all available devices")
+		a.opts.Cluster.Partition.Create.ClusterName = c.ClusterName
+		a.opts.Cluster.Partition.Create.ParallelThreads = c.ParallelThreads
+		a.opts.Cluster.Partition.Create.Partitions = "24,24,24,24"
+		err = a.opts.Cluster.Partition.Create.Execute(nil)
+		if err != nil {
+			return err
+		}
+		a.opts.Cluster.Partition.Conf.ClusterName = c.ClusterName
+		a.opts.Cluster.Partition.Conf.ParallelThreads = c.ParallelThreads
+		a.opts.Cluster.Partition.Conf.FilterPartitions = "1-4"
+		a.opts.Cluster.Partition.Conf.ConfDest = "device"
+		a.opts.Cluster.Partition.Conf.Namespace = c.Namespace
+		err = a.opts.Cluster.Partition.Conf.Execute(nil)
+		if err != nil {
+			return err
+		}
 	}
 	// get node count
 	log.Println("conf.sc: Getting cluster size")
@@ -106,9 +129,8 @@ func (c *confSCCmd) Execute(args []string) error {
 		// remove storage files
 		if rmFiles || c.Force {
 			if x.Type("storage-engine device") == aeroconf.ValueStanza {
-				x = x.Stanza("storage-engine device")
-				if x.Type("file") == aeroconf.ValueString {
-					files, err := x.GetValues("file")
+				if x.Stanza("storage-engine device").Type("file") == aeroconf.ValueString {
+					files, err := x.Stanza("storage-engine device").GetValues("file")
 					if err != nil {
 						return err
 					}
@@ -123,6 +145,24 @@ func (c *confSCCmd) Execute(args []string) error {
 					if err != nil {
 						return fmt.Errorf("%s: %s", err, string(data[0]))
 					}
+				}
+			}
+		}
+		// configure rackid
+		if c.Racks > 0 {
+			nodesPerRack := int(math.Ceil(float64(len(nodes)) / float64(c.Racks)))
+			nodeRack := ((node - 1) / nodesPerRack) + 1
+			if x.Type("rack-id") != aeroconf.ValueString {
+				x.SetValue("rack-id", strconv.Itoa(nodeRack))
+				changes = true
+			} else {
+				vals, err := x.GetValues("rack-id")
+				if err != nil {
+					return err
+				}
+				if *vals[0] != strconv.Itoa(nodeRack) {
+					x.SetValue("rack-id", strconv.Itoa(nodeRack))
+					changes = true
 				}
 			}
 		}
