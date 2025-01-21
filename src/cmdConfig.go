@@ -63,6 +63,9 @@ func (c *configBackendCmd) Execute(args []string) error {
 		a.forceFileOptional = true
 		return nil
 	}
+	if !inslice.HasString(os.Args[1:], "--aws-nopublic-ip") {
+		c.AWSNoPublicIps = false
+	}
 	if c.Arch != "" && c.Arch != "amd64" && c.Arch != "arm64" && c.Arch != "unset" {
 		return errors.New("docker-arch must be one of: unset, amd64, arm64")
 	}
@@ -82,6 +85,7 @@ func (c *configBackendCmd) Execute(args []string) error {
 	if c.Type == "aws" {
 		fmt.Printf("Config.Backend.AWSProfile = %s\n", c.AWSProfile)
 		fmt.Printf("Config.Backend.Region = %s\n", c.Region)
+		fmt.Printf("Config.Backend.AWSNoPublicIps = %v\n", c.AWSNoPublicIps)
 	}
 	if c.Type == "gcp" {
 		fmt.Printf("Config.Backend.Project = %s\n", c.Project)

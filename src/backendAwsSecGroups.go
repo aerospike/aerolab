@@ -237,7 +237,7 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 				secGroup = strings.Join(secGroupList, ",")
 				log.Printf("Using security group IDs %s", secGroup)
 			} else {
-				if groupPrefix != "AeroLabServer" && groupPrefix != "AeroLabClient" {
+				if groupPrefix != "AeroLabServer" && groupPrefix != "AeroLabClient" && !a.opts.Config.Backend.AWSNoPublicIps {
 					fwfound := false
 					myIp := getip2()
 					parsedIp := net.ParseIP(myIp)
@@ -357,7 +357,7 @@ func (d *backendAws) createSecGroups(vpc string, namePrefix string, isAgi bool, 
 	}
 
 	ip := "0.0.0.0/0"
-	if !isAgi {
+	if !isAgi && !a.opts.Config.Backend.AWSNoPublicIps {
 		ip = getip2()
 		if !strings.Contains(ip, "/") {
 			ip = ip + "/32"

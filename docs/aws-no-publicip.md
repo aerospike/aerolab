@@ -22,10 +22,16 @@ aerolab files upload -c -n aerolab ~/.aws /root/
 # attach to the client machine
 aerolab client attach -n aerolab
 
-# on aerolab client machine - configure backend and deploy clusters and clients in private subnet with no public IPs
+# on aerolab client machine - configure backend
 aerolab config backend -t aws -r us-west-2 --aws-nopublic-ip
-aerolab cluster create -v 7.0.0.2 -n testsrv -I t3a.xlarge -U subnet-05553cf8361f4dde1
-aerolab client create none -n testcl -I t3a.xlarge -U subnet-05553cf8361f4dde1
+
+# setup firewall with a given private IP range
+aerolab config aws create-security-groups -n aerolab2 -v vpc-0863aa2e8d3d379e1
+aerolab config aws lock-security-groups -n aerolab2 -i 10.0.0.0/8 -v vpc-0863aa2e8d3d379e1
+
+# deploy clusters and clients in private subnet with no public IPs
+aerolab cluster create -v 7.0.0.2 -n testsrv -I t3a.xlarge -U subnet-05553cf8361f4dde1 --secgroup-name=aerolab2
+aerolab client create none -n testcl -I t3a.xlarge -U subnet-05553cf8361f4dde1 --secgroup-name=aerolab2
 ```
 
 ## Cleanup:

@@ -1,6 +1,8 @@
 package main
 
-import "os"
+import (
+	"os"
+)
 
 type aerospikeCmd struct {
 	Start     aerospikeStartCmd     `command:"start" subcommands-optional:"true" description:"Start aerospike" webicon:"fas fa-play"`
@@ -9,6 +11,7 @@ type aerospikeCmd struct {
 	Status    aerospikeStatusCmd    `command:"status" subcommands-optional:"true" description:"Aerospike daemon status" webicon:"fas fa-circle-question"`
 	Upgrade   aerospikeUpgradeCmd   `command:"upgrade" subcommands-optional:"true" description:"Upgrade aerospike daemon" webicon:"fas fa-circle-arrow-up"`
 	ColdStart aerospikeColdStartCmd `command:"cold-start" subcommands-optional:"true" description:"Cold-Start aerospike" webicon:"fas fa-play"`
+	IsStable  aerospikeIsStableCmd  `command:"is-stable" subcommands-optional:"true" description:"Check if, and optionally wait until, cluster is stable" webicon:"fas fa-circle-question"`
 	Help      helpCmd               `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
