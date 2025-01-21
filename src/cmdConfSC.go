@@ -21,6 +21,7 @@ type confSCCmd struct {
 	Racks       int             `short:"r" long:"racks" description:"If rack-aware feature is required, set this to the number of racks you want to divide the cluster into"`
 	WithDisks   bool            `short:"d" long:"with-disks" description:"If set, will attempt to configure device storage engine for the namespace, using all available devices"`
 	parallelThreadsCmd
+	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *confSCCmd) Execute(args []string) error {
