@@ -1,22 +1,22 @@
 package backend
 
 import (
-	"fmt"
 	"slices"
+	"sync"
 	"time"
 )
 
 type Instances interface {
 	// instance selector - by backend type
-	WithBackendType(types []BackendType) Instances
+	WithBackendType(types ...BackendType) Instances
 	// instance selector - by volume type
-	WithType(types []string) Instances
+	WithType(types ...string) Instances
 	// instance selector - by zone
-	WithZoneName(zoneNames []string) Instances
+	WithZoneName(zoneNames ...string) Instances
 	// instance selector - by zone
-	WithZoneID(zoneIDs []string) Instances
+	WithZoneID(zoneIDs ...string) Instances
 	// instance selector - by name
-	WithName(names []string) Instances
+	WithName(names ...string) Instances
 	// number of instances in selector
 	Count() int
 	// expose instance details to the caller
@@ -27,22 +27,21 @@ type Instances interface {
 
 type InstanceAction interface {
 	// add/override tags for instances
-	AddTags(tags map[string]string) error
+	AddTags(tags map[string]string, waitDur int) error
 	// remove tag(s) from instances
-	RemoveTags(tagKeys []string) error
+	RemoveTags(tagKeys []string, waitDur int) error
 	// delete selected instances
-	Terminate() error
+	Terminate(waitDur int) error
 	// stop selected instances
-	Stop() error
+	Stop(waitDur int) error
 	// start selected instances
-	Start() error
+	Start(waitDur int) error
 }
 
 // any backend returning this struct, must implement the InstanceAction interface on it
 type Instance struct {
 	Action InstanceAction
-	Data   struct {
-		// instance details, yaml/json tags included
+	Data   struct { // instance details, yaml/json tags included
 		BackendType     BackendType       `yaml:"backendType" json:"backendType"`
 		InstanceType    string            `yaml:"instanceType" json:"instanceType"`
 		Name            string            `yaml:"name" json:"name"`
@@ -51,7 +50,7 @@ type Instance struct {
 		ZoneID          string            `yaml:"zoneID" json:"zoneID"`
 		CreationTime    time.Time         `yaml:"creationTime" json:"creationTime"`
 		Owner           string            `yaml:"owner" json:"owner"`                   // from tags
-		LifeCycleState  string            `yaml:"lifeCycleState" json:"lifeCycleState"` // TODO: define states as iota
+		LifeCycleState  LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"` // states, cloud or custom
 		Tags            map[string]string `yaml:"tags" json:"tags"`                     // all tags
 		Expires         time.Time         `yaml:"expires" json:"expires"`               // from tags
 		Description     string            `yaml:"description" json:"description"`       // from description or tags if no description field
@@ -63,7 +62,7 @@ type Instance struct {
 // list of all Instances, for the Inventory interface
 type InstanceList []*Instance
 
-func (v InstanceList) WithBackendType(types []BackendType) Instances {
+func (v InstanceList) WithBackendType(types ...BackendType) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
@@ -75,7 +74,7 @@ func (v InstanceList) WithBackendType(types []BackendType) Instances {
 	return ret
 }
 
-func (v InstanceList) WithType(types []string) Instances {
+func (v InstanceList) WithType(types ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
@@ -87,7 +86,7 @@ func (v InstanceList) WithType(types []string) Instances {
 	return ret
 }
 
-func (v InstanceList) WithZoneName(zoneNames []string) Instances {
+func (v InstanceList) WithZoneName(zoneNames ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
@@ -99,7 +98,7 @@ func (v InstanceList) WithZoneName(zoneNames []string) Instances {
 	return ret
 }
 
-func (v InstanceList) WithZoneID(zoneIDs []string) Instances {
+func (v InstanceList) WithZoneID(zoneIDs ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
@@ -111,7 +110,7 @@ func (v InstanceList) WithZoneID(zoneIDs []string) Instances {
 	return ret
 }
 
-func (v InstanceList) WithName(names []string) Instances {
+func (v InstanceList) WithName(names ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
@@ -131,52 +130,87 @@ func (v InstanceList) Count() int {
 	return len(v)
 }
 
-func (v InstanceList) AddTags(tags map[string]string) error {
-	for _, instance := range v {
-		err := instance.Action.AddTags(tags)
-		if err != nil {
-			return fmt.Errorf("%s: %s", instance.Data.Name, err)
-		}
+func (v InstanceList) AddTags(tags map[string]string, waitDur int) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesAddTags(v.WithBackendType(c).Describe(), tags, waitDur)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
-func (v InstanceList) RemoveTags(tagKeys []string) error {
-	for _, instance := range v {
-		err := instance.Action.RemoveTags(tagKeys)
-		if err != nil {
-			return fmt.Errorf("%s: %s", instance.Data.Name, err)
-		}
+func (v InstanceList) RemoveTags(tagKeys []string, waitDur int) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesRemoveTags(v.WithBackendType(c).Describe(), tagKeys, waitDur)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
-func (v InstanceList) Terminate() error {
-	for _, instance := range v {
-		err := instance.Action.Terminate()
-		if err != nil {
-			return fmt.Errorf("%s: %s", instance.Data.Name, err)
-		}
+func (v InstanceList) Terminate(waitDur int) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesTerminate(v.WithBackendType(c).Describe(), waitDur)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
-func (v InstanceList) Stop() error {
-	for _, instance := range v {
-		err := instance.Action.Stop()
-		if err != nil {
-			return fmt.Errorf("%s: %s", instance.Data.Name, err)
-		}
+func (v InstanceList) Stop(waitDur int) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesStop(v.WithBackendType(c).Describe(), waitDur)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
-func (v InstanceList) Start() error {
-	for _, instance := range v {
-		err := instance.Action.Start()
-		if err != nil {
-			return fmt.Errorf("%s: %s", instance.Data.Name, err)
-		}
+func (v InstanceList) Start(waitDur int) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesStart(v.WithBackendType(c).Describe(), waitDur)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }

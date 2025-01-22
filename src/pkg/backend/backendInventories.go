@@ -1,0 +1,144 @@
+package backend
+
+import (
+	"path"
+	"sync"
+	"time"
+
+	"github.com/aerospike/aerolab/pkg/backend/cache"
+	"github.com/aerospike/aerolab/pkg/backend/clouds"
+)
+
+type Cloud interface {
+	SetConfig(dir string, credentials *clouds.Credentials) error
+	ListEnabledZones() ([]string, error)
+	EnableZones(names ...string) error
+	DisableZones(names ...string) error
+	GetVolumes() (VolumeList, error)
+	GetInstances() (InstanceList, error)
+	// TODO: cloud must implement CreateVolumes, CreateInstances
+	// actions on multiple instances
+	InstancesAddTags(instances InstanceList, tags map[string]string, waitDur int) error
+	InstancesRemoveTags(instances InstanceList, tagKeys []string, waitDur int) error
+	InstancesTerminate(instances InstanceList, waitDur int) error
+	InstancesStop(instances InstanceList, waitDur int) error
+	InstancesStart(instances InstanceList, waitDur int) error
+	// actions on multiple volumes
+	VolumesAddTags(volumes VolumeList, tags map[string]string, waitDur int) error
+	VolumesRemoveTags(volumes VolumeList, tagKeys []string, waitDur int) error
+	DeleteVolumes(volumes VolumeList, waitDur int) error
+}
+
+type Backend interface {
+	// TODO: backend must implement CreateVolumes, CreateInstances
+	GetInventory() (*Inventory, error)
+	AddRegion(backendType BackendType, names ...string) error
+	RemoveRegion(backendType BackendType, names ...string) error
+	ListEnabledRegions(backendType BackendType) (name []string, err error)
+	ForceRefreshInventory() error
+}
+
+type backend struct {
+	project   string
+	config    *Config
+	cache     *cache.Cache
+	volumes   map[BackendType]VolumeList
+	instances map[BackendType]InstanceList
+	pollLock  *sync.Mutex
+}
+
+type Inventory struct {
+	Volumes   Volumes   // permanent volumes which do not go away (not tied to instance lifetime), be it EFS, or EBS/pd-ssd
+	Instances Instances // all instances, clusters, clients, whatever
+	//TODO Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
+	//TODO Firewalls Firewalls // AWS security groups, GCP firewalls
+	//TODO Networks  Networks  // VPCs, Subnets
+	//TODO Expiries  Expiries  // Expiry system: to be made obsolete in the future by using tiny instances with aerolab on them for expiries instead - removing complexity
+}
+
+func getBackendObject(project string, c *Config) *backend {
+	return &backend{
+		project:   project,
+		config:    c,
+		volumes:   make(map[BackendType]VolumeList),
+		instances: make(map[BackendType]InstanceList),
+		pollLock:  new(sync.Mutex),
+	}
+}
+
+func (b *backend) loadCache() error {
+	m := &cacheMetadata{}
+	err := b.cache.Get(path.Join(b.project, "metadata"), m)
+	if err != nil {
+		return err
+	}
+	if m.CacheUpdateTimestamp.Add(time.Hour).Before(time.Now()) {
+		return cache.ErrNoCacheFile
+	}
+	err = b.cache.Get(path.Join(b.project, "volumes"), &b.volumes)
+	if err != nil {
+		return err
+	}
+	err = b.cache.Get(path.Join(b.project, "instances"), &b.instances)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *backend) poll() []error {
+	b.pollLock.Lock()
+	defer b.pollLock.Unlock()
+	var errs []error
+
+	for n, v := range cloudList {
+		d, err := v.GetVolumes()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			b.volumes[n] = d
+		}
+	}
+	err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	for n, v := range cloudList {
+		d, err := v.GetInstances()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			b.instances[n] = d
+		}
+	}
+	err = b.cache.Store(path.Join(b.project, "instances"), b.instances)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) == 0 {
+		err = b.cache.Store(path.Join(b.project, "metadata"), cacheMetadata{
+			CacheUpdateTimestamp: time.Now(),
+		})
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs
+}
+
+func (b *backend) GetInventory() (*Inventory, error) {
+	volumes := VolumeList{}
+	for _, v := range b.volumes {
+		volumes = append(volumes, v...)
+	}
+	instances := InstanceList{}
+	for _, v := range b.instances {
+		instances = append(instances, v...)
+	}
+	return &Inventory{
+		Volumes:   volumes,
+		Instances: instances,
+	}, nil
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 )
 
@@ -35,15 +36,15 @@ func (a VolumeType) MarshalYAML() (interface{}, error) {
 
 type Volumes interface {
 	// volume selector - by backend type
-	WithBackendType(types []BackendType) Volumes
+	WithBackendType(types ...BackendType) Volumes
 	// volume selector - by volume type
-	WithType(types []VolumeType) Volumes
+	WithType(types ...VolumeType) Volumes
 	// volume selector - by zone
-	WithZoneName(zoneNames []string) Volumes
+	WithZoneName(zoneNames ...string) Volumes
 	// volume selector - by zone
-	WithZoneID(zoneIDs []string) Volumes
+	WithZoneID(zoneIDs ...string) Volumes
 	// volume selector - by name
-	WithName(names []string) Volumes
+	WithName(names ...string) Volumes
 	// number of volumes in selector
 	Count() int
 	// expose instance details to the caller
@@ -54,11 +55,11 @@ type Volumes interface {
 
 type VolumeAction interface {
 	// add/override tags for volumes
-	AddTags(tags map[string]string) error
+	AddTags(tags map[string]string, waitDur int) error
 	// remove tag(s) from volumes
-	RemoveTags(tagKeys []string) error
+	RemoveTags(tagKeys []string, waitDur int) error
 	// delete selected volumes
-	DeleteVolumes() error
+	DeleteVolumes(waitDur int) error
 	// for pd-ssd/ebs - attach volume to instance; if mountTargetDirectory is specified, also ssh in to the instance and perform mount
 	// for EFS,docker - create mount targets if needed, sort out security groups, ssh to the instances and mount+fstab
 	Attach(instance *Instance, mountTargetDirectory *string) error
@@ -71,8 +72,7 @@ type VolumeAction interface {
 // any backend returning this struct, must implement the VolumeAction interface on it
 type Volume struct {
 	Action VolumeAction
-	Data   struct {
-		// volume details, yaml/json tags included
+	Data   struct { // volume details, yaml/json tags included
 		BackendType     BackendType       `yaml:"backendType" json:"backendType"`
 		VolumeType      VolumeType        `yaml:"volumeType" json:"volumeType"`
 		Name            string            `yaml:"name" json:"name"`
@@ -82,7 +82,7 @@ type Volume struct {
 		ZoneID          string            `yaml:"zoneID" json:"zoneID"`
 		CreationTime    time.Time         `yaml:"creationTime" json:"creationTime"`
 		Owner           string            `yaml:"owner" json:"owner"`                   // from tags
-		LifeCycleState  string            `yaml:"lifeCycleState" json:"lifeCycleState"` // TODO: define states as iota
+		LifeCycleState  LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"` // states, cloud or custom
 		Tags            map[string]string `yaml:"tags" json:"tags"`                     // all tags
 		Expires         time.Time         `yaml:"expires" json:"expires"`               // from tags
 		AttachedTo      []string          `yaml:"attachedTo" json:"attachedTo"`         // for non-efs
@@ -95,7 +95,7 @@ type Volume struct {
 // list of all volumes, for the Inventory interface
 type VolumeList []*Volume
 
-func (v VolumeList) WithBackendType(types []BackendType) Volumes {
+func (v VolumeList) WithBackendType(types ...BackendType) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
@@ -107,7 +107,7 @@ func (v VolumeList) WithBackendType(types []BackendType) Volumes {
 	return ret
 }
 
-func (v VolumeList) WithType(types []VolumeType) Volumes {
+func (v VolumeList) WithType(types ...VolumeType) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
@@ -119,7 +119,7 @@ func (v VolumeList) WithType(types []VolumeType) Volumes {
 	return ret
 }
 
-func (v VolumeList) WithZoneName(zoneNames []string) Volumes {
+func (v VolumeList) WithZoneName(zoneNames ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
@@ -131,7 +131,7 @@ func (v VolumeList) WithZoneName(zoneNames []string) Volumes {
 	return ret
 }
 
-func (v VolumeList) WithZoneID(zoneIDs []string) Volumes {
+func (v VolumeList) WithZoneID(zoneIDs ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
@@ -143,7 +143,7 @@ func (v VolumeList) WithZoneID(zoneIDs []string) Volumes {
 	return ret
 }
 
-func (v VolumeList) WithName(names []string) Volumes {
+func (v VolumeList) WithName(names ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
@@ -163,34 +163,55 @@ func (v VolumeList) Count() int {
 	return len(v)
 }
 
-func (v VolumeList) AddTags(tags map[string]string) error {
-	for _, volume := range v {
-		err := volume.Action.AddTags(tags)
-		if err != nil {
-			return fmt.Errorf("%s: %s", volume.Data.Name, err)
-		}
+func (v VolumeList) AddTags(tags map[string]string, waitDur int) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].VolumesAddTags(v.WithBackendType(c).Describe(), tags, waitDur)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
-func (v VolumeList) RemoveTags(tagKeys []string) error {
-	for _, volume := range v {
-		err := volume.Action.RemoveTags(tagKeys)
-		if err != nil {
-			return fmt.Errorf("%s: %s", volume.Data.Name, err)
-		}
+func (v VolumeList) RemoveTags(tagKeys []string, waitDur int) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].VolumesRemoveTags(v.WithBackendType(c).Describe(), tagKeys, waitDur)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
-func (v VolumeList) DeleteVolumes() error {
-	for _, volume := range v {
-		err := volume.Action.DeleteVolumes()
-		if err != nil {
-			return fmt.Errorf("%s: %s", volume.Data.Name, err)
-		}
+func (v VolumeList) DeleteVolumes(waitDur int) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].DeleteVolumes(v.WithBackendType(c).Describe(), waitDur)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
 func (v VolumeList) Attach(instance *Instance, mountTargetDirectory *string) error {
