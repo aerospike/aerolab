@@ -4,14 +4,58 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/aerospike/aerolab/parallelize"
 )
 
+type NodeRange []int
+
+func (n *NodeRange) UnmarshalFlag(value string) error {
+	if value == "" {
+		return nil
+	}
+	for _, v := range strings.Split(value, ",") {
+		if strings.Contains(v, "-") {
+			ab := strings.Split(v, "-")
+			if len(ab) != 2 {
+				return errors.New("invalid range format")
+			}
+			a, err := strconv.Atoi(ab[0])
+			if err != nil {
+				return err
+			}
+			b, err := strconv.Atoi(ab[1])
+			if err != nil {
+				return err
+			}
+			start := a
+			end := b
+			if start > end {
+				start = b
+				end = a
+			}
+			for i := start; i <= end; i++ {
+				*n = append(*n, i)
+			}
+			continue
+		}
+		x, err := strconv.Atoi(v)
+		if err != nil {
+			return err
+		}
+		*n = append(*n, x)
+	}
+	return nil
+}
+
 type aerospikeIsStableCmd struct {
 	ClusterName      TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated OR 'all' to affect all clusters" default:"mydc"`
+	Nodes            NodeRange       `short:"l" long:"nodes" description:"Only consider the given nodes, e.g. --nodes=1-4,7,8"`
 	Namespace        string          `short:"m" long:"namespace" description:"Namespace to change" default:"test"`
 	Wait             bool            `short:"w" long:"wait" description:"If set, will wait in a loop until the cluster is stable, and then return"`
 	WaitTimeout      int             `short:"o" long:"wait-timeout" description:"If set, will timeout if the cluster doesn't become stable by this many seconds"`
@@ -25,6 +69,9 @@ func (c *aerospikeIsStableCmd) Execute(args []string) error {
 	if earlyProcessV2(nil, true) {
 		return nil
 	}
+	if c.WaitTimeout != 0 {
+		c.Wait = true
+	}
 	startTime := time.Now()
 	log.Println("Running aerospike.is-stable")
 	// get node count
@@ -35,6 +82,14 @@ func (c *aerospikeIsStableCmd) Execute(args []string) error {
 	}
 	if len(nodes) == 0 {
 		return errors.New("cluster does not exists")
+	}
+	for _, node := range c.Nodes {
+		if !slices.Contains(nodes, node) {
+			return fmt.Errorf("selected node %d not found", node)
+		}
+	}
+	if len(c.Nodes) > 0 {
+		nodes = c.Nodes
 	}
 	// scripts
 	waitScript := fmt.Sprintf(`timeout=%d
