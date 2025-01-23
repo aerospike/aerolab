@@ -2,35 +2,53 @@
 
 # Strong consistency
 
-## Prerequisites
+Create an Aerospike cluster with strong consistency
 
-* the node count must be equal or higher to the configured `replication-factor`
-* the feature file `features.conf` must support the number of nodes being deployed in the cluster, or the cluster won't form
+## Create a cluster
 
-For simple testing, ensure the replication factor is `1` in the custom `aerospike.conf`.
+```
+# docker
+aerolab config backend -t docker
+aerolab cluster create -f features.conf
 
-## Create an Aerospike cluster with strong consistency
+# aws
+aerolab config backend -t aws -r us-west-2
+aerolab cluster create -I t3a.large -f features.conf
 
-### Generate a template configuration file with strong consistency enabled
-
-```bash
-aerolab conf generate
+# gcp
+aerolab config backend -t gcp -o aerolab-test-project-1
+aerolab cluster create --instance e2-standard-2 --zone us-central1-a -f features.conf
 ```
 
-Tick the box next to 'strong consistency' and hit CTRL+X to save `aerospike.conf`.
+## Apply strong consistency
 
-### Replication factor and test features file limitations
-
-Optionally edit `aerospike.conf` and set `replication-factor 1` for the namespace, in order to allow 1-node cluster with SC.
-
-### Create a cluster, with a custom config and features file
-
-```bash
-$ ./aerolab cluster create -c 3 -o aerospike.conf -f features.conf
+```
+aerolab conf sc
 ```
 
-### Apply the roster
+## Further options
+
+The `aerolab conf sc` command allows for custom namespace names, addition of rack-aware configuration as well as auto-partitioning of devices for a namespace (should the instance type have devices).
+
+```
+$ aerolab conf sc help
+    [...]
+    -n, --name=       Cluster name (default: mydc)
+    -m, --namespace=  Namespace to change (default: test)
+    -p, --path=       Path to aerospike.conf (default: /etc/aerospike/aerospike.conf)
+    -f, --force       If set, will zero out the devices even if strong-consistency was already configured
+    -r, --racks=      If rack-aware feature is required, set this to the number of racks you want to divide the cluster into
+    -d, --with-disks  If set, will attempt to configure device storage engine for the namespace, using all available devices
+    -t, --threads=    Run on this many nodes in parallel (default: 50)
+```
+
+Full example:
 
 ```bash
-$ ./aerolab roster apply -m test
+# create the cluster, 9 nodes
+aerolab config backend -t aws -r us-west-2
+aerolab cluster create -I m5d.large -f features.conf -c 9
+
+# configure SC with 'test' namespace, 3 racks (which results in 3 nodes / rack), and using all available devices
+aerolab conf sc -m test -r 3 -d
 ```
