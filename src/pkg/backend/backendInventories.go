@@ -9,24 +9,29 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 )
 
+// note: each backend, for any action that changes state, should call the SaveCache callback when done
+
 type Cloud interface {
-	SetConfig(dir string, credentials *clouds.Credentials) error
+	SetConfig(dir string, credentials *clouds.Credentials, project string) error
 	ListEnabledZones() ([]string, error)
 	EnableZones(names ...string) error
 	DisableZones(names ...string) error
 	GetVolumes() (VolumeList, error)
-	GetInstances() (InstanceList, error)
+	GetInstances(VolumeList) (InstanceList, error)
 	// TODO: cloud must implement CreateVolumes, CreateInstances
 	// actions on multiple instances
-	InstancesAddTags(instances InstanceList, tags map[string]string, waitDur int) error
-	InstancesRemoveTags(instances InstanceList, tagKeys []string, waitDur int) error
-	InstancesTerminate(instances InstanceList, waitDur int) error
-	InstancesStop(instances InstanceList, waitDur int) error
-	InstancesStart(instances InstanceList, waitDur int) error
+	InstancesAddTags(instances InstanceList, tags map[string]string) error
+	InstancesRemoveTags(instances InstanceList, tagKeys []string) error
+	InstancesTerminate(instances InstanceList, waitDur time.Duration) error
+	InstancesStop(instances InstanceList, force bool, waitDur time.Duration) error
+	InstancesStart(instances InstanceList, waitDur time.Duration) error
 	// actions on multiple volumes
-	VolumesAddTags(volumes VolumeList, tags map[string]string, waitDur int) error
-	VolumesRemoveTags(volumes VolumeList, tagKeys []string, waitDur int) error
-	DeleteVolumes(volumes VolumeList, waitDur int) error
+	VolumesAddTags(volumes VolumeList, tags map[string]string, waitDur time.Duration) error
+	VolumesRemoveTags(volumes VolumeList, tagKeys []string, waitDur time.Duration) error
+	DeleteVolumes(volumes VolumeList, waitDur time.Duration) error
+	AttachVolumes(volumes VolumeList, instance *Instance, mountTargetDirectory *string) error
+	DetachVolumes(volumes VolumeList, instance *Instance) error
+	ResizeVolumes(volumes VolumeList, newSize StorageSize) error
 }
 
 type Backend interface {
@@ -86,17 +91,19 @@ func (b *backend) loadCache() error {
 	return nil
 }
 
-func (b *backend) poll() []error {
+func (b *backend) poll(justSaveCache bool) []error {
 	b.pollLock.Lock()
 	defer b.pollLock.Unlock()
 	var errs []error
 
-	for n, v := range cloudList {
-		d, err := v.GetVolumes()
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			b.volumes[n] = d
+	if !justSaveCache {
+		for n, v := range cloudList {
+			d, err := v.GetVolumes()
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				b.volumes[n] = d
+			}
 		}
 	}
 	err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
@@ -104,12 +111,14 @@ func (b *backend) poll() []error {
 		errs = append(errs, err)
 	}
 
-	for n, v := range cloudList {
-		d, err := v.GetInstances()
-		if err != nil {
-			errs = append(errs, err)
-		} else {
-			b.instances[n] = d
+	if !justSaveCache {
+		for n, v := range cloudList {
+			d, err := v.GetInstances(b.volumes[n])
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				b.instances[n] = d
+			}
 		}
 	}
 	err = b.cache.Store(path.Join(b.project, "instances"), b.instances)
@@ -117,7 +126,7 @@ func (b *backend) poll() []error {
 		errs = append(errs, err)
 	}
 
-	if len(errs) == 0 {
+	if !justSaveCache && len(errs) == 0 {
 		err = b.cache.Store(path.Join(b.project, "metadata"), cacheMetadata{
 			CacheUpdateTimestamp: time.Now(),
 		})

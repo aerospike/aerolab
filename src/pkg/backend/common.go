@@ -5,16 +5,17 @@ import "encoding/json"
 type LifeCycleState int
 
 const (
-	LifeCycleStateCreating    = iota
-	LifeCycleStateCreated     = iota
-	LifeCycleStateStarting    = iota
-	LifeCycleStateRunning     = iota
-	LifeCycleStateStopping    = iota
-	LifeCycleStateStopped     = iota
-	LifeCycleStateTerminating = iota
-	LifeCycleStateTerminated  = iota
-	LifeCycleStateFail        = iota
-	LifeCycleStateConfiguring = iota
+	LifeCycleStateCreating    LifeCycleState = iota
+	LifeCycleStateCreated     LifeCycleState = iota
+	LifeCycleStateStarting    LifeCycleState = iota
+	LifeCycleStateRunning     LifeCycleState = iota
+	LifeCycleStateStopping    LifeCycleState = iota
+	LifeCycleStateStopped     LifeCycleState = iota
+	LifeCycleStateTerminating LifeCycleState = iota
+	LifeCycleStateTerminated  LifeCycleState = iota
+	LifeCycleStateFail        LifeCycleState = iota
+	LifeCycleStateConfiguring LifeCycleState = iota
+	LifeCycleStateUnknown     LifeCycleState = iota
 )
 
 func (a LifeCycleState) String() string {

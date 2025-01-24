@@ -56,14 +56,14 @@ func (b *backend) ListEnabledRegions(backendType BackendType) (name []string, er
 func (b *backend) pollTimer() {
 	for {
 		time.Sleep(time.Hour)
-		errs := b.poll()
+		errs := b.poll(false)
 		for _, err := range errs {
 			log.Printf("Inventory refresh failure: %s", err)
 		}
 	}
 }
 func (b *backend) ForceRefreshInventory() error {
-	errs := b.poll()
+	errs := b.poll(false)
 	if errs == nil {
 		return nil
 	}
@@ -83,7 +83,7 @@ func Init(project string, c *Config) (Backend, error) {
 	}
 	b := getBackendObject(project, c)
 	for cname, cloud := range cloudList {
-		err := cloud.SetConfig(path.Join(project, c.RootDir, "config", string(cname)), c.Credentials)
+		err := cloud.SetConfig(path.Join(project, c.RootDir, "config", string(cname)), c.Credentials, project)
 		if err != nil {
 			return nil, err
 		}
