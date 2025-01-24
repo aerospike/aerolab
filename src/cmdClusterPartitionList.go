@@ -95,6 +95,7 @@ func (c *clusterPartitionListCmd) fixPartOut(bd []blockDevices, blkFormat int) [
 		bd[i].Path = strings.Trim(bd[i].Path, "\t\r\n ")
 		bd[i].Size = strings.Trim(bd[i].Size, "\t\r\n ")
 		bd[i].Type = strings.Trim(bd[i].Type, "\t\r\n ")
+		bd[i].PartUUID = strings.Trim(bd[i].PartUUID, "\t\r\n ")
 		if blkFormat == 2 {
 			bd[i].Path = bd[i].Name
 			bd[i].FsSize = "N/A"
@@ -177,10 +178,10 @@ func (c *clusterPartitionListCmd) runListParallel(dout disks, doutlock *sync.Mut
 
 func (c *clusterPartitionListCmd) runList(dout disks, doutlock *sync.Mutex, node int, printable bool, filterDisks []int, filterPartitions []int, headerPrinted *SafeBool) error {
 	blkFormat := 1
-	ret, err := b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
+	ret, err := b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-o", "NAME,PATH,FSTYPE,FSSIZE,MOUNTPOINT,MODEL,SIZE,TYPE,PARTUUID"}}, []int{node})
 	if err != nil {
 		blkFormat = 2
-		ret, err = b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-p", "-o", "NAME,FSTYPE,MOUNTPOINT,MODEL,SIZE,TYPE"}}, []int{node})
+		ret, err = b.RunCommands(c.ClusterName.String(), [][]string{{"lsblk", "-a", "-f", "-J", "-p", "-o", "NAME,FSTYPE,MOUNTPOINT,MODEL,SIZE,TYPE,PARTUUID"}}, []int{node})
 		if err != nil {
 			return err
 		}
@@ -252,7 +253,7 @@ func (c *clusterPartitionListCmd) runList(dout disks, doutlock *sync.Mutex, node
 				diskTypePrint = "local"
 			}
 		}
-		out = append(out, fmt.Sprintf("%4d %-10s %4d    - %-12s %8s %6s %8s %s", node, diskTypePrint, diskNo, disk.Name, disk.Size, disk.FsType, disk.FsSize, disk.MountPoint))
+		out = append(out, fmt.Sprintf("%4d %-10s %4d %4s %-12s %-36s %8s %6s %8s %s", node, diskTypePrint, diskNo, "-", disk.Name, "-", disk.Size, disk.FsType, disk.FsSize, disk.MountPoint))
 		if len(disk.Children) != 0 && c.FilterPartitions != "0" && c.FilterPartitions != "" {
 			sort.Slice(disk.Children, func(x, y int) bool {
 				return disk.Children[x].Name < disk.Children[y].Name
@@ -276,7 +277,7 @@ func (c *clusterPartitionListCmd) runList(dout disks, doutlock *sync.Mutex, node
 							diskTypePrint = "local"
 						}
 					}
-					out = append(out, fmt.Sprintf("%4d %-10s %4d %4d %-12s %8s %6s %8s %s", node, diskTypePrint, diskNo, partNo, part.Name, part.Size, part.FsType, part.FsSize, part.MountPoint))
+					out = append(out, fmt.Sprintf("%4d %-10s %4d %4d %-12s %-36s %8s %6s %8s %s", node, diskTypePrint, diskNo, partNo, part.Name, part.PartUUID, part.Size, part.FsType, part.FsSize, part.MountPoint))
 				}
 			}
 		}
@@ -285,8 +286,8 @@ func (c *clusterPartitionListCmd) runList(dout disks, doutlock *sync.Mutex, node
 	if printable && len(out) > 0 {
 		headerPrinted.lock.Lock()
 		if !headerPrinted.val {
-			fmt.Println(strings.ToUpper("node type       disk part name             size fstype     fssize mountpoint"))
-			fmt.Println("----------------------------------------------------------------------")
+			fmt.Printf("%4s %-10s %4s %4s %-12s %-36s %8s %6s %8s %s\n", "NODE", "TYPE", "DISK", "PART", "NAME", "PARTUUID", "SIZE", "FSTYPE", "FSSIZE", "MOUNTPOINT")
+			fmt.Println("---------------------------------------------------------------------------------------------------------------")
 			headerPrinted.val = true
 		}
 		headerPrinted.lock.Unlock()

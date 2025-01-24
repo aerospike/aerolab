@@ -50,6 +50,7 @@ type blockDevices struct {
 	Model      string         `json:"model"` // "Amazon EC2 NVMe Instance Storage" or "Amazon Elastic Block Store"
 	Size       string         `json:"size"`
 	Type       string         `json:"type"` // loop or disk or part
+	PartUUID   string         `json:"partuuid"`
 	Children   []blockDevices `json:"children"`
 	diskNo     int
 	partNo     int
