@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"slices"
+	"strconv"
 
 	"github.com/aerospike/aerolab/pkg/backend"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
@@ -15,15 +16,17 @@ type b struct {
 	configDir   string
 	credentials *clouds.AWS
 	regions     []string
+	project     string
 }
 
 func init() {
 	backend.RegisterBackend(backend.BackendTypeAWS, &b{})
 }
 
-func (s *b) SetConfig(dir string, credentials *clouds.Credentials) error {
+func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string) error {
 	s.configDir = dir
 	s.credentials = &credentials.AWS
+	s.project = project
 	// read regions
 	err := s.setConfigRegions()
 	if err != nil {
@@ -78,4 +81,9 @@ func (s *b) DisableZones(names ...string) error {
 		regions = append(regions, r)
 	}
 	return file.StoreJSON(path.Join(s.configDir, "regions.json"), ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regions)
+}
+
+func toInt(s string) int {
+	i, _ := strconv.Atoi(s)
+	return i
 }

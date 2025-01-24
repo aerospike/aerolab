@@ -27,36 +27,114 @@ type Instances interface {
 
 type InstanceAction interface {
 	// add/override tags for instances
-	AddTags(tags map[string]string, waitDur int) error
+	AddTags(tags map[string]string) error
 	// remove tag(s) from instances
-	RemoveTags(tagKeys []string, waitDur int) error
+	RemoveTags(tagKeys []string) error
 	// delete selected instances
-	Terminate(waitDur int) error
+	Terminate(waitDur time.Duration) error
 	// stop selected instances
-	Stop(waitDur int) error
+	Stop(force bool, waitDur time.Duration) error
 	// start selected instances
-	Start(waitDur int) error
+	Start(waitDur time.Duration) error
 }
 
 // any backend returning this struct, must implement the InstanceAction interface on it
 type Instance struct {
-	Action InstanceAction
-	Data   struct { // instance details, yaml/json tags included
-		BackendType     BackendType       `yaml:"backendType" json:"backendType"`
-		InstanceType    string            `yaml:"instanceType" json:"instanceType"`
-		Name            string            `yaml:"name" json:"name"`
-		RootDiskSize    StorageSize       `yaml:"rootDiskSize" json:"rootDiskSize"`
-		ZoneName        string            `yaml:"zoneName" json:"zoneName"`
-		ZoneID          string            `yaml:"zoneID" json:"zoneID"`
-		CreationTime    time.Time         `yaml:"creationTime" json:"creationTime"`
-		Owner           string            `yaml:"owner" json:"owner"`                   // from tags
-		LifeCycleState  LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"` // states, cloud or custom
-		Tags            map[string]string `yaml:"tags" json:"tags"`                     // all tags
-		Expires         time.Time         `yaml:"expires" json:"expires"`               // from tags
-		Description     string            `yaml:"description" json:"description"`       // from description or tags if no description field
-		Encrypted       bool              `yaml:"encrypted" json:"encrypted"`
-		BackendSpecific interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+	ClusterName      string            `yaml:"clusterName" json:"clusterName"`
+	NodeNo           int               `yaml:"nodeNo" json:"nodeNo"`
+	PublicIP         string            `yaml:"publicIP" json:"publicIP"`
+	PrivateIP        string            `yaml:"privateIP" json:"privateIP"`
+	ImageID          string            `yaml:"imageID" json:"imageID"`
+	SSHKeyName       string            `yaml:"sshKeyName" json:"sshKeyName"`
+	SubnetID         string            `yaml:"subnetID" json:"subnetID"`
+	NetworkID        string            `yaml:"networkID" json:"networkID"`
+	Architecture     string            `yaml:"architecture" json:"architecture"`
+	OperatingSystem  OS                `yaml:"operatingSystem" json:"operatingSystem"`
+	Firewalls        []string          `yaml:"firewalls" json:"firewalls"`
+	InstanceID       string            `yaml:"instanceId" json:"instanceId"`
+	BackendType      BackendType       `yaml:"backendType" json:"backendType"`
+	InstanceType     string            `yaml:"instanceType" json:"instanceType"`
+	SpotInstance     bool              `yaml:"spotInstance" json:"spotInstance"`
+	Name             string            `yaml:"name" json:"name"`
+	ZoneName         string            `yaml:"zoneName" json:"zoneName"`
+	ZoneID           string            `yaml:"zoneID" json:"zoneID"`
+	CreationTime     time.Time         `yaml:"creationTime" json:"creationTime"`
+	EstimatedCostUSD Cost              `yaml:"estimateCost" json:"estimatedCost"`
+	AttachedVolumes  Volumes           `yaml:"attachedVolumes" json:"attachedVolumes"`
+	Owner            string            `yaml:"owner" json:"owner"`                     // from tags
+	InstanceState    LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"`   // states, cloud or custom
+	Tags             map[string]string `yaml:"tags" json:"tags"`                       // all tags
+	Expires          time.Time         `yaml:"expires" json:"expires"`                 // from tags
+	Description      string            `yaml:"description" json:"description"`         // from description or tags if no description field
+	BackendSpecific  interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+}
+
+type OS struct {
+	Name    string `yaml:"name" json:"name"`
+	Version string `yaml:"version" json:"version"`
+}
+
+type Cost struct {
+	Instance        CostInstance `yaml:"instance" json:"instance"`
+	DeployedVolumes CostVolumes  `yaml:"deployedVolumes" json:"deployedVolumes"`
+	AttachedVolumes CostVolumes  `yaml:"attachedVolumes" json:"attachedVolumes"`
+}
+
+func (c *Cost) AccruedCost() float64 {
+	return c.Instance.AccruedCost() + c.DeployedVolumes.AccruedCost() + c.AttachedVolumes.AccruedCost()
+}
+
+type CostInstance struct {
+	RunningPricePerHour float64   `yaml:"runningPricePerHour" json:"runningPricePerHour"`
+	CostUntilLastStop   float64   `yaml:"costUntilLastStop" json:"costUntilLastStop"`
+	LastStartTime       time.Time `yaml:"lastStartTime" json:"lastStartTime"`
+}
+
+func (c *CostInstance) AccruedCost() float64 {
+	if c.LastStartTime.IsZero() {
+		return c.CostUntilLastStop
 	}
+	return c.CostUntilLastStop + (c.RunningPricePerHour * time.Since(c.LastStartTime).Hours())
+}
+
+type CostVolume struct {
+	PricePerGBHour float64   `yaml:"pricePerGBHour" json:"pricePerGBHour"`
+	SizeGB         int64     `yaml:"sizeGB" json:"sizeGB"`
+	CreateTime     time.Time `yaml:"createTime" json:"createTime"`
+}
+
+func (c *CostVolume) AccruedCost() float64 {
+	return c.PricePerGBHour * float64(c.SizeGB) * time.Since(c.CreateTime).Hours()
+}
+
+type CostVolumes []CostVolume
+
+func (v *CostVolumes) AccruedCost() float64 {
+	var e float64
+	for _, c := range *v {
+		e += c.AccruedCost()
+	}
+	return e
+}
+
+func (i *Instance) Stop(force bool, waitDur time.Duration) error {
+	return InstanceList{i}.Stop(force, waitDur)
+}
+
+func (i *Instance) Start(force bool, waitDur time.Duration) error {
+	return InstanceList{i}.Start(waitDur)
+}
+
+func (i *Instance) Terminate(waitDur time.Duration) error {
+	return InstanceList{i}.Terminate(waitDur)
+}
+
+func (i *Instance) AddTags(tags map[string]string) error {
+	return InstanceList{i}.AddTags(tags)
+}
+
+func (i *Instance) RemoveTags(tagKeys []string) error {
+	return InstanceList{i}.RemoveTags(tagKeys)
 }
 
 // list of all Instances, for the Inventory interface
@@ -66,7 +144,7 @@ func (v InstanceList) WithBackendType(types ...BackendType) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
-		if !slices.Contains(types, instance.Data.BackendType) {
+		if !slices.Contains(types, instance.BackendType) {
 			continue
 		}
 		ret = append(ret, instance)
@@ -78,7 +156,7 @@ func (v InstanceList) WithType(types ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
-		if !slices.Contains(types, instance.Data.InstanceType) {
+		if !slices.Contains(types, instance.InstanceType) {
 			continue
 		}
 		ret = append(ret, instance)
@@ -90,7 +168,7 @@ func (v InstanceList) WithZoneName(zoneNames ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
-		if !slices.Contains(zoneNames, instance.Data.ZoneName) {
+		if !slices.Contains(zoneNames, instance.ZoneName) {
 			continue
 		}
 		ret = append(ret, instance)
@@ -102,7 +180,7 @@ func (v InstanceList) WithZoneID(zoneIDs ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
-		if !slices.Contains(zoneIDs, instance.Data.ZoneID) {
+		if !slices.Contains(zoneIDs, instance.ZoneID) {
 			continue
 		}
 		ret = append(ret, instance)
@@ -114,7 +192,7 @@ func (v InstanceList) WithName(names ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
-		if !slices.Contains(names, instance.Data.Name) {
+		if !slices.Contains(names, instance.Name) {
 			continue
 		}
 		ret = append(ret, instance)
@@ -130,14 +208,14 @@ func (v InstanceList) Count() int {
 	return len(v)
 }
 
-func (v InstanceList) AddTags(tags map[string]string, waitDur int) error {
+func (v InstanceList) AddTags(tags map[string]string) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].InstancesAddTags(v.WithBackendType(c).Describe(), tags, waitDur)
+			err := cloudList[c].InstancesAddTags(v.WithBackendType(c).Describe(), tags)
 			if err != nil {
 				retErr = err
 			}
@@ -147,14 +225,14 @@ func (v InstanceList) AddTags(tags map[string]string, waitDur int) error {
 	return retErr
 }
 
-func (v InstanceList) RemoveTags(tagKeys []string, waitDur int) error {
+func (v InstanceList) RemoveTags(tagKeys []string) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].InstancesRemoveTags(v.WithBackendType(c).Describe(), tagKeys, waitDur)
+			err := cloudList[c].InstancesRemoveTags(v.WithBackendType(c).Describe(), tagKeys)
 			if err != nil {
 				retErr = err
 			}
@@ -164,7 +242,7 @@ func (v InstanceList) RemoveTags(tagKeys []string, waitDur int) error {
 	return retErr
 }
 
-func (v InstanceList) Terminate(waitDur int) error {
+func (v InstanceList) Terminate(waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
@@ -181,14 +259,14 @@ func (v InstanceList) Terminate(waitDur int) error {
 	return retErr
 }
 
-func (v InstanceList) Stop(waitDur int) error {
+func (v InstanceList) Stop(force bool, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].InstancesStop(v.WithBackendType(c).Describe(), waitDur)
+			err := cloudList[c].InstancesStop(v.WithBackendType(c).Describe(), force, waitDur)
 			if err != nil {
 				retErr = err
 			}
@@ -198,7 +276,7 @@ func (v InstanceList) Stop(waitDur int) error {
 	return retErr
 }
 
-func (v InstanceList) Start(waitDur int) error {
+func (v InstanceList) Start(waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {

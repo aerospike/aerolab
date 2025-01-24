@@ -2,7 +2,6 @@ package backend
 
 import (
 	"encoding/json"
-	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -45,6 +44,8 @@ type Volumes interface {
 	WithZoneID(zoneIDs ...string) Volumes
 	// volume selector - by name
 	WithName(names ...string) Volumes
+	// get volume from ID
+	WithVolumeID(ID ...string) Volumes
 	// number of volumes in selector
 	Count() int
 	// expose instance details to the caller
@@ -55,11 +56,11 @@ type Volumes interface {
 
 type VolumeAction interface {
 	// add/override tags for volumes
-	AddTags(tags map[string]string, waitDur int) error
+	AddTags(tags map[string]string, waitDur time.Duration) error
 	// remove tag(s) from volumes
-	RemoveTags(tagKeys []string, waitDur int) error
+	RemoveTags(tagKeys []string, waitDur time.Duration) error
 	// delete selected volumes
-	DeleteVolumes(waitDur int) error
+	DeleteVolumes(waitDur time.Duration) error
 	// for pd-ssd/ebs - attach volume to instance; if mountTargetDirectory is specified, also ssh in to the instance and perform mount
 	// for EFS,docker - create mount targets if needed, sort out security groups, ssh to the instances and mount+fstab
 	Attach(instance *Instance, mountTargetDirectory *string) error
@@ -71,25 +72,23 @@ type VolumeAction interface {
 
 // any backend returning this struct, must implement the VolumeAction interface on it
 type Volume struct {
-	Action VolumeAction
-	Data   struct { // volume details, yaml/json tags included
-		BackendType     BackendType       `yaml:"backendType" json:"backendType"`
-		VolumeType      VolumeType        `yaml:"volumeType" json:"volumeType"`
-		Name            string            `yaml:"name" json:"name"`
-		Size            StorageSize       `yaml:"size" json:"size"`
-		FileSystemId    string            `yaml:"fsID" json:"fsID"`
-		ZoneName        string            `yaml:"zoneName" json:"zoneName"`
-		ZoneID          string            `yaml:"zoneID" json:"zoneID"`
-		CreationTime    time.Time         `yaml:"creationTime" json:"creationTime"`
-		Owner           string            `yaml:"owner" json:"owner"`                   // from tags
-		LifeCycleState  LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"` // states, cloud or custom
-		Tags            map[string]string `yaml:"tags" json:"tags"`                     // all tags
-		Expires         time.Time         `yaml:"expires" json:"expires"`               // from tags
-		AttachedTo      []string          `yaml:"attachedTo" json:"attachedTo"`         // for non-efs
-		Description     string            `yaml:"description" json:"description"`       // from description or tags if no description field
-		Encrypted       bool              `yaml:"encrypted" json:"encrypted"`
-		BackendSpecific interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
-	}
+	BackendType         BackendType       `yaml:"backendType" json:"backendType"`
+	VolumeType          VolumeType        `yaml:"volumeType" json:"volumeType"`
+	Name                string            `yaml:"name" json:"name"`
+	Size                StorageSize       `yaml:"size" json:"size"`
+	FileSystemId        string            `yaml:"fsID" json:"fsID"`
+	ZoneName            string            `yaml:"zoneName" json:"zoneName"`
+	ZoneID              string            `yaml:"zoneID" json:"zoneID"`
+	CreationTime        time.Time         `yaml:"creationTime" json:"creationTime"`
+	DeleteOnTermination bool              `yaml:"deleteOnTermination" json:"deleteOnTermination"`
+	Owner               string            `yaml:"owner" json:"owner"`                   // from tags
+	LifeCycleState      LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"` // states, cloud or custom
+	Tags                map[string]string `yaml:"tags" json:"tags"`                     // all tags
+	Expires             time.Time         `yaml:"expires" json:"expires"`               // from tags
+	AttachedTo          []string          `yaml:"attachedTo" json:"attachedTo"`         // for non-efs
+	Description         string            `yaml:"description" json:"description"`       // from description or tags if no description field
+	Encrypted           bool              `yaml:"encrypted" json:"encrypted"`
+	BackendSpecific     interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 // list of all volumes, for the Inventory interface
@@ -99,7 +98,7 @@ func (v VolumeList) WithBackendType(types ...BackendType) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
-		if !slices.Contains(types, volume.Data.BackendType) {
+		if !slices.Contains(types, volume.BackendType) {
 			continue
 		}
 		ret = append(ret, volume)
@@ -111,7 +110,7 @@ func (v VolumeList) WithType(types ...VolumeType) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
-		if !slices.Contains(types, volume.Data.VolumeType) {
+		if !slices.Contains(types, volume.VolumeType) {
 			continue
 		}
 		ret = append(ret, volume)
@@ -123,7 +122,7 @@ func (v VolumeList) WithZoneName(zoneNames ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
-		if !slices.Contains(zoneNames, volume.Data.ZoneName) {
+		if !slices.Contains(zoneNames, volume.ZoneName) {
 			continue
 		}
 		ret = append(ret, volume)
@@ -135,7 +134,7 @@ func (v VolumeList) WithZoneID(zoneIDs ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
-		if !slices.Contains(zoneIDs, volume.Data.ZoneID) {
+		if !slices.Contains(zoneIDs, volume.ZoneID) {
 			continue
 		}
 		ret = append(ret, volume)
@@ -147,7 +146,19 @@ func (v VolumeList) WithName(names ...string) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
-		if !slices.Contains(names, volume.Data.Name) {
+		if !slices.Contains(names, volume.Name) {
+			continue
+		}
+		ret = append(ret, volume)
+	}
+	return ret
+}
+
+func (v VolumeList) WithVolumeID(id ...string) Volumes {
+	ret := VolumeList{}
+	for _, volume := range v {
+		volume := volume
+		if !slices.Contains(id, volume.FileSystemId) {
 			continue
 		}
 		ret = append(ret, volume)
@@ -163,7 +174,7 @@ func (v VolumeList) Count() int {
 	return len(v)
 }
 
-func (v VolumeList) AddTags(tags map[string]string, waitDur int) error {
+func (v VolumeList) AddTags(tags map[string]string, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
@@ -180,7 +191,7 @@ func (v VolumeList) AddTags(tags map[string]string, waitDur int) error {
 	return retErr
 }
 
-func (v VolumeList) RemoveTags(tagKeys []string, waitDur int) error {
+func (v VolumeList) RemoveTags(tagKeys []string, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
@@ -197,7 +208,7 @@ func (v VolumeList) RemoveTags(tagKeys []string, waitDur int) error {
 	return retErr
 }
 
-func (v VolumeList) DeleteVolumes(waitDur int) error {
+func (v VolumeList) DeleteVolumes(waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
@@ -215,31 +226,76 @@ func (v VolumeList) DeleteVolumes(waitDur int) error {
 }
 
 func (v VolumeList) Attach(instance *Instance, mountTargetDirectory *string) error {
-	for _, volume := range v {
-		err := volume.Action.Attach(instance, mountTargetDirectory)
-		if err != nil {
-			return fmt.Errorf("%s: %s", volume.Data.Name, err)
-		}
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].AttachVolumes(v.WithBackendType(c).Describe(), instance, mountTargetDirectory)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
 func (v VolumeList) Detach(instance *Instance) error {
-	for _, volume := range v {
-		err := volume.Action.Detach(instance)
-		if err != nil {
-			return fmt.Errorf("%s: %s", volume.Data.Name, err)
-		}
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].DetachVolumes(v.WithBackendType(c).Describe(), instance)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
 }
 
 func (v VolumeList) Resize(newSize StorageSize) error {
-	for _, volume := range v {
-		err := volume.Action.Resize(newSize)
-		if err != nil {
-			return fmt.Errorf("%s: %s", volume.Data.Name, err)
-		}
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].ResizeVolumes(v.WithBackendType(c).Describe(), newSize)
+			if err != nil {
+				retErr = err
+			}
+		}()
 	}
-	return nil
+	wait.Wait()
+	return retErr
+}
+
+func (v *Volume) AddTags(tags map[string]string, waitDur time.Duration) error {
+	return VolumeList{v}.AddTags(tags, waitDur)
+}
+
+func (v *Volume) RemoveTags(tagKeys []string, waitDur time.Duration) error {
+	return VolumeList{v}.RemoveTags(tagKeys, waitDur)
+}
+
+func (v *Volume) DeleteVolumes(waitDur time.Duration) error {
+	return VolumeList{v}.DeleteVolumes(waitDur)
+}
+
+func (v *Volume) Attach(instance *Instance, mountTargetDirectory *string) error {
+	return VolumeList{v}.Attach(instance, mountTargetDirectory)
+}
+
+func (v *Volume) Detach(instance *Instance) error {
+	return VolumeList{v}.Detach(instance)
+}
+
+func (v *Volume) Resize(newSize StorageSize) error {
+	return VolumeList{v}.Resize(newSize)
 }
