@@ -1,16 +1,67 @@
 package baws
 
 import (
+	"context"
+	"errors"
+	"sync"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
-// TODO: maybe, if speed is questionable: if dealing with functions that do not require the whole inventory, and we don't have a valid state cache, allow for partial inventory poll/get only (no need for volumes if we are attaching to an instance, duh)
-
 func (s *b) GetVolumes() (backend.VolumeList, error) {
-	// TODO: actually get volumes from AWS
-	return nil, nil
+	var i backend.VolumeList
+	ilock := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
+	zones, _ := s.ListEnabledZones()
+	wg.Add(len(zones))
+	var errs error
+	for _, zone := range zones {
+		go func(zone string) {
+			defer wg.Done()
+			cli, err := getEc2Client(s.credentials, &zone)
+			if err != nil {
+				errors.Join(errs, err)
+				return
+			}
+			paginator := ec2.NewDescribeVolumesPaginator(cli, &ec2.DescribeVolumesInput{
+				Filters: []types.Filter{
+					{
+						Name:   aws.String("tag-key"),
+						Values: []string{TAG_AEROLAB_VERSION},
+					}, {
+						Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
+						Values: []string{s.project},
+					},
+				},
+			})
+			for paginator.HasMorePages() {
+				out, err := paginator.NextPage(context.TODO())
+				if err != nil {
+					errors.Join(errs, err)
+					return
+				}
+				for _, vol := range out.Volumes {
+					tags := make(map[string]string)
+					for _, t := range vol.Tags {
+						tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
+					}
+					ilock.Lock()
+					i = append(i, &backend.Volume{
+						// TODO
+					})
+					ilock.Unlock()
+				}
+			}
+		}(zone)
+		// TODO another set of goroutines to do EFS
+		// TODO do not forget to change wg.Add to have 2x the amount of entries
+	}
+	wg.Wait()
+	return i, errs
 }
 
 func (s *b) VolumesAddTags(volumes backend.VolumeList, tags map[string]string, waitDur time.Duration) error {

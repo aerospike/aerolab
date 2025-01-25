@@ -77,7 +77,7 @@ func (b *backend) ForceRefreshInventory() error {
 	return errors.New(errstring)
 }
 
-func Init(project string, c *Config) (Backend, error) {
+func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) {
 	if project == "" {
 		return nil, errors.New("project name cannot be empty")
 	}
@@ -95,7 +95,9 @@ func Init(project string, c *Config) (Backend, error) {
 	if b.config.Cache {
 		err := b.loadCache()
 		if err == nil {
-			go b.pollTimer()
+			if pollInventoryHourly {
+				go b.pollTimer()
+			}
 			return b, nil
 		}
 		if err != cache.ErrNoCacheFile {
@@ -106,6 +108,8 @@ func Init(project string, c *Config) (Backend, error) {
 	if err != nil {
 		return b, err
 	}
-	go b.pollTimer()
+	if pollInventoryHourly {
+		go b.pollTimer()
+	}
 	return b, nil
 }
