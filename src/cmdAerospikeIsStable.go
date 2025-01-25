@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -61,6 +64,7 @@ type aerospikeIsStableCmd struct {
 	WaitTimeout      int             `short:"o" long:"wait-timeout" description:"If set, will timeout if the cluster doesn't become stable by this many seconds"`
 	IgnoreMigrations bool            `short:"i" long:"ignore-migrations" description:"If set, will ignore migrations when checking if cluster is stable"`
 	IgnoreClusterKey bool            `short:"k" long:"ignore-cluster-key" description:"If set, will not check if the cluster key matches on all nodes in the cluster"`
+	Verbose          bool            `short:"v" long:"verbose" description:"Enable verbose logging"`
 	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -92,25 +96,31 @@ func (c *aerospikeIsStableCmd) Execute(args []string) error {
 		nodes = c.Nodes
 	}
 	// scripts
-	waitScript := fmt.Sprintf(`timeout=%d
+	waitScript := fmt.Sprintf(`debug=%t
+	timeout=%d
 	start_time=$(date +%%s)
 	while (( timeout == 0 || $(date +%%s) - start_time < timeout )); do
 		RET=$(asinfo -v 'cluster-stable:size=%d;ignore-migrations=%t;namespace=%s' 2>&1)
 		if [ $? -eq 0 ]; then
-			echo ${RET}
+			echo "AEROLAB-SUCCESS-CLUSTER-KEY:${RET}"
 			exit 0
 		fi
+		[ "${debug}" == "true" ] && echo "${RET}"
 		sleep 1
 	done
-	echo "${RET}"
+	echo ${RET}
 	exit 1
-	`, c.WaitTimeout, len(nodes), c.IgnoreMigrations, c.Namespace)
+	`, c.Verbose, c.WaitTimeout, len(nodes), c.IgnoreMigrations, c.Namespace)
 	noWaitCmd := []string{"asinfo", "-v", fmt.Sprintf("cluster-stable:size=%d;ignore-migrations=%t;namespace=%s", len(nodes), c.IgnoreMigrations, c.Namespace)}
 
 	firstLoop := true
 	keysLock := new(sync.Mutex)
 	for c.WaitTimeout == 0 || time.Since(startTime) < time.Duration(c.WaitTimeout)*time.Second {
-		log.Println("aerospike.is-stable: Getting cluster keys")
+		if !firstLoop {
+			log.Println("aerospike.is-stable: Cluster Key Mismatch, Getting cluster keys")
+		} else {
+			log.Println("aerospike.is-stable: Getting cluster keys")
+		}
 		clusterKeys := []string{} // lets reset
 		// get all cluster keys
 		returns := parallelize.MapLimit(nodes, c.ParallelThreads, func(node int) error {
@@ -128,16 +138,40 @@ func (c *aerospikeIsStableCmd) Execute(args []string) error {
 				cmd = noWaitCmd
 			}
 			// run cmd; if error, ret the error;; if success, capture cluster key in clusterKeys (lock with keysLock)
-			out, err := b.RunCommands(c.ClusterName.String(), [][]string{cmd}, []int{node})
-			if len(out) == 0 {
-				out = [][]byte{{'-'}}
-			}
+			r, w, err := os.Pipe()
 			if err != nil {
-				return fmt.Errorf("%s: %s", err, string(out[0]))
+				return err
 			}
-			keysLock.Lock()
-			clusterKeys = append(clusterKeys, string(out[0]))
-			keysLock.Unlock()
+			go func() {
+				reader := bufio.NewReader(r)
+				for {
+					line, err := reader.ReadString('\n')
+					if err != nil {
+						if err == io.EOF {
+							break
+						}
+						fmt.Printf("aerospike.is-stable: Error reading from pipe: %v\n", err)
+						break
+					}
+					if c.Verbose {
+						log.Printf("aerospike.is-stable verbose: node:%d %s", node, strings.TrimPrefix(strings.TrimRight(line, "\r\n"), "AEROLAB-SUCCESS-CLUSTER-KEY:"))
+					}
+					if strings.HasPrefix(line, "AEROLAB-SUCCESS-CLUSTER-KEY:") {
+						keysLock.Lock()
+						clusterKeys = append(clusterKeys, strings.TrimRight(strings.Split(line, "-SUCCESS-CLUSTER-KEY:")[1], "\r\n "))
+						keysLock.Unlock()
+					}
+					if !c.Wait {
+						clusterKeys = append(clusterKeys, strings.TrimRight(line, "\r\n "))
+					}
+				}
+				r.Close()
+			}()
+			err = b.RunCustomOut(c.ClusterName.String(), node, cmd, nil, w, w, false, nil)
+			w.Close()
+			if err != nil {
+				return fmt.Errorf("node:%d %s", node, err)
+			}
 			return nil
 		})
 		isError := false
@@ -154,17 +188,21 @@ func (c *aerospikeIsStableCmd) Execute(args []string) error {
 
 		same := true
 
-		if !c.IgnoreClusterKey {
-			for _, k := range clusterKeys {
-				if clusterKeys[0] != k {
-					same = false
-					break
+		if len(nodes) != len(clusterKeys) {
+			same = false
+		} else {
+			if !c.IgnoreClusterKey {
+				for _, k := range clusterKeys {
+					if clusterKeys[0] != k {
+						same = false
+						break
+					}
 				}
 			}
 		}
 
 		if same {
-			log.Print("Cluster Stable")
+			log.Print("aerospike.is-stable: Cluster Stable")
 			return nil
 		}
 
