@@ -26,140 +26,152 @@ type instanceDetail struct {
 
 func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, error) {
 	var i backend.InstanceList
+	ilock := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
 	zones, _ := s.ListEnabledZones()
+	wg.Add(len(zones))
+	var errs error
 	for _, zone := range zones {
-		cli, err := getEc2Client(s.credentials, &zone)
-		if err != nil {
-			return nil, err
-		}
-		paginator := ec2.NewDescribeInstancesPaginator(cli, &ec2.DescribeInstancesInput{
-			Filters: []types.Filter{
-				{
-					Name:   aws.String("tag-key"),
-					Values: []string{TAG_AEROLAB_VERSION},
-				}, {
-					Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
-					Values: []string{s.project},
-				},
-			},
-		})
-		for paginator.HasMorePages() {
-			out, err := paginator.NextPage(context.TODO())
+		go func(zone string) {
+			defer wg.Done()
+			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
-				return nil, err
+				errors.Join(errs, err)
+				return
 			}
-			for _, res := range out.Reservations {
-				for _, inst := range res.Instances {
-					tags := make(map[string]string)
-					for _, t := range inst.Tags {
-						tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
-					}
-					expires, _ := time.Parse(time.RFC3339, tags[TAG_EXPIRES])
-					state := backend.LifeCycleStateUnknown
-					switch inst.State.Name {
-					case types.InstanceStateNamePending:
-						state = backend.LifeCycleStateCreating
-					case types.InstanceStateNameRunning:
-						state = backend.LifeCycleStateRunning
-					case types.InstanceStateNameShuttingDown:
-						state = backend.LifeCycleStateTerminating
-					case types.InstanceStateNameTerminated:
-						state = backend.LifeCycleStateTerminated
-					case types.InstanceStateNameStopping:
-						state = backend.LifeCycleStateStopping
-					case types.InstanceStateNameStopped:
-						state = backend.LifeCycleStateStopped
-					}
-					firewalls := []string{}
-					for _, f := range inst.SecurityGroups {
-						if f.GroupName == nil || *f.GroupName == "" {
-							firewalls = append(firewalls, aws.ToString(f.GroupId))
-						} else {
-							firewalls = append(firewalls, aws.ToString(f.GroupName))
+			paginator := ec2.NewDescribeInstancesPaginator(cli, &ec2.DescribeInstancesInput{
+				Filters: []types.Filter{
+					{
+						Name:   aws.String("tag-key"),
+						Values: []string{TAG_AEROLAB_VERSION},
+					}, {
+						Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
+						Values: []string{s.project},
+					},
+				},
+			})
+			for paginator.HasMorePages() {
+				out, err := paginator.NextPage(context.TODO())
+				if err != nil {
+					errors.Join(errs, err)
+					return
+				}
+				for _, res := range out.Reservations {
+					for _, inst := range res.Instances {
+						tags := make(map[string]string)
+						for _, t := range inst.Tags {
+							tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
 						}
-					}
-					spot := false
-					if inst.InstanceLifecycle != types.InstanceLifecycleTypeScheduled {
-						spot = true
-					}
-					startTime := time.Time{}
-					if tags[TAG_START_TIME] != "" {
-						startTime, _ = time.Parse(time.RFC3339, tags[TAG_START_TIME])
-					}
-					costSoFar, _ := strconv.ParseFloat(tags[TAG_COST_SO_FAR], 64)
-					pph, _ := strconv.ParseFloat(tags[TAG_COST_PPH], 64)
-					volIDs := []string{}
-					for _, v := range inst.BlockDeviceMappings {
-						volIDs = append(volIDs, aws.ToString(v.Ebs.VolumeId))
-					}
-					vols := volumes.WithVolumeID(volIDs...).Describe()
-					dvols := backend.CostVolumes{}
-					avols := backend.CostVolumes{}
-					for _, vol := range vols {
-						cpg, _ := strconv.ParseFloat(vol.Tags[TAG_COST_GB], 64)
-						volcost := backend.CostVolume{
-							PricePerGBHour: cpg,
-							SizeGB:         int64(vol.Size / backend.StorageGB),
-							CreateTime:     vol.CreationTime,
+						expires, _ := time.Parse(time.RFC3339, tags[TAG_EXPIRES])
+						state := backend.LifeCycleStateUnknown
+						switch inst.State.Name {
+						case types.InstanceStateNamePending:
+							state = backend.LifeCycleStateCreating
+						case types.InstanceStateNameRunning:
+							state = backend.LifeCycleStateRunning
+						case types.InstanceStateNameShuttingDown:
+							state = backend.LifeCycleStateTerminating
+						case types.InstanceStateNameTerminated:
+							state = backend.LifeCycleStateTerminated
+						case types.InstanceStateNameStopping:
+							state = backend.LifeCycleStateStopping
+						case types.InstanceStateNameStopped:
+							state = backend.LifeCycleStateStopped
 						}
-						if vol.DeleteOnTermination {
-							dvols = append(dvols, volcost)
-						} else {
-							avols = append(avols, volcost)
+						firewalls := []string{}
+						for _, f := range inst.SecurityGroups {
+							if f.GroupName == nil || *f.GroupName == "" {
+								firewalls = append(firewalls, aws.ToString(f.GroupId))
+							} else {
+								firewalls = append(firewalls, aws.ToString(f.GroupName))
+							}
 						}
-					}
-					i = append(i, &backend.Instance{
-						ClusterName:  tags[TAG_CLUSTER_NAME],
-						NodeNo:       toInt(tags[TAG_NODE_NO]),
-						InstanceID:   aws.ToString(inst.InstanceId),
-						BackendType:  backend.BackendTypeAWS,
-						InstanceType: string(inst.InstanceType),
-						Name:         tags[TAG_NAME],
-						Description:  tags[TAG_DESCRIPTION],
-						ZoneName:     zone,
-						ZoneID:       zone,
-						CreationTime: aws.ToTime(inst.LaunchTime),
-						Owner:        tags[TAG_OWNER],
-						Tags:         tags,
-						Expires:      expires,
-						PublicIP:     aws.ToString(inst.PublicIpAddress),
-						PrivateIP:    aws.ToString(inst.PrivateIpAddress),
-						ImageID:      aws.ToString(inst.ImageId),
-						SSHKeyName:   aws.ToString(inst.KeyName),
-						SubnetID:     aws.ToString(inst.SubnetId),
-						NetworkID:    aws.ToString(inst.VpcId),
-						Architecture: string(inst.Architecture),
-						OperatingSystem: backend.OS{
-							Name:    tags[TAG_OS_NAME],
-							Version: tags[TAG_OS_VERSION],
-						},
-						Firewalls:       firewalls,
-						InstanceState:   state,
-						SpotInstance:    spot,
-						AttachedVolumes: vols,
-						EstimatedCostUSD: backend.Cost{
-							Instance: backend.CostInstance{
-								RunningPricePerHour: pph,
-								CostUntilLastStop:   costSoFar,
-								LastStartTime:       startTime,
+						spot := false
+						if inst.InstanceLifecycle != types.InstanceLifecycleTypeScheduled {
+							spot = true
+						}
+						startTime := time.Time{}
+						if tags[TAG_START_TIME] != "" {
+							startTime, _ = time.Parse(time.RFC3339, tags[TAG_START_TIME])
+						}
+						costSoFar, _ := strconv.ParseFloat(tags[TAG_COST_SO_FAR], 64)
+						pph, _ := strconv.ParseFloat(tags[TAG_COST_PPH], 64)
+						volIDs := []string{}
+						for _, v := range inst.BlockDeviceMappings {
+							volIDs = append(volIDs, aws.ToString(v.Ebs.VolumeId))
+						}
+						vols := volumes.WithVolumeID(volIDs...).Describe()
+						dvols := backend.CostVolumes{}
+						avols := backend.CostVolumes{}
+						for _, vol := range vols {
+							cpg, _ := strconv.ParseFloat(vol.Tags[TAG_COST_GB], 64)
+							volcost := backend.CostVolume{
+								PricePerGBHour: cpg,
+								SizeGB:         int64(vol.Size / backend.StorageGB),
+								CreateTime:     vol.CreationTime,
+							}
+							if vol.DeleteOnTermination {
+								dvols = append(dvols, volcost)
+							} else {
+								avols = append(avols, volcost)
+							}
+						}
+						ilock.Lock()
+						i = append(i, &backend.Instance{
+							ClusterName:  tags[TAG_CLUSTER_NAME],
+							NodeNo:       toInt(tags[TAG_NODE_NO]),
+							InstanceID:   aws.ToString(inst.InstanceId),
+							BackendType:  backend.BackendTypeAWS,
+							InstanceType: string(inst.InstanceType),
+							Name:         tags[TAG_NAME],
+							Description:  tags[TAG_DESCRIPTION],
+							ZoneName:     zone,
+							ZoneID:       zone,
+							CreationTime: aws.ToTime(inst.LaunchTime),
+							Owner:        tags[TAG_OWNER],
+							Tags:         tags,
+							Expires:      expires,
+							PublicIP:     aws.ToString(inst.PublicIpAddress),
+							PrivateIP:    aws.ToString(inst.PrivateIpAddress),
+							ImageID:      aws.ToString(inst.ImageId),
+							SSHKeyName:   aws.ToString(inst.KeyName),
+							SubnetID:     aws.ToString(inst.SubnetId),
+							NetworkID:    aws.ToString(inst.VpcId),
+							Architecture: string(inst.Architecture),
+							OperatingSystem: backend.OS{
+								Name:    tags[TAG_OS_NAME],
+								Version: tags[TAG_OS_VERSION],
 							},
-							DeployedVolumes: dvols,
-							AttachedVolumes: avols,
-						},
-						BackendSpecific: &instanceDetail{
-							SecurityGroups:        inst.SecurityGroups,
-							ClientToken:           aws.ToString(inst.ClientToken),
-							EnaSupport:            aws.ToBool(inst.EnaSupport),
-							IAMInstanceProfile:    inst.IamInstanceProfile,
-							SpotInstanceRequestId: aws.ToString(inst.SpotInstanceRequestId),
-							LifecycleType:         string(inst.InstanceLifecycle),
-						},
-					})
+							Firewalls:       firewalls,
+							InstanceState:   state,
+							SpotInstance:    spot,
+							AttachedVolumes: vols,
+							EstimatedCostUSD: backend.Cost{
+								Instance: backend.CostInstance{
+									RunningPricePerHour: pph,
+									CostUntilLastStop:   costSoFar,
+									LastStartTime:       startTime,
+								},
+								DeployedVolumes: dvols,
+								AttachedVolumes: avols,
+							},
+							BackendSpecific: &instanceDetail{
+								SecurityGroups:        inst.SecurityGroups,
+								ClientToken:           aws.ToString(inst.ClientToken),
+								EnaSupport:            aws.ToBool(inst.EnaSupport),
+								IAMInstanceProfile:    inst.IamInstanceProfile,
+								SpotInstanceRequestId: aws.ToString(inst.SpotInstanceRequestId),
+								LifecycleType:         string(inst.InstanceLifecycle),
+							},
+						})
+						ilock.Unlock()
+					}
 				}
 			}
-		}
+		}(zone)
 	}
-	return i, nil
+	wg.Wait()
+	return i, errs
 }
 
 func (s *b) InstancesAddTags(instances backend.InstanceList, tags map[string]string) error {
