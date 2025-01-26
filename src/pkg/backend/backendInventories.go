@@ -7,6 +7,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/cache"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/rglonek/logger"
 )
 
 // note: each backend, for any action that changes state, should call the SaveCache callback when done
@@ -50,6 +51,7 @@ type backend struct {
 	volumes   map[BackendType]VolumeList
 	instances map[BackendType]InstanceList
 	pollLock  *sync.Mutex
+	log       *logger.Logger
 }
 
 type Inventory struct {
@@ -91,19 +93,19 @@ func (b *backend) loadCache() error {
 	return nil
 }
 
-func (b *backend) poll(justSaveCache bool) []error {
+func (b *backend) poll() []error {
 	b.pollLock.Lock()
 	defer b.pollLock.Unlock()
 	var errs []error
 
-	if !justSaveCache {
-		for n, v := range cloudList {
-			d, err := v.GetVolumes()
-			if err != nil {
-				errs = append(errs, err)
-			} else {
-				b.volumes[n] = d
-			}
+	log := b.log.WithPrefix("PollInventory ")
+	log.Debug("Getting volumes")
+	for n, v := range cloudList {
+		d, err := v.GetVolumes()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			b.volumes[n] = d
 		}
 	}
 	err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
@@ -111,14 +113,13 @@ func (b *backend) poll(justSaveCache bool) []error {
 		errs = append(errs, err)
 	}
 
-	if !justSaveCache {
-		for n, v := range cloudList {
-			d, err := v.GetInstances(b.volumes[n])
-			if err != nil {
-				errs = append(errs, err)
-			} else {
-				b.instances[n] = d
-			}
+	log.Debug("Getting instances")
+	for n, v := range cloudList {
+		d, err := v.GetInstances(b.volumes[n])
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			b.instances[n] = d
 		}
 	}
 	err = b.cache.Store(path.Join(b.project, "instances"), b.instances)
@@ -126,7 +127,8 @@ func (b *backend) poll(justSaveCache bool) []error {
 		errs = append(errs, err)
 	}
 
-	if !justSaveCache && len(errs) == 0 {
+	if len(errs) == 0 {
+		log.Debug("Storing metadata")
 		err = b.cache.Store(path.Join(b.project, "metadata"), cacheMetadata{
 			CacheUpdateTimestamp: time.Now(),
 		})
@@ -134,6 +136,7 @@ func (b *backend) poll(justSaveCache bool) []error {
 			errs = append(errs, err)
 		}
 	}
+	log.Debug("Done")
 	return errs
 }
 

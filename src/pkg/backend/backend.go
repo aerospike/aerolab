@@ -2,18 +2,19 @@ package backend
 
 import (
 	"errors"
-	"log"
 	"path"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/cache"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/rglonek/logger"
 )
 
 type Config struct {
 	RootDir     string              `yaml:"RootDir" json:"RootDir"`
 	Cache       bool                `yaml:"Cache" json:"Cache"`
 	Credentials *clouds.Credentials `yaml:"Credentials" json:"Credentials"`
+	LogLevel    logger.LogLevel     `yaml:"logLevel" json:"logLevel"`
 }
 
 type cacheMetadata struct {
@@ -56,14 +57,14 @@ func (b *backend) ListEnabledRegions(backendType BackendType) (name []string, er
 func (b *backend) pollTimer() {
 	for {
 		time.Sleep(time.Hour)
-		errs := b.poll(false)
+		errs := b.poll()
 		for _, err := range errs {
-			log.Printf("Inventory refresh failure: %s", err)
+			b.log.Error("Inventory refresh failure: %s", err)
 		}
 	}
 }
 func (b *backend) ForceRefreshInventory() error {
-	errs := b.poll(false)
+	errs := b.poll()
 	if errs == nil {
 		return nil
 	}
@@ -88,6 +89,9 @@ func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) 
 			return nil, err
 		}
 	}
+	b.log = logger.NewLogger()
+	b.log.SetLogLevel(c.LogLevel)
+	b.log.SetPrefix("BACKEND ")
 	b.cache = &cache.Cache{
 		Enabled: b.config.Cache,
 		Dir:     path.Join(c.RootDir, "cache"),
@@ -101,7 +105,7 @@ func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) 
 			return b, nil
 		}
 		if err != cache.ErrNoCacheFile {
-			log.Printf("WARNING: Could not load cache files: %s", err)
+			b.log.Warn("Could not load cache files: %s", err)
 		}
 	}
 	err := b.ForceRefreshInventory()
