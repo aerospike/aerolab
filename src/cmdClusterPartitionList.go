@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -96,6 +97,9 @@ func (c *clusterPartitionListCmd) fixPartOut(bd []blockDevices, blkFormat int) [
 		bd[i].Size = strings.Trim(bd[i].Size, "\t\r\n ")
 		bd[i].Type = strings.Trim(bd[i].Type, "\t\r\n ")
 		bd[i].PartUUID = strings.Trim(bd[i].PartUUID, "\t\r\n ")
+		if bd[i].PartUUID != "" {
+			bd[i].PartUUIDPath = path.Join("/dev/disk/by-partuuid", bd[i].PartUUID)
+		}
 		if blkFormat == 2 {
 			bd[i].Path = bd[i].Name
 			bd[i].FsSize = "N/A"

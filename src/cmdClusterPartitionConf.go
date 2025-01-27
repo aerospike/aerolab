@@ -222,7 +222,12 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 	})
 
 	assignFunc := func(vals []*string, device blockDevices) ([]*string, error) {
-		return append(vals, &device.Path), nil
+		if device.PartUUIDPath == "" {
+			log.Printf("WARNING: the device %s does not have a partition UUID, falling back on the device path\n", device.Name)
+			log.Println("   HINT: this path can change after a node restart")
+			return append(vals, &device.Path), nil
+		}
+		return append(vals, &device.PartUUIDPath), nil
 	}
 
 	// Assign devices
@@ -241,13 +246,20 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 			}
 
 			err = assignStorageEngineDevice(&namespace, ntype, device, func(vals []*string, device blockDevices) ([]*string, error) {
+				path := device.PartUUIDPath
+				if path == "" {
+					log.Printf("WARNING: the device %s does not have a partition UUID, falling back on the device path\n", device.Name)
+					log.Println("   HINT: this path can change after a node restart")
+					path = device.Path
+				}
+
 				found := false
 				for valI, val := range vals {
 					if len(strings.Split(*val, " ")) == 2 {
 						continue
 					}
 					found = true
-					newval := *val + " " + device.Path
+					newval := fmt.Sprintf("%s %s", *val, path)
 					vals[valI] = &newval
 					break
 				}

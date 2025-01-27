@@ -42,17 +42,18 @@ type blockDeviceInformation struct {
 }
 
 type blockDevices struct {
-	Name       string         `json:"name"`
-	Path       string         `json:"path"`
-	FsType     string         `json:"fstype"`
-	FsSize     string         `json:"fssize"`
-	MountPoint string         `json:"mountpoint"`
-	Model      string         `json:"model"` // "Amazon EC2 NVMe Instance Storage" or "Amazon Elastic Block Store"
-	Size       string         `json:"size"`
-	Type       string         `json:"type"` // loop or disk or part
-	PartUUID   string         `json:"partuuid"`
-	Children   []blockDevices `json:"children"`
-	diskNo     int
-	partNo     int
-	nodeNo     int
+	Name         string         `json:"name"`
+	Path         string         `json:"path"`
+	FsType       string         `json:"fstype"`
+	FsSize       string         `json:"fssize"`
+	MountPoint   string         `json:"mountpoint"`
+	Model        string         `json:"model"` // "Amazon EC2 NVMe Instance Storage" or "Amazon Elastic Block Store"
+	Size         string         `json:"size"`
+	Type         string         `json:"type"` // loop or disk or part
+	PartUUID     string         `json:"partuuid"`
+	PartUUIDPath string         `json:"partuuid_path"`
+	Children     []blockDevices `json:"children"`
+	diskNo       int
+	partNo       int
+	nodeNo       int
 }
