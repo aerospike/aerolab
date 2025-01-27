@@ -9,24 +9,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
+
+	"github.com/aerospike/aerolab/parallelize"
 )
 
 type clientCreateBaseCmd struct {
-	ClientName    TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
-	ClientCount   int            `short:"c" long:"count" description:"Number of clients" default:"1"`
-	NoSetHostname bool           `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
-	NoSetDNS      bool           `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
-	StartScript   flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
+	ClientName    TypeClientName         `short:"n" long:"group-name" description:"Client group name" default:"client"`
+	ClientCount   int                    `short:"c" long:"count" description:"Number of clients" default:"1"`
+	NoSetHostname bool                   `short:"H" long:"no-set-hostname" description:"by default, hostname of each machine will be set, use this to prevent hostname change"`
+	NoSetDNS      bool                   `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
+	StartScript   flags.Filename         `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
+	Aws           clusterCreateCmdAws    `no-flag:"true"`
+	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
+	Docker        clusterCreateCmdDocker `no-flag:"true"`
+	PriceOnly     bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Owner         string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	osSelectorCmd
 	parallelThreadsCmd
-	PriceOnly bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
-	Owner     string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
-	Aws       clusterCreateCmdAws    `no-flag:"true"`
-	Gcp       clusterCreateCmdGcp    `no-flag:"true"`
-	Docker    clusterCreateCmdDocker `no-flag:"true"`
+
 }
 
 func (c *clientCreateBaseCmd) isGrow() bool {
@@ -63,6 +65,7 @@ func (c *clientCreateBaseCmd) createBase(args []string, nt string) (machines []i
 	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
 		return nil, logFatal("Docker backend does not support pricing")
 	}
+
 	iType := c.Aws.InstanceType
 	if a.opts.Config.Backend.Type == "gcp" {
 		iType = c.Gcp.InstanceType
@@ -467,6 +470,7 @@ fi
 		}
 		return nil
 	})
+
 	isError := false
 	for i, ret := range returns {
 		if ret != nil {
