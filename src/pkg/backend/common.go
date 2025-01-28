@@ -53,6 +53,50 @@ func (a LifeCycleState) MarshalYAML() (interface{}, error) {
 	return a.String(), nil
 }
 
+type VolumeState int
+
+const (
+	VolumeStateCreating    VolumeState = iota
+	VolumeStateAvailable   VolumeState = iota
+	VolumeStateInUse       VolumeState = iota
+	VolumeStateDeleting    VolumeState = iota
+	VolumeStateDeleted     VolumeState = iota
+	VolumeStateFail        VolumeState = iota
+	VolumeStateConfiguring VolumeState = iota
+	VolumeStateUnknown     VolumeState = iota
+	VolumeStateAttaching   VolumeState = iota
+	VolumeStateDetaching   VolumeState = iota
+)
+
+func (a VolumeState) String() string {
+	switch a {
+	case VolumeStateCreating:
+		return "Creating"
+	case VolumeStateAvailable:
+		return "Available"
+	case VolumeStateInUse:
+		return "InUse"
+	case VolumeStateDeleting:
+		return "Deleting"
+	case VolumeStateDeleted:
+		return "Deleted"
+	case VolumeStateFail:
+		return "Fail"
+	case VolumeStateConfiguring:
+		return "Configuring"
+	default:
+		return "unknown"
+	}
+}
+
+func (a VolumeState) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.String())
+}
+
+func (a VolumeState) MarshalYAML() (interface{}, error) {
+	return a.String(), nil
+}
+
 type StorageSize int64
 
 const (

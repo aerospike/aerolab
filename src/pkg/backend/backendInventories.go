@@ -7,13 +7,12 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/cache"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/rglonek/logger"
 )
 
-// note: each backend, for any action that changes state, should call the SaveCache callback when done
-
 type Cloud interface {
-	SetConfig(dir string, credentials *clouds.Credentials, project string) error
+	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string) error
 	ListEnabledZones() ([]string, error)
 	EnableZones(names ...string) error
 	DisableZones(names ...string) error
@@ -26,13 +25,15 @@ type Cloud interface {
 	InstancesTerminate(instances InstanceList, waitDur time.Duration) error
 	InstancesStop(instances InstanceList, force bool, waitDur time.Duration) error
 	InstancesStart(instances InstanceList, waitDur time.Duration) error
+	InstancesExec(instances InstanceList, e *ExecInput) []*ExecOutput
+	InstancesGetSftpConfig(instances InstanceList, username string) ([]*sshexec.ClientConf, error)
 	// actions on multiple volumes
 	VolumesAddTags(volumes VolumeList, tags map[string]string, waitDur time.Duration) error
 	VolumesRemoveTags(volumes VolumeList, tagKeys []string, waitDur time.Duration) error
 	DeleteVolumes(volumes VolumeList, waitDur time.Duration) error
 	AttachVolumes(volumes VolumeList, instance *Instance, mountTargetDirectory *string) error
 	DetachVolumes(volumes VolumeList, instance *Instance) error
-	ResizeVolumes(volumes VolumeList, newSize StorageSize) error
+	ResizeVolumes(volumes VolumeList, newSizeGiB StorageSize) error
 }
 
 type Backend interface {

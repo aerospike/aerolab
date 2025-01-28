@@ -84,7 +84,7 @@ func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) 
 	}
 	b := getBackendObject(project, c)
 	for cname, cloud := range cloudList {
-		err := cloud.SetConfig(path.Join(project, c.RootDir, "config", string(cname)), c.Credentials, project)
+		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)))
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +94,7 @@ func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) 
 	b.log.SetPrefix("BACKEND ")
 	b.cache = &cache.Cache{
 		Enabled: b.config.Cache,
-		Dir:     path.Join(c.RootDir, "cache"),
+		Dir:     path.Join(c.RootDir, project, "cache"),
 	}
 	if b.config.Cache {
 		err := b.loadCache()

@@ -1,0 +1,234 @@
+package sshexec
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"path"
+
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
+)
+
+type Sftp struct {
+	ClientConf
+	conn   *ssh.Client
+	client *sftp.Client
+}
+
+func NewSftp(i *ClientConf) (*Sftp, error) {
+	o := &Sftp{
+		ClientConf: *i,
+	}
+	// get client config
+	config, err := makeClientConfig(i)
+	if err != nil {
+		return o, err
+	}
+
+	// ssh dial
+	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
+	if err != nil {
+		return o, err
+	}
+	o.conn = conn
+
+	// get sftp client
+	client, err := sftp.NewClient(conn)
+	if err != nil {
+		o.conn.Close()
+		return o, err
+	}
+	o.client = client
+
+	// done
+	return o, nil
+}
+
+// cleanup
+func (i *Sftp) Close() {
+	i.client.Close()
+	i.conn.Close()
+}
+
+// get remote client can be used to perform operations on the client directly by the caller
+func (i *Sftp) GetRemoteClient() *sftp.Client {
+	return i.client
+}
+
+// this is what a file definition looks like for WriteFile
+type FileWriter struct {
+	DestPath    string      // destination path on the remote
+	Source      io.Reader   // source reader to read from in order to store the file
+	Permissions os.FileMode // optional; if unset, default ssh/sftp mask is applied
+}
+
+// this is what a file definition looks like for ReadFile
+type FileReader struct {
+	SourcePath  string    // source path on the remote
+	Destination io.Writer // destination writer to which the file will be written
+}
+
+// write a file to remote
+// if mkdir is set, will check if directory exists; if it doesn't, one will be created
+func (i *Sftp) WriteFile(mkdir bool, f *FileWriter) error {
+	if mkdir {
+		dir, _ := path.Split(f.DestPath)
+		if _, err := i.client.Stat(dir); err != nil && os.IsNotExist(err) {
+			err = i.client.MkdirAll(dir)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	fh, err := i.client.OpenFile(f.DestPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	if err != nil {
+		return err
+	}
+	_, err = fh.ReadFrom(f.Source)
+	fh.Close()
+	if err != nil {
+		return err
+	}
+	if f.Permissions != 0 {
+		err = i.client.Chmod(f.DestPath, f.Permissions)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// read a file from remote
+func (i *Sftp) ReadFile(f *FileReader) error {
+	fh, err := i.client.Open(f.SourcePath)
+	if err != nil {
+		return err
+	}
+	defer fh.Close()
+	_, err = fh.WriteTo(f.Destination)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// upload files recursively to remote
+func (i *Sftp) Upload(sourcePath string, destPath string) error {
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to get source info: %v", err)
+	}
+
+	// Check if source is a directory
+	if info.IsDir() {
+		// Create remote directory
+		err = i.client.MkdirAll(destPath)
+		if err != nil {
+			return fmt.Errorf("failed to create remote directory: %v", err)
+		}
+
+		// Iterate through the directory contents
+		entries, err := os.ReadDir(sourcePath)
+		if err != nil {
+			return fmt.Errorf("failed to read source directory: %v", err)
+		}
+
+		for _, entry := range entries {
+			src := path.Join(sourcePath, entry.Name())
+			dst := path.Join(destPath, entry.Name())
+
+			// Recursively call Upload
+			err = i.Upload(src, dst)
+			if err != nil {
+				return fmt.Errorf("failed to upload %s: %v", src, err)
+			}
+		}
+	} else {
+		// Upload a single file
+		err = i.uploadFile(sourcePath, destPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Sftp) uploadFile(sourcePath string, destPath string) error {
+	file, err := os.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %v", err)
+	}
+	defer file.Close()
+
+	writer := &FileWriter{
+		DestPath: destPath,
+		Source:   file,
+	}
+	err = i.WriteFile(true, writer)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
+	}
+	return nil
+}
+
+// download files recursively from remote
+func (i *Sftp) Download(sourcePath string, destPath string) error {
+	info, err := i.client.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to get remote source info: %v", err)
+	}
+
+	// Check if source is a directory
+	if info.IsDir() {
+		// Create local directory
+		err = os.MkdirAll(destPath, os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("failed to create local directory: %v", err)
+		}
+
+		// Iterate through the directory contents
+		entries, err := i.client.ReadDir(sourcePath)
+		if err != nil {
+			return fmt.Errorf("failed to read remote directory: %v", err)
+		}
+
+		for _, entry := range entries {
+			src := path.Join(sourcePath, entry.Name())
+			dst := path.Join(destPath, entry.Name())
+
+			// Recursively call Download
+			err = i.Download(src, dst)
+			if err != nil {
+				return fmt.Errorf("failed to download %s: %v", src, err)
+			}
+		}
+	} else {
+		// Download a single file
+		err = i.downloadFile(sourcePath, destPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Sftp) downloadFile(sourcePath string, destPath string) error {
+	file, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local file: %v", err)
+	}
+	defer file.Close()
+
+	reader := &FileReader{
+		SourcePath:  sourcePath,
+		Destination: file,
+	}
+	err = i.ReadFile(reader)
+	if err != nil {
+		return fmt.Errorf("failed to read file: %v", err)
+	}
+	return nil
+}
