@@ -3,11 +3,15 @@ package baws
 import (
 	"context"
 	"errors"
+	"os"
+	"path"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/parallelize"
+	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -22,6 +26,12 @@ type instanceDetail struct {
 	IAMInstanceProfile    *types.IamInstanceProfile `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
 	SpotInstanceRequestId string                    `yaml:"spotInstanceRequestID" json:"spotInstanceRequestID"`
 	LifecycleType         string                    `yaml:"lifecycleType" json:"lifecycleType"`
+	Volumes               []instanceVolume          `yaml:"volumes" json:"volumes"`
+}
+
+type instanceVolume struct {
+	Device   string `yaml:"device" json:"device"`
+	VolumeID string `yaml:"volumeID" json:"volumeID"`
 }
 
 func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, error) {
@@ -36,7 +46,7 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 			defer wg.Done()
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
-				errors.Join(errs, err)
+				errs = errors.Join(errs, err)
 				return
 			}
 			paginator := ec2.NewDescribeInstancesPaginator(cli, &ec2.DescribeInstancesInput{
@@ -53,7 +63,7 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 			for paginator.HasMorePages() {
 				out, err := paginator.NextPage(context.TODO())
 				if err != nil {
-					errors.Join(errs, err)
+					errs = errors.Join(errs, err)
 					return
 				}
 				for _, res := range out.Reservations {
@@ -104,17 +114,18 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 						dvols := backend.CostVolumes{}
 						avols := backend.CostVolumes{}
 						for _, vol := range vols {
-							cpg, _ := strconv.ParseFloat(vol.Tags[TAG_COST_GB], 64)
-							volcost := backend.CostVolume{
-								PricePerGBHour: cpg,
-								SizeGB:         int64(vol.Size / backend.StorageGB),
-								CreateTime:     vol.CreationTime,
-							}
 							if vol.DeleteOnTermination {
-								dvols = append(dvols, volcost)
+								dvols = append(dvols, vol.EstimatedCostUSD)
 							} else {
-								avols = append(avols, volcost)
+								avols = append(avols, vol.EstimatedCostUSD)
 							}
+						}
+						volslist := []instanceVolume{}
+						for _, v := range inst.BlockDeviceMappings {
+							volslist = append(volslist, instanceVolume{
+								Device:   aws.ToString(v.DeviceName),
+								VolumeID: aws.ToString(v.Ebs.VolumeId),
+							})
 						}
 						ilock.Lock()
 						i = append(i, &backend.Instance{
@@ -131,8 +142,10 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 							Owner:        tags[TAG_OWNER],
 							Tags:         tags,
 							Expires:      expires,
-							PublicIP:     aws.ToString(inst.PublicIpAddress),
-							PrivateIP:    aws.ToString(inst.PrivateIpAddress),
+							IP: backend.IP{
+								Public:  aws.ToString(inst.PublicIpAddress),
+								Private: aws.ToString(inst.PrivateIpAddress),
+							},
 							ImageID:      aws.ToString(inst.ImageId),
 							SSHKeyName:   aws.ToString(inst.KeyName),
 							SubnetID:     aws.ToString(inst.SubnetId),
@@ -162,6 +175,7 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 								IAMInstanceProfile:    inst.IamInstanceProfile,
 								SpotInstanceRequestId: aws.ToString(inst.SpotInstanceRequestId),
 								LifecycleType:         string(inst.InstanceLifecycle),
+								Volumes:               volslist,
 							},
 						})
 						ilock.Unlock()
@@ -405,4 +419,80 @@ func (s *b) InstancesStart(instances backend.InstanceList, waitDur time.Duration
 	}
 	wg.Wait()
 	return reterr
+}
+
+func (s *b) InstancesExec(instances backend.InstanceList, e *backend.ExecInput) []*backend.ExecOutput {
+	if len(instances) == 0 {
+		return nil
+	}
+	if e.ParallelThreads == 0 {
+		e.ParallelThreads = len(instances)
+	}
+	out := []*backend.ExecOutput{}
+	outl := new(sync.Mutex)
+	parallelize.ForEachLimit(instances, e.ParallelThreads, func(i *backend.Instance) {
+		if i.InstanceState != backend.LifeCycleStateRunning {
+			outl.Lock()
+			out = append(out, &backend.ExecOutput{
+				Output: &sshexec.ExecOutput{
+					Err: errors.New("instance not running"),
+				},
+				Instance: i,
+			})
+			outl.Unlock()
+			return
+		}
+		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, i.ClusterName))
+		if err != nil {
+			outl.Lock()
+			out = append(out, &backend.ExecOutput{
+				Output: &sshexec.ExecOutput{
+					Err: err,
+				},
+				Instance: i,
+			})
+			outl.Unlock()
+			return
+		}
+		clientConf := sshexec.ClientConf{
+			Host:           i.IP.Routable(),
+			Port:           22,
+			Username:       e.Username,
+			PrivateKey:     nKey,
+			ConnectTimeout: 30 * time.Second,
+		}
+		o := sshexec.Exec(&sshexec.ExecInput{
+			ClientConf: clientConf,
+			ExecDetail: e.ExecDetail,
+		})
+		outl.Lock()
+		out = append(out, &backend.ExecOutput{
+			Output:   o,
+			Instance: i,
+		})
+		outl.Unlock()
+	})
+	return out
+}
+
+func (s *b) InstancesGetSftpConfig(instances backend.InstanceList, username string) ([]*sshexec.ClientConf, error) {
+	confs := []*sshexec.ClientConf{}
+	for _, i := range instances {
+		if i.InstanceState != backend.LifeCycleStateRunning {
+			return nil, errors.New("instance not running")
+		}
+		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, i.ClusterName))
+		if err != nil {
+			return nil, errors.New("required key not found")
+		}
+		clientConf := &sshexec.ClientConf{
+			Host:           i.IP.Routable(),
+			Port:           22,
+			Username:       username,
+			PrivateKey:     nKey,
+			ConnectTimeout: 30 * time.Second,
+		}
+		confs = append(confs, clientConf)
+	}
+	return confs, nil
 }

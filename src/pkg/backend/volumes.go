@@ -67,7 +67,7 @@ type VolumeAction interface {
 	// umount if required, and for pd-ssd/ebs, also detach device
 	Detach(instance *Instance) error
 	// resize a non-EFS device
-	Resize(newSize StorageSize) error
+	Resize(newSizeGiB StorageSize) error
 }
 
 // any backend returning this struct, must implement the VolumeAction interface on it
@@ -75,19 +75,23 @@ type Volume struct {
 	BackendType         BackendType       `yaml:"backendType" json:"backendType"`
 	VolumeType          VolumeType        `yaml:"volumeType" json:"volumeType"`
 	Name                string            `yaml:"name" json:"name"`
+	Description         string            `yaml:"description" json:"description"` // from description or tags if no description field
 	Size                StorageSize       `yaml:"size" json:"size"`
 	FileSystemId        string            `yaml:"fsID" json:"fsID"`
 	ZoneName            string            `yaml:"zoneName" json:"zoneName"`
 	ZoneID              string            `yaml:"zoneID" json:"zoneID"`
 	CreationTime        time.Time         `yaml:"creationTime" json:"creationTime"`
-	DeleteOnTermination bool              `yaml:"deleteOnTermination" json:"deleteOnTermination"`
-	Owner               string            `yaml:"owner" json:"owner"`                   // from tags
-	LifeCycleState      LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"` // states, cloud or custom
-	Tags                map[string]string `yaml:"tags" json:"tags"`                     // all tags
-	Expires             time.Time         `yaml:"expires" json:"expires"`               // from tags
-	AttachedTo          []string          `yaml:"attachedTo" json:"attachedTo"`         // for non-efs
-	Description         string            `yaml:"description" json:"description"`       // from description or tags if no description field
+	Iops                int               `yaml:"iops" json:"iops"`
+	Throughput          StorageSize       `yaml:"throughput" json:"throughput"` // bytes/second
+	Owner               string            `yaml:"owner" json:"owner"`           // from tags
+	Tags                map[string]string `yaml:"tags" json:"tags"`             // all tags
 	Encrypted           bool              `yaml:"encrypted" json:"encrypted"`
+	Expires             time.Time         `yaml:"expires" json:"expires"` // from tags
+	DiskType            string            `yaml:"diskType" json:"diskType"`
+	State               VolumeState       `yaml:"state" json:"state"` // states, cloud or custom
+	DeleteOnTermination bool              `yaml:"deleteOnTermination" json:"deleteOnTermination"`
+	AttachedTo          []string          `yaml:"attachedTo" json:"attachedTo"` // for non-efs
+	EstimatedCostUSD    CostVolume        `yaml:"estimatedCost" json:"estimatedCost"`
 	BackendSpecific     interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
@@ -259,14 +263,14 @@ func (v VolumeList) Detach(instance *Instance) error {
 	return retErr
 }
 
-func (v VolumeList) Resize(newSize StorageSize) error {
+func (v VolumeList) Resize(newSizeGiB StorageSize) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].ResizeVolumes(v.WithBackendType(c).Describe(), newSize)
+			err := cloudList[c].ResizeVolumes(v.WithBackendType(c).Describe(), newSizeGiB)
 			if err != nil {
 				retErr = err
 			}
@@ -296,6 +300,6 @@ func (v *Volume) Detach(instance *Instance) error {
 	return VolumeList{v}.Detach(instance)
 }
 
-func (v *Volume) Resize(newSize StorageSize) error {
-	return VolumeList{v}.Resize(newSize)
+func (v *Volume) Resize(newSizeGiB StorageSize) error {
+	return VolumeList{v}.Resize(newSizeGiB)
 }

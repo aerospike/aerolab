@@ -1,9 +1,12 @@
 package backend
 
 import (
+	"errors"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/aerospike/aerolab/pkg/sshexec"
 )
 
 type Instances interface {
@@ -36,14 +39,40 @@ type InstanceAction interface {
 	Stop(force bool, waitDur time.Duration) error
 	// start selected instances
 	Start(waitDur time.Duration) error
+	// run command
+	Exec(*ExecInput) []*ExecOutput
+	// get sftp config
+	GetSftpConfig(username string) ([]*sshexec.ClientConf, error)
+}
+
+type ExecInput struct {
+	sshexec.ExecDetail
+	Username        string
+	ParallelThreads int
+}
+
+type ExecOutput struct {
+	Output   *sshexec.ExecOutput
+	Instance *Instance
+}
+
+type IP struct {
+	Public  string `yaml:"public" json:"public"`
+	Private string `yaml:"private" json:"private"`
+}
+
+func (i *IP) Routable() string {
+	if i.Public != "" {
+		return i.Public
+	}
+	return i.Private
 }
 
 // any backend returning this struct, must implement the InstanceAction interface on it
 type Instance struct {
 	ClusterName      string            `yaml:"clusterName" json:"clusterName"`
 	NodeNo           int               `yaml:"nodeNo" json:"nodeNo"`
-	PublicIP         string            `yaml:"publicIP" json:"publicIP"`
-	PrivateIP        string            `yaml:"privateIP" json:"privateIP"`
+	IP               IP                `yaml:"IP" json:"IP"`
 	ImageID          string            `yaml:"imageID" json:"imageID"`
 	SSHKeyName       string            `yaml:"sshKeyName" json:"sshKeyName"`
 	SubnetID         string            `yaml:"subnetID" json:"subnetID"`
@@ -135,6 +164,18 @@ func (i *Instance) AddTags(tags map[string]string) error {
 
 func (i *Instance) RemoveTags(tagKeys []string) error {
 	return InstanceList{i}.RemoveTags(tagKeys)
+}
+
+func (i *Instance) Exec(e *ExecInput) *ExecOutput {
+	return InstanceList{i}.Exec(e)[0]
+}
+
+func (i *Instance) GetSftpConfig(username string) (*sshexec.ClientConf, error) {
+	out, err := InstanceList{i}.GetSftpConfig(username)
+	if err != nil {
+		return nil, err
+	}
+	return out[0], nil
 }
 
 // list of all Instances, for the Inventory interface
@@ -291,4 +332,39 @@ func (v InstanceList) Start(waitDur time.Duration) error {
 	}
 	wait.Wait()
 	return retErr
+}
+
+func (v InstanceList) Exec(e *ExecInput) []*ExecOutput {
+	var outs []*ExecOutput
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			out := cloudList[c].InstancesExec(v.WithBackendType(c).Describe(), e)
+			outs = append(outs, out...)
+		}()
+	}
+	wait.Wait()
+	return outs
+}
+
+func (v InstanceList) GetSftpConfig(username string) ([]*sshexec.ClientConf, error) {
+	var outs []*sshexec.ClientConf
+	wait := new(sync.WaitGroup)
+	var nerr error
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			out, err := cloudList[c].InstancesGetSftpConfig(v.WithBackendType(c).Describe(), username)
+			if err != nil {
+				nerr = errors.Join(nerr, err)
+				return
+			}
+			outs = append(outs, out...)
+		}()
+	}
+	wait.Wait()
+	return outs, nil
 }

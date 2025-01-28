@@ -17,16 +17,18 @@ type b struct {
 	credentials *clouds.AWS
 	regions     []string
 	project     string
+	sshKeysDir  string
 }
 
 func init() {
 	backend.RegisterBackend(backend.BackendTypeAWS, &b{})
 }
 
-func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string) error {
+func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string) error {
 	s.configDir = dir
 	s.credentials = &credentials.AWS
 	s.project = project
+	s.sshKeysDir = sshKeyDir
 	// read regions
 	err := s.setConfigRegions()
 	if err != nil {
