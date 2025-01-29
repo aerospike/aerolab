@@ -127,6 +127,10 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 								VolumeID: aws.ToString(v.Ebs.VolumeId),
 							})
 						}
+						arch := backend.ArchitectureARM64
+						if inst.Architecture == types.ArchitectureValuesX8664 {
+							arch = backend.ArchitectureX8664
+						}
 						ilock.Lock()
 						i = append(i, &backend.Instance{
 							ClusterName:  tags[TAG_CLUSTER_NAME],
@@ -150,7 +154,7 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 							SSHKeyName:   aws.ToString(inst.KeyName),
 							SubnetID:     aws.ToString(inst.SubnetId),
 							NetworkID:    aws.ToString(inst.VpcId),
-							Architecture: string(inst.Architecture),
+							Architecture: arch,
 							OperatingSystem: backend.OS{
 								Name:    tags[TAG_OS_NAME],
 								Version: tags[TAG_OS_VERSION],

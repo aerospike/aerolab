@@ -18,7 +18,8 @@ type Cloud interface {
 	DisableZones(names ...string) error
 	GetVolumes() (VolumeList, error)
 	GetInstances(VolumeList) (InstanceList, error)
-	// TODO: cloud must implement CreateVolumes, CreateInstances
+	GetImages() (ImageList, error)
+	// TODO: cloud must implement CreateVolumes, CreateInstances, CreateImages
 	// actions on multiple instances
 	InstancesAddTags(instances InstanceList, tags map[string]string) error
 	InstancesRemoveTags(instances InstanceList, tagKeys []string) error
@@ -34,10 +35,12 @@ type Cloud interface {
 	AttachVolumes(volumes VolumeList, instance *Instance, mountTargetDirectory *string) error
 	DetachVolumes(volumes VolumeList, instance *Instance) error
 	ResizeVolumes(volumes VolumeList, newSizeGiB StorageSize) error
+	// actions on images
+	ImagesDelete(images ImageList, waitDur time.Duration) error
 }
 
 type Backend interface {
-	// TODO: backend must implement CreateVolumes, CreateInstances
+	// TODO: backend must implement CreateVolumes, CreateInstances, CreateImages
 	GetInventory() (*Inventory, error)
 	AddRegion(backendType BackendType, names ...string) error
 	RemoveRegion(backendType BackendType, names ...string) error
@@ -51,16 +54,20 @@ type backend struct {
 	cache     *cache.Cache
 	volumes   map[BackendType]VolumeList
 	instances map[BackendType]InstanceList
+	images    map[BackendType]ImageList
 	pollLock  *sync.Mutex
 	log       *logger.Logger
 }
 
+// networks->firewalls(networks)->volumes(networks,firewalls)->instances(volumes)
+// images - no dependencies
+// expiries - no dependencies
 type Inventory struct {
+	//TODO Networks  Networks  // VPCs, Subnets
+	//TODO Firewalls Firewalls // AWS security groups, GCP firewalls
 	Volumes   Volumes   // permanent volumes which do not go away (not tied to instance lifetime), be it EFS, or EBS/pd-ssd
 	Instances Instances // all instances, clusters, clients, whatever
-	//TODO Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
-	//TODO Firewalls Firewalls // AWS security groups, GCP firewalls
-	//TODO Networks  Networks  // VPCs, Subnets
+	Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
 	//TODO Expiries  Expiries  // Expiry system: to be made obsolete in the future by using tiny instances with aerolab on them for expiries instead - removing complexity
 }
 
@@ -70,6 +77,7 @@ func getBackendObject(project string, c *Config) *backend {
 		config:    c,
 		volumes:   make(map[BackendType]VolumeList),
 		instances: make(map[BackendType]InstanceList),
+		images:    make(map[BackendType]ImageList),
 		pollLock:  new(sync.Mutex),
 	}
 }
@@ -88,6 +96,10 @@ func (b *backend) loadCache() error {
 		return err
 	}
 	err = b.cache.Get(path.Join(b.project, "instances"), &b.instances)
+	if err != nil {
+		return err
+	}
+	err = b.cache.Get(path.Join(b.project, "images"), &b.images)
 	if err != nil {
 		return err
 	}
@@ -128,6 +140,20 @@ func (b *backend) poll() []error {
 		errs = append(errs, err)
 	}
 
+	log.Debug("Getting images")
+	for n, v := range cloudList {
+		d, err := v.GetImages()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			b.images[n] = d
+		}
+	}
+	err = b.cache.Store(path.Join(b.project, "images"), b.images)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	if len(errs) == 0 {
 		log.Debug("Storing metadata")
 		err = b.cache.Store(path.Join(b.project, "metadata"), cacheMetadata{
@@ -150,8 +176,13 @@ func (b *backend) GetInventory() (*Inventory, error) {
 	for _, v := range b.instances {
 		instances = append(instances, v...)
 	}
+	images := ImageList{}
+	for _, v := range b.images {
+		images = append(images, v...)
+	}
 	return &Inventory{
 		Volumes:   volumes,
 		Instances: instances,
+		Images:    images,
 	}, nil
 }
