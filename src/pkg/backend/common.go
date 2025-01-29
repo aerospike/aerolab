@@ -109,3 +109,29 @@ const (
 	StorageGB  StorageSize = StorageMB * 1000
 	StorageTB  StorageSize = StorageGB * 1000
 )
+
+type Architecture int
+
+const (
+	ArchitectureX8664 Architecture = iota
+	ArchitectureARM64 Architecture = iota
+)
+
+func (a Architecture) String() string {
+	switch a {
+	case ArchitectureX8664:
+		return "amd64"
+	case ArchitectureARM64:
+		return "arm64"
+	default:
+		return "unknown"
+	}
+}
+
+func (a Architecture) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.String())
+}
+
+func (a Architecture) MarshalYAML() (interface{}, error) {
+	return a.String(), nil
+}

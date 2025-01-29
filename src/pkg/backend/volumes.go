@@ -46,6 +46,8 @@ type Volumes interface {
 	WithName(names ...string) Volumes
 	// get volume from ID
 	WithVolumeID(ID ...string) Volumes
+	// tag filter: if value is "", it will only check if tag key exists, not it's value
+	WithTags(tags map[string]string) Volumes
 	// number of volumes in selector
 	Count() int
 	// expose instance details to the caller
@@ -164,6 +166,27 @@ func (v VolumeList) WithVolumeID(id ...string) Volumes {
 		volume := volume
 		if !slices.Contains(id, volume.FileSystemId) {
 			continue
+		}
+		ret = append(ret, volume)
+	}
+	return ret
+}
+
+func (v VolumeList) WithTags(tags map[string]string) Volumes {
+	ret := VolumeList{}
+NEXTVOL:
+	for _, volume := range v {
+		volume := volume
+		for k, v := range tags {
+			if v == "" {
+				if _, ok := volume.Tags[k]; !ok {
+					continue NEXTVOL
+				}
+			} else {
+				if vv, ok := volume.Tags[k]; !ok || v != vv {
+					continue NEXTVOL
+				}
+			}
 		}
 		ret = append(ret, volume)
 	}

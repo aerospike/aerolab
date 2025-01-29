@@ -20,6 +20,12 @@ type Instances interface {
 	WithZoneID(zoneIDs ...string) Instances
 	// instance selector - by name
 	WithName(names ...string) Instances
+	// filter by cluster name(s)
+	WithClusterName(names ...string) Instances
+	// filter by node number(s)
+	WithNodeNo(number ...int) Instances
+	// if a tag only has key, instances that contain the tag will be returned, if it has a value, also the value will be matched against
+	WithTags(tags map[string]string) Instances
 	// number of instances in selector
 	Count() int
 	// expose instance details to the caller
@@ -77,7 +83,7 @@ type Instance struct {
 	SSHKeyName       string            `yaml:"sshKeyName" json:"sshKeyName"`
 	SubnetID         string            `yaml:"subnetID" json:"subnetID"`
 	NetworkID        string            `yaml:"networkID" json:"networkID"`
-	Architecture     string            `yaml:"architecture" json:"architecture"`
+	Architecture     Architecture      `yaml:"architecture" json:"architecture"`
 	OperatingSystem  OS                `yaml:"operatingSystem" json:"operatingSystem"`
 	Firewalls        []string          `yaml:"firewalls" json:"firewalls"`
 	InstanceID       string            `yaml:"instanceId" json:"instanceId"`
@@ -235,6 +241,51 @@ func (v InstanceList) WithName(names ...string) Instances {
 		instance := instance
 		if !slices.Contains(names, instance.Name) {
 			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+func (v InstanceList) WithClusterName(names ...string) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if !slices.Contains(names, instance.ClusterName) {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+func (v InstanceList) WithNodeNo(number ...int) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if !slices.Contains(number, instance.NodeNo) {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+func (v InstanceList) WithTags(tags map[string]string) Instances {
+	ret := InstanceList{}
+NEXTINST:
+	for _, instance := range v {
+		instance := instance
+		for k, v := range tags {
+			if v == "" {
+				if _, ok := instance.Tags[k]; !ok {
+					continue NEXTINST
+				}
+			} else {
+				if vv, ok := instance.Tags[k]; !ok || v != vv {
+					continue NEXTINST
+				}
+			}
 		}
 		ret = append(ret, instance)
 	}
