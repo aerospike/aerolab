@@ -265,12 +265,12 @@ func (s *b) VolumesAddTags(volumes backend.VolumeList, tags map[string]string, w
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			cli, err := getEfsClient(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 			for _, id := range ids {
-				cli, err := getEfsClient(s.credentials, &zone)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
 				_, err = cli.TagResource(context.TODO(), &efs.TagResourceInput{
 					ResourceId: aws.String(id),
 					Tags:       efsTags,
@@ -337,12 +337,12 @@ func (s *b) VolumesRemoveTags(volumes backend.VolumeList, tagKeys []string, wait
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			cli, err := getEfsClient(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 			for _, id := range ids {
-				cli, err := getEfsClient(s.credentials, &zone)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
 				_, err = cli.UntagResource(context.TODO(), &efs.UntagResourceInput{
 					ResourceId: aws.String(id),
 					TagKeys:    tagKeys,
@@ -385,12 +385,12 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) err
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			cli, err := getEc2Client(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 			for _, id := range ids {
-				cli, err := getEc2Client(s.credentials, &zone)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
 				_, err = cli.DeleteVolume(context.TODO(), &ec2.DeleteVolumeInput{
 					VolumeId: aws.String(id),
 				})
@@ -405,12 +405,12 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) err
 		wg.Add(1)
 		go func(zone string, ids backend.VolumeList) {
 			defer wg.Done()
+			cli, err := getEfsClient(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 			for _, id := range ids {
-				cli, err := getEfsClient(s.credentials, &zone)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
 				// delete mount targets
 				switch detail := id.BackendSpecific.(type) {
 				case *volumeDetail:
@@ -477,12 +477,12 @@ func (s *b) ResizeVolumes(volumes backend.VolumeList, newSizeGiB backend.Storage
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			cli, err := getEc2Client(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 			for _, id := range ids {
-				cli, err := getEc2Client(s.credentials, &zone)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
 				_, err = cli.ModifyVolume(context.TODO(), &ec2.ModifyVolumeInput{
 					VolumeId: aws.String(id),
 					Size:     aws.Int32(int32(newSizeGiB)),
@@ -560,12 +560,12 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 		wg.Add(1)
 		go func(zone string, ids backend.VolumeList) {
 			defer wg.Done()
+			cli, err := getEc2Client(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 			for _, id := range ids {
-				cli, err := getEc2Client(s.credentials, &zone)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
 				_, err = cli.AttachVolume(context.TODO(), &ec2.AttachVolumeInput{
 					VolumeId:   aws.String(id.FileSystemId),
 					InstanceId: aws.String(instance.InstanceID),
@@ -608,12 +608,12 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 		wg.Add(1)
 		go func(zone string, ids backend.VolumeList) {
 			defer wg.Done()
+			cli, err := getEc2Client(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 			for _, id := range ids {
-				cli, err := getEc2Client(s.credentials, &zone)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
 				_, err = cli.DetachVolume(context.TODO(), &ec2.DetachVolumeInput{
 					VolumeId:   aws.String(id.FileSystemId),
 					InstanceId: aws.String(instance.InstanceID),
