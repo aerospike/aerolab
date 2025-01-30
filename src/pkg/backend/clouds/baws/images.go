@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/lithammer/shortuuid"
 )
 
 type imageDetail struct {
@@ -231,6 +232,9 @@ func getImageData(amis []types.Image) (data []*imageData) {
 }
 
 func (s *b) GetImages() (backend.ImageList, error) {
+	log := s.log.WithPrefix("GetImages: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	var i backend.ImageList
 	ilock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
@@ -240,8 +244,8 @@ func (s *b) GetImages() (backend.ImageList, error) {
 	for _, zone := range zones {
 		go func(zone string) {
 			defer wg.Done()
-			s.log.Detail("GetImages(%s): owned: start", zone)
-			defer s.log.Detail("GetImages(%s): owned: end", zone)
+			log.Detail("zone=%s owned: start", zone)
+			defer log.Detail("zone=%s owned: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				errs = errors.Join(errs, err)
@@ -332,8 +336,8 @@ func (s *b) GetImages() (backend.ImageList, error) {
 	for _, zone := range zones {
 		go func(zone string) {
 			defer wg.Done()
-			s.log.Detail("GetImages(%s): general: start", zone)
-			defer s.log.Detail("GetImages(%s): general: end", zone)
+			log.Detail("zone=%s general: start", zone)
+			defer log.Detail("zone=%s general: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				errs = errors.Join(errs, err)
@@ -411,7 +415,7 @@ func (s *b) GetImages() (backend.ImageList, error) {
 }
 
 func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error {
-	log := s.log.WithPrefix("ImagesDelete: ")
+	log := s.log.WithPrefix("ImagesDelete: job=" + shortuuid.New() + " ")
 	if len(images) == 0 {
 		log.Detail("ImageList empty, returning")
 		return nil
