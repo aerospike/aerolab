@@ -240,6 +240,8 @@ func (s *b) GetImages() (backend.ImageList, error) {
 	for _, zone := range zones {
 		go func(zone string) {
 			defer wg.Done()
+			s.log.Detail("GetImages(%s): owned: start", zone)
+			defer s.log.Detail("GetImages(%s): owned: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				errs = errors.Join(errs, err)
@@ -330,6 +332,8 @@ func (s *b) GetImages() (backend.ImageList, error) {
 	for _, zone := range zones {
 		go func(zone string) {
 			defer wg.Done()
+			s.log.Detail("GetImages(%s): general: start", zone)
+			defer s.log.Detail("GetImages(%s): general: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				errs = errors.Join(errs, err)
@@ -407,7 +411,9 @@ func (s *b) GetImages() (backend.ImageList, error) {
 }
 
 func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error {
+	log := s.log.WithPrefix("ImagesDelete: ")
 	if len(images) == 0 {
+		log.Detail("ImageList empty, returning")
 		return nil
 	}
 	volIds := make(map[string]backend.ImageList)
@@ -420,18 +426,22 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 		}
 		volIds[volume.ZoneName] = append(volIds[volume.ZoneName], volume)
 	}
+	log.Detail("Entering goroutines")
 	wg := new(sync.WaitGroup)
 	var reterr error
 	for zone, ids := range volIds {
 		wg.Add(1)
 		go func(zone string, ids backend.ImageList) {
 			defer wg.Done()
+			log.Detail("Connecting to EC2")
+			cli, err := getEc2Client(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 			for _, id := range ids {
-				cli, err := getEc2Client(s.credentials, &zone)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
+				golog := log.WithPrefix(zone + "::" + id.ImageId + ": ")
+				golog.Detail("Deregistering Image")
 				_, err = cli.DeregisterImage(context.TODO(), &ec2.DeregisterImageInput{
 					ImageId: aws.String(id.ImageId),
 				})
@@ -439,6 +449,7 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 					reterr = errors.Join(reterr, err)
 					return
 				}
+				golog.Detail("Deleting Snapshot")
 				_, err = cli.DeleteSnapshot(context.TODO(), &ec2.DeleteSnapshotInput{
 					SnapshotId: aws.String(id.BackendSpecific.(imageDetail).SnapshotID),
 				})
@@ -446,6 +457,7 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 					reterr = errors.Join(reterr, err)
 					return
 				}
+				golog.Detail("Done")
 			}
 		}(zone, ids)
 	}

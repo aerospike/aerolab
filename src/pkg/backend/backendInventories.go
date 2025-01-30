@@ -12,7 +12,7 @@ import (
 )
 
 type Cloud interface {
-	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string) error
+	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger) error
 	ListEnabledZones() ([]string, error)
 	EnableZones(names ...string) error
 	DisableZones(names ...string) error
