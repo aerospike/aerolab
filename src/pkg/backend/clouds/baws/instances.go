@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/lithammer/shortuuid"
 )
 
 // TODO: create instances call
@@ -35,6 +36,9 @@ type instanceVolume struct {
 }
 
 func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, error) {
+	log := s.log.WithPrefix("GetInstances: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	var i backend.InstanceList
 	ilock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
@@ -44,6 +48,8 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 	for _, zone := range zones {
 		go func(zone string) {
 			defer wg.Done()
+			log.Detail("zone=%s start", zone)
+			defer log.Detail("zone=%s end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				errs = errors.Join(errs, err)
@@ -193,6 +199,9 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 }
 
 func (s *b) InstancesAddTags(instances backend.InstanceList, tags map[string]string) error {
+	log := s.log.WithPrefix("InstancesAddTags: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(instances) == 0 {
 		return nil
 	}
@@ -211,6 +220,8 @@ func (s *b) InstancesAddTags(instances backend.InstanceList, tags map[string]str
 		})
 	}
 	for zone, ids := range instanceIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
 		cli, err := getEc2Client(s.credentials, &zone)
 		if err != nil {
 			return err
@@ -227,6 +238,9 @@ func (s *b) InstancesAddTags(instances backend.InstanceList, tags map[string]str
 }
 
 func (s *b) InstancesRemoveTags(instances backend.InstanceList, tagKeys []string) error {
+	log := s.log.WithPrefix("InstancesRemoveTags: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(instances) == 0 {
 		return nil
 	}
@@ -244,6 +258,8 @@ func (s *b) InstancesRemoveTags(instances backend.InstanceList, tagKeys []string
 		})
 	}
 	for zone, ids := range instanceIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
 		cli, err := getEc2Client(s.credentials, &zone)
 		if err != nil {
 			return err
@@ -260,6 +276,9 @@ func (s *b) InstancesRemoveTags(instances backend.InstanceList, tagKeys []string
 }
 
 func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Duration) error {
+	log := s.log.WithPrefix("InstancesTerminate: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(instances) == 0 {
 		return nil
 	}
@@ -277,6 +296,8 @@ func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Dura
 		instanceIds[instance.ZoneID] = append(instanceIds[instance.ZoneID], instance.InstanceID)
 	}
 	for zone, ids := range instanceIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
 		_, err := clis[zone].TerminateInstances(context.TODO(), &ec2.TerminateInstancesInput{
 			InstanceIds: ids,
 		})
@@ -286,6 +307,8 @@ func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Dura
 	}
 	if waitDur > 0 {
 		for zone, ids := range instanceIds {
+			log.Detail("zone=%s wait: start", zone)
+			defer log.Detail("zone=%s wait: end", zone)
 			w := time.Now()
 			waiter := ec2.NewInstanceTerminatedWaiter(clis[zone])
 			err := waiter.Wait(context.TODO(), &ec2.DescribeInstancesInput{
@@ -304,6 +327,9 @@ func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Dura
 }
 
 func (s *b) InstancesStop(instances backend.InstanceList, force bool, waitDur time.Duration) error {
+	log := s.log.WithPrefix("InstancesStop: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(instances) == 0 {
 		return nil
 	}
@@ -321,6 +347,8 @@ func (s *b) InstancesStop(instances backend.InstanceList, force bool, waitDur ti
 		instanceIds[instance.ZoneID] = append(instanceIds[instance.ZoneID], instance.InstanceID)
 	}
 	for zone, ids := range instanceIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
 		_, err := clis[zone].StopInstances(context.TODO(), &ec2.StopInstancesInput{
 			InstanceIds: ids,
 			Force:       &force,
@@ -336,6 +364,8 @@ func (s *b) InstancesStop(instances backend.InstanceList, force bool, waitDur ti
 	retWait.Add(1)
 	go func() {
 		defer retWait.Done()
+		log.Detail("tag instances start")
+		defer log.Detail("tag instances end")
 		for _, instance := range instances {
 			err := s.InstancesAddTags(backend.InstanceList{instance}, map[string]string{
 				TAG_COST_SO_FAR: strconv.FormatFloat(instance.EstimatedCostUSD.Instance.AccruedCost(), 'f', 4, 64),
@@ -351,6 +381,8 @@ func (s *b) InstancesStop(instances backend.InstanceList, force bool, waitDur ti
 	// wait
 	if waitDur > 0 {
 		for zone, ids := range instanceIds {
+			log.Detail("zone=%s wait: start", zone)
+			defer log.Detail("zone=%s wait: end", zone)
 			w := time.Now()
 			waiter := ec2.NewInstanceStoppedWaiter(clis[zone])
 			err := waiter.Wait(context.TODO(), &ec2.DescribeInstancesInput{
@@ -370,6 +402,9 @@ func (s *b) InstancesStop(instances backend.InstanceList, force bool, waitDur ti
 }
 
 func (s *b) InstancesStart(instances backend.InstanceList, waitDur time.Duration) error {
+	log := s.log.WithPrefix("InstancesStart: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(instances) == 0 {
 		return nil
 	}
@@ -387,6 +422,8 @@ func (s *b) InstancesStart(instances backend.InstanceList, waitDur time.Duration
 		instanceIds[instance.ZoneID] = append(instanceIds[instance.ZoneID], instance.InstanceID)
 	}
 	for zone, ids := range instanceIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
 		_, err := clis[zone].StartInstances(context.TODO(), &ec2.StartInstancesInput{
 			InstanceIds: ids,
 		})
@@ -400,6 +437,8 @@ func (s *b) InstancesStart(instances backend.InstanceList, waitDur time.Duration
 	var reterr error
 	go func() {
 		defer wg.Done()
+		log.Detail("tag-instances start")
+		defer log.Detail("tag-instances end")
 		reterr = s.InstancesAddTags(instances, map[string]string{
 			TAG_START_TIME: time.Now().Format(time.RFC3339),
 		})
@@ -407,6 +446,8 @@ func (s *b) InstancesStart(instances backend.InstanceList, waitDur time.Duration
 	// wait
 	if waitDur > 0 {
 		for zone, ids := range instanceIds {
+			log.Detail("zone=%s wait: start", zone)
+			defer log.Detail("zone=%s wait: end", zone)
 			w := time.Now()
 			waiter := ec2.NewInstanceRunningWaiter(clis[zone])
 			err := waiter.Wait(context.TODO(), &ec2.DescribeInstancesInput{
@@ -426,6 +467,9 @@ func (s *b) InstancesStart(instances backend.InstanceList, waitDur time.Duration
 }
 
 func (s *b) InstancesExec(instances backend.InstanceList, e *backend.ExecInput) []*backend.ExecOutput {
+	log := s.log.WithPrefix("InstancesExec: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(instances) == 0 {
 		return nil
 	}
@@ -480,6 +524,9 @@ func (s *b) InstancesExec(instances backend.InstanceList, e *backend.ExecInput) 
 }
 
 func (s *b) InstancesGetSftpConfig(instances backend.InstanceList, username string) ([]*sshexec.ClientConf, error) {
+	log := s.log.WithPrefix("InstancesGetSftpConfig: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	confs := []*sshexec.ClientConf{}
 	for _, i := range instances {
 		if i.InstanceState != backend.LifeCycleStateRunning {
