@@ -10,6 +10,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 	"github.com/aerospike/aerolab/pkg/file"
+	"github.com/rglonek/logger"
 )
 
 type b struct {
@@ -18,17 +19,19 @@ type b struct {
 	regions     []string
 	project     string
 	sshKeysDir  string
+	log         *logger.Logger
 }
 
 func init() {
 	backend.RegisterBackend(backend.BackendTypeAWS, &b{})
 }
 
-func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string) error {
+func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger) error {
 	s.configDir = dir
 	s.credentials = &credentials.AWS
 	s.project = project
 	s.sshKeysDir = sshKeyDir
+	s.log = log
 	// read regions
 	err := s.setConfigRegions()
 	if err != nil {
@@ -39,6 +42,7 @@ func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project strin
 
 func (s *b) setConfigRegions() error {
 	regionsFile := path.Join(s.configDir, "regions.json")
+	s.log.Detail("setConfigRegions: looking for %s", regionsFile)
 	_, err := os.Stat(regionsFile)
 	if err != nil && !os.IsNotExist(err) {
 		// error reading
@@ -46,6 +50,7 @@ func (s *b) setConfigRegions() error {
 	}
 	if err != nil {
 		// file does not exist
+		s.log.Detail("setConfigRegions: %s does not exist, not parsing", regionsFile)
 		return nil
 	}
 	// read
@@ -54,7 +59,12 @@ func (s *b) setConfigRegions() error {
 		return err
 	}
 	defer f.Close()
-	return json.NewDecoder(f).Decode(&s.regions)
+	err = json.NewDecoder(f).Decode(&s.regions)
+	if err != nil {
+		return err
+	}
+	s.log.Detail("setConfigRegions: result=%v", s.regions)
+	return nil
 }
 
 func (s *b) ListEnabledZones() ([]string, error) {
