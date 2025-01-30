@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	etypes "github.com/aws/aws-sdk-go-v2/service/efs/types"
+	"github.com/lithammer/shortuuid"
 )
 
 // TODO volumes create call
@@ -29,6 +30,9 @@ type volumeDetail struct {
 }
 
 func (s *b) GetVolumes() (backend.VolumeList, error) {
+	log := s.log.WithPrefix("GetVolumes: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	var i backend.VolumeList
 	ilock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
@@ -38,6 +42,8 @@ func (s *b) GetVolumes() (backend.VolumeList, error) {
 	for _, zone := range zones {
 		go func(zone string) {
 			defer wg.Done()
+			log.Detail("zone=%s attached: start", zone)
+			defer log.Detail("zone=%s attached: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				errs = errors.Join(errs, err)
@@ -128,6 +134,8 @@ func (s *b) GetVolumes() (backend.VolumeList, error) {
 		// another set of goroutines to do EFS
 		go func(zone string) {
 			defer wg.Done()
+			log.Detail("zone=%s shared: start", zone)
+			defer log.Detail("zone=%s shared: end", zone)
 			cli, err := getEfsClient(s.credentials, &zone)
 			if err != nil {
 				errs = errors.Join(errs, err)
@@ -207,6 +215,9 @@ func (s *b) GetVolumes() (backend.VolumeList, error) {
 }
 
 func (s *b) VolumesAddTags(volumes backend.VolumeList, tags map[string]string, waitDur time.Duration) error {
+	log := s.log.WithPrefix("VolumesAddTags: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(volumes) == 0 {
 		return nil
 	}
@@ -246,6 +257,8 @@ func (s *b) VolumesAddTags(volumes backend.VolumeList, tags map[string]string, w
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			log.Detail("zone=%s attached: start")
+			defer log.Detail("zone=%s attached: end")
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -265,6 +278,8 @@ func (s *b) VolumesAddTags(volumes backend.VolumeList, tags map[string]string, w
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			log.Detail("zone=%s shared: start")
+			defer log.Detail("zone=%s shared: end")
 			cli, err := getEfsClient(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -287,6 +302,9 @@ func (s *b) VolumesAddTags(volumes backend.VolumeList, tags map[string]string, w
 }
 
 func (s *b) VolumesRemoveTags(volumes backend.VolumeList, tagKeys []string, waitDur time.Duration) error {
+	log := s.log.WithPrefix("VolumesRemoveTags: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(volumes) == 0 {
 		return nil
 	}
@@ -318,6 +336,8 @@ func (s *b) VolumesRemoveTags(volumes backend.VolumeList, tagKeys []string, wait
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			log.Detail("zone=%s attached: start")
+			defer log.Detail("zone=%s attached: end")
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -337,6 +357,8 @@ func (s *b) VolumesRemoveTags(volumes backend.VolumeList, tagKeys []string, wait
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			log.Detail("zone=%s shared: start")
+			defer log.Detail("zone=%s shared: end")
 			cli, err := getEfsClient(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -359,6 +381,9 @@ func (s *b) VolumesRemoveTags(volumes backend.VolumeList, tagKeys []string, wait
 }
 
 func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) error {
+	log := s.log.WithPrefix("DeleteVolumes: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(volumes) == 0 {
 		return nil
 	}
@@ -385,6 +410,8 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) err
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			log.Detail("zone=%s attached: start")
+			defer log.Detail("zone=%s attached: end")
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -405,6 +432,8 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) err
 		wg.Add(1)
 		go func(zone string, ids backend.VolumeList) {
 			defer wg.Done()
+			log.Detail("zone=%s shared: start")
+			defer log.Detail("zone=%s shared: end")
 			cli, err := getEfsClient(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -451,6 +480,9 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) err
 
 // resize the volume - only on Attached volume type; this does not run resize2fs or any such action on the instance itself, just the AWS APIs
 func (s *b) ResizeVolumes(volumes backend.VolumeList, newSizeGiB backend.StorageSize) error {
+	log := s.log.WithPrefix("ResizeVolumes: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(volumes) == 0 {
 		return nil
 	}
@@ -477,6 +509,8 @@ func (s *b) ResizeVolumes(volumes backend.VolumeList, newSizeGiB backend.Storage
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
+			log.Detail("zone=%s start")
+			defer log.Detail("zone=%s end")
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -531,6 +565,9 @@ func (d *deviceName) doNext(start string) string {
 // for Shared volume type, this will attach those volumes to the instance by modifying fstab on the instance itself and running mount -a; it will also create mount targets and assign security groups as required
 // for Attached volume type, this will just attach the volumes to the instance using AWS API, no mounting will be performed
 func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance, mountTargetDirectory *string) error {
+	log := s.log.WithPrefix("AttachVolumes: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(volumes) == 0 {
 		return nil
 	}
@@ -560,6 +597,8 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 		wg.Add(1)
 		go func(zone string, ids backend.VolumeList) {
 			defer wg.Done()
+			log.Detail("zone=%s attached: start")
+			defer log.Detail("zone=%s attached: end")
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -586,6 +625,9 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 // for Shared volume type, this will umount and remove the volume from fstab
 // for Attached volume type, this will just run AWS Detach API command, no umount is performed, it us up to the caller to do so
 func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance) error {
+	log := s.log.WithPrefix("DetachVolumes: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 	if len(volumes) == 0 {
 		return nil
 	}
@@ -608,6 +650,8 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 		wg.Add(1)
 		go func(zone string, ids backend.VolumeList) {
 			defer wg.Done()
+			log.Detail("zone=%s attached: start")
+			defer log.Detail("zone=%s attached: end")
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -628,6 +672,8 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 	// shared: umount and remove the volume from fstab
 	if len(shared) > 0 {
 		err := func() error {
+			log.Detail("zone=%s shared: start")
+			defer log.Detail("zone=%s shared: end")
 			// upload scripts
 			sftpConf, err := s.InstancesGetSftpConfig(backend.InstanceList{instance}, "root")
 			if err != nil {
