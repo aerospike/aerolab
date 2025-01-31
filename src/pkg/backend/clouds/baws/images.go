@@ -422,6 +422,7 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 	}
 	volIds := make(map[string]backend.ImageList)
 	for _, volume := range images {
+		volume := volume
 		if !volume.InAccount {
 			return errors.New("at least one of the provided images is not in the owner's account")
 		}

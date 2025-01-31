@@ -10,6 +10,9 @@ import (
 	"github.com/rglonek/logger"
 )
 
+// TODO invalidate cache on startup on certain conditions - like some instances expired
+// TODO force-invalidate cache if state seems to mismatch disk cache
+
 type Config struct {
 	RootDir     string              `yaml:"RootDir" json:"RootDir"`
 	Cache       bool                `yaml:"Cache" json:"Cache"`
