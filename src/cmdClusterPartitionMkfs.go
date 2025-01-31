@@ -89,8 +89,9 @@ func (c *clusterPartitionMkfsCmd) Execute(args []string) error {
 					script.Add("set +e")
 					script.Add("RET=0; while [ $RET -eq 0 ]; do mount |egrep '^" + p.Path + "( |\\t)'; RET=$?; sleep 1; done")
 					script.Add("set -e")
-					script.Add("sed -i.bak -e 's~" + p.Path + ".*~~g' /etc/fstab || echo 'not mounted'")
+					script.Add("sed -i.bak -e 's~.*" + p.MountPoint + ".*~~g' /etc/fstab || echo 'not mounted'")
 					script.Add("grep \"\\S\" /etc/fstab > /etc/fstab.clean; mv /etc/fstab.clean /etc/fstab")
+					script.Add("rm -rf " + p.MountPoint)
 				}
 				if pi == 0 {
 					continue
@@ -99,10 +100,19 @@ func (c *clusterPartitionMkfsCmd) Execute(args []string) error {
 				if strings.Contains(c.FsType, "ext") {
 					forceFlag = " -F "
 				}
+
+				// Obtain the PARTUUID for the partition
+				script.Add("PARTUUID=$(blkid -s PARTUUID -o value " + p.Path + ")")
+				script.Add("if [ -z \"$PARTUUID\" ]; then")
+				script.Add("    echo 'Failed to get PARTUUID for " + p.Path + "'")
+				script.Add("    exit 1")
+				script.Add("fi")
+
 				script.Add("mkfs -t " + c.FsType + forceFlag + c.MkfsOpts + " " + p.Path)
-				mountPoint := strings.TrimRight(c.MountRoot, "/") + "/" + p.Name
-				script.Add("mkdir -p " + mountPoint)
-				script.Add(fmt.Sprintf("echo \"%s %s %s %s 0 9\" >> /etc/fstab", p.Path, mountPoint, c.FsType, c.MountOpts))
+
+				mountRoot := strings.TrimRight(c.MountRoot, "/") + "/"
+				script.Add("mkdir -p " + mountRoot + `"$PARTUUID"`)
+				script.Add(fmt.Sprintf("echo \"PARTUUID=$PARTUUID %s$PARTUUID %s %s 0 9\" >> /etc/fstab", mountRoot, c.FsType, c.MountOpts))
 				script.Add("mount -a")
 			}
 		}

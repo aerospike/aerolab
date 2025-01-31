@@ -109,8 +109,9 @@ func (c *clusterPartitionCreateCmd) Execute(args []string) error {
 					script.Add("set +e")
 					script.Add("RET=0; while [ $RET -eq 0 ]; do mount |egrep '^" + p.Path + "( |\\t)'; RET=$?; sleep 1; done")
 					script.Add("set -e")
+					script.Add("sed -i.bak -e 's~.*" + p.MountPoint + ".*~~g' /etc/fstab || echo 'not mounted'")
+					script.Add("rm -rf " + p.MountPoint)
 				}
-				script.Add("sed -i.bak -e 's~" + p.Path + ".*~~g' /etc/fstab || echo 'not mounted'")
 			}
 			if len(part) > 1 {
 				script.Add("sleep 1; parted -s " + part[0].Path + " 'mktable gpt'")
