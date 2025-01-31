@@ -578,6 +578,7 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 	attached := make(map[string]backend.VolumeList)
 	shared := make(map[string]backend.VolumeList)
 	for _, volume := range volumes {
+		volume := volume
 		switch volume.VolumeType {
 		case backend.VolumeTypeAttachedDisk:
 			if _, ok := attached[volume.ZoneName]; !ok {
@@ -634,6 +635,7 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 	attached := make(map[string]backend.VolumeList)
 	shared := backend.VolumeList{}
 	for _, volume := range volumes {
+		volume := volume
 		switch volume.VolumeType {
 		case backend.VolumeTypeAttachedDisk:
 			if _, ok := attached[volume.ZoneName]; !ok {

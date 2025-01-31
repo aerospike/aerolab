@@ -14,6 +14,7 @@ type Images interface {
 	// volume selector - by zone
 	WithOSVersion(version ...string) Images
 	// volume selector - by zone
+	WithZoneName(zoneNames ...string) Images
 	WithZoneID(zoneIDs ...string) Images
 	// volume selector - by name
 	WithName(names ...string) Images

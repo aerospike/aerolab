@@ -53,6 +53,33 @@ func (a LifeCycleState) MarshalYAML() (interface{}, error) {
 	return a.String(), nil
 }
 
+type NetworkState int
+
+const (
+	NetworkStateUnknown     NetworkState = iota
+	NetworkStateAvailable   NetworkState = iota
+	NetworkStateConfiguring NetworkState = iota
+)
+
+func (a NetworkState) String() string {
+	switch a {
+	case NetworkStateAvailable:
+		return "Available"
+	case NetworkStateConfiguring:
+		return "Configuring"
+	default:
+		return "unknown"
+	}
+}
+
+func (a NetworkState) MarshalJSON() ([]byte, error) {
+	return json.Marshal(a.String())
+}
+
+func (a NetworkState) MarshalYAML() (interface{}, error) {
+	return a.String(), nil
+}
+
 type VolumeState int
 
 const (

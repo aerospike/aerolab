@@ -19,7 +19,8 @@ type Cloud interface {
 	GetVolumes() (VolumeList, error)
 	GetInstances(VolumeList) (InstanceList, error)
 	GetImages() (ImageList, error)
-	// TODO: cloud must implement CreateVolumes, CreateInstances, CreateImages
+	GetNetworks() (NetworkList, error)
+	// TODO: cloud must implement CreateVolumes, CreateInstances, CreateImages, CreateNetworks
 	// actions on multiple instances
 	InstancesAddTags(instances InstanceList, tags map[string]string) error
 	InstancesRemoveTags(instances InstanceList, tagKeys []string) error
@@ -37,10 +38,13 @@ type Cloud interface {
 	ResizeVolumes(volumes VolumeList, newSizeGiB StorageSize) error
 	// actions on images
 	ImagesDelete(images ImageList, waitDur time.Duration) error
+	// actions on networks
+	NetworksDelete(networks NetworkList, waitDur time.Duration) error
+	NetworksDeleteSubnets(subnets SubnetList, waitDur time.Duration) error
 }
 
 type Backend interface {
-	// TODO: backend must implement CreateVolumes, CreateInstances, CreateImages
+	// TODO: backend must implement CreateVolumes, CreateInstances, CreateImages, CreateNetworks
 	GetInventory() (*Inventory, error)
 	AddRegion(backendType BackendType, names ...string) error
 	RemoveRegion(backendType BackendType, names ...string) error
@@ -55,6 +59,7 @@ type backend struct {
 	volumes   map[BackendType]VolumeList
 	instances map[BackendType]InstanceList
 	images    map[BackendType]ImageList
+	networks  map[BackendType]NetworkList
 	pollLock  *sync.Mutex
 	log       *logger.Logger
 }
@@ -63,7 +68,7 @@ type backend struct {
 // images - no dependencies
 // expiries - no dependencies
 type Inventory struct {
-	//TODO Networks  Networks  // VPCs, Subnets
+	Networks Networks // VPCs, Subnets
 	//TODO Firewalls Firewalls // AWS security groups, GCP firewalls
 	Volumes   Volumes   // permanent volumes which do not go away (not tied to instance lifetime), be it EFS, or EBS/pd-ssd
 	Instances Instances // all instances, clusters, clients, whatever
@@ -78,6 +83,7 @@ func getBackendObject(project string, c *Config) *backend {
 		volumes:   make(map[BackendType]VolumeList),
 		instances: make(map[BackendType]InstanceList),
 		images:    make(map[BackendType]ImageList),
+		networks:  make(map[BackendType]NetworkList),
 		pollLock:  new(sync.Mutex),
 	}
 }
@@ -90,6 +96,10 @@ func (b *backend) loadCache() error {
 	}
 	if m.CacheUpdateTimestamp.Add(time.Hour).Before(time.Now()) {
 		return cache.ErrNoCacheFile
+	}
+	err = b.cache.Get(path.Join(b.project, "networks"), &b.networks)
+	if err != nil {
+		return err
 	}
 	err = b.cache.Get(path.Join(b.project, "volumes"), &b.volumes)
 	if err != nil {
@@ -112,6 +122,21 @@ func (b *backend) poll() []error {
 	var errs []error
 
 	log := b.log.WithPrefix("PollInventory ")
+
+	log.Debug("Getting networks")
+	for n, v := range cloudList {
+		d, err := v.GetNetworks()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			b.networks[n] = d
+		}
+	}
+	err := b.cache.Store(path.Join(b.project, "networks"), b.networks)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	log.Debug("Getting volumes")
 	for n, v := range cloudList {
 		d, err := v.GetVolumes()
@@ -121,7 +146,7 @@ func (b *backend) poll() []error {
 			b.volumes[n] = d
 		}
 	}
-	err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
+	err = b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -168,6 +193,10 @@ func (b *backend) poll() []error {
 }
 
 func (b *backend) GetInventory() (*Inventory, error) {
+	networks := NetworkList{}
+	for _, v := range b.networks {
+		networks = append(networks, v...)
+	}
 	volumes := VolumeList{}
 	for _, v := range b.volumes {
 		volumes = append(volumes, v...)
@@ -184,5 +213,6 @@ func (b *backend) GetInventory() (*Inventory, error) {
 		Volumes:   volumes,
 		Instances: instances,
 		Images:    images,
+		Networks:  networks,
 	}, nil
 }
