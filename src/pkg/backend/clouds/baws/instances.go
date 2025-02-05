@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -28,6 +29,9 @@ type instanceDetail struct {
 	SpotInstanceRequestId string                    `yaml:"spotInstanceRequestID" json:"spotInstanceRequestID"`
 	LifecycleType         string                    `yaml:"lifecycleType" json:"lifecycleType"`
 	Volumes               []instanceVolume          `yaml:"volumes" json:"volumes"`
+	FirewallList          backend.FirewallList      `yaml:"firewallList" json:"firewallList"`
+	Network               *backend.Network          `yaml:"network" json:"network"`
+	Subnet                *backend.Subnet           `yaml:"subnet" json:"subnet"`
 }
 
 type instanceVolume struct {
@@ -35,7 +39,7 @@ type instanceVolume struct {
 	VolumeID string `yaml:"volumeID" json:"volumeID"`
 }
 
-func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, error) {
+func (s *b) GetInstances(volumes backend.VolumeList, networkList backend.NetworkList, firewallList backend.FirewallList) (backend.InstanceList, error) {
 	log := s.log.WithPrefix("GetInstances: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -96,11 +100,7 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 						}
 						firewalls := []string{}
 						for _, f := range inst.SecurityGroups {
-							if f.GroupName == nil || *f.GroupName == "" {
-								firewalls = append(firewalls, aws.ToString(f.GroupId))
-							} else {
-								firewalls = append(firewalls, aws.ToString(f.GroupName))
-							}
+							firewalls = append(firewalls, aws.ToString(f.GroupId))
 						}
 						spot := false
 						if inst.InstanceLifecycle != types.InstanceLifecycleTypeScheduled {
@@ -136,6 +136,24 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 						arch := backend.ArchitectureARM64
 						if inst.Architecture == types.ArchitectureValuesX8664 {
 							arch = backend.ArchitectureX8664
+						}
+						net := &backend.Network{}
+						sub := &backend.Subnet{}
+						nets := networkList.WithNetID(aws.ToString(inst.VpcId))
+						if nets.Count() > 0 {
+							nnet := nets.Describe()[0]
+							net = nnet
+							ssub := nnet.Subnets.WithSubnetId(aws.ToString(inst.SubnetId))
+							if len(ssub) > 0 {
+								sub = ssub[0]
+							}
+						}
+						fwPointers := backend.FirewallList{}
+						for _, fw := range firewalls {
+							fwx := firewallList.WithFirewallID(fw)
+							if fwx.Count() > 0 {
+								fwPointers = append(fwPointers, fwx.Describe()[0])
+							}
 						}
 						ilock.Lock()
 						i = append(i, &backend.Instance{
@@ -186,6 +204,9 @@ func (s *b) GetInstances(volumes backend.VolumeList) (backend.InstanceList, erro
 								SpotInstanceRequestId: aws.ToString(inst.SpotInstanceRequestId),
 								LifecycleType:         string(inst.InstanceLifecycle),
 								Volumes:               volslist,
+								FirewallList:          fwPointers,
+								Network:               net,
+								Subnet:                sub,
 							},
 						})
 						ilock.Unlock()
@@ -546,4 +567,112 @@ func (s *b) InstancesGetSftpConfig(instances backend.InstanceList, username stri
 		confs = append(confs, clientConf)
 	}
 	return confs, nil
+}
+
+func (s *b) InstancesAssignFirewalls(instances backend.InstanceList, fw backend.FirewallList) error {
+	log := s.log.WithPrefix("InstancesAssignFirewalls: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	if len(instances) == 0 {
+		return nil
+	}
+	instanceIds := make(map[string][]*backend.Instance)
+	clis := make(map[string]*ec2.Client)
+	for _, instance := range instances {
+		instance := instance
+		if _, ok := instanceIds[instance.ZoneID]; !ok {
+			instanceIds[instance.ZoneID] = []*backend.Instance{}
+			cli, err := getEc2Client(s.credentials, &instance.ZoneID)
+			if err != nil {
+				return err
+			}
+			clis[instance.ZoneID] = cli
+		}
+		instanceIds[instance.ZoneID] = append(instanceIds[instance.ZoneID], instance)
+	}
+	wg := new(sync.WaitGroup)
+	var reterr error
+	for zone, ids := range instanceIds {
+		wg.Add(1)
+		go func(zone string, ids []*backend.Instance) {
+			defer wg.Done()
+			log.Detail("zone=%s start", zone)
+			defer log.Detail("zone=%s end", zone)
+			for _, id := range ids {
+				allGroups := id.Firewalls
+				for _, f := range fw {
+					if !slices.Contains(allGroups, f.FirewallID) {
+						allGroups = append(allGroups, f.FirewallID)
+					}
+				}
+				_, err := clis[zone].ModifyInstanceAttribute(context.TODO(), &ec2.ModifyInstanceAttributeInput{
+					InstanceId: aws.String(id.InstanceID),
+					Groups:     allGroups,
+				})
+				if err != nil {
+					reterr = errors.Join(reterr, err)
+					return
+				}
+			}
+		}(zone, ids)
+	}
+	wg.Wait()
+	return reterr
+}
+
+func (s *b) InstancesRemoveFirewalls(instances backend.InstanceList, fw backend.FirewallList) error {
+	log := s.log.WithPrefix("InstancesRemoveFirewalls: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	if len(instances) == 0 {
+		return nil
+	}
+	instanceIds := make(map[string][]*backend.Instance)
+	clis := make(map[string]*ec2.Client)
+	for _, instance := range instances {
+		instance := instance
+		if _, ok := instanceIds[instance.ZoneID]; !ok {
+			instanceIds[instance.ZoneID] = []*backend.Instance{}
+			cli, err := getEc2Client(s.credentials, &instance.ZoneID)
+			if err != nil {
+				return err
+			}
+			clis[instance.ZoneID] = cli
+		}
+		instanceIds[instance.ZoneID] = append(instanceIds[instance.ZoneID], instance)
+	}
+	wg := new(sync.WaitGroup)
+	var reterr error
+	for zone, ids := range instanceIds {
+		wg.Add(1)
+		go func(zone string, ids []*backend.Instance) {
+			defer wg.Done()
+			log.Detail("zone=%s start", zone)
+			defer log.Detail("zone=%s end", zone)
+			for _, id := range ids {
+				removeGroups := []string{}
+				for _, f := range fw {
+					if !slices.Contains(removeGroups, f.FirewallID) {
+						removeGroups = append(removeGroups, f.FirewallID)
+					}
+				}
+				allGroups := []string{}
+				for _, n := range id.Firewalls {
+					if !slices.Contains(removeGroups, n) {
+						allGroups = append(allGroups, n)
+					}
+				}
+				_, err := clis[zone].ModifyInstanceAttribute(context.TODO(), &ec2.ModifyInstanceAttributeInput{
+					InstanceId: aws.String(id.InstanceID),
+					Groups:     allGroups,
+				})
+				if err != nil {
+					reterr = errors.Join(reterr, err)
+					return
+				}
+			}
+		}(zone, ids)
+	}
+	wg.Wait()
+	return reterr
 }

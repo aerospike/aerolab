@@ -49,6 +49,9 @@ type InstanceAction interface {
 	Exec(*ExecInput) []*ExecOutput
 	// get sftp config
 	GetSftpConfig(username string) ([]*sshexec.ClientConf, error)
+	// firewalls
+	AssignFirewalls(fw FirewallList) error
+	RemoveFirewalls(fw FirewallList) error
 }
 
 type ExecInput struct {
@@ -174,6 +177,14 @@ func (i *Instance) RemoveTags(tagKeys []string) error {
 
 func (i *Instance) Exec(e *ExecInput) *ExecOutput {
 	return InstanceList{i}.Exec(e)[0]
+}
+
+func (i *Instance) AssignFirewalls(fw FirewallList) error {
+	return InstanceList{i}.AssignFirewalls(fw)
+}
+
+func (i *Instance) RemoveFirewalls(fw FirewallList) error {
+	return InstanceList{i}.RemoveFirewalls(fw)
 }
 
 func (i *Instance) GetSftpConfig(username string) (*sshexec.ClientConf, error) {
@@ -418,4 +429,38 @@ func (v InstanceList) GetSftpConfig(username string) ([]*sshexec.ClientConf, err
 	}
 	wait.Wait()
 	return outs, nil
+}
+
+func (v InstanceList) AssignFirewalls(fw FirewallList) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesAssignFirewalls(v.WithBackendType(c).Describe(), fw)
+			if err != nil {
+				retErr = err
+			}
+		}()
+	}
+	wait.Wait()
+	return retErr
+}
+
+func (v InstanceList) RemoveFirewalls(fw FirewallList) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesRemoveFirewalls(v.WithBackendType(c).Describe(), fw)
+			if err != nil {
+				retErr = err
+			}
+		}()
+	}
+	wait.Wait()
+	return retErr
 }

@@ -380,7 +380,7 @@ func (s *b) VolumesRemoveTags(volumes backend.VolumeList, tagKeys []string, wait
 	return reterr
 }
 
-func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) error {
+func (s *b) DeleteVolumes(volumes backend.VolumeList, fw backend.FirewallList, waitDur time.Duration) error {
 	log := s.log.WithPrefix("DeleteVolumes: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -440,7 +440,8 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) err
 				return
 			}
 			for _, id := range ids {
-				// delete mount targets
+				secGroups := []string{}
+				// delete mount targets and get security group names
 				switch detail := id.BackendSpecific.(type) {
 				case *volumeDetail:
 					if detail != nil && detail.NumberOfMountTargets > 0 {
@@ -453,6 +454,7 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) err
 							return
 						}
 						for _, mt := range mts.MountTargets {
+							secGroups = append(secGroups, fmt.Sprintf("%s-%s", aws.ToString(mt.FileSystemId), aws.ToString(mt.VpcId)))
 							_, err := cli.DeleteMountTarget(context.TODO(), &efs.DeleteMountTargetInput{
 								MountTargetId: mt.MountTargetId,
 							})
@@ -467,6 +469,12 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, waitDur time.Duration) err
 				_, err = cli.DeleteFileSystem(context.TODO(), &efs.DeleteFileSystemInput{
 					FileSystemId: aws.String(id.FileSystemId),
 				})
+				if err != nil {
+					reterr = errors.Join(reterr, err)
+					return
+				}
+				// delete security groups (name is fsid-*)
+				err = fw.WithName(secGroups...).Delete(waitDur)
 				if err != nil {
 					reterr = errors.Join(reterr, err)
 					return
@@ -564,7 +572,7 @@ func (d *deviceName) doNext(start string) string {
 
 // for Shared volume type, this will attach those volumes to the instance by modifying fstab on the instance itself and running mount -a; it will also create mount targets and assign security groups as required
 // for Attached volume type, this will just attach the volumes to the instance using AWS API, no mounting will be performed
-func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance, mountTargetDirectory *string) error {
+func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance, sharedMountData *backend.VolumeAttachShared) error {
 	log := s.log.WithPrefix("AttachVolumes: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -618,14 +626,137 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 			}
 		}(zone, ids)
 	}
-	// TODO do another set of goroutines for shared: create mountpoints if required, ssh to instance and execute efs_install.sh && efs_mount.sh
+	// another set of goroutines for shared: create mountpoints if required, ssh to instance and execute efs_install.sh && efs_mount.sh
+	for zone, ids := range shared {
+		wg.Add(1)
+		go func(zone string, ids backend.VolumeList) {
+			defer wg.Done()
+			log.Detail("zone=%s attached: start")
+			defer log.Detail("zone=%s attached: end")
+			cli, err := getEfsClient(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
+			for _, id := range ids {
+				mountTargetExists := false
+				if id.BackendSpecific.(volumeDetail).NumberOfMountTargets > 0 {
+					// see if we can find a working mount target
+					paginator := efs.NewDescribeMountTargetsPaginator(cli, &efs.DescribeMountTargetsInput{
+						FileSystemId: aws.String(id.FileSystemId),
+					})
+				PAGINATOR:
+					for paginator.HasMorePages() {
+						mts, err := paginator.NextPage(context.TODO())
+						if err != nil {
+							reterr = errors.Join(reterr, err)
+							return
+						}
+						for _, mt := range mts.MountTargets {
+							if aws.ToString(mt.SubnetId) == instance.SubnetID {
+								mountTargetExists = true
+								break PAGINATOR
+							}
+						}
+					}
+				}
+				// check if security group for volume-network(vpc) pair exists and get the ID or create new security group if needed
+				secGroupName := fmt.Sprintf("%s-%s", id.FileSystemId, instance.BackendSpecific.(instanceDetail).Network.NetworkId)
+				secGroupId := ""
+				fw := sharedMountData.Firewalls.WithName(secGroupName)
+				if fw.Count() == 0 {
+					// TODO create firewall and assign new Id to secGroupId
+				} else {
+					secGroupId = fw.Describe()[0].FirewallID
+				}
+				if !mountTargetExists {
+					// create mount target
+					_, err = cli.CreateMountTarget(context.TODO(), &efs.CreateMountTargetInput{
+						FileSystemId:   aws.String(id.FileSystemId),
+						SubnetId:       aws.String(instance.BackendSpecific.(instanceDetail).Subnet.SubnetId),
+						SecurityGroups: []string{secGroupId},
+					})
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
+				}
+				// check if the security group is assigned to instance; if not, assign it
+				if instance.BackendSpecific.(instanceDetail).FirewallList.WithFirewallID(secGroupId).Count() == 0 {
+					err = instance.AssignFirewalls(backend.FirewallList{{
+						FirewallID: secGroupId,
+					}})
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
+				}
+				// upload scripts
+				err = func() error {
+					sshconf, err := instance.GetSftpConfig("root")
+					if err != nil {
+						return err
+					}
+					sftp, err := sshexec.NewSftp(sshconf)
+					if err != nil {
+						return err
+					}
+					defer sftp.Close()
+					data, err := scripts.ReadFile("scripts/efs_install.sh")
+					if err != nil {
+						return err
+					}
+					err = sftp.WriteFile(true, &sshexec.FileWriter{
+						DestPath:    "/opt/aerolab/scripts/efs_install.sh",
+						Permissions: 0755,
+						Source:      bytes.NewReader(data),
+					})
+					if err != nil {
+						return err
+					}
+					data, err = scripts.ReadFile("scripts/efs_mount.sh")
+					if err != nil {
+						return err
+					}
+					err = sftp.WriteFile(true, &sshexec.FileWriter{
+						DestPath:    "/opt/aerolab/scripts/efs_mount.sh",
+						Permissions: 0755,
+						Source:      bytes.NewReader(data),
+					})
+					if err != nil {
+						return err
+					}
+					return nil
+				}()
+				if err != nil {
+					reterr = errors.Join(reterr, err)
+					return
+				}
+				// RUN scripts: attempts: 15 (150 seconds total), fsid, mount target dir, [on] for iam, [profilename] for iam profile
+				installparam := ""
+				if sharedMountData.FIPS {
+					installparam = "fips"
+				}
+				execOut := instance.Exec(&backend.ExecInput{
+					ExecDetail: sshexec.ExecDetail{
+						Command:  []string{"/bin/bash", "-c", fmt.Sprintf("bash /opt/aerolab/scripts/efs_install.sh %s && bash /opt/aerolab/scripts/efs_mount.sh 15 %s %s", installparam, id.FileSystemId, sharedMountData.MountTargetDirectory)},
+						Terminal: true,
+					},
+					Username: "root",
+				})
+				if execOut.Output.Err != nil {
+					reterr = errors.Join(reterr, fmt.Errorf("=== err ===\n%s\n=== warns ===\n%s\n=== output ===\n%s", err, execOut.Output.Warn, string(execOut.Output.Stdout)))
+				}
+			}
+		}(zone, ids)
+	}
 	wg.Wait()
 	return reterr
 }
 
 // for Shared volume type, this will umount and remove the volume from fstab
 // for Attached volume type, this will just run AWS Detach API command, no umount is performed, it us up to the caller to do so
-func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance) error {
+func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance, fwForShared *backend.FirewallList) error {
 	log := s.log.WithPrefix("DetachVolumes: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -718,6 +849,19 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 			}
 			if out[0].Output.Err != nil {
 				return fmt.Errorf("ERR:%s\nSTDOUT:%s\nSTDERR:%s", out[0].Output.Err, string(out[0].Output.Stdout), string(out[0].Output.Stderr))
+			}
+			fws := backend.FirewallList{}
+			for _, vol := range shared {
+				fw := fwForShared.WithName(fmt.Sprintf("%s-%s", vol.FileSystemId, instance.NetworkID)).Describe()
+				if len(fw) > 0 {
+					fws = append(fws, fw...)
+				}
+			}
+			if fws.Count() > 0 {
+				err = instance.RemoveFirewalls(fws)
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 		}()

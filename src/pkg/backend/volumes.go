@@ -10,8 +10,8 @@ import (
 type VolumeType int
 
 const (
-	VolumeTypeAttachedDisk = iota // example: pd-ssd,ebs
-	VolumeTypeSharedDisk   = iota // example: EFS
+	VolumeTypeAttachedDisk VolumeType = iota // example: pd-ssd,ebs
+	VolumeTypeSharedDisk   VolumeType = iota // example: EFS
 )
 
 func (a VolumeType) String() string {
@@ -62,14 +62,24 @@ type VolumeAction interface {
 	// remove tag(s) from volumes
 	RemoveTags(tagKeys []string, waitDur time.Duration) error
 	// delete selected volumes
-	DeleteVolumes(waitDur time.Duration) error
+	// to delete shared volumes, must receive a full firewall list
+	DeleteVolumes(fw FirewallList, waitDur time.Duration) error
 	// for pd-ssd/ebs - attach volume to instance; if mountTargetDirectory is specified, also ssh in to the instance and perform mount
 	// for EFS,docker - create mount targets if needed, sort out security groups, ssh to the instances and mount+fstab
-	Attach(instance *Instance, mountTargetDirectory *string) error
+	// for share volumes - must get a full list of Networks and Firewalls
+	Attach(instance *Instance, sharedMountData *VolumeAttachShared) error
 	// umount if required, and for pd-ssd/ebs, also detach device
-	Detach(instance *Instance) error
+	// for shared volume, we need a full firewall list
+	Detach(instance *Instance, fwForShared FirewallList) error
 	// resize a non-EFS device
 	Resize(newSizeGiB StorageSize) error
+}
+
+type VolumeAttachShared struct {
+	MountTargetDirectory string
+	FIPS                 bool
+	Networks             NetworkList
+	Firewalls            FirewallList
 }
 
 // any backend returning this struct, must implement the VolumeAction interface on it
@@ -235,14 +245,14 @@ func (v VolumeList) RemoveTags(tagKeys []string, waitDur time.Duration) error {
 	return retErr
 }
 
-func (v VolumeList) DeleteVolumes(waitDur time.Duration) error {
+func (v VolumeList) DeleteVolumes(fw FirewallList, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].DeleteVolumes(v.WithBackendType(c).Describe(), waitDur)
+			err := cloudList[c].DeleteVolumes(v.WithBackendType(c).Describe(), fw, waitDur)
 			if err != nil {
 				retErr = err
 			}
@@ -252,14 +262,14 @@ func (v VolumeList) DeleteVolumes(waitDur time.Duration) error {
 	return retErr
 }
 
-func (v VolumeList) Attach(instance *Instance, mountTargetDirectory *string) error {
+func (v VolumeList) Attach(instance *Instance, sharedMountData *VolumeAttachShared) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].AttachVolumes(v.WithBackendType(c).Describe(), instance, mountTargetDirectory)
+			err := cloudList[c].AttachVolumes(v.WithBackendType(c).Describe(), instance, sharedMountData)
 			if err != nil {
 				retErr = err
 			}
@@ -269,14 +279,14 @@ func (v VolumeList) Attach(instance *Instance, mountTargetDirectory *string) err
 	return retErr
 }
 
-func (v VolumeList) Detach(instance *Instance) error {
+func (v VolumeList) Detach(instance *Instance, fwForShared FirewallList) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].DetachVolumes(v.WithBackendType(c).Describe(), instance)
+			err := cloudList[c].DetachVolumes(v.WithBackendType(c).Describe(), instance, &fwForShared)
 			if err != nil {
 				retErr = err
 			}
@@ -311,16 +321,16 @@ func (v *Volume) RemoveTags(tagKeys []string, waitDur time.Duration) error {
 	return VolumeList{v}.RemoveTags(tagKeys, waitDur)
 }
 
-func (v *Volume) DeleteVolumes(waitDur time.Duration) error {
-	return VolumeList{v}.DeleteVolumes(waitDur)
+func (v *Volume) DeleteVolumes(fw FirewallList, waitDur time.Duration) error {
+	return VolumeList{v}.DeleteVolumes(fw, waitDur)
 }
 
-func (v *Volume) Attach(instance *Instance, mountTargetDirectory *string) error {
-	return VolumeList{v}.Attach(instance, mountTargetDirectory)
+func (v *Volume) Attach(instance *Instance, sharedMountData *VolumeAttachShared) error {
+	return VolumeList{v}.Attach(instance, sharedMountData)
 }
 
-func (v *Volume) Detach(instance *Instance) error {
-	return VolumeList{v}.Detach(instance)
+func (v *Volume) Detach(instance *Instance, fwForShared FirewallList) error {
+	return VolumeList{v}.Detach(instance, fwForShared)
 }
 
 func (v *Volume) Resize(newSizeGiB StorageSize) error {
