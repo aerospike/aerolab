@@ -11,16 +11,19 @@ import (
 	"github.com/rglonek/logger"
 )
 
+// TODO: expiry system in it's own pkg/
+
 type Cloud interface {
 	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger) error
 	ListEnabledZones() ([]string, error)
 	EnableZones(names ...string) error
 	DisableZones(names ...string) error
 	GetVolumes() (VolumeList, error)
-	GetInstances(VolumeList) (InstanceList, error)
+	GetInstances(VolumeList, NetworkList, FirewallList) (InstanceList, error)
 	GetImages() (ImageList, error)
 	GetNetworks() (NetworkList, error)
-	// TODO: cloud must implement CreateVolumes, CreateInstances, CreateImages, CreateNetworks
+	GetFirewalls(NetworkList) (FirewallList, error)
+	// TODO: cloud must implement CreateVolumes, CreateInstances, CreateImages, CreateNetworks, CreateFirewalls
 	// actions on multiple instances
 	InstancesAddTags(instances InstanceList, tags map[string]string) error
 	InstancesRemoveTags(instances InstanceList, tagKeys []string) error
@@ -29,22 +32,33 @@ type Cloud interface {
 	InstancesStart(instances InstanceList, waitDur time.Duration) error
 	InstancesExec(instances InstanceList, e *ExecInput) []*ExecOutput
 	InstancesGetSftpConfig(instances InstanceList, username string) ([]*sshexec.ClientConf, error)
+	InstancesAssignFirewalls(instances InstanceList, fw FirewallList) error
+	InstancesRemoveFirewalls(instances InstanceList, fw FirewallList) error
 	// actions on multiple volumes
 	VolumesAddTags(volumes VolumeList, tags map[string]string, waitDur time.Duration) error
 	VolumesRemoveTags(volumes VolumeList, tagKeys []string, waitDur time.Duration) error
-	DeleteVolumes(volumes VolumeList, waitDur time.Duration) error
-	AttachVolumes(volumes VolumeList, instance *Instance, mountTargetDirectory *string) error
-	DetachVolumes(volumes VolumeList, instance *Instance) error
+	DeleteVolumes(volumes VolumeList, fw FirewallList, waitDur time.Duration) error
+	AttachVolumes(volumes VolumeList, instance *Instance, sharedMountData *VolumeAttachShared) error
+	DetachVolumes(volumes VolumeList, instance *Instance, fwForShared *FirewallList) error
 	ResizeVolumes(volumes VolumeList, newSizeGiB StorageSize) error
 	// actions on images
 	ImagesDelete(images ImageList, waitDur time.Duration) error
+	ImagesAddTags(images ImageList, tags map[string]string) error
+	ImagesRemoveTags(images ImageList, tagKeys []string) error
 	// actions on networks
 	NetworksDelete(networks NetworkList, waitDur time.Duration) error
 	NetworksDeleteSubnets(subnets SubnetList, waitDur time.Duration) error
+	NetworksAddTags(networks NetworkList, tags map[string]string) error
+	NetworksRemoveTags(networks NetworkList, tagKeys []string) error
+	// firewall actions
+	FirewallsUpdate(fw FirewallList, ports PortsIn, waitDur time.Duration) error
+	FirewallsDelete(fw FirewallList, waitDur time.Duration) error
+	FirewallsAddTags(fw FirewallList, tags map[string]string, waitDur time.Duration) error
+	FirewallsRemoveTags(fw FirewallList, tagKeys []string, waitDur time.Duration) error
 }
 
 type Backend interface {
-	// TODO: backend must implement CreateVolumes, CreateInstances, CreateImages, CreateNetworks
+	// TODO: backend must implement CreateVolumes, CreateInstances, CreateImages, CreateNetworks, CreateFirewalls
 	GetInventory() (*Inventory, error)
 	AddRegion(backendType BackendType, names ...string) error
 	RemoveRegion(backendType BackendType, names ...string) error
@@ -60,20 +74,19 @@ type backend struct {
 	instances map[BackendType]InstanceList
 	images    map[BackendType]ImageList
 	networks  map[BackendType]NetworkList
+	firewalls map[BackendType]FirewallList
 	pollLock  *sync.Mutex
 	log       *logger.Logger
 }
 
-// networks->firewalls(networks)->volumes(networks,firewalls)->instances(volumes)
+// networks->firewalls(networks)->volumes(networks, firewalls)-->instances(volumes, networks, firewalls)
 // images - no dependencies
-// expiries - no dependencies
 type Inventory struct {
-	Networks Networks // VPCs, Subnets
-	//TODO Firewalls Firewalls // AWS security groups, GCP firewalls
+	Networks  Networks  // VPCs, Subnets
+	Firewalls Firewalls // AWS security groups, GCP firewalls
 	Volumes   Volumes   // permanent volumes which do not go away (not tied to instance lifetime), be it EFS, or EBS/pd-ssd
 	Instances Instances // all instances, clusters, clients, whatever
 	Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
-	//TODO Expiries  Expiries  // Expiry system: to be made obsolete in the future by using tiny instances with aerolab on them for expiries instead - removing complexity
 }
 
 func getBackendObject(project string, c *Config) *backend {
@@ -84,6 +97,7 @@ func getBackendObject(project string, c *Config) *backend {
 		instances: make(map[BackendType]InstanceList),
 		images:    make(map[BackendType]ImageList),
 		networks:  make(map[BackendType]NetworkList),
+		firewalls: make(map[BackendType]FirewallList),
 		pollLock:  new(sync.Mutex),
 	}
 }
@@ -98,6 +112,10 @@ func (b *backend) loadCache() error {
 		return cache.ErrNoCacheFile
 	}
 	err = b.cache.Get(path.Join(b.project, "networks"), &b.networks)
+	if err != nil {
+		return err
+	}
+	err = b.cache.Get(path.Join(b.project, "firewalls"), &b.firewalls)
 	if err != nil {
 		return err
 	}
@@ -137,6 +155,20 @@ func (b *backend) poll() []error {
 		errs = append(errs, err)
 	}
 
+	log.Debug("Getting firewalls")
+	for n, v := range cloudList {
+		d, err := v.GetFirewalls(b.networks[n])
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			b.firewalls[n] = d
+		}
+	}
+	err = b.cache.Store(path.Join(b.project, "firewalls"), b.firewalls)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	log.Debug("Getting volumes")
 	for n, v := range cloudList {
 		d, err := v.GetVolumes()
@@ -153,7 +185,7 @@ func (b *backend) poll() []error {
 
 	log.Debug("Getting instances")
 	for n, v := range cloudList {
-		d, err := v.GetInstances(b.volumes[n])
+		d, err := v.GetInstances(b.volumes[n], b.networks[n], b.firewalls[n])
 		if err != nil {
 			errs = append(errs, err)
 		} else {
@@ -197,6 +229,10 @@ func (b *backend) GetInventory() (*Inventory, error) {
 	for _, v := range b.networks {
 		networks = append(networks, v...)
 	}
+	firewalls := FirewallList{}
+	for _, v := range b.firewalls {
+		firewalls = append(firewalls, v...)
+	}
 	volumes := VolumeList{}
 	for _, v := range b.volumes {
 		volumes = append(volumes, v...)
@@ -214,5 +250,6 @@ func (b *backend) GetInventory() (*Inventory, error) {
 		Instances: instances,
 		Images:    images,
 		Networks:  networks,
+		Firewalls: firewalls,
 	}, nil
 }

@@ -469,3 +469,80 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 	wg.Wait()
 	return reterr
 }
+
+func (s *b) ImagesAddTags(images backend.ImageList, tags map[string]string) error {
+	log := s.log.WithPrefix("ImagesAddTags: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	if len(images) == 0 {
+		return nil
+	}
+	imageIds := make(map[string][]string)
+	for _, image := range images {
+		if _, ok := imageIds[image.ZoneID]; !ok {
+			imageIds[image.ZoneID] = []string{}
+		}
+		imageIds[image.ZoneID] = append(imageIds[image.ZoneID], image.ImageId)
+	}
+	tagsOut := []types.Tag{}
+	for k, v := range tags {
+		tagsOut = append(tagsOut, types.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		})
+	}
+	for zone, ids := range imageIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			return err
+		}
+		_, err = cli.CreateTags(context.TODO(), &ec2.CreateTagsInput{
+			Resources: ids,
+			Tags:      tagsOut,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *b) ImagesRemoveTags(images backend.ImageList, tagKeys []string) error {
+	log := s.log.WithPrefix("ImagesRemoveTags: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	if len(images) == 0 {
+		return nil
+	}
+	imageIds := make(map[string][]string)
+	for _, image := range images {
+		if _, ok := imageIds[image.ZoneID]; !ok {
+			imageIds[image.ZoneID] = []string{}
+		}
+		imageIds[image.ZoneID] = append(imageIds[image.ZoneID], image.ImageId)
+	}
+	tagsOut := []types.Tag{}
+	for _, k := range tagKeys {
+		tagsOut = append(tagsOut, types.Tag{
+			Key: aws.String(k),
+		})
+	}
+	for zone, ids := range imageIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			return err
+		}
+		_, err = cli.DeleteTags(context.TODO(), &ec2.DeleteTagsInput{
+			Resources: ids,
+			Tags:      tagsOut,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

@@ -266,3 +266,80 @@ func (s *b) NetworksDeleteSubnets(subnets backend.SubnetList, waitDur time.Durat
 	wg.Wait()
 	return errs
 }
+
+func (s *b) NetworksAddTags(networks backend.NetworkList, tags map[string]string) error {
+	log := s.log.WithPrefix("NetworksAddTags: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	if len(networks) == 0 {
+		return nil
+	}
+	netIds := make(map[string][]string)
+	for _, net := range networks {
+		if _, ok := netIds[net.ZoneID]; !ok {
+			netIds[net.ZoneID] = []string{}
+		}
+		netIds[net.ZoneID] = append(netIds[net.ZoneID], net.NetworkId)
+	}
+	tagsOut := []types.Tag{}
+	for k, v := range tags {
+		tagsOut = append(tagsOut, types.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		})
+	}
+	for zone, ids := range netIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			return err
+		}
+		_, err = cli.CreateTags(context.TODO(), &ec2.CreateTagsInput{
+			Resources: ids,
+			Tags:      tagsOut,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *b) NetworksRemoveTags(networks backend.NetworkList, tagKeys []string) error {
+	log := s.log.WithPrefix("NetworksRemoveTags: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	if len(networks) == 0 {
+		return nil
+	}
+	netIds := make(map[string][]string)
+	for _, net := range networks {
+		if _, ok := netIds[net.ZoneID]; !ok {
+			netIds[net.ZoneID] = []string{}
+		}
+		netIds[net.ZoneID] = append(netIds[net.ZoneID], net.NetworkId)
+	}
+	tagsOut := []types.Tag{}
+	for _, k := range tagKeys {
+		tagsOut = append(tagsOut, types.Tag{
+			Key: aws.String(k),
+		})
+	}
+	for zone, ids := range netIds {
+		log.Detail("zone=%s start", zone)
+		defer log.Detail("zone=%s end", zone)
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			return err
+		}
+		_, err = cli.DeleteTags(context.TODO(), &ec2.DeleteTagsInput{
+			Resources: ids,
+			Tags:      tagsOut,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
