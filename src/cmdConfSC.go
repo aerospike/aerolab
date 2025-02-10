@@ -20,6 +20,7 @@ type confSCCmd struct {
 	Force       bool            `short:"f" long:"force" description:"If set, will zero out the devices even if strong-consistency was already configured"`
 	Racks       int             `short:"r" long:"racks" description:"If rack-aware feature is required, set this to the number of racks you want to divide the cluster into"`
 	WithDisks   bool            `short:"d" long:"with-disks" description:"If set, will attempt to configure device storage engine for the namespace, using all available devices"`
+	Verbose     bool            `short:"v" long:"verbose" description:"Enable verbose logging"`
 	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -209,6 +210,7 @@ func (c *confSCCmd) Execute(args []string) error {
 	a.opts.Aerospike.IsStable.Wait = true
 	a.opts.Aerospike.IsStable.IgnoreMigrations = true
 	a.opts.Aerospike.IsStable.Namespace = c.Namespace
+	a.opts.Aerospike.IsStable.Verbose = c.Verbose
 	err = a.opts.Aerospike.IsStable.Execute(nil)
 	if err != nil {
 		return err

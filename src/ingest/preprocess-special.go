@@ -160,6 +160,9 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 			tracker[fn+"_special-split_"+ident] = out
 			fnlist = append(fnlist, fn+"_special-split_"+ident)
 		}
+		if !strings.HasSuffix(line, "\n") {
+			line = line + "\n"
+		}
 		_, err = tracker[fn+"_special-split_"+ident].WriteString(line)
 		if err != nil {
 			return fnlist, err

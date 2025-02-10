@@ -134,6 +134,7 @@ defs:
             setName: "inprogress"
             search: "in-progress: info-q"
             export:
+                - "in-progress: info-q (?P<InfoQ>\\d+) rw-hash (?P<RWHash>\\d+) proxy-hash (?P<ProxyHash>\\d+) tree-gc-q (?P<TreeGcQ>\\d+) long-queries (?P<LongQueries>\\d+)"
                 - "in-progress: info-q (?P<InfoQ>\\d+) rw-hash (?P<RWHash>\\d+) proxy-hash (?P<ProxyHash>\\d+) tree-gc-q (?P<TreeGcQ>\\d+)"
         -
             setName: "inprogress"
