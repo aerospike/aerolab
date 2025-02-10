@@ -26,12 +26,13 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
-	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/bestmethod/inslice"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/cloudbilling/v1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/aerospike/aerolab/gcplabels"
 )
 
 func (d *backendGcp) Arch() TypeArch {
@@ -2543,16 +2544,7 @@ func (d *backendGcp) makeLabels(extra []string, isArm string, v backendVersion) 
 			return nil, fmt.Errorf("key %s is used internally by aerolab, cannot be used", key)
 		}
 		val := strings.Join(kv[1:], "=")
-		for _, char := range val {
-			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
-				return nil, fmt.Errorf("invalid tag value for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
-			}
-		}
-		for _, char := range key {
-			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
-				return nil, fmt.Errorf("invalid tag name for `%s`, only the following are allowed: [a-zA-Z0-9_-]", key)
-			}
-		}
+
 		labels[key] = val
 	}
 	labels[gcpTagOperatingSystem] = v.distroName
@@ -2561,6 +2553,24 @@ func (d *backendGcp) makeLabels(extra []string, isArm string, v backendVersion) 
 	labels[gcpTagUsedBy] = gcpTagUsedByValue
 	labels["arch"] = isArm
 	return labels, nil
+}
+
+func (d *backendGcp) validateLabels(labels map[string]string) error {
+	for key, val := range labels {
+		for _, char := range val {
+			// TODO: document why these characters are validated by ascii code here
+			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
+				return fmt.Errorf("invalid tag value for `%s`, only the following are allowed: [a-zA-Z0-9_-]", val)
+			}
+		}
+		for _, char := range key {
+			if (char < 48 && char != 45) || char > 122 || (char > 57 && char < 65) || (char > 90 && char < 97 && char != 95) {
+				return fmt.Errorf("invalid tag name for `%s`, only the following are allowed: [a-zA-Z0-9_-]", key)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fileListReader, extra *backendExtra) error {
@@ -2608,6 +2618,12 @@ func (d *backendGcp) DeployTemplate(v backendVersion, script string, files []fil
 	if err != nil {
 		return err
 	}
+
+	err = d.validateLabels(labels)
+	if err != nil {
+		return err
+	}
+
 	name := fmt.Sprintf("aerolab4-template-%s-%s-%s-%s", v.distroName, gcpResourceName(v.distroVersion), gcpResourceName(v.aerospikeVersion), isArm)
 
 	for _, fnp := range extra.firewallNamePrefix {
@@ -3604,6 +3620,13 @@ func (d *backendGcp) DeployCluster(v backendVersion, name string, nodeCount int,
 				Value: proto.String(mv),
 			})
 		}
+
+		// Validate the labels before we use them
+		err = d.validateLabels(labels)
+		if err != nil {
+			return err
+		}
+
 		req := &computepb.InsertInstanceRequest{
 			Project: a.opts.Config.Backend.Project,
 			Zone:    extra.zone,
