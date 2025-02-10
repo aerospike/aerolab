@@ -9,6 +9,36 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 )
 
+type CreateInstanceInput struct {
+	ClusterName        string            `yaml:"clusterName" json:"clusterName"`
+	Nodes              int               `yaml:"nodes" json:"nodes"`
+	Image              *Image            `yaml:"image" json:"image"`
+	SSHKeyName         string            `yaml:"sshKeyName" json:"sshKeyName"`
+	NetworkPlacement   string            `yaml:"networkPlacement" json:"networkPlacement"` // vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, zone: will use the default VPC, first subnet in the zone
+	Firewalls          []string          `yaml:"firewalls" json:"firewalls"`
+	BackendType        BackendType       `yaml:"backendType" json:"backendType"`
+	InstanceType       string            `yaml:"instanceType" json:"instanceType"`
+	SpotInstance       bool              `yaml:"spotInstance" json:"spotInstance"`
+	Name               string            `yaml:"name" json:"name"`
+	Owner              string            `yaml:"owner" json:"owner"`             // from tags
+	Tags               map[string]string `yaml:"tags" json:"tags"`               // all tags
+	Expires            time.Time         `yaml:"expires" json:"expires"`         // from tags
+	Description        string            `yaml:"description" json:"description"` // from description or tags if no description field
+	DisablePublicIP    bool              `yaml:"disablePublicIP" json:"disablePublicIP"`
+	TerminateOnStop    bool              `yaml:"terminateOnStop" json:"terminateOnStop"`
+	IAMInstanceProfile string            `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
+	ParallelSSHThreads int               `yaml:"parallelSSHThreads" json:"parallelSSHThreads"`
+	NoEnableRoot       bool              `yaml:"noEnableRoot" json:"noEnableRoot"`
+	// volume types and sizes, backend-specific definitions
+	// aws format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=gp2,size=20 --disk type=gp3,size=100,iops=5000,throughput=200,count=2
+	// gcp format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2
+	Disks []string `yaml:"disks" json:"disks"`
+}
+
+type CreateInstanceOutput struct {
+	Instances InstanceList `yaml:"instances" json:"instances"`
+}
+
 type Instances interface {
 	// instance selector - by backend type
 	WithBackendType(types ...BackendType) Instances
@@ -57,6 +87,7 @@ type InstanceAction interface {
 type ExecInput struct {
 	sshexec.ExecDetail
 	Username        string
+	ConnectTimeout  time.Duration
 	ParallelThreads int
 }
 

@@ -20,8 +20,6 @@ import (
 	"github.com/lithammer/shortuuid"
 )
 
-// TODO volumes create call
-
 type volumeDetail struct {
 	FileSystemArn        string `yaml:"fileSystemArn" json:"fileSystemArn"`
 	NumberOfMountTargets int    `yaml:"numberOfMountTargets" json:"numberOfMountTargets"`
@@ -211,6 +209,9 @@ func (s *b) GetVolumes() (backend.VolumeList, error) {
 		}(zone)
 	}
 	wg.Wait()
+	if errs == nil {
+		s.volumes = i
+	}
 	return i, errs
 }
 
@@ -221,6 +222,7 @@ func (s *b) VolumesAddTags(volumes backend.VolumeList, tags map[string]string, w
 	if len(volumes) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	efsVolumeIds := make(map[string][]string)
 	ec2VolumeIds := make(map[string][]string)
 	for _, volume := range volumes {
@@ -308,6 +310,7 @@ func (s *b) VolumesRemoveTags(volumes backend.VolumeList, tagKeys []string, wait
 	if len(volumes) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	efsVolumeIds := make(map[string][]string)
 	ec2VolumeIds := make(map[string][]string)
 	for _, volume := range volumes {
@@ -387,6 +390,7 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, fw backend.FirewallList, w
 	if len(volumes) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	efsVolumeIds := make(map[string]backend.VolumeList)
 	ec2VolumeIds := make(map[string][]string)
 	for _, volume := range volumes {
@@ -494,6 +498,7 @@ func (s *b) ResizeVolumes(volumes backend.VolumeList, newSizeGiB backend.Storage
 	if len(volumes) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	for _, volume := range volumes {
 		if volume.Size >= newSizeGiB*backend.StorageGiB {
 			return fmt.Errorf("volume %s must be smaller than new requested size", volume.FileSystemId)
@@ -572,13 +577,14 @@ func (d *deviceName) doNext(start string) string {
 
 // for Shared volume type, this will attach those volumes to the instance by modifying fstab on the instance itself and running mount -a; it will also create mount targets and assign security groups as required
 // for Attached volume type, this will just attach the volumes to the instance using AWS API, no mounting will be performed
-func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance, sharedMountData *backend.VolumeAttachShared) error {
+func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance, sharedMountData *backend.VolumeAttachShared, waitDur time.Duration) error {
 	log := s.log.WithPrefix("AttachVolumes: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(volumes) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	d := &deviceName{}
 	for _, dv := range instance.BackendSpecific.(instanceDetail).Volumes {
 		d.names = append(d.names, dv.Device)
@@ -663,9 +669,46 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 				// check if security group for volume-network(vpc) pair exists and get the ID or create new security group if needed
 				secGroupName := fmt.Sprintf("%s-%s", id.FileSystemId, instance.BackendSpecific.(instanceDetail).Network.NetworkId)
 				secGroupId := ""
-				fw := sharedMountData.Firewalls.WithName(secGroupName)
+				fw := s.firewalls.WithName(secGroupName)
 				if fw.Count() == 0 {
-					// TODO create firewall and assign new Id to secGroupId
+					out, err := s.CreateFirewall(&backend.CreateFirewallInput{
+						BackendType: backend.BackendTypeAWS,
+						Name:        secGroupName,
+						Description: "Automatically created by aerolab volume mount",
+						Owner:       id.Owner,
+						Tags:        make(map[string]string),
+						Ports: []*backend.Port{
+							{
+								FromPort:   -1,
+								ToPort:     -1,
+								SourceCidr: "",
+								SourceId:   "self",
+								Protocol:   backend.ProtocolAll,
+							},
+						},
+						Network: instance.BackendSpecific.(instanceDetail).Network,
+					}, waitDur)
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
+					err = s.FirewallsUpdate(backend.FirewallList{out.Firewall}, backend.PortsIn{
+						{
+							Port: backend.Port{
+								FromPort:   -1,
+								ToPort:     -1,
+								SourceCidr: "",
+								SourceId:   out.Firewall.FirewallID,
+								Protocol:   backend.ProtocolAll,
+							},
+							Action: backend.PortActionAdd,
+						},
+					}, 0)
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
+					secGroupId = out.Firewall.FirewallID
 				} else {
 					secGroupId = fw.Describe()[0].FirewallID
 				}
@@ -756,13 +799,14 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 
 // for Shared volume type, this will umount and remove the volume from fstab
 // for Attached volume type, this will just run AWS Detach API command, no umount is performed, it us up to the caller to do so
-func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance, fwForShared *backend.FirewallList) error {
+func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance, waitDur time.Duration) error {
 	log := s.log.WithPrefix("DetachVolumes: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(volumes) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	attached := make(map[string]backend.VolumeList)
 	shared := backend.VolumeList{}
 	for _, volume := range volumes {
@@ -852,7 +896,7 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 			}
 			fws := backend.FirewallList{}
 			for _, vol := range shared {
-				fw := fwForShared.WithName(fmt.Sprintf("%s-%s", vol.FileSystemId, instance.NetworkID)).Describe()
+				fw := s.firewalls.WithName(fmt.Sprintf("%s-%s", vol.FileSystemId, instance.NetworkID)).Describe()
 				if len(fw) > 0 {
 					fws = append(fws, fw...)
 				}
@@ -871,4 +915,8 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 	}
 	wg.Wait()
 	return reterr
+}
+
+func (s *b) CreateVolume(input *backend.CreateVolumeInput) (output *backend.CreateVolumeOutput, err error) {
+
 }

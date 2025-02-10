@@ -3,6 +3,8 @@ package baws
 import (
 	"context"
 	"errors"
+	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"time"
@@ -411,6 +413,9 @@ func (s *b) GetImages() (backend.ImageList, error) {
 		}(zone)
 	}
 	wg.Wait()
+	if errs == nil {
+		s.images = i
+	}
 	return i, errs
 }
 
@@ -420,6 +425,7 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 		log.Detail("ImageList empty, returning")
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	volIds := make(map[string]backend.ImageList)
 	for _, volume := range images {
 		volume := volume
@@ -446,6 +452,23 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 			}
 			for _, id := range ids {
 				golog := log.WithPrefix(zone + "::" + id.ImageId + ": ")
+				if id.BackendSpecific.(imageDetail).SnapshotID == "" {
+					golog.Detail("Snapshot ID is empty for image, retrieving it")
+					img, err := cli.DescribeImages(context.TODO(), &ec2.DescribeImagesInput{
+						ImageIds: []string{id.ImageId},
+					})
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
+					if len(img.Images) == 0 {
+						reterr = errors.Join(reterr, fmt.Errorf("image %s not found", id.ImageId))
+						return
+					}
+					imgx := id.BackendSpecific.(imageDetail)
+					imgx.SnapshotID = aws.ToString(img.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId)
+					id.BackendSpecific = imgx
+				}
 				golog.Detail("Deregistering Image")
 				_, err = cli.DeregisterImage(context.TODO(), &ec2.DeregisterImageInput{
 					ImageId: aws.String(id.ImageId),
@@ -477,6 +500,7 @@ func (s *b) ImagesAddTags(images backend.ImageList, tags map[string]string) erro
 	if len(images) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	imageIds := make(map[string][]string)
 	for _, image := range images {
 		if _, ok := imageIds[image.ZoneID]; !ok {
@@ -516,6 +540,7 @@ func (s *b) ImagesRemoveTags(images backend.ImageList, tagKeys []string) error {
 	if len(images) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	imageIds := make(map[string][]string)
 	for _, image := range images {
 		if _, ok := imageIds[image.ZoneID]; !ok {
@@ -545,4 +570,111 @@ func (s *b) ImagesRemoveTags(images backend.ImageList, tagKeys []string) error {
 		}
 	}
 	return nil
+}
+
+func (s *b) CreateImage(input *backend.CreateImageInput, waitDur time.Duration) (output *backend.CreateImageOutput, err error) {
+	log := s.log.WithPrefix("CreateImage: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	tags := make(map[string]string)
+	maps.Copy(tags, input.Tags)
+	tags[TAG_NAME] = input.Name
+	tags[TAG_DESCRIPTION] = input.Description
+	tags[TAG_OS_NAME] = input.OSName
+	tags[TAG_OS_VERSION] = input.OSVersion
+	tags[TAG_OWNER] = input.Owner
+	tags[TAG_AEROLAB_PROJECT] = s.project
+	tags[TAG_AEROLAB_VERSION] = s.aerolabVersion
+	output = &backend.CreateImageOutput{
+		Image: &backend.Image{
+			BackendType:  input.BackendType,
+			Name:         input.Name,
+			Description:  input.Description,
+			Size:         input.SizeGiB * backend.StorageGiB,
+			ZoneName:     input.Instance.ZoneName,
+			ZoneID:       input.Instance.ZoneID,
+			Architecture: input.Instance.Architecture,
+			Public:       false,
+			OSName:       input.OSName,
+			OSVersion:    input.OSVersion,
+			Username:     "root",
+			Encrypted:    input.Encrypted,
+			State:        backend.VolumeStateAvailable,
+			CreationTime: time.Now(),
+			Owner:        input.Owner,
+			Tags:         tags,
+			BackendSpecific: &imageDetail{
+				SnapshotID:     "", // will be set later
+				RootDeviceName: "", // will be set later
+			},
+			ImageId: "", // will be set later
+		},
+	}
+	if input.OSName == "" || input.OSVersion == "" {
+		output.Image.OSName = input.Instance.OperatingSystem.Name
+		output.Image.OSVersion = input.Instance.OperatingSystem.Version
+	}
+
+	cli, err := getEc2Client(s.credentials, &input.Instance.ZoneName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert tags map to AWS tags
+	tagsOut := []types.Tag{}
+	for k, v := range tags {
+		tagsOut = append(tagsOut, types.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		})
+	}
+
+	// Create the image
+	log.Detail("Creating image")
+	bdm := types.BlockDeviceMapping{
+		DeviceName: aws.String(input.Instance.BackendSpecific.(instanceDetail).Volumes[0].Device),
+		Ebs: &types.EbsBlockDevice{
+			DeleteOnTermination: aws.Bool(true),
+			Encrypted:           aws.Bool(input.Encrypted),
+		},
+	}
+	if input.SizeGiB > 0 {
+		bdm.Ebs.VolumeSize = aws.Int32(int32(input.SizeGiB))
+	}
+	defer s.invalidateCacheFunc()
+	resp, err := cli.CreateImage(context.TODO(), &ec2.CreateImageInput{
+		Name:        aws.String(input.Name),
+		InstanceId:  aws.String(input.Instance.InstanceID),
+		Description: aws.String(input.Description),
+		TagSpecifications: []types.TagSpecification{
+			{
+				ResourceType: types.ResourceTypeImage,
+				Tags:         tagsOut,
+			},
+		},
+		BlockDeviceMappings: []types.BlockDeviceMapping{bdm},
+	})
+	if err != nil {
+		return output, err
+	}
+
+	output.Image.ImageId = aws.ToString(resp.ImageId)
+	output.Image.BackendSpecific = &imageDetail{
+		SnapshotID:     "",
+		RootDeviceName: input.Instance.BackendSpecific.(instanceDetail).Volumes[0].Device,
+	}
+
+	// Wait for the image to be created
+	if waitDur > 0 {
+		log.Detail("Waiting for image to be created")
+		waiter := ec2.NewImageAvailableWaiter(cli)
+		err = waiter.Wait(context.TODO(), &ec2.DescribeImagesInput{
+			ImageIds: []string{aws.ToString(resp.ImageId)},
+		}, waitDur)
+		if err != nil {
+			return output, err
+		}
+	}
+
+	return output, nil
 }

@@ -9,11 +9,12 @@ require (
 	github.com/aerospike/aerospike-client-go/v5 v5.11.0
 	github.com/aerospike/aerospike-client-go/v7 v7.7.3
 	github.com/aws/aws-sdk-go v1.55.5
-	github.com/aws/aws-sdk-go-v2 v1.34.0
+	github.com/aws/aws-sdk-go-v2 v1.36.1
 	github.com/aws/aws-sdk-go-v2/config v1.29.2
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.55
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.201.1
 	github.com/aws/aws-sdk-go-v2/service/efs v1.34.7
+	github.com/aws/aws-sdk-go-v2/service/pricing v1.32.16
 	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/bestmethod/logger v0.0.0-20210319152012-2c63bbe98d5a
 	github.com/containerd/console v1.0.4
@@ -59,8 +60,8 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.49.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.49.0 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.25 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.29 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.29 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.32 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.32 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.10 // indirect

@@ -14,24 +14,43 @@ import (
 )
 
 type b struct {
-	configDir   string
-	credentials *clouds.AWS
-	regions     []string
-	project     string
-	sshKeysDir  string
-	log         *logger.Logger
+	configDir           string
+	credentials         *clouds.AWS
+	regions             []string
+	project             string
+	sshKeysDir          string
+	log                 *logger.Logger
+	aerolabVersion      string
+	networks            backend.NetworkList
+	firewalls           backend.FirewallList
+	instances           backend.InstanceList
+	volumes             backend.VolumeList
+	images              backend.ImageList
+	workDir             string
+	invalidateCacheFunc func() error
 }
 
 func init() {
 	backend.RegisterBackend(backend.BackendTypeAWS, &b{})
 }
 
-func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger) error {
+func (s *b) SetInventory(networks backend.NetworkList, firewalls backend.FirewallList, instances backend.InstanceList, volumes backend.VolumeList, images backend.ImageList) {
+	s.networks = networks
+	s.firewalls = firewalls
+	s.instances = instances
+	s.volumes = volumes
+	s.images = images
+}
+
+func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func() error) error {
 	s.configDir = dir
 	s.credentials = &credentials.AWS
 	s.project = project
 	s.sshKeysDir = sshKeyDir
 	s.log = log
+	s.aerolabVersion = aerolabVersion
+	s.workDir = workDir
+	s.invalidateCacheFunc = invalidateCacheFunc
 	// read regions
 	err := s.setConfigRegions()
 	if err != nil {

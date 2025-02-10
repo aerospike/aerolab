@@ -43,6 +43,7 @@ func (b *Cache) Store(name string, data interface{}) error {
 	if b == nil || !b.Enabled || b.Dir == "" {
 		return nil
 	}
+	os.MkdirAll(b.Dir, 0755)
 	fname := path.Join(b.Dir, name+".json")
 	return file.StoreJSON(fname, ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, data)
 }
