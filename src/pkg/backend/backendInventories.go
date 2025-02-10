@@ -13,17 +13,56 @@ import (
 
 // TODO: expiry system in it's own pkg/
 
+type InstanceTypeList []*InstanceType
+
+type InstanceType struct {
+	Name             string
+	Region           string
+	CPUs             int
+	MemoryGiB        float64
+	NvmeCount        int
+	NvmeTotalSizeGiB int
+	Arch             []Architecture
+	PricePerHour     InstanceTypePrice
+}
+
+type InstanceTypePrice struct {
+	OnDemand float64
+	Spot     float64
+	Currency string
+}
+
+type VolumePriceList []*VolumePrice
+
+type VolumePrice struct {
+	Type           string
+	PricePerGBHour float64
+	Region         string
+	Currency       string
+}
+
 type Cloud interface {
-	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger) error
+	// basics
+	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func() error) error
+	SetInventory(networks NetworkList, firewalls FirewallList, instances InstanceList, volumes VolumeList, images ImageList)
 	ListEnabledZones() ([]string, error)
 	EnableZones(names ...string) error
 	DisableZones(names ...string) error
+	// pricing
+	GetVolumePrices() (VolumePriceList, error)
+	GetInstanceTypes() (InstanceTypeList, error)
+	// inventory
 	GetVolumes() (VolumeList, error)
 	GetInstances(VolumeList, NetworkList, FirewallList) (InstanceList, error)
 	GetImages() (ImageList, error)
 	GetNetworks() (NetworkList, error)
 	GetFirewalls(NetworkList) (FirewallList, error)
-	// TODO: cloud must implement CreateVolumes, CreateInstances, CreateImages, CreateNetworks, CreateFirewalls
+	// create actions
+	CreateFirewall(input *CreateFirewallInput, waitDur time.Duration) (*CreateFirewallOutput, error)
+	CreateVolume(input *CreateVolumeInput) (*CreateVolumeOutput, error)
+	CreateImage(input *CreateImageInput, waitDur time.Duration) (*CreateImageOutput, error)
+	CreateInstances(input *CreateInstanceInput, waitDur time.Duration) (*CreateInstanceOutput, error)
+	CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error)
 	// actions on multiple instances
 	InstancesAddTags(instances InstanceList, tags map[string]string) error
 	InstancesRemoveTags(instances InstanceList, tagKeys []string) error
@@ -38,8 +77,8 @@ type Cloud interface {
 	VolumesAddTags(volumes VolumeList, tags map[string]string, waitDur time.Duration) error
 	VolumesRemoveTags(volumes VolumeList, tagKeys []string, waitDur time.Duration) error
 	DeleteVolumes(volumes VolumeList, fw FirewallList, waitDur time.Duration) error
-	AttachVolumes(volumes VolumeList, instance *Instance, sharedMountData *VolumeAttachShared) error
-	DetachVolumes(volumes VolumeList, instance *Instance, fwForShared *FirewallList) error
+	AttachVolumes(volumes VolumeList, instance *Instance, sharedMountData *VolumeAttachShared, waitDur time.Duration) error
+	DetachVolumes(volumes VolumeList, instance *Instance, waitDur time.Duration) error
 	ResizeVolumes(volumes VolumeList, newSizeGiB StorageSize) error
 	// actions on images
 	ImagesDelete(images ImageList, waitDur time.Duration) error
@@ -58,12 +97,16 @@ type Cloud interface {
 }
 
 type Backend interface {
-	// TODO: backend must implement CreateVolumes, CreateInstances, CreateImages, CreateNetworks, CreateFirewalls
 	GetInventory() (*Inventory, error)
 	AddRegion(backendType BackendType, names ...string) error
 	RemoveRegion(backendType BackendType, names ...string) error
 	ListEnabledRegions(backendType BackendType) (name []string, err error)
 	ForceRefreshInventory() error
+	CreateFirewall(input *CreateFirewallInput, waitDur time.Duration) (*CreateFirewallOutput, error)
+	CreateVolume(input *CreateVolumeInput) (*CreateVolumeOutput, error)
+	CreateImage(input *CreateImageInput, waitDur time.Duration) (*CreateImageOutput, error)
+	CreateInstances(input *CreateInstanceInput, waitDur time.Duration) (*CreateInstanceOutput, error)
+	CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error)
 }
 
 type backend struct {
@@ -130,6 +173,21 @@ func (b *backend) loadCache() error {
 	err = b.cache.Get(path.Join(b.project, "images"), &b.images)
 	if err != nil {
 		return err
+	}
+	// check if cache should be invalidated as some volumes or instances expired
+	for _, v := range b.volumes {
+		for _, vol := range v {
+			if vol.Expires.Before(time.Now()) {
+				return cache.ErrNoCacheFile
+			}
+		}
+	}
+	for _, v := range b.instances {
+		for _, inst := range v {
+			if inst.Expires.Before(time.Now()) {
+				return cache.ErrNoCacheFile
+			}
+		}
 	}
 	return nil
 }
@@ -219,6 +277,9 @@ func (b *backend) poll() []error {
 		if err != nil {
 			errs = append(errs, err)
 		}
+	}
+	for cname, cloud := range cloudList {
+		cloud.SetInventory(b.networks[cname], b.firewalls[cname], b.instances[cname], b.volumes[cname], b.images[cname])
 	}
 	log.Debug("Done")
 	return errs

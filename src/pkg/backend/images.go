@@ -6,6 +6,23 @@ import (
 	"time"
 )
 
+type CreateImageInput struct {
+	BackendType BackendType       `yaml:"backendType" json:"backendType"`
+	Instance    *Instance         `yaml:"instance" json:"instance"`
+	Name        string            `yaml:"name" json:"name"`
+	Description string            `yaml:"description" json:"description"` // from description or tags if no description field
+	SizeGiB     StorageSize       `yaml:"size" json:"size"`               // override size of volume if > 0
+	Owner       string            `yaml:"owner" json:"owner"`             // from tags
+	Tags        map[string]string `yaml:"tags" json:"tags"`               // all tags
+	Encrypted   bool              `yaml:"encrypted" json:"encrypted"`
+	OSName      string            `yaml:"osName" json:"osName"`       // optional, if not set, will use instance.OperatingSystem.Name
+	OSVersion   string            `yaml:"osVersion" json:"osVersion"` // optional, if not set, will use instance.OperatingSystem.Version
+}
+
+type CreateImageOutput struct {
+	Image *Image `yaml:"image" json:"image"`
+}
+
 type Images interface {
 	// volume selector - by backend type
 	WithBackendType(types ...BackendType) Images

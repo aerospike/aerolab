@@ -6,7 +6,7 @@
 fstab=$(cat /etc/fstab)
 cp /etc/fstab /etc/fstab.bak
 for fsid in "${@}"; do
-    fstab=$(printf "%s" "$fstab" |egrep -v "^${fsid}:/")
+    fstab=$(printf "%s" "$fstab" |grep -E -v "^${fsid}:/")
 done
 printf "%s\n" "$fstab" > /etc/fstab
 
@@ -20,7 +20,7 @@ for fsid in "${@}"; do
             umount -f "${fs}"
             [ $? -ne 0 ] && ISERR=1
         fi
-    done < <(mount |grep tmpfs |egrep "^${fsid}" |awk '{print $3}')
+    done < <(mount |grep tmpfs |grep -E "^${fsid}" |awk '{print $3}')
 done
 if [ $ISERR -ne 0 ]; then
     echo

@@ -10,7 +10,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
+	"github.com/aws/aws-sdk-go-v2/service/pricing"
 )
+
+func getPricingClient(creds *clouds.AWS, region *string) (*pricing.Client, error) {
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	return pricing.NewFromConfig(*cfg), nil
+}
 
 func getCfgForClient(creds *clouds.AWS, region *string) (*aws.Config, error) {
 	opts := []func(*config.LoadOptions) error{}

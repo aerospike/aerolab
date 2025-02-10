@@ -3,6 +3,7 @@ package baws
 import (
 	"context"
 	"errors"
+	"maps"
 	"sync"
 	"time"
 
@@ -12,8 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/lithammer/shortuuid"
 )
-
-// TODO CreateFirewalls call
 
 func (s *b) GetFirewalls(networks backend.NetworkList) (backend.FirewallList, error) {
 	log := s.log.WithPrefix("GetFirewalls: job=" + shortuuid.New() + " ")
@@ -127,6 +126,9 @@ func (s *b) GetFirewalls(networks backend.NetworkList) (backend.FirewallList, er
 		}(zone)
 	}
 	wg.Wait()
+	if errs == nil {
+		s.firewalls = i
+	}
 	return i, errs
 }
 
@@ -137,6 +139,7 @@ func (s *b) FirewallsUpdate(fw backend.FirewallList, ports backend.PortsIn, wait
 	if len(fw) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	fwIds := make(map[string]backend.FirewallList)
 	for _, firewall := range fw {
 		firewall := firewall
@@ -238,14 +241,18 @@ func (s *b) firewallHandleUpdate(cli *ec2.Client, fw *backend.Firewall, ports ba
 		}
 	}
 	// first run revoke to delete any old rules
-	_, err := cli.RevokeSecurityGroupIngress(context.TODO(), deleteRules)
-	if err != nil {
-		return err
+	if len(deleteRules.IpPermissions) > 0 {
+		_, err := cli.RevokeSecurityGroupIngress(context.TODO(), deleteRules)
+		if err != nil {
+			return err
+		}
 	}
 	// now run authorize to add new rules
-	_, err = cli.AuthorizeSecurityGroupIngress(context.TODO(), addRules)
-	if err != nil {
-		return err
+	if len(addRules.IpPermissions) > 0 {
+		_, err := cli.AuthorizeSecurityGroupIngress(context.TODO(), addRules)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -257,6 +264,7 @@ func (s *b) FirewallsDelete(fw backend.FirewallList, waitDur time.Duration) erro
 	if len(fw) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -303,6 +311,7 @@ func (s *b) FirewallsAddTags(fw backend.FirewallList, tags map[string]string, wa
 	if len(fw) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -342,6 +351,7 @@ func (s *b) FirewallsRemoveTags(fw backend.FirewallList, tagKeys []string, waitD
 	if len(fw) == 0 {
 		return nil
 	}
+	defer s.invalidateCacheFunc()
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -371,4 +381,136 @@ func (s *b) FirewallsRemoveTags(fw backend.FirewallList, tagKeys []string, waitD
 		}
 	}
 	return nil
+}
+
+func (s *b) CreateFirewall(input *backend.CreateFirewallInput, waitDur time.Duration) (output *backend.CreateFirewallOutput, err error) {
+	log := s.log.WithPrefix("CreateFirewall: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	// generate all tags in tags variable
+	tags := make(map[string]string)
+	maps.Copy(tags, input.Tags)
+	tags[TAG_OWNER] = input.Owner
+	tags[TAG_AEROLAB_PROJECT] = s.project
+	tags[TAG_AEROLAB_VERSION] = s.aerolabVersion
+	// create PortsOut
+	portsOut := backend.PortsOut{}
+	for _, port := range input.Ports {
+		if port.SourceCidr != "" {
+			portsOut = append(portsOut, &backend.PortOut{
+				Port: *port,
+				BackendSpecific: types.IpPermission{
+					FromPort:   aws.Int32(int32(port.FromPort)),
+					IpProtocol: aws.String(port.Protocol),
+					ToPort:     aws.Int32(int32(port.ToPort)),
+					IpRanges: []types.IpRange{
+						{
+							CidrIp: aws.String(port.SourceCidr),
+						},
+					},
+				},
+			})
+		}
+		if port.SourceId != "" {
+			portsOut = append(portsOut, &backend.PortOut{
+				Port: *port,
+				BackendSpecific: types.IpPermission{
+					FromPort:   aws.Int32(int32(port.FromPort)),
+					IpProtocol: aws.String(port.Protocol),
+					ToPort:     aws.Int32(int32(port.ToPort)),
+					UserIdGroupPairs: []types.UserIdGroupPair{
+						{
+							GroupId: aws.String(port.SourceId),
+						},
+					},
+				},
+			})
+		}
+	}
+	// create output var
+	output = &backend.CreateFirewallOutput{
+		Firewall: &backend.Firewall{
+			BackendType:     input.BackendType,
+			Name:            input.Name,
+			Description:     input.Description,
+			FirewallID:      "", // to be filled after successful creation
+			ZoneName:        input.Network.ZoneName,
+			ZoneID:          input.Network.ZoneID,
+			Owner:           input.Owner,
+			Tags:            tags,
+			Ports:           portsOut,
+			Network:         input.Network,
+			BackendSpecific: nil, // unused
+		},
+	}
+	defer s.invalidateCacheFunc()
+	cli, err := getEc2Client(s.credentials, &input.Network.ZoneName)
+	if err != nil {
+		return output, err
+	}
+	log.Detail("CreateSecurityGroup")
+	out, err := cli.CreateSecurityGroup(context.TODO(), &ec2.CreateSecurityGroupInput{
+		Description: aws.String(input.Description),
+		GroupName:   aws.String(input.Name),
+		VpcId:       aws.String(input.Network.NetworkId),
+		TagSpecifications: []types.TagSpecification{
+			{
+				ResourceType: types.ResourceTypeSecurityGroup,
+				Tags: func(tags map[string]string) []types.Tag {
+					out := make([]types.Tag, 0, len(tags))
+					for k, v := range tags {
+						out = append(out, types.Tag{
+							Key:   aws.String(k),
+							Value: aws.String(v),
+						})
+					}
+					return out
+				}(tags),
+			},
+		},
+	})
+	if err != nil {
+		return output, err
+	}
+	output.Firewall.FirewallID = aws.ToString(out.GroupId)
+	if len(input.Ports) > 0 {
+		if waitDur == 0 {
+			waitDur = 1 * time.Minute
+		}
+	}
+	if waitDur > 0 {
+		log.Detail("WaitSecurityGroup")
+		err := ec2.NewSecurityGroupExistsWaiter(cli).Wait(context.TODO(), &ec2.DescribeSecurityGroupsInput{
+			GroupIds: []string{output.Firewall.FirewallID},
+		}, waitDur)
+		if err != nil {
+			return output, err
+		}
+	}
+
+	if len(input.Ports) > 0 {
+		pin := backend.PortsIn{}
+		for _, port := range input.Ports {
+			sid := port.SourceId
+			if sid == "self" {
+				sid = output.Firewall.FirewallID
+			}
+			pin = append(pin, &backend.PortIn{
+				Port: backend.Port{
+					FromPort:   port.FromPort,
+					ToPort:     port.ToPort,
+					SourceCidr: port.SourceCidr,
+					SourceId:   sid,
+					Protocol:   port.Protocol,
+				},
+				Action: backend.PortActionAdd,
+			})
+		}
+		log.Detail("FirewallsUpdate")
+		err = s.FirewallsUpdate(backend.FirewallList{output.Firewall}, pin, waitDur)
+		if err != nil {
+			return output, err
+		}
+	}
+	return output, nil
 }

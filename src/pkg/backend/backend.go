@@ -14,10 +14,11 @@ import (
 // TODO force-invalidate cache if state seems to mismatch disk cache
 
 type Config struct {
-	RootDir     string              `yaml:"RootDir" json:"RootDir"`
-	Cache       bool                `yaml:"Cache" json:"Cache"`
-	Credentials *clouds.Credentials `yaml:"Credentials" json:"Credentials"`
-	LogLevel    logger.LogLevel     `yaml:"logLevel" json:"logLevel"`
+	RootDir        string              `yaml:"RootDir" json:"RootDir"`
+	Cache          bool                `yaml:"Cache" json:"Cache"`
+	Credentials    *clouds.Credentials `yaml:"Credentials" json:"Credentials"`
+	LogLevel       logger.LogLevel     `yaml:"logLevel" json:"logLevel"`
+	AerolabVersion string              `yaml:"aerolabVersion" json:"aerolabVersion"`
 }
 
 type cacheMetadata struct {
@@ -87,7 +88,7 @@ func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) 
 	}
 	b := getBackendObject(project, c)
 	for cname, cloud := range cloudList {
-		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)))
+		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.cache.Invalidate)
 		if err != nil {
 			return nil, err
 		}
@@ -102,6 +103,9 @@ func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) 
 	if b.config.Cache {
 		err := b.loadCache()
 		if err == nil {
+			for cname, cloud := range cloudList {
+				cloud.SetInventory(b.networks[cname], b.firewalls[cname], b.instances[cname], b.volumes[cname], b.images[cname])
+			}
 			if pollInventoryHourly {
 				go b.pollTimer()
 			}

@@ -6,6 +6,20 @@ import (
 	"time"
 )
 
+type CreateFirewallInput struct {
+	BackendType BackendType       `yaml:"backendType" json:"backendType"`
+	Name        string            `yaml:"name" json:"name"`
+	Description string            `yaml:"description" json:"description"`
+	Owner       string            `yaml:"owner" json:"owner"`
+	Tags        map[string]string `yaml:"tags" json:"tags"` // all tags
+	Ports       []*Port           `yaml:"ports" json:"ports"`
+	Network     *Network          `yaml:"network" json:"network"`
+}
+
+type CreateFirewallOutput struct {
+	Firewall *Firewall `yaml:"Firewall" json:"Firewall"`
+}
+
 type Firewalls interface {
 	// volume selector - by backend type
 	WithBackendType(types ...BackendType) Firewalls
@@ -46,7 +60,7 @@ type Port struct {
 	FromPort   int    `yaml:"fromPort" json:"fromPort"` // port or ICMP type or ICMPTypeAll
 	ToPort     int    `yaml:"toPort" json:"toPort"`     // port or ICMP type or ICMPTypeAll
 	SourceCidr string `yaml:"sourceCidr" json:"sourceCidr"`
-	SourceId   string `yaml:"sourceId" json:"sourceId"`
+	SourceId   string `yaml:"sourceId" json:"sourceId"` // for adding a group, 'self' can be specified
 	Protocol   string `yaml:"protocol" json:"protocol"`
 }
 
