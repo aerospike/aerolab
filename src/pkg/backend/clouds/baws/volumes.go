@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	etypes "github.com/aws/aws-sdk-go-v2/service/efs/types"
+	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
 )
 
@@ -222,7 +223,7 @@ func (s *b) VolumesAddTags(volumes backend.VolumeList, tags map[string]string, w
 	if len(volumes) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
 	efsVolumeIds := make(map[string][]string)
 	ec2VolumeIds := make(map[string][]string)
 	for _, volume := range volumes {
@@ -310,7 +311,7 @@ func (s *b) VolumesRemoveTags(volumes backend.VolumeList, tagKeys []string, wait
 	if len(volumes) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
 	efsVolumeIds := make(map[string][]string)
 	ec2VolumeIds := make(map[string][]string)
 	for _, volume := range volumes {
@@ -390,7 +391,7 @@ func (s *b) DeleteVolumes(volumes backend.VolumeList, fw backend.FirewallList, w
 	if len(volumes) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
 	efsVolumeIds := make(map[string]backend.VolumeList)
 	ec2VolumeIds := make(map[string][]string)
 	for _, volume := range volumes {
@@ -498,7 +499,7 @@ func (s *b) ResizeVolumes(volumes backend.VolumeList, newSizeGiB backend.Storage
 	if len(volumes) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
 	for _, volume := range volumes {
 		if volume.Size >= newSizeGiB*backend.StorageGiB {
 			return fmt.Errorf("volume %s must be smaller than new requested size", volume.FileSystemId)
@@ -584,7 +585,8 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 	if len(volumes) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	d := &deviceName{}
 	for _, dv := range instance.BackendSpecific.(instanceDetail).Volumes {
 		d.names = append(d.names, dv.Device)
@@ -605,6 +607,9 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 			}
 			shared[volume.ZoneName] = append(shared[volume.ZoneName], volume)
 		}
+	}
+	if len(shared) > 0 {
+		defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
 	}
 	wg := new(sync.WaitGroup)
 	var reterr error
@@ -688,22 +693,6 @@ func (s *b) AttachVolumes(volumes backend.VolumeList, instance *backend.Instance
 						},
 						Network: instance.BackendSpecific.(instanceDetail).Network,
 					}, waitDur)
-					if err != nil {
-						reterr = errors.Join(reterr, err)
-						return
-					}
-					err = s.FirewallsUpdate(backend.FirewallList{out.Firewall}, backend.PortsIn{
-						{
-							Port: backend.Port{
-								FromPort:   -1,
-								ToPort:     -1,
-								SourceCidr: "",
-								SourceId:   out.Firewall.FirewallID,
-								Protocol:   backend.ProtocolAll,
-							},
-							Action: backend.PortActionAdd,
-						},
-					}, 0)
 					if err != nil {
 						reterr = errors.Join(reterr, err)
 						return
@@ -806,7 +795,8 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 	if len(volumes) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	attached := make(map[string]backend.VolumeList)
 	shared := backend.VolumeList{}
 	for _, volume := range volumes {
@@ -917,6 +907,224 @@ func (s *b) DetachVolumes(volumes backend.VolumeList, instance *backend.Instance
 	return reterr
 }
 
-func (s *b) CreateVolume(input *backend.CreateVolumeInput) (output *backend.CreateVolumeOutput, err error) {
+func (s *b) CreateVolumeGetPrice(input *backend.CreateVolumeInput) (costGB float64, err error) {
+	log := s.log.WithPrefix("CreateVolumeGetPrice: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
 
+	_, _, zone, err := s.resolveNetworkPlacement(input.Placement)
+	if err != nil {
+		return 0, err
+	}
+
+	switch input.VolumeType {
+	case backend.VolumeTypeAttachedDisk:
+		price, err := s.GetVolumePrice(zone, input.DiskType)
+		if err != nil {
+			return 0, err
+		}
+		costGB = price.PricePerGBHour
+	case backend.VolumeTypeSharedDisk:
+		zoneType := "GeneralPurpose"
+		if input.SharedDiskOneZone {
+			zoneType = "OneZone"
+		}
+		price, err := s.GetVolumePrice(zone, fmt.Sprintf("SharedDisk_%s", zoneType))
+		if err != nil {
+			return 0, err
+		}
+		costGB = price.PricePerGBHour
+	default:
+		return 0, errors.New("volume type invalid")
+	}
+	return costGB, nil
+}
+
+func (s *b) CreateVolume(input *backend.CreateVolumeInput) (output *backend.CreateVolumeOutput, err error) {
+	log := s.log.WithPrefix("CreateVolume: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+
+	_, _, zone, err := s.resolveNetworkPlacement(input.Placement)
+	if err != nil {
+		return nil, err
+	}
+
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
+
+	switch input.VolumeType {
+	case backend.VolumeTypeAttachedDisk:
+		price, err := s.GetVolumePrice(zone, input.DiskType)
+		if err != nil {
+			log.Detail("error getting volume price: %s", err)
+		}
+		cli, err := getEc2Client(s.credentials, aws.String(zone))
+		if err != nil {
+			return nil, err
+		}
+		var iops *int32
+		if input.Iops > 0 {
+			iops = aws.Int32(int32(input.Iops))
+		}
+		var throughput *int32
+		if input.Throughput > 0 {
+			throughput = aws.Int32(int32(input.Throughput))
+		}
+		tagsIn := make(map[string]string)
+		for k, v := range input.Tags {
+			tagsIn[k] = v
+		}
+		tagsIn[TAG_NAME] = input.Name
+		tagsIn[TAG_OWNER] = input.Owner
+		tagsIn[TAG_DESCRIPTION] = input.Description
+		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
+		tagsIn[TAG_AEROLAB_PROJECT] = s.project
+		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
+		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", price.PricePerGBHour)
+		tagsIn[TAG_START_TIME] = time.Now().Format(time.RFC3339)
+		tagsOut := []types.TagSpecification{
+			{
+				ResourceType: types.ResourceTypeVolume,
+			},
+		}
+		for k, v := range tagsIn {
+			tagsOut[0].Tags = append(tagsOut[0].Tags, types.Tag{
+				Key:   aws.String(k),
+				Value: aws.String(v),
+			})
+		}
+		out, err := cli.CreateVolume(context.TODO(), &ec2.CreateVolumeInput{
+			AvailabilityZone:  aws.String(zone),
+			Encrypted:         aws.Bool(input.Encrypted),
+			Iops:              iops,
+			Throughput:        throughput,
+			VolumeType:        types.VolumeType(input.DiskType),
+			Size:              aws.Int32(int32(input.SizeGiB)),
+			TagSpecifications: tagsOut,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &backend.CreateVolumeOutput{
+			Volume: backend.Volume{
+				BackendType:         backend.BackendTypeAWS,
+				VolumeType:          backend.VolumeTypeAttachedDisk,
+				Name:                input.Name,
+				Description:         input.Description,
+				Size:                backend.StorageSize(input.SizeGiB) * backend.StorageGiB,
+				FileSystemId:        "",
+				ZoneName:            zone,
+				ZoneID:              zone,
+				CreationTime:        aws.ToTime(out.CreateTime),
+				Iops:                input.Iops,
+				Throughput:          backend.StorageSize(input.Throughput),
+				Owner:               input.Owner,
+				Tags:                tagsIn,
+				Encrypted:           input.Encrypted,
+				Expires:             input.Expires,
+				DiskType:            input.DiskType,
+				State:               backend.VolumeStateAvailable,
+				DeleteOnTermination: false,
+				AttachedTo:          nil,
+				EstimatedCostUSD: backend.CostVolume{
+					PricePerGBHour: price.PricePerGBHour,
+					SizeGB:         int64(input.SizeGiB),
+					CreateTime:     aws.ToTime(out.CreateTime),
+				},
+				BackendSpecific: nil,
+			},
+		}, nil
+	case backend.VolumeTypeSharedDisk:
+		zoneType := "GeneralPurpose"
+		if input.SharedDiskOneZone {
+			zoneType = "OneZone"
+		}
+		price, err := s.GetVolumePrice(zone, fmt.Sprintf("SharedDisk_%s", zoneType))
+		if err != nil {
+			log.Detail("error getting volume price: %s", err)
+		}
+		cli, err := getEfsClient(s.credentials, aws.String(zone))
+		if err != nil {
+			return nil, err
+		}
+		var throughputMode etypes.ThroughputMode
+		var throughput *float64
+		if input.Throughput > 0 {
+			throughputMode = etypes.ThroughputModeProvisioned
+			throughput = aws.Float64(float64(input.Throughput) * 8 / 1024 / 1024)
+		} else {
+			throughputMode = etypes.ThroughputModeBursting
+		}
+		tagsIn := make(map[string]string)
+		for k, v := range input.Tags {
+			tagsIn[k] = v
+		}
+		tagsIn[TAG_NAME] = input.Name
+		tagsIn[TAG_OWNER] = input.Owner
+		tagsIn[TAG_DESCRIPTION] = input.Description
+		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
+		tagsIn[TAG_AEROLAB_PROJECT] = s.project
+		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
+		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", price.PricePerGBHour)
+		tagsIn[TAG_START_TIME] = time.Now().Format(time.RFC3339)
+		tagsOut := []etypes.Tag{}
+		for k, v := range tagsIn {
+			tagsOut = append(tagsOut, etypes.Tag{
+				Key:   aws.String(k),
+				Value: aws.String(v),
+			})
+		}
+		var oneZone *string
+		if input.SharedDiskOneZone {
+			oneZone = aws.String(zone)
+		}
+		out, err := cli.CreateFileSystem(context.TODO(), &efs.CreateFileSystemInput{
+			CreationToken:                aws.String(uuid.New().String() + fmt.Sprintf("%d", time.Now().UnixMicro())),
+			Encrypted:                    aws.Bool(input.Encrypted),
+			ThroughputMode:               throughputMode,
+			PerformanceMode:              etypes.PerformanceModeGeneralPurpose,
+			ProvisionedThroughputInMibps: throughput,
+			Tags:                         tagsOut,
+			AvailabilityZoneName:         oneZone,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &backend.CreateVolumeOutput{
+			Volume: backend.Volume{
+				BackendType:         backend.BackendTypeAWS,
+				VolumeType:          backend.VolumeTypeSharedDisk,
+				Name:                input.Name,
+				Description:         input.Description,
+				Size:                backend.StorageSize(input.SizeGiB) * backend.StorageGiB,
+				FileSystemId:        aws.ToString(out.FileSystemId),
+				ZoneName:            zone,
+				ZoneID:              zone,
+				CreationTime:        aws.ToTime(out.CreationTime),
+				Iops:                input.Iops,
+				Throughput:          backend.StorageSize(input.Throughput),
+				Owner:               input.Owner,
+				Tags:                tagsIn,
+				Encrypted:           input.Encrypted,
+				Expires:             input.Expires,
+				DiskType:            input.DiskType,
+				State:               backend.VolumeStateAvailable,
+				DeleteOnTermination: false,
+				AttachedTo:          nil,
+				EstimatedCostUSD: backend.CostVolume{
+					PricePerGBHour: price.PricePerGBHour,
+					SizeGB:         int64(input.SizeGiB),
+					CreateTime:     aws.ToTime(out.CreationTime),
+				},
+				BackendSpecific: &volumeDetail{
+					FileSystemArn:        aws.ToString(out.FileSystemArn),
+					NumberOfMountTargets: int(out.NumberOfMountTargets),
+					PerformanceMode:      string(out.PerformanceMode),
+					ThroughputMode:       string(out.ThroughputMode),
+				},
+			},
+		}, nil
+	default:
+		return nil, errors.New("volume type invalid")
+	}
 }

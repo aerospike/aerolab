@@ -1,7 +1,9 @@
 package backend
 
 import (
+	"errors"
 	"path"
+	"slices"
 	"sync"
 	"time"
 
@@ -41,9 +43,19 @@ type VolumePrice struct {
 	Currency       string
 }
 
+const (
+	CacheInvalidateVolume   = "volumes"
+	CacheInvalidateInstance = "instances"
+	CacheInvalidateImage    = "images"
+	CacheInvalidateNetwork  = "networks"
+	CacheInvalidateFirewall = "firewalls"
+)
+
+var CacheInvalidateAll = []string{CacheInvalidateVolume, CacheInvalidateInstance, CacheInvalidateImage, CacheInvalidateNetwork, CacheInvalidateFirewall}
+
 type Cloud interface {
 	// basics
-	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func() error) error
+	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func(names ...string) error) error
 	SetInventory(networks NetworkList, firewalls FirewallList, instances InstanceList, volumes VolumeList, images ImageList)
 	ListEnabledZones() ([]string, error)
 	EnableZones(names ...string) error
@@ -60,6 +72,7 @@ type Cloud interface {
 	// create actions
 	CreateFirewall(input *CreateFirewallInput, waitDur time.Duration) (*CreateFirewallOutput, error)
 	CreateVolume(input *CreateVolumeInput) (*CreateVolumeOutput, error)
+	CreateVolumeGetPrice(input *CreateVolumeInput) (costGB float64, err error)
 	CreateImage(input *CreateImageInput, waitDur time.Duration) (*CreateImageOutput, error)
 	CreateInstances(input *CreateInstanceInput, waitDur time.Duration) (*CreateInstanceOutput, error)
 	CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error)
@@ -101,25 +114,29 @@ type Backend interface {
 	AddRegion(backendType BackendType, names ...string) error
 	RemoveRegion(backendType BackendType, names ...string) error
 	ListEnabledRegions(backendType BackendType) (name []string, err error)
-	ForceRefreshInventory() error
+	ForceRefreshInventory() error   // force refresh all inventory items from backends
+	RefreshChangedInventory() error // refresh inventory items which have been marked as changed by actions
 	CreateFirewall(input *CreateFirewallInput, waitDur time.Duration) (*CreateFirewallOutput, error)
 	CreateVolume(input *CreateVolumeInput) (*CreateVolumeOutput, error)
+	CreateVolumeGetPrice(input *CreateVolumeInput) (costGB float64, err error)
 	CreateImage(input *CreateImageInput, waitDur time.Duration) (*CreateImageOutput, error)
 	CreateInstances(input *CreateInstanceInput, waitDur time.Duration) (*CreateInstanceOutput, error)
 	CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error)
 }
 
 type backend struct {
-	project   string
-	config    *Config
-	cache     *cache.Cache
-	volumes   map[BackendType]VolumeList
-	instances map[BackendType]InstanceList
-	images    map[BackendType]ImageList
-	networks  map[BackendType]NetworkList
-	firewalls map[BackendType]FirewallList
-	pollLock  *sync.Mutex
-	log       *logger.Logger
+	project         string
+	config          *Config
+	cache           *cache.Cache
+	volumes         map[BackendType]VolumeList
+	instances       map[BackendType]InstanceList
+	images          map[BackendType]ImageList
+	networks        map[BackendType]NetworkList
+	firewalls       map[BackendType]FirewallList
+	pollLock        *sync.Mutex
+	log             *logger.Logger
+	invalidated     []string
+	invalidatedLock *sync.Mutex
 }
 
 // networks->firewalls(networks)->volumes(networks, firewalls)-->instances(volumes, networks, firewalls)
@@ -192,86 +209,94 @@ func (b *backend) loadCache() error {
 	return nil
 }
 
-func (b *backend) poll() []error {
-	b.pollLock.Lock()
-	defer b.pollLock.Unlock()
+func (b *backend) poll(items []string) []error {
 	var errs []error
 
 	log := b.log.WithPrefix("PollInventory ")
 
-	log.Debug("Getting networks")
-	for n, v := range cloudList {
-		d, err := v.GetNetworks()
+	if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
+		log.Debug("Getting networks")
+		for n, v := range cloudList {
+			d, err := v.GetNetworks()
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				b.networks[n] = d
+			}
+		}
+		err := b.cache.Store(path.Join(b.project, "networks"), b.networks)
 		if err != nil {
 			errs = append(errs, err)
-		} else {
-			b.networks[n] = d
 		}
 	}
-	err := b.cache.Store(path.Join(b.project, "networks"), b.networks)
-	if err != nil {
-		errs = append(errs, err)
-	}
 
-	log.Debug("Getting firewalls")
-	for n, v := range cloudList {
-		d, err := v.GetFirewalls(b.networks[n])
+	if len(items) == 0 || slices.Contains(items, CacheInvalidateFirewall) {
+		log.Debug("Getting firewalls")
+		for n, v := range cloudList {
+			d, err := v.GetFirewalls(b.networks[n])
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				b.firewalls[n] = d
+			}
+		}
+		err := b.cache.Store(path.Join(b.project, "firewalls"), b.firewalls)
 		if err != nil {
 			errs = append(errs, err)
-		} else {
-			b.firewalls[n] = d
 		}
 	}
-	err = b.cache.Store(path.Join(b.project, "firewalls"), b.firewalls)
-	if err != nil {
-		errs = append(errs, err)
-	}
 
-	log.Debug("Getting volumes")
-	for n, v := range cloudList {
-		d, err := v.GetVolumes()
+	if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
+		log.Debug("Getting volumes")
+		for n, v := range cloudList {
+			d, err := v.GetVolumes()
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				b.volumes[n] = d
+			}
+		}
+		err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
 		if err != nil {
 			errs = append(errs, err)
-		} else {
-			b.volumes[n] = d
 		}
 	}
-	err = b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
-	if err != nil {
-		errs = append(errs, err)
-	}
 
-	log.Debug("Getting instances")
-	for n, v := range cloudList {
-		d, err := v.GetInstances(b.volumes[n], b.networks[n], b.firewalls[n])
+	if len(items) == 0 || slices.Contains(items, CacheInvalidateInstance) {
+		log.Debug("Getting instances")
+		for n, v := range cloudList {
+			d, err := v.GetInstances(b.volumes[n], b.networks[n], b.firewalls[n])
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				b.instances[n] = d
+			}
+		}
+		err := b.cache.Store(path.Join(b.project, "instances"), b.instances)
 		if err != nil {
 			errs = append(errs, err)
-		} else {
-			b.instances[n] = d
 		}
 	}
-	err = b.cache.Store(path.Join(b.project, "instances"), b.instances)
-	if err != nil {
-		errs = append(errs, err)
-	}
 
-	log.Debug("Getting images")
-	for n, v := range cloudList {
-		d, err := v.GetImages()
+	if len(items) == 0 || slices.Contains(items, CacheInvalidateImage) {
+		log.Debug("Getting images")
+		for n, v := range cloudList {
+			d, err := v.GetImages()
+			if err != nil {
+				errs = append(errs, err)
+			} else {
+				b.images[n] = d
+			}
+		}
+		err := b.cache.Store(path.Join(b.project, "images"), b.images)
 		if err != nil {
 			errs = append(errs, err)
-		} else {
-			b.images[n] = d
 		}
 	}
-	err = b.cache.Store(path.Join(b.project, "images"), b.images)
-	if err != nil {
-		errs = append(errs, err)
-	}
 
-	if len(errs) == 0 {
+	if len(errs) == 0 && len(items) == 0 {
 		log.Debug("Storing metadata")
-		err = b.cache.Store(path.Join(b.project, "metadata"), cacheMetadata{
+		err := b.cache.Store(path.Join(b.project, "metadata"), cacheMetadata{
 			CacheUpdateTimestamp: time.Now(),
 		})
 		if err != nil {
@@ -313,4 +338,44 @@ func (b *backend) GetInventory() (*Inventory, error) {
 		Networks:  networks,
 		Firewalls: firewalls,
 	}, nil
+}
+
+func (b *backend) RefreshChangedInventory() error {
+	log := b.log.WithPrefix("RefreshChangedInventory")
+	log.Debug("Starting inventory refresh")
+	b.pollLock.Lock()
+	defer b.pollLock.Unlock()
+	log.Debug("Poll Lock obtained, obtaining invalidated items lock")
+	b.invalidatedLock.Lock()
+	defer b.invalidatedLock.Unlock()
+	log.Debug("Invalidated Lock obtained, inventory refresh started")
+	errs := b.poll(b.invalidated)
+	if len(errs) != 0 {
+		var errstring error
+		for _, e := range errs {
+			errstring = errors.Join(errstring, e)
+		}
+		return errstring
+	}
+	b.invalidated = []string{}
+	err := b.cache.Store(path.Join(b.project, "invalidated"), b.invalidated)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *backend) invalidate(items ...string) error {
+	log := b.log.WithPrefix("invalidateInventoryCache")
+	log.Debug("Invalidating items: %v", items)
+	b.invalidatedLock.Lock()
+	defer b.invalidatedLock.Unlock()
+	log.Debug("Invalidated Lock obtained, invalidating items")
+	b.invalidated = append(b.invalidated, items...)
+	err := b.cache.Store(path.Join(b.project, "invalidated"), b.invalidated)
+	if err != nil {
+		return err
+	}
+	log.Debug("Invalidated, returning")
+	return nil
 }

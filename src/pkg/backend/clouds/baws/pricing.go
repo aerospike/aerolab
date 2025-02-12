@@ -23,6 +23,7 @@ type volumePrice struct {
 		Attributes struct {
 			RegionCode    string `json:"regionCode"` // only if exact match
 			VolumeApiName string `json:"volumeApiName"`
+			StorageClass  string `json:"storageClass"`
 		} `json:"attributes"`
 	} `json:"product"`
 	Terms struct {
@@ -36,8 +37,8 @@ type volumePrice struct {
 }
 
 type volumePriceList struct {
-	prices []*volumePrice
-	ts     time.Time
+	Prices []*volumePrice
+	Ts     time.Time
 }
 
 func (s *b) GetVolumePrice(region string, volumeType string) (*backend.VolumePrice, error) {
@@ -115,8 +116,8 @@ func (s *b) putVolumePricesToCache(prices []*volumePrice) error {
 	}
 	defer fd.Close()
 	vp := &volumePriceList{
-		prices: prices,
-		ts:     time.Now(),
+		Prices: prices,
+		Ts:     time.Now(),
 	}
 	return json.NewEncoder(fd).Encode(vp)
 }
@@ -133,18 +134,22 @@ func (s *b) getVolumePricesFromCache() ([]*volumePrice, error) {
 	if err != nil {
 		return nil, err
 	}
-	if time.Since(vp.ts) > 24*time.Hour {
+	if time.Since(vp.Ts) > 24*time.Hour {
 		return nil, errors.New("cache expired")
 	}
-	return vp.prices, nil
+	return vp.Prices, nil
 }
 
 func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
+	log := s.log.WithPrefix("getVolumePricesFromAWS")
+	log.Detail("Start")
+	defer log.Detail("End")
 	cli, err := getPricingClient(s.credentials, aws.String("us-east-1"))
 	if err != nil {
 		return nil, err
 	}
 	// get volume prices
+	log.Detail("Getting EC2 volume prices")
 	paginator := pricing.NewGetProductsPaginator(cli, &pricing.GetProductsInput{
 		ServiceCode: aws.String("AmazonEC2"),
 		Filters: []types.Filter{
@@ -168,6 +173,39 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 			prices = append(prices, p)
 		}
 	}
+
+	// get EFS volume prices, fill in the prices, with volume type being SharedDisk_OneZone and SharedDisk_GeneralPurpose
+	log.Detail("Getting EFS volume prices")
+	paginator = pricing.NewGetProductsPaginator(cli, &pricing.GetProductsInput{
+		ServiceCode: aws.String("AmazonEFS"),
+		Filters: []types.Filter{
+			{
+				Type:  types.FilterTypeTermMatch,
+				Field: aws.String("productFamily"),
+				Value: aws.String("Storage"),
+			},
+		},
+	})
+	for paginator.HasMorePages() {
+		out, err := paginator.NextPage(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		// parse prices
+		for _, price := range out.PriceList {
+			p := &volumePrice{}
+			json.Unmarshal([]byte(price), &prices)
+			if p.Product.Attributes.StorageClass == "OneZone-General Purpose" {
+				p.Product.Attributes.VolumeApiName = "SharedDisk_OneZone"
+			} else if p.Product.Attributes.StorageClass == "General Purpose" {
+				p.Product.Attributes.VolumeApiName = "SharedDisk_GeneralPurpose"
+			} else {
+				continue
+			}
+			prices = append(prices, p)
+		}
+	}
+
 	return prices, nil
 }
 
@@ -253,8 +291,8 @@ func (s *b) putInstanceTypesToCache(types []*instanceType) error {
 	}
 	defer fd.Close()
 	itp := &instanceTypePriceList{
-		types: types,
-		ts:    time.Now(),
+		Types: types,
+		Ts:    time.Now(),
 	}
 	return json.NewEncoder(fd).Encode(itp)
 }
@@ -271,10 +309,10 @@ func (s *b) getInstanceTypesFromCache() ([]*instanceType, error) {
 	if err != nil {
 		return nil, err
 	}
-	if time.Since(itp.ts) > 24*time.Hour {
+	if time.Since(itp.Ts) > 24*time.Hour {
 		return nil, errors.New("cache expired")
 	}
-	return itp.types, nil
+	return itp.Types, nil
 }
 
 func (s *b) getSpotPricesFromAWS(cli *ec2.Client) (map[string]float64, error) {
@@ -500,8 +538,8 @@ type instanceTypePrice struct {
 }
 
 type instanceTypePriceList struct {
-	types []*instanceType
-	ts    time.Time
+	Types []*instanceType
+	Ts    time.Time
 }
 
 type instanceType struct {

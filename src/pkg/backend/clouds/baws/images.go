@@ -425,7 +425,7 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 		log.Detail("ImageList empty, returning")
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateImage)
 	volIds := make(map[string]backend.ImageList)
 	for _, volume := range images {
 		volume := volume
@@ -500,7 +500,7 @@ func (s *b) ImagesAddTags(images backend.ImageList, tags map[string]string) erro
 	if len(images) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateImage)
 	imageIds := make(map[string][]string)
 	for _, image := range images {
 		if _, ok := imageIds[image.ZoneID]; !ok {
@@ -540,7 +540,7 @@ func (s *b) ImagesRemoveTags(images backend.ImageList, tagKeys []string) error {
 	if len(images) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateImage)
 	imageIds := make(map[string][]string)
 	for _, image := range images {
 		if _, ok := imageIds[image.ZoneID]; !ok {
@@ -641,7 +641,7 @@ func (s *b) CreateImage(input *backend.CreateImageInput, waitDur time.Duration) 
 	if input.SizeGiB > 0 {
 		bdm.Ebs.VolumeSize = aws.Int32(int32(input.SizeGiB))
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateImage)
 	resp, err := cli.CreateImage(context.TODO(), &ec2.CreateImageInput{
 		Name:        aws.String(input.Name),
 		InstanceId:  aws.String(input.Instance.InstanceID),

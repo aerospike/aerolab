@@ -10,9 +10,6 @@ import (
 	"github.com/rglonek/logger"
 )
 
-// TODO invalidate cache on startup on certain conditions - like some instances expired
-// TODO force-invalidate cache if state seems to mismatch disk cache
-
 type Config struct {
 	RootDir        string              `yaml:"RootDir" json:"RootDir"`
 	Cache          bool                `yaml:"Cache" json:"Cache"`
@@ -39,8 +36,13 @@ func (b *backend) AddRegion(backendType BackendType, names ...string) error {
 	if !b.cache.Enabled {
 		return nil
 	}
-	b.cache.Invalidate()
-	return b.ForceRefreshInventory()
+	b.pollLock.Lock()
+	defer b.pollLock.Unlock()
+	b.invalidatedLock.Lock()
+	defer b.invalidatedLock.Unlock()
+	b.invalidated = CacheInvalidateAll
+	b.cache.Delete()
+	return nil
 }
 
 func (b *backend) RemoveRegion(backendType BackendType, names ...string) error {
@@ -51,24 +53,43 @@ func (b *backend) RemoveRegion(backendType BackendType, names ...string) error {
 	if !b.cache.Enabled {
 		return nil
 	}
-	b.cache.Invalidate()
-	return b.ForceRefreshInventory()
+	b.pollLock.Lock()
+	defer b.pollLock.Unlock()
+	b.invalidatedLock.Lock()
+	defer b.invalidatedLock.Unlock()
+	b.invalidated = CacheInvalidateAll
+	b.cache.Delete()
+	return nil
 }
 
 func (b *backend) ListEnabledRegions(backendType BackendType) (name []string, err error) {
 	return cloudList[backendType].ListEnabledZones()
 }
 func (b *backend) pollTimer() {
+	log := b.log.WithPrefix("pollTimer")
 	for {
+		log.Debug("Sleeping for 1 hour")
 		time.Sleep(time.Hour)
-		errs := b.poll()
+		log.Debug("Waking up")
+		b.pollLock.Lock()
+		log.Debug("Lock obtained, inventory refresh started")
+		errs := b.poll(nil)
+		b.pollLock.Unlock()
 		for _, err := range errs {
 			b.log.Error("Inventory refresh failure: %s", err)
+		}
+		if len(errs) == 0 {
+			log.Debug("Inventory refresh completed successfully")
 		}
 	}
 }
 func (b *backend) ForceRefreshInventory() error {
-	errs := b.poll()
+	log := b.log.WithPrefix("ForceRefreshInventory")
+	log.Debug("Starting inventory refresh")
+	b.pollLock.Lock()
+	defer b.pollLock.Unlock()
+	log.Debug("Lock obtained, inventory refresh started")
+	errs := b.poll(nil)
 	if errs == nil {
 		return nil
 	}
@@ -88,7 +109,7 @@ func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) 
 	}
 	b := getBackendObject(project, c)
 	for cname, cloud := range cloudList {
-		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.cache.Invalidate)
+		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.invalidate)
 		if err != nil {
 			return nil, err
 		}
