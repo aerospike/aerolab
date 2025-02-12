@@ -171,7 +171,7 @@ func (s *b) NetworksDelete(networks backend.NetworkList, waitDur time.Duration) 
 	if len(networks) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateNetwork)
 	// first delete subnets
 	subnets := backend.SubnetList{}
 	for _, network := range networks {
@@ -229,7 +229,7 @@ func (s *b) NetworksDeleteSubnets(subnets backend.SubnetList, waitDur time.Durat
 	if len(subnets) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateNetwork)
 	list := make(map[string]backend.SubnetList)
 	for _, subnet := range subnets {
 		subnet := subnet
@@ -277,7 +277,7 @@ func (s *b) NetworksAddTags(networks backend.NetworkList, tags map[string]string
 	if len(networks) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateNetwork)
 	netIds := make(map[string][]string)
 	for _, net := range networks {
 		if _, ok := netIds[net.ZoneID]; !ok {
@@ -317,7 +317,7 @@ func (s *b) NetworksRemoveTags(networks backend.NetworkList, tagKeys []string) e
 	if len(networks) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateNetwork)
 	netIds := make(map[string][]string)
 	for _, net := range networks {
 		if _, ok := netIds[net.ZoneID]; !ok {

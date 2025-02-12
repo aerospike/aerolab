@@ -16,7 +16,7 @@ type Cache struct {
 
 var ErrNoCacheFile = errors.New("cache file not found")
 
-func (b *Cache) Invalidate() error {
+func (b *Cache) Delete() error {
 	if b == nil || !b.Enabled || b.Dir == "" {
 		return nil
 	}

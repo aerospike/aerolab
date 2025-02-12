@@ -21,3 +21,7 @@ func (s *backend) CreateInstances(input *CreateInstanceInput, waitDur time.Durat
 func (s *backend) CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error) {
 	return cloudList[input.BackendType].CreateInstancesGetPrice(input)
 }
+
+func (s *backend) CreateVolumeGetPrice(input *CreateVolumeInput) (costGB float64, err error) {
+	return cloudList[input.BackendType].CreateVolumeGetPrice(input)
+}

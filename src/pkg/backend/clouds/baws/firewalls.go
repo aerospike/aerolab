@@ -139,7 +139,7 @@ func (s *b) FirewallsUpdate(fw backend.FirewallList, ports backend.PortsIn, wait
 	if len(fw) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
 	fwIds := make(map[string]backend.FirewallList)
 	for _, firewall := range fw {
 		firewall := firewall
@@ -264,7 +264,7 @@ func (s *b) FirewallsDelete(fw backend.FirewallList, waitDur time.Duration) erro
 	if len(fw) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -311,7 +311,7 @@ func (s *b) FirewallsAddTags(fw backend.FirewallList, tags map[string]string, wa
 	if len(fw) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -351,7 +351,7 @@ func (s *b) FirewallsRemoveTags(fw backend.FirewallList, tagKeys []string, waitD
 	if len(fw) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -443,7 +443,7 @@ func (s *b) CreateFirewall(input *backend.CreateFirewallInput, waitDur time.Dura
 			BackendSpecific: nil, // unused
 		},
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
 	cli, err := getEc2Client(s.credentials, &input.Network.ZoneName)
 	if err != nil {
 		return output, err

@@ -27,7 +27,7 @@ type b struct {
 	volumes             backend.VolumeList
 	images              backend.ImageList
 	workDir             string
-	invalidateCacheFunc func() error
+	invalidateCacheFunc func(names ...string) error
 }
 
 func init() {
@@ -42,7 +42,7 @@ func (s *b) SetInventory(networks backend.NetworkList, firewalls backend.Firewal
 	s.images = images
 }
 
-func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func() error) error {
+func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func(names ...string) error) error {
 	s.configDir = dir
 	s.credentials = &credentials.AWS
 	s.project = project

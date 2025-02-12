@@ -7,8 +7,26 @@ import (
 	"time"
 )
 
-type CreateVolumeInput struct{}
-type CreateVolumeOutput struct{}
+type CreateVolumeInput struct {
+	BackendType       BackendType       `yaml:"backendType" json:"backendType"`
+	VolumeType        VolumeType        `yaml:"volumeType" json:"volumeType"`
+	Name              string            `yaml:"name" json:"name"`
+	Description       string            `yaml:"description" json:"description"` // from description or tags if no description field
+	SizeGiB           int               `yaml:"sizeGiB" json:"sizeGiB"`
+	Placement         string            `yaml:"placement" json:"placement"` // vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, zone: will use the default VPC, first subnet in the zone
+	Iops              int               `yaml:"iops" json:"iops"`
+	Throughput        int               `yaml:"throughput" json:"throughput"` // bytes/second
+	Owner             string            `yaml:"owner" json:"owner"`           // from tags
+	Tags              map[string]string `yaml:"tags" json:"tags"`             // all tags
+	Encrypted         bool              `yaml:"encrypted" json:"encrypted"`
+	Expires           time.Time         `yaml:"expires" json:"expires"` // from tags
+	DiskType          string            `yaml:"diskType" json:"diskType"`
+	SharedDiskOneZone bool              `yaml:"sharedDiskOneZone" json:"sharedDiskOneZone"`
+}
+
+type CreateVolumeOutput struct {
+	Volume Volume
+}
 
 type VolumeType int
 

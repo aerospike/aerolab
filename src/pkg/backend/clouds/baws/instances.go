@@ -240,7 +240,7 @@ func (s *b) InstancesAddTags(instances backend.InstanceList, tags map[string]str
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	instanceIds := make(map[string][]string)
 	for _, instance := range instances {
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
@@ -280,7 +280,7 @@ func (s *b) InstancesRemoveTags(instances backend.InstanceList, tagKeys []string
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	instanceIds := make(map[string][]string)
 	for _, instance := range instances {
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
@@ -319,7 +319,8 @@ func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Dura
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
 	instanceIds := make(map[string][]string)
 	clis := make(map[string]*ec2.Client)
 	for _, instance := range instances {
@@ -371,7 +372,7 @@ func (s *b) InstancesStop(instances backend.InstanceList, force bool, waitDur ti
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	instanceIds := make(map[string][]string)
 	clis := make(map[string]*ec2.Client)
 	for _, instance := range instances {
@@ -447,7 +448,7 @@ func (s *b) InstancesStart(instances backend.InstanceList, waitDur time.Duration
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	instanceIds := make(map[string][]string)
 	clis := make(map[string]*ec2.Client)
 	for _, instance := range instances {
@@ -612,7 +613,7 @@ func (s *b) InstancesAssignFirewalls(instances backend.InstanceList, fw backend.
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	instanceIds := make(map[string][]*backend.Instance)
 	clis := make(map[string]*ec2.Client)
 	for _, instance := range instances {
@@ -664,7 +665,7 @@ func (s *b) InstancesRemoveFirewalls(instances backend.InstanceList, fw backend.
 	if len(instances) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	instanceIds := make(map[string][]*backend.Instance)
 	clis := make(map[string]*ec2.Client)
 	for _, instance := range instances {
@@ -716,7 +717,7 @@ func (s *b) InstancesRemoveFirewalls(instances backend.InstanceList, fw backend.
 }
 
 func (s *b) CreateInstancesGetPrice(input *backend.CreateInstanceInput) (costPPH, costGB float64, err error) {
-	_, _, zone, err := s.resolveNetworkPlacement(input)
+	_, _, zone, err := s.resolveNetworkPlacement(input.NetworkPlacement)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -750,11 +751,11 @@ func (s *b) CreateInstancesGetPrice(input *backend.CreateInstanceInput) (costPPH
 	return costPPH, costGB, nil
 }
 
-func (s *b) resolveNetworkPlacement(input *backend.CreateInstanceInput) (vpc *backend.Network, subnet *backend.Subnet, zone string, err error) {
+func (s *b) resolveNetworkPlacement(placement string) (vpc *backend.Network, subnet *backend.Subnet, zone string, err error) {
 	switch {
-	case strings.HasPrefix(input.NetworkPlacement, "vpc-"):
+	case strings.HasPrefix(placement, "vpc-"):
 		for _, n := range s.networks {
-			if n.NetworkId == input.NetworkPlacement {
+			if n.NetworkId == placement {
 				vpc = n
 				if len(vpc.Subnets) > 0 {
 					subnet = vpc.Subnets[0]
@@ -764,16 +765,16 @@ func (s *b) resolveNetworkPlacement(input *backend.CreateInstanceInput) (vpc *ba
 			}
 		}
 		if vpc == nil {
-			return nil, nil, "", fmt.Errorf("vpc %s not found", input.NetworkPlacement)
+			return nil, nil, "", fmt.Errorf("vpc %s not found", placement)
 		}
 		if subnet == nil {
-			return nil, nil, "", fmt.Errorf("no subnets found in vpc %s", input.NetworkPlacement)
+			return nil, nil, "", fmt.Errorf("no subnets found in vpc %s", placement)
 		}
 
-	case strings.HasPrefix(input.NetworkPlacement, "subnet-"):
+	case strings.HasPrefix(placement, "subnet-"):
 		for _, n := range s.networks {
 			for _, s := range n.Subnets {
-				if s.SubnetId == input.NetworkPlacement {
+				if s.SubnetId == placement {
 					vpc = n
 					subnet = s
 					zone = subnet.ZoneName
@@ -785,11 +786,11 @@ func (s *b) resolveNetworkPlacement(input *backend.CreateInstanceInput) (vpc *ba
 			}
 		}
 		if subnet == nil {
-			return nil, nil, "", fmt.Errorf("subnet %s not found", input.NetworkPlacement)
+			return nil, nil, "", fmt.Errorf("subnet %s not found", placement)
 		}
 
 	default:
-		zone = input.NetworkPlacement
+		zone = placement
 		for _, n := range s.networks {
 			if !n.IsDefault {
 				continue
@@ -818,7 +819,7 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 	log.Detail("Start")
 	defer log.Detail("End")
 
-	vpc, subnet, zone, err := s.resolveNetworkPlacement(input)
+	vpc, subnet, zone, err := s.resolveNetworkPlacement(input.NetworkPlacement)
 	if err != nil {
 		return nil, err
 	}
@@ -1034,7 +1035,8 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 		})
 	}
 
-	defer s.invalidateCacheFunc()
+	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
+	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
 	// connect
 	cli, err := getEc2Client(s.credentials, &zone)
 	if err != nil {
