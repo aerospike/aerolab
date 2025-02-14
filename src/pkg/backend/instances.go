@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
@@ -32,7 +33,19 @@ type CreateInstanceInput struct {
 	// volume types and sizes, backend-specific definitions
 	// aws format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=gp2,size=20 --disk type=gp3,size=100,iops=5000,throughput=200,count=2
 	// gcp format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2
-	Disks []string `yaml:"disks" json:"disks"`
+	Disks     []string     `yaml:"disks" json:"disks"`
+	CustomDNS *InstanceDNS `yaml:"customDNS" json:"customDNS"`
+}
+
+type InstanceDNS struct {
+	DomainID   string `yaml:"domainID" json:"domainID"`     // the ID of the domain, as defined for DomainID
+	DomainName string `yaml:"domainName" json:"domainName"` // the name of the domain, as defined for DomainID
+	Name       string `yaml:"name" json:"name"`             // the name to assign the instance, if not set, the instance ID will be used
+	Region     string `yaml:"region" json:"region"`         // the region to use for the assignment
+}
+
+func (i *InstanceDNS) GetFQDN() string {
+	return fmt.Sprintf("%s.%s", i.Name, i.DomainName)
 }
 
 type CreateInstanceOutput struct {
@@ -56,6 +69,14 @@ type Instances interface {
 	WithNodeNo(number ...int) Instances
 	// if a tag only has key, instances that contain the tag will be returned, if it has a value, also the value will be matched against
 	WithTags(tags map[string]string) Instances
+	// filter by expiry date
+	WithExpired(expired bool) Instances
+	// filter by state
+	WithState(states ...LifeCycleState) Instances
+	// filter by not state
+	WithNotState(states ...LifeCycleState) Instances
+	// filter by instance ID
+	WithInstanceID(instanceIDs ...string) Instances
 	// number of instances in selector
 	Count() int
 	// expose instance details to the caller
@@ -130,11 +151,12 @@ type Instance struct {
 	CreationTime     time.Time         `yaml:"creationTime" json:"creationTime"`
 	EstimatedCostUSD Cost              `yaml:"estimateCost" json:"estimatedCost"`
 	AttachedVolumes  Volumes           `yaml:"attachedVolumes" json:"attachedVolumes"`
-	Owner            string            `yaml:"owner" json:"owner"`                     // from tags
-	InstanceState    LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"`   // states, cloud or custom
-	Tags             map[string]string `yaml:"tags" json:"tags"`                       // all tags
-	Expires          time.Time         `yaml:"expires" json:"expires"`                 // from tags
-	Description      string            `yaml:"description" json:"description"`         // from description or tags if no description field
+	Owner            string            `yaml:"owner" json:"owner"`                   // from tags
+	InstanceState    LifeCycleState    `yaml:"lifeCycleState" json:"lifeCycleState"` // states, cloud or custom
+	Tags             map[string]string `yaml:"tags" json:"tags"`                     // all tags
+	Expires          time.Time         `yaml:"expires" json:"expires"`               // from tags
+	Description      string            `yaml:"description" json:"description"`       // from description or tags if no description field
+	CustomDNS        *InstanceDNS      `yaml:"customDNS" json:"customDNS"`
 	BackendSpecific  interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
@@ -334,6 +356,45 @@ NEXTINST:
 	return ret
 }
 
+func (v InstanceList) WithExpired(expired bool) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if !expired && instance.Expires.Before(time.Now()) {
+			continue
+		}
+		if expired && instance.Expires.After(time.Now()) {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+func (v InstanceList) WithState(states ...LifeCycleState) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if !slices.Contains(states, instance.InstanceState) {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+func (v InstanceList) WithNotState(states ...LifeCycleState) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if slices.Contains(states, instance.InstanceState) {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
 func (v InstanceList) Describe() InstanceList {
 	return v
 }
@@ -494,4 +555,33 @@ func (v InstanceList) RemoveFirewalls(fw FirewallList) error {
 	}
 	wait.Wait()
 	return retErr
+}
+
+func (b *backend) CleanupDNS() error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].CleanupDNS()
+			if err != nil {
+				retErr = err
+			}
+		}()
+	}
+	wait.Wait()
+	return retErr
+}
+
+func (v InstanceList) WithInstanceID(instanceIDs ...string) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if !slices.Contains(instanceIDs, instance.InstanceID) {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
 }

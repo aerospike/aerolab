@@ -29,6 +29,7 @@ var imageOwners = map[string]string{
 	"debian": "136693071363",
 }
 
+/*
 func getImageUser(osName string, osVersion string) string {
 	switch osName {
 	case "debian":
@@ -48,6 +49,7 @@ func getImageUser(osName string, osVersion string) string {
 	}
 	return "root"
 }
+*/
 
 type imageData struct {
 	OSName       string
@@ -253,17 +255,21 @@ func (s *b) GetImages() (backend.ImageList, error) {
 				errs = errors.Join(errs, err)
 				return
 			}
-			paginator := ec2.NewDescribeImagesPaginator(cli, &ec2.DescribeImagesInput{
-				Filters: []types.Filter{
-					{
-						Name:   aws.String("tag-key"),
-						Values: []string{TAG_AEROLAB_VERSION},
-					}, {
-						Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
-						Values: []string{s.project},
-					},
+			listFilters := []types.Filter{
+				{
+					Name:   aws.String("tag-key"),
+					Values: []string{TAG_AEROLAB_VERSION},
 				},
-				Owners: []string{"self"},
+			}
+			if !s.listAllProjects {
+				listFilters = append(listFilters, types.Filter{
+					Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
+					Values: []string{s.project},
+				})
+			}
+			paginator := ec2.NewDescribeImagesPaginator(cli, &ec2.DescribeImagesInput{
+				Filters: listFilters,
+				Owners:  []string{"self"},
 			})
 			for paginator.HasMorePages() {
 				out, err := paginator.NextPage(context.TODO())
@@ -402,7 +408,7 @@ func (s *b) GetImages() (backend.ImageList, error) {
 					State:        state,
 					OSName:       image.OSName,
 					OSVersion:    image.OSVersion,
-					Username:     getImageUser(image.OSName, image.OSVersion),
+					Username:     "root", // getImageUser(image.OSName, image.OSVersion),
 					BackendSpecific: &imageDetail{
 						SnapshotID:     aws.ToString(snap.SnapshotId),
 						RootDeviceName: aws.ToString(vol.RootDeviceName),

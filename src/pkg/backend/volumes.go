@@ -69,6 +69,8 @@ type Volumes interface {
 	WithVolumeID(ID ...string) Volumes
 	// tag filter: if value is "", it will only check if tag key exists, not it's value
 	WithTags(tags map[string]string) Volumes
+	// filter by expiry date
+	WithExpired(expired bool) Volumes
 	// number of volumes in selector
 	Count() int
 	// expose instance details to the caller
@@ -216,6 +218,21 @@ NEXTVOL:
 					continue NEXTVOL
 				}
 			}
+		}
+		ret = append(ret, volume)
+	}
+	return ret
+}
+
+func (v VolumeList) WithExpired(expired bool) Volumes {
+	ret := VolumeList{}
+	for _, volume := range v {
+		volume := volume
+		if !expired && volume.Expires.Before(time.Now()) {
+			continue
+		}
+		if expired && volume.Expires.After(time.Now()) {
+			continue
 		}
 		ret = append(ret, volume)
 	}

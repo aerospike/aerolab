@@ -48,16 +48,20 @@ func (s *b) GetVolumes() (backend.VolumeList, error) {
 				errs = errors.Join(errs, err)
 				return
 			}
-			paginator := ec2.NewDescribeVolumesPaginator(cli, &ec2.DescribeVolumesInput{
-				Filters: []types.Filter{
-					{
-						Name:   aws.String("tag-key"),
-						Values: []string{TAG_AEROLAB_VERSION},
-					}, {
-						Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
-						Values: []string{s.project},
-					},
+			listFilters := []types.Filter{
+				{
+					Name:   aws.String("tag-key"),
+					Values: []string{TAG_AEROLAB_VERSION},
 				},
+			}
+			if !s.listAllProjects {
+				listFilters = append(listFilters, types.Filter{
+					Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
+					Values: []string{s.project},
+				})
+			}
+			paginator := ec2.NewDescribeVolumesPaginator(cli, &ec2.DescribeVolumesInput{
+				Filters: listFilters,
 			})
 			for paginator.HasMorePages() {
 				out, err := paginator.NextPage(context.TODO())
@@ -155,7 +159,7 @@ func (s *b) GetVolumes() (backend.VolumeList, error) {
 					if _, ok := tags[TAG_AEROLAB_VERSION]; !ok {
 						continue
 					}
-					if project, ok := tags[TAG_AEROLAB_PROJECT]; !ok || project != s.project {
+					if project, ok := tags[TAG_AEROLAB_PROJECT]; !ok || project != s.project && !s.listAllProjects {
 						continue
 					}
 					expires, _ := time.Parse(time.RFC3339, tags[TAG_EXPIRES])

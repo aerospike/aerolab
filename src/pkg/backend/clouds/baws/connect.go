@@ -8,9 +8,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/efs"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/pricing"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
 )
 
 func getPricingClient(creds *clouds.AWS, region *string) (*pricing.Client, error) {
@@ -60,5 +64,74 @@ func getEfsClient(creds *clouds.AWS, region *string) (client *efs.Client, err er
 		return nil, err
 	}
 	client = efs.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func GetEc2Client(credentials *clouds.Credentials, region *string) (client *ec2.Client, err error) {
+	var creds *clouds.AWS
+	if credentials != nil {
+		creds = &credentials.AWS
+	}
+	return getEc2Client(creds, region)
+}
+
+func GetEksClient(credentials *clouds.Credentials, region *string) (client *eks.Client, err error) {
+	var creds *clouds.AWS
+	if credentials != nil {
+		creds = &credentials.AWS
+	}
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = eks.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func GetCloudformationClient(credentials *clouds.Credentials, region *string) (client *cloudformation.Client, err error) {
+	var creds *clouds.AWS
+	if credentials != nil {
+		creds = &credentials.AWS
+	}
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = cloudformation.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func GetIamClient(credentials *clouds.Credentials, region *string) (client *iam.Client, err error) {
+	var creds *clouds.AWS
+	if credentials != nil {
+		creds = &credentials.AWS
+	}
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = iam.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func getRoute53Client(creds *clouds.AWS, region *string) (client *route53.Client, err error) {
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = route53.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func GetRoute53Client(credentials *clouds.Credentials, region *string) (client *route53.Client, err error) {
+	var creds *clouds.AWS
+	if credentials != nil {
+		creds = &credentials.AWS
+	}
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = route53.NewFromConfig(*cfg)
 	return client, nil
 }

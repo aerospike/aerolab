@@ -48,7 +48,7 @@ func (s *b) GetNetworks() (backend.NetworkList, error) {
 						tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
 					}
 					// if aerolab managed, but wrong project, ignore
-					if v, ok := tags[TAG_AEROLAB_PROJECT]; ok && v != s.project {
+					if v, ok := tags[TAG_AEROLAB_PROJECT]; ok && v != s.project && !s.listAllProjects {
 						continue
 					}
 					managed := false
@@ -107,7 +107,7 @@ func (s *b) GetNetworks() (backend.NetworkList, error) {
 						tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
 					}
 					// if aerolab managed, but wrong project, ignore
-					if v, ok := tags[TAG_AEROLAB_PROJECT]; ok && v != s.project {
+					if v, ok := tags[TAG_AEROLAB_PROJECT]; ok && v != s.project && !s.listAllProjects {
 						continue
 					}
 					managed := false
