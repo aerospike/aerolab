@@ -132,6 +132,7 @@ func (i *IP) Routable() string {
 // any backend returning this struct, must implement the InstanceAction interface on it
 type Instance struct {
 	ClusterName      string            `yaml:"clusterName" json:"clusterName"`
+	ClusterUUID      string            `yaml:"clusterUUID" json:"clusterUUID"`
 	NodeNo           int               `yaml:"nodeNo" json:"nodeNo"`
 	IP               IP                `yaml:"IP" json:"IP"`
 	ImageID          string            `yaml:"imageID" json:"imageID"`

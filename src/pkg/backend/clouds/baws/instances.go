@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	rtypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
 	"golang.org/x/crypto/ssh"
 )
@@ -140,6 +141,7 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 	}
 	return &backend.Instance{
 		ClusterName:  tags[TAG_CLUSTER_NAME],
+		ClusterUUID:  tags[TAG_CLUSTER_UUID],
 		NodeNo:       toInt(tags[TAG_NODE_NO]),
 		InstanceID:   aws.ToString(inst.InstanceId),
 		BackendType:  backend.BackendTypeAWS,
@@ -916,10 +918,9 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 
 	// if cluster with given ClusterName already exists in s.instances, find last node number, so we know where to count up for the instances we will be creating
 	lastNodeNo := 0
-	for _, instance := range s.instances {
-		if instance.ClusterName != input.ClusterName {
-			continue
-		}
+	clusterUUID := uuid.New().String()
+	for _, instance := range s.instances.WithClusterName(input.ClusterName).Describe() {
+		clusterUUID = instance.ClusterUUID
 		if instance.NodeNo > lastNodeNo {
 			lastNodeNo = instance.NodeNo
 		}
@@ -1114,6 +1115,10 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 		{
 			Key:   aws.String(TAG_START_TIME),
 			Value: aws.String(time.Now().Format(time.RFC3339)),
+		},
+		{
+			Key:   aws.String(TAG_CLUSTER_UUID),
+			Value: aws.String(clusterUUID),
 		},
 	}
 	if input.CustomDNS != nil {
