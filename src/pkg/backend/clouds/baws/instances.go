@@ -1,11 +1,11 @@
 package baws
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -24,6 +24,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
+	rtypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/lithammer/shortuuid"
 	"golang.org/x/crypto/ssh"
 )
@@ -124,6 +126,18 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 			fwPointers = append(fwPointers, fwx.Describe()[0])
 		}
 	}
+	var customDns *backend.InstanceDNS
+	if tags[TAG_DNS_DOMAIN_NAME] != "" {
+		customDns = &backend.InstanceDNS{
+			Name:       tags[TAG_DNS_NAME],
+			DomainID:   tags[TAG_DNS_DOMAIN_ID],
+			DomainName: tags[TAG_DNS_DOMAIN_NAME],
+			Region:     tags[TAG_DNS_REGION],
+		}
+		if customDns.Name == "" {
+			customDns.Name = aws.ToString(inst.InstanceId)
+		}
+	}
 	return &backend.Instance{
 		ClusterName:  tags[TAG_CLUSTER_NAME],
 		NodeNo:       toInt(tags[TAG_NODE_NO]),
@@ -164,6 +178,7 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 			DeployedVolumes: dvols,
 			AttachedVolumes: avols,
 		},
+		CustomDNS: customDns,
 		BackendSpecific: &instanceDetail{
 			SecurityGroups:        inst.SecurityGroups,
 			ClientToken:           aws.ToString(inst.ClientToken),
@@ -199,16 +214,20 @@ func (s *b) GetInstances(volumes backend.VolumeList, networkList backend.Network
 				errs = errors.Join(errs, err)
 				return
 			}
-			paginator := ec2.NewDescribeInstancesPaginator(cli, &ec2.DescribeInstancesInput{
-				Filters: []types.Filter{
-					{
-						Name:   aws.String("tag-key"),
-						Values: []string{TAG_AEROLAB_VERSION},
-					}, {
-						Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
-						Values: []string{s.project},
-					},
+			listFilters := []types.Filter{
+				{
+					Name:   aws.String("tag-key"),
+					Values: []string{TAG_AEROLAB_VERSION},
 				},
+			}
+			if !s.listAllProjects {
+				listFilters = append(listFilters, types.Filter{
+					Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
+					Values: []string{s.project},
+				})
+			}
+			paginator := ec2.NewDescribeInstancesPaginator(cli, &ec2.DescribeInstancesInput{
+				Filters: listFilters,
 			})
 			for paginator.HasMorePages() {
 				out, err := paginator.NextPage(context.TODO())
@@ -319,10 +338,23 @@ func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Dura
 	if len(instances) == 0 {
 		return nil
 	}
+
+	removeSSHKey := false
+	if s.instances.WithBackendType(backend.BackendTypeAWS).WithNotState(backend.LifeCycleStateTerminating, backend.LifeCycleStateTerminated).Count() == instances.Count() {
+		removeSSHKey = true
+	}
+	keyNames := []string{}
+	for _, instance := range instances {
+		if !slices.Contains(keyNames, instance.SSHKeyName) {
+			keyNames = append(keyNames, instance.SSHKeyName)
+		}
+	}
+
 	defer s.invalidateCacheFunc(backend.CacheInvalidateInstance)
 	defer s.invalidateCacheFunc(backend.CacheInvalidateVolume)
 	instanceIds := make(map[string][]string)
 	clis := make(map[string]*ec2.Client)
+	zoneDNS := []*backend.InstanceDNS{}
 	for _, instance := range instances {
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
 			instanceIds[instance.ZoneID] = []string{}
@@ -333,7 +365,47 @@ func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Dura
 			clis[instance.ZoneID] = cli
 		}
 		instanceIds[instance.ZoneID] = append(instanceIds[instance.ZoneID], instance.InstanceID)
+		if instance.CustomDNS != nil {
+			zoneDNS = append(zoneDNS, instance.CustomDNS)
+		}
 	}
+
+	// cleanup dns records in the background
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if len(zoneDNS) == 0 {
+			return
+		}
+		cli, err := getRoute53Client(s.credentials, &zoneDNS[0].Region)
+		if err != nil {
+			log.Warn("Failed to get route53 client, DNS will not be cleaned up: %s", err)
+			return
+		}
+		for _, dns := range zoneDNS {
+			log.Detail("zone=%s start DNS cleanup", dns.Region)
+			defer log.Detail("zone=%s end DNS cleanup", dns.Region)
+			_, err = cli.ChangeResourceRecordSets(context.TODO(), &route53.ChangeResourceRecordSetsInput{
+				HostedZoneId: aws.String(dns.DomainID),
+				ChangeBatch: &rtypes.ChangeBatch{
+					Changes: []rtypes.Change{
+						{
+							Action: rtypes.ChangeActionDelete,
+							ResourceRecordSet: &rtypes.ResourceRecordSet{
+								Name: aws.String(dns.GetFQDN()),
+							},
+						},
+					},
+				},
+			})
+			if err != nil {
+				log.Warn("Failed to delete DNS record %s, DNS will not be cleaned up: %s", dns.GetFQDN(), err)
+			}
+		}
+	}()
+	defer wg.Wait()
+
 	for zone, ids := range instanceIds {
 		log.Detail("zone=%s start", zone)
 		defer log.Detail("zone=%s end", zone)
@@ -344,6 +416,7 @@ func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Dura
 			return err
 		}
 	}
+
 	if waitDur > 0 {
 		for zone, ids := range instanceIds {
 			log.Detail("zone=%s wait: start", zone)
@@ -361,6 +434,16 @@ func (s *b) InstancesTerminate(instances backend.InstanceList, waitDur time.Dura
 				return errors.New("wait timeout")
 			}
 		}
+	}
+
+	// if no more instances exist for this project, delete the ssh key from amazon and locally from filepath.Join(s.sshKeysDir, s.project)
+	if removeSSHKey {
+		log.Detail("Remove SSH keys as no more instances exist for this project")
+		for _, keyName := range keyNames {
+			os.Remove(filepath.Join(s.sshKeysDir, keyName))
+			os.Remove(filepath.Join(s.sshKeysDir, keyName+".pub"))
+		}
+		log.Detail("SSH keys removed")
 	}
 	return nil
 }
@@ -531,7 +614,7 @@ func (s *b) InstancesExec(instances backend.InstanceList, e *backend.ExecInput) 
 			outl.Unlock()
 			return
 		}
-		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, i.ClusterName))
+		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, i.SSHKeyName))
 		if err != nil {
 			outl.Lock()
 			out = append(out, &backend.ExecOutput{
@@ -590,7 +673,7 @@ func (s *b) InstancesGetSftpConfig(instances backend.InstanceList, username stri
 		if i.InstanceState != backend.LifeCycleStateRunning {
 			return nil, errors.New("instance not running")
 		}
-		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, i.ClusterName))
+		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, i.SSHKeyName))
 		if err != nil {
 			return nil, errors.New("required key not found")
 		}
@@ -819,6 +902,11 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 	log.Detail("Start")
 	defer log.Detail("End")
 
+	// early check - DNS
+	if input.CustomDNS != nil && input.CustomDNS.Name != "" && input.Nodes > 1 {
+		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", input.CustomDNS.Name)
+	}
+
 	vpc, subnet, zone, err := s.resolveNetworkPlacement(input.NetworkPlacement)
 	if err != nil {
 		return nil, err
@@ -1028,6 +1116,25 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 			Value: aws.String(time.Now().Format(time.RFC3339)),
 		},
 	}
+	if input.CustomDNS != nil {
+		awsTags = append(awsTags, types.Tag{
+			Key:   aws.String(TAG_DNS_NAME),
+			Value: aws.String(input.CustomDNS.Name),
+		})
+		awsTags = append(awsTags, types.Tag{
+			Key:   aws.String(TAG_DNS_REGION),
+			Value: aws.String(input.CustomDNS.Region),
+		})
+		awsTags = append(awsTags, types.Tag{
+			Key:   aws.String(TAG_DNS_DOMAIN_ID),
+			Value: aws.String(input.CustomDNS.DomainID),
+		})
+		awsTags = append(awsTags, types.Tag{
+			Key:   aws.String(TAG_DNS_DOMAIN_NAME),
+			Value: aws.String(input.CustomDNS.DomainName),
+		})
+
+	}
 	for k, v := range input.Tags {
 		awsTags = append(awsTags, types.Tag{
 			Key:   aws.String(k),
@@ -1046,19 +1153,14 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 	// resolve SSHKeyName
 	sshKeyName := input.SSHKeyName
 	if input.SSHKeyName == "" {
-		sshKeyName = fmt.Sprintf("aerolab-%s-%s", s.project, input.ClusterName)
+		sshKeyName = s.project
 	}
+	sshKeyPath := filepath.Join(s.sshKeysDir, sshKeyName)
 
 	// if key does not exist in aws, create it
-	if _, err := os.Stat(filepath.Join(s.sshKeysDir, input.ClusterName)); os.IsNotExist(err) {
-		// check if key exists in AWS and delete it if found
-		_, err = cli.DeleteKeyPair(context.Background(), &ec2.DeleteKeyPairInput{
-			KeyName: aws.String(sshKeyName),
-		})
-		if err != nil {
-			s.log.Debug("Error deleting key pair %s: %v", sshKeyName, err)
-		}
-
+	var publicKeyBytes []byte
+	if _, err := os.Stat(sshKeyPath); os.IsNotExist(err) {
+		log.Detail("SSH key %s does not exist, creating it", sshKeyName)
 		// generate new SSH key pair
 		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
@@ -1070,16 +1172,7 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 		if err != nil {
 			return nil, fmt.Errorf("failed to create public key: %v", err)
 		}
-		publicKeyBytes := ssh.MarshalAuthorizedKey(publicKey)
-
-		// create key pair in AWS
-		_, err = cli.ImportKeyPair(context.Background(), &ec2.ImportKeyPairInput{
-			KeyName:           aws.String(sshKeyName),
-			PublicKeyMaterial: publicKeyBytes,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to import key pair: %v", err)
-		}
+		publicKeyBytes = ssh.MarshalAuthorizedKey(publicKey)
 
 		// save private key to file
 		privateKeyBytes := pem.EncodeToMemory(&pem.Block{
@@ -1087,14 +1180,26 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 			Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 		})
 
-		err = os.MkdirAll(s.sshKeysDir, 0700)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create ssh keys directory: %v", err)
+		if _, err := os.Stat(s.sshKeysDir); os.IsNotExist(err) {
+			err = os.MkdirAll(s.sshKeysDir, 0700)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create ssh keys directory: %v", err)
+			}
 		}
 
-		err = os.WriteFile(filepath.Join(s.sshKeysDir, input.ClusterName), privateKeyBytes, 0600)
+		err = os.WriteFile(sshKeyPath, privateKeyBytes, 0600)
 		if err != nil {
 			return nil, fmt.Errorf("failed to save private key: %v", err)
+		}
+
+		err = os.WriteFile(sshKeyPath+".pub", publicKeyBytes, 0600)
+		if err != nil {
+			return nil, fmt.Errorf("failed to save public key: %v", err)
+		}
+	} else {
+		publicKeyBytes, err = os.ReadFile(sshKeyPath + ".pub")
+		if err != nil {
+			return nil, fmt.Errorf("failed to read public key: %v", err)
 		}
 	}
 
@@ -1121,6 +1226,12 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 		}
 	}
 
+	// userdata read from embedded file
+	userData, err := scripts.ReadFile("scripts/userdata.sh")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read embedded userdata: %v", err)
+	}
+
 	log.Detail("Creating %d instances", input.Nodes)
 	for i := lastNodeNo; i < lastNodeNo+input.Nodes; i++ {
 		// Add node number tag
@@ -1136,13 +1247,13 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 			Key:   aws.String(TAG_NODE_NO),
 			Value: aws.String(fmt.Sprintf("%d", i+1)),
 		})
+
 		// Create instance
 		runResult, err := cli.RunInstances(context.Background(), &ec2.RunInstancesInput{
 			ImageId:                           aws.String(input.Image.ImageId),
 			InstanceType:                      types.InstanceType(input.InstanceType),
 			MinCount:                          aws.Int32(1),
 			MaxCount:                          aws.Int32(1),
-			KeyName:                           aws.String(sshKeyName),
 			IamInstanceProfile:                iam,
 			InstanceInitiatedShutdownBehavior: shutdownBehavior,
 			InstanceMarketOptions: &types.InstanceMarketOptionsRequest{
@@ -1167,6 +1278,7 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 				},
 			},
 			BlockDeviceMappings: blockDeviceMappings,
+			UserData:            aws.String(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(string(userData), string(publicKeyBytes))))),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create instance %d: %v", i+1, err)
@@ -1214,6 +1326,68 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 		output.Instances[i] = s.getInstanceDetails(instance, zone, s.volumes, s.networks, s.firewalls)
 	}
 
+	// handle DNS creation if required
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if input.CustomDNS == nil {
+			return
+		}
+		log.Detail("Creating DNS records start")
+		defer log.Detail("Creating DNS records end")
+		cli, err := getRoute53Client(s.credentials, &input.CustomDNS.Region)
+		if err != nil {
+			log.Warn("Failed to get route53 client, DNS will not be created: %s", err)
+			return
+		}
+		_, err = cli.ChangeTagsForResource(context.Background(), &route53.ChangeTagsForResourceInput{
+			ResourceType: rtypes.TagResourceTypeHostedzone,
+			ResourceId:   aws.String(input.CustomDNS.DomainID),
+			AddTags: []rtypes.Tag{
+				{Key: aws.String(TAG_AEROLAB_PROJECT), Value: aws.String(s.project)},
+				{Key: aws.String(TAG_AEROLAB_VERSION), Value: aws.String(s.aerolabVersion)},
+			},
+		})
+		if err != nil {
+			log.Detail("WARNING: Failed to add tags to hosted zone, auto cleanup in expiry system will not work: %s", err)
+		}
+		var changes []rtypes.Change
+		for _, instance := range output.Instances {
+			if instance.CustomDNS != nil {
+				changes = append(changes, rtypes.Change{
+					Action: rtypes.ChangeActionCreate,
+					ResourceRecordSet: &rtypes.ResourceRecordSet{
+						Name: aws.String(instance.CustomDNS.GetFQDN()),
+						Type: rtypes.RRTypeA,
+						ResourceRecords: []rtypes.ResourceRecord{
+							{Value: aws.String(instance.IP.Routable())},
+						},
+					},
+				})
+			}
+		}
+		change, err := cli.ChangeResourceRecordSets(context.Background(), &route53.ChangeResourceRecordSetsInput{
+			HostedZoneId: aws.String(input.CustomDNS.DomainID),
+			ChangeBatch: &rtypes.ChangeBatch{
+				Changes: changes,
+			},
+		})
+		if err != nil {
+			log.Warn("Failed to create DNS records: %s", err)
+		}
+		if waitDur > 0 {
+			waiter := route53.NewResourceRecordSetsChangedWaiter(cli)
+			err = waiter.Wait(context.Background(), &route53.GetChangeInput{
+				Id: change.ChangeInfo.Id,
+			}, waitDur)
+			if err != nil {
+				log.Warn("Failed to wait for DNS records to be created: %s", err)
+			}
+		}
+	}()
+	defer wg.Wait()
+
 	// using ssh, wait for the instances to be ready
 	log.Detail("Waiting for instances to be ssh-ready")
 	for waitDur > 0 {
@@ -1250,96 +1424,92 @@ func (s *b) CreateInstances(input *backend.CreateInstanceInput, waitDur time.Dur
 		return nil, fmt.Errorf("instances failed to initialize ssh")
 	}
 
-	// patch non-root images, also doing up to 3 retries on failures
-	if !input.NoEnableRoot && input.Image.Username != "root" {
-		log.Detail("Patching instances to enable root")
-		data, err := scripts.ReadFile("scripts/enable_root.sh")
+	// return
+	return output, nil
+}
+
+func (s *b) CleanupDNS() error {
+	// connect to route53
+	cli, err := getRoute53Client(s.credentials, &s.project)
+	if err != nil {
+		return fmt.Errorf("failed to get route53 client: %v", err)
+	}
+	// list all hosted zones
+	paginator := route53.NewListHostedZonesPaginator(cli, &route53.ListHostedZonesInput{})
+	for paginator.HasMorePages() {
+		zones, err := paginator.NextPage(context.Background())
 		if err != nil {
-			log.Detail("Failed to read enable_root.sh: %v", err)
-			return nil, fmt.Errorf("failed to read enable_root.sh: %v", err)
+			return fmt.Errorf("failed to list hosted zones: %v", err)
 		}
-		sftpConf, err := output.Instances.GetSftpConfig(input.Image.Username)
-		if err != nil {
-			log.Detail("Failed to get sftp config: %v", err)
-			return nil, fmt.Errorf("failed to get sftp config: %v", err)
-		}
-		errs := parallelize.Map(sftpConf, func(conf *sshexec.ClientConf) error {
-			hasErr := false
-			for {
-				log.Detail("Creating sftp client for %s", conf.Host)
-				sftp, err := sshexec.NewSftp(conf)
-				if err != nil {
-					if hasErr {
-						log.Detail("Giving up, Failed to create sftp client for %s: %v", conf.Host, err)
-						return fmt.Errorf("failed to create sftp client for %s: %v", conf.Host, err)
-					}
-					log.Detail("Retrying, Failed to create sftp client for %s: %v", conf.Host, err)
-					hasErr = true
-					time.Sleep(1 * time.Second)
+		for _, zone := range zones.HostedZones {
+			// get zone tags
+			tags, err := cli.ListTagsForResource(context.Background(), &route53.ListTagsForResourceInput{
+				ResourceType: rtypes.TagResourceTypeHostedzone,
+				ResourceId:   zone.Id,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to list tags for hosted zone: %v", err)
+			}
+			tagsMap := make(map[string]string)
+			for _, tag := range tags.ResourceTagSet.Tags {
+				tagsMap[*tag.Key] = *tag.Value
+			}
+			if tagProject, ok := tagsMap[TAG_AEROLAB_PROJECT]; (tagProject != s.project && !s.listAllProjects) || (s.listAllProjects && !ok) {
+				continue
+			}
+			// for each hosted zone, list all resource record sets
+			records, err := cli.ListResourceRecordSets(context.Background(), &route53.ListResourceRecordSetsInput{
+				HostedZoneId: zone.Id,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to list resource record sets: %v", err)
+			}
+			changes := []rtypes.Change{}
+			for _, record := range records.ResourceRecordSets {
+				if record.Type != rtypes.RRTypeA {
 					continue
 				}
-				err = sftp.WriteFile(true, &sshexec.FileWriter{
-					DestPath:    "/tmp/enable_root.sh",
-					Permissions: 0755,
-					Source:      bytes.NewReader(data),
+				if record.Name == nil {
+					continue
+				}
+				if strings.HasPrefix(*record.Name, "i-") {
+					split := strings.Split(*record.Name, ".")
+					if len(split) < 2 {
+						continue
+					}
+					tail := strings.Join(split[1:], ".")
+					if tail == "" {
+						continue
+					}
+					if tail != *zone.Name {
+						continue
+					}
+					instanceId := split[0]
+					// if the instance does not exist, delete the record
+					inst := s.instances.WithNotState(backend.LifeCycleStateTerminated).WithInstanceID(instanceId).Describe()
+					if len(inst) == 0 {
+						// delete the record
+						changes = append(changes, rtypes.Change{
+							Action: rtypes.ChangeActionDelete,
+							ResourceRecordSet: &rtypes.ResourceRecordSet{
+								Name: record.Name,
+								Type: record.Type,
+							},
+						})
+					}
+				}
+			}
+			if len(changes) > 0 {
+				_, err := cli.ChangeResourceRecordSets(context.Background(), &route53.ChangeResourceRecordSetsInput{
+					HostedZoneId: zone.Id,
+					ChangeBatch:  &rtypes.ChangeBatch{Changes: changes},
 				})
 				if err != nil {
-					if hasErr {
-						log.Detail("Giving up, Failed to write enable_root.sh for %s: %v", conf.Host, err)
-						return fmt.Errorf("failed to write enable_root.sh for %s: %v", conf.Host, err)
-					}
-					log.Detail("Retrying, Failed to write enable_root.sh for %s: %v", conf.Host, err)
-					hasErr = true
-					time.Sleep(1 * time.Second)
-					continue
-				}
-				log.Detail("Successfully wrote enable_root.sh for %s", conf.Host)
-				break
-			}
-			return nil
-		})
-		if len(errs) > 0 {
-			log.Detail("Failed to write enable_root.sh to all instances: %v", errs)
-			return nil, fmt.Errorf("failed to write enable_root.sh to all instances: %v", errs)
-		}
-		repeat := output.Instances
-		hasErr := false
-		for {
-			log.Detail("Executing enable_root.sh on %d instances", len(repeat))
-			out := repeat.Exec(&backend.ExecInput{
-				Username:        input.Image.Username,
-				ParallelThreads: input.ParallelSSHThreads,
-				ConnectTimeout:  5 * time.Second,
-				ExecDetail: sshexec.ExecDetail{
-					Command: []string{"/bin/bash", "-c", "/tmp/enable_root.sh"},
-				},
-			})
-			repeat = backend.InstanceList{}
-			for _, o := range out {
-				if o.Output.Err != nil {
-					log.Detail("Failed to execute enable_root.sh on %s: %v", o.Instance.InstanceID, o.Output.Err)
-					errs = append(errs, o.Output.Err)
-					repeat = append(repeat, o.Instance)
+					return fmt.Errorf("failed to change resource record sets: %v", err)
 				}
 			}
-			if len(repeat) == 0 {
-				log.Detail("Successfully executed enable_root.sh on all instances")
-				hasErr = false
-				break
-			}
-			if hasErr {
-				log.Detail("Giving up, Failed to execute enable_root.sh on all instances")
-				break
-			}
-			log.Detail("Retrying, Failed to execute enable_root.sh on all instances")
-			hasErr = true
-			time.Sleep(1 * time.Second)
-		}
-		if hasErr {
-			return nil, fmt.Errorf("failed to enable root on all instances: %v", errs)
 		}
 	}
 
-	// return
-	return output, nil
+	return nil
 }

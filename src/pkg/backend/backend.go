@@ -11,11 +11,12 @@ import (
 )
 
 type Config struct {
-	RootDir        string              `yaml:"RootDir" json:"RootDir"`
-	Cache          bool                `yaml:"Cache" json:"Cache"`
-	Credentials    *clouds.Credentials `yaml:"Credentials" json:"Credentials"`
-	LogLevel       logger.LogLevel     `yaml:"logLevel" json:"logLevel"`
-	AerolabVersion string              `yaml:"aerolabVersion" json:"aerolabVersion"`
+	RootDir         string              `yaml:"RootDir" json:"RootDir"`
+	Cache           bool                `yaml:"Cache" json:"Cache"`
+	Credentials     *clouds.Credentials `yaml:"Credentials" json:"Credentials"`
+	LogLevel        logger.LogLevel     `yaml:"logLevel" json:"logLevel"`
+	AerolabVersion  string              `yaml:"aerolabVersion" json:"aerolabVersion"`
+	ListAllProjects bool                `yaml:"listAllProjects" json:"listAllProjects"`
 }
 
 type cacheMetadata struct {
@@ -109,7 +110,7 @@ func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) 
 	}
 	b := getBackendObject(project, c)
 	for cname, cloud := range cloudList {
-		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.invalidate)
+		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.invalidate, c.ListAllProjects)
 		if err != nil {
 			return nil, err
 		}

@@ -13,7 +13,9 @@ import (
 	"github.com/rglonek/logger"
 )
 
-// TODO: expiry system in it's own pkg/
+// TODO: expiry: Install/Remove which installs/upgrades enabled regions as required, or deletes expiry system from them
+// TODO: expiry: telemetry if enabled
+// TODO: backend: telemetry if enabled
 
 type InstanceTypeList []*InstanceType
 
@@ -55,11 +57,15 @@ var CacheInvalidateAll = []string{CacheInvalidateVolume, CacheInvalidateInstance
 
 type Cloud interface {
 	// basics
-	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func(names ...string) error) error
+	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func(names ...string) error, listAllProjects bool) error
 	SetInventory(networks NetworkList, firewalls FirewallList, instances InstanceList, volumes VolumeList, images ImageList)
 	ListEnabledZones() ([]string, error)
 	EnableZones(names ...string) error
 	DisableZones(names ...string) error
+	// expiry
+	ExpiryInstall(zones ...string) error
+	ExpiryRemove(zones ...string) error
+	ExpiryList() ([]*ExpirySystem, error)
 	// pricing
 	GetVolumePrices() (VolumePriceList, error)
 	GetInstanceTypes() (InstanceTypeList, error)
@@ -107,6 +113,7 @@ type Cloud interface {
 	FirewallsDelete(fw FirewallList, waitDur time.Duration) error
 	FirewallsAddTags(fw FirewallList, tags map[string]string, waitDur time.Duration) error
 	FirewallsRemoveTags(fw FirewallList, tagKeys []string, waitDur time.Duration) error
+	CleanupDNS() error // cleanup stale DNS records, if spot instances are being used, this is normally run by the expiry handler
 }
 
 type Backend interface {
@@ -122,6 +129,11 @@ type Backend interface {
 	CreateImage(input *CreateImageInput, waitDur time.Duration) (*CreateImageOutput, error)
 	CreateInstances(input *CreateInstanceInput, waitDur time.Duration) (*CreateInstanceOutput, error)
 	CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error)
+	CleanupDNS() error // cleanup stale DNS records, if spot instances are being used, this is normally run by the expiry handler
+	// expiry
+	ExpiryInstall(backendType BackendType, zones ...string) error
+	ExpiryRemove(backendType BackendType, zones ...string) error
+	ExpiryList() (*ExpiryList, error)
 }
 
 type backend struct {

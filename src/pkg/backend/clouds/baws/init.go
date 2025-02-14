@@ -28,6 +28,7 @@ type b struct {
 	images              backend.ImageList
 	workDir             string
 	invalidateCacheFunc func(names ...string) error
+	listAllProjects     bool
 }
 
 func init() {
@@ -42,15 +43,18 @@ func (s *b) SetInventory(networks backend.NetworkList, firewalls backend.Firewal
 	s.images = images
 }
 
-func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func(names ...string) error) error {
+func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func(names ...string) error, listAllProjects bool) error {
 	s.configDir = dir
-	s.credentials = &credentials.AWS
+	if credentials != nil {
+		s.credentials = &credentials.AWS
+	}
 	s.project = project
 	s.sshKeysDir = sshKeyDir
 	s.log = log
 	s.aerolabVersion = aerolabVersion
 	s.workDir = workDir
 	s.invalidateCacheFunc = invalidateCacheFunc
+	s.listAllProjects = listAllProjects
 	// read regions
 	err := s.setConfigRegions()
 	if err != nil {

@@ -34,16 +34,20 @@ func (s *b) GetFirewalls(networks backend.NetworkList) (backend.FirewallList, er
 				errs = errors.Join(errs, err)
 				return
 			}
-			paginator := ec2.NewDescribeSecurityGroupsPaginator(cli, &ec2.DescribeSecurityGroupsInput{
-				Filters: []types.Filter{
-					{
-						Name:   aws.String("tag-key"),
-						Values: []string{TAG_AEROLAB_VERSION},
-					}, {
-						Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
-						Values: []string{s.project},
-					},
+			listFilters := []types.Filter{
+				{
+					Name:   aws.String("tag-key"),
+					Values: []string{TAG_AEROLAB_VERSION},
 				},
+			}
+			if !s.listAllProjects {
+				listFilters = append(listFilters, types.Filter{
+					Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
+					Values: []string{s.project},
+				})
+			}
+			paginator := ec2.NewDescribeSecurityGroupsPaginator(cli, &ec2.DescribeSecurityGroupsInput{
+				Filters: listFilters,
 			})
 			for paginator.HasMorePages() {
 				out, err := paginator.NextPage(context.TODO())
