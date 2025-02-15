@@ -103,6 +103,8 @@ type InstanceAction interface {
 	// firewalls
 	AssignFirewalls(fw FirewallList) error
 	RemoveFirewalls(fw FirewallList) error
+	// expiry
+	ChangeExpiry(expiry time.Time) error
 }
 
 type ExecInput struct {
@@ -585,4 +587,25 @@ func (v InstanceList) WithInstanceID(instanceIDs ...string) Instances {
 		ret = append(ret, instance)
 	}
 	return ret
+}
+
+func (v InstanceList) ChangeExpiry(expiry time.Time) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesChangeExpiry(v.WithBackendType(c).Describe(), expiry)
+			if err != nil {
+				retErr = err
+			}
+		}()
+	}
+	wait.Wait()
+	return retErr
+}
+
+func (v *Instance) ChangeExpiry(expiry time.Time) error {
+	return InstanceList{v}.ChangeExpiry(expiry)
 }
