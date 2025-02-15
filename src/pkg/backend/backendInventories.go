@@ -13,7 +13,6 @@ import (
 	"github.com/rglonek/logger"
 )
 
-// TODO: expiry: Install/Remove which installs/upgrades enabled regions as required, or deletes expiry system from them
 // TODO: expiry: telemetry if enabled
 // TODO: backend: telemetry if enabled
 
@@ -63,9 +62,13 @@ type Cloud interface {
 	EnableZones(names ...string) error
 	DisableZones(names ...string) error
 	// expiry
-	ExpiryInstall(zones ...string) error
+	ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, cleanupDNS bool, force bool, onUpdateKeepOriginalSettings bool, zones ...string) error // if force is false, it will only install if previous installation was failed or version is different
 	ExpiryRemove(zones ...string) error
+	ExpiryChangeConfiguration(logLevel int, expireEksctl bool, cleanupDNS bool, zones ...string) error
 	ExpiryList() ([]*ExpirySystem, error)
+	ExpiryChangeFrequency(intervalMinutes int, zones ...string) error
+	VolumesChangeExpiry(volumes VolumeList, expiry time.Time) error
+	InstancesChangeExpiry(instances InstanceList, expiry time.Time) error
 	// pricing
 	GetVolumePrices() (VolumePriceList, error)
 	GetInstanceTypes() (InstanceTypeList, error)
@@ -131,9 +134,11 @@ type Backend interface {
 	CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error)
 	CleanupDNS() error // cleanup stale DNS records, if spot instances are being used, this is normally run by the expiry handler
 	// expiry
-	ExpiryInstall(backendType BackendType, zones ...string) error
+	ExpiryInstall(backendType BackendType, intervalMinutes int, logLevel int, expireEksctl bool, cleanupDNS bool, force bool, onUpdateKeepOriginalSettings bool, zones ...string) error // if force is false, it will only install if previous installation was failed or version is different
 	ExpiryRemove(backendType BackendType, zones ...string) error
+	ExpiryChangeFrequency(backendType BackendType, intervalMinutes int, zones ...string) error
 	ExpiryList() (*ExpiryList, error)
+	ExpiryChangeConfiguration(backendType BackendType, logLevel int, expireEksctl bool, cleanupDNS bool, zones ...string) error
 }
 
 type backend struct {

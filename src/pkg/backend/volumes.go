@@ -96,6 +96,8 @@ type VolumeAction interface {
 	Detach(instance *Instance, waitDur time.Duration) error
 	// resize a non-EFS device
 	Resize(newSizeGiB StorageSize) error
+	// expiry
+	ChangeExpiry(expiry time.Time) error
 }
 
 type VolumeAttachShared struct {
@@ -347,6 +349,27 @@ func (v VolumeList) Resize(newSizeGiB StorageSize) error {
 	}
 	wait.Wait()
 	return retErr
+}
+
+func (v VolumeList) ChangeExpiry(expiry time.Time) error {
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].VolumesChangeExpiry(v.WithBackendType(c).Describe(), expiry)
+			if err != nil {
+				retErr = err
+			}
+		}()
+	}
+	wait.Wait()
+	return retErr
+}
+
+func (v *Volume) ChangeExpiry(expiry time.Time) error {
+	return VolumeList{v}.ChangeExpiry(expiry)
 }
 
 func (v *Volume) AddTags(tags map[string]string, waitDur time.Duration) error {

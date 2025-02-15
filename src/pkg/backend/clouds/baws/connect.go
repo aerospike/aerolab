@@ -13,8 +13,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/efs"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/pricing"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
+	"github.com/aws/aws-sdk-go-v2/service/scheduler"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
 func getPricingClient(creds *clouds.AWS, region *string) (*pricing.Client, error) {
@@ -133,5 +136,41 @@ func GetRoute53Client(credentials *clouds.Credentials, region *string) (client *
 		return nil, err
 	}
 	client = route53.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func getSchedulerClient(creds *clouds.AWS, region *string) (client *scheduler.Client, err error) {
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = scheduler.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func getIamClient(creds *clouds.AWS, region *string) (client *iam.Client, err error) {
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = iam.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func getLambdaClient(creds *clouds.AWS, region *string) (client *lambda.Client, err error) {
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = lambda.NewFromConfig(*cfg)
+	return client, nil
+}
+
+func getStsClient(creds *clouds.AWS, region *string) (client *sts.Client, err error) {
+	cfg, err := getCfgForClient(creds, region)
+	if err != nil {
+		return nil, err
+	}
+	client = sts.NewFromConfig(*cfg)
 	return client, nil
 }
