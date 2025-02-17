@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
 	flags "github.com/rglonek/jeddevdk-goflags"
+
+	"github.com/aerospike/aerolab/parallelize"
 )
 
 type clientCreateNoneCmd struct {
@@ -22,11 +23,13 @@ type clientCreateNoneCmd struct {
 	Aws           clusterCreateCmdAws    `no-flag:"true"`
 	Gcp           clusterCreateCmdGcp    `no-flag:"true"`
 	Docker        clusterCreateCmdDocker `no-flag:"true"`
+	PriceOnly     bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
+	Owner         string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	osSelectorCmd
 	parallelThreadsCmd
+
+	TypeOverride string `long:"type-override" description:"Override the client type label"`
 	instanceRole string
-	PriceOnly    bool   `long:"price" description:"Only display price of ownership; do not actually create the cluster"`
-	Owner        string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 }
 
 func (c *clientCreateNoneCmd) isGrow() bool {
@@ -47,12 +50,23 @@ func (c *clientCreateNoneCmd) Execute(args []string) error {
 			printHelp("")
 		}
 	}
-	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
-		return logFatal("Docker backend does not support pricing")
-	}
+	_, err := c.createBase(args, "none")
+	return err
+}
+
+func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []int, err error) {
 	if c.Owner == "" {
 		c.Owner = currentOwnerUser
 	}
+	if !c.isGrow() {
+		fmt.Println("Running client.create." + nt)
+	} else {
+		fmt.Println("Running client.grow." + nt)
+	}
+	if c.PriceOnly && a.opts.Config.Backend.Type == "docker" {
+		return nil, logFatal("Docker backend does not support pricing")
+	}
+
 	iType := c.Aws.InstanceType
 	if a.opts.Config.Backend.Type == "gcp" {
 		iType = c.Gcp.InstanceType
@@ -63,17 +77,7 @@ func (c *clientCreateNoneCmd) Execute(args []string) error {
 		printPrice(c.Gcp.Zone.String(), iType.String(), c.ClientCount, c.Aws.SpotInstance)
 	}
 	if c.PriceOnly {
-		return nil
-	}
-	_, err := c.createBase(args, "none")
-	return err
-}
-
-func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []int, err error) {
-	if !c.isGrow() {
-		fmt.Println("Running client.create." + nt)
-	} else {
-		fmt.Println("Running client.grow." + nt)
+		return nil, nil
 	}
 
 	var startScriptSize os.FileInfo
@@ -90,6 +94,11 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 
 	if !isLegalName(c.ClientName.String()) {
 		return nil, logFatal("Client name is not legal, only use a-zA-Z0-9_-")
+	}
+
+	if c.TypeOverride != "" {
+		fmt.Println("Overriding client type:", c.TypeOverride)
+		nt = c.TypeOverride
 	}
 
 	b.WorkOnClients()
@@ -320,13 +329,20 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 			expirySet = true
 		}
 	}
-	if c.isGrow() && !expirySet {
-		extra.expiresTime = time.Time{}
-		ij, err := b.Inventory("", []int{InventoryItemClients})
+
+	var ij inventoryJson
+	if c.isGrow() {
+		ij, err = b.Inventory("", []int{InventoryItemClients})
 		b.WorkOnClients()
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	// Cluster Expiry
+	if c.isGrow() && !expirySet {
+		extra.expiresTime = time.Time{}
+
 		for _, item := range ij.Clients {
 			if item.ClientName != string(c.ClientName) {
 				continue
@@ -346,6 +362,27 @@ func (c *clientCreateNoneCmd) createBase(args []string, nt string) (machines []i
 	} else if c.isGrow() && expirySet {
 		log.Println("WARNING: you are setting a different expiry to these nodes than the existing ones. To change expiry for all nodes, use: aerolab client configure expiry")
 	}
+
+	// Client Type Override
+	if c.isGrow() {
+		for _, item := range ij.Clients {
+			if item.ClientName != string(c.ClientName) {
+				continue
+			}
+
+			if item.ClientType != extra.clientType {
+				extra.clientType = item.ClientType
+				break
+			}
+		}
+
+		if c.TypeOverride != "" {
+			if extra.clientType != strings.ToLower(c.TypeOverride) {
+				return nil, logFatal("cluster client type does not match type-override")
+			}
+		}
+	}
+
 	extra.spotInstance = c.Aws.SpotInstance
 	if a.opts.Config.Backend.Type == "gcp" {
 		extra.spotInstance = c.Gcp.SpotInstance
