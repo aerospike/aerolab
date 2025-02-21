@@ -269,6 +269,9 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 
 				return vals, nil
 			})
+			if err != nil {
+				return err
+			}
 		case "allflash", "pi-flash":
 			err = assignFlashIndexDevice(&namespace, "index-type", device, isv7, c.MountsSizeLimitPct, c.ClusterName.String(), nodeNo, &totalFsSizeBytes)
 			if err != nil {
