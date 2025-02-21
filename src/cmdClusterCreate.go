@@ -1404,7 +1404,7 @@ WantedBy=multi-user.target`
 			accessAddressScriptContents := `grep 'alternate-access-address' /etc/aerospike/aerospike.conf
 if [ $? -ne 0 ]
 then
-	sed -i 's/address any/address any\naccess-address\nalternate-access-address\n/g' /etc/aerospike/aerospike.conf
+	sed -i 's/address any/address any\naccess-address\nalternate-access-address\ntls-access-address\ntls-alternate-access-address\n/g' /etc/aerospike/aerospike.conf
 fi
 sed -e "s/access-address.*/access-address $(curl http://169.254.169.254/latest/meta-data/local-ipv4)/g" -e "s/alternate-access-address.*/alternate-access-address $(curl http://169.254.169.254/latest/meta-data/public-ipv4)/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
 `
@@ -1461,7 +1461,7 @@ done
 grep 'alternate-access-address' /etc/aerospike/aerospike.conf
 if [ $? -ne 0 ]
 then
-	sed -i 's/address any/address any\naccess-address\nalternate-access-address\n/g' /etc/aerospike/aerospike.conf
+	sed -i 's/address any/address any\naccess-address\nalternate-access-address\ntls-access-address\ntls-alternate-access-address\n/g' /etc/aerospike/aerospike.conf
 fi
 sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-address.*/alternate-access-address ${EXTIP}/g"  /etc/aerospike/aerospike.conf > ~/aerospike.conf.new && cp /etc/aerospike/aerospike.conf /etc/aerospike/aerospike.conf.bck && cp ~/aerospike.conf.new /etc/aerospike/aerospike.conf
 `

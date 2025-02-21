@@ -62,6 +62,7 @@ type xdrConnectRealCmd struct {
 	Version                 TypeXDRVersion `short:"V" long:"xdr-version" description:"specify aerospike xdr configuration version (4|5|auto)" default:"auto" webchoice:"auto,5,4"`
 	Restart                 TypeYesNo      `short:"T" long:"restart-source" description:"restart source nodes after connecting (y/n)" default:"y" webchoice:"y,n"`
 	Namespaces              string         `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect." default:"test"`
+	CustomDestinationPort   int            `short:"P" long:"destination-port" description:"Optionally specify a custom destination port for the xdr connection"`
 	xDestinations           []string
 	xNamespaces             []string
 	xDestIpList             map[string][]string
@@ -349,6 +350,9 @@ func (c *xdrConnectRealCmd) doItXdrConnect(snode int) error {
 			useport := "3000"
 			if c.isConnector {
 				useport = "8901"
+			}
+			if c.CustomDestinationPort != 0 {
+				useport = strconv.Itoa(c.CustomDestinationPort)
 			}
 			dc_to_add = dc_to_add + fmt.Sprintf("\n\t%s %s {\n", dcStanzaName, found)
 			if c.isConnector {

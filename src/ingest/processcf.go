@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -175,6 +176,42 @@ type cfContents struct {
 	summary     string
 	infoNetJson *cfInfoNetwork
 	ipToNode    map[string][]string
+	asdBuild    string
+}
+
+func (i *Ingest) sendClusterInfo(ct *cfContents) {
+	type clusterInfo struct {
+		AsdBuild     string `json:"asd-build"`
+		S3Source     string `json:"s3-source"`
+		SftpSource   string `json:"sftp-source"`
+		CustomSource string `json:"custom-source"`
+	}
+	ci := clusterInfo{
+		AsdBuild:     ct.asdBuild,
+		CustomSource: i.config.CustomSourceName,
+	}
+	if i.config.Downloader.S3Source != nil && i.config.Downloader.S3Source.Enabled {
+		ci.S3Source = i.config.Downloader.S3Source.BucketName + ":" + i.config.Downloader.S3Source.PathPrefix
+	}
+	if i.config.Downloader.SftpSource != nil && i.config.Downloader.SftpSource.Enabled {
+		ci.SftpSource = i.config.Downloader.SftpSource.Host + ":" + i.config.Downloader.SftpSource.PathPrefix
+	}
+	json, err := json.Marshal(ci)
+	if err != nil {
+		logger.Error("failed to marshal cluster info: %s", err)
+		return
+	}
+	resp, err := http.Post(i.config.SendClusterInfo, "application/json", bytes.NewReader(json))
+	if err != nil {
+		logger.Error("failed to send cluster info: %s", err)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		logger.Error("failed to send cluster info: %s", resp.Status)
+		return
+	}
+	logger.Detail("sent cluster info to %s", i.config.SendClusterInfo)
 }
 
 func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[string]map[string]string) (string, error) {
@@ -190,6 +227,10 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		i.progress.CollectinfoProcessor.changed = true
 		i.progress.Unlock()
 		return "", err
+	}
+	if i.config.SendClusterInfo != "" {
+		logger.Detail("processCollectInfoFile: sending cluster info to %s", i.config.SendClusterInfo)
+		i.sendClusterInfo(ct)
 	}
 	logger.Detail("processCollectInfoFile: processing sysinfo of %s", filePath)
 	s := bufio.NewScanner(bytes.NewReader(ct.sysinfo))
@@ -551,6 +592,10 @@ func (i *Ingest) processCollectInfoFileRead(filePath string, cf *CfFile, ct *cfC
 						ip := meta.(map[string]interface{})["ip"]
 						if _, ok := ip.(string); !ok {
 							continue
+						}
+						asdBuild := meta.(map[string]interface{})["asd_build"]
+						if _, ok := asdBuild.(string); ok {
+							ct.asdBuild = asdBuild.(string)
 						}
 						ct.ipToNode[strings.Split(ip.(string), ":")[0]] = []string{clusterName, nodeId.(string)}
 					}
