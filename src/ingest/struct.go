@@ -159,6 +159,7 @@ type Config struct {
 	FindClusterNameNodeIdRegex string `yaml:"findClusterNameNodeIdRegex" default:"NODE-ID (?P<NodeId>[^ ]+) CLUSTER-SIZE (?P<ClusterSize>\\d+)( CLUSTER-NAME (?P<ClusterName>[^$]+))*"`
 	findClusterNameNodeIdRegex *regexp.Regexp
 	CPUProfilingOutputFile     string `yaml:"cpuProfilingOutputFile" envconfig:"LOGINGEST_CPUPROFILE_FILE"`
+	SendClusterInfo            string `yaml:"sendClusterInfo" envconfig:"LOGINGEST_SEND_CLUSTER_INFO"`
 }
 
 type TimeRanges struct {

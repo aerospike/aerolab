@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
+	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 	flags "github.com/rglonek/jeddevdk-goflags"
 	"gopkg.in/yaml.v3"
 )
@@ -48,6 +49,7 @@ type agiCreateCmd struct {
 	AGILabel         string          `long:"agi-label" description:"friendly label"`
 	NoDIM            bool            `long:"no-dim" description:"set to disable data-in-memory and enable read-page-cache in aerospike; much less RAM used, but slower"`
 	NoDIMFileSize    int             `long:"no-dim-filesize" description:"if using --no-dim, optionally specify a filesize in GB for data storage; default: memory size calculation"`
+	ClusterSource    TypeClusterName `long:"source-cluster" description:"cluster name to use as the source for the AGI"`
 	LocalSource      flags.Filename  `long:"source-local" description:"get logs from a local directory"`
 	SftpEnable       bool            `long:"source-sftp-enable" description:"enable sftp source" simplemode:"false"`
 	SftpThreads      int             `long:"source-sftp-threads" description:"number of concurrent downloader threads" default:"1" simplemode:"false"`
@@ -86,6 +88,7 @@ type agiCreateCmd struct {
 	PluginLogLevel   int             `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4" simplemode:"false"`
 	NoConfigOverride bool            `long:"no-config-override" description:"if set, existing configuration will not be overridden; useful when restarting EFS-based AGIs" simplemode:"false"`
 	NoToolsOverride  bool            `long:"no-tools-override" description:"by default agi will install the latest tools package; set this to disable tools package upgrade" simplemode:"false"`
+	SendClusterInfo  string          `long:"send-cluster-info" description:"URL to send cluster info to that is discovered in collectinfos, ex https://user:pass@example.com/clusterinfo" simplemode:"false" hidden:"true" webhidden:"true"`
 	hTTPSNotify
 	WithAGIMonitorAuto      bool                 `long:"with-monitor" description:"if set, system will look for agimonitor client; if not present, one will be created; will also auto-fill the monitor URL" simplemode:"false"`
 	MonitorAutoCertDomains  []string             `long:"monitor-autocert" description:"Monitor Creation: TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains" simplemode:"false"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
@@ -100,7 +103,7 @@ type agiCreateCmd struct {
 	NoVacuumOnFail                bool   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
 	Owner                         string `long:"owner" description:"AWS/GCP only: create owner tag with this value"`
 	NonInteractive                bool   `long:"non-interactive" description:"set to disable interactive mode" webdisable:"true" webset:"true"`
-	GrafanaVersion                string `long:"grafana-version" description:"grafana version to install" default:"11.2.0" simplemode:"false"`
+	GrafanaVersion                string `long:"grafana-version" description:"grafana version to install" default:"11.2.6" simplemode:"false"`
 	uploadAuthorizedContentsGzB64 string
 	Aws                           agiCreateCmdAws    `no-flag:"true"`
 	Gcp                           agiCreateCmdGcp    `no-flag:"true"`
@@ -161,6 +164,17 @@ func init() {
 func (c *agiCreateCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if c.ClusterSource != "" {
+		if c.LocalSource != "" {
+			return errors.New("local source cannot be specified when using --source-cluster")
+		}
+		localSource, err := agiLogsGet(c.ClusterSource)
+		if err != nil {
+			return err
+		}
+		c.LocalSource = localSource
+		defer os.RemoveAll(string(localSource))
 	}
 	c.S3path = strings.Trim(c.S3path, "\t\n\r ")
 	if strings.HasPrefix(c.SlackToken, "ENV::") {
@@ -304,6 +318,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	config.Downloader.S3Source.PathPrefix = c.S3path
 	config.Downloader.S3Source.SearchRegex = c.S3Regex
 	config.Downloader.S3Source.Endpoint = c.S3Endpoint
+	config.SendClusterInfo = c.SendClusterInfo
 	var encBuf bytes.Buffer
 	enc := yaml.NewEncoder(&encBuf)
 	enc.SetIndent(2)
@@ -1030,6 +1045,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	c.ProxyCert = ""
 	c.ProxyKey = ""
 	c.LocalSource = ""
+	c.ClusterSource = ""
 	c.PatternsFile = ""
 	c.ChDir = ""
 	c.FeaturesFilePath = ""
@@ -1105,4 +1121,48 @@ func gz(p []byte) (r []byte, err error) {
 	}
 	g.Close()
 	return buf.Bytes(), nil
+}
+
+func agiLogsGet(clusterName TypeClusterName) (destination flags.Filename, err error) {
+	destination = flags.Filename(strconv.Itoa(int(time.Now().UnixMilli())))
+	location := agiGetLogLocation(clusterName, 1)
+	if location == "" {
+		return "", errors.New("no log location found")
+	}
+	a.opts.Logs.Get.ClusterName = clusterName
+	a.opts.Logs.Get.Nodes = ""
+	a.opts.Logs.Get.Destination = destination
+	a.opts.Logs.Get.Force = true
+	a.opts.Logs.Get.Journal = location == "JOURNALCTL"
+	a.opts.Logs.Get.LogLocation = location
+	err = a.opts.Logs.Get.Execute(nil)
+	if err != nil {
+		return "", err
+	}
+	return destination, nil
+}
+
+// returns "JOURNALCTL" if the cluster is using journalctl, otherwise returns the log location
+func agiGetLogLocation(clusterName TypeClusterName, node int) string {
+	out, err := b.RunCommands(clusterName.String(), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{node})
+	if err != nil {
+		return ""
+	}
+	conf, err := aeroconf.Parse(bytes.NewReader(out[0]))
+	if err != nil {
+		return ""
+	}
+	if conf.Type("logging") == aeroconf.ValueNil {
+		return "JOURNALCTL"
+	}
+	conf = conf.Stanza("logging")
+	if conf.Type("console") != aeroconf.ValueNil {
+		return "JOURNALCTL"
+	}
+	for _, key := range conf.ListKeys() {
+		if strings.HasPrefix(key, "file ") {
+			return strings.TrimPrefix(key, "file ")
+		}
+	}
+	return ""
 }
