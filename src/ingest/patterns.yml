@@ -646,6 +646,16 @@ defs:
                 - "{(?P<Namespace>[^}]+)} truncating to (?P<truncNow>\\d+) on (?P<truncThread>\\d+) threads"
                 - "{(?P<Namespace>[^}]+)} done truncate to (?P<truncEnd>\\d+) deleted (?P<truncDel>\\d+)"
         -
+            setName: "mrt"
+            search: "mrt-finish"
+            export:
+                - "{(?P<Namespace>[^}]+)} mrt-finish: verify-read \\((?P<mfrok>\\d+),(?P<mfrerr>\\d+),(?P<mfrtout>\\d+)\\) roll-forward \\((?P<mffok>\\d+),(?P<mfferr>\\d+),(?P<mfftout>\\d+)\\) roll-back \\((?P<mfbok>\\d+),(?P<mfberr>\\d+),(?P<mfbtout>\\d+)\\)"
+        -
+            setName: "mrt"
+            search: "mrt-monitor-finish"
+            export:
+                - "{(?P<Namespace>[^}]+)} mrt-monitor-finish: roll-forward \\((?P<mmffok>\\d+),(?P<mmfferr>\\d+),(?P<mmfftout>\\d+)\\) roll-back \\((?P<mmfbok>\\d+),(?P<mmfberr>\\d+),(?P<mmfbtout>\\d+)\\)"
+        -
             setName: "security"
             search: ": INFO (audit)"
             replace:
