@@ -246,8 +246,8 @@ EOF
 function kgo() {
 	apt-get install -y gcc || return 1
 	url="https://go.dev/dl/go1.23.3.linux-amd64.tar.gz"
-	uname -p |egrep 'x86_64|amd64'
-	[ $? -ne 0 ] && url="https://go.dev/dl/go1.23.3.linux-amd64.tar.gz"
+	uname -p |egrep -i 'x86_64|amd64'
+	[ $? -ne 0 ] && url="https://go.dev/dl/go1.23.3.linux-arm64.tar.gz"
 	cd /
 	wget -O go.tgz ${url} || return 2
 	tar -C /usr/local -xzf go.tgz || return 3
