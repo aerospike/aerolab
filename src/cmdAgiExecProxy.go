@@ -1177,7 +1177,7 @@ func (c *agiExecProxyCmd) getDeps() {
 		if strings.Contains(string(narch), "arm") || strings.Contains(string(narch), "aarch") {
 			arch = "aarch64"
 		}
-		resp, err := http.Get("https://github.com/tsl0922/ttyd/releases/download/1.7.3/ttyd." + arch)
+		resp, err := http.Get("https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd." + arch)
 		if err != nil {
 			logger.Error("ttyd-GET: %s", err)
 			fd.Close()
@@ -1219,7 +1219,7 @@ func (c *agiExecProxyCmd) getDeps() {
 			}
 			nlabel[i] = ' '
 		}
-		com := exec.Command("/usr/local/bin/ttyd", "-t", "titleFixed="+string(nlabel), "-p", "8852", "-i", "lo", "-P", "5", "-b", "/agi/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* lnav tool is installed for log analysis' && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
+		com := exec.Command("/usr/local/bin/ttyd", "-t", "titleFixed="+string(nlabel), "-t", "scrollback=10000", "-W", "-p", "8852", "-i", "lo", "-P", "5", "-b", "/agi/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* lnav tool is installed for log analysis' && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
 		com.Dir = c.EntryDir
 		sout, err := com.StdoutPipe()
 		if err != nil {
@@ -1281,7 +1281,7 @@ func (c *agiExecProxyCmd) getDeps() {
 		if strings.Contains(string(narch), "arm") || strings.Contains(string(narch), "aarch") {
 			arch = "arm64"
 		}
-		resp, err := http.Get("https://github.com/filebrowser/filebrowser/releases/download/v2.25.0/linux-" + arch + "-filebrowser.tar.gz")
+		resp, err := http.Get("https://github.com/filebrowser/filebrowser/releases/download/v2.32.0/linux-" + arch + "-filebrowser.tar.gz")
 		if err != nil {
 			logger.Error("filebrowser-GET: %s", err)
 			fd.Close()
