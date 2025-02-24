@@ -1,5 +1,9 @@
 /bin/aerolab*
 !bin/aerolabrpm
+
+# Tools
+/bin/ginkgo
+
 .DS_Store
 .vscode
 .idea
