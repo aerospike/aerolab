@@ -520,5 +520,13 @@ macos-pkg-notarize:
 		echo "PKG NOTARIZE SUCCESS" ;\
 	fi
 
+.PHONY: tools
+tools: ginkgo
+
+.PHONY: ginkgo
+ginkgo: ../bin/ginkgo
+../bin/ginkgo:
+	go build -o ../bin/ginkgo github.com/onsi/ginkgo/v2/ginkgo
+
 ### make cleanall && make build-prerelease && make pkg-linux && make pkg-windows-zip && make macos-build-all && make macos-notarize-all
 ### make cleanall && make build-official && make pkg-linux && make pkg-windows-zip && make macos-build-all && make macos-notarize-all

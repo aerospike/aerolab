@@ -28,8 +28,8 @@ jobs:
               run: |
                 set -e
                 pushd /tmp
-                wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
-                sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
+                wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz
+                sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz
                 popd
                 export PATH=/usr/local/go/bin:$PATH
                 go version
@@ -103,8 +103,8 @@ jobs:
               run: |
                 set -e
                 pushd /tmp
-                wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
-                sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
+                wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz
+                sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz
                 popd
                 export PATH=/usr/local/go/bin:$PATH
                 go version
@@ -135,8 +135,8 @@ jobs:
               uses: actions/checkout@v3
             - name: "Install golang"
               run: |
-                wget https://go.dev/dl/go1.23.4.darwin-amd64.pkg
-                sudo installer -store -pkg go1.23.4.darwin-amd64.pkg -target /
+                wget https://go.dev/dl/go1.24.0.darwin-amd64.pkg
+                sudo installer -store -pkg go1.24.0.darwin-amd64.pkg -target /
             - name: "Install Packages.pkg for making macos PKG files"
               run: |
                 wget http://s.sudre.free.fr/Software/files/Packages.dmg
