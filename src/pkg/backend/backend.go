@@ -2,12 +2,14 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 	"path"
 	"time"
 
+	"github.com/rglonek/logger"
+
 	"github.com/aerospike/aerolab/pkg/backend/cache"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
-	"github.com/rglonek/logger"
 )
 
 type Config struct {
@@ -30,6 +32,9 @@ func RegisterBackend(name BackendType, c Cloud) {
 }
 
 func (b *backend) AddRegion(backendType BackendType, names ...string) error {
+	if _, ok := cloudList[backendType]; !ok {
+		return fmt.Errorf("backend type %s not found", backendType)
+	}
 	err := cloudList[backendType].EnableZones(names...)
 	if err != nil {
 		return err
