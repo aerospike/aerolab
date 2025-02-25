@@ -1,6 +1,11 @@
 package backends
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+
+	"gopkg.in/yaml.v3"
+)
 
 type LifeCycleState int
 
@@ -45,12 +50,58 @@ func (a LifeCycleState) String() string {
 	}
 }
 
+func (a *LifeCycleState) FromString(s string) error {
+	switch s {
+	case "Creating":
+		*a = LifeCycleStateCreating
+	case "Created":
+		*a = LifeCycleStateCreated
+	case "Starting":
+		*a = LifeCycleStateStarting
+	case "Running":
+		*a = LifeCycleStateRunning
+	case "Stopping":
+		*a = LifeCycleStateStopping
+	case "Stopped":
+		*a = LifeCycleStateStopped
+	case "Terminating":
+		*a = LifeCycleStateTerminating
+	case "Terminated":
+		*a = LifeCycleStateTerminated
+	case "Fail":
+		*a = LifeCycleStateFail
+	case "Configuring":
+		*a = LifeCycleStateConfiguring
+	default:
+		return fmt.Errorf("unknown life cycle state: %s", s)
+	}
+	return nil
+}
+
 func (a LifeCycleState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
 func (a LifeCycleState) MarshalYAML() (interface{}, error) {
 	return a.String(), nil
+}
+
+func (a *LifeCycleState) UnmarshalJSON(data []byte) error {
+	var s string
+	err := json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+	return a.FromString(s)
+}
+
+func (a *LifeCycleState) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	err := value.Decode(&s)
+	if err != nil {
+		return err
+	}
+	return a.FromString(s)
 }
 
 type NetworkState int
@@ -72,12 +123,42 @@ func (a NetworkState) String() string {
 	}
 }
 
+func (a *NetworkState) FromString(s string) error {
+	switch s {
+	case "Available":
+		*a = NetworkStateAvailable
+	case "Configuring":
+		*a = NetworkStateConfiguring
+	default:
+		return fmt.Errorf("unknown network state: %s", s)
+	}
+	return nil
+}
+
 func (a NetworkState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
 func (a NetworkState) MarshalYAML() (interface{}, error) {
 	return a.String(), nil
+}
+
+func (a *NetworkState) UnmarshalJSON(data []byte) error {
+	var s string
+	err := json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+	return a.FromString(s)
+}
+
+func (a *NetworkState) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	err := value.Decode(&s)
+	if err != nil {
+		return err
+	}
+	return a.FromString(s)
 }
 
 type VolumeState int
@@ -116,12 +197,51 @@ func (a VolumeState) String() string {
 	}
 }
 
+func (a *VolumeState) FromString(s string) error {
+	switch s {
+	case "Creating":
+		*a = VolumeStateCreating
+	case "Available":
+		*a = VolumeStateAvailable
+	case "InUse":
+		*a = VolumeStateInUse
+	case "Deleting":
+		*a = VolumeStateDeleting
+	case "Deleted":
+		*a = VolumeStateDeleted
+	case "Fail":
+		*a = VolumeStateFail
+	case "Configuring":
+		*a = VolumeStateConfiguring
+	default:
+		return fmt.Errorf("unknown volume state: %s", s)
+	}
+	return nil
+}
 func (a VolumeState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
 func (a VolumeState) MarshalYAML() (interface{}, error) {
 	return a.String(), nil
+}
+
+func (a *VolumeState) UnmarshalJSON(data []byte) error {
+	var s string
+	err := json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+	return a.FromString(s)
+}
+
+func (a *VolumeState) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	err := value.Decode(&s)
+	if err != nil {
+		return err
+	}
+	return a.FromString(s)
 }
 
 type StorageSize int64
@@ -155,10 +275,40 @@ func (a Architecture) String() string {
 	}
 }
 
+func (a *Architecture) FromString(s string) error {
+	switch s {
+	case "amd64":
+		*a = ArchitectureX8664
+	case "arm64":
+		*a = ArchitectureARM64
+	default:
+		return fmt.Errorf("unknown architecture: %s", s)
+	}
+	return nil
+}
+
 func (a Architecture) MarshalJSON() ([]byte, error) {
 	return json.Marshal(a.String())
 }
 
 func (a Architecture) MarshalYAML() (interface{}, error) {
 	return a.String(), nil
+}
+
+func (a *Architecture) UnmarshalJSON(data []byte) error {
+	var s string
+	err := json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+	return a.FromString(s)
+}
+
+func (a *Architecture) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	err := value.Decode(&s)
+	if err != nil {
+		return err
+	}
+	return a.FromString(s)
 }

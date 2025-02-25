@@ -129,7 +129,7 @@ func (s *b) GetNetworks() (backends.NetworkList, error) {
 						SubnetId:         aws.ToString(subnet.SubnetId),
 						Cidr:             aws.ToString(subnet.CidrBlock),
 						ZoneName:         zone,
-						ZoneID:           zone,
+						ZoneID:           aws.ToString(subnet.AvailabilityZone),
 						Owner:            tags[TAG_OWNER],
 						Tags:             tags,
 						IsDefault:        aws.ToBool(subnet.DefaultForAz),

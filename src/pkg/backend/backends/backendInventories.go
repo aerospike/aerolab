@@ -160,14 +160,15 @@ type backend struct {
 
 func getBackendObject(project string, c *Config) *backend {
 	return &backend{
-		project:   project,
-		config:    c,
-		volumes:   make(map[BackendType]VolumeList),
-		instances: make(map[BackendType]InstanceList),
-		images:    make(map[BackendType]ImageList),
-		networks:  make(map[BackendType]NetworkList),
-		firewalls: make(map[BackendType]FirewallList),
-		pollLock:  new(sync.Mutex),
+		project:         project,
+		config:          c,
+		volumes:         make(map[BackendType]VolumeList),
+		instances:       make(map[BackendType]InstanceList),
+		images:          make(map[BackendType]ImageList),
+		networks:        make(map[BackendType]NetworkList),
+		firewalls:       make(map[BackendType]FirewallList),
+		pollLock:        new(sync.Mutex),
+		invalidatedLock: new(sync.Mutex),
 	}
 }
 
@@ -211,6 +212,46 @@ func (i *Inventory) MarshalYAML() ([]byte, error) {
 		Instances: i.Instances.Describe(),
 		Images:    i.Images.Describe(),
 	})
+}
+
+func (i *Inventory) UnmarshalJSON(data []byte) error {
+	b := struct {
+		Networks  NetworkList  `yaml:"networks"`
+		Firewalls FirewallList `yaml:"firewalls"`
+		Volumes   VolumeList   `yaml:"volumes"`
+		Instances InstanceList `yaml:"instances"`
+		Images    ImageList    `yaml:"images"`
+	}{}
+	err := json.Unmarshal(data, &b)
+	if err != nil {
+		return err
+	}
+	i.Networks = b.Networks
+	i.Firewalls = b.Firewalls
+	i.Volumes = b.Volumes
+	i.Instances = b.Instances
+	i.Images = b.Images
+	return nil
+}
+
+func (i *Inventory) UnmarshalYAML(node *yaml.Node) error {
+	b := struct {
+		Networks  NetworkList  `yaml:"networks"`
+		Firewalls FirewallList `yaml:"firewalls"`
+		Volumes   VolumeList   `yaml:"volumes"`
+		Instances InstanceList `yaml:"instances"`
+		Images    ImageList    `yaml:"images"`
+	}{}
+	err := node.Decode(&b)
+	if err != nil {
+		return err
+	}
+	i.Networks = b.Networks
+	i.Firewalls = b.Firewalls
+	i.Volumes = b.Volumes
+	i.Instances = b.Instances
+	i.Images = b.Images
+	return nil
 }
 
 func (b *backend) loadCache() error {

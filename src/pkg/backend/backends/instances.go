@@ -11,29 +11,52 @@ import (
 )
 
 type CreateInstanceInput struct {
-	ClusterName        string            `yaml:"clusterName" json:"clusterName"`
-	Nodes              int               `yaml:"nodes" json:"nodes"`
-	Image              *Image            `yaml:"image" json:"image"`
-	SSHKeyName         string            `yaml:"sshKeyName" json:"sshKeyName"`
-	NetworkPlacement   string            `yaml:"networkPlacement" json:"networkPlacement"` // vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, zone: will use the default VPC, first subnet in the zone
-	Firewalls          []string          `yaml:"firewalls" json:"firewalls"`
-	BackendType        BackendType       `yaml:"backendType" json:"backendType"`
-	InstanceType       string            `yaml:"instanceType" json:"instanceType"`
-	SpotInstance       bool              `yaml:"spotInstance" json:"spotInstance"`
-	Name               string            `yaml:"name" json:"name"`
-	Owner              string            `yaml:"owner" json:"owner"`             // from tags
-	Tags               map[string]string `yaml:"tags" json:"tags"`               // all tags
-	Expires            time.Time         `yaml:"expires" json:"expires"`         // from tags
-	Description        string            `yaml:"description" json:"description"` // from description or tags if no description field
-	DisablePublicIP    bool              `yaml:"disablePublicIP" json:"disablePublicIP"`
-	TerminateOnStop    bool              `yaml:"terminateOnStop" json:"terminateOnStop"`
-	IAMInstanceProfile string            `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
-	ParallelSSHThreads int               `yaml:"parallelSSHThreads" json:"parallelSSHThreads"`
-	NoEnableRoot       bool              `yaml:"noEnableRoot" json:"noEnableRoot"`
+	// a user-friendly name for the cluster of instances(nodes)
+	ClusterName string `yaml:"clusterName" json:"clusterName"`
+	// number of instances(nodes) to create
+	Nodes int `yaml:"nodes" json:"nodes"`
+	// the image to use for the instances(nodes)
+	Image *Image `yaml:"image" json:"image"`
+	// aws: specify either region (ca-central-1) or zone (ca-central-1a) or vpc-id (vpc-0123456789abcdefg) or subnet-id (subnet-0123456789abcdefg)
+	// aws: vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, region: will use the default VPC, first subnet in the zone, zone: will use the default VPC-subnet in the zone
+	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement"`
+	// backend type
+	BackendType BackendType `yaml:"backendType" json:"backendType"`
+	// optional: the name of the ssh key to use for the instances(nodes); if not set, the default ssh key for the project will be used
+	SSHKeyName string `yaml:"sshKeyName" json:"sshKeyName"`
+	// instance type
+	InstanceType string `yaml:"instanceType" json:"instanceType"`
 	// volume types and sizes, backend-specific definitions
-	// aws format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=gp2,size=20 --disk type=gp3,size=100,iops=5000,throughput=200,count=2
-	// gcp format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: --disk type=pd-ssd,size=20 --disk type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2
-	Disks     []string     `yaml:"disks" json:"disks"`
+	// aws format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2
+	// gcp format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2
+	// first specified volume is the root volume, all subsequent volumes are additional attached volumes
+	Disks []string `yaml:"disks" json:"disks"`
+	// optional: names of firewalls to assign to the instances(nodes)
+	// will always create a project-wide firewall and assign it to the instances(nodes); this firewall allows communication between the instances(nodes) and port 22/tcp from the outside
+	Firewalls []string `yaml:"firewalls" json:"firewalls"`
+	// optional: if true, the instances(nodes) will be created as spot instances
+	SpotInstance bool `yaml:"spotInstance" json:"spotInstance"`
+	// optional: the name of the instance(node); if not set, the default name will be used (project-clusterName-nodeNo)
+	Name string `yaml:"name" json:"name"`
+	// optional: the owner of the instance(node); this will create an owner tag on the instance(node)
+	Owner string `yaml:"owner" json:"owner"`
+	// optional: extra tags to assign to the instance(node)
+	Tags map[string]string `yaml:"tags" json:"tags"`
+	// optional: the expiry date of the instance(node); if not set, will not expire
+	Expires time.Time `yaml:"expires" json:"expires"`
+	// optional: the description of the instance(node); if not set, will not create a description tag
+	Description string `yaml:"description" json:"description"`
+	// optional: if true, will not create a public IP for the instance(node)
+	DisablePublicIP bool `yaml:"disablePublicIP" json:"disablePublicIP"`
+	// optional: if true, will terminate the instance(node) when it is stopped from the instance itself (poweroff or shutdown)
+	TerminateOnStop bool `yaml:"terminateOnStop" json:"terminateOnStop"`
+	// optional: the IAM instance profile to use for the instance(node)
+	IAMInstanceProfile string `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
+	// optional: the number of parallel SSH threads to use for the instance(node); if not set, will use the number of Nodes being created
+	ParallelSSHThreads int `yaml:"parallelSSHThreads" json:"parallelSSHThreads"`
+	// optional: if true, will not enable the root user for the instance(node)
+	NoEnableRoot bool `yaml:"noEnableRoot" json:"noEnableRoot"`
+	// optional: the custom DNS to use for the instance(node); if not set, will not create a custom DNS
 	CustomDNS *InstanceDNS `yaml:"customDNS" json:"customDNS"`
 }
 
@@ -138,7 +161,6 @@ type Instance struct {
 	NodeNo           int               `yaml:"nodeNo" json:"nodeNo"`
 	IP               IP                `yaml:"IP" json:"IP"`
 	ImageID          string            `yaml:"imageID" json:"imageID"`
-	SSHKeyName       string            `yaml:"sshKeyName" json:"sshKeyName"`
 	SubnetID         string            `yaml:"subnetID" json:"subnetID"`
 	NetworkID        string            `yaml:"networkID" json:"networkID"`
 	Architecture     Architecture      `yaml:"architecture" json:"architecture"`

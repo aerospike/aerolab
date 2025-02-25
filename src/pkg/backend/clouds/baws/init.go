@@ -99,7 +99,18 @@ func (s *b) EnableZones(names ...string) error {
 	if err != nil {
 		return err
 	}
-	regions = append(regions, names...)
+	added := false
+	for _, r := range names {
+		if slices.Contains(regions, r) {
+			continue
+		}
+		regions = append(regions, r)
+		added = true
+	}
+	if added {
+		s.instanceTypeCacheInvalidate()
+		s.volumePriceCacheInvalidate()
+	}
 	s.regions = regions
 	return file.StoreJSON(path.Join(s.configDir, "regions.json"), ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regions)
 }

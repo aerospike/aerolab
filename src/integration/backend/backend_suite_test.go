@@ -2,6 +2,7 @@ package backend_test
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -21,7 +22,7 @@ var (
 	testProject    string = "aerolab-test"
 	tempDir        string
 	aerolabVersion string = "v0.0.0"
-	Options        BackendTestOptions
+	Options        *BackendTestOptions
 
 	testBackend backends.Backend
 )
@@ -30,6 +31,7 @@ type BackendTestOptions struct {
 	TestRegions []string
 	// Put test options here
 	SkipCleanup bool
+	TempDir     string
 }
 
 func (o *BackendTestOptions) Validate() error {
@@ -50,12 +52,16 @@ func (o *BackendTestOptions) Validate() error {
 		return errors.New("AEROLAB_AWS_TEST_REGIONS environment variable not set")
 	}
 
+	if value := os.Getenv("AEROLAB_TEST_CUSTOM_TMPDIR"); value != "" {
+		o.TempDir = value
+	}
+
 	return nil
 }
 
 var _ = BeforeSuite(func() {
-	options := &BackendTestOptions{}
-	err := options.Validate()
+	Options = &BackendTestOptions{}
+	err := Options.Validate()
 	Expect(err).NotTo(HaveOccurred())
 
 	credentials := &clouds.Credentials{
@@ -64,8 +70,16 @@ var _ = BeforeSuite(func() {
 		},
 	}
 
-	tempDir, err = os.MkdirTemp("", testProject)
-	Expect(err).NotTo(HaveOccurred())
+	if Options.TempDir == "" {
+		tempDir, err = os.MkdirTemp("", testProject)
+		Expect(err).NotTo(HaveOccurred())
+	} else {
+		tempDir = Options.TempDir
+		os.MkdirAll(tempDir, 0755)
+	}
+	if Options.SkipCleanup {
+		fmt.Printf("Skipping cleanup, tempDir=%s\n", tempDir)
+	}
 
 	// Put setup boilerplate here
 	testBackend, err = backend.New(testProject,
@@ -81,7 +95,7 @@ var _ = BeforeSuite(func() {
 		false)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = testBackend.AddRegion(backends.BackendTypeAWS, options.TestRegions...)
+	err = testBackend.AddRegion(backends.BackendTypeAWS, Options.TestRegions...)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = testBackend.ForceRefreshInventory()
@@ -109,5 +123,8 @@ func cleanupBackend() {
 	inv := testBackend.GetInventory()
 
 	err = inv.Instances.Terminate(time.Minute * 10)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = inv.Firewalls.Delete(time.Minute * 10)
 	Expect(err).NotTo(HaveOccurred())
 }
