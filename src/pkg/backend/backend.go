@@ -6,6 +6,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
 
 	"github.com/aerospike/aerolab/pkg/backend/cache"
@@ -90,7 +91,7 @@ func (b *backend) pollTimer() {
 	}
 }
 func (b *backend) ForceRefreshInventory() error {
-	log := b.log.WithPrefix("ForceRefreshInventory")
+	log := b.log.WithPrefix("ForceRefreshInventory job=" + shortuuid.New() + " ")
 	log.Debug("Starting inventory refresh")
 	b.pollLock.Lock()
 	defer b.pollLock.Unlock()
