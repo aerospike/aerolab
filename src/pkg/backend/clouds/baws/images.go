@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -235,11 +235,11 @@ func getImageData(amis []types.Image) (data []*imageData) {
 	return data
 }
 
-func (s *b) GetImages() (backend.ImageList, error) {
+func (s *b) GetImages() (backends.ImageList, error) {
 	log := s.log.WithPrefix("GetImages: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	var i backend.ImageList
+	var i backends.ImageList
 	ilock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	zones, _ := s.ListEnabledZones()
@@ -282,16 +282,16 @@ func (s *b) GetImages() (backend.ImageList, error) {
 					for _, t := range vol.Tags {
 						tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
 					}
-					state := backend.VolumeStateUnknown
+					state := backends.VolumeStateUnknown
 					switch vol.State {
 					case types.ImageStateAvailable:
-						state = backend.VolumeStateAvailable
+						state = backends.VolumeStateAvailable
 					case types.ImageStateDeregistered, types.ImageStateDisabled:
-						state = backend.VolumeStateDeleted
+						state = backends.VolumeStateDeleted
 					case types.ImageStatePending:
-						state = backend.VolumeStateCreating
+						state = backends.VolumeStateCreating
 					case types.ImageStateError, types.ImageStateInvalid, types.ImageStateFailed:
-						state = backend.VolumeStateFail
+						state = backends.VolumeStateFail
 					}
 					snap := &types.EbsBlockDevice{}
 					if len(vol.BlockDeviceMappings) > 0 {
@@ -302,19 +302,19 @@ func (s *b) GetImages() (backend.ImageList, error) {
 						continue
 					}
 					cd, _ := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
-					arch := backend.ArchitectureX8664
+					arch := backends.ArchitectureX8664
 					if vol.Architecture == types.ArchitectureValuesArm64 {
-						arch = backend.ArchitectureARM64
+						arch = backends.ArchitectureARM64
 					}
 					ilock.Lock()
-					i = append(i, &backend.Image{
+					i = append(i, &backends.Image{
 						Name:         tags[TAG_NAME],
 						Description:  tags[TAG_DESCRIPTION],
 						Owner:        tags[TAG_OWNER],
 						OSName:       tags[TAG_OS_NAME],
 						OSVersion:    tags[TAG_OS_VERSION],
 						ImageId:      aws.ToString(vol.ImageId),
-						BackendType:  backend.BackendTypeAWS,
+						BackendType:  backends.BackendTypeAWS,
 						ZoneName:     zone,
 						ZoneID:       zone,
 						Architecture: arch,
@@ -322,7 +322,7 @@ func (s *b) GetImages() (backend.ImageList, error) {
 						CreationTime: cd,
 						Encrypted:    aws.ToBool(snap.Encrypted),
 						InAccount:    true,
-						Size:         backend.StorageSize(aws.ToInt32(snap.VolumeSize)) * backend.StorageGiB,
+						Size:         backends.StorageSize(aws.ToInt32(snap.VolumeSize)) * backends.StorageGiB,
 						Tags:         tags,
 						State:        state,
 						Username:     "root",
@@ -370,32 +370,32 @@ func (s *b) GetImages() (backend.ImageList, error) {
 				for _, t := range vol.Tags {
 					tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
 				}
-				state := backend.VolumeStateUnknown
+				state := backends.VolumeStateUnknown
 				switch vol.State {
 				case types.ImageStateAvailable:
-					state = backend.VolumeStateAvailable
+					state = backends.VolumeStateAvailable
 				case types.ImageStateDeregistered, types.ImageStateDisabled:
-					state = backend.VolumeStateDeleted
+					state = backends.VolumeStateDeleted
 				case types.ImageStatePending:
-					state = backend.VolumeStateCreating
+					state = backends.VolumeStateCreating
 				case types.ImageStateError, types.ImageStateInvalid, types.ImageStateFailed:
-					state = backend.VolumeStateFail
+					state = backends.VolumeStateFail
 				}
 				snap := &types.EbsBlockDevice{}
 				if len(vol.BlockDeviceMappings) > 0 {
 					snap = vol.BlockDeviceMappings[0].Ebs
 				}
-				arch := backend.ArchitectureARM64
+				arch := backends.ArchitectureARM64
 				if image.Architecture == types.ArchitectureTypeX8664 {
-					arch = backend.ArchitectureX8664
+					arch = backends.ArchitectureX8664
 				}
 				ilock.Lock()
-				i = append(i, &backend.Image{
+				i = append(i, &backends.Image{
 					Name:         tags[TAG_NAME],
 					Description:  tags[TAG_DESCRIPTION],
 					Owner:        aws.ToString(vol.OwnerId),
 					ImageId:      aws.ToString(vol.ImageId),
-					BackendType:  backend.BackendTypeAWS,
+					BackendType:  backends.BackendTypeAWS,
 					ZoneName:     zone,
 					ZoneID:       zone,
 					Architecture: arch,
@@ -403,7 +403,7 @@ func (s *b) GetImages() (backend.ImageList, error) {
 					CreationTime: image.CreateTime,
 					Encrypted:    aws.ToBool(snap.Encrypted),
 					InAccount:    false,
-					Size:         backend.StorageSize(aws.ToInt32(snap.VolumeSize)) * backend.StorageGiB,
+					Size:         backends.StorageSize(aws.ToInt32(snap.VolumeSize)) * backends.StorageGiB,
 					Tags:         tags,
 					State:        state,
 					OSName:       image.OSName,
@@ -425,21 +425,21 @@ func (s *b) GetImages() (backend.ImageList, error) {
 	return i, errs
 }
 
-func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error {
+func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error {
 	log := s.log.WithPrefix("ImagesDelete: job=" + shortuuid.New() + " ")
 	if len(images) == 0 {
 		log.Detail("ImageList empty, returning")
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateImage)
-	volIds := make(map[string]backend.ImageList)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
+	volIds := make(map[string]backends.ImageList)
 	for _, volume := range images {
 		volume := volume
 		if !volume.InAccount {
 			return errors.New("at least one of the provided images is not in the owner's account")
 		}
 		if _, ok := volIds[volume.ZoneName]; !ok {
-			volIds[volume.ZoneName] = backend.ImageList{}
+			volIds[volume.ZoneName] = backends.ImageList{}
 		}
 		volIds[volume.ZoneName] = append(volIds[volume.ZoneName], volume)
 	}
@@ -448,7 +448,7 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 	var reterr error
 	for zone, ids := range volIds {
 		wg.Add(1)
-		go func(zone string, ids backend.ImageList) {
+		go func(zone string, ids backends.ImageList) {
 			defer wg.Done()
 			log.Detail("Connecting to EC2")
 			cli, err := getEc2Client(s.credentials, &zone)
@@ -499,14 +499,14 @@ func (s *b) ImagesDelete(images backend.ImageList, waitDur time.Duration) error 
 	return reterr
 }
 
-func (s *b) ImagesAddTags(images backend.ImageList, tags map[string]string) error {
+func (s *b) ImagesAddTags(images backends.ImageList, tags map[string]string) error {
 	log := s.log.WithPrefix("ImagesAddTags: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(images) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateImage)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
 	imageIds := make(map[string][]string)
 	for _, image := range images {
 		if _, ok := imageIds[image.ZoneID]; !ok {
@@ -539,14 +539,14 @@ func (s *b) ImagesAddTags(images backend.ImageList, tags map[string]string) erro
 	return nil
 }
 
-func (s *b) ImagesRemoveTags(images backend.ImageList, tagKeys []string) error {
+func (s *b) ImagesRemoveTags(images backends.ImageList, tagKeys []string) error {
 	log := s.log.WithPrefix("ImagesRemoveTags: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(images) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateImage)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
 	imageIds := make(map[string][]string)
 	for _, image := range images {
 		if _, ok := imageIds[image.ZoneID]; !ok {
@@ -578,7 +578,7 @@ func (s *b) ImagesRemoveTags(images backend.ImageList, tagKeys []string) error {
 	return nil
 }
 
-func (s *b) CreateImage(input *backend.CreateImageInput, waitDur time.Duration) (output *backend.CreateImageOutput, err error) {
+func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration) (output *backends.CreateImageOutput, err error) {
 	log := s.log.WithPrefix("CreateImage: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -591,12 +591,12 @@ func (s *b) CreateImage(input *backend.CreateImageInput, waitDur time.Duration) 
 	tags[TAG_OWNER] = input.Owner
 	tags[TAG_AEROLAB_PROJECT] = s.project
 	tags[TAG_AEROLAB_VERSION] = s.aerolabVersion
-	output = &backend.CreateImageOutput{
-		Image: &backend.Image{
+	output = &backends.CreateImageOutput{
+		Image: &backends.Image{
 			BackendType:  input.BackendType,
 			Name:         input.Name,
 			Description:  input.Description,
-			Size:         input.SizeGiB * backend.StorageGiB,
+			Size:         input.SizeGiB * backends.StorageGiB,
 			ZoneName:     input.Instance.ZoneName,
 			ZoneID:       input.Instance.ZoneID,
 			Architecture: input.Instance.Architecture,
@@ -605,7 +605,7 @@ func (s *b) CreateImage(input *backend.CreateImageInput, waitDur time.Duration) 
 			OSVersion:    input.OSVersion,
 			Username:     "root",
 			Encrypted:    input.Encrypted,
-			State:        backend.VolumeStateAvailable,
+			State:        backends.VolumeStateAvailable,
 			CreationTime: time.Now(),
 			Owner:        input.Owner,
 			Tags:         tags,
@@ -647,7 +647,7 @@ func (s *b) CreateImage(input *backend.CreateImageInput, waitDur time.Duration) 
 	if input.SizeGiB > 0 {
 		bdm.Ebs.VolumeSize = aws.Int32(int32(input.SizeGiB))
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateImage)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
 	resp, err := cli.CreateImage(context.TODO(), &ec2.CreateImageInput{
 		Name:        aws.String(input.Name),
 		InstanceId:  aws.String(input.Instance.InstanceID),

@@ -7,18 +7,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/lithammer/shortuuid"
 )
 
-func (s *b) GetFirewalls(networks backend.NetworkList) (backend.FirewallList, error) {
+func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, error) {
 	log := s.log.WithPrefix("GetFirewalls: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	var i backend.FirewallList
+	var i backends.FirewallList
 	ilock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	zones, _ := s.ListEnabledZones()
@@ -62,30 +62,30 @@ func (s *b) GetFirewalls(networks backend.NetworkList) (backend.FirewallList, er
 					}
 					// vpcId - match with network
 					nets := networks.WithNetID(aws.ToString(sec.VpcId))
-					var net *backend.Network
+					var net *backends.Network
 					if nets.Count() > 0 {
 						net = nets.Describe()[0]
 					} else {
 						net = nil
 					}
 					// make ports from IpPermissions
-					ports := backend.PortsOut{}
+					ports := backends.PortsOut{}
 					for _, perm := range sec.IpPermissions {
-						prot := backend.ProtocolAll
+						prot := backends.ProtocolAll
 						switch aws.ToString(perm.IpProtocol) {
 						case "tcp":
-							prot = backend.ProtocolTCP
+							prot = backends.ProtocolTCP
 						case "udp":
-							prot = backend.ProtocolUDP
+							prot = backends.ProtocolUDP
 						case "icmp":
-							prot = backend.ProtocolICMP
+							prot = backends.ProtocolICMP
 						}
 						for _, ipRange := range perm.IpRanges {
 							permx := perm
 							permx.IpRanges = []types.IpRange{ipRange}
 							permx.UserIdGroupPairs = nil
-							ports = append(ports, &backend.PortOut{
-								Port: backend.Port{
+							ports = append(ports, &backends.PortOut{
+								Port: backends.Port{
 									FromPort:   int(aws.ToInt32(perm.FromPort)),
 									ToPort:     int(aws.ToInt32(perm.ToPort)),
 									SourceCidr: aws.ToString(ipRange.CidrIp),
@@ -99,8 +99,8 @@ func (s *b) GetFirewalls(networks backend.NetworkList) (backend.FirewallList, er
 							permx := perm
 							permx.IpRanges = nil
 							permx.UserIdGroupPairs = []types.UserIdGroupPair{srcGrp}
-							ports = append(ports, &backend.PortOut{
-								Port: backend.Port{
+							ports = append(ports, &backends.PortOut{
+								Port: backends.Port{
 									FromPort:   int(aws.ToInt32(perm.FromPort)),
 									ToPort:     int(aws.ToInt32(perm.ToPort)),
 									SourceCidr: "",
@@ -112,8 +112,8 @@ func (s *b) GetFirewalls(networks backend.NetworkList) (backend.FirewallList, er
 						}
 					}
 					ilock.Lock()
-					i = append(i, &backend.Firewall{
-						BackendType: backend.BackendTypeAWS,
+					i = append(i, &backends.Firewall{
+						BackendType: backends.BackendTypeAWS,
 						Name:        aws.ToString(sec.GroupName),
 						FirewallID:  aws.ToString(sec.GroupId),
 						Description: aws.ToString(sec.Description),
@@ -136,19 +136,19 @@ func (s *b) GetFirewalls(networks backend.NetworkList) (backend.FirewallList, er
 	return i, errs
 }
 
-func (s *b) FirewallsUpdate(fw backend.FirewallList, ports backend.PortsIn, waitDur time.Duration) error {
+func (s *b) FirewallsUpdate(fw backends.FirewallList, ports backends.PortsIn, waitDur time.Duration) error {
 	log := s.log.WithPrefix("FirewallsUpdate: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(fw) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
-	fwIds := make(map[string]backend.FirewallList)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateFirewall)
+	fwIds := make(map[string]backends.FirewallList)
 	for _, firewall := range fw {
 		firewall := firewall
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
-			fwIds[firewall.ZoneID] = backend.FirewallList{}
+			fwIds[firewall.ZoneID] = backends.FirewallList{}
 		}
 		fwIds[firewall.ZoneID] = append(fwIds[firewall.ZoneID], firewall)
 	}
@@ -156,7 +156,7 @@ func (s *b) FirewallsUpdate(fw backend.FirewallList, ports backend.PortsIn, wait
 	var errs error
 	for zone, ids := range fwIds {
 		wg.Add(1)
-		go func(zone string, ids backend.FirewallList) {
+		go func(zone string, ids backends.FirewallList) {
 			defer wg.Done()
 			log.Detail("zone=%s start", zone)
 			defer log.Detail("zone=%s end", zone)
@@ -182,7 +182,7 @@ func (s *b) FirewallsUpdate(fw backend.FirewallList, ports backend.PortsIn, wait
 	return errs
 }
 
-func (s *b) firewallHandleUpdate(cli *ec2.Client, fw *backend.Firewall, ports backend.PortsIn) error {
+func (s *b) firewallHandleUpdate(cli *ec2.Client, fw *backends.Firewall, ports backends.PortsIn) error {
 	deleteRules := &ec2.RevokeSecurityGroupIngressInput{
 		GroupId: aws.String(fw.FirewallID),
 	}
@@ -191,7 +191,7 @@ func (s *b) firewallHandleUpdate(cli *ec2.Client, fw *backend.Firewall, ports ba
 	}
 	for _, port := range ports {
 		switch port.Action {
-		case backend.PortActionAdd:
+		case backends.PortActionAdd:
 			if port.SourceCidr != "" {
 				addRules.IpPermissions = append(addRules.IpPermissions, types.IpPermission{
 					IpRanges: []types.IpRange{
@@ -216,7 +216,7 @@ func (s *b) firewallHandleUpdate(cli *ec2.Client, fw *backend.Firewall, ports ba
 					IpProtocol: aws.String(port.Protocol),
 				})
 			}
-		case backend.PortActionDelete:
+		case backends.PortActionDelete:
 			for _, fwport := range fw.Ports {
 				// if ToPort and FromPort are not specified, we pass this check (all ports)
 				if port.ToPort != 0 && fwport.ToPort != port.ToPort {
@@ -226,7 +226,7 @@ func (s *b) firewallHandleUpdate(cli *ec2.Client, fw *backend.Firewall, ports ba
 					continue
 				}
 				// if protocol is ProtocolAll, we pass this check (all match)
-				if port.Protocol != backend.ProtocolAll && port.Protocol != fwport.Protocol {
+				if port.Protocol != backends.ProtocolAll && port.Protocol != fwport.Protocol {
 					continue
 				}
 				// if sourceCidr is not specified, we pass this check (all match)
@@ -261,14 +261,14 @@ func (s *b) firewallHandleUpdate(cli *ec2.Client, fw *backend.Firewall, ports ba
 	return nil
 }
 
-func (s *b) FirewallsDelete(fw backend.FirewallList, waitDur time.Duration) error {
+func (s *b) FirewallsDelete(fw backends.FirewallList, waitDur time.Duration) error {
 	log := s.log.WithPrefix("FirewallsDelete: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(fw) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateFirewall)
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -308,14 +308,14 @@ func (s *b) FirewallsDelete(fw backend.FirewallList, waitDur time.Duration) erro
 	return errs
 }
 
-func (s *b) FirewallsAddTags(fw backend.FirewallList, tags map[string]string, waitDur time.Duration) error {
+func (s *b) FirewallsAddTags(fw backends.FirewallList, tags map[string]string, waitDur time.Duration) error {
 	log := s.log.WithPrefix("FirewallsAddTags: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(fw) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateFirewall)
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -348,14 +348,14 @@ func (s *b) FirewallsAddTags(fw backend.FirewallList, tags map[string]string, wa
 	return nil
 }
 
-func (s *b) FirewallsRemoveTags(fw backend.FirewallList, tagKeys []string, waitDur time.Duration) error {
+func (s *b) FirewallsRemoveTags(fw backends.FirewallList, tagKeys []string, waitDur time.Duration) error {
 	log := s.log.WithPrefix("FirewallsRemoveTags: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(fw) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateFirewall)
 	fwIds := make(map[string][]string)
 	for _, firewall := range fw {
 		if _, ok := fwIds[firewall.ZoneID]; !ok {
@@ -387,7 +387,7 @@ func (s *b) FirewallsRemoveTags(fw backend.FirewallList, tagKeys []string, waitD
 	return nil
 }
 
-func (s *b) CreateFirewall(input *backend.CreateFirewallInput, waitDur time.Duration) (output *backend.CreateFirewallOutput, err error) {
+func (s *b) CreateFirewall(input *backends.CreateFirewallInput, waitDur time.Duration) (output *backends.CreateFirewallOutput, err error) {
 	log := s.log.WithPrefix("CreateFirewall: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -398,10 +398,10 @@ func (s *b) CreateFirewall(input *backend.CreateFirewallInput, waitDur time.Dura
 	tags[TAG_AEROLAB_PROJECT] = s.project
 	tags[TAG_AEROLAB_VERSION] = s.aerolabVersion
 	// create PortsOut
-	portsOut := backend.PortsOut{}
+	portsOut := backends.PortsOut{}
 	for _, port := range input.Ports {
 		if port.SourceCidr != "" {
-			portsOut = append(portsOut, &backend.PortOut{
+			portsOut = append(portsOut, &backends.PortOut{
 				Port: *port,
 				BackendSpecific: types.IpPermission{
 					FromPort:   aws.Int32(int32(port.FromPort)),
@@ -416,7 +416,7 @@ func (s *b) CreateFirewall(input *backend.CreateFirewallInput, waitDur time.Dura
 			})
 		}
 		if port.SourceId != "" {
-			portsOut = append(portsOut, &backend.PortOut{
+			portsOut = append(portsOut, &backends.PortOut{
 				Port: *port,
 				BackendSpecific: types.IpPermission{
 					FromPort:   aws.Int32(int32(port.FromPort)),
@@ -432,8 +432,8 @@ func (s *b) CreateFirewall(input *backend.CreateFirewallInput, waitDur time.Dura
 		}
 	}
 	// create output var
-	output = &backend.CreateFirewallOutput{
-		Firewall: &backend.Firewall{
+	output = &backends.CreateFirewallOutput{
+		Firewall: &backends.Firewall{
 			BackendType:     input.BackendType,
 			Name:            input.Name,
 			Description:     input.Description,
@@ -447,7 +447,7 @@ func (s *b) CreateFirewall(input *backend.CreateFirewallInput, waitDur time.Dura
 			BackendSpecific: nil, // unused
 		},
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateFirewall)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateFirewall)
 	cli, err := getEc2Client(s.credentials, &input.Network.ZoneName)
 	if err != nil {
 		return output, err
@@ -493,25 +493,25 @@ func (s *b) CreateFirewall(input *backend.CreateFirewallInput, waitDur time.Dura
 	}
 
 	if len(input.Ports) > 0 {
-		pin := backend.PortsIn{}
+		pin := backends.PortsIn{}
 		for _, port := range input.Ports {
 			sid := port.SourceId
 			if sid == "self" {
 				sid = output.Firewall.FirewallID
 			}
-			pin = append(pin, &backend.PortIn{
-				Port: backend.Port{
+			pin = append(pin, &backends.PortIn{
+				Port: backends.Port{
 					FromPort:   port.FromPort,
 					ToPort:     port.ToPort,
 					SourceCidr: port.SourceCidr,
 					SourceId:   sid,
 					Protocol:   port.Protocol,
 				},
-				Action: backend.PortActionAdd,
+				Action: backends.PortActionAdd,
 			})
 		}
 		log.Detail("FirewallsUpdate")
-		err = s.FirewallsUpdate(backend.FirewallList{output.Firewall}, pin, waitDur)
+		err = s.FirewallsUpdate(backends.FirewallList{output.Firewall}, pin, waitDur)
 		if err != nil {
 			return output, err
 		}

@@ -1,4 +1,4 @@
-package backend
+package backends
 
 type BackendType string
 
@@ -9,9 +9,9 @@ const (
 )
 
 func ListBackendTypes() []BackendType {
-	return []BackendType{
-		BackendTypeAWS,
-		BackendTypeGCP,
-		BackendTypeDocker,
+	types := []BackendType{}
+	for n := range cloudList {
+		types = append(types, n)
 	}
+	return types
 }

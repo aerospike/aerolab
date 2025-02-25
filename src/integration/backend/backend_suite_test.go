@@ -13,6 +13,7 @@ import (
 	"github.com/rglonek/logger"
 
 	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 )
 
@@ -22,7 +23,7 @@ var (
 	aerolabVersion string = "v0.0.0"
 	Options        BackendTestOptions
 
-	testBackend backend.Backend
+	testBackend backends.Backend
 )
 
 type BackendTestOptions struct {
@@ -67,19 +68,23 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	// Put setup boilerplate here
-	testBackend, err = backend.Init(testProject,
+	testBackend, err = backend.New(testProject,
 		&backend.Config{
 			RootDir:         tempDir,
 			Cache:           false,
 			Credentials:     credentials,
 			LogLevel:        logger.DETAIL,
+			LogMillisecond:  true,
 			AerolabVersion:  aerolabVersion,
 			ListAllProjects: false,
 		},
 		false)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = testBackend.AddRegion(backend.BackendTypeAWS, options.TestRegions...)
+	err = testBackend.AddRegion(backends.BackendTypeAWS, options.TestRegions...)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = testBackend.ForceRefreshInventory()
 	Expect(err).NotTo(HaveOccurred())
 })
 
@@ -101,8 +106,7 @@ func cleanupBackend() {
 	err := testBackend.ForceRefreshInventory()
 	Expect(err).NotTo(HaveOccurred())
 
-	inv, err := testBackend.GetInventory()
-	Expect(err).NotTo(HaveOccurred())
+	inv := testBackend.GetInventory()
 
 	err = inv.Instances.Terminate(time.Minute * 10)
 	Expect(err).NotTo(HaveOccurred())

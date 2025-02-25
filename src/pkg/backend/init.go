@@ -1,0 +1,12 @@
+package backend
+
+import (
+	"github.com/aerospike/aerolab/pkg/backend/backends"
+	_ "github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+)
+
+type Config backends.Config
+
+func New(project string, c *Config, pollInventoryHourly bool) (backends.Backend, error) {
+	return backends.InternalNew(project, (*backends.Config)(c), pollInventoryHourly)
+}

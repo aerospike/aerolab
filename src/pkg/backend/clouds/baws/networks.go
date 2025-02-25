@@ -6,20 +6,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/lithammer/shortuuid"
 )
 
-func (s *b) GetNetworks() (backend.NetworkList, error) {
+func (s *b) GetNetworks() (backends.NetworkList, error) {
 	log := s.log.WithPrefix("GetNetworks: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	var i backend.NetworkList
+	var i backends.NetworkList
 	ilock := new(sync.Mutex)
-	var j backend.SubnetList
+	var j backends.SubnetList
 	jlock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	zones, _ := s.ListEnabledZones()
@@ -55,16 +55,16 @@ func (s *b) GetNetworks() (backend.NetworkList, error) {
 					if _, ok := tags[TAG_AEROLAB_VERSION]; ok {
 						managed = true
 					}
-					state := backend.NetworkStateUnknown
+					state := backends.NetworkStateUnknown
 					switch vpc.State {
 					case types.VpcStatePending:
-						state = backend.NetworkStateConfiguring
+						state = backends.NetworkStateConfiguring
 					case types.VpcStateAvailable:
-						state = backend.NetworkStateAvailable
+						state = backends.NetworkStateAvailable
 					}
 					ilock.Lock()
-					i = append(i, &backend.Network{
-						BackendType:      backend.BackendTypeAWS,
+					i = append(i, &backends.Network{
+						BackendType:      backends.BackendTypeAWS,
 						Name:             tags[TAG_NAME],
 						Description:      tags[TAG_DESCRIPTION],
 						NetworkId:        aws.ToString(vpc.VpcId),
@@ -114,16 +114,16 @@ func (s *b) GetNetworks() (backend.NetworkList, error) {
 					if _, ok := tags[TAG_AEROLAB_VERSION]; ok {
 						managed = true
 					}
-					state := backend.NetworkStateUnknown
+					state := backends.NetworkStateUnknown
 					switch subnet.State {
 					case types.SubnetStatePending:
-						state = backend.NetworkStateConfiguring
+						state = backends.NetworkStateConfiguring
 					case types.SubnetStateAvailable:
-						state = backend.NetworkStateAvailable
+						state = backends.NetworkStateAvailable
 					}
 					jlock.Lock()
-					j = append(j, &backend.Subnet{
-						BackendType:      backend.BackendTypeAWS,
+					j = append(j, &backends.Subnet{
+						BackendType:      backends.BackendTypeAWS,
 						Name:             tags[TAG_NAME],
 						Description:      tags[TAG_DESCRIPTION],
 						SubnetId:         aws.ToString(subnet.SubnetId),
@@ -164,16 +164,16 @@ func (s *b) GetNetworks() (backend.NetworkList, error) {
 	return i, errs
 }
 
-func (s *b) NetworksDelete(networks backend.NetworkList, waitDur time.Duration) error {
+func (s *b) NetworksDelete(networks backends.NetworkList, waitDur time.Duration) error {
 	log := s.log.WithPrefix("NetworksDelete: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(networks) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateNetwork)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork)
 	// first delete subnets
-	subnets := backend.SubnetList{}
+	subnets := backends.SubnetList{}
 	for _, network := range networks {
 		subnets = append(subnets, network.Subnets...)
 	}
@@ -182,11 +182,11 @@ func (s *b) NetworksDelete(networks backend.NetworkList, waitDur time.Duration) 
 		return err
 	}
 	// delete networks
-	list := make(map[string]backend.NetworkList)
+	list := make(map[string]backends.NetworkList)
 	for _, network := range networks {
 		network := network
 		if _, ok := list[network.ZoneName]; !ok {
-			list[network.ZoneName] = backend.NetworkList{}
+			list[network.ZoneName] = backends.NetworkList{}
 		}
 		list[network.ZoneName] = append(list[network.ZoneName], network)
 	}
@@ -194,7 +194,7 @@ func (s *b) NetworksDelete(networks backend.NetworkList, waitDur time.Duration) 
 	var errs error
 	for zone, net := range list {
 		wg.Add(1)
-		go func(zone string, net backend.NetworkList) {
+		go func(zone string, net backends.NetworkList) {
 			defer wg.Done()
 			log.Detail("zone=%s start", zone)
 			defer log.Detail("zone=%s end", zone)
@@ -222,19 +222,19 @@ func (s *b) NetworksDelete(networks backend.NetworkList, waitDur time.Duration) 
 	return errs
 }
 
-func (s *b) NetworksDeleteSubnets(subnets backend.SubnetList, waitDur time.Duration) error {
+func (s *b) NetworksDeleteSubnets(subnets backends.SubnetList, waitDur time.Duration) error {
 	log := s.log.WithPrefix("NetworksDeleteSubnets: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(subnets) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateNetwork)
-	list := make(map[string]backend.SubnetList)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork)
+	list := make(map[string]backends.SubnetList)
 	for _, subnet := range subnets {
 		subnet := subnet
 		if _, ok := list[subnet.ZoneName]; !ok {
-			list[subnet.ZoneName] = backend.SubnetList{}
+			list[subnet.ZoneName] = backends.SubnetList{}
 		}
 		list[subnet.ZoneName] = append(list[subnet.ZoneName], subnet)
 	}
@@ -242,7 +242,7 @@ func (s *b) NetworksDeleteSubnets(subnets backend.SubnetList, waitDur time.Durat
 	var errs error
 	for zone, sub := range list {
 		wg.Add(1)
-		go func(zone string, sub backend.SubnetList) {
+		go func(zone string, sub backends.SubnetList) {
 			defer wg.Done()
 			log.Detail("zone=%s start", zone)
 			defer log.Detail("zone=%s end", zone)
@@ -270,14 +270,14 @@ func (s *b) NetworksDeleteSubnets(subnets backend.SubnetList, waitDur time.Durat
 	return errs
 }
 
-func (s *b) NetworksAddTags(networks backend.NetworkList, tags map[string]string) error {
+func (s *b) NetworksAddTags(networks backends.NetworkList, tags map[string]string) error {
 	log := s.log.WithPrefix("NetworksAddTags: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(networks) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateNetwork)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork)
 	netIds := make(map[string][]string)
 	for _, net := range networks {
 		if _, ok := netIds[net.ZoneID]; !ok {
@@ -310,14 +310,14 @@ func (s *b) NetworksAddTags(networks backend.NetworkList, tags map[string]string
 	return nil
 }
 
-func (s *b) NetworksRemoveTags(networks backend.NetworkList, tagKeys []string) error {
+func (s *b) NetworksRemoveTags(networks backends.NetworkList, tagKeys []string) error {
 	log := s.log.WithPrefix("NetworksRemoveTags: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	if len(networks) == 0 {
 		return nil
 	}
-	defer s.invalidateCacheFunc(backend.CacheInvalidateNetwork)
+	defer s.invalidateCacheFunc(backends.CacheInvalidateNetwork)
 	netIds := make(map[string][]string)
 	for _, net := range networks {
 		if _, ok := netIds[net.ZoneID]; !ok {

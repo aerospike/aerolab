@@ -1,10 +1,10 @@
-package backend
+package backends
 
 import (
 	_ "embed"
 )
 
-//go:generate bash -c "cd ../expiry && bash compile.sh"
+//go:generate bash -c "cd ../../expiry && bash compile.sh"
 //go:embed expiry.linux.amd64.zip
 var ExpiryBinary []byte
 

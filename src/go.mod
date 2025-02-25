@@ -46,7 +46,7 @@ require (
 	github.com/rglonek/aerospike-config-file-parser v1.0.4
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
 	github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
-	github.com/rglonek/logger v0.2.1-0.20250126210056-f2e5fa320954
+	github.com/rglonek/logger v0.2.2
 	github.com/rglonek/sbs v1.0.1
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	golang.org/x/crypto v0.31.0
