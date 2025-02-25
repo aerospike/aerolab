@@ -44,5 +44,12 @@ var _ = Describe("Instance integration tests", func() {
 				Expect(inventory.Images.WithInAccount(false).Count()).To(Equal(34))
 			})
 		})
+		When("no expiry system is installed", func() {
+			It("zero expiry systems exist", func() {
+				expiryList, err := testBackend.ExpiryList()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(expiryList.ExpirySystems).To(BeEmpty())
+			})
+		})
 	})
 })
