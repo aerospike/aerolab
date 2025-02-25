@@ -16,6 +16,7 @@ import (
 	etypes "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/pricing"
 	"github.com/aws/aws-sdk-go-v2/service/pricing/types"
+	"github.com/lithammer/shortuuid"
 )
 
 type volumePrice struct {
@@ -42,7 +43,7 @@ type volumePriceList struct {
 }
 
 func (s *b) GetVolumePrice(region string, volumeType string) (*backends.VolumePrice, error) {
-	log := s.log.WithPrefix("GetVolumePrice: region=" + region + " volumeType=" + volumeType)
+	log := s.log.WithPrefix("GetVolumePrice: job=" + shortuuid.New() + " region=" + region + " volumeType=" + volumeType + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	prices, err := s.GetVolumePrices()
@@ -58,7 +59,7 @@ func (s *b) GetVolumePrice(region string, volumeType string) (*backends.VolumePr
 }
 
 func (s *b) GetVolumePrices() (backends.VolumePriceList, error) {
-	log := s.log.WithPrefix("GetVolumePrices")
+	log := s.log.WithPrefix("GetVolumePrices: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	// get prices from cache
@@ -122,6 +123,11 @@ func (s *b) putVolumePricesToCache(prices []*volumePrice) error {
 	return json.NewEncoder(fd).Encode(vp)
 }
 
+func (s *b) volumePriceCacheInvalidate() {
+	f := path.Join(s.workDir, "volume_prices.json")
+	os.Remove(f)
+}
+
 func (s *b) getVolumePricesFromCache() ([]*volumePrice, error) {
 	f := path.Join(s.workDir, "volume_prices.json")
 	fd, err := os.Open(f)
@@ -169,7 +175,7 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 		// parse prices
 		for _, price := range out.PriceList {
 			p := &volumePrice{}
-			json.Unmarshal([]byte(price), &prices)
+			json.Unmarshal([]byte(price), p)
 			prices = append(prices, p)
 		}
 	}
@@ -210,7 +216,7 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 }
 
 func (s *b) GetInstanceType(region string, instanceType string) (*backends.InstanceType, error) {
-	log := s.log.WithPrefix("GetInstanceType: region=" + region + " instanceType=" + instanceType)
+	log := s.log.WithPrefix("GetInstanceType: job=" + shortuuid.New() + " region=" + region + " instanceType=" + instanceType + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	types, err := s.GetInstanceTypes()
@@ -226,7 +232,7 @@ func (s *b) GetInstanceType(region string, instanceType string) (*backends.Insta
 }
 
 func (s *b) GetInstanceTypes() (backends.InstanceTypeList, error) {
-	log := s.log.WithPrefix("GetInstanceTypes")
+	log := s.log.WithPrefix("GetInstanceTypes: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	// get prices from cache
@@ -246,24 +252,27 @@ func (s *b) GetInstanceTypes() (backends.InstanceTypeList, error) {
 	}
 
 	// translate to backends.InstanceTypeList
+	log.Detail("Responding")
 	backendTypes := backends.InstanceTypeList{}
 	for _, t := range prices {
 		onDemandPrice := float64(0)
 		currency := ""
-		for _, onDemand := range t.Price.Terms.OnDemand {
-			for _, priceDimension := range onDemand.PriceDimensions {
-				for unit, price := range priceDimension.PricePerUnit {
-					currency = unit
-					onDemandPrice, err = strconv.ParseFloat(price, 64)
-					if err != nil {
-						log.Detail("Error parsing price: %s", err)
-						continue
+		if t.Price != nil {
+			for _, onDemand := range t.Price.Terms.OnDemand {
+				for _, priceDimension := range onDemand.PriceDimensions {
+					for unit, price := range priceDimension.PricePerUnit {
+						currency = unit
+						onDemandPrice, err = strconv.ParseFloat(price, 64)
+						if err != nil {
+							log.Detail("Error parsing price: %s", err)
+							continue
+						}
+						break
 					}
 					break
 				}
 				break
 			}
-			break
 		}
 		backendTypes = append(backendTypes, &backends.InstanceType{
 			Region:           t.Region,
@@ -284,6 +293,7 @@ func (s *b) GetInstanceTypes() (backends.InstanceTypeList, error) {
 }
 
 func (s *b) putInstanceTypesToCache(types []*instanceType) error {
+	os.MkdirAll(s.workDir, 0755)
 	f := path.Join(s.workDir, "instance_types.json")
 	fd, err := os.Create(f)
 	if err != nil {
@@ -295,6 +305,11 @@ func (s *b) putInstanceTypesToCache(types []*instanceType) error {
 		Ts:    time.Now(),
 	}
 	return json.NewEncoder(fd).Encode(itp)
+}
+
+func (s *b) instanceTypeCacheInvalidate() {
+	f := path.Join(s.workDir, "instance_types.json")
+	os.Remove(f)
 }
 
 func (s *b) getInstanceTypesFromCache() ([]*instanceType, error) {
@@ -316,7 +331,7 @@ func (s *b) getInstanceTypesFromCache() ([]*instanceType, error) {
 }
 
 func (s *b) getSpotPricesFromAWS(cli *ec2.Client) (map[string]float64, error) {
-	log := s.log.WithPrefix("getSpotPricesFromAWS")
+	log := s.log.WithPrefix("getSpotPricesFromAWS: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	prices := make(map[string]float64)
@@ -350,7 +365,7 @@ func (s *b) getSpotPricesFromAWS(cli *ec2.Client) (map[string]float64, error) {
 }
 
 func (s *b) getInstanceTypesFromAWS() ([]*instanceType, error) {
-	log := s.log.WithPrefix("getInstanceTypesFromAWS")
+	log := s.log.WithPrefix("getInstanceTypesFromAWS: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	// get instance types from AWS
@@ -432,10 +447,6 @@ func (s *b) getInstanceTypesFromAWS() ([]*instanceType, error) {
 			ilock.Unlock()
 		}(region)
 	}
-	wg.Wait()
-	if errs != nil {
-		return nil, errs
-	}
 
 	// get instance prices from AWS
 	log.Detail("Getting instance prices from AWS")
@@ -443,55 +454,72 @@ func (s *b) getInstanceTypesFromAWS() ([]*instanceType, error) {
 	if err != nil {
 		return nil, err
 	}
-	paginator := pricing.NewGetProductsPaginator(cli, &pricing.GetProductsInput{
-		ServiceCode: aws.String("AmazonEC2"),
-		Filters: []types.Filter{
-			{
-				Type:  types.FilterTypeTermMatch,
-				Field: aws.String("productFamily"),
-				Value: aws.String("Compute Instance"),
-			},
-			{
-				Type:  types.FilterTypeTermMatch,
-				Field: aws.String("marketoption"),
-				Value: aws.String("OnDemand"),
-			},
-			{
-				Type:  types.FilterTypeTermMatch,
-				Field: aws.String("tenancy"),
-				Value: aws.String("Shared"), // other values: Dedicated, Host
-			},
-			{
-				Type:  types.FilterTypeTermMatch,
-				Field: aws.String("capacitystatus"),
-				Value: aws.String("Used"), // other values: AllocatedCapacityReservation, UnusedCapacityReservation
-			},
-			{
-				Type:  types.FilterTypeTermMatch,
-				Field: aws.String("preInstalledSw"),
-				Value: aws.String("NA"),
-			},
-			{
-				Type:  types.FilterTypeTermMatch,
-				Field: aws.String("operatingSystem"),
-				Value: aws.String("Linux"),
-			},
-		},
-	})
 	prices := []*instanceTypePrice{}
-	for paginator.HasMorePages() {
-		out, err := paginator.NextPage(context.Background())
-		if err != nil {
-			return nil, err
-		}
-		// parse prices
-		for _, price := range out.PriceList {
-			p := &instanceTypePrice{}
-			json.Unmarshal([]byte(price), &prices)
-			prices = append(prices, p)
-		}
+	for _, region := range s.regions {
+		wg.Add(1)
+		go func(region string) {
+			log.Detail("Getting instance prices from AWS for region %s", region)
+			defer wg.Done()
+			defer log.Detail("Done getting instance prices from AWS for region %s", region)
+			paginator := pricing.NewGetProductsPaginator(cli, &pricing.GetProductsInput{
+				ServiceCode: aws.String("AmazonEC2"),
+				Filters: []types.Filter{
+					{
+						Field: aws.String("regionCode"),
+						Type:  types.FilterTypeTermMatch,
+						Value: aws.String(region),
+					},
+					{
+						Type:  types.FilterTypeTermMatch,
+						Field: aws.String("productFamily"),
+						Value: aws.String("Compute Instance"),
+					},
+					{
+						Type:  types.FilterTypeTermMatch,
+						Field: aws.String("marketoption"),
+						Value: aws.String("OnDemand"),
+					},
+					{
+						Type:  types.FilterTypeTermMatch,
+						Field: aws.String("tenancy"),
+						Value: aws.String("Shared"), // other values: Dedicated, Host
+					},
+					{
+						Type:  types.FilterTypeTermMatch,
+						Field: aws.String("capacitystatus"),
+						Value: aws.String("Used"), // other values: AllocatedCapacityReservation, UnusedCapacityReservation
+					},
+					{
+						Type:  types.FilterTypeTermMatch,
+						Field: aws.String("preInstalledSw"),
+						Value: aws.String("NA"),
+					},
+					{
+						Type:  types.FilterTypeTermMatch,
+						Field: aws.String("operatingSystem"),
+						Value: aws.String("Linux"),
+					},
+				},
+			})
+			for paginator.HasMorePages() {
+				out, err := paginator.NextPage(context.Background())
+				if err != nil {
+					errs = errors.Join(errs, err)
+					return
+				}
+				// parse prices
+				for _, price := range out.PriceList {
+					p := &instanceTypePrice{}
+					json.Unmarshal([]byte(price), p)
+					prices = append(prices, p)
+				}
+			}
+		}(region)
 	}
-
+	wg.Wait()
+	if errs != nil {
+		return nil, errs
+	}
 	// merge prices into types
 	log.Detail("Merging prices into types")
 	for _, itype := range itypes {

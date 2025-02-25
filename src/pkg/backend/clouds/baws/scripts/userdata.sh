@@ -31,7 +31,13 @@ fi
 # if REBOOT is set, restart sshd
 if [ $REBOOT -eq 1 ]; then
     echo "Restarting sshd"
-    systemctl restart sshd || exit 1
+    if ! systemctl restart sshd; then
+        echo "Failed to restart sshd, trying ssh"
+        if ! systemctl restart ssh; then
+            echo "Failed to restart ssh, exiting"
+            exit 1
+        fi
+    fi
 fi
 
 if [ ! -f /root/.ssh/authorized_keys ]; then

@@ -2,9 +2,12 @@ package backends
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sync"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 type CreateVolumeInput struct {
@@ -52,6 +55,40 @@ func (a VolumeType) MarshalJSON() ([]byte, error) {
 
 func (a VolumeType) MarshalYAML() (interface{}, error) {
 	return a.String(), nil
+}
+
+func (a *VolumeType) UnmarshalJSON(data []byte) error {
+	var s string
+	err := json.Unmarshal(data, &s)
+	if err != nil {
+		return err
+	}
+	switch s {
+	case "AttachedDisk":
+		*a = VolumeTypeAttachedDisk
+	case "SharedDisk":
+		*a = VolumeTypeSharedDisk
+	default:
+		return fmt.Errorf("unknown volume type: %s", s)
+	}
+	return nil
+}
+
+func (a *VolumeType) UnmarshalYAML(value *yaml.Node) error {
+	var s string
+	err := value.Decode(&s)
+	if err != nil {
+		return err
+	}
+	switch s {
+	case "AttachedDisk":
+		*a = VolumeTypeAttachedDisk
+	case "SharedDisk":
+		*a = VolumeTypeSharedDisk
+	default:
+		return fmt.Errorf("unknown volume type: %s", s)
+	}
+	return nil
 }
 
 type Volumes interface {

@@ -159,7 +159,6 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 			Private: aws.ToString(inst.PrivateIpAddress),
 		},
 		ImageID:      aws.ToString(inst.ImageId),
-		SSHKeyName:   aws.ToString(inst.KeyName),
 		SubnetID:     aws.ToString(inst.SubnetId),
 		NetworkID:    aws.ToString(inst.VpcId),
 		Architecture: arch,
@@ -345,12 +344,6 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 	if s.instances.WithBackendType(backends.BackendTypeAWS).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count() {
 		removeSSHKey = true
 	}
-	keyNames := []string{}
-	for _, instance := range instances {
-		if !slices.Contains(keyNames, instance.SSHKeyName) {
-			keyNames = append(keyNames, instance.SSHKeyName)
-		}
-	}
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
@@ -441,10 +434,8 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 	// if no more instances exist for this project, delete the ssh key from amazon and locally from filepath.Join(s.sshKeysDir, s.project)
 	if removeSSHKey {
 		log.Detail("Remove SSH keys as no more instances exist for this project")
-		for _, keyName := range keyNames {
-			os.Remove(filepath.Join(s.sshKeysDir, keyName))
-			os.Remove(filepath.Join(s.sshKeysDir, keyName+".pub"))
-		}
+		os.Remove(filepath.Join(s.sshKeysDir, s.project))
+		os.Remove(filepath.Join(s.sshKeysDir, s.project+".pub"))
 		log.Detail("SSH keys removed")
 	}
 	return nil
@@ -616,7 +607,7 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			outl.Unlock()
 			return
 		}
-		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, i.SSHKeyName))
+		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, s.project))
 		if err != nil {
 			outl.Lock()
 			out = append(out, &backends.ExecOutput{
@@ -675,7 +666,7 @@ func (s *b) InstancesGetSftpConfig(instances backends.InstanceList, username str
 		if i.InstanceState != backends.LifeCycleStateRunning {
 			return nil, errors.New("instance not running")
 		}
-		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, i.SSHKeyName))
+		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, s.project))
 		if err != nil {
 			return nil, errors.New("required key not found")
 		}
@@ -806,6 +797,7 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 	if err != nil {
 		return 0, 0, err
 	}
+	zone = zone[:len(zone)-1]
 	instanceType, err := s.GetInstanceType(zone, input.InstanceType)
 	if err != nil {
 		return 0, 0, err
@@ -817,6 +809,8 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 	}
 	for _, diskDef := range input.Disks {
 		parts := strings.Split(diskDef, ",")
+		addCostGB := float64(0)
+		count := int64(1)
 		for _, part := range parts {
 			kv := strings.Split(part, "=")
 			if len(kv) != 2 {
@@ -829,11 +823,17 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 				if err != nil {
 					return 0, 0, err
 				}
-				costGB += volumePrice.PricePerGBHour
+				addCostGB += volumePrice.PricePerGBHour
+			case "count":
+				count, err = strconv.ParseInt(kv[1], 10, 64)
+				if err != nil {
+					return 0, 0, fmt.Errorf("invalid disk definition %s - count must be a number", diskDef)
+				}
 			}
 		}
+		costGB += (addCostGB * float64(count))
 	}
-	return costPPH, costGB, nil
+	return costPPH * float64(input.Nodes), costGB * float64(input.Nodes), nil
 }
 
 func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
@@ -844,7 +844,7 @@ func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, su
 				vpc = n
 				if len(vpc.Subnets) > 0 {
 					subnet = vpc.Subnets[0]
-					zone = subnet.ZoneName
+					zone = subnet.ZoneID
 				}
 				break
 			}
@@ -862,7 +862,7 @@ func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, su
 				if s.SubnetId == placement {
 					vpc = n
 					subnet = s
-					zone = subnet.ZoneName
+					zone = s.ZoneID
 					break
 				}
 			}
@@ -875,15 +875,15 @@ func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, su
 		}
 
 	default:
-		zone = placement
 		for _, n := range s.networks {
 			if !n.IsDefault {
 				continue
 			}
 			for _, s := range n.Subnets {
-				if s.ZoneName == zone {
+				if s.ZoneName == placement || s.ZoneID == placement {
 					vpc = n
 					subnet = s
+					zone = s.ZoneID
 					break
 				}
 			}
@@ -892,7 +892,7 @@ func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, su
 			}
 		}
 		if subnet == nil {
-			return nil, nil, "", fmt.Errorf("no default subnet found in zone %s", zone)
+			return nil, nil, "", fmt.Errorf("no default subnet found in zone %s", placement)
 		}
 	}
 	return vpc, subnet, zone, nil
@@ -909,17 +909,18 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", input.CustomDNS.Name)
 	}
 
-	vpc, subnet, zone, err := s.resolveNetworkPlacement(input.NetworkPlacement)
+	vpc, subnet, az, err := s.resolveNetworkPlacement(input.NetworkPlacement)
 	if err != nil {
 		return nil, err
 	}
+	zone := az[:len(az)-1]
 
-	log.Detail("Selected network placement: zone=%s vpc=%s subnet=%s", zone, vpc.NetworkId, subnet.SubnetId)
+	log.Detail("Selected network placement: zone=%s az=%s vpc=%s subnet=%s", zone, az, vpc.NetworkId, subnet.SubnetId)
 
 	// if cluster with given ClusterName already exists in s.instances, find last node number, so we know where to count up for the instances we will be creating
 	lastNodeNo := 0
 	clusterUUID := uuid.New().String()
-	for _, instance := range s.instances.WithClusterName(input.ClusterName).Describe() {
+	for _, instance := range s.instances.WithNotState(backends.LifeCycleStateTerminated).WithClusterName(input.ClusterName).Describe() {
 		clusterUUID = instance.ClusterUUID
 		if instance.NodeNo > lastNodeNo {
 			lastNodeNo = instance.NodeNo
@@ -952,6 +953,42 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		}
 	}
 	log.Detail("Found security groups: %v", firewallIds)
+
+	// TODO: default project-VPC firewall if it does not exist
+	defaultFwName := TAG_FIREWALL_NAME_PREFIX + s.project + "_" + vpc.NetworkId
+	if s.firewalls.WithName(defaultFwName).Count() == 0 {
+		fw, err := s.CreateFirewall(&backends.CreateFirewallInput{
+			BackendType: backends.BackendTypeAWS,
+			Name:        defaultFwName,
+			Description: "AeroLab default project-VPC firewall",
+			Ports: []*backends.Port{
+				{
+					FromPort:   22,
+					ToPort:     22,
+					SourceCidr: "0.0.0.0/0",
+					SourceId:   "",
+					Protocol:   backends.ProtocolTCP,
+				},
+				{
+					FromPort:   -1,
+					ToPort:     -1,
+					SourceCidr: "",
+					SourceId:   "self",
+					Protocol:   backends.ProtocolAll,
+				},
+			},
+			Network: vpc,
+		}, waitDur)
+		if err != nil {
+			return nil, err
+		}
+		firewallIds[fw.Firewall.FirewallID] = fw.Firewall.Name
+		securityGroupIds = append(securityGroupIds, fw.Firewall.FirewallID)
+	} else {
+		defaultFw := s.firewalls.WithName(defaultFwName).Describe()[0]
+		firewallIds[defaultFw.FirewallID] = defaultFw.Name
+		securityGroupIds = append(securityGroupIds, defaultFw.FirewallID)
+	}
 
 	// parse disks into ec2.CreateInstancesInput so we know the definitions are fine and have a block device mapping done
 	blockDeviceMappings := []types.BlockDeviceMapping{}
@@ -1041,33 +1078,21 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		}
 	}
 
+	if len(blockDeviceMappings) > 0 {
+		// TODO: modify the first block device mapping to be the root volume
+		blockDeviceMappings[0].DeviceName = aws.String(input.Image.BackendSpecific.(*imageDetail).RootDeviceName)
+	}
+
 	log.Detail("Block device mappings: %v", blockDeviceMappings)
 
 	// get prices
-	var costPPH, costGB float64
-	instanceType, err := s.GetInstanceType(zone, input.InstanceType)
+	costPPH, costGB, err := s.CreateInstancesGetPrice(input)
 	if err != nil {
-		log.Warn("Failed to get instance price: %v", err)
-	} else {
-		if input.SpotInstance {
-			costPPH = instanceType.PricePerHour.Spot
-		} else {
-			costPPH = instanceType.PricePerHour.OnDemand
-		}
-	}
-	volumePrice, err := s.GetVolumePrice(zone, input.Disks[0])
-	if err != nil {
-		log.Warn("Failed to get volume price: %v", err)
-	} else {
-		costGB = volumePrice.PricePerGBHour
+		return nil, err
 	}
 
 	// create aws tags for ec2.CreateInstancesInput
 	awsTags := []types.Tag{
-		{
-			Key:   aws.String(TAG_NAME),
-			Value: aws.String(input.Name),
-		},
 		{
 			Key:   aws.String(TAG_OWNER),
 			Value: aws.String(input.Owner),
@@ -1156,16 +1181,12 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 
 	// resolve SSHKeyName
-	sshKeyName := input.SSHKeyName
-	if input.SSHKeyName == "" {
-		sshKeyName = s.project
-	}
-	sshKeyPath := filepath.Join(s.sshKeysDir, sshKeyName)
+	sshKeyPath := filepath.Join(s.sshKeysDir, s.project)
 
 	// if key does not exist in aws, create it
 	var publicKeyBytes []byte
 	if _, err := os.Stat(sshKeyPath); os.IsNotExist(err) {
-		log.Detail("SSH key %s does not exist, creating it", sshKeyName)
+		log.Detail("SSH key %s does not exist, creating it", sshKeyPath)
 		// generate new SSH key pair
 		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
@@ -1210,9 +1231,11 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	// Create instances
 	runResults := []types.Instance{}
-	marketType := types.MarketTypeCapacityBlock
+	var marketType *types.InstanceMarketOptionsRequest
 	if input.SpotInstance {
-		marketType = types.MarketTypeSpot
+		marketType = &types.InstanceMarketOptionsRequest{
+			MarketType: types.MarketTypeSpot,
+		}
 	}
 	shutdownBehavior := types.ShutdownBehaviorStop
 	if input.TerminateOnStop {
@@ -1252,7 +1275,18 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			Key:   aws.String(TAG_NODE_NO),
 			Value: aws.String(fmt.Sprintf("%d", i+1)),
 		})
-
+		name := input.Name
+		if name == "" {
+			name = fmt.Sprintf("%s-%s-%d", s.project, input.ClusterName, i+1)
+		}
+		nodeTags = append(nodeTags, types.Tag{
+			Key:   aws.String(TAG_NAME),
+			Value: aws.String(name),
+		})
+		nodeVolumeTags = append(nodeVolumeTags, types.Tag{
+			Key:   aws.String(TAG_NAME),
+			Value: aws.String(name),
+		})
 		// Create instance
 		runResult, err := cli.RunInstances(context.Background(), &ec2.RunInstancesInput{
 			ImageId:                           aws.String(input.Image.ImageId),
@@ -1261,9 +1295,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			MaxCount:                          aws.Int32(1),
 			IamInstanceProfile:                iam,
 			InstanceInitiatedShutdownBehavior: shutdownBehavior,
-			InstanceMarketOptions: &types.InstanceMarketOptionsRequest{
-				MarketType: marketType,
-			},
+			InstanceMarketOptions:             marketType,
 			NetworkInterfaces: []types.InstanceNetworkInterfaceSpecification{
 				{
 					DeviceIndex:              aws.Int32(0),
