@@ -24,8 +24,11 @@ var _ = Describe("Instance integration tests", func() {
 			})
 		})
 		When("listing the network count", func() {
-			It("zero networks exist", func() {
-				Expect(inventory.Networks.Count()).To(Equal(0)) // TODO this should never be 0
+			It("zero managed networks exist", func() {
+				Expect(inventory.Networks.WithAerolabManaged(true).Count()).To(Equal(0))
+			})
+			It("one unmanaged network exists", func() {
+				Expect(inventory.Networks.WithAerolabManaged(false).Count()).To(Equal(1))
 			})
 		})
 		When("listing the firewall count", func() {
@@ -34,8 +37,11 @@ var _ = Describe("Instance integration tests", func() {
 			})
 		})
 		When("listing the image count", func() {
-			It("zero images exist", func() {
-				Expect(inventory.Images.Count()).To(Equal(0)) // TODO this should never be 0
+			It("zero premade images exist", func() {
+				Expect(inventory.Images.WithInAccount(true).Count()).To(Equal(0))
+			})
+			It("34 default images exist", func() {
+				Expect(inventory.Images.WithInAccount(false).Count()).To(Equal(34))
 			})
 		})
 	})

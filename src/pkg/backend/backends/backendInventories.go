@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"encoding/json"
 	"errors"
 	"path"
 	"slices"
@@ -11,6 +12,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/rglonek/logger"
+	"gopkg.in/yaml.v3"
 )
 
 // TODO: expiry: telemetry if enabled
@@ -177,6 +179,38 @@ type Inventory struct {
 	Volumes   Volumes   // permanent volumes which do not go away (not tied to instance lifetime), be it EFS, or EBS/pd-ssd
 	Instances Instances // all instances, clusters, clients, whatever
 	Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
+}
+
+func (i *Inventory) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Networks  NetworkList  `json:"networks"`
+		Firewalls FirewallList `json:"firewalls"`
+		Volumes   VolumeList   `json:"volumes"`
+		Instances InstanceList `json:"instances"`
+		Images    ImageList    `json:"images"`
+	}{
+		Networks:  i.Networks.Describe(),
+		Firewalls: i.Firewalls.Describe(),
+		Volumes:   i.Volumes.Describe(),
+		Instances: i.Instances.Describe(),
+		Images:    i.Images.Describe(),
+	})
+}
+
+func (i *Inventory) MarshalYAML() ([]byte, error) {
+	return yaml.Marshal(struct {
+		Networks  NetworkList  `yaml:"networks"`
+		Firewalls FirewallList `yaml:"firewalls"`
+		Volumes   VolumeList   `yaml:"volumes"`
+		Instances InstanceList `yaml:"instances"`
+		Images    ImageList    `yaml:"images"`
+	}{
+		Networks:  i.Networks.Describe(),
+		Firewalls: i.Firewalls.Describe(),
+		Volumes:   i.Volumes.Describe(),
+		Instances: i.Instances.Describe(),
+		Images:    i.Images.Describe(),
+	})
 }
 
 func (b *backend) loadCache() error {
