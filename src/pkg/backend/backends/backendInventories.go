@@ -1,4 +1,4 @@
-package backend
+package backends
 
 import (
 	"errors"
@@ -120,7 +120,7 @@ type Cloud interface {
 }
 
 type Backend interface {
-	GetInventory() (*Inventory, error)
+	GetInventory() *Inventory
 	AddRegion(backendType BackendType, names ...string) error
 	RemoveRegion(backendType BackendType, names ...string) error
 	ListEnabledRegions(backendType BackendType) (name []string, err error)
@@ -156,16 +156,6 @@ type backend struct {
 	invalidatedLock *sync.Mutex
 }
 
-// networks->firewalls(networks)->volumes(networks, firewalls)-->instances(volumes, networks, firewalls)
-// images - no dependencies
-type Inventory struct {
-	Networks  Networks  // VPCs, Subnets
-	Firewalls Firewalls // AWS security groups, GCP firewalls
-	Volumes   Volumes   // permanent volumes which do not go away (not tied to instance lifetime), be it EFS, or EBS/pd-ssd
-	Instances Instances // all instances, clusters, clients, whatever
-	Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
-}
-
 func getBackendObject(project string, c *Config) *backend {
 	return &backend{
 		project:   project,
@@ -177,6 +167,16 @@ func getBackendObject(project string, c *Config) *backend {
 		firewalls: make(map[BackendType]FirewallList),
 		pollLock:  new(sync.Mutex),
 	}
+}
+
+// networks->firewalls(networks)->volumes(networks, firewalls)-->instances(volumes, networks, firewalls)
+// images - no dependencies
+type Inventory struct {
+	Networks  Networks  // VPCs, Subnets
+	Firewalls Firewalls // AWS security groups, GCP firewalls
+	Volumes   Volumes   // permanent volumes which do not go away (not tied to instance lifetime), be it EFS, or EBS/pd-ssd
+	Instances Instances // all instances, clusters, clients, whatever
+	Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
 }
 
 func (b *backend) loadCache() error {
@@ -227,89 +227,113 @@ func (b *backend) loadCache() error {
 }
 
 func (b *backend) poll(items []string) []error {
+	start := time.Now()
 	var errs []error
 
 	log := b.log.WithPrefix("PollInventory ")
 
-	if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
-		log.Debug("Getting networks")
-		for n, v := range cloudList {
-			d, err := v.GetNetworks()
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
+			log.Debug("Getting networks")
+			for n, v := range cloudList {
+				d, err := v.GetNetworks()
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.networks[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "networks"), b.networks)
 			if err != nil {
 				errs = append(errs, err)
-			} else {
-				b.networks[n] = d
 			}
 		}
-		err := b.cache.Store(path.Join(b.project, "networks"), b.networks)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
+	}()
 
-	if len(items) == 0 || slices.Contains(items, CacheInvalidateFirewall) {
-		log.Debug("Getting firewalls")
-		for n, v := range cloudList {
-			d, err := v.GetFirewalls(b.networks[n])
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateFirewall) {
+			log.Debug("Getting firewalls")
+			for n, v := range cloudList {
+				d, err := v.GetFirewalls(b.networks[n])
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.firewalls[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "firewalls"), b.firewalls)
 			if err != nil {
 				errs = append(errs, err)
-			} else {
-				b.firewalls[n] = d
 			}
 		}
-		err := b.cache.Store(path.Join(b.project, "firewalls"), b.firewalls)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
+	}()
 
-	if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
-		log.Debug("Getting volumes")
-		for n, v := range cloudList {
-			d, err := v.GetVolumes()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
+			log.Debug("Getting volumes")
+			for n, v := range cloudList {
+				d, err := v.GetVolumes()
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.volumes[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
 			if err != nil {
 				errs = append(errs, err)
-			} else {
-				b.volumes[n] = d
 			}
 		}
-		err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
+	}()
 
-	if len(items) == 0 || slices.Contains(items, CacheInvalidateInstance) {
-		log.Debug("Getting instances")
-		for n, v := range cloudList {
-			d, err := v.GetInstances(b.volumes[n], b.networks[n], b.firewalls[n])
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateInstance) {
+			log.Debug("Getting instances")
+			for n, v := range cloudList {
+				d, err := v.GetInstances(b.volumes[n], b.networks[n], b.firewalls[n])
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.instances[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "instances"), b.instances)
 			if err != nil {
 				errs = append(errs, err)
-			} else {
-				b.instances[n] = d
 			}
 		}
-		err := b.cache.Store(path.Join(b.project, "instances"), b.instances)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
+	}()
 
-	if len(items) == 0 || slices.Contains(items, CacheInvalidateImage) {
-		log.Debug("Getting images")
-		for n, v := range cloudList {
-			d, err := v.GetImages()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateImage) {
+			log.Debug("Getting images")
+			for n, v := range cloudList {
+				d, err := v.GetImages()
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.images[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "images"), b.images)
 			if err != nil {
 				errs = append(errs, err)
-			} else {
-				b.images[n] = d
 			}
 		}
-		err := b.cache.Store(path.Join(b.project, "images"), b.images)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
+	}()
+
+	wg.Wait()
 
 	if len(errs) == 0 && len(items) == 0 {
 		log.Debug("Storing metadata")
@@ -324,10 +348,11 @@ func (b *backend) poll(items []string) []error {
 		cloud.SetInventory(b.networks[cname], b.firewalls[cname], b.instances[cname], b.volumes[cname], b.images[cname])
 	}
 	log.Debug("Done")
+	log.Detail("Inventory poll of %v took %s", items, time.Since(start))
 	return errs
 }
 
-func (b *backend) GetInventory() (*Inventory, error) {
+func (b *backend) GetInventory() *Inventory {
 	networks := NetworkList{}
 	for _, v := range b.networks {
 		networks = append(networks, v...)
@@ -354,7 +379,7 @@ func (b *backend) GetInventory() (*Inventory, error) {
 		Images:    images,
 		Networks:  networks,
 		Firewalls: firewalls,
-	}, nil
+	}
 }
 
 func (b *backend) RefreshChangedInventory() error {

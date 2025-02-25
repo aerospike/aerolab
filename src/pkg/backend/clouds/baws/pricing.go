@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	etypes "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -41,7 +41,7 @@ type volumePriceList struct {
 	Ts     time.Time
 }
 
-func (s *b) GetVolumePrice(region string, volumeType string) (*backend.VolumePrice, error) {
+func (s *b) GetVolumePrice(region string, volumeType string) (*backends.VolumePrice, error) {
 	log := s.log.WithPrefix("GetVolumePrice: region=" + region + " volumeType=" + volumeType)
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -57,7 +57,7 @@ func (s *b) GetVolumePrice(region string, volumeType string) (*backend.VolumePri
 	return nil, errors.New("volume price not found")
 }
 
-func (s *b) GetVolumePrices() (backend.VolumePriceList, error) {
+func (s *b) GetVolumePrices() (backends.VolumePriceList, error) {
 	log := s.log.WithPrefix("GetVolumePrices")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -77,8 +77,8 @@ func (s *b) GetVolumePrices() (backend.VolumePriceList, error) {
 		}
 	}
 
-	// translate to backend.VolumePriceList
-	backendPrices := backend.VolumePriceList{}
+	// translate to backends.VolumePriceList
+	backendPrices := backends.VolumePriceList{}
 NEXTPRICE:
 	for _, price := range prices {
 		punit := ""
@@ -98,7 +98,7 @@ NEXTPRICE:
 			}
 			break
 		}
-		backendPrices = append(backendPrices, &backend.VolumePrice{
+		backendPrices = append(backendPrices, &backends.VolumePrice{
 			Type:           price.Product.Attributes.VolumeApiName,
 			Region:         price.Product.Attributes.RegionCode,
 			PricePerGBHour: pprice / 30.5 / 24,
@@ -209,7 +209,7 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 	return prices, nil
 }
 
-func (s *b) GetInstanceType(region string, instanceType string) (*backend.InstanceType, error) {
+func (s *b) GetInstanceType(region string, instanceType string) (*backends.InstanceType, error) {
 	log := s.log.WithPrefix("GetInstanceType: region=" + region + " instanceType=" + instanceType)
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -225,7 +225,7 @@ func (s *b) GetInstanceType(region string, instanceType string) (*backend.Instan
 	return nil, errors.New("instance type not found")
 }
 
-func (s *b) GetInstanceTypes() (backend.InstanceTypeList, error) {
+func (s *b) GetInstanceTypes() (backends.InstanceTypeList, error) {
 	log := s.log.WithPrefix("GetInstanceTypes")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -245,8 +245,8 @@ func (s *b) GetInstanceTypes() (backend.InstanceTypeList, error) {
 		}
 	}
 
-	// translate to backend.InstanceTypeList
-	backendTypes := backend.InstanceTypeList{}
+	// translate to backends.InstanceTypeList
+	backendTypes := backends.InstanceTypeList{}
 	for _, t := range prices {
 		onDemandPrice := float64(0)
 		currency := ""
@@ -265,7 +265,7 @@ func (s *b) GetInstanceTypes() (backend.InstanceTypeList, error) {
 			}
 			break
 		}
-		backendTypes = append(backendTypes, &backend.InstanceType{
+		backendTypes = append(backendTypes, &backends.InstanceType{
 			Region:           t.Region,
 			Name:             t.Name,
 			CPUs:             t.CPUs,
@@ -273,7 +273,7 @@ func (s *b) GetInstanceTypes() (backend.InstanceTypeList, error) {
 			Arch:             t.Arch,
 			NvmeCount:        t.NvmeCount,
 			NvmeTotalSizeGiB: t.NvmeTotalSizeGiB,
-			PricePerHour: backend.InstanceTypePrice{
+			PricePerHour: backends.InstanceTypePrice{
 				OnDemand: onDemandPrice,
 				Spot:     t.SpotPrice,
 				Currency: currency,
@@ -378,12 +378,12 @@ func (s *b) getInstanceTypesFromAWS() ([]*instanceType, error) {
 						return err
 					}
 					for _, itype := range out.InstanceTypes {
-						archs := []backend.Architecture{}
+						archs := []backends.Architecture{}
 						for _, arch := range itype.ProcessorInfo.SupportedArchitectures {
 							if arch == etypes.ArchitectureTypeX8664 {
-								archs = append(archs, backend.ArchitectureX8664)
+								archs = append(archs, backends.ArchitectureX8664)
 							} else if arch == etypes.ArchitectureTypeArm64 {
-								archs = append(archs, backend.ArchitectureARM64)
+								archs = append(archs, backends.ArchitectureARM64)
 							}
 						}
 						nvmeCount := int32(0)
@@ -547,7 +547,7 @@ type instanceType struct {
 	Name             string
 	CPUs             int
 	MemoryGiB        float64
-	Arch             []backend.Architecture
+	Arch             []backends.Architecture
 	NvmeCount        int
 	NvmeTotalSizeGiB int
 	Price            *instanceTypePrice

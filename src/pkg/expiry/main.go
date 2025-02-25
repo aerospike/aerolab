@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 	"github.com/aerospike/aerolab/pkg/expiry/expire"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -46,7 +47,7 @@ func awsLambdaMain() {
 	if err != nil {
 		logLevel = 4
 	}
-	h.Backend, err = backend.Init("unused_project_name", &backend.Config{
+	h.Backend, err = backend.New("unused_project_name", &backend.Config{
 		RootDir:         "/tmp/aerolab",
 		Cache:           false,
 		LogLevel:        logger.LogLevel(logLevel),
@@ -57,7 +58,7 @@ func awsLambdaMain() {
 	if err != nil {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
-	err = h.Backend.AddRegion(backend.BackendTypeAWS, os.Getenv("AWS_REGION"))
+	err = h.Backend.AddRegion(backends.BackendTypeAWS, os.Getenv("AWS_REGION"))
 	if err != nil {
 		log.Fatalf("Failed to add region: %v", err)
 	}
@@ -137,7 +138,7 @@ func serverMain() {
 		CleanupDNS:   p.CleanupDNS,
 		Credentials:  p.getCredentials(),
 	}
-	h.Backend, err = backend.Init("unused_project_name", &backend.Config{
+	h.Backend, err = backend.New("unused_project_name", &backend.Config{
 		RootDir:         p.TmpDir,
 		Cache:           false,
 		LogLevel:        logger.LogLevel(p.LogLevel),
@@ -150,7 +151,7 @@ func serverMain() {
 	}
 	log.Printf("Adding regions")
 	for _, region := range p.Region {
-		err = h.Backend.AddRegion(backend.BackendTypeAWS, region)
+		err = h.Backend.AddRegion(backends.BackendTypeAWS, region)
 		if err != nil {
 			log.Fatalf("Failed to add region: %v", err)
 		}

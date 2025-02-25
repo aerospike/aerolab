@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -133,7 +133,7 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 		return err
 	}
 
-	expiryVersion, err := strconv.Atoi(strings.Trim(backend.ExpiryVersion, "\n \t\r"))
+	expiryVersion, err := strconv.Atoi(strings.Trim(backends.ExpiryVersion, "\n \t\r"))
 	if err != nil {
 		return err
 	}
@@ -201,9 +201,9 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 	return nil
 }
 
-func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, expireEksctl bool, cleanupDNS bool, logLevel int, onUpdateKeepOriginalSettings bool, esys []*backend.ExpirySystem, isUpdate bool) error {
+func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, expireEksctl bool, cleanupDNS bool, logLevel int, onUpdateKeepOriginalSettings bool, esys []*backends.ExpirySystem, isUpdate bool) error {
 	if isUpdate && onUpdateKeepOriginalSettings {
-		var e *backend.ExpirySystem
+		var e *backends.ExpirySystem
 		for _, esys := range esys {
 			if esys.Zone == zone {
 				e = esys
@@ -310,7 +310,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 	log.Detail("Creating lambda function")
 	function, err := lclient.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
 		Code: &ltypes.FunctionCode{
-			ZipFile: backend.ExpiryBinary,
+			ZipFile: backends.ExpiryBinary,
 		},
 		FunctionName: aws.String("aerolab-expiries-" + zone),
 		Handler:      aws.String("bootstrap"),
@@ -318,7 +318,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 		Timeout:      aws.Int32(900),
 		Publish:      true,
 		Runtime:      ltypes.RuntimeProvidedal2023,
-		Tags:         map[string]string{TAG_AEROLAB_VERSION: strings.Trim(backend.ExpiryVersion, "\n \t\r")},
+		Tags:         map[string]string{TAG_AEROLAB_VERSION: strings.Trim(backends.ExpiryVersion, "\n \t\r")},
 		Environment: &ltypes.Environment{
 			Variables: map[string]string{
 				"EKS_ROLE":              aws.ToString(lambdaRole.Role.Arn),
@@ -338,7 +338,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 			time.Sleep(5 * time.Second)
 			function, err = lclient.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
 				Code: &ltypes.FunctionCode{
-					ZipFile: backend.ExpiryBinary,
+					ZipFile: backends.ExpiryBinary,
 				},
 				FunctionName: aws.String("aerolab-expiries-" + zone),
 				Handler:      aws.String("bootstrap"),
@@ -346,7 +346,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 				Timeout:      aws.Int32(900),
 				Publish:      true,
 				Runtime:      ltypes.RuntimeProvidedal2023,
-				Tags:         map[string]string{TAG_AEROLAB_VERSION: strings.Trim(backend.ExpiryVersion, "\n \t\r")},
+				Tags:         map[string]string{TAG_AEROLAB_VERSION: strings.Trim(backends.ExpiryVersion, "\n \t\r")},
 				Environment: &ltypes.Environment{
 					Variables: map[string]string{
 						"EKS_ROLE":              aws.ToString(lambdaRole.Role.Arn),
@@ -501,12 +501,12 @@ func (s *b) ExpiryRemove(zones ...string) error {
 	return nil
 }
 
-func (s *b) ExpiryList() ([]*backend.ExpirySystem, error) {
+func (s *b) ExpiryList() ([]*backends.ExpirySystem, error) {
 	log := s.log.WithPrefix("ExpiryList: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	var reterr error
-	ret := []*backend.ExpirySystem{}
+	ret := []*backends.ExpirySystem{}
 	retLock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	wg.Add(len(s.regions))
@@ -519,8 +519,8 @@ func (s *b) ExpiryList() ([]*backend.ExpirySystem, error) {
 			success := 0
 			found := false
 			detail := &expiryDetail{}
-			esys := &backend.ExpirySystem{
-				BackendType: backend.BackendTypeAWS,
+			esys := &backends.ExpirySystem{
+				BackendType: backends.BackendTypeAWS,
 				Zone:        zone,
 			}
 			sclient, err := getSchedulerClient(s.credentials, &zone)
@@ -671,7 +671,7 @@ func (s *b) ExpiryChangeFrequency(intervalMinutes int, zones ...string) error {
 			log := log.WithPrefix("zone=" + zone + " ")
 			log.Detail("Start")
 			defer log.Detail("End")
-			var e *backend.ExpirySystem
+			var e *backends.ExpirySystem
 			for _, esys := range esys {
 				if esys.Zone == zone {
 					e = esys
@@ -707,14 +707,14 @@ func (s *b) ExpiryChangeFrequency(intervalMinutes int, zones ...string) error {
 	return nil
 }
 
-func (s *b) InstancesChangeExpiry(instances backend.InstanceList, expiry time.Time) error {
+func (s *b) InstancesChangeExpiry(instances backends.InstanceList, expiry time.Time) error {
 	log := s.log.WithPrefix("InstancesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 	return instances.AddTags(map[string]string{TAG_EXPIRES: expiry.Format(time.RFC3339)})
 }
 
-func (s *b) VolumesChangeExpiry(volumes backend.VolumeList, expiry time.Time) error {
+func (s *b) VolumesChangeExpiry(volumes backends.VolumeList, expiry time.Time) error {
 	log := s.log.WithPrefix("VolumesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")

@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 	"github.com/aerospike/aerolab/pkg/file"
 	"github.com/rglonek/logger"
@@ -21,21 +21,21 @@ type b struct {
 	sshKeysDir          string
 	log                 *logger.Logger
 	aerolabVersion      string
-	networks            backend.NetworkList
-	firewalls           backend.FirewallList
-	instances           backend.InstanceList
-	volumes             backend.VolumeList
-	images              backend.ImageList
+	networks            backends.NetworkList
+	firewalls           backends.FirewallList
+	instances           backends.InstanceList
+	volumes             backends.VolumeList
+	images              backends.ImageList
 	workDir             string
 	invalidateCacheFunc func(names ...string) error
 	listAllProjects     bool
 }
 
 func init() {
-	backend.RegisterBackend(backend.BackendTypeAWS, &b{})
+	backends.RegisterBackend(backends.BackendTypeAWS, &b{})
 }
 
-func (s *b) SetInventory(networks backend.NetworkList, firewalls backend.FirewallList, instances backend.InstanceList, volumes backend.VolumeList, images backend.ImageList) {
+func (s *b) SetInventory(networks backends.NetworkList, firewalls backends.FirewallList, instances backends.InstanceList, volumes backends.VolumeList, images backends.ImageList) {
 	s.networks = networks
 	s.firewalls = firewalls
 	s.instances = instances
@@ -100,6 +100,7 @@ func (s *b) EnableZones(names ...string) error {
 		return err
 	}
 	regions = append(regions, names...)
+	s.regions = regions
 	return file.StoreJSON(path.Join(s.configDir, "regions.json"), ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regions)
 }
 
@@ -115,6 +116,7 @@ func (s *b) DisableZones(names ...string) error {
 		}
 		regions = append(regions, r)
 	}
+	s.regions = regions
 	return file.StoreJSON(path.Join(s.configDir, "regions.json"), ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regions)
 }
 

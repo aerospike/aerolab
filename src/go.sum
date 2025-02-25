@@ -239,8 +239,8 @@ github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744 h1:HyBW093bA2fLY
 github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744/go.mod h1:CS128EIeoFCR4HBOwZDqzicTdDDcwzAWSqPUof2r8vI=
 github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible h1:YetOOw5mSL6xmwbF5GMcmvMbpthp03tmGLx3U/ke/YA=
 github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible/go.mod h1:yWO03+fWZps+sVPozmNXFoq1v+V3xIGOd8m2WU9Vm70=
-github.com/rglonek/logger v0.2.1-0.20250126210056-f2e5fa320954 h1:hctBECSin8vZJpIAsQbt1NSsqP/QN7IsrGGerrIZ1MM=
-github.com/rglonek/logger v0.2.1-0.20250126210056-f2e5fa320954/go.mod h1:aoW8J2qZULvefdDJdM+k1q/anE4VOXoe7QA8bHwBPWk=
+github.com/rglonek/logger v0.2.2 h1:x26NXqc09il3n8QBY9BkrEqVdiIBBeVxuHPiSLGyPVQ=
+github.com/rglonek/logger v0.2.2/go.mod h1:aoW8J2qZULvefdDJdM+k1q/anE4VOXoe7QA8bHwBPWk=
 github.com/rglonek/sbs v1.0.1 h1:zwdzaMs6J8n9UXOcnFFjnacrBk13EJ13HxQzEDMmMko=
 github.com/rglonek/sbs v1.0.1/go.mod h1:B07E+15yeDM/eT1AN9T83+TztA6AdE/o0GrKINe8pqU=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=

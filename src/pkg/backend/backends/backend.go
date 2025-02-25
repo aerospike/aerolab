@@ -1,4 +1,4 @@
-package backend
+package backends
 
 import (
 	"errors"
@@ -18,6 +18,7 @@ type Config struct {
 	Cache           bool                `yaml:"Cache" json:"Cache"`
 	Credentials     *clouds.Credentials `yaml:"Credentials" json:"Credentials"`
 	LogLevel        logger.LogLevel     `yaml:"logLevel" json:"logLevel"`
+	LogMillisecond  bool                `yaml:"logMillisecond" json:"logMillisecond"`
 	AerolabVersion  string              `yaml:"aerolabVersion" json:"aerolabVersion"`
 	ListAllProjects bool                `yaml:"listAllProjects" json:"listAllProjects"`
 }
@@ -110,20 +111,21 @@ func (b *backend) ForceRefreshInventory() error {
 	return errors.New(errstring)
 }
 
-func Init(project string, c *Config, pollInventoryHourly bool) (Backend, error) {
+func InternalNew(project string, c *Config, pollInventoryHourly bool) (Backend, error) {
 	if project == "" {
 		return nil, errors.New("project name cannot be empty")
 	}
 	b := getBackendObject(project, c)
+	b.log = logger.NewLogger()
+	b.log.SetLogLevel(c.LogLevel)
+	b.log.SetPrefix("BACKEND ")
+	b.log.MillisecondLogging(c.LogMillisecond)
 	for cname, cloud := range cloudList {
-		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.invalidate, c.ListAllProjects)
+		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)+" "), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.invalidate, c.ListAllProjects)
 		if err != nil {
 			return nil, err
 		}
 	}
-	b.log = logger.NewLogger()
-	b.log.SetLogLevel(c.LogLevel)
-	b.log.SetPrefix("BACKEND ")
 	b.cache = &cache.Cache{
 		Enabled: b.config.Cache,
 		Dir:     path.Join(c.RootDir, project, "cache"),

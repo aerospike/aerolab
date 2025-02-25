@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/backend"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -23,7 +23,7 @@ import (
 )
 
 type ExpiryHandler struct {
-	Backend      backend.Backend
+	Backend      backends.Backend
 	ExpireEksctl bool
 	CleanupDNS   bool
 	lock         sync.Mutex
@@ -36,12 +36,9 @@ func (h *ExpiryHandler) Expire() error {
 	defer h.lock.Unlock()
 
 	log.Print("Lock acquired, listing inventory")
-	inventory, err := h.Backend.GetInventory()
-	if err != nil {
-		return err
-	}
+	inventory := h.Backend.GetInventory()
 
-	instances := inventory.Instances.WithExpired(true).WithState(backend.LifeCycleStateRunning, backend.LifeCycleStateUnknown, backend.LifeCycleStateStopped, backend.LifeCycleStateFail, backend.LifeCycleStateCreated, backend.LifeCycleStateConfiguring).Describe()
+	instances := inventory.Instances.WithExpired(true).WithState(backends.LifeCycleStateRunning, backends.LifeCycleStateUnknown, backends.LifeCycleStateStopped, backends.LifeCycleStateFail, backends.LifeCycleStateCreated, backends.LifeCycleStateConfiguring).Describe()
 
 	if len(instances) > 0 {
 		logLine := fmt.Sprintf("Terminating %d instances: ", len(instances))
@@ -49,7 +46,7 @@ func (h *ExpiryHandler) Expire() error {
 			logLine += fmt.Sprintf("clusterName=%s,nodeNo=%d,instanceID=%s;", instance.ClusterName, instance.NodeNo, instance.InstanceID)
 		}
 		log.Print(logLine)
-		err = instances.Terminate(10 * time.Minute)
+		err := instances.Terminate(10 * time.Minute)
 		if err != nil {
 			return err
 		}
@@ -65,7 +62,7 @@ func (h *ExpiryHandler) Expire() error {
 			logLine += fmt.Sprintf("volumeID=%s;", volume.FileSystemId)
 		}
 		log.Print(logLine)
-		err = volumes.DeleteVolumes(inventory.Firewalls.Describe(), 10*time.Minute)
+		err := volumes.DeleteVolumes(inventory.Firewalls.Describe(), 10*time.Minute)
 		if err != nil {
 			return err
 		}
@@ -76,14 +73,14 @@ func (h *ExpiryHandler) Expire() error {
 
 	if h.CleanupDNS {
 		log.Print("Cleaning up stale DNS")
-		err = h.Backend.CleanupDNS()
+		err := h.Backend.CleanupDNS()
 		if err != nil {
 			return err
 		}
 	}
 
 	if h.ExpireEksctl {
-		regions, err := h.Backend.ListEnabledRegions(backend.BackendTypeAWS)
+		regions, err := h.Backend.ListEnabledRegions(backends.BackendTypeAWS)
 		if err != nil {
 			return err
 		}

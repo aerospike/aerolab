@@ -568,7 +568,7 @@ github.com/rglonek/envconfig
 # github.com/rglonek/jeddevdk-goflags v2.0.0+incompatible
 ## explicit
 github.com/rglonek/jeddevdk-goflags
-# github.com/rglonek/logger v0.2.1-0.20250126210056-f2e5fa320954
+# github.com/rglonek/logger v0.2.2
 ## explicit; go 1.18
 github.com/rglonek/logger
 # github.com/rglonek/sbs v1.0.1
