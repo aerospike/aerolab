@@ -7,11 +7,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/sshexec"
 )
-
-// Q1: how to make it abort further tests if one fails?
-// Q2: how to make reusable tests, like for example I would like to test if inventory is empty again later?
-// Q3: are we sure the Describe->When->It always runs in order defined?
 
 var _ = Describe("Instance integration tests", func() {
 	When("inventory is empty", func() {
@@ -136,6 +133,138 @@ var _ = Describe("Instance integration tests", func() {
 			for _, vol := range testBackend.GetInventory().Volumes.Describe() {
 				Expect(vol.Size).To(Equal(20 * backends.StorageGiB))
 			}
+		})
+	})
+	When("test tagging", func() {
+		It("should tag instances", func() {
+			insts := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			Expect(insts.AddTags(map[string]string{"test-tag": "test-value"})).NotTo(HaveOccurred())
+			Expect(testBackend.RefreshChangedInventory()).NotTo(HaveOccurred())
+
+			insts = testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			for _, inst := range insts.Describe() {
+				Expect(inst.Tags).To(HaveKeyWithValue("test-tag", "test-value"))
+			}
+
+			Expect(insts.RemoveTags([]string{"test-tag"})).NotTo(HaveOccurred())
+			Expect(testBackend.RefreshChangedInventory()).NotTo(HaveOccurred())
+
+			insts = testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			for _, inst := range insts.Describe() {
+				Expect(inst.Tags).NotTo(HaveKey("test-tag"))
+			}
+		})
+	})
+	When("test expiry", func() {
+		It("should set expiry", func() {
+			insts := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			newExp := time.Now().Add(time.Hour * 24 * 30)
+			Expect(insts.ChangeExpiry(newExp)).NotTo(HaveOccurred())
+			Expect(testBackend.RefreshChangedInventory()).NotTo(HaveOccurred())
+
+			insts = testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			for _, inst := range insts.Describe() {
+				Expect(inst.Expires).To(BeTemporally("~", newExp, time.Second*10))
+			}
+			Expect(insts.ChangeExpiry(time.Time{})).NotTo(HaveOccurred())
+			Expect(testBackend.RefreshChangedInventory()).NotTo(HaveOccurred())
+
+			insts = testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			for _, inst := range insts.Describe() {
+				Expect(inst.Expires).To(BeZero())
+			}
+		})
+	})
+	When("test stop/start", func() {
+		It("should stop", func() {
+			insts := testBackend.GetInventory().Instances.WithState(backends.LifeCycleStateRunning)
+			Expect(insts.Count()).To(Equal(3))
+			Expect(insts.Stop(false, 2*time.Minute)).NotTo(HaveOccurred())
+			Expect(testBackend.RefreshChangedInventory()).NotTo(HaveOccurred())
+			insts = testBackend.GetInventory().Instances.WithState(backends.LifeCycleStateRunning)
+			Expect(insts.Count()).To(Equal(0))
+			for _, inst := range insts.Describe() {
+				Expect(inst.InstanceState).To(Equal(backends.LifeCycleStateStopped))
+			}
+		})
+		It("should start", func() {
+			insts := testBackend.GetInventory().Instances.WithState(backends.LifeCycleStateStopped)
+			Expect(insts.Count()).To(Equal(3))
+			Expect(insts.Start(2 * time.Minute)).NotTo(HaveOccurred())
+			Expect(testBackend.RefreshChangedInventory()).NotTo(HaveOccurred())
+			insts = testBackend.GetInventory().Instances.WithState(backends.LifeCycleStateRunning)
+			Expect(insts.Count()).To(Equal(3))
+			for _, inst := range insts.Describe() {
+				Expect(inst.InstanceState).To(Equal(backends.LifeCycleStateRunning))
+			}
+		})
+	})
+	When("test exec", func() {
+		It("should exec", func() {
+			insts := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			outs := insts.Exec(&backends.ExecInput{
+				ExecDetail: sshexec.ExecDetail{
+					Command:        []string{"ls", "-la"},
+					Stdin:          nil,
+					Stdout:         nil,
+					Stderr:         nil,
+					SessionTimeout: 10 * time.Second,
+					Env:            []*sshexec.Env{},
+					Terminal:       true,
+				},
+				Username:        "root",
+				ConnectTimeout:  10 * time.Second,
+				ParallelThreads: 2,
+			})
+			Expect(outs).To(HaveLen(3))
+			for _, out := range outs {
+				Expect(out.Output).NotTo(BeNil())
+				Expect(out.Output.Err).NotTo(HaveOccurred())
+			}
+		})
+	})
+	When("test sftp", func() {
+		It("should sftp", func() {
+			insts := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			confs, err := insts.GetSftpConfig("root")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(confs).To(HaveLen(3))
+			for _, conf := range confs {
+				Expect(conf.Host).NotTo(BeEmpty())
+				Expect(conf.Port).NotTo(BeZero())
+				Expect(conf.Username).To(Equal("root"))
+				sftpClient, err := sshexec.NewSftp(conf)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(sftpClient).NotTo(BeNil())
+				remote := sftpClient.GetRemoteClient()
+				Expect(remote).NotTo(BeNil())
+				files, err := remote.ReadDir("/tmp")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(files).NotTo(BeEmpty())
+				sftpClient.Close()
+			}
+		})
+	})
+	When("test terminate", func() {
+		It("should terminate", func() {
+			insts := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
+			Expect(insts.Count()).To(Equal(3))
+			Expect(insts.Terminate(2 * time.Minute)).NotTo(HaveOccurred())
+			Expect(testBackend.RefreshChangedInventory()).NotTo(HaveOccurred())
+			Expect(testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).Count()).To(Equal(0))
+			Expect(testBackend.GetInventory().Volumes.Count()).To(Equal(0))
+			Expect(testBackend.GetInventory().Firewalls.Count()).To(Equal(1))
+			Expect(testBackend.GetInventory().Firewalls.Delete(2 * time.Minute)).NotTo(HaveOccurred())
+			Expect(testBackend.RefreshChangedInventory()).NotTo(HaveOccurred())
+			Expect(testBackend.GetInventory().Firewalls.Count()).To(Equal(0))
 		})
 	})
 })

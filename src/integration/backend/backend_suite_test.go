@@ -59,7 +59,7 @@ func (o *BackendTestOptions) Validate() error {
 	return nil
 }
 
-var _ = BeforeSuite(func() {
+var _ = SynchronizedBeforeSuite(func() {
 	Options = &BackendTestOptions{}
 	err := Options.Validate()
 	Expect(err).NotTo(HaveOccurred())
@@ -98,22 +98,30 @@ var _ = BeforeSuite(func() {
 	err = testBackend.AddRegion(backends.BackendTypeAWS, Options.TestRegions...)
 	Expect(err).NotTo(HaveOccurred())
 
+	cleanupBackend()
+
 	err = testBackend.ForceRefreshInventory()
 	Expect(err).NotTo(HaveOccurred())
+}, func() {
+	// no multi-run node-level setup
 })
 
-var _ = AfterSuite(func() {
-	if !Options.SkipCleanup {
-		cleanupBackend()
-
-		// Clean up everything (anything we may have deployed) here
-		os.RemoveAll(tempDir)
-	}
+var _ = SynchronizedAfterSuite(func() {
+	cleanup()
+}, func() {
+	// no multi-run node-level cleanup
 })
 
 func TestBackend(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Backend Integration Suite")
+}
+
+func cleanup() {
+	if !Options.SkipCleanup {
+		cleanupBackend()
+		os.RemoveAll(tempDir)
+	}
 }
 
 func cleanupBackend() {
@@ -128,3 +136,22 @@ func cleanupBackend() {
 	err = inv.Firewalls.Delete(time.Minute * 10)
 	Expect(err).NotTo(HaveOccurred())
 }
+
+var _ = AfterEach(func() {
+	if CurrentSpecReport().Failed() {
+		report := CurrentSpecReport()
+		fmt.Printf("\n🔴 Test failed: %s\n", report.FullText())
+		fmt.Printf("Location: %s\n", report.Failure.Location)
+
+		// Print all failure details
+		failure := report.Failure
+		fmt.Printf("\nFailure: %s\n", failure.Message)
+		fmt.Printf("File: %s:%d\n", failure.Location.FileName, failure.Location.LineNumber)
+		if failure.ForwardedPanic != "" {
+			fmt.Printf("Panic: %v\n", failure.ForwardedPanic)
+		}
+		fmt.Printf("Full Stack:\n%s\n", failure.Location.FullStackTrace)
+		cleanup()
+		os.Exit(1) // Force immediate exit on failure
+	}
+})
