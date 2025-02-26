@@ -298,6 +298,10 @@ func (b *backend) loadCache() error {
 			}
 		}
 	}
+	err = b.cache.Get(path.Join(b.project, "invalidated"), &b.invalidated)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -306,6 +310,9 @@ func (b *backend) poll(items []string) []error {
 	var errs []error
 
 	log := b.log.WithPrefix("PollInventory ")
+
+	slices.Sort(items)
+	items = slices.Compact(items)
 
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
@@ -458,7 +465,7 @@ func (b *backend) GetInventory() *Inventory {
 }
 
 func (b *backend) RefreshChangedInventory() error {
-	log := b.log.WithPrefix("RefreshChangedInventory")
+	log := b.log.WithPrefix("RefreshChangedInventory ")
 	log.Debug("Starting inventory refresh")
 	b.pollLock.Lock()
 	defer b.pollLock.Unlock()
@@ -466,6 +473,10 @@ func (b *backend) RefreshChangedInventory() error {
 	b.invalidatedLock.Lock()
 	defer b.invalidatedLock.Unlock()
 	log.Debug("Invalidated Lock obtained, inventory refresh started")
+	if len(b.invalidated) == 0 {
+		log.Debug("No invalidated items, returning")
+		return nil
+	}
 	errs := b.poll(b.invalidated)
 	if len(errs) != 0 {
 		var errstring error
@@ -483,7 +494,7 @@ func (b *backend) RefreshChangedInventory() error {
 }
 
 func (b *backend) invalidate(items ...string) error {
-	log := b.log.WithPrefix("invalidateInventoryCache")
+	log := b.log.WithPrefix("invalidateInventoryCache ")
 	log.Debug("Invalidating items: %v", items)
 	b.invalidatedLock.Lock()
 	defer b.invalidatedLock.Unlock()
