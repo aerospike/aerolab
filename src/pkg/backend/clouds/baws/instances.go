@@ -721,7 +721,6 @@ func (s *b) InstancesAssignFirewalls(instances backends.InstanceList, fw backend
 				}
 				_, err := clis[zone].ModifyInstanceAttribute(context.TODO(), &ec2.ModifyInstanceAttributeInput{
 					InstanceId: aws.String(id.InstanceID),
-					Attribute:  "groupSet",
 					Groups:     allGroups,
 				})
 				if err != nil {
@@ -780,7 +779,6 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 				}
 				_, err := clis[zone].ModifyInstanceAttribute(context.TODO(), &ec2.ModifyInstanceAttributeInput{
 					InstanceId: aws.String(id.InstanceID),
-					Attribute:  "groupSet",
 					Groups:     allGroups,
 				})
 				if err != nil {
