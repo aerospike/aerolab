@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO: test expire-eksctl and cleanup-dns
+
 type expiryTest struct{}
 
 func TestExpiry(t *testing.T) {
@@ -21,6 +23,8 @@ func TestExpiry(t *testing.T) {
 	t.Run("expiry change configuration", expiryTest.testExpiryChangeConfiguration)
 	t.Run("expiry upgrade", expiryTest.testExpiryUpgrade)
 	t.Run("create instance", expiryTest.testCreateInstance)
+	t.Run("create attached volume", expiryTest.testCreateAttachedVolume)
+	t.Run("create shared volume", expiryTest.testCreateSharedVolume)
 	t.Run("wait for expiry", expiryTest.testWaitForExpiry)
 	t.Run("expiry remove", expiryTest.testExpiryRemove)
 	t.Run("end inventory empty", testInventoryEmpty)
@@ -106,12 +110,66 @@ func (e *expiryTest) testCreateInstance(t *testing.T) {
 	require.Equal(t, inst.Count(), 1)
 }
 
+func (e *expiryTest) testCreateAttachedVolume(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	_, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
+		BackendType:       backends.BackendTypeAWS,
+		VolumeType:        backends.VolumeTypeAttachedDisk,
+		Name:              "test-attached-volume",
+		Description:       "test-description",
+		SizeGiB:           10,
+		Placement:         Options.TestRegions[0],
+		Iops:              0,
+		Throughput:        0,
+		Owner:             "test-owner",
+		Tags:              map[string]string{},
+		Encrypted:         false,
+		Expires:           time.Now().Add(60 * time.Second),
+		DiskType:          "gp2",
+		SharedDiskOneZone: false,
+	})
+	require.NoError(t, err)
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	vol := testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
+	require.Equal(t, vol.Count(), 1)
+}
+
+func (e *expiryTest) testCreateSharedVolume(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	_, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
+		BackendType:       backends.BackendTypeAWS,
+		VolumeType:        backends.VolumeTypeSharedDisk,
+		Name:              "test-shared-volume",
+		Description:       "test-description",
+		SizeGiB:           100,
+		Placement:         Options.TestRegions[0],
+		Iops:              0,
+		Throughput:        0,
+		Owner:             "test-owner",
+		Tags:              map[string]string{},
+		Encrypted:         false,
+		Expires:           time.Now().Add(110 * time.Second),
+		DiskType:          "",
+		SharedDiskOneZone: false,
+	})
+	require.NoError(t, err)
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	vol := testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
+	require.Equal(t, vol.Count(), 1)
+}
+
 func (e *expiryTest) testWaitForExpiry(t *testing.T) {
 	require.NoError(t, setup(false))
-	time.Sleep(3 * time.Minute)
+	time.Sleep(5 * time.Minute)
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithState(backends.LifeCycleStateRunning).WithName("test-instance")
 	require.Equal(t, inst.Count(), 0)
+	vol := testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
+	require.Equal(t, vol.Count(), 0)
+	vol = testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
+	require.Equal(t, vol.Count(), 0)
 }
 
 func (e *expiryTest) testExpiryChangeConfiguration(t *testing.T) {

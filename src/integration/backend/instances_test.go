@@ -10,6 +10,8 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 )
 
+// TODO: test creation of custom DNS
+
 // test cases
 func TestInstances(t *testing.T) {
 	t.Cleanup(cleanup)
