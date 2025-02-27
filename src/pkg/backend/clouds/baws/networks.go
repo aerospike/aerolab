@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -164,6 +163,7 @@ func (s *b) GetNetworks() (backends.NetworkList, error) {
 	return i, errs
 }
 
+/*
 func (s *b) NetworksDelete(networks backends.NetworkList, waitDur time.Duration) error {
 	log := s.log.WithPrefix("NetworksDelete: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
@@ -348,3 +348,4 @@ func (s *b) NetworksRemoveTags(networks backends.NetworkList, tagKeys []string) 
 	}
 	return nil
 }
+*/

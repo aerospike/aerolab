@@ -1,6 +1,7 @@
 package baws
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -417,7 +418,10 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 			log.Detail("zone=%s wait: start", zone)
 			defer log.Detail("zone=%s wait: end", zone)
 			w := time.Now()
-			waiter := ec2.NewInstanceTerminatedWaiter(clis[zone])
+			waiter := ec2.NewInstanceTerminatedWaiter(clis[zone], func(o *ec2.InstanceTerminatedWaiterOptions) {
+				o.MinDelay = 5 * time.Second
+				o.MaxDelay = 5 * time.Second
+			})
 			err := waiter.Wait(context.TODO(), &ec2.DescribeInstancesInput{
 				InstanceIds: ids,
 			}, waitDur)
@@ -500,7 +504,10 @@ func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur t
 			log.Detail("zone=%s wait: start", zone)
 			defer log.Detail("zone=%s wait: end", zone)
 			w := time.Now()
-			waiter := ec2.NewInstanceStoppedWaiter(clis[zone])
+			waiter := ec2.NewInstanceStoppedWaiter(clis[zone], func(o *ec2.InstanceStoppedWaiterOptions) {
+				o.MinDelay = 5 * time.Second
+				o.MaxDelay = 5 * time.Second
+			})
 			err := waiter.Wait(context.TODO(), &ec2.DescribeInstancesInput{
 				InstanceIds: ids,
 			}, waitDur)
@@ -566,7 +573,10 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 			log.Detail("zone=%s wait: start", zone)
 			defer log.Detail("zone=%s wait: end", zone)
 			w := time.Now()
-			waiter := ec2.NewInstanceRunningWaiter(clis[zone])
+			waiter := ec2.NewInstanceRunningWaiter(clis[zone], func(o *ec2.InstanceRunningWaiterOptions) {
+				o.MinDelay = 5 * time.Second
+				o.MaxDelay = 5 * time.Second
+			})
 			err := waiter.Wait(context.TODO(), &ec2.DescribeInstancesInput{
 				InstanceIds: ids,
 			}, waitDur)
@@ -997,6 +1007,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	for _, diskDef := range input.Disks {
 		parts := strings.Split(diskDef, ",")
 		var diskType, diskSize, diskIops, diskThroughput, diskCount string
+		var encrypted bool
 		for _, part := range parts {
 			kv := strings.Split(part, "=")
 			if len(kv) != 2 {
@@ -1013,6 +1024,11 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				diskThroughput = kv[1]
 			case "count":
 				diskCount = kv[1]
+			case "encrypted":
+				encrypted, err = strconv.ParseBool(kv[1])
+				if err != nil {
+					return nil, fmt.Errorf("invalid disk definition %s - encrypted must be true or false", diskDef)
+				}
 			default:
 				return nil, fmt.Errorf("invalid disk definition %s - unknown key %s", diskDef, kv[0])
 			}
@@ -1073,6 +1089,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					VolumeType:          types.VolumeType(diskType),
 					Iops:                iops,
 					Throughput:          throughput,
+					Encrypted:           aws.Bool(encrypted),
 				},
 			})
 		}
@@ -1228,6 +1245,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			return nil, fmt.Errorf("failed to read public key: %v", err)
 		}
 	}
+	publicKeyBytes = bytes.Trim(publicKeyBytes, "\n\r\t ")
 
 	// Create instances
 	runResults := []types.Instance{}
@@ -1331,7 +1349,10 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 
 	durAdjust := time.Now()
-	waiter := ec2.NewInstanceRunningWaiter(cli)
+	waiter := ec2.NewInstanceRunningWaiter(cli, func(o *ec2.InstanceRunningWaiterOptions) {
+		o.MinDelay = 5 * time.Second
+		o.MaxDelay = 5 * time.Second
+	})
 	log.Detail("Waiting for instances to be in running state")
 	err = waiter.Wait(context.Background(), &ec2.DescribeInstancesInput{
 		InstanceIds: instanceIds,
@@ -1414,7 +1435,10 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			log.Warn("Failed to create DNS records: %s", err)
 		}
 		if waitDur > 0 {
-			waiter := route53.NewResourceRecordSetsChangedWaiter(cli)
+			waiter := route53.NewResourceRecordSetsChangedWaiter(cli, func(o *route53.ResourceRecordSetsChangedWaiterOptions) {
+				o.MinDelay = 10 * time.Second
+				o.MaxDelay = 10 * time.Second
+			})
 			err = waiter.Wait(context.Background(), &route53.GetChangeInput{
 				Id: change.ChangeInfo.Id,
 			}, waitDur)

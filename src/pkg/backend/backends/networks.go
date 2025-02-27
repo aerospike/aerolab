@@ -2,8 +2,6 @@ package backends
 
 import (
 	"slices"
-	"sync"
-	"time"
 )
 
 type Networks interface {
@@ -32,7 +30,8 @@ type Networks interface {
 }
 
 type NetworkAction interface {
-	DeleteNetworks(waitDur time.Duration) error
+	//DeleteNetworks(waitDur time.Duration) error // delete networks
+	//DeleteSubnets(waitDur time.Duration) error // delete subnets
 }
 
 // any backend returning this struct, must implement the VolumeAction interface on it
@@ -198,6 +197,7 @@ func (v NetworkList) Subnets() SubnetList {
 	return ret
 }
 
+/*
 func (v NetworkList) DeleteNetworks(waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
@@ -218,6 +218,7 @@ func (v NetworkList) DeleteNetworks(waitDur time.Duration) error {
 func (v *Network) Delete(waitDur time.Duration) error {
 	return NetworkList{v}.DeleteNetworks(waitDur)
 }
+*/
 
 func (v *SubnetList) WithZoneName(name ...string) SubnetList {
 	vv := SubnetList{}
@@ -303,6 +304,7 @@ func (v SubnetList) WithBackendType(types ...BackendType) SubnetList {
 	return ret
 }
 
+/*
 func (v *Subnet) Delete(waitDur time.Duration) error {
 	a := SubnetList{v}
 	return a.Delete(waitDur)
@@ -324,3 +326,4 @@ func (v *SubnetList) Delete(waitDur time.Duration) error {
 	wait.Wait()
 	return retErr
 }
+*/
