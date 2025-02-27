@@ -1,7 +1,9 @@
 #!/bin/bash
 
 REBOOT=0
-NEW_KEY="%s"
+NEW_KEY='%s'
+
+echo "=-=-=-= AEROLAB-INIT START =-=-=-="
 
 # check if PermitRootLogin is set to prohibit-password
 echo "Checking if PermitRootLogin is set to prohibit-password"
@@ -46,9 +48,26 @@ if [ ! -f /root/.ssh/authorized_keys ]; then
     chmod 700 /root/.ssh
     touch /root/.ssh/authorized_keys
     chmod 600 /root/.ssh/authorized_keys
+else
+    echo "authorized_keys file for root already exists"
 fi
 
 if ! grep -q "$NEW_KEY" /root/.ssh/authorized_keys; then
     echo "Adding new key to root's authorized_keys"
     echo "$NEW_KEY" >> /root/.ssh/authorized_keys
+else
+    echo "new key is already in root's authorized_keys"
 fi
+
+if [ ! -f /etc/cloud/cloud.cfg.d/99-disable-ssh-deletekeys.cfg ]; then
+    echo "Disabling cloud-init ssh_deletekeys"
+    cat > /etc/cloud/cloud.cfg.d/99-disable-ssh-deletekeys.cfg << 'EOF'
+#cloud-config
+disable_root: false
+ssh_deletekeys: false
+EOF
+else
+    echo "cloud-init ssh_deletekeys is already disabled"
+fi
+
+echo "=-=-=-= AEROLAB-INIT END =-=-=-="

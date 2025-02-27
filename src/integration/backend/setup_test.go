@@ -3,6 +3,7 @@ package backend_test
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -126,6 +127,7 @@ func setup(fresh bool) error {
 }
 
 func cleanupBackend() error {
+	log.Print("CLEANING UP BACKEND")
 	err := testBackend.ForceRefreshInventory()
 	if err != nil {
 		return err
@@ -143,6 +145,27 @@ func cleanupBackend() error {
 		return err
 	}
 
+	err = inv.Images.WithInAccount(true).DeleteImages(time.Minute * 10)
+	if err != nil {
+		return err
+	}
+
+	expiries, err := testBackend.ExpiryList()
+	if err != nil {
+		return err
+	}
+
+	expiryRegions := []string{}
+	for _, expiry := range expiries.ExpirySystems {
+		expiryRegions = append(expiryRegions, expiry.Zone)
+	}
+
+	err = testBackend.ExpiryRemove(backends.BackendTypeAWS, expiryRegions...)
+	if err != nil {
+		return err
+	}
+
+	log.Print("CLEANED UP BACKEND")
 	return nil
 }
 

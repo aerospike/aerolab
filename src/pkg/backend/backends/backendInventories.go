@@ -109,10 +109,10 @@ type Cloud interface {
 	ImagesAddTags(images ImageList, tags map[string]string) error
 	ImagesRemoveTags(images ImageList, tagKeys []string) error
 	// actions on networks
-	NetworksDelete(networks NetworkList, waitDur time.Duration) error
-	NetworksDeleteSubnets(subnets SubnetList, waitDur time.Duration) error
-	NetworksAddTags(networks NetworkList, tags map[string]string) error
-	NetworksRemoveTags(networks NetworkList, tagKeys []string) error
+	//NetworksDelete(networks NetworkList, waitDur time.Duration) error
+	//NetworksDeleteSubnets(subnets SubnetList, waitDur time.Duration) error
+	//NetworksAddTags(networks NetworkList, tags map[string]string) error
+	//NetworksRemoveTags(networks NetworkList, tagKeys []string) error
 	// firewall actions
 	FirewallsUpdate(fw FirewallList, ports PortsIn, waitDur time.Duration) error
 	FirewallsDelete(fw FirewallList, waitDur time.Duration) error
@@ -473,10 +473,33 @@ func (b *backend) RefreshChangedInventory() error {
 	b.invalidatedLock.Lock()
 	defer b.invalidatedLock.Unlock()
 	log.Debug("Invalidated Lock obtained, inventory refresh started")
+
+	// first check if any volumes or instances expired
+VOLUMES_EXPIRED_LOOP:
+	for _, v := range b.volumes {
+		for _, vol := range v {
+			if vol.Expires.Before(time.Now()) {
+				b.invalidated = append(b.invalidated, CacheInvalidateVolume)
+				break VOLUMES_EXPIRED_LOOP
+			}
+		}
+	}
+INSTANCES_EXPIRED_LOOP:
+	for _, v := range b.instances {
+		for _, inst := range v {
+			if inst.Expires.Before(time.Now()) {
+				b.invalidated = append(b.invalidated, CacheInvalidateInstance)
+				break INSTANCES_EXPIRED_LOOP
+			}
+		}
+	}
+
+	// if no invalidated items, return
 	if len(b.invalidated) == 0 {
 		log.Debug("No invalidated items, returning")
 		return nil
 	}
+	// poll for invalidated items
 	errs := b.poll(b.invalidated)
 	if len(errs) != 0 {
 		var errstring error

@@ -27,7 +27,7 @@ type CreateInstanceInput struct {
 	// instance type
 	InstanceType string `yaml:"instanceType" json:"instanceType"`
 	// volume types and sizes, backend-specific definitions
-	// aws format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5] ex: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2
+	// aws format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false] ex: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2
 	// gcp format: type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5] ex: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2
 	// first specified volume is the root volume, all subsequent volumes are additional attached volumes
 	Disks []string `yaml:"disks" json:"disks"`

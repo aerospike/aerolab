@@ -482,9 +482,17 @@ func (s *b) CreateFirewall(input *backends.CreateFirewallInput, waitDur time.Dur
 			waitDur = 1 * time.Minute
 		}
 	}
+
+	if waitDur == 0 && len(input.Ports) > 0 {
+		waitDur = 1 * time.Minute
+	}
+
 	if waitDur > 0 {
 		log.Detail("WaitSecurityGroup")
-		err := ec2.NewSecurityGroupExistsWaiter(cli).Wait(context.TODO(), &ec2.DescribeSecurityGroupsInput{
+		err := ec2.NewSecurityGroupExistsWaiter(cli, func(o *ec2.SecurityGroupExistsWaiterOptions) {
+			o.MinDelay = 1 * time.Second
+			o.MaxDelay = 5 * time.Second
+		}).Wait(context.TODO(), &ec2.DescribeSecurityGroupsInput{
 			GroupIds: []string{output.Firewall.FirewallID},
 		}, waitDur)
 		if err != nil {

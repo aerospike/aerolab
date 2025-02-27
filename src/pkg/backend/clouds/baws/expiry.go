@@ -23,7 +23,7 @@ import (
 	"github.com/rglonek/logger"
 )
 
-type expiryDetail struct {
+type ExpiryDetail struct {
 	SchedulerArn       string            `json:"schedulerArn" yaml:"schedulerArn"`
 	SchedulerTargetArn string            `json:"schedulerTargetArn" yaml:"schedulerTargetArn"`
 	Schedule           string            `json:"schedule" yaml:"schedule"`
@@ -212,9 +212,9 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 		}
 		if e != nil {
 			intervalMinutes = e.FrequencyMinutes
-			expireEksctl = e.BackendSpecific.(*expiryDetail).ExpireEksctl
-			cleanupDNS = e.BackendSpecific.(*expiryDetail).CleanupDNS
-			logLevel = e.BackendSpecific.(*expiryDetail).LogLevel
+			expireEksctl = e.BackendSpecific.(*ExpiryDetail).ExpireEksctl
+			cleanupDNS = e.BackendSpecific.(*ExpiryDetail).CleanupDNS
+			logLevel = e.BackendSpecific.(*ExpiryDetail).LogLevel
 		}
 	}
 	log.Detail("Connecting to AWS")
@@ -252,7 +252,10 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 	}
 
 	log.Detail("Waiting for lambda IAM role to exist")
-	err = iam.NewRoleExistsWaiter(iamclient).Wait(context.TODO(), &iam.GetRoleInput{
+	err = iam.NewRoleExistsWaiter(iamclient, func(o *iam.RoleExistsWaiterOptions) {
+		o.MinDelay = 1 * time.Second
+		o.MaxDelay = 5 * time.Second
+	}).Wait(context.TODO(), &iam.GetRoleInput{
 		RoleName: lambdaRole.Role.RoleName,
 	}, time.Minute)
 	if err != nil {
@@ -290,7 +293,10 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 	}
 
 	log.Detail("Waiting for scheduler IAM role to exist")
-	err = iam.NewRoleExistsWaiter(iamclient).Wait(context.TODO(), &iam.GetRoleInput{
+	err = iam.NewRoleExistsWaiter(iamclient, func(o *iam.RoleExistsWaiterOptions) {
+		o.MinDelay = 1 * time.Second
+		o.MaxDelay = 5 * time.Second
+	}).Wait(context.TODO(), &iam.GetRoleInput{
 		RoleName: schedRole.Role.RoleName,
 	}, time.Minute)
 	if err != nil {
@@ -518,7 +524,7 @@ func (s *b) ExpiryList() ([]*backends.ExpirySystem, error) {
 			defer log.Detail("End")
 			success := 0
 			found := false
-			detail := &expiryDetail{}
+			detail := &ExpiryDetail{}
 			esys := &backends.ExpirySystem{
 				BackendType: backends.BackendTypeAWS,
 				Zone:        zone,
@@ -691,8 +697,8 @@ func (s *b) ExpiryChangeFrequency(intervalMinutes int, zones ...string) error {
 					Mode: stypes.FlexibleTimeWindowModeOff,
 				},
 				Target: &stypes.Target{
-					Arn:     aws.String(e.BackendSpecific.(*expiryDetail).SchedulerTargetArn),
-					RoleArn: aws.String(e.BackendSpecific.(*expiryDetail).IAMScheduler),
+					Arn:     aws.String(e.BackendSpecific.(*ExpiryDetail).SchedulerTargetArn),
+					RoleArn: aws.String(e.BackendSpecific.(*ExpiryDetail).IAMScheduler),
 				},
 			})
 			if err != nil {
