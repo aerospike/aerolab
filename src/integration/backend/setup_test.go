@@ -17,6 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO: test volumes
+// TODO: test the expiry system
+// TODO: extra TODO items in test files
+// TODO: add Action to instances: update hosts file
+// TODO: discuss handling of ssh keys
+
 // setup
 var (
 	testProject    string = "aerolab-test"
