@@ -79,7 +79,15 @@ func TestZ_OS(t *testing.T) {
 	t.Run("setup", testSetup)
 	t.Run("inventory empty", testInventoryEmpty)
 	t.Run("os", testOS)
+	t.Run("remove firewalls", testOSRemoveFirewalls)
 	t.Run("end inventory empty", testInventoryEmpty)
+}
+
+func testOSRemoveFirewalls(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	err := testBackend.GetInventory().Firewalls.Delete(10 * time.Minute)
+	require.NoError(t, err)
 }
 
 func testOS(t *testing.T) {
@@ -113,9 +121,9 @@ func (o *osTestDef) test(os *osTestDef) error {
 	// create new instance
 	err := testBackend.RefreshChangedInventory()
 	if err != nil {
-		return fmt.Errorf("1: %w", err)
+		return fmt.Errorf("1: image %s:%s %w", os.name, os.version, err)
 	}
-	image := testBackend.GetInventory().Images.WithInAccount(false).WithOSName(os.name).WithOSVersion(os.version)
+	image := testBackend.GetInventory().Images.WithInAccount(false).WithOSName(os.name).WithOSVersion(os.version).WithArchitecture(backends.ArchitectureX8664)
 	if image.Count() == 0 {
 		return fmt.Errorf("2: image %s:%s not found", os.name, os.version)
 	}
@@ -134,20 +142,20 @@ func (o *osTestDef) test(os *osTestDef) error {
 		Owner:            "test-owner",
 		Description:      "test-description",
 		Disks:            []string{"type=gp2,size=20,count=1"},
-	}, 2*time.Minute)
+	}, 5*time.Minute)
 	if err != nil {
-		return fmt.Errorf("4: %w", err)
+		return fmt.Errorf("4: image %s:%s %w", os.name, os.version, err)
 	}
 	if insts.Instances.Count() != 1 {
-		return fmt.Errorf("5: expected 1 instance, got %d", insts.Instances.Count())
+		return fmt.Errorf("5: image %s:%s expected 1 instance, got %d", os.name, os.version, insts.Instances.Count())
 	}
 	err = testBackend.RefreshChangedInventory()
 	if err != nil {
-		return fmt.Errorf("6: %w", err)
+		return fmt.Errorf("6: image %s:%s %w", os.name, os.version, err)
 	}
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName(instanceName)
 	if inst.Count() != 1 {
-		return fmt.Errorf("7: expected 1 instance, got %d", inst.Count())
+		return fmt.Errorf("7: image %s:%s expected 1 instance, got %d", os.name, os.version, inst.Count())
 	}
 	// create image from instance
 	_, err = testBackend.CreateImage(&backends.CreateImageInput{
@@ -161,26 +169,26 @@ func (o *osTestDef) test(os *osTestDef) error {
 		Encrypted:   false,
 		OSName:      os.name,
 		OSVersion:   os.version,
-	}, 2*time.Minute)
+	}, 20*time.Minute)
 	if err != nil {
-		return fmt.Errorf("8: %w", err)
+		return fmt.Errorf("8: image %s:%s %w", os.name, os.version, err)
 	}
 	err = testBackend.RefreshChangedInventory()
 	if err != nil {
-		return fmt.Errorf("9: %w", err)
+		return fmt.Errorf("9: image %s:%s %w", os.name, os.version, err)
 	}
 	image = testBackend.GetInventory().Images.WithInAccount(true).WithName(instanceName)
 	if image.Count() != 1 {
-		return fmt.Errorf("10: expected 1 image, got %d", image.Count())
+		return fmt.Errorf("10: image %s:%s expected 1 image, got %d", os.name, os.version, image.Count())
 	}
 	// destroy original instance
 	err = testBackend.GetInventory().Instances.WithName(instanceName).Terminate(10 * time.Minute)
 	if err != nil {
-		return fmt.Errorf("11: %w", err)
+		return fmt.Errorf("11: image %s:%s %w", os.name, os.version, err)
 	}
 	err = testBackend.RefreshChangedInventory()
 	if err != nil {
-		return fmt.Errorf("12: %w", err)
+		return fmt.Errorf("12: image %s:%s %w", os.name, os.version, err)
 	}
 	// create new instance from image
 	insts, err = testBackend.CreateInstances(&backends.CreateInstanceInput{
@@ -195,30 +203,30 @@ func (o *osTestDef) test(os *osTestDef) error {
 		Owner:            "test-owner",
 		Description:      "test-description",
 		Disks:            []string{"type=gp2,size=20,count=1"},
-	}, 2*time.Minute)
+	}, 5*time.Minute)
 	if err != nil {
-		return fmt.Errorf("13: %w", err)
+		return fmt.Errorf("13: image %s:%s %w", os.name, os.version, err)
 	}
 	if insts.Instances.Count() != 1 {
-		return fmt.Errorf("14: expected 1 instance, got %d", insts.Instances.Count())
+		return fmt.Errorf("14: image %s:%s expected 1 instance, got %d", os.name, os.version, insts.Instances.Count())
 	}
 	err = testBackend.RefreshChangedInventory()
 	if err != nil {
-		return fmt.Errorf("15: %w", err)
+		return fmt.Errorf("15: image %s:%s %w", os.name, os.version, err)
 	}
 	inst = testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName(instanceName)
 	if inst.Count() != 1 {
-		return fmt.Errorf("16: expected 1 instance, got %d", inst.Count())
+		return fmt.Errorf("16: image %s:%s expected 1 instance, got %d", os.name, os.version, inst.Count())
 	}
 	// destroy new instance
 	err = testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName(instanceName).Terminate(10 * time.Minute)
 	if err != nil {
-		return fmt.Errorf("17: %w", err)
+		return fmt.Errorf("17: image %s:%s %w", os.name, os.version, err)
 	}
 	// destroy image
 	err = testBackend.GetInventory().Images.WithName(instanceName).DeleteImages(10 * time.Minute)
 	if err != nil {
-		return fmt.Errorf("18: %w", err)
+		return fmt.Errorf("18: image %s:%s %w", os.name, os.version, err)
 	}
 	return nil
 }

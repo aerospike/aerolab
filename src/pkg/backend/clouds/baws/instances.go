@@ -27,12 +27,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	rtypes "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
 	"golang.org/x/crypto/ssh"
 )
 
-type instanceDetail struct {
+type InstanceDetail struct {
 	SecurityGroups        []types.GroupIdentifier   `yaml:"securityGroups" json:"securityGroups"`
 	ClientToken           string                    `yaml:"clientToken" json:"clientToken"`
 	EnaSupport            bool                      `yaml:"enaSupport" json:"enaSupport"`
@@ -181,7 +182,7 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 			AttachedVolumes: avols,
 		},
 		CustomDNS: customDns,
-		BackendSpecific: &instanceDetail{
+		BackendSpecific: &InstanceDetail{
 			SecurityGroups:        inst.SecurityGroups,
 			ClientToken:           aws.ToString(inst.ClientToken),
 			EnaSupport:            aws.ToBool(inst.EnaSupport),
@@ -964,7 +965,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 	log.Detail("Found security groups: %v", firewallIds)
 
-	// TODO: default project-VPC firewall if it does not exist
+	// default project-VPC firewall if it does not exist
 	defaultFwName := TAG_FIREWALL_NAME_PREFIX + s.project + "_" + vpc.NetworkId
 	if s.firewalls.WithName(defaultFwName).Count() == 0 {
 		fw, err := s.CreateFirewall(&backends.CreateFirewallInput{
@@ -990,10 +991,23 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			Network: vpc,
 		}, waitDur)
 		if err != nil {
-			return nil, err
+			var apiErr smithy.APIError
+			if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidGroup.Duplicate" {
+				// retrieve the existing firewall
+				_, err := s.GetFirewalls(s.networks)
+				if err != nil {
+					return nil, err
+				}
+				defaultFw := s.firewalls.WithName(defaultFwName).Describe()[0]
+				firewallIds[defaultFw.FirewallID] = defaultFw.Name
+				securityGroupIds = append(securityGroupIds, defaultFw.FirewallID)
+			} else {
+				return nil, err
+			}
+		} else {
+			firewallIds[fw.Firewall.FirewallID] = fw.Firewall.Name
+			securityGroupIds = append(securityGroupIds, fw.Firewall.FirewallID)
 		}
-		firewallIds[fw.Firewall.FirewallID] = fw.Firewall.Name
-		securityGroupIds = append(securityGroupIds, fw.Firewall.FirewallID)
 	} else {
 		defaultFw := s.firewalls.WithName(defaultFwName).Describe()[0]
 		firewallIds[defaultFw.FirewallID] = defaultFw.Name
@@ -1097,7 +1111,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	if len(blockDeviceMappings) > 0 {
 		// TODO: modify the first block device mapping to be the root volume
-		blockDeviceMappings[0].DeviceName = aws.String(input.Image.BackendSpecific.(*imageDetail).RootDeviceName)
+		blockDeviceMappings[0].DeviceName = aws.String(input.Image.BackendSpecific.(*ImageDetail).RootDeviceName)
 	}
 
 	log.Detail("Block device mappings: %v", blockDeviceMappings)

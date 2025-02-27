@@ -16,7 +16,7 @@ import (
 	"github.com/lithammer/shortuuid"
 )
 
-type imageDetail struct {
+type ImageDetail struct {
 	SnapshotID     string `yaml:"snapshotID" json:"snapshotID"`
 	RootDeviceName string `yaml:"rootDeviceName" json:"rootDeviceName"`
 }
@@ -326,7 +326,7 @@ func (s *b) GetImages() (backends.ImageList, error) {
 						Tags:         tags,
 						State:        state,
 						Username:     "root",
-						BackendSpecific: &imageDetail{
+						BackendSpecific: &ImageDetail{
 							SnapshotID:     aws.ToString(snap.SnapshotId),
 							RootDeviceName: aws.ToString(vol.RootDeviceName),
 						},
@@ -409,7 +409,7 @@ func (s *b) GetImages() (backends.ImageList, error) {
 					OSName:       image.OSName,
 					OSVersion:    image.OSVersion,
 					Username:     "root", // getImageUser(image.OSName, image.OSVersion),
-					BackendSpecific: &imageDetail{
+					BackendSpecific: &ImageDetail{
 						SnapshotID:     aws.ToString(snap.SnapshotId),
 						RootDeviceName: aws.ToString(vol.RootDeviceName),
 					},
@@ -458,7 +458,7 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 			}
 			for _, id := range ids {
 				golog := log.WithPrefix(zone + "::" + id.ImageId + ": ")
-				if id.BackendSpecific.(*imageDetail).SnapshotID == "" {
+				if id.BackendSpecific.(*ImageDetail).SnapshotID == "" {
 					golog.Detail("Snapshot ID is empty for image, retrieving it")
 					img, err := cli.DescribeImages(context.TODO(), &ec2.DescribeImagesInput{
 						ImageIds: []string{id.ImageId},
@@ -471,7 +471,7 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 						reterr = errors.Join(reterr, fmt.Errorf("image %s not found", id.ImageId))
 						return
 					}
-					imgx := id.BackendSpecific.(*imageDetail)
+					imgx := id.BackendSpecific.(*ImageDetail)
 					imgx.SnapshotID = aws.ToString(img.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId)
 					id.BackendSpecific = imgx
 				}
@@ -485,7 +485,7 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 				}
 				golog.Detail("Deleting Snapshot")
 				_, err = cli.DeleteSnapshot(context.TODO(), &ec2.DeleteSnapshotInput{
-					SnapshotId: aws.String(id.BackendSpecific.(*imageDetail).SnapshotID),
+					SnapshotId: aws.String(id.BackendSpecific.(*ImageDetail).SnapshotID),
 				})
 				if err != nil {
 					reterr = errors.Join(reterr, err)
@@ -609,7 +609,7 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 			CreationTime: time.Now(),
 			Owner:        input.Owner,
 			Tags:         tags,
-			BackendSpecific: &imageDetail{
+			BackendSpecific: &ImageDetail{
 				SnapshotID:     "", // will be set later
 				RootDeviceName: "", // will be set later
 			},
@@ -638,7 +638,7 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	// Create the image
 	log.Detail("Creating image")
 	bdm := types.BlockDeviceMapping{
-		DeviceName: aws.String(input.Instance.BackendSpecific.(*instanceDetail).Volumes[0].Device),
+		DeviceName: aws.String(input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].Device),
 		Ebs: &types.EbsBlockDevice{
 			DeleteOnTermination: aws.Bool(true),
 			Encrypted:           aws.Bool(input.Encrypted),
@@ -665,9 +665,9 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	}
 
 	output.Image.ImageId = aws.ToString(resp.ImageId)
-	output.Image.BackendSpecific = &imageDetail{
+	output.Image.BackendSpecific = &ImageDetail{
 		SnapshotID:     "",
-		RootDeviceName: input.Instance.BackendSpecific.(*instanceDetail).Volumes[0].Device,
+		RootDeviceName: input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].Device,
 	}
 
 	// Wait for the image to be created

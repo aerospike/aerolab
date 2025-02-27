@@ -592,7 +592,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	d := &deviceName{}
-	for _, dv := range instance.BackendSpecific.(instanceDetail).Volumes {
+	for _, dv := range instance.BackendSpecific.(*InstanceDetail).Volumes {
 		d.names = append(d.names, dv.Device)
 	}
 	attached := make(map[string]backends.VolumeList)
@@ -676,7 +676,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					}
 				}
 				// check if security group for volume-network(vpc) pair exists and get the ID or create new security group if needed
-				secGroupName := fmt.Sprintf("%s-%s", id.FileSystemId, instance.BackendSpecific.(instanceDetail).Network.NetworkId)
+				secGroupName := fmt.Sprintf("%s-%s", id.FileSystemId, instance.BackendSpecific.(*InstanceDetail).Network.NetworkId)
 				secGroupId := ""
 				fw := s.firewalls.WithName(secGroupName)
 				if fw.Count() == 0 {
@@ -695,7 +695,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 								Protocol:   backends.ProtocolAll,
 							},
 						},
-						Network: instance.BackendSpecific.(instanceDetail).Network,
+						Network: instance.BackendSpecific.(*InstanceDetail).Network,
 					}, waitDur)
 					if err != nil {
 						reterr = errors.Join(reterr, err)
@@ -709,7 +709,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					// create mount target
 					_, err = cli.CreateMountTarget(context.TODO(), &efs.CreateMountTargetInput{
 						FileSystemId:   aws.String(id.FileSystemId),
-						SubnetId:       aws.String(instance.BackendSpecific.(instanceDetail).Subnet.SubnetId),
+						SubnetId:       aws.String(instance.BackendSpecific.(*InstanceDetail).Subnet.SubnetId),
 						SecurityGroups: []string{secGroupId},
 					})
 					if err != nil {
@@ -718,7 +718,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					}
 				}
 				// check if the security group is assigned to instance; if not, assign it
-				if instance.BackendSpecific.(instanceDetail).FirewallList.WithFirewallID(secGroupId).Count() == 0 {
+				if instance.BackendSpecific.(*InstanceDetail).FirewallList.WithFirewallID(secGroupId).Count() == 0 {
 					err = instance.AssignFirewalls(backends.FirewallList{{
 						FirewallID: secGroupId,
 					}})
