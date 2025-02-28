@@ -97,6 +97,7 @@ type Cloud interface {
 	InstancesGetSftpConfig(instances InstanceList, username string) ([]*sshexec.ClientConf, error)
 	InstancesAssignFirewalls(instances InstanceList, fw FirewallList) error
 	InstancesRemoveFirewalls(instances InstanceList, fw FirewallList) error
+	InstancesUpdateHostsFile(instances InstanceList, hostsEntries []string, parallelSSHThreads int) error
 	// actions on multiple volumes
 	VolumesAddTags(volumes VolumeList, tags map[string]string, waitDur time.Duration) error
 	VolumesRemoveTags(volumes VolumeList, tagKeys []string, waitDur time.Duration) error

@@ -26,8 +26,17 @@ func TestInstances(t *testing.T) {
 	t.Run("instances start", testInstancesStart)
 	t.Run("instances exec", testInstancesExec)
 	t.Run("instances sftp", testInstancesSftp)
+	t.Run("update hosts file", testInstancesUpdateHostsFile)
 	t.Run("instances terminate", testInstancesTerminate)
 	t.Run("end inventory empty", testInventoryEmpty)
+}
+
+func testInstancesUpdateHostsFile(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	insts := testBackend.GetInventory().Instances.WithState(backends.LifeCycleStateRunning)
+	require.Equal(t, insts.Count(), 3)
+	require.NoError(t, insts.UpdateHostsFile(insts.Describe(), 2))
 }
 
 func getBasicImage(t *testing.T) *backends.Image {

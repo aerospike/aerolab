@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -128,6 +131,8 @@ type InstanceAction interface {
 	RemoveFirewalls(fw FirewallList) error
 	// expiry
 	ChangeExpiry(expiry time.Time) error
+	// update hosts file
+	UpdateHostsFile(withList InstanceList, parallelSSHThreads int) error
 }
 
 type ExecInput struct {
@@ -630,4 +635,75 @@ func (v InstanceList) ChangeExpiry(expiry time.Time) error {
 
 func (v *Instance) ChangeExpiry(expiry time.Time) error {
 	return InstanceList{v}.ChangeExpiry(expiry)
+}
+
+func (v *Instance) UpdateHostsFile(withList InstanceList, parallelSSHThreads int) error {
+	return InstanceList{v}.UpdateHostsFile(withList, parallelSSHThreads)
+}
+
+// if withList is empty, will use the object from which the v.UpdateHostsFile method is called
+func (v InstanceList) UpdateHostsFile(withList InstanceList, parallelSSHThreads int) error {
+	if withList.Count() == 0 {
+		withList = v
+	}
+	var hostsEntries []string
+	var entries []struct {
+		hostname string
+		entry    string
+	}
+	for _, instance := range v.WithNotState(LifeCycleStateTerminated).Describe() {
+		hostname := instance.ClusterName + "-" + strconv.Itoa(instance.NodeNo)
+		// remove any characters not allowed in hostname
+		hostname = strings.Map(func(r rune) rune {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' {
+				return r
+			}
+			return '-'
+		}, hostname)
+		// replace multiple dashes with single dash
+		hostname = strings.ReplaceAll(hostname, "--", "-")
+		// trim dashes from start/end
+		hostname = strings.Trim(hostname, "-")
+		// fill in hostname entries
+		if instance.IP.Public != "" {
+			entries = append(entries, struct {
+				hostname string
+				entry    string
+			}{
+				hostname: "zzzz-" + hostname,
+				entry:    fmt.Sprintf("%-15s %-30s # aerolab-managed", instance.IP.Public, hostname+"-pub"),
+			})
+		}
+		if instance.IP.Private != "" {
+			entries = append(entries, struct {
+				hostname string
+				entry    string
+			}{
+				hostname: hostname,
+				entry:    fmt.Sprintf("%-15s %-30s # aerolab-managed", instance.IP.Private, hostname),
+			})
+		}
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].hostname < entries[j].hostname
+	})
+
+	for _, entry := range entries {
+		hostsEntries = append(hostsEntries, entry.entry)
+	}
+
+	var retErr error
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			err := cloudList[c].InstancesUpdateHostsFile(v.WithBackendType(c).Describe(), hostsEntries, parallelSSHThreads)
+			if err != nil {
+				retErr = err
+			}
+		}()
+	}
+	wait.Wait()
+	return retErr
 }

@@ -19,7 +19,6 @@ import (
 
 // TODO: test the expiry system
 // TODO: extra TODO items in test files
-// TODO: add Action to instances: update hosts file
 // TODO: discuss handling of ssh keys
 
 // setup
