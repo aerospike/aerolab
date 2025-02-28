@@ -21,7 +21,6 @@ import (
 // TODO: extra TODO items in test files
 // TODO: add Action to instances: update hosts file
 // TODO: discuss handling of ssh keys
-// TODO: should we patch DNS, or will it stop EFS from working?
 
 // setup
 var (
