@@ -1588,3 +1588,71 @@ func (s *b) CleanupDNS() error {
 
 	return nil
 }
+
+func (s *b) InstancesUpdateHostsFile(instances backends.InstanceList, hostsEntries []string, parallelSSHThreads int) error {
+	// read update script template
+	scriptBytes, err := scripts.ReadFile("scripts/update-hosts-file.sh")
+	if err != nil {
+		return fmt.Errorf("failed to read update-hosts-file.sh script: %v", err)
+	}
+
+	// format script with hosts entries
+	script := fmt.Sprintf(string(scriptBytes), strings.Join(hostsEntries, "\n"))
+
+	// upload script to the instances using ssh
+	sshConfig, err := instances.GetSftpConfig("root")
+	if err != nil {
+		return fmt.Errorf("failed to get sftp config: %v", err)
+	}
+	var retErr error
+	wait := new(sync.WaitGroup)
+	sem := make(chan struct{}, parallelSSHThreads)
+
+	for _, config := range sshConfig {
+		config := config
+		wait.Add(1)
+		sem <- struct{}{}
+		go func(config *sshexec.ClientConf) {
+			defer wait.Done()
+			defer func() { <-sem }()
+			cli, err := sshexec.NewSftp(config)
+			if err != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("failed to create sftp client for host %s: %v", config.Host, err))
+				return
+			}
+			err = cli.WriteFile(true, &sshexec.FileWriter{
+				DestPath:    "/tmp/update-hosts-file.sh",
+				Source:      strings.NewReader(script),
+				Permissions: 0755,
+			})
+			if err != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("failed to write update-hosts-file.sh for host %s: %v", config.Host, err))
+				return
+			}
+		}(config)
+	}
+	wait.Wait()
+	if retErr != nil {
+		return retErr
+	}
+
+	// execute script on all instances
+	execInput := &backends.ExecInput{
+		ExecDetail: sshexec.ExecDetail{
+			Command:  []string{"bash", "/tmp/update-hosts-file.sh"},
+			Terminal: true,
+		},
+		Username:        "root",
+		ConnectTimeout:  30 * time.Second,
+		ParallelThreads: parallelSSHThreads,
+	}
+
+	var errs error
+	outputs := instances.Exec(execInput)
+	for _, output := range outputs {
+		if output.Output.Err != nil {
+			errs = errors.Join(errs, fmt.Errorf("failed to update hosts file on instance %s: %v", output.Instance.ClusterName+"-"+strconv.Itoa(output.Instance.NodeNo), output.Output.Err))
+		}
+	}
+	return errs
+}
