@@ -31,6 +31,7 @@ if [ "$dest" = "" ]; then
     exit 1
 fi
 
+mkdir -p $dest
 printf "\n%s:/ %s efs _netdev,noresvport,tls%s%s 0 0\n" $fsid $dest $iam $iamprofile >> /etc/fstab
 
 ATTEMPT=0
@@ -44,7 +45,7 @@ while [ $RET -ne 0 ]; do
             echo "Failed max attempts, exiting"
             exit 1
         fi
-        systemd-resolve --flush-caches
+        resolvectl flush-caches || systemd-resolve --flush-caches
         sleep 10
     fi
 done

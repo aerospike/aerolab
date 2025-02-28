@@ -200,7 +200,7 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 		// parse prices
 		for _, price := range out.PriceList {
 			p := &volumePrice{}
-			json.Unmarshal([]byte(price), &prices)
+			json.Unmarshal([]byte(price), p)
 			if p.Product.Attributes.StorageClass == "OneZone-General Purpose" {
 				p.Product.Attributes.VolumeApiName = "SharedDisk_OneZone"
 			} else if p.Product.Attributes.StorageClass == "General Purpose" {

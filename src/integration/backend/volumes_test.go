@@ -17,6 +17,8 @@ func TestVolumes(t *testing.T) {
 	tv := &testVolume{}
 	t.Run("setup", testSetup)
 	t.Run("inventory empty", testInventoryEmpty)
+	t.Run("create attached volume get price", tv.testCreateAttachedVolumeGetPrice)
+	t.Run("create shared volume get price", tv.testCreateSharedVolumeGetPrice)
 	t.Run("create test instance", tv.testCreateTestInstance)
 	t.Run("create attached volume", tv.testCreateAttachedVolume)
 	t.Run("add tags to attached volume", tv.testAddTagsToAttachedVolume)
@@ -30,7 +32,9 @@ func TestVolumes(t *testing.T) {
 	t.Run("attach shared volume to instance", tv.testAttachSharedVolumeToInstance)
 	t.Run("detach shared volume from instance", tv.testDetachSharedVolumeFromInstance)
 	t.Run("delete test instance", tv.testDeleteTestInstance)
-	t.Run("delete volumes", tv.testDeleteVolumes)
+	t.Run("delete attached volume", tv.testDeleteAttachedVolume)
+	t.Run("delete shared volume", tv.testDeleteSharedVolume)
+	t.Run("delete firewalls", tv.testDeleteFirewalls)
 	t.Run("print inventory", tv.testPrintInventory)
 	t.Run("end inventory empty", testInventoryEmpty)
 }
@@ -43,6 +47,64 @@ func (tv *testVolume) testPrintInventory(t *testing.T) {
 	enc.SetIndent("", "  ")
 	err := enc.Encode(inv)
 	require.NoError(t, err)
+}
+func (tv *testVolume) testDeleteFirewalls(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+
+	fw := testBackend.GetInventory().Firewalls
+	require.Equal(t, fw.Count(), 1)
+	err := fw.Delete(10 * time.Minute)
+	require.NoError(t, err)
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	fw = testBackend.GetInventory().Firewalls
+	require.Equal(t, fw.Count(), 0)
+}
+
+func (tv *testVolume) testCreateAttachedVolumeGetPrice(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	price, err := testBackend.CreateVolumeGetPrice(&backends.CreateVolumeInput{
+		BackendType:       backends.BackendTypeAWS,
+		VolumeType:        backends.VolumeTypeAttachedDisk,
+		Name:              "test-attached-volume",
+		Description:       "test-description",
+		SizeGiB:           10,
+		Placement:         Options.TestRegions[0],
+		Iops:              0,
+		Throughput:        0,
+		Owner:             "test-owner",
+		Tags:              map[string]string{},
+		Encrypted:         false,
+		Expires:           time.Time{},
+		DiskType:          "gp2",
+		SharedDiskOneZone: false,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, price, 0)
+}
+
+func (tv *testVolume) testCreateSharedVolumeGetPrice(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	price, err := testBackend.CreateVolumeGetPrice(&backends.CreateVolumeInput{
+		BackendType:       backends.BackendTypeAWS,
+		VolumeType:        backends.VolumeTypeSharedDisk,
+		Name:              "test-shared-volume",
+		Description:       "test-description",
+		SizeGiB:           0,
+		Placement:         Options.TestRegions[0],
+		Iops:              0,
+		Throughput:        0,
+		Owner:             "test-owner",
+		Tags:              map[string]string{},
+		Encrypted:         false,
+		Expires:           time.Time{},
+		DiskType:          "",
+		SharedDiskOneZone: false,
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, price, 0)
 }
 
 func (tv *testVolume) testCreateAttachedVolume(t *testing.T) {
@@ -158,6 +220,7 @@ func (tv *testVolume) testCreateTestInstance(t *testing.T) {
 	image := getBasicImage(t)
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
+		Name:             "test-instance",
 		Nodes:            1,
 		Image:            image,
 		NetworkPlacement: Options.TestRegions[0] + "a",
@@ -187,7 +250,7 @@ func (tv *testVolume) testAttachAttachedVolumeToInstance(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol = testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 1)
-	require.Contains(t, vol.Describe()[0].AttachedTo, []string{inst.Describe()[0].InstanceID})
+	require.Contains(t, vol.Describe()[0].AttachedTo, inst.Describe()[0].InstanceID)
 }
 
 func (tv *testVolume) testResizeAttachedVolume(t *testing.T) {
@@ -195,12 +258,12 @@ func (tv *testVolume) testResizeAttachedVolume(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol := testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 1)
-	err := vol.Resize(15 * backends.StorageGiB)
+	err := vol.Resize(16, 1*time.Minute)
 	require.NoError(t, err)
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol = testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 1)
-	require.Equal(t, vol.Describe()[0].Size, 15*backends.StorageGiB)
+	require.Equal(t, vol.Describe()[0].Size, 16*backends.StorageGiB)
 }
 
 func (tv *testVolume) testDetachAttachedVolumeFromInstance(t *testing.T) {
@@ -255,7 +318,7 @@ func (tv *testVolume) testDeleteTestInstance(t *testing.T) {
 	require.Equal(t, inst.Count(), 0)
 }
 
-func (tv *testVolume) testDeleteVolumes(t *testing.T) {
+func (tv *testVolume) testDeleteAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 
@@ -264,14 +327,21 @@ func (tv *testVolume) testDeleteVolumes(t *testing.T) {
 	err := vol.DeleteVolumes(testBackend.GetInventory().Firewalls.Describe(), 10*time.Minute)
 	require.NoError(t, err)
 
-	vol = testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
-	require.Equal(t, vol.Count(), 1)
-	err = vol.DeleteVolumes(testBackend.GetInventory().Firewalls.Describe(), 10*time.Minute)
-	require.NoError(t, err)
-
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol = testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 0)
+}
+
+func (tv *testVolume) testDeleteSharedVolume(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+
+	vol := testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
+	require.Equal(t, vol.Count(), 1)
+	err := vol.DeleteVolumes(testBackend.GetInventory().Firewalls.Describe(), 10*time.Minute)
+	require.NoError(t, err)
+
+	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol = testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
 	require.Equal(t, vol.Count(), 0)
 }

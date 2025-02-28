@@ -108,6 +108,8 @@ type Volumes interface {
 	WithTags(tags map[string]string) Volumes
 	// filter by expiry date
 	WithExpired(expired bool) Volumes
+	// filter by delete on termination (volumes created with instances)
+	WithDeleteOnTermination(deleteOnTermination bool) Volumes
 	// number of volumes in selector
 	Count() int
 	// expose instance details to the caller
@@ -132,7 +134,7 @@ type VolumeAction interface {
 	// for shared volume, we need a full firewall list
 	Detach(instance *Instance, waitDur time.Duration) error
 	// resize a non-EFS device
-	Resize(newSizeGiB StorageSize) error
+	Resize(newSizeGiB StorageSize, waitDur time.Duration) error
 	// expiry
 	ChangeExpiry(expiry time.Time) error
 }
@@ -278,6 +280,18 @@ func (v VolumeList) WithExpired(expired bool) Volumes {
 	return ret
 }
 
+func (v VolumeList) WithDeleteOnTermination(deleteOnTermination bool) Volumes {
+	ret := VolumeList{}
+	for _, volume := range v {
+		volume := volume
+		if deleteOnTermination != volume.DeleteOnTermination {
+			continue
+		}
+		ret = append(ret, volume)
+	}
+	return ret
+}
+
 func (v VolumeList) Describe() VolumeList {
 	return v
 }
@@ -371,14 +385,14 @@ func (v VolumeList) Detach(instance *Instance, waitDur time.Duration) error {
 	return retErr
 }
 
-func (v VolumeList) Resize(newSizeGiB StorageSize) error {
+func (v VolumeList) Resize(newSizeGiB StorageSize, waitDur time.Duration) error {
 	var retErr error
 	wait := new(sync.WaitGroup)
 	for _, c := range ListBackendTypes() {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].ResizeVolumes(v.WithBackendType(c).Describe(), newSizeGiB)
+			err := cloudList[c].ResizeVolumes(v.WithBackendType(c).Describe(), newSizeGiB, waitDur)
 			if err != nil {
 				retErr = err
 			}
@@ -429,6 +443,6 @@ func (v *Volume) Detach(instance *Instance, waitDur time.Duration) error {
 	return VolumeList{v}.Detach(instance, waitDur)
 }
 
-func (v *Volume) Resize(newSizeGiB StorageSize) error {
-	return VolumeList{v}.Resize(newSizeGiB)
+func (v *Volume) Resize(newSizeGiB StorageSize, waitDur time.Duration) error {
+	return VolumeList{v}.Resize(newSizeGiB, waitDur)
 }
