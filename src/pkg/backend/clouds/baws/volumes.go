@@ -461,7 +461,6 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 				return
 			}
 			for _, id := range ids {
-				secGroups := []string{}
 				// delete mount targets and get security group names
 				switch detail := id.BackendSpecific.(type) {
 				case *VolumeDetail:
@@ -476,7 +475,6 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 							return
 						}
 						for _, mt := range mts.MountTargets {
-							secGroups = append(secGroups, fmt.Sprintf("%s-%s", aws.ToString(mt.FileSystemId), aws.ToString(mt.VpcId)))
 							_, err := cli.DeleteMountTarget(context.TODO(), &efs.DeleteMountTargetInput{
 								MountTargetId: mt.MountTargetId,
 							})
@@ -535,14 +533,6 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 						return
 					}
 				}
-				// delete security groups (name is fsid-*)
-				log.Detail("zone=%s shared: deleting security groups for %s (%v)", zone, id.FileSystemId, secGroups)
-				err = fw.WithName(secGroups...).Delete(waitDur)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
-				}
-				log.Detail("zone=%s shared: security groups deleted for %s", zone, id.FileSystemId)
 			}
 		}(zone, ids)
 	}
@@ -582,8 +572,8 @@ func (s *b) ResizeVolumes(volumes backends.VolumeList, newSizeGiB backends.Stora
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
-			log.Detail("zone=%s start")
-			defer log.Detail("zone=%s end")
+			log.Detail("zone=%s start", zone)
+			defer log.Detail("zone=%s end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -764,36 +754,18 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 						}
 					}
 				}
-				// check if security group for volume-network(vpc) pair exists and get the ID or create new security group if needed
-				secGroupName := fmt.Sprintf("%s-%s", id.FileSystemId, instance.BackendSpecific.(*InstanceDetail).Network.NetworkId)
-				secGroupId := ""
-				fw := s.firewalls.WithName(secGroupName)
-				if fw.Count() == 0 {
-					out, err := s.CreateFirewall(&backends.CreateFirewallInput{
-						BackendType: backends.BackendTypeAWS,
-						Name:        secGroupName,
-						Description: "Automatically created by aerolab volume mount",
-						Owner:       id.Owner,
-						Tags:        make(map[string]string),
-						Ports: []*backends.Port{
-							{
-								FromPort:   -1,
-								ToPort:     -1,
-								SourceCidr: "",
-								SourceId:   "self",
-								Protocol:   backends.ProtocolAll,
-							},
-						},
-						Network: instance.BackendSpecific.(*InstanceDetail).Network,
-					}, waitDur)
-					if err != nil {
-						reterr = errors.Join(reterr, err)
-						return
-					}
-					secGroupId = out.Firewall.FirewallID
-				} else {
-					secGroupId = fw.Describe()[0].FirewallID
+				// resolve default firewall that instances use in the given VPC
+				defaultFwName := TAG_FIREWALL_NAME_PREFIX + s.project + "_" + instance.BackendSpecific.(*InstanceDetail).Network.NetworkId
+				fw := s.firewalls.WithName(defaultFwName).Describe()
+				if len(fw) == 0 {
+					reterr = errors.Join(reterr, fmt.Errorf("default security group for volume-network(vpc) %s not found", defaultFwName))
+					return
 				}
+				if len(fw) > 1 {
+					reterr = errors.Join(reterr, fmt.Errorf("multiple default security groups found for volume-network(vpc) %s", defaultFwName))
+					return
+				}
+				secGroupId := fw[0].FirewallID
 				if !mountTargetExists {
 					// create mount target
 					_, err = cli.CreateMountTarget(context.TODO(), &efs.CreateMountTargetInput{

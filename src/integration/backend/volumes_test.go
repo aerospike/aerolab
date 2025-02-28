@@ -1,8 +1,6 @@
 package backend_test
 
 import (
-	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
@@ -35,19 +33,9 @@ func TestVolumes(t *testing.T) {
 	t.Run("delete attached volume", tv.testDeleteAttachedVolume)
 	t.Run("delete shared volume", tv.testDeleteSharedVolume)
 	t.Run("delete firewalls", tv.testDeleteFirewalls)
-	t.Run("print inventory", tv.testPrintInventory)
 	t.Run("end inventory empty", testInventoryEmpty)
 }
 
-func (tv *testVolume) testPrintInventory(t *testing.T) {
-	require.NoError(t, setup(false))
-	require.NoError(t, testBackend.RefreshChangedInventory())
-	inv := testBackend.GetInventory()
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	err := enc.Encode(inv)
-	require.NoError(t, err)
-}
 func (tv *testVolume) testDeleteFirewalls(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
