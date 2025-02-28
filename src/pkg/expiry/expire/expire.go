@@ -55,7 +55,7 @@ func (h *ExpiryHandler) Expire() error {
 		log.Print("No instances to terminate")
 	}
 
-	volumes := inventory.Volumes.WithExpired(true).Describe()
+	volumes := inventory.Volumes.WithDeleteOnTermination(false).WithExpired(true).Describe()
 	if len(volumes) > 0 {
 		logLine := fmt.Sprintf("Deleting %d volumes: ", len(volumes))
 		for _, volume := range volumes {
