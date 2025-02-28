@@ -8,7 +8,7 @@ import (
 
 type networkTest struct{}
 
-func TestNetworks(t *testing.T) {
+func Test00_Networks(t *testing.T) {
 	t.Cleanup(cleanup)
 	networkTest := &networkTest{}
 	t.Run("setup", testSetup)

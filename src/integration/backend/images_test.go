@@ -11,7 +11,7 @@ import (
 
 type imageTest struct{}
 
-func TestImages(t *testing.T) {
+func Test03_Images(t *testing.T) {
 	t.Cleanup(cleanup)
 	imageTest := &imageTest{}
 	t.Run("setup", testSetup)

@@ -36,18 +36,44 @@ func (b *backend) ExpiryList() (*ExpiryList, error) {
 	return ret, nil
 }
 
+// install the expiry system for the given backend type
+// intervalMinutes is the interval in minutes between expiry checks; it is advised to set this to 15 minutes or more, 0=default 15 minutes
+// logLevel is the log level for the expiry system; 0=default 3 (info)
+// expireEksctl is true if eksctl should be expired; only applies to AWS
+// cleanupDNS is true if DNS should be cleaned up
+// force is true if the expiry system should be installed even if it already exists
+// onUpdateKeepOriginalSettings is true if the original settings should be kept on update
 func (b *backend) ExpiryInstall(backendType BackendType, intervalMinutes int, logLevel int, expireEksctl bool, cleanupDNS bool, force bool, onUpdateKeepOriginalSettings bool, zones ...string) error {
+	if intervalMinutes == 0 {
+		intervalMinutes = 15
+	}
+	if logLevel == 0 {
+		logLevel = 3
+	}
 	return cloudList[backendType].ExpiryInstall(intervalMinutes, logLevel, expireEksctl, cleanupDNS, force, onUpdateKeepOriginalSettings, zones...)
 }
 
+// remove the expiry system for the given backend type
 func (b *backend) ExpiryRemove(backendType BackendType, zones ...string) error {
 	return cloudList[backendType].ExpiryRemove(zones...)
 }
 
+// change the frequency of the expiry system for the given backend type
+// intervalMinutes is the interval in minutes between expiry checks; it is advised to set this to 15 minutes or more, 0=default 15 minutes
 func (b *backend) ExpiryChangeFrequency(backendType BackendType, intervalMinutes int, zones ...string) error {
+	if intervalMinutes == 0 {
+		intervalMinutes = 15
+	}
 	return cloudList[backendType].ExpiryChangeFrequency(intervalMinutes, zones...)
 }
 
+// change the configuration of the expiry system for the given backend type
+// logLevel is the log level for the expiry system; 0=default 3 (info)
+// expireEksctl is true if eksctl should be expired; only applies to AWS
+// cleanupDNS is true if DNS should be cleaned up
 func (b *backend) ExpiryChangeConfiguration(backendType BackendType, logLevel int, expireEksctl bool, cleanupDNS bool, zones ...string) error {
+	if logLevel == 0 {
+		logLevel = 3
+	}
 	return cloudList[backendType].ExpiryChangeConfiguration(logLevel, expireEksctl, cleanupDNS, zones...)
 }

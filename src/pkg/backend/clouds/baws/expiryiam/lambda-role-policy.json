@@ -1,0 +1,146 @@
+{
+  "Statement": [
+    {
+      "Sid": "AllowLambdaToCreateLogs",
+      "Action": "logs:CreateLogGroup",
+      "Effect": "Allow",
+      "Resource": "arn:aws:logs:%s:%s:*"
+    },
+    {
+      "Sid": "AllowLambdaToCreateLogStreams",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:logs:%s:%s:log-group:/aws/lambda/aerolab-expiries-%s:*"
+      ]
+    },
+    {
+      "Sid": "AllowLambdaToAccessEks",
+      "Action": "eks:*",
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowLambdaToAccessSsm",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:ssm:*:%s:parameter/aws/*",
+        "arn:aws:ssm:*::parameter/aws/*"
+      ]
+    },
+    {
+      "Sid": "AllowLambdaToAccessKms",
+      "Action": [
+        "kms:CreateGrant",
+        "kms:DescribeKey"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowLambdaToAccessLogs",
+      "Action": [
+        "logs:PutRetentionPolicy"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowLambdaToListRoute53HostedZones",
+      "Action": [
+        "route53:ListHostedZones"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowLambdaToManageIam",
+      "Action": [
+        "iam:CreateInstanceProfile",
+        "iam:DeleteInstanceProfile",
+        "iam:GetInstanceProfile",
+        "iam:RemoveRoleFromInstanceProfile",
+        "iam:GetRole",
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:AttachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:AddRoleToInstanceProfile",
+        "iam:ListInstanceProfilesForRole",
+        "iam:PassRole",
+        "iam:DetachRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:GetOpenIDConnectProvider",
+        "iam:CreateOpenIDConnectProvider",
+        "iam:DeleteOpenIDConnectProvider",
+        "iam:TagOpenIDConnectProvider",
+        "iam:ListOpenIDConnectProviders",
+        "iam:ListOpenIDConnectProviderTags",
+        "iam:DeleteOpenIDConnectProvider",
+        "iam:ListAttachedRolePolicies",
+        "iam:TagRole",
+        "iam:GetPolicy",
+        "iam:CreatePolicy",
+        "iam:DeletePolicy",
+        "iam:ListPolicyVersions"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:iam::%s:instance-profile/eksctl-*",
+        "arn:aws:iam::%s:role/eksctl-*",
+        "arn:aws:iam::%s:policy/eksctl-*",
+        "arn:aws:iam::%s:oidc-provider/*",
+        "arn:aws:iam::%s:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup",
+        "arn:aws:iam::%s:role/eksctl-managed-*"
+      ]
+    },
+    {
+      "Sid": "AllowLambdaToAccessIam",
+      "Action": [
+        "iam:GetRole"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "arn:aws:iam::%s:role/*"
+      ]
+    },
+    {
+      "Sid": "AllowLambdaToCreateServiceLinkedRole",
+      "Action": [
+        "iam:CreateServiceLinkedRole"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": [
+            "eks.amazonaws.com",
+            "eks-nodegroup.amazonaws.com",
+            "eks-fargate.amazonaws.com"
+          ]
+        }
+      },
+      "Effect": "Allow",
+      "Resource": "*"
+    },
+    {
+      "Sid": "AllowLambdaToChangeRoute53ResourceRecordSets",
+      "Effect": "Allow",
+      "Action": [
+        "route53:ChangeResourceRecordSets",
+        "route53:ListResourceRecordSets",
+        "route53:ListTagsForResource"
+      ],
+      "Resource": [
+        "arn:aws:route53:::hostedzone/*"
+      ]
+    }
+  ],
+  "Version": "2012-10-17"
+}

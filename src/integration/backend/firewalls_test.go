@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFirewalls(t *testing.T) {
+func Test04_Firewalls(t *testing.T) {
 	t.Cleanup(cleanup)
 	t.Run("setup", testSetup)
 	fw := &fwTest{}

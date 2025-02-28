@@ -62,7 +62,7 @@ func awsLambdaMain() {
 	if err != nil {
 		log.Fatalf("Failed to add region: %v", err)
 	}
-	lambda.Start(func(ctx context.Context, event *string) (*string, error) {
+	lambda.Start(func(ctx context.Context, event interface{}) (interface{}, error) {
 		return event, h.Expire()
 	})
 }

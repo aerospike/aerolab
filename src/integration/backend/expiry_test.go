@@ -9,30 +9,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO: test expire-eksctl and cleanup-dns
-
 type expiryTest struct{}
 
-func TestExpiry(t *testing.T) {
+func Test06_Expiry(t *testing.T) {
 	t.Cleanup(cleanup)
 	expiryTest := &expiryTest{}
 	t.Run("setup", testSetup)
 	t.Run("inventory empty", testInventoryEmpty)
 	t.Run("expiry install", expiryTest.testExpiryInstall)
 	t.Run("expiry change frequency", expiryTest.testExpiryChangeFrequency)
-	t.Run("expiry change configuration", expiryTest.testExpiryChangeConfiguration)
 	t.Run("expiry upgrade", expiryTest.testExpiryUpgrade)
 	t.Run("create instance", expiryTest.testCreateInstance)
 	t.Run("create attached volume", expiryTest.testCreateAttachedVolume)
 	t.Run("create shared volume", expiryTest.testCreateSharedVolume)
 	t.Run("wait for expiry", expiryTest.testWaitForExpiry)
+	t.Run("expiry change configuration", expiryTest.testExpiryChangeConfiguration)
 	t.Run("expiry remove", expiryTest.testExpiryRemove)
+	t.Run("cleanup firewalls", expiryTest.testCleanupFirewalls)
 	t.Run("end inventory empty", testInventoryEmpty)
+}
+
+func (e *expiryTest) testCleanupFirewalls(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	require.NoError(t, testBackend.GetInventory().Firewalls.Delete(10*time.Minute))
 }
 
 func (e *expiryTest) testExpiryInstall(t *testing.T) {
 	require.NoError(t, setup(false))
-	err := testBackend.ExpiryInstall(backends.BackendTypeAWS, 10, 6, true, true, true, true, Options.TestRegions...)
+	err := testBackend.ExpiryInstall(backends.BackendTypeAWS, 2, 6, true, true, true, true, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
 	require.NoError(t, err)
@@ -41,7 +46,7 @@ func (e *expiryTest) testExpiryInstall(t *testing.T) {
 		require.Equal(t, expiry.InstallationSuccess, true)
 		require.Equal(t, expiry.BackendType, backends.BackendTypeAWS)
 		require.Contains(t, Options.TestRegions, expiry.Zone)
-		require.Equal(t, expiry.FrequencyMinutes, 10)
+		require.Equal(t, expiry.FrequencyMinutes, 2)
 		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
 		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
 		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
@@ -78,7 +83,7 @@ func (e *expiryTest) testExpiryUpgrade(t *testing.T) {
 		require.Equal(t, expiry.BackendType, backends.BackendTypeAWS)
 		require.Contains(t, Options.TestRegions, expiry.Zone)
 		require.Equal(t, expiry.FrequencyMinutes, 1)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 5)
+		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
 		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
 		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
 	}
@@ -162,7 +167,9 @@ func (e *expiryTest) testCreateSharedVolume(t *testing.T) {
 
 func (e *expiryTest) testWaitForExpiry(t *testing.T) {
 	require.NoError(t, setup(false))
+	t.Log("Sleeping for 5 minutes")
 	time.Sleep(5 * time.Minute)
+	t.Log("Checking inventory")
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithState(backends.LifeCycleStateRunning).WithName("test-instance")
 	require.Equal(t, inst.Count(), 0)

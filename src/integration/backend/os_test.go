@@ -74,7 +74,7 @@ type osTestDef struct {
 	version string
 }
 
-func TestZ_OS(t *testing.T) {
+func Test99_OS(t *testing.T) {
 	t.Cleanup(cleanup)
 	t.Run("setup", testSetup)
 	t.Run("inventory empty", testInventoryEmpty)

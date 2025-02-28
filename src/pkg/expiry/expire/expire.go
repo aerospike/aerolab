@@ -32,10 +32,17 @@ type ExpiryHandler struct {
 
 func (h *ExpiryHandler) Expire() error {
 	log.Print("Expiry start")
-	h.lock.Lock()
+	if !h.lock.TryLock() {
+		log.Print("Another invocation is already running, skipping")
+		return nil
+	}
 	defer h.lock.Unlock()
 
 	log.Print("Lock acquired, listing inventory")
+	err := h.Backend.ForceRefreshInventory()
+	if err != nil {
+		return err
+	}
 	inventory := h.Backend.GetInventory()
 
 	instances := inventory.Instances.WithExpired(true).WithState(backends.LifeCycleStateRunning, backends.LifeCycleStateUnknown, backends.LifeCycleStateStopped, backends.LifeCycleStateFail, backends.LifeCycleStateCreated, backends.LifeCycleStateConfiguring).Describe()
