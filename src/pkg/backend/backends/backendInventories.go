@@ -103,7 +103,7 @@ type Cloud interface {
 	DeleteVolumes(volumes VolumeList, fw FirewallList, waitDur time.Duration) error
 	AttachVolumes(volumes VolumeList, instance *Instance, sharedMountData *VolumeAttachShared, waitDur time.Duration) error
 	DetachVolumes(volumes VolumeList, instance *Instance, waitDur time.Duration) error
-	ResizeVolumes(volumes VolumeList, newSizeGiB StorageSize) error
+	ResizeVolumes(volumes VolumeList, newSizeGiB StorageSize, waitDur time.Duration) error
 	// actions on images
 	ImagesDelete(images ImageList, waitDur time.Duration) error
 	ImagesAddTags(images ImageList, tags map[string]string) error

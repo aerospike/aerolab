@@ -708,6 +708,7 @@ func (c *volumeExecMountCmd) installMountEFS() error {
 			break
 		}
 		exec.Command(dnsFlushCommand[0], dnsFlushCommand[1:]...).CombinedOutput()
+		exec.Command("resolvectl", "flush-caches").CombinedOutput()
 		time.Sleep(20 * time.Second)
 	}
 	if !success {

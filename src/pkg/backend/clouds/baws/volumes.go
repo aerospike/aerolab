@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +22,7 @@ import (
 	"github.com/lithammer/shortuuid"
 )
 
-type volumeDetail struct {
+type VolumeDetail struct {
 	FileSystemArn        string `yaml:"fileSystemArn" json:"fileSystemArn"`
 	NumberOfMountTargets int    `yaml:"numberOfMountTargets" json:"numberOfMountTargets"`
 	PerformanceMode      string `yaml:"performanceMode" json:"performanceMode"`
@@ -109,7 +110,7 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 						Description:         tags[TAG_DESCRIPTION],
 						Owner:               tags[TAG_OWNER],
 						BackendType:         backends.BackendTypeAWS,
-						ZoneName:            aws.ToString(vol.AvailabilityZone),
+						ZoneName:            zone,
 						ZoneID:              aws.ToString(vol.AvailabilityZone),
 						CreationTime:        aws.ToTime(vol.CreateTime),
 						Encrypted:           aws.ToBool(vol.Encrypted),
@@ -197,11 +198,11 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 						Encrypted:    aws.ToBool(fs.Encrypted),
 						Throughput:   backends.StorageSize(aws.ToFloat64(fs.ProvisionedThroughputInMibps)) * backends.StorageMiB / 8,
 						FileSystemId: aws.ToString(fs.FileSystemId),
-						ZoneName:     aws.ToString(fs.AvailabilityZoneName),
-						ZoneID:       aws.ToString(fs.AvailabilityZoneId),
+						ZoneName:     zone,
+						ZoneID:       aws.ToString(fs.AvailabilityZoneName),
 						Size:         backends.StorageSize(int(fs.SizeInBytes.Value)),
 						State:        state,
-						BackendSpecific: &volumeDetail{
+						BackendSpecific: &VolumeDetail{
 							NumberOfMountTargets: int(fs.NumberOfMountTargets),
 							FileSystemArn:        aws.ToString(fs.FileSystemArn),
 							PerformanceMode:      string(fs.PerformanceMode),
@@ -435,6 +436,17 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 					return
 				}
 			}
+			waiter := ec2.NewVolumeDeletedWaiter(cli, func(o *ec2.VolumeDeletedWaiterOptions) {
+				o.MinDelay = 1 * time.Second
+				o.MaxDelay = 5 * time.Second
+			})
+			err = waiter.Wait(context.TODO(), &ec2.DescribeVolumesInput{
+				VolumeIds: ids,
+			}, waitDur)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
 		}(zone, ids)
 	}
 	for zone, ids := range efsVolumeIds {
@@ -452,8 +464,9 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 				secGroups := []string{}
 				// delete mount targets and get security group names
 				switch detail := id.BackendSpecific.(type) {
-				case *volumeDetail:
+				case *VolumeDetail:
 					if detail != nil && detail.NumberOfMountTargets > 0 {
+						log.Detail("zone=%s shared: deleting mount targets for %s", zone, id.FileSystemId)
 						mts, err := cli.DescribeMountTargets(context.TODO(), &efs.DescribeMountTargetsInput{
 							FileSystemId: aws.String(id.FileSystemId),
 							MaxItems:     aws.Int32(100),
@@ -472,9 +485,30 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 								return
 							}
 						}
+						log.Detail("zone=%s shared: waiting for mount targets to be deleted for %s", zone, id.FileSystemId)
+						waitTimer := time.Now()
+						for {
+							time.Sleep(1 * time.Second)
+							mts, err := cli.DescribeMountTargets(context.TODO(), &efs.DescribeMountTargetsInput{
+								FileSystemId: aws.String(id.FileSystemId),
+								MaxItems:     aws.Int32(100),
+							})
+							if err != nil {
+								reterr = errors.Join(reterr, err)
+								return
+							}
+							if len(mts.MountTargets) == 0 {
+								break
+							}
+							if time.Since(waitTimer) > waitDur {
+								reterr = errors.Join(reterr, fmt.Errorf("timeout waiting for mount targets to be deleted"))
+								return
+							}
+						}
 					}
 				}
 				// delete filesystem
+				log.Detail("zone=%s shared: deleting filesystem for %s", zone, id.FileSystemId)
 				_, err = cli.DeleteFileSystem(context.TODO(), &efs.DeleteFileSystemInput{
 					FileSystemId: aws.String(id.FileSystemId),
 				})
@@ -482,12 +516,33 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 					reterr = errors.Join(reterr, err)
 					return
 				}
+				// wait for filesystem to be deleted
+				log.Detail("zone=%s shared: waiting for filesystem to be deleted for %s", zone, id.FileSystemId)
+				waitTimer := time.Now()
+				for {
+					time.Sleep(1 * time.Second)
+					fs, err := cli.DescribeFileSystems(context.TODO(), &efs.DescribeFileSystemsInput{
+						FileSystemId: aws.String(id.FileSystemId),
+					})
+					if err != nil {
+						break
+					}
+					if len(fs.FileSystems) == 0 {
+						break
+					}
+					if time.Since(waitTimer) > waitDur {
+						reterr = errors.Join(reterr, fmt.Errorf("timeout waiting for filesystem to be deleted"))
+						return
+					}
+				}
 				// delete security groups (name is fsid-*)
+				log.Detail("zone=%s shared: deleting security groups for %s (%v)", zone, id.FileSystemId, secGroups)
 				err = fw.WithName(secGroups...).Delete(waitDur)
 				if err != nil {
 					reterr = errors.Join(reterr, err)
 					return
 				}
+				log.Detail("zone=%s shared: security groups deleted for %s", zone, id.FileSystemId)
 			}
 		}(zone, ids)
 	}
@@ -496,7 +551,7 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 }
 
 // resize the volume - only on Attached volume type; this does not run resize2fs or any such action on the instance itself, just the AWS APIs
-func (s *b) ResizeVolumes(volumes backends.VolumeList, newSizeGiB backends.StorageSize) error {
+func (s *b) ResizeVolumes(volumes backends.VolumeList, newSizeGiB backends.StorageSize, waitDur time.Duration) error {
 	log := s.log.WithPrefix("ResizeVolumes: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -535,10 +590,19 @@ func (s *b) ResizeVolumes(volumes backends.VolumeList, newSizeGiB backends.Stora
 				return
 			}
 			for _, id := range ids {
+				log.Detail("zone=%s resize volume %s to %dGiB", zone, id, newSizeGiB)
 				_, err = cli.ModifyVolume(context.TODO(), &ec2.ModifyVolumeInput{
 					VolumeId: aws.String(id),
 					Size:     aws.Int32(int32(newSizeGiB)),
 				})
+				if err != nil {
+					reterr = errors.Join(reterr, err)
+					return
+				}
+			}
+			for _, id := range ids {
+				log.Detail("zone=%s wait for volume %s to resize", zone, id)
+				err = waitForVolumeModification(context.TODO(), cli, id, waitDur)
 				if err != nil {
 					reterr = errors.Join(reterr, err)
 					return
@@ -556,22 +620,28 @@ type deviceName struct {
 }
 
 func (d *deviceName) next() string {
+	d.lock.Lock()
+	defer d.lock.Unlock()
 	return d.doNext("")
 }
 
 func (d *deviceName) doNext(start string) string {
-	d.lock.Lock()
-	defer d.lock.Unlock()
 	for i := 'a'; i <= 'z'; i++ {
+		x := start + string(i)
+		deviceName := "xvd" + x
+		inUse := false
 		for _, n := range d.names {
 			if !strings.HasPrefix(n, "xvd") && !strings.HasPrefix(n, "/dev/xvd") {
 				continue
 			}
-			x := start + string(i)
-			if !strings.HasSuffix(n, x) {
-				d.names = append(d.names, "xvd"+x)
-				return "xvd" + x
+			if strings.HasSuffix(n, x) {
+				inUse = true
+				break
 			}
+		}
+		if !inUse {
+			d.names = append(d.names, deviceName)
+			return deviceName
 		}
 	}
 	if start == "" {
@@ -621,23 +691,41 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 		wg.Add(1)
 		go func(zone string, ids backends.VolumeList) {
 			defer wg.Done()
-			log.Detail("zone=%s attached: start")
-			defer log.Detail("zone=%s attached: end")
+			log.Detail("zone=%s attached: start", zone)
+			defer log.Detail("zone=%s attached: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
 				return
 			}
 			for _, id := range ids {
+				nextDev := d.next()
+				log.Detail("zone=%s attach volume %s to instance %s as %s", zone, id.FileSystemId, instance.InstanceID, nextDev)
 				_, err = cli.AttachVolume(context.TODO(), &ec2.AttachVolumeInput{
 					VolumeId:   aws.String(id.FileSystemId),
 					InstanceId: aws.String(instance.InstanceID),
-					Device:     aws.String(d.next()),
+					Device:     aws.String(nextDev),
 				})
 				if err != nil {
 					reterr = errors.Join(reterr, err)
 					return
 				}
+			}
+			log.Detail("zone=%s wait for volumes to be in in-use state", zone)
+			waiter := ec2.NewVolumeInUseWaiter(cli, func(o *ec2.VolumeInUseWaiterOptions) {
+				o.MinDelay = 1 * time.Second
+				o.MaxDelay = 5 * time.Second
+			})
+			volIds := make([]string, len(ids))
+			for i, id := range ids {
+				volIds[i] = id.FileSystemId
+			}
+			err = waiter.Wait(context.TODO(), &ec2.DescribeVolumesInput{
+				VolumeIds: volIds,
+			}, waitDur)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
 			}
 		}(zone, ids)
 	}
@@ -646,16 +734,17 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 		wg.Add(1)
 		go func(zone string, ids backends.VolumeList) {
 			defer wg.Done()
-			log.Detail("zone=%s attached: start")
-			defer log.Detail("zone=%s attached: end")
+			log.Detail("zone=%s attached: start", zone)
+			defer log.Detail("zone=%s attached: end", zone)
 			cli, err := getEfsClient(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
 				return
 			}
 			for _, id := range ids {
+				log.Detail("zone=%s attach volume %s to instance %s", zone, id.FileSystemId, instance.InstanceID)
 				mountTargetExists := false
-				if id.BackendSpecific.(volumeDetail).NumberOfMountTargets > 0 {
+				if id.BackendSpecific.(*VolumeDetail).NumberOfMountTargets > 0 {
 					// see if we can find a working mount target
 					paginator := efs.NewDescribeMountTargetsPaginator(cli, &efs.DescribeMountTargetsInput{
 						FileSystemId: aws.String(id.FileSystemId),
@@ -829,6 +918,7 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 				return
 			}
 			for _, id := range ids {
+				log.Detail("zone=%s detach volume %s from instance %s", zone, id.FileSystemId, instance.InstanceID)
 				_, err = cli.DetachVolume(context.TODO(), &ec2.DetachVolumeInput{
 					VolumeId:   aws.String(id.FileSystemId),
 					InstanceId: aws.String(instance.InstanceID),
@@ -837,6 +927,22 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					reterr = errors.Join(reterr, err)
 					return
 				}
+			}
+			log.Detail("zone=%s wait for volumes to be in detached state", zone)
+			waiter := ec2.NewVolumeAvailableWaiter(cli, func(o *ec2.VolumeAvailableWaiterOptions) {
+				o.MinDelay = 1 * time.Second
+				o.MaxDelay = 5 * time.Second
+			})
+			volIds := make([]string, len(ids))
+			for i, id := range ids {
+				volIds[i] = id.FileSystemId
+			}
+			err = waiter.Wait(context.TODO(), &ec2.DescribeVolumesInput{
+				VolumeIds: volIds,
+			}, waitDur)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
 			}
 		}(zone, ids)
 	}
@@ -920,10 +1026,11 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 	if err != nil {
 		return 0, err
 	}
+	region := zone[:len(zone)-1]
 
 	switch input.VolumeType {
 	case backends.VolumeTypeAttachedDisk:
-		price, err := s.GetVolumePrice(zone, input.DiskType)
+		price, err := s.GetVolumePrice(region, input.DiskType)
 		if err != nil {
 			return 0, err
 		}
@@ -933,7 +1040,7 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 		if input.SharedDiskOneZone {
 			zoneType = "OneZone"
 		}
-		price, err := s.GetVolumePrice(zone, fmt.Sprintf("SharedDisk_%s", zoneType))
+		price, err := s.GetVolumePrice(region, fmt.Sprintf("SharedDisk_%s", zoneType))
 		if err != nil {
 			return 0, err
 		}
@@ -953,16 +1060,19 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	if err != nil {
 		return nil, err
 	}
-
+	region := zone[:len(zone)-1]
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 
+	ppgb := 0.0
 	switch input.VolumeType {
 	case backends.VolumeTypeAttachedDisk:
-		price, err := s.GetVolumePrice(zone, input.DiskType)
+		price, err := s.GetVolumePrice(region, input.DiskType)
 		if err != nil {
 			log.Detail("error getting volume price: %s", err)
+		} else {
+			ppgb = price.PricePerGBHour
 		}
-		cli, err := getEc2Client(s.credentials, aws.String(zone))
+		cli, err := getEc2Client(s.credentials, aws.String(region))
 		if err != nil {
 			return nil, err
 		}
@@ -984,7 +1094,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
 		tagsIn[TAG_AEROLAB_PROJECT] = s.project
 		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
-		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", price.PricePerGBHour)
+		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", ppgb)
 		tagsIn[TAG_START_TIME] = time.Now().Format(time.RFC3339)
 		tagsOut := []types.TagSpecification{
 			{
@@ -1017,7 +1127,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 				Description:         input.Description,
 				Size:                backends.StorageSize(input.SizeGiB) * backends.StorageGiB,
 				FileSystemId:        "",
-				ZoneName:            zone,
+				ZoneName:            region,
 				ZoneID:              zone,
 				CreationTime:        aws.ToTime(out.CreateTime),
 				Iops:                input.Iops,
@@ -1043,11 +1153,13 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		if input.SharedDiskOneZone {
 			zoneType = "OneZone"
 		}
-		price, err := s.GetVolumePrice(zone, fmt.Sprintf("SharedDisk_%s", zoneType))
+		price, err := s.GetVolumePrice(region, fmt.Sprintf("SharedDisk_%s", zoneType))
 		if err != nil {
 			log.Detail("error getting volume price: %s", err)
+		} else {
+			ppgb = price.PricePerGBHour
 		}
-		cli, err := getEfsClient(s.credentials, aws.String(zone))
+		cli, err := getEfsClient(s.credentials, aws.String(region))
 		if err != nil {
 			return nil, err
 		}
@@ -1069,7 +1181,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
 		tagsIn[TAG_AEROLAB_PROJECT] = s.project
 		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
-		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", price.PricePerGBHour)
+		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", ppgb)
 		tagsIn[TAG_START_TIME] = time.Now().Format(time.RFC3339)
 		tagsOut := []etypes.Tag{}
 		for k, v := range tagsIn {
@@ -1079,8 +1191,10 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 			})
 		}
 		var oneZone *string
+		zoneId := region
 		if input.SharedDiskOneZone {
 			oneZone = aws.String(zone)
+			zoneId = zone
 		}
 		out, err := cli.CreateFileSystem(context.TODO(), &efs.CreateFileSystemInput{
 			CreationToken:                aws.String(uuid.New().String() + fmt.Sprintf("%d", time.Now().UnixMicro())),
@@ -1102,8 +1216,8 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 				Description:         input.Description,
 				Size:                backends.StorageSize(input.SizeGiB) * backends.StorageGiB,
 				FileSystemId:        aws.ToString(out.FileSystemId),
-				ZoneName:            zone,
-				ZoneID:              zone,
+				ZoneName:            region,
+				ZoneID:              zoneId,
 				CreationTime:        aws.ToTime(out.CreationTime),
 				Iops:                input.Iops,
 				Throughput:          backends.StorageSize(input.Throughput),
@@ -1120,7 +1234,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 					SizeGB:         int64(input.SizeGiB),
 					CreateTime:     aws.ToTime(out.CreationTime),
 				},
-				BackendSpecific: &volumeDetail{
+				BackendSpecific: &VolumeDetail{
 					FileSystemArn:        aws.ToString(out.FileSystemArn),
 					NumberOfMountTargets: int(out.NumberOfMountTargets),
 					PerformanceMode:      string(out.PerformanceMode),
@@ -1130,5 +1244,79 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		}, nil
 	default:
 		return nil, errors.New("volume type invalid")
+	}
+}
+
+func waitForVolumeModification(ctx context.Context, client *ec2.Client, volumeID string, timeout time.Duration) error {
+	// Default waiter settings similar to other AWS waiters
+	minDelay := 1 * time.Second
+	maxDelay := 5 * time.Second
+
+	waiter := newExponentialBackoff(timeout, minDelay, maxDelay)
+
+	for {
+		output, err := client.DescribeVolumesModifications(ctx, &ec2.DescribeVolumesModificationsInput{
+			VolumeIds: []string{volumeID},
+		})
+		if err != nil {
+			return err
+		}
+
+		if len(output.VolumesModifications) == 0 {
+			return nil
+		}
+
+		mod := output.VolumesModifications[0]
+		switch mod.ModificationState {
+		case types.VolumeModificationStateCompleted,
+			types.VolumeModificationStateOptimizing:
+			return nil
+		case types.VolumeModificationStateFailed:
+			return fmt.Errorf("volume modification failed: %s", *mod.StatusMessage)
+		}
+
+		if err := waiter.Wait(ctx); err != nil {
+			return fmt.Errorf("volume modification timed out after %v", timeout)
+		}
+	}
+}
+
+type exponentialBackoff struct {
+	timeout  time.Duration
+	minDelay time.Duration
+	maxDelay time.Duration
+	attempt  int
+	start    time.Time
+}
+
+func newExponentialBackoff(timeout, minDelay, maxDelay time.Duration) *exponentialBackoff {
+	return &exponentialBackoff{
+		timeout:  timeout,
+		minDelay: minDelay,
+		maxDelay: maxDelay,
+		start:    time.Now(),
+	}
+}
+
+func (b *exponentialBackoff) Wait(ctx context.Context) error {
+	if time.Since(b.start) >= b.timeout {
+		return fmt.Errorf("exceeded timeout of %v", b.timeout)
+	}
+
+	delay := b.minDelay * time.Duration(math.Pow(2, float64(b.attempt)))
+	if delay > b.maxDelay {
+		delay = b.maxDelay
+	}
+
+	b.attempt++
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
 }

@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TODO: test volumes
 // TODO: test the expiry system
 // TODO: extra TODO items in test files
 // TODO: add Action to instances: update hosts file
 // TODO: discuss handling of ssh keys
+// TODO: should we patch DNS, or will it stop EFS from working?
 
 // setup
 var (
@@ -142,6 +142,11 @@ func cleanupBackend() error {
 	inv := testBackend.GetInventory()
 
 	err = inv.Instances.Terminate(time.Minute * 10)
+	if err != nil {
+		return err
+	}
+
+	err = inv.Volumes.WithDeleteOnTermination(false).DeleteVolumes(inv.Firewalls.Describe(), time.Minute*10)
 	if err != nil {
 		return err
 	}

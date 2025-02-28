@@ -20,7 +20,7 @@ for fsid in "${@}"; do
             umount -f "${fs}"
             [ $? -ne 0 ] && ISERR=1
         fi
-    done < <(mount |grep tmpfs |grep -E "^${fsid}" |awk '{print $3}')
+    done < <(grep -E "^${fsid}:" /etc/fstab.bak |awk '{print $2}')
 done
 if [ $ISERR -ne 0 ]; then
     echo
