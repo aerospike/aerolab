@@ -375,29 +375,53 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		if len(zoneDNS) == 0 {
 			return
 		}
-		cli, err := getRoute53Client(s.credentials, &zoneDNS[0].Region)
-		if err != nil {
-			log.Warn("Failed to get route53 client, DNS will not be cleaned up: %s", err)
-			return
-		}
+		log.Detail("Cleaning up DNS records")
+		dnsPerDomainID := make(map[string][]*backends.InstanceDNS)
 		for _, dns := range zoneDNS {
-			log.Detail("zone=%s start DNS cleanup", dns.Region)
-			defer log.Detail("zone=%s end DNS cleanup", dns.Region)
-			_, err = cli.ChangeResourceRecordSets(context.TODO(), &route53.ChangeResourceRecordSetsInput{
-				HostedZoneId: aws.String(dns.DomainID),
-				ChangeBatch: &rtypes.ChangeBatch{
-					Changes: []rtypes.Change{
-						{
+			if _, ok := dnsPerDomainID[dns.DomainID]; !ok {
+				dnsPerDomainID[dns.DomainID] = []*backends.InstanceDNS{}
+			}
+			dnsPerDomainID[dns.DomainID] = append(dnsPerDomainID[dns.DomainID], dns)
+		}
+		for domainID, dnsList := range dnsPerDomainID {
+			cli, err := getRoute53Client(s.credentials, &dnsList[0].Region)
+			if err != nil {
+				log.Warn("Failed to get route53 client, DNS will not be cleaned up: %s", err)
+				return
+			}
+			changes := []rtypes.Change{}
+			for _, dns := range dnsList {
+				out, err := cli.ListResourceRecordSets(context.TODO(), &route53.ListResourceRecordSetsInput{
+					HostedZoneId: aws.String(dns.DomainID),
+				})
+				if err != nil {
+					log.Warn("Failed to list DNS records, DNS will not be cleaned up: %s", err)
+					return
+				}
+				for _, record := range out.ResourceRecordSets {
+					if aws.ToString(record.Name) == dns.GetFQDN()+"." {
+						changes = append(changes, rtypes.Change{
 							Action: rtypes.ChangeActionDelete,
 							ResourceRecordSet: &rtypes.ResourceRecordSet{
-								Name: aws.String(dns.GetFQDN()),
+								Name:            record.Name,
+								Type:            record.Type,
+								ResourceRecords: record.ResourceRecords,
+								TTL:             record.TTL,
 							},
-						},
+						})
+					}
+				}
+			}
+			if len(changes) > 0 {
+				_, err = cli.ChangeResourceRecordSets(context.TODO(), &route53.ChangeResourceRecordSetsInput{
+					HostedZoneId: aws.String(domainID),
+					ChangeBatch: &rtypes.ChangeBatch{
+						Changes: changes,
 					},
-				},
-			})
-			if err != nil {
-				log.Warn("Failed to delete DNS record %s, DNS will not be cleaned up: %s", dns.GetFQDN(), err)
+				})
+				if err != nil {
+					log.Warn("Failed to delete DNS records for domain %s, DNS will not be cleaned up: %s", domainID, err)
+				}
 			}
 		}
 	}()
@@ -1194,7 +1218,6 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			Key:   aws.String(TAG_DNS_DOMAIN_NAME),
 			Value: aws.String(input.CustomDNS.DomainName),
 		})
-
 	}
 	for k, v := range input.Tags {
 		awsTags = append(awsTags, types.Tag{
@@ -1432,6 +1455,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					ResourceRecordSet: &rtypes.ResourceRecordSet{
 						Name: aws.String(instance.CustomDNS.GetFQDN()),
 						Type: rtypes.RRTypeA,
+						TTL:  aws.Int64(10),
 						ResourceRecords: []rtypes.ResourceRecord{
 							{Value: aws.String(instance.IP.Routable())},
 						},
@@ -1447,6 +1471,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		})
 		if err != nil {
 			log.Warn("Failed to create DNS records: %s", err)
+			return
 		}
 		if waitDur > 0 {
 			waiter := route53.NewResourceRecordSetsChangedWaiter(cli, func(o *route53.ResourceRecordSetsChangedWaiterOptions) {
@@ -1458,6 +1483,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			}, waitDur)
 			if err != nil {
 				log.Warn("Failed to wait for DNS records to be created: %s", err)
+				return
 			}
 		}
 	}()
@@ -1520,7 +1546,7 @@ func (s *b) CleanupDNS() error {
 			// get zone tags
 			tags, err := cli.ListTagsForResource(context.Background(), &route53.ListTagsForResourceInput{
 				ResourceType: rtypes.TagResourceTypeHostedzone,
-				ResourceId:   zone.Id,
+				ResourceId:   aws.String(strings.TrimPrefix(aws.ToString(zone.Id), "/hostedzone/")),
 			})
 			if err != nil {
 				return fmt.Errorf("failed to list tags for hosted zone: %v", err)
@@ -1567,8 +1593,10 @@ func (s *b) CleanupDNS() error {
 						changes = append(changes, rtypes.Change{
 							Action: rtypes.ChangeActionDelete,
 							ResourceRecordSet: &rtypes.ResourceRecordSet{
-								Name: record.Name,
-								Type: record.Type,
+								TTL:             record.TTL,
+								Name:            record.Name,
+								Type:            record.Type,
+								ResourceRecords: record.ResourceRecords,
 							},
 						})
 					}

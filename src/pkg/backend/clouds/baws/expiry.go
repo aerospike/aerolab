@@ -245,7 +245,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 	log.Detail("Creating lambda IAM role")
 	lambdaRole, err := iamclient.CreateRole(context.TODO(), &iam.CreateRoleInput{
 		RoleName:                 aws.String("aerolab-expiries-lambda-" + zone),
-		AssumeRolePolicyDocument: aws.String(`{"Statement":[{"Action":"sts:AssumeRole","Effect":"Allow","Principal":{"Service":"lambda.amazonaws.com"}}],"Version":"2012-10-17"}`),
+		AssumeRolePolicyDocument: aws.String(getExpiryJSONString("lambda-role.json")),
 	})
 	if err != nil {
 		return err
@@ -264,16 +264,20 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 
 	log.Detail("Creating embedded lambda IAM policy")
 	_, err = iamclient.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
-		PolicyName:     aws.String("aerolab-expiries-lambda-policy-" + zone),
-		RoleName:       aws.String("aerolab-expiries-lambda-" + zone),
-		PolicyDocument: aws.String(fmt.Sprintf(`{"Statement":[{"Action":"logs:CreateLogGroup","Effect":"Allow","Resource":"arn:aws:logs:%s:%s:*"},{"Action":["logs:CreateLogStream","logs:PutLogEvents"],"Effect":"Allow","Resource":["arn:aws:logs:%s:%s:log-group:/aws/lambda/aerolab-expiries:*"]},{"Action":"eks:*","Effect":"Allow","Resource":"*"},{"Action":["ssm:GetParameter","ssm:GetParameters"],"Effect":"Allow","Resource":["arn:aws:ssm:*:%s:parameter/aws/*","arn:aws:ssm:*::parameter/aws/*"]},{"Action":["kms:CreateGrant","kms:DescribeKey"],"Effect":"Allow","Resource":"*"},{"Action":["logs:PutRetentionPolicy"],"Effect":"Allow","Resource":"*"},{"Action":["iam:CreateInstanceProfile","iam:DeleteInstanceProfile","iam:GetInstanceProfile","iam:RemoveRoleFromInstanceProfile","iam:GetRole","iam:CreateRole","iam:DeleteRole","iam:AttachRolePolicy","iam:PutRolePolicy","iam:AddRoleToInstanceProfile","iam:ListInstanceProfilesForRole","iam:PassRole","iam:DetachRolePolicy","iam:DeleteRolePolicy","iam:GetRolePolicy","iam:GetOpenIDConnectProvider","iam:CreateOpenIDConnectProvider","iam:DeleteOpenIDConnectProvider","iam:TagOpenIDConnectProvider","iam:ListOpenIDConnectProviders","iam:ListOpenIDConnectProviderTags","iam:DeleteOpenIDConnectProvider","iam:ListAttachedRolePolicies","iam:TagRole","iam:GetPolicy","iam:CreatePolicy","iam:DeletePolicy","iam:ListPolicyVersions"],"Effect":"Allow","Resource":["arn:aws:iam::%s:instance-profile/eksctl-*","arn:aws:iam::%s:role/eksctl-*","arn:aws:iam::%s:policy/eksctl-*","arn:aws:iam::%s:oidc-provider/*","arn:aws:iam::%s:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup","arn:aws:iam::%s:role/eksctl-managed-*"]},{"Action":["iam:GetRole"],"Effect":"Allow","Resource":["arn:aws:iam::%s:role/*"]},{"Action":["iam:CreateServiceLinkedRole"],"Condition":{"StringEquals":{"iam:AWSServiceName":["eks.amazonaws.com","eks-nodegroup.amazonaws.com","eks-fargate.amazonaws.com"]}},"Effect":"Allow","Resource":"*"},{"Effect": "Allow","Action": ["route53:ChangeResourceRecordSets","route53:ListResourceRecordSets"],"Resource": ["arn:aws:route53:::hostedzone/*"]}],"Version":"2012-10-17"}`, zone, accountId, zone, accountId, accountId, accountId, accountId, accountId, accountId, accountId, accountId, accountId)),
+		PolicyName: aws.String("aerolab-expiries-lambda-policy-" + zone),
+		RoleName:   aws.String("aerolab-expiries-lambda-" + zone),
+		PolicyDocument: aws.String(fmt.Sprintf(getExpiryJSONString("lambda-role-policy.json"), zone, accountId,
+			zone, accountId, zone,
+			accountId,
+			accountId, accountId, accountId, accountId, accountId, accountId,
+			accountId)),
 	})
 	if err != nil {
 		return err
 	}
 
 	log.Detail("Attaching base lambda IAM policies")
-	for _, npolicy := range awsExpiryPolicies {
+	for _, npolicy := range getExpiryJSONStringList("lambda-role-attach-policies.json") {
 		_, err = iamclient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
 			RoleName:  aws.String("aerolab-expiries-lambda-" + zone),
 			PolicyArn: aws.String(npolicy),
@@ -286,7 +290,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 	log.Detail("Creating scheduler IAM role")
 	schedRole, err := iamclient.CreateRole(context.TODO(), &iam.CreateRoleInput{
 		RoleName:                 aws.String("aerolab-expiries-scheduler-" + zone),
-		AssumeRolePolicyDocument: aws.String(fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect": "Allow","Principal":{"Service":"scheduler.amazonaws.com"},"Action":"sts:AssumeRole","Condition":{"StringEquals":{"aws:SourceAccount":"%s"}}}]}`, accountId)),
+		AssumeRolePolicyDocument: aws.String(fmt.Sprintf(getExpiryJSONString("scheduler-role.json"), accountId)),
 	})
 	if err != nil {
 		return err
@@ -307,7 +311,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 	_, err = iamclient.PutRolePolicy(context.TODO(), &iam.PutRolePolicyInput{
 		PolicyName:     aws.String("aerolab-expiries-scheduler-policy-" + zone),
 		RoleName:       aws.String("aerolab-expiries-scheduler-" + zone),
-		PolicyDocument: aws.String(fmt.Sprintf(`{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["lambda:InvokeFunction"],"Resource":["arn:aws:lambda:%s:%s:function:aerolab-expiries:*","arn:aws:lambda:%s:%s:function:aerolab-expiries"]}]}`, zone, accountId, zone, accountId)),
+		PolicyDocument: aws.String(fmt.Sprintf(getExpiryJSONString("scheduler-role-policy.json"), zone, accountId, zone, zone, accountId, zone)),
 	})
 	if err != nil {
 		return err
@@ -376,6 +380,26 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 		return err
 	}
 
+	log.Detail("Waiting for lambda function to be active")
+	err = lambda.NewFunctionActiveV2Waiter(lclient, func(o *lambda.FunctionActiveV2WaiterOptions) {
+		o.MinDelay = 1 * time.Second
+		o.MaxDelay = 5 * time.Second
+	}).Wait(context.TODO(), &lambda.GetFunctionInput{
+		FunctionName: function.FunctionName,
+	}, 5*time.Minute)
+	if err != nil {
+		return err
+	}
+
+	log.Detail("Adjusting lambda function features - max one run at a time")
+	_, err = lclient.PutFunctionConcurrency(context.TODO(), &lambda.PutFunctionConcurrencyInput{
+		FunctionName:                 aws.String("aerolab-expiries-" + zone),
+		ReservedConcurrentExecutions: aws.Int32(1),
+	})
+	if err != nil {
+		return err
+	}
+
 	log.Detail("Creating scheduler")
 	err = errors.New("execution role you provide must allow AWS EventBridge Scheduler to assume the role")
 	retries := 0
@@ -409,8 +433,6 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 	}
 	return nil
 }
-
-var awsExpiryPolicies = []string{"arn:aws:iam::aws:policy/AmazonEC2FullAccess", "arn:aws:iam::aws:policy/AmazonElasticFileSystemFullAccess", "arn:aws:iam::aws:policy/AWSCloudFormationFullAccess"}
 
 func (s *b) ExpiryRemove(zones ...string) error {
 	log := s.log.WithPrefix("ExpiryRemove: job=" + shortuuid.New() + " ")
@@ -451,17 +473,17 @@ func (s *b) ExpiryRemove(zones ...string) error {
 			_, err = sclient.DeleteSchedule(context.TODO(), &scheduler.DeleteScheduleInput{
 				Name: aws.String("aerolab-expiries-" + zone),
 			})
-			if err != nil && !strings.Contains(err.Error(), "Schedule aerolab-expiries does not exist") {
+			if err != nil && !strings.Contains(err.Error(), "ResourceNotFoundException") {
 				reterr = errors.Join(reterr, err)
 			}
 
 			_, err = lclient.DeleteFunction(context.TODO(), &lambda.DeleteFunctionInput{
 				FunctionName: aws.String("aerolab-expiries-" + zone),
 			})
-			if err != nil && !strings.Contains(err.Error(), "ResourceNotFoundException: Function not found") {
+			if err != nil && !strings.Contains(err.Error(), "ResourceNotFoundException") {
 				reterr = errors.Join(reterr, err)
 			}
-			for _, npolicy := range awsExpiryPolicies {
+			for _, npolicy := range getExpiryJSONStringList("lambda-role-attach-policies.json") {
 				_, err = iamclient.DetachRolePolicy(context.TODO(), &iam.DetachRolePolicyInput{
 					PolicyArn: aws.String(npolicy),
 					RoleName:  aws.String("aerolab-expiries-lambda-" + zone),

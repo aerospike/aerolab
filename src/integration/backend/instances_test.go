@@ -10,10 +10,8 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 )
 
-// TODO: test creation of custom DNS
-
 // test cases
-func TestInstances(t *testing.T) {
+func Test01_Instances(t *testing.T) {
 	t.Cleanup(cleanup)
 	t.Run("setup", testSetup)
 	t.Run("inventory empty", testInventoryEmpty)
@@ -30,6 +28,8 @@ func TestInstances(t *testing.T) {
 	t.Run("instances terminate", testInstancesTerminate)
 	t.Run("end inventory empty", testInventoryEmpty)
 }
+
+type testInstancesDNS struct{}
 
 func testInstancesUpdateHostsFile(t *testing.T) {
 	require.NoError(t, setup(false))

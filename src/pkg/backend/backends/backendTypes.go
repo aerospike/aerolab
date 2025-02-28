@@ -3,9 +3,9 @@ package backends
 type BackendType string
 
 const (
-	BackendTypeAWS    = "aws"
-	BackendTypeGCP    = "gcp"
-	BackendTypeDocker = "docker"
+	BackendTypeAWS    BackendType = "aws"
+	BackendTypeGCP    BackendType = "gcp"
+	BackendTypeDocker BackendType = "docker"
 )
 
 func ListBackendTypes() []BackendType {

@@ -265,8 +265,8 @@ func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, 
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
-			log.Detail("zone=%s attached: start")
-			defer log.Detail("zone=%s attached: end")
+			log.Detail("zone=%s attached: start", zone)
+			defer log.Detail("zone=%s attached: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -286,8 +286,8 @@ func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, 
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
-			log.Detail("zone=%s shared: start")
-			defer log.Detail("zone=%s shared: end")
+			log.Detail("zone=%s shared: start", zone)
+			defer log.Detail("zone=%s shared: end", zone)
 			cli, err := getEfsClient(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -345,8 +345,8 @@ func (s *b) VolumesRemoveTags(volumes backends.VolumeList, tagKeys []string, wai
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
-			log.Detail("zone=%s attached: start")
-			defer log.Detail("zone=%s attached: end")
+			log.Detail("zone=%s attached: start", zone)
+			defer log.Detail("zone=%s attached: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -366,8 +366,8 @@ func (s *b) VolumesRemoveTags(volumes backends.VolumeList, tagKeys []string, wai
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
-			log.Detail("zone=%s shared: start")
-			defer log.Detail("zone=%s shared: end")
+			log.Detail("zone=%s shared: start", zone)
+			defer log.Detail("zone=%s shared: end", zone)
 			cli, err := getEfsClient(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -420,8 +420,8 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 		wg.Add(1)
 		go func(zone string, ids []string) {
 			defer wg.Done()
-			log.Detail("zone=%s attached: start")
-			defer log.Detail("zone=%s attached: end")
+			log.Detail("zone=%s attached: start", zone)
+			defer log.Detail("zone=%s attached: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -453,8 +453,8 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 		wg.Add(1)
 		go func(zone string, ids backends.VolumeList) {
 			defer wg.Done()
-			log.Detail("zone=%s shared: start")
-			defer log.Detail("zone=%s shared: end")
+			log.Detail("zone=%s shared: start", zone)
+			defer log.Detail("zone=%s shared: end", zone)
 			cli, err := getEfsClient(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -882,8 +882,8 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 		wg.Add(1)
 		go func(zone string, ids backends.VolumeList) {
 			defer wg.Done()
-			log.Detail("zone=%s attached: start")
-			defer log.Detail("zone=%s attached: end")
+			log.Detail("zone=%s attached: start", zone)
+			defer log.Detail("zone=%s attached: end", zone)
 			cli, err := getEc2Client(s.credentials, &zone)
 			if err != nil {
 				reterr = errors.Join(reterr, err)
@@ -921,8 +921,8 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	// shared: umount and remove the volume from fstab
 	if len(shared) > 0 {
 		err := func() error {
-			log.Detail("zone=%s shared: start")
-			defer log.Detail("zone=%s shared: end")
+			log.Detail("zone=%s shared: start", instance.ZoneName)
+			defer log.Detail("zone=%s shared: end", instance.ZoneName)
 			// upload scripts
 			sftpConf, err := s.InstancesGetSftpConfig(backends.InstanceList{instance}, "root")
 			if err != nil {
