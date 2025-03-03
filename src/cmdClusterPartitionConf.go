@@ -27,6 +27,7 @@ type clusterPartitionConfCmd struct {
 	Namespace          string          `short:"m" long:"namespace" description:"namespace to modify the settings for" default:""`
 	ConfDest           string          `short:"o" long:"configure" description:"what to configure the selections as; options: memory|device|shadow|pi-flash|si-flash" default:""`
 	MountsSizeLimitPct float64         `short:"s" long:"mounts-size-limit-pct" description:"specify %% space to use for configurating partition-tree-sprigs for pi-flash; this also sets mounts-budget accordingly" default:"90"`
+	ConfigPath         string          `short:"c" long:"config-path" description:"path to a custom aerospike config file to use for the configuration" default:"/etc/aerospike/aerospike.conf"`
 	parallelThreadsLongCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -129,14 +130,14 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		}
 	}
 
-	outn, err = b.RunCommands(c.ClusterName.String(), [][]string{{"cat", "/etc/aerospike/aerospike.conf"}}, []int{nodeNo})
+	outn, err = b.RunCommands(c.ClusterName.String(), [][]string{{"cat", c.ConfigPath}}, []int{nodeNo})
 	if err != nil {
-		return fmt.Errorf("could not read aerospike.conf on node %d: %s", nodeNo, err)
+		return fmt.Errorf("could not read %s on node %d: %s", c.ConfigPath, nodeNo, err)
 	}
 	aconf := outn[0]
 	conf, err := aeroconf.Parse(bytes.NewReader(aconf))
 	if err != nil {
-		return fmt.Errorf("could not parse aerospike.conf on node %d: %s", nodeNo, err)
+		return fmt.Errorf("could not parse %s on node %d: %s", c.ConfigPath, nodeNo, err)
 	}
 
 	if conf.Type("namespace "+c.Namespace) == aeroconf.ValueNil {
@@ -344,7 +345,7 @@ func (c *clusterPartitionConfCmd) do(nodeNo int, disks map[int]map[int]blockDevi
 		return err
 	}
 	aconf = buf.Bytes()
-	err = b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{"/etc/aerospike/aerospike.conf", string(aconf), len(aconf)}}, []int{nodeNo})
+	err = b.CopyFilesToCluster(c.ClusterName.String(), []fileList{{c.ConfigPath, string(aconf), len(aconf)}}, []int{nodeNo})
 	if err != nil {
 		return err
 	}

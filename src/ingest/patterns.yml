@@ -264,6 +264,7 @@ defs:
             setName: "rebalanced"
             search: "unavailable-partitions"
             export:
+                - "{(?P<Namespace>[^}]+)} rebalanced: regime (?P<reRegime>\\d+) expected-migrations \\((?P<reTx>\\d+),(?P<reRx>\\d+),(?P<reSig>\\d+)\\) fresh-partitions (?P<reFresh>\\d+) expected-appeals (?P<reAppeals>\\d+) unavailable-partitions (?P<reUnavail>\\d+)"
                 - "{(?P<Namespace>[^}]+)} rebalanced: regime (?P<reRegime>\\d+) expected-migrations \\((?P<reTx>\\d+),(?P<reRx>\\d+),(?P<reSig>\\d+)\\) expected-appeals (?P<reAppeals>\\d+) unavailable-partitions (?P<reUnavail>\\d+)"
         -
             setName: "rebalanced"

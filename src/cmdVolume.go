@@ -696,18 +696,17 @@ func (c *volumeExecMountCmd) installEFSfstab() error {
 }
 
 func (c *volumeExecMountCmd) installMountEFS() error {
-	mountCommand := []string{"mount", "-a"}
-	dnsFlushCommand := []string{"systemd-resolve", "--flush-caches"}
 	success := false
 	var err error
 	var out []byte
 	for attempt := 1; attempt <= 30; attempt++ {
-		out, err = exec.Command(mountCommand[0], mountCommand[1:]...).CombinedOutput()
+		out, err = exec.Command("mount", "-a").CombinedOutput()
 		if err == nil {
 			success = true
 			break
 		}
-		exec.Command(dnsFlushCommand[0], dnsFlushCommand[1:]...).CombinedOutput()
+		exec.Command("resolvectl", "flush-caches").CombinedOutput()
+		exec.Command("systemd-resolve", "--flush-caches").CombinedOutput()
 		time.Sleep(20 * time.Second)
 	}
 	if !success {
