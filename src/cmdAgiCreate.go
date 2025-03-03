@@ -88,7 +88,7 @@ type agiCreateCmd struct {
 	PluginLogLevel   int             `long:"plugin-log-level" description:"1-CRITICAL,2-ERROR,3-WARN,4-INFO,5-DEBUG,6-DETAIL" default:"4" simplemode:"false"`
 	NoConfigOverride bool            `long:"no-config-override" description:"if set, existing configuration will not be overridden; useful when restarting EFS-based AGIs" simplemode:"false"`
 	NoToolsOverride  bool            `long:"no-tools-override" description:"by default agi will install the latest tools package; set this to disable tools package upgrade" simplemode:"false"`
-	SendClusterInfo  string          `long:"send-cluster-info" description:"URL to send cluster info to that is discovered in collectinfos, ex https://user:pass@example.com/clusterinfo" simplemode:"false" hidden:"true" webhidden:"true"`
+	SendClusterInfo  string          `long:"send-cluster-info" description:"URL to send cluster info to that is discovered in collectinfos, ex https://user:pass@example.com/clusterinfo" simplemode:"false" webhidden:"true"`
 	hTTPSNotify
 	WithAGIMonitorAuto      bool                 `long:"with-monitor" description:"if set, system will look for agimonitor client; if not present, one will be created; will also auto-fill the monitor URL" simplemode:"false"`
 	MonitorAutoCertDomains  []string             `long:"monitor-autocert" description:"Monitor Creation: TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains, can be used more than once" yaml:"autocertDomains" simplemode:"false"` // TLS: if specified, will attempt to auto-obtain certificates from letsencrypt for given domains
