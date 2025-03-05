@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -12,6 +14,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/lithammer/shortuuid"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
 
@@ -44,6 +47,7 @@ type dataInsertSelectorCmd struct {
 	IsClient        bool            `short:"I" long:"client" description:"set to indicate to run on a client machine instead of server node"`
 	SeedNode        string          `short:"g" long:"seed-node" description:"Seed node IP:PORT. Only use if you are inserting data from different node to another one." default:"127.0.0.1:3000"`
 	LinuxBinaryPath flags.Filename  `short:"t" long:"path" description:"Path to the linux compiled aerolab binary; this should not be required" default:"" simplemode:"false"`
+	RunJson         string          `long:"run-json" hidden:"true"`
 }
 
 type dataInsertCmd struct {
@@ -71,6 +75,16 @@ func (c *dataInsertCmd) insert(args []string) error {
 		return nil
 	}
 	log.Print("Running data.insert")
+	if c.RunJson != "" {
+		jf, err := os.ReadFile(c.RunJson)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(jf, c)
+		if err != nil {
+			return err
+		}
+	}
 	if c.RunDirect {
 		var err error
 		log.Print("Insert start")
@@ -102,7 +116,6 @@ func (c *dataInsertCmd) insert(args []string) error {
 	if err != nil {
 		return err
 	}
-	var extraArgs []string
 	if a.opts.Config.Backend.Type == "docker" {
 		found := false
 		for _, arg := range os.Args[1:] {
@@ -112,19 +125,23 @@ func (c *dataInsertCmd) insert(args []string) error {
 			}
 		}
 		if !found {
-			extraArgs = append(extraArgs, "-g", seedNode)
+			c.SeedNode = seedNode
 		}
 	}
 	log.Print("Unpacking start")
-	if err := c.unpack(args, extraArgs); err != nil {
+	c.RunDirect = true
+	data, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	if err := c.unpack("insert", data); err != nil {
 		return err
 	}
 	log.Print("Complete")
 	return nil
 }
 
-func (c *dataInsertSelectorCmd) unpack(args []string, extraArgs []string) error {
-	_ = args
+func (c *dataInsertSelectorCmd) unpack(cmd string, data []byte) error {
 	if c.IsClient {
 		b.WorkOnClients()
 	}
@@ -194,16 +211,18 @@ func (c *dataInsertSelectorCmd) unpack(args []string, extraArgs []string) error 
 	}
 	err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{"/usr/local/bin/aerolab", contents, pfilelen}}, []int{c.Node.Int()})
 	if err != nil {
-		return fmt.Errorf("insert-data: backend.CopyFilesToCluster: %s", err)
+		return fmt.Errorf("insert-data: backend.CopyFilesToCluster(aerolab): %s", err)
+	}
+	jsonName := "/tmp/aerolab-data-cmd." + shortuuid.New()
+	err = b.CopyFilesToClusterReader(string(c.ClusterName), []fileListReader{{jsonName, bytes.NewReader(data), len(data)}}, []int{c.Node.Int()})
+	if err != nil {
+		return fmt.Errorf("insert-data: backend.CopyFilesToCluster(json): %s", err)
 	}
 	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), []string{"chmod", "755", "/usr/local/bin/aerolab"}, false)
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(1): %s", err)
 	}
-	runCommand := []string{"/usr/local/bin/aerolab"}
-	runCommand = append(runCommand, os.Args[1:]...)
-	runCommand = append(runCommand, "-d", "1")
-	runCommand = append(runCommand, extraArgs...)
+	runCommand := []string{"/usr/local/bin/aerolab", "data", cmd, "--run-json=" + jsonName}
 	err = b.AttachAndRun(string(c.ClusterName), c.Node.Int(), runCommand, false)
 	if err != nil {
 		return fmt.Errorf("insert-data: backend.AttachAndRun(2): %s", err)
