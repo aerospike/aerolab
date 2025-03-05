@@ -30,7 +30,14 @@ EXAMPLES:
         aerolab conf adjust set service.proto-fd-max 3000
 ```
 
-## Example:
+## Basic examples:
+
+```
+# enable read-page-cache
+aerolab conf adjust -n mydc set "namespace test.storage-engine device.read-page-cache" true
+```
+
+## Full Example:
 
 Adjust XDR configuration to include authentication methods with enabled security.
 
