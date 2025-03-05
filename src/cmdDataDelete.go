@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"os"
@@ -26,6 +27,16 @@ func (c *dataDeleteCmd) delete(args []string) error {
 		return nil
 	}
 	log.Print("Running data.delete")
+	if c.RunJson != "" {
+		jf, err := os.ReadFile(c.RunJson)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(jf, c)
+		if err != nil {
+			return err
+		}
+	}
 	if c.RunDirect {
 		var err error
 		log.Print("Delete start")
@@ -57,7 +68,6 @@ func (c *dataDeleteCmd) delete(args []string) error {
 	if err != nil {
 		return err
 	}
-	var extraArgs []string
 	if a.opts.Config.Backend.Type == "docker" {
 		found := false
 		for _, arg := range os.Args[1:] {
@@ -67,11 +77,16 @@ func (c *dataDeleteCmd) delete(args []string) error {
 			}
 		}
 		if !found {
-			extraArgs = append(extraArgs, "-g", seedNode)
+			c.SeedNode = seedNode
 		}
 	}
 	log.Print("Unpacking start")
-	if err := c.unpack(args, extraArgs); err != nil {
+	c.RunDirect = true
+	data, err := json.Marshal(c)
+	if err != nil {
+		return err
+	}
+	if err := c.unpack("delete", data); err != nil {
 		return err
 	}
 	log.Print("Complete")
