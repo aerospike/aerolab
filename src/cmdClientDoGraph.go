@@ -28,6 +28,7 @@ type clientCreateGraphCmd struct {
 	DockerLoginUser string          `long:"docker-user" description:"login to docker registry for graph installation"`
 	DockerLoginPass string          `long:"docker-pass" description:"login to docker registry for graph installation" webtype:"password"`
 	DockerLoginURL  string          `long:"docker-url" description:"login to docker registry for graph installation"`
+	GraphPrivileged bool            `long:"graph-privileged" description:"set this to force graph to run in privileged docker container mode"`
 	JustDoIt        bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	seedip          string
 	seedport        string
@@ -37,6 +38,14 @@ type clientCreateGraphCmd struct {
 func (c *clientCreateGraphCmd) Execute(args []string) error {
 	if earlyProcess(args) {
 		return nil
+	}
+	if a.opts.Config.Backend.Type == "docker" {
+		if c.GraphPrivileged {
+			c.Docker.Privileged = c.GraphPrivileged
+		}
+		if c.Docker.Privileged {
+			c.GraphPrivileged = true
+		}
 	}
 	if a.opts.Config.Backend.Type == "docker" && !strings.Contains(c.Docker.ExposePortsToHost, ":8182") {
 		if c.Docker.NoAutoExpose {
@@ -201,7 +210,7 @@ func (c *clientCreateGraphCmd) Execute(args []string) error {
 				Pass: c.DockerLoginPass,
 			}
 		}
-		graphScript := scripts.GetCloudGraphScript("/etc/aerospike-graph.properties", "", c.GraphImage, dockerLogin)
+		graphScript := scripts.GetCloudGraphScript("/etc/aerospike-graph.properties", c.GraphPrivileged, "", c.GraphImage, dockerLogin)
 		err = b.CopyFilesToCluster(string(c.ClientName), []fileList{{"/etc/aerospike-graph.properties", string(graphConfig), len(graphConfig)}, {"/tmp/install-graph.sh", string(graphScript), len(graphScript)}}, []int{node})
 		if err != nil {
 			return err
