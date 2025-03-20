@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v7"
+	"github.com/aerospike/aerospike-client-go/v8"
 )
 
 func (c *dataInsertCmd) insert7(args []string) error {
