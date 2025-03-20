@@ -544,6 +544,14 @@ func (c *clientCreateVectorCmd) vectorConfigPatch(fc []byte, listeners vectorAdv
 	if err != nil {
 		return fc, err
 	}
+	err = mapDelete(config, []interface{}{"node-roles"})
+	if err != nil {
+		return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "ports"})
+	}
+	err = mapMakeSet(config, []interface{}{"node-roles"}, []string{"query", "indexer", "standalone-indexer"})
+	if err != nil {
+		return fc, fmt.Errorf("%v\n%v\n%v", err, config, []interface{}{"service", "ports", c.serviceport, "addresses"})
+	}
 	if !c.NoTouchServiceListen {
 		err = mapDelete(config, []interface{}{"service", "ports"})
 		if err != nil {

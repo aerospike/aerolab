@@ -42,9 +42,13 @@ func GetGraphConfig(seeds []string, namespace string, properties []string, rammb
 
 // for on-cloud deployments, installs docker and starts graph inside
 // for properties file path, ex: /etc/aerospike-graph/aerospike-graph.properties
-func GetCloudGraphScript(propertiesFilePath string, extraParams string, imageName string, login *DockerLogin) []byte {
+func GetCloudGraphScript(propertiesFilePath string, privileged bool, extraParams string, imageName string, login *DockerLogin) []byte {
+	priv := ""
+	if privileged {
+		priv = "--privileged"
+	}
 	if login == nil {
-		return append(InstallDocker, []byte(fmt.Sprintf(startGraph, "aerospike-graph", propertiesFilePath, extraParams, imageName))...)
+		return append(InstallDocker, []byte(fmt.Sprintf(startGraph, "aerospike-graph", priv, propertiesFilePath, extraParams, imageName))...)
 	}
 	// add login to InstallDocker
 	loginScript := []byte(fmt.Sprintf("\ndocker login --username '%s' --password '%s'", login.User, strings.ReplaceAll(login.Pass, "'", "\\'")))

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v7"
+	"github.com/aerospike/aerospike-client-go/v8"
 )
 
 func (c *dataDeleteCmd) delete7(args []string) error {
