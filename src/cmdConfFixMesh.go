@@ -139,18 +139,20 @@ func (c *confFixMeshCmd) fixAccessAddress(old string, newIp string) (new string,
 	if s == nil {
 		return old, errors.New("network.service stanza not found")
 	}
-	if s.Type("access-address") == aeroconf.ValueString {
-		vals, err := s.GetValues("access-address")
-		if err != nil {
-			return old, err
-		}
-		for i, val := range vals {
-			if val == nil || strings.HasPrefix(*val, "127.") {
-				continue
+	for _, str := range []string{"access-address", "tls-access-address"} {
+		if s.Type(str) == aeroconf.ValueString {
+			vals, err := s.GetValues(str)
+			if err != nil {
+				return old, err
 			}
-			valIP := net.ParseIP(*val)
-			if valIP.IsPrivate() {
-				vals[i] = &newIp
+			for i, val := range vals {
+				if val == nil || strings.HasPrefix(*val, "127.") {
+					continue
+				}
+				valIP := net.ParseIP(*val)
+				if valIP.IsPrivate() {
+					vals[i] = &newIp
+				}
 			}
 		}
 	}
