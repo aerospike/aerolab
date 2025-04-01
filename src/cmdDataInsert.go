@@ -34,7 +34,7 @@ type dataInsertCommonCmd struct {
 	UseMultiThreaded int               `short:"u" long:"multi-thread" description:"If set, will use multithreading. Set to the number of threads you want processing." default:"0"`
 	User             string            `short:"U" long:"username" description:"If set, will use this user to authenticate to aerospike cluster" default:""`
 	Pass             string            `short:"P" long:"password" description:"If set, will use this pass to authenticate to aerospike cluster" default:""`
-	Version          TypeClientVersion `short:"v" long:"version" description:"which aerospike library version to use: 4|5|8" default:"8" webchoice:"8,5,4"`
+	Version          TypeClientVersion `short:"v" long:"version" description:"which aerospike library version to use: 4|5|7|8" default:"8" webchoice:"8,7,5,4"`
 	AuthExternal     bool              `short:"Q" long:"auth-external" description:"if set, will use external auth method"`
 	TlsCaCert        string            `short:"y" long:"tls-ca-cert" description:"Tls CA certificate path" default:""`
 	TlsClientCert    string            `short:"w" long:"tls-client-cert" description:"Tls client cerrtificate path" default:""`
@@ -89,9 +89,9 @@ func (c *dataInsertCmd) insert(args []string) error {
 		var err error
 		log.Print("Insert start")
 		switch c.Version {
-		case "7":
+		case "8":
 			err = c.insert7(args)
-		case "6":
+		case "7":
 			err = c.insert6(args)
 		case "5":
 			err = c.insert5(args)

@@ -7,6 +7,12 @@ import (
 	"os"
 )
 
+func debug(format string, values ...interface{}) {
+	if os.Getenv("AEROLAB_BACKEND_DEBUG") == "on" {
+		log.Printf(format, values...)
+	}
+}
+
 func chDir(dir string) error {
 	if dir != "" {
 		if _, err := os.Stat(dir); os.IsNotExist(err) {

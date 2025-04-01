@@ -4,12 +4,20 @@ AeroLab supports installing Vector client to Aerospike.
 
 ## Basic usage
 
+### Generate a vector config file for aerospike
+
+Run the below command, scroll down to the "Vector namespace" section, select it, and the "on-disk storage" under it. Then press CTRL+X to save the file.
+
+```bash
+aerolab conf generate -f vector.conf
+```
+
 ### Create an aerospike cluster
 
 In this example, create `2` nodes, specifying `GCP` details.
 
 ```bash
-aerolab cluster create -n vectordb -c 2 --zone us-central1-a --instance e2-standard-4
+aerolab cluster create -n vectordb -c 2 --zone us-central1-a --instance e2-standard-4 -o vector.conf
 ```
 
 ### Create a vector client machine
@@ -47,8 +55,11 @@ The below example is for Docker. For GCP/AWS add the appropriate `--zone=`, `--i
 ### Installation:
 
 ```bash
+# generate a config file
+aerolab conf generate -f vector.conf
+
 # create aerospike cluster
-aerolab cluster create -n vectordb
+aerolab cluster create -n vectordb -f vector.conf
 
 # add exporter to aerospike cluster for monitoring
 aerolab cluster add exporter -n vectordb 
