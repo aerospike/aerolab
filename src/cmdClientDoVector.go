@@ -36,7 +36,8 @@ type clientCreateVectorCmd struct {
 	CustomConf                 flags.Filename  `long:"custom-conf" description:"provide a custom aerospike-vector-search.yml to ship"`
 	NoStart                    bool            `long:"no-start" description:"if set, service will not be started after installation"`
 	FeaturesFile               flags.Filename  `short:"f" long:"featurefile" description:"Features file to install; if not provided, the features.conf from the seed aerospike cluster will be taken"`
-	MetadataNamespace          string          `long:"metans" description:"configure the metadata namespace name" default:"test"`
+	MetadataNamespace          string          `long:"metans" description:"configure the metadata namespace name" default:"avs-meta"`
+	NoInstallExtras            bool            `long:"no-install-extras" description:"do not install python3 and the aerospike-vector-search package (deb-based distros only)"`
 	JustDoIt                   bool            `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	seedip                     string
 	seedport                   string
@@ -94,6 +95,18 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 		}
 	}
 
+	// early chck if the cluster exists at all
+	if c.Seed == "" {
+		log.Print("Checking if cluster exists...")
+		exists, err := b.ClusterList()
+		if err != nil {
+			return err
+		}
+		if !inslice.HasString(exists, string(c.ClusterName)) {
+			return errors.New("cluster " + string(c.ClusterName) + " does not exist")
+		}
+	}
+
 	// early check cluster has nsup enabled
 	if !c.NoCheckNsup && c.Seed == "" {
 		log.Print("Checking and fixing nsup-period on the cluster metadata namespace if necessary...")
@@ -103,6 +116,8 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 				out = [][]byte{{'-'}}
 			}
 			log.Printf("WARNING: Could not verify if the namespace has nsup-period>0; err=%s out=%s", err, string(out[0]))
+		} else if strings.Contains(string(out[0]), "type=unknown") {
+			return errors.New("ERROR: metadata namespace " + c.MetadataNamespace + " does not exist, aborting.\n Please use `aerolab conf generate` to create a template aerospike.conf file with the AVS metadata namespace enabled.\n See https://github.com/aerospike/aerolab/blob/master/docs/deploy_clients/vector.md")
 		} else {
 			fix := false
 			for _, line := range strings.Split(string(out[0]), "\n") {
@@ -318,7 +333,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	if !c.NoTouchServiceListen {
 		vectorSeed = strings.ReplaceAll(c.serviceip, "0.0.0.0", "127.0.0.1") + ":" + c.serviceport
 	}
-	script := scripts.GetVectorScript(a.opts.Config.Backend.Type == "docker", fExt, asvec, vectorSeed)
+	script := scripts.GetVectorScript(a.opts.Config.Backend.Type == "docker", fExt, !c.NoInstallExtras, asvec, vectorSeed)
 
 	aoptslock := new(sync.Mutex)
 	returns := parallelize.MapLimit(machines, c.ParallelThreads, func(node int) error {
@@ -462,6 +477,7 @@ func (c *clientCreateVectorCmd) Execute(args []string) error {
 	log.Println("Done")
 	log.Println(" * Vector usage examples: https://github.com/aerospike/aerospike-vector")
 	log.Println(" * Examples cloned to the vector instance in: /root/aerospike-vector/")
+	log.Println(" * Example run basic search demo: cd ~/aerospike-vector/basic-search && python3 search.py --port 5555 --namespace test --index-namespace test")
 	return nil
 }
 

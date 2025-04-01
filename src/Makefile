@@ -3,6 +3,9 @@
 ## requirements: make dpkg rpmbuild upx golang zip wget jq
 ## macos pkg requirement: https://docker-laptop.s3.eu-west-1.amazonaws.com/Packages.pkg
 
+## export GOWORK=off to disable go work
+export GOWORK=off
+
 ## environment variable import
 SIGNER := "$(aerolab_signer)"
 INSTALLSIGNER := "$(aerolab_installsigner)"

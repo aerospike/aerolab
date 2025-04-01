@@ -61,3 +61,9 @@ fi
 cd /root
 set +e
 git clone https://github.com/aerospike/aerospike-vector.git || exit 0
+if [ ${ISDEB} -eq 2 ]
+then
+  ln -fs /usr/share/zoneinfo/America/Los_Angeles /etc/localtime
+  DEBIAN_FRONTEND=noninteractive apt -y install python3 python3-pip vim
+  python3 -m pip install --break-system-packages aerospike-vector-search
+fi
