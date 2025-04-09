@@ -19,7 +19,8 @@ import (
 )
 
 type VolumeDetail struct {
-	LabelFingerprint string `json:"labelFingerprint" yaml:"labelFingerprint"`
+	LabelFingerprint string    `json:"labelFingerprint" yaml:"labelFingerprint"`
+	Metadata         *metadata `json:"metadata" yaml:"metadata"`
 }
 
 func (s *b) GetVolumes() (backends.VolumeList, error) {
@@ -122,6 +123,7 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 					},
 					BackendSpecific: &VolumeDetail{
 						LabelFingerprint: pair.GetLabelFingerprint(),
+						Metadata:         meta,
 					},
 				})
 				ilock.Unlock()

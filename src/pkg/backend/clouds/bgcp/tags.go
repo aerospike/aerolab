@@ -16,6 +16,13 @@ const (
 	TAG_FIREWALL_NAME_PREFIX = "aerolab-default-"
 )
 
+// volumes uses labels
+// firewalls uses description
+// network doesn't do custom metadata as we do not have network creation and management at this time
+// images use XXX
+// instances use XXX
+// expiry uses XXX
+
 type metadata struct {
 	Name                string            `json:"n,omitempty"`
 	Description         string            `json:"d,omitempty"`
@@ -38,6 +45,18 @@ type metadata struct {
 	ClusterUuid         string            `json:"cu,omitempty"`
 	DeleteOnTermination bool              `json:"dt,omitempty"`
 	Custom              map[string]string `json:"c,omitempty"`
+}
+
+func (m *metadata) encodeToDescriptionField() string {
+	json, err := json.Marshal(m)
+	if err != nil {
+		return ""
+	}
+	return string(json)
+}
+
+func (m *metadata) decodeFromDescriptionField(description string) error {
+	return json.Unmarshal([]byte(description), m)
 }
 
 func (m *metadata) encodeToLabels() map[string]string {
