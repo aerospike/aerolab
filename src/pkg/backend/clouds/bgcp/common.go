@@ -1,7 +1,9 @@
 package bgcp
 
 import (
+	"bytes"
 	"embed"
+	"encoding/gob"
 	"strings"
 )
 
@@ -19,4 +21,12 @@ func stringValue(s *string) string {
 func getValueFromURL(url string) string {
 	parts := strings.Split(url, "/")
 	return parts[len(parts)-1]
+}
+
+func deepCopy(src, dst interface{}) error {
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(src); err != nil {
+		return err
+	}
+	return gob.NewDecoder(&buf).Decode(dst)
 }
