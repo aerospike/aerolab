@@ -24,11 +24,13 @@ type InstanceType struct {
 	Name             string
 	Region           string
 	CPUs             int
+	GPUs             int
 	MemoryGiB        float64
 	NvmeCount        int
 	NvmeTotalSizeGiB int
 	Arch             []Architecture
 	PricePerHour     InstanceTypePrice
+	BackendSpecific  interface{}
 }
 
 type InstanceTypePrice struct {

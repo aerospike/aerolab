@@ -3,6 +3,7 @@ package backend
 import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	_ "github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+	_ "github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 )
 
 type Config backends.Config
