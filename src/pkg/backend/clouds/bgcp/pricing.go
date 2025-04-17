@@ -13,6 +13,8 @@ import (
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
+	serviceusage "cloud.google.com/go/serviceusage/apiv1"
+	serviceusagepb "cloud.google.com/go/serviceusage/apiv1/serviceusagepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
 	"github.com/bestmethod/inslice"
@@ -20,12 +22,15 @@ import (
 	"google.golang.org/api/cloudbilling/v1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/api/serviceusage/v1"
 
 	_ "embed"
 )
 
 func (s *b) GetVolumePrice(region string, volumeType string) (*backends.VolumePrice, error) {
+	if strings.Count(region, "-") == 2 {
+		parts := strings.Split(region, "-")
+		region = parts[0] + "-" + parts[1]
+	}
 	log := s.log.WithPrefix("GetVolumePrice: job=" + shortuuid.New() + " region=" + region + " volumeType=" + volumeType + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -192,8 +197,95 @@ type volumePrices struct {
 
 // GCP pricing API
 func (s *b) getVolumePricesFromGCP() (backends.VolumePriceList, error) {
-	// TODO: implement
-	return nil, nil
+	log := s.log.WithPrefix("getVolumePricesFromGCP: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+
+	ctx := context.Background()
+	creds, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
+	if err != nil {
+		return nil, err
+	}
+
+	svc, err := cloudbilling.NewService(ctx,
+		option.WithCredentials(creds),
+		option.WithQuotaProject(s.credentials.Project),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cloudbilling service: %w", err)
+	}
+
+	skus := cloudbilling.NewServicesSkusService(svc)
+	call := skus.List("services/6F81-5844-456A").CurrencyCode("USD")
+
+	out := backends.VolumePriceList{}
+	err = call.Pages(ctx, func(resp *cloudbilling.ListSkusResponse) error {
+		for _, sku := range resp.Skus {
+			if sku.Category == nil || sku.PricingInfo == nil || len(sku.PricingInfo) == 0 {
+				continue
+			}
+			if sku.Category.ResourceFamily != "Storage" {
+				continue
+			}
+			if sku.Category.UsageType != "OnDemand" {
+				continue
+			}
+			// Match descriptions like "Standard provisioned storage", "SSD backed storage", etc.
+			var diskType string
+			desc := strings.ToLower(sku.Description)
+			switch {
+			case strings.Contains(desc, "snapshot"):
+				continue
+			case strings.Contains(desc, "defined duration"):
+				continue
+			case strings.Contains(desc, "standard") && strings.Contains(desc, "storage"):
+				diskType = "pd-standard"
+			case strings.Contains(desc, "ssd") && strings.Contains(desc, "storage"):
+				diskType = "pd-ssd"
+			case strings.Contains(desc, "balanced") && strings.Contains(desc, "storage"):
+				diskType = "pd-balanced"
+			case strings.Contains(desc, "extreme") && strings.Contains(desc, "storage"):
+				diskType = "pd-extreme"
+			default:
+				continue
+			}
+			for _, region := range sku.ServiceRegions {
+				for _, pricing := range sku.PricingInfo {
+					if pricing.PricingExpression == nil {
+						continue
+					}
+					if pricing.PricingExpression.UsageUnit != "GiBy.mo" && pricing.PricingExpression.UsageUnit != "GiBy.h" {
+						continue
+					}
+					for _, rate := range pricing.PricingExpression.TieredRates {
+						if rate.UnitPrice == nil || rate.UnitPrice.CurrencyCode != "USD" {
+							continue
+						}
+						// Normalize per GB per hour
+						pricePerMonth := float64(rate.UnitPrice.Units) + float64(rate.UnitPrice.Nanos)/1e9
+						var pricePerHour float64
+						if pricing.PricingExpression.UsageUnit == "GiBy.mo" {
+							pricePerHour = pricePerMonth / (730.0) // avg hours/month
+						} else {
+							pricePerHour = pricePerMonth
+						}
+						out = append(out, &backends.VolumePrice{
+							Type:           diskType,
+							Region:         region,
+							Currency:       "USD",
+							PricePerGBHour: pricePerHour,
+						})
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list SKUs: %w", err)
+	}
+
+	return out, nil
 }
 
 //go:embed machine-type-ssd-count.json
@@ -309,15 +401,25 @@ func (s *b) getInstancePricesEnableService(out backends.InstanceTypeList) (backe
 		return nil, err
 	}
 	defer cli.CloseIdleConnections()
-	svc, err := serviceusage.NewService(ctx, option.WithHTTPClient(cli))
+	client, err := serviceusage.NewClient(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create service usage client: %w", err)
+		return nil, err
 	}
+	defer client.Close()
+
 	name := fmt.Sprintf("projects/%s/services/cloudbilling.googleapis.com", s.credentials.Project)
-	_, err = svc.Services.Enable(name, &serviceusage.EnableServiceRequest{}).Do()
+	op, err := client.EnableService(ctx, &serviceusagepb.EnableServiceRequest{
+		Name: name,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable cloud-billing API: %w", err)
 	}
+	log.Detail("Waiting for cloud-billing API to be enabled")
+	_, err = op.Wait(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait for cloud-billing API to be enabled: %w", err)
+	}
+	log.Detail("Cloud-billing API enabled")
 	return s.getInstancePrices(out)
 }
 
@@ -350,12 +452,11 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 	}
 
 	ctx := context.Background()
-	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
+	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
 		return nil, err
 	}
-	defer cli.CloseIdleConnections()
-	svc, err := cloudbilling.NewService(ctx, option.WithHTTPClient(cli))
+	svc, err := cloudbilling.NewService(ctx, option.WithCredentials(cli), option.WithQuotaProject(s.credentials.Project))
 	if err != nil {
 		if strings.Contains(err.Error(), "accessNotConfigured") {
 			return s.getInstancePricesEnableService(out)
@@ -378,6 +479,10 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 			}
 			zoneFound := false
 			for _, zone := range zones {
+				if strings.Count(zone, "-") == 2 {
+					parts := strings.Split(zone, "-")
+					zone = parts[0] + "-" + parts[1]
+				}
 				if inslice.HasString(i.ServiceRegions, zone) {
 					zoneFound = true
 					break
