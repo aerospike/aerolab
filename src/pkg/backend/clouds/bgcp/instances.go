@@ -759,11 +759,7 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 }
 
 func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPPH, costGB float64, err error) {
-	_, _, zone, err := s.resolveNetworkPlacement(input.NetworkPlacement)
-	if err != nil {
-		return 0, 0, err
-	}
-	instanceType, err := s.GetInstanceType(zone, input.InstanceType)
+	instanceType, err := s.GetInstanceType(input.NetworkPlacement, input.InstanceType)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -784,7 +780,7 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 			switch strings.ToLower(kv[0]) {
 			case "type":
 				diskType := kv[1]
-				volumePrice, err := s.GetVolumePrice(zone, diskType)
+				volumePrice, err := s.GetVolumePrice(input.NetworkPlacement, diskType)
 				if err != nil {
 					return 0, 0, err
 				}

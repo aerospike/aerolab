@@ -1,6 +1,7 @@
 package backend_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -61,8 +62,14 @@ func testCreateInstanceGetPrice(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=20,count=2"}
 	if cloud == "gcp" {
-		placement = Options.TestRegions[0] + "-a"
+		if strings.Count(Options.TestRegions[0], "-") == 1 {
+			placement = Options.TestRegions[0] + "-a"
+		}
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=20,count=2"}
 	}
 	costPPH, costGB, err := testBackend.CreateInstancesGetPrice(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
@@ -70,11 +77,11 @@ func testCreateInstanceGetPrice(t *testing.T) {
 		Image:            image,
 		NetworkPlacement: placement,
 		Firewalls:        []string{"test-aerolab-fw"},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=2"},
+		Disks:            disks,
 	})
 	require.NoError(t, err)
 	require.NotZero(t, costPPH)
@@ -85,15 +92,15 @@ func testCreateInstanceGetPrice(t *testing.T) {
 		Image:            image,
 		NetworkPlacement: placement,
 		Firewalls:        []string{"test-aerolab-fw"},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=1"},
+		Disks:            disks,
 	})
 	require.NoError(t, err)
 	require.Equal(t, costPPH1*3, costPPH)
-	require.Equal(t, costGB1*6, costGB)
+	require.Equal(t, costGB1*3, costGB)
 }
 
 func testCreateInstance(t *testing.T) {
@@ -101,8 +108,12 @@ func testCreateInstance(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=20,count=2"}
 	if cloud == "gcp" {
 		placement = Options.TestRegions[0] + "-a"
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=20,count=2"}
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
@@ -110,11 +121,11 @@ func testCreateInstance(t *testing.T) {
 		Image:            image,
 		NetworkPlacement: placement,
 		Firewalls:        []string{},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=2"},
+		Disks:            disks,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 3)

@@ -27,6 +27,7 @@ var (
 	Options        *BackendTestOptions
 	cloud          string
 	testBackend    backends.Backend
+	backendType    backends.BackendType
 )
 
 type BackendTestOptions struct {
@@ -49,10 +50,12 @@ func (o *BackendTestOptions) Validate() error {
 		if os.Getenv("AWS_PROFILE") == "" {
 			return errors.New("AWS_PROFILE environment variable not set")
 		}
+		backendType = backends.BackendTypeAWS
 	case "gcp":
 		if os.Getenv("GCP_PROJECT") == "" {
 			return errors.New("GCP_PROJECT environment variable not set")
 		}
+		backendType = backends.BackendTypeGCP
 	}
 
 	if value, isSet := os.LookupEnv("AEROLAB_SKIP_CLEANUP"); isSet {
