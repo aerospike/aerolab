@@ -1,6 +1,7 @@
 package bgcp
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -8,10 +9,16 @@ import (
 	"slices"
 	"strconv"
 
+	compute "cloud.google.com/go/compute/apiv1"
+	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
 	"github.com/aerospike/aerolab/pkg/file"
+	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 )
 
 type b struct {
@@ -30,6 +37,7 @@ type b struct {
 	workDir             string
 	invalidateCacheFunc func(names ...string) error
 	listAllProjects     bool
+	allZones            []string
 }
 
 func init() {
@@ -68,6 +76,17 @@ func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project strin
 	if err != nil {
 		return err
 	}
+	// try to get client - early auth if required
+	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
+	if err != nil {
+		return err
+	}
+	defer cli.CloseIdleConnections()
+	zones, err := s.listAllZones()
+	if err != nil {
+		return err
+	}
+	s.allZones = zones
 	return nil
 }
 
@@ -142,4 +161,39 @@ func (s *b) DisableZones(names ...string) error {
 func toInt(s string) int {
 	i, _ := strconv.Atoi(s)
 	return i
+}
+
+func (s *b) listAllZones() ([]string, error) {
+	log := s.log.WithPrefix("ListAllZones: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+
+	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
+	if err != nil {
+		return nil, err
+	}
+	defer cli.CloseIdleConnections()
+
+	ctx := context.Background()
+	client, err := compute.NewZonesRESTClient(ctx, option.WithHTTPClient(cli))
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	var zones []string
+	it := client.List(ctx, &computepb.ListZonesRequest{
+		Project: s.credentials.Project,
+	})
+	for {
+		zone, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		zones = append(zones, zone.GetName())
+	}
+	return zones, nil
 }

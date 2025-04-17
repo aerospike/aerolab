@@ -12,8 +12,6 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -22,220 +20,6 @@ import (
 
 type ImageDetail struct {
 	LabelFingerprint string `yaml:"labelFingerprint" json:"labelFingerprint"`
-}
-
-var imageOwners = map[string]string{
-	"ubuntu": "099720109477",
-	"rocky":  "792107900819",
-	"centos": "125523088429",
-	"amazon": "137112412989",
-	"debian": "136693071363",
-}
-
-/*
-func getImageUser(osName string, osVersion string) string {
-	switch osName {
-	case "debian":
-		return "admin"
-	case "ubuntu":
-		return "ubuntu"
-	case "centos":
-		switch osVersion {
-		case "7":
-			return "centos"
-		}
-		return "ec2-user"
-	case "rocky":
-		return "rocky"
-	case "amazon":
-		return "ec2-user"
-	}
-	return "root"
-}
-*/
-
-type imageData struct {
-	OSName       string
-	OSVersion    string
-	Architecture types.ArchitectureType
-	Image        *types.Image
-	CreateTime   time.Time
-}
-
-func getImageDataMerge(data []*imageData, ami *types.Image, osName string, osVersion string, arch types.ArchitectureType, cd time.Time) []*imageData {
-	for _, id := range data {
-		if id.Architecture != arch {
-			continue
-		}
-		if id.OSName != osName {
-			continue
-		}
-		if id.OSVersion != osVersion {
-			continue
-		}
-		if cd.After(id.CreateTime) {
-			id.CreateTime = cd
-			id.Image = ami
-		}
-		return data
-	}
-	return append(data, &imageData{
-		Architecture: arch,
-		OSName:       osName,
-		OSVersion:    osVersion,
-		CreateTime:   cd,
-		Image:        ami,
-	})
-}
-
-func getImageData(amis []types.Image) (data []*imageData) {
-	for _, ami := range amis {
-		ami := ami
-		if ami.VirtualizationType != "hvm" || ami.Name == nil || ami.ImageId == nil || ami.CreationDate == nil {
-			continue
-		}
-		name := *ami.Name
-		switch aws.ToString(ami.OwnerId) {
-		case imageOwners["debian"]:
-			if !strings.HasPrefix(name, "debian-") {
-				continue
-			}
-			if strings.Contains(name, "-backports-") {
-				continue
-			}
-			vals := strings.Split(name, "-")
-			if len(vals) < 3 {
-				continue
-			}
-			osVersion := vals[1]
-			var arch types.ArchitectureType
-			if vals[2] == "amd64" {
-				arch = types.ArchitectureTypeX8664
-			} else if vals[2] == "arm64" {
-				arch = types.ArchitectureTypeArm64
-			} else {
-				continue
-			}
-			cdstring := *ami.CreationDate
-			if len(cdstring) < 19 {
-				continue
-			}
-			cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
-			if err != nil {
-				continue
-			}
-			data = getImageDataMerge(data, &ami, "debian", osVersion, arch, cd)
-		case imageOwners["ubuntu"]:
-			if !strings.HasPrefix(name, "ubuntu/images/hvm-ssd/") && !strings.HasPrefix(name, "ubuntu/images/hvm-ssd-gp3/") {
-				continue
-			}
-			vals := strings.Split(name, "/")
-			if len(vals) < 4 {
-				continue
-			}
-			val := vals[3]
-			vals = strings.Split(val, "-")
-			if len(vals) < 5 {
-				continue
-			}
-			arch := types.ArchitectureTypeX8664
-			if strings.Contains(name, "-arm64-") {
-				arch = types.ArchitectureTypeArm64
-			}
-			osVer := vals[2]
-			cdstring := *ami.CreationDate
-			if len(cdstring) < 19 {
-				continue
-			}
-			cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
-			if err != nil {
-				continue
-			}
-			data = getImageDataMerge(data, &ami, "ubuntu", osVer, arch, cd)
-		case imageOwners["centos"]:
-			if !strings.HasPrefix(name, "CentOS ") {
-				continue
-			}
-			vals := strings.Split(name, " ")
-			if len(vals) < 3 {
-				continue
-			}
-			osVer := vals[2]
-			if osVer == "7" && vals[1] != "Linux" {
-				continue
-			} else if osVer != "7" && vals[1] != "Stream" {
-				continue
-			}
-			arch := types.ArchitectureTypeX8664
-			if strings.Contains(name, " aarch64 ") {
-				arch = types.ArchitectureTypeArm64
-			}
-			cdstring := *ami.CreationDate
-			if len(cdstring) < 19 {
-				continue
-			}
-			cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
-			if err != nil {
-				continue
-			}
-			data = getImageDataMerge(data, &ami, "centos", osVer, arch, cd)
-		case imageOwners["rocky"]:
-			if !strings.HasPrefix(name, "Rocky-") {
-				continue
-			}
-			vals := strings.Split(name, "-")
-			if len(vals) < 6 {
-				continue
-			}
-			if vals[2] != "EC2" || vals[3] != "Base" {
-				continue
-			}
-			osVer := vals[1]
-			arch := types.ArchitectureTypeX8664
-			if strings.HasSuffix(name, ".aarch64") {
-				arch = types.ArchitectureTypeArm64
-			}
-			cdstring := *ami.CreationDate
-			if len(cdstring) < 19 {
-				continue
-			}
-			cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
-			if err != nil {
-				continue
-			}
-			data = getImageDataMerge(data, &ami, "rocky", osVer, arch, cd)
-		case imageOwners["amazon"]:
-			osVer := ""
-			var arch types.ArchitectureType
-			if strings.HasPrefix(name, "al2023-ami-") && !strings.HasPrefix(name, "al2023-ami-minimal-") && (strings.HasSuffix(name, "-x86_64") || strings.HasSuffix(name, "-arm64")) {
-				osVer = "2023"
-				if strings.HasSuffix(name, "-x86_64") {
-					arch = types.ArchitectureTypeX8664
-				} else {
-					arch = types.ArchitectureTypeArm64
-				}
-			} else if (strings.HasPrefix(name, "amzn2-ami-kernel-") || strings.HasPrefix(name, "amzn2-ami-hvm-")) && strings.Contains(name, "-hvm-") && (strings.HasSuffix(name, "-x86_64-gp2") || strings.HasSuffix(name, "-arm64-gp2")) {
-				osVer = "2"
-				if strings.HasSuffix(name, "-x86_64-gp2") {
-					arch = types.ArchitectureTypeX8664
-				} else {
-					arch = types.ArchitectureTypeArm64
-				}
-			} else {
-				continue
-			}
-			cdstring := *ami.CreationDate
-			if len(cdstring) < 19 {
-				continue
-			}
-			cd, err := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
-			if err != nil {
-				continue
-			}
-			data = getImageDataMerge(data, &ami, "amazon", osVer, arch, cd)
-		}
-	}
-	return data
 }
 
 func (s *b) GetImages() (backends.ImageList, error) {
@@ -350,8 +134,11 @@ func (s *b) GetImages() (backends.ImageList, error) {
 						return
 					}
 				}
+				if image.Architecture == nil {
+					continue
+				}
 				arch := backends.ArchitectureX8664
-				if *image.Architecture == "ARM64" {
+				if image.GetArchitecture() == "ARM64" {
 					arch = backends.ArchitectureARM64
 				}
 				osName := ""
@@ -414,7 +201,26 @@ func (s *b) GetImages() (backends.ImageList, error) {
 					},
 				}
 				ilock.Lock()
-				i = append(i, im)
+				found := false
+				for imei, ime := range i {
+					if ime.InAccount {
+						continue
+					}
+					if ime.OSName != im.OSName || ime.OSVersion != im.OSVersion {
+						continue
+					}
+					if ime.Architecture != im.Architecture {
+						continue
+					}
+					if ime.CreationTime.Before(im.CreationTime) {
+						i[imei] = im
+					}
+					found = true
+					break
+				}
+				if !found {
+					i = append(i, im)
+				}
 				ilock.Unlock()
 			}
 		}
@@ -458,11 +264,13 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 		}
 		ops = append(ops, op)
 	}
-	log.Detail("Waiting for operations to complete")
-	for _, op := range ops {
-		err = op.Wait(ctx)
-		if err != nil {
-			return err
+	if waitDur > 0 {
+		log.Detail("Waiting for operations to complete")
+		for _, op := range ops {
+			err = op.Wait(ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -573,20 +381,21 @@ func (s *b) ImagesRemoveTags(images backends.ImageList, tagKeys []string) error 
 	return nil
 }
 
-/*
 func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration) (output *backends.CreateImageOutput, err error) {
 	log := s.log.WithPrefix("CreateImage: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	tags := make(map[string]string)
-	maps.Copy(tags, input.Tags)
-	tags[TAG_NAME] = input.Name
-	tags[TAG_DESCRIPTION] = input.Description
-	tags[TAG_OS_NAME] = input.OSName
-	tags[TAG_OS_VERSION] = input.OSVersion
-	tags[TAG_OWNER] = input.Owner
-	tags[TAG_AEROLAB_PROJECT] = s.project
-	tags[TAG_AEROLAB_VERSION] = s.aerolabVersion
+	m := &metadata{
+		Name:           input.Name,
+		Description:    input.Description,
+		OsName:         input.OSName,
+		OsVersion:      input.OSVersion,
+		Owner:          input.Owner,
+		AerolabProject: s.project,
+		AerolabVersion: s.aerolabVersion,
+		Custom:         input.Tags,
+	}
+	labels := m.encodeToLabels()
 	output = &backends.CreateImageOutput{
 		Image: &backends.Image{
 			BackendType:  input.BackendType,
@@ -604,10 +413,8 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 			State:        backends.VolumeStateAvailable,
 			CreationTime: time.Now(),
 			Owner:        input.Owner,
-			Tags:         tags,
+			Tags:         input.Tags,
 			BackendSpecific: &ImageDetail{
-				SnapshotID:       "", // will be set later
-				RootDeviceName:   "", // will be set later
 				LabelFingerprint: "", // will be set later
 			},
 			ImageId: "", // will be set later
@@ -618,70 +425,52 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 		output.Image.OSVersion = input.Instance.OperatingSystem.Version
 	}
 
-	cli, err := getEc2Client(s.credentials, &input.Instance.ZoneName)
+	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
 		return nil, err
 	}
+	defer cli.CloseIdleConnections()
+	ctx := context.Background()
+	client, err := compute.NewImagesRESTClient(ctx, option.WithHTTPClient(cli))
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
 
-	// Convert tags map to AWS tags
-	tagsOut := []types.Tag{}
-	for k, v := range tags {
-		tagsOut = append(tagsOut, types.Tag{
-			Key:   aws.String(k),
-			Value: aws.String(v),
-		})
-	}
-
-	// Create the image
-	log.Detail("Creating image")
-	bdm := types.BlockDeviceMapping{
-		DeviceName: aws.String(input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].Device),
-		Ebs: &types.EbsBlockDevice{
-			DeleteOnTermination: aws.Bool(true),
-			Encrypted:           aws.Bool(input.Encrypted),
-		},
-	}
-	if input.SizeGiB > 0 {
-		bdm.Ebs.VolumeSize = aws.Int32(int32(input.SizeGiB))
-	}
 	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
-	resp, err := cli.CreateImage(context.TODO(), &ec2.CreateImageInput{
-		Name:        aws.String(input.Name),
-		InstanceId:  aws.String(input.Instance.InstanceID),
-		Description: aws.String(input.Description),
-		TagSpecifications: []types.TagSpecification{
-			{
-				ResourceType: types.ResourceTypeImage,
-				Tags:         tagsOut,
-			},
+	op, err := client.Insert(ctx, &computepb.InsertImageRequest{
+		Project: s.project,
+		ImageResource: &computepb.Image{
+			Labels:     labels,
+			Name:       proto.String(input.Name),
+			SourceDisk: proto.String(input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].VolumeID),
 		},
-		BlockDeviceMappings: []types.BlockDeviceMapping{bdm},
 	})
 	if err != nil {
-		return output, err
+		return nil, err
 	}
-
-	output.Image.ImageId = aws.ToString(resp.ImageId)
-	output.Image.BackendSpecific = &ImageDetail{
-		SnapshotID:     "",
-		RootDeviceName: input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].Device,
+	err = op.Wait(ctx)
+	if err != nil {
+		return nil, err
 	}
-
-	// Wait for the image to be created
-	if waitDur > 0 {
-		log.Detail("Waiting for image to be created")
-		waiter := ec2.NewImageAvailableWaiter(cli, func(o *ec2.ImageAvailableWaiterOptions) {
-			o.MinDelay = 5 * time.Second
-			o.MaxDelay = 5 * time.Second
-		})
-		err = waiter.Wait(context.TODO(), &ec2.DescribeImagesInput{
-			ImageIds: []string{aws.ToString(resp.ImageId)},
-		}, waitDur)
+	// fill output imageId and labelFingerprint
+	iter := client.List(ctx, &computepb.ListImagesRequest{
+		Project: s.project,
+		Filter:  proto.String(LABEL_FILTER_AEROLAB),
+	})
+	for {
+		image, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
 		if err != nil {
-			return output, err
+			return nil, err
+		}
+		if *image.Name == input.Name {
+			output.Image.ImageId = *image.SelfLink
+			output.Image.BackendSpecific.(*ImageDetail).LabelFingerprint = *image.LabelFingerprint
+			break
 		}
 	}
-
 	return output, nil
 }
-*/

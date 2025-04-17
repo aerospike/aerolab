@@ -61,6 +61,8 @@ type CreateInstanceInput struct {
 	NoEnableRoot bool `yaml:"noEnableRoot" json:"noEnableRoot"`
 	// optional: the custom DNS to use for the instance(node); if not set, will not create a custom DNS
 	CustomDNS *InstanceDNS `yaml:"customDNS" json:"customDNS"`
+	// optional: the minimum CPU platform to use for the instance(node); if not set, will not create a minimum CPU platform
+	MinCpuPlatform string `yaml:"minCpuPlatform" json:"minCpuPlatform"`
 }
 
 type InstanceDNS struct {

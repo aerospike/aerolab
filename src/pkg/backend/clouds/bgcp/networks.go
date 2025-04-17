@@ -30,7 +30,7 @@ func (s *b) GetNetworks() (backends.NetworkList, error) {
 		return nil, err
 	}
 	defer cli.CloseIdleConnections()
-	wg.Add(2)
+	wg.Add(1)
 	var errs error
 	go func() {
 		defer wg.Done()
@@ -75,49 +75,57 @@ func (s *b) GetNetworks() (backends.NetworkList, error) {
 			})
 		}
 	}()
-	go func() {
-		defer wg.Done()
-		log.Detail("subnets: start")
-		defer log.Detail("subnets: end")
-		ctx := context.Background()
-		client, err := compute.NewSubnetworksRESTClient(ctx, option.WithHTTPClient(cli))
-		if err != nil {
-			errs = errors.Join(errs, err)
-			return
-		}
-		defer client.Close()
-		it := client.List(ctx, &computepb.ListSubnetworksRequest{
-			Project: s.credentials.Project,
-		})
-		for {
-			pair, err := it.Next()
-			if err == iterator.Done {
-				break
-			}
+	zones, err := s.ListEnabledZones()
+	if err != nil {
+		return nil, err
+	}
+	wg.Add(len(zones))
+	for _, r := range zones {
+		go func() {
+			defer wg.Done()
+			log.Detail("subnets: start")
+			defer log.Detail("subnets: end")
+			ctx := context.Background()
+			client, err := compute.NewSubnetworksRESTClient(ctx, option.WithHTTPClient(cli))
 			if err != nil {
 				errs = errors.Join(errs, err)
 				return
 			}
-			j = append(j, &backends.Subnet{
-				BackendType:      backends.BackendTypeGCP,
-				Name:             pair.GetName(),
-				Description:      pair.GetDescription(),
-				SubnetId:         pair.GetSelfLink(),
-				Cidr:             pair.GetIpCidrRange(),
-				ZoneName:         getValueFromURL(pair.GetRegion()),
-				ZoneID:           pair.GetRegion(),
-				Owner:            "",
-				Tags:             nil,
-				IsDefault:        true,
-				IsAerolabManaged: false,
-				State:            backends.NetworkStateAvailable,
-				PublicIP:         true,
-				NetworkId:        pair.GetNetwork(),
-				Network:          nil,
-				BackendSpecific:  nil,
+			defer client.Close()
+			it := client.List(ctx, &computepb.ListSubnetworksRequest{
+				Project: s.credentials.Project,
+				Region:  r,
 			})
-		}
-	}()
+			for {
+				pair, err := it.Next()
+				if err == iterator.Done {
+					break
+				}
+				if err != nil {
+					errs = errors.Join(errs, err)
+					return
+				}
+				j = append(j, &backends.Subnet{
+					BackendType:      backends.BackendTypeGCP,
+					Name:             pair.GetName(),
+					Description:      pair.GetDescription(),
+					SubnetId:         pair.GetSelfLink(),
+					Cidr:             pair.GetIpCidrRange(),
+					ZoneName:         getValueFromURL(pair.GetRegion()),
+					ZoneID:           pair.GetRegion(),
+					Owner:            "",
+					Tags:             nil,
+					IsDefault:        true,
+					IsAerolabManaged: false,
+					State:            backends.NetworkStateAvailable,
+					PublicIP:         true,
+					NetworkId:        pair.GetNetwork(),
+					Network:          nil,
+					BackendSpecific:  nil,
+				})
+			}
+		}()
+	}
 	wg.Wait()
 	// create pointers between subnets and networks
 	log.Detail("Merging networks and subnets")

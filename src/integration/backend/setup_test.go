@@ -1,10 +1,12 @@
 package backend_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,8 +25,8 @@ var (
 	tempDir        string
 	aerolabVersion string = "v0.0.0"
 	Options        *BackendTestOptions
-
-	testBackend backends.Backend
+	cloud          string
+	testBackend    backends.Backend
 )
 
 type BackendTestOptions struct {
@@ -37,8 +39,20 @@ type BackendTestOptions struct {
 func (o *BackendTestOptions) Validate() error {
 	var err error
 
-	if os.Getenv("AWS_PROFILE") == "" {
-		return errors.New("AWS_PROFILE environment variable not set")
+	if os.Getenv("AEROLAB_CLOUD") == "" {
+		return errors.New("AEROLAB_CLOUD environment variable not set")
+	}
+	cloud = os.Getenv("AEROLAB_CLOUD")
+
+	switch cloud {
+	case "aws":
+		if os.Getenv("AWS_PROFILE") == "" {
+			return errors.New("AWS_PROFILE environment variable not set")
+		}
+	case "gcp":
+		if os.Getenv("GCP_PROJECT") == "" {
+			return errors.New("GCP_PROJECT environment variable not set")
+		}
 	}
 
 	if value, isSet := os.LookupEnv("AEROLAB_SKIP_CLEANUP"); isSet {
@@ -48,10 +62,10 @@ func (o *BackendTestOptions) Validate() error {
 		}
 	}
 
-	if value, isSet := os.LookupEnv("AEROLAB_AWS_TEST_REGIONS"); isSet && value != "" {
+	if value, isSet := os.LookupEnv("AEROLAB_" + strings.ToUpper(cloud) + "_TEST_REGIONS"); isSet && value != "" {
 		o.TestRegions = strings.Split(value, ",")
 	} else {
-		return errors.New("AEROLAB_AWS_TEST_REGIONS environment variable not set")
+		return errors.New("AEROLAB_" + strings.ToUpper(cloud) + "_TEST_REGIONS environment variable not set")
 	}
 
 	if value := os.Getenv("AEROLAB_TEST_CUSTOM_TMPDIR"); value != "" {
@@ -71,12 +85,6 @@ func setup(fresh bool) error {
 		return err
 	}
 
-	credentials := &clouds.Credentials{
-		AWS: clouds.AWS{
-			AuthMethod: clouds.AWSAuthMethodShared,
-		},
-	}
-
 	if Options.TempDir == "" {
 		tempDir, err = os.MkdirTemp("", testProject)
 		if err != nil {
@@ -88,6 +96,20 @@ func setup(fresh bool) error {
 	}
 	if Options.SkipCleanup {
 		fmt.Printf("Skipping cleanup, tempDir=%s\n", tempDir)
+	}
+
+	credentials := &clouds.Credentials{
+		AWS: clouds.AWS{
+			AuthMethod: clouds.AWSAuthMethodShared,
+		},
+		GCP: clouds.GCP{
+			Project:    os.Getenv("GCP_PROJECT"),
+			AuthMethod: clouds.GCPAuthMethodLogin,
+			Login: clouds.LoginGCPConfig{
+				Browser:            true,
+				TokenCacheFilePath: filepath.Join(tempDir, "gcp_token.json"),
+			},
+		},
 	}
 
 	// Put setup boilerplate here
@@ -106,7 +128,16 @@ func setup(fresh bool) error {
 		return err
 	}
 
-	err = testBackend.AddRegion(backends.BackendTypeAWS, Options.TestRegions...)
+	btype := backends.BackendTypeAWS
+	switch cloud {
+	case "aws":
+		btype = backends.BackendTypeAWS
+	case "gcp":
+		btype = backends.BackendTypeGCP
+	default:
+		return errors.New("invalid cloud: " + cloud)
+	}
+	err = testBackend.AddRegion(btype, Options.TestRegions...)
 	if err != nil {
 		return err
 	}
@@ -175,10 +206,21 @@ func cleanupBackend() error {
 }
 
 func cleanup() {
-	if !Options.SkipCleanup {
-		Options.SkipCleanup = true
+	var skipCleanup bool
+	var err error
+	if value, isSet := os.LookupEnv("AEROLAB_SKIP_CLEANUP"); isSet {
+		skipCleanup, err = strconv.ParseBool(value)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if !skipCleanup && (Options == nil || !Options.SkipCleanup) {
 		cleanupBackend()
 		os.RemoveAll(tempDir)
+	}
+	if Options != nil {
+		Options.SkipCleanup = skipCleanup
 	}
 }
 
@@ -196,8 +238,17 @@ func testInventoryEmpty(t *testing.T) {
 	require.Equal(t, inventory.Networks.WithAerolabManaged(false).Count(), 1)
 	require.Equal(t, inventory.Firewalls.Count(), 0)
 	require.Equal(t, inventory.Images.WithInAccount(true).Count(), 0)
-	require.Equal(t, inventory.Images.WithInAccount(false).Count(), 34)
+	require.GreaterOrEqual(t, inventory.Images.WithInAccount(false).Count(), 20)
 	expiries, err := testBackend.ExpiryList()
 	require.NoError(t, err)
 	require.Equal(t, len(expiries.ExpirySystems), 0)
+}
+
+func testInventoryPrint(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	inv := testBackend.GetInventory()
+	j, err := json.MarshalIndent(inv, "", "  ")
+	require.NoError(t, err)
+	fmt.Printf("%s\n", string(j))
 }

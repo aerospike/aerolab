@@ -15,7 +15,6 @@ import (
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"google.golang.org/protobuf/proto"
 )
 
 type FirewallDetail struct {
@@ -47,7 +46,6 @@ func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, 
 	defer client.Close()
 	it := client.List(ctx, &computepb.ListFirewallsRequest{
 		Project: s.credentials.Project,
-		Filter:  proto.String(LABEL_FILTER_AEROLAB),
 	})
 	for {
 		pair, err := it.Next()
@@ -60,7 +58,8 @@ func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, 
 		m := &metadata{}
 		err = m.decodeFromDescriptionField(stringValue(pair.Description))
 		if err != nil {
-			return nil, err
+			log.Detail("failed to decode metadata for firewall %s: %s", pair.Name, err)
+			continue
 		}
 		if !s.listAllProjects {
 			if m.AerolabProject != s.project {
@@ -197,18 +196,14 @@ NEXTPORT:
 				}
 			}
 		}
-		for _, p := range port.BackendSpecific.(*PortDetail).DestinationRanges {
-			dstCidr = append(dstCidr, p)
-		}
+		dstCidr = append(dstCidr, port.BackendSpecific.(*PortDetail).DestinationRanges...)
 		if port.SourceCidr != "" {
 			srcCidr = append(srcCidr, port.SourceCidr)
 		}
 		if port.SourceId != "" {
 			srcTags = append(srcTags, port.SourceId)
 		}
-		for _, p := range port.BackendSpecific.(*PortDetail).TargetTags {
-			targetTags = append(targetTags, p)
-		}
+		targetTags = append(targetTags, port.BackendSpecific.(*PortDetail).TargetTags...)
 		if port.FromPort == port.ToPort {
 			allow = append(allow, &computepb.Allowed{
 				IPProtocol: &port.Protocol,

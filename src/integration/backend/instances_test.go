@@ -14,6 +14,7 @@ import (
 func Test01_Instances(t *testing.T) {
 	t.Cleanup(cleanup)
 	t.Run("setup", testSetup)
+	t.Run("inventory print", testInventoryPrint)
 	t.Run("inventory empty", testInventoryEmpty)
 	t.Run("create instance get price", testCreateInstanceGetPrice)
 	t.Run("create 3 instances", testCreateInstance)
@@ -50,9 +51,7 @@ func getBasicImage(t *testing.T) *backends.Image {
 	require.NotEmpty(t, img3.Describe())
 	img4 := img3.WithArchitecture(backends.ArchitectureX8664)
 	require.NotEmpty(t, img4.Describe())
-	img5 := img4.WithZoneName(Options.TestRegions[0])
-	require.NotEmpty(t, img5.Describe())
-	image := img5.Describe()[0]
+	image := img4.Describe()[0]
 	require.NotNil(t, image)
 	return image
 }
@@ -61,11 +60,15 @@ func testCreateInstanceGetPrice(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
+	placement := Options.TestRegions[0] + "a"
+	if cloud == "gcp" {
+		placement = Options.TestRegions[0] + "-a"
+	}
 	costPPH, costGB, err := testBackend.CreateInstancesGetPrice(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
 		Nodes:            3,
 		Image:            image,
-		NetworkPlacement: Options.TestRegions[0] + "a",
+		NetworkPlacement: placement,
 		Firewalls:        []string{"test-aerolab-fw"},
 		BackendType:      backends.BackendTypeAWS,
 		InstanceType:     "r6a.large",
@@ -80,7 +83,7 @@ func testCreateInstanceGetPrice(t *testing.T) {
 		ClusterName:      "test-cluster",
 		Nodes:            1,
 		Image:            image,
-		NetworkPlacement: Options.TestRegions[0] + "a",
+		NetworkPlacement: placement,
 		Firewalls:        []string{"test-aerolab-fw"},
 		BackendType:      backends.BackendTypeAWS,
 		InstanceType:     "r6a.large",
@@ -97,11 +100,15 @@ func testCreateInstance(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
+	placement := Options.TestRegions[0] + "a"
+	if cloud == "gcp" {
+		placement = Options.TestRegions[0] + "-a"
+	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
 		Nodes:            3,
 		Image:            image,
-		NetworkPlacement: Options.TestRegions[0] + "a",
+		NetworkPlacement: placement,
 		Firewalls:        []string{},
 		BackendType:      backends.BackendTypeAWS,
 		InstanceType:     "r6a.large",

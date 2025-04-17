@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,7 +31,16 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 	var i backends.VolumeList
 	ilock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
-	zones, _ := s.ListEnabledZones()
+	enabledZones, _ := s.ListEnabledZones()
+	zones := []string{}
+	for _, zone := range s.allZones {
+		for _, enabledZone := range enabledZones {
+			if strings.HasPrefix(zone, enabledZone) {
+				zones = append(zones, zone)
+				break
+			}
+		}
+	}
 	wg.Add(len(zones))
 	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {
@@ -518,7 +528,18 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 			defer client.Close()
 			var ops []*compute.Operation
 			for _, id := range ids {
-				volName := instance.BackendSpecific.(*InstanceDetail).AttachedVolumes[id.FileSystemId].DeviceName
+				volName := ""
+				vols := instance.BackendSpecific.(*InstanceDetail).Volumes
+				for _, vol := range vols {
+					if vol.VolumeID == id.FileSystemId {
+						volName = vol.Device
+						break
+					}
+				}
+				if volName == "" {
+					reterr = errors.Join(reterr, fmt.Errorf("volume %s not found on instance %s", id.FileSystemId, instance.InstanceID))
+					return
+				}
 				log.Detail("zone=%s detach volume %s from instance %s", zone, id.FileSystemId, instance.InstanceID)
 				op, err := client.DetachDisk(ctx, &computepb.DetachDiskInstanceRequest{
 					Project:    s.credentials.Project,
@@ -546,7 +567,6 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	return reterr
 }
 
-/*
 func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB float64, err error) {
 	log := s.log.WithPrefix("CreateVolumeGetPrice: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
@@ -556,7 +576,7 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 	if err != nil {
 		return 0, err
 	}
-	region := zone[:len(zone)-1]
+	region := zone
 
 	switch input.VolumeType {
 	case backends.VolumeTypeAttachedDisk:
@@ -590,7 +610,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	if err != nil {
 		return nil, err
 	}
-	region := zone[:len(zone)-1]
+	region := zone
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 
 	ppgb := 0.0
@@ -602,50 +622,56 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		} else {
 			ppgb = price.PricePerGBHour
 		}
-		cli, err := getEc2Client(s.credentials, aws.String(region))
+
+		cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
 		if err != nil {
 			return nil, err
 		}
-		var iops *int32
+		defer cli.CloseIdleConnections()
+		ctx := context.Background()
+		client, err := compute.NewDisksRESTClient(ctx, option.WithHTTPClient(cli))
+		if err != nil {
+			return nil, err
+		}
+		defer client.Close()
+
+		var iops *int64
 		if input.Iops > 0 {
-			iops = aws.Int32(int32(input.Iops))
+			iops = proto.Int64(int64(input.Iops))
 		}
-		var throughput *int32
+		var throughput *int64
 		if input.Throughput > 0 {
-			throughput = aws.Int32(int32(input.Throughput))
+			throughput = proto.Int64(int64(input.Throughput))
 		}
-		tagsIn := make(map[string]string)
-		for k, v := range input.Tags {
-			tagsIn[k] = v
+		tagsIn := &metadata{
+			Name:           input.Name,
+			Owner:          input.Owner,
+			Description:    input.Description,
+			Expires:        input.Expires.Format(time.RFC3339),
+			AerolabProject: s.project,
+			AerolabVersion: s.aerolabVersion,
+			CostPerGb:      ppgb,
+			StartTime:      time.Now(),
+			Custom:         input.Tags,
 		}
-		tagsIn[TAG_NAME] = input.Name
-		tagsIn[TAG_OWNER] = input.Owner
-		tagsIn[TAG_DESCRIPTION] = input.Description
-		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
-		tagsIn[TAG_AEROLAB_PROJECT] = s.project
-		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
-		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", ppgb)
-		tagsIn[TAG_START_TIME] = time.Now().Format(time.RFC3339)
-		tagsOut := []types.TagSpecification{
-			{
-				ResourceType: types.ResourceTypeVolume,
+		labels := tagsIn.encodeToLabels()
+		op, err := client.Insert(ctx, &computepb.InsertDiskRequest{
+			Project: s.credentials.Project,
+			Zone:    zone,
+			DiskResource: &computepb.Disk{
+				Name:                  proto.String(input.Name),
+				Labels:                labels,
+				SizeGb:                proto.Int64(int64(backends.StorageSize(input.SizeGiB) * backends.StorageGiB / backends.StorageGB)),
+				Zone:                  proto.String(zone),
+				ProvisionedIops:       iops,
+				ProvisionedThroughput: throughput,
+				Type:                  proto.String(input.DiskType),
 			},
-		}
-		for k, v := range tagsIn {
-			tagsOut[0].Tags = append(tagsOut[0].Tags, types.Tag{
-				Key:   aws.String(k),
-				Value: aws.String(v),
-			})
-		}
-		out, err := cli.CreateVolume(context.TODO(), &ec2.CreateVolumeInput{
-			AvailabilityZone:  aws.String(zone),
-			Encrypted:         aws.Bool(input.Encrypted),
-			Iops:              iops,
-			Throughput:        throughput,
-			VolumeType:        types.VolumeType(input.DiskType),
-			Size:              aws.Int32(int32(input.SizeGiB)),
-			TagSpecifications: tagsOut,
 		})
+		if err != nil {
+			return nil, err
+		}
+		err = op.Wait(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -659,11 +685,11 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 				FileSystemId:        "",
 				ZoneName:            region,
 				ZoneID:              zone,
-				CreationTime:        aws.ToTime(out.CreateTime),
+				CreationTime:        time.Now(),
 				Iops:                input.Iops,
 				Throughput:          backends.StorageSize(input.Throughput),
 				Owner:               input.Owner,
-				Tags:                tagsIn,
+				Tags:                input.Tags,
 				Encrypted:           input.Encrypted,
 				Expires:             input.Expires,
 				DiskType:            input.DiskType,
@@ -671,109 +697,16 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 				DeleteOnTermination: false,
 				AttachedTo:          nil,
 				EstimatedCostUSD: backends.CostVolume{
-					PricePerGBHour: price.PricePerGBHour,
+					PricePerGBHour: ppgb,
 					SizeGB:         int64(input.SizeGiB),
-					CreateTime:     aws.ToTime(out.CreateTime),
+					CreateTime:     time.Now(),
 				},
 				BackendSpecific: nil,
 			},
 		}, nil
 	case backends.VolumeTypeSharedDisk:
-		zoneType := "GeneralPurpose"
-		if input.SharedDiskOneZone {
-			zoneType = "OneZone"
-		}
-		price, err := s.GetVolumePrice(region, fmt.Sprintf("SharedDisk_%s", zoneType))
-		if err != nil {
-			log.Detail("error getting volume price: %s", err)
-		} else {
-			ppgb = price.PricePerGBHour
-		}
-		cli, err := getEfsClient(s.credentials, aws.String(region))
-		if err != nil {
-			return nil, err
-		}
-		var throughputMode etypes.ThroughputMode
-		var throughput *float64
-		if input.Throughput > 0 {
-			throughputMode = etypes.ThroughputModeProvisioned
-			throughput = aws.Float64(float64(input.Throughput) * 8 / 1024 / 1024)
-		} else {
-			throughputMode = etypes.ThroughputModeBursting
-		}
-		tagsIn := make(map[string]string)
-		for k, v := range input.Tags {
-			tagsIn[k] = v
-		}
-		tagsIn[TAG_NAME] = input.Name
-		tagsIn[TAG_OWNER] = input.Owner
-		tagsIn[TAG_DESCRIPTION] = input.Description
-		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
-		tagsIn[TAG_AEROLAB_PROJECT] = s.project
-		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
-		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", ppgb)
-		tagsIn[TAG_START_TIME] = time.Now().Format(time.RFC3339)
-		tagsOut := []etypes.Tag{}
-		for k, v := range tagsIn {
-			tagsOut = append(tagsOut, etypes.Tag{
-				Key:   aws.String(k),
-				Value: aws.String(v),
-			})
-		}
-		var oneZone *string
-		zoneId := region
-		if input.SharedDiskOneZone {
-			oneZone = aws.String(zone)
-			zoneId = zone
-		}
-		out, err := cli.CreateFileSystem(context.TODO(), &efs.CreateFileSystemInput{
-			CreationToken:                aws.String(uuid.New().String() + fmt.Sprintf("%d", time.Now().UnixMicro())),
-			Encrypted:                    aws.Bool(input.Encrypted),
-			ThroughputMode:               throughputMode,
-			PerformanceMode:              etypes.PerformanceModeGeneralPurpose,
-			ProvisionedThroughputInMibps: throughput,
-			Tags:                         tagsOut,
-			AvailabilityZoneName:         oneZone,
-		})
-		if err != nil {
-			return nil, err
-		}
-		return &backends.CreateVolumeOutput{
-			Volume: backends.Volume{
-				BackendType:         backends.BackendTypeAWS,
-				VolumeType:          backends.VolumeTypeSharedDisk,
-				Name:                input.Name,
-				Description:         input.Description,
-				Size:                backends.StorageSize(input.SizeGiB) * backends.StorageGiB,
-				FileSystemId:        aws.ToString(out.FileSystemId),
-				ZoneName:            region,
-				ZoneID:              zoneId,
-				CreationTime:        aws.ToTime(out.CreationTime),
-				Iops:                input.Iops,
-				Throughput:          backends.StorageSize(input.Throughput),
-				Owner:               input.Owner,
-				Tags:                tagsIn,
-				Encrypted:           input.Encrypted,
-				Expires:             input.Expires,
-				DiskType:            input.DiskType,
-				State:               backends.VolumeStateAvailable,
-				DeleteOnTermination: false,
-				AttachedTo:          nil,
-				EstimatedCostUSD: backends.CostVolume{
-					PricePerGBHour: price.PricePerGBHour,
-					SizeGB:         int64(input.SizeGiB),
-					CreateTime:     aws.ToTime(out.CreationTime),
-				},
-				BackendSpecific: &VolumeDetail{
-					FileSystemArn:        aws.ToString(out.FileSystemArn),
-					NumberOfMountTargets: int(out.NumberOfMountTargets),
-					PerformanceMode:      string(out.PerformanceMode),
-					ThroughputMode:       string(out.ThroughputMode),
-				},
-			},
-		}, nil
+		return nil, errors.New("shared disk not supported on GCP")
 	default:
 		return nil, errors.New("volume type invalid")
 	}
 }
-*/
