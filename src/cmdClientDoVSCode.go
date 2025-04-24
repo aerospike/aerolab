@@ -12,8 +12,9 @@ import (
 
 type clientCreateVSCodeCmd struct {
 	clientCreateBaseCmd
-	Kernels  string `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
-	JustDoIt bool   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
+	Kernels           string `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
+	UseAltMarketplace bool   `long:"use-alt-marketplace" description:"use alternative marketplace"`
+	JustDoIt          bool   `long:"confirm" description:"set this parameter to confirm any warning questions without being asked to press ENTER to continue" webdisable:"true" webset:"true"`
 	chDirCmd
 }
 
@@ -22,8 +23,9 @@ type clientAddVSCodeCmd struct {
 	Machines    TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
 	StartScript flags.Filename `short:"X" long:"start-script" description:"optionally specify a script to be installed which will run when the client machine starts"`
 	osSelectorCmd
-	Kernels string  `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
-	Help    helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Kernels           string  `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
+	UseAltMarketplace bool    `long:"use-alt-marketplace" description:"use alternative marketplace"`
+	Help              helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clientCreateVSCodeCmd) Execute(args []string) error {
@@ -61,6 +63,7 @@ func (c *clientCreateVSCodeCmd) Execute(args []string) error {
 	a.opts.Client.Add.VSCode.DistroName = c.DistroName
 	a.opts.Client.Add.VSCode.DistroVersion = c.DistroVersion
 	a.opts.Client.Add.VSCode.Kernels = c.Kernels
+	a.opts.Client.Add.VSCode.UseAltMarketplace = c.UseAltMarketplace
 	return a.opts.Client.Add.VSCode.addVSCode(args)
 }
 
@@ -71,6 +74,9 @@ func (c *clientConfigureVSCodeCmd) parseKernelsToSwitches(k string) ([]string, e
 		return []string{"-j", "-p", "-g", "-d"}, nil
 	}
 	rval := []string{}
+	if c.UseAltMarketplace {
+		rval = append(rval, "-a")
+	}
 	for _, kernel := range kernels {
 		switch kernel {
 		case "go":
@@ -93,9 +99,15 @@ func (c *clientAddVSCodeCmd) parseKernelsToSwitches(k string) ([]string, error) 
 	kernels := strings.Split(k, ",")
 	if len(kernels) == 0 || kernels[0] == "" || k == "" {
 		// return []string{"-i", "-j", "-p", "-n", "-g", "-d", "-s"}, nil
+		if c.UseAltMarketplace {
+			return []string{"-i", "-a", "-j", "-p", "-g", "-d"}, nil
+		}
 		return []string{"-i", "-j", "-p", "-g", "-d"}, nil
 	}
 	rval := []string{"-i"}
+	if c.UseAltMarketplace {
+		rval = append(rval, "-a")
+	}
 	for _, kernel := range kernels {
 		switch kernel {
 		case "go":
@@ -195,9 +207,25 @@ func (c *clientAddVSCodeCmd) addVSCode(args []string) error {
 func (c *clientAddVSCodeCmd) installScript() string {
 	return `function install_code() {
 	cd /
-	apt-get update && apt-get -y install curl wget git || return 1
+	apt-get update && apt-get -y install curl wget git jq || return 1
 	wget -O installcode.sh https://code-server.dev/install.sh || return 2
 	bash installcode.sh || return 3
+}
+
+function patch_extensions_gallery() {
+FILE="/usr/lib/code-server/lib/vscode/product.json"
+
+jq '. + {
+  extensionsGallery: {
+    serviceUrl: "https://marketplace.visualstudio.com/_apis/public/gallery",
+    itemUrl: "https://marketplace.visualstudio.com/items",
+    cacheUrl: "https://marketplace.visualstudio.com",
+    controlUrl: "",
+    recommendationsUrl: ""
+  }
+}' "$FILE" > "${FILE}.tmp" && mv "${FILE}.tmp" "$FILE"
+
+echo "product.json updated successfully."
 }
 
 function install_start_script() {
@@ -212,7 +240,7 @@ function install_start_script() {
 function conf_code() {
 mkdir -p /opt/code
 cd /opt/code
-git clone -b code-server-examples https://github.com/aerospike/aerolab.git && \
+git clone -b code-server-examples --depth 1 https://github.com/aerospike/aerolab.git && \
 mv aerolab/* . && \
 mv aerolab/.vscode . && \
 rm -rf aerolab
@@ -245,9 +273,9 @@ EOF
 
 function kgo() {
 	apt-get install -y gcc || return 1
-	url="https://go.dev/dl/go1.23.3.linux-amd64.tar.gz"
+	url="https://go.dev/dl/go1.24.0.linux-amd64.tar.gz"
 	uname -p |egrep -i 'x86_64|amd64'
-	[ $? -ne 0 ] && url="https://go.dev/dl/go1.23.3.linux-arm64.tar.gz"
+	[ $? -ne 0 ] && url="https://go.dev/dl/go1.24.0.linux-arm64.tar.gz"
 	cd /
 	wget -O go.tgz ${url} || return 2
 	tar -C /usr/local -xzf go.tgz || return 3
@@ -297,7 +325,7 @@ function knet() {
 	export DOTNET_ROOT=/root/dotnet
 	/root/dotnet/dotnet tool install --global Microsoft.dotnet-interactive --version 1.0.556801
 	code-server --install-extension ms-dotnettools.vscode-dotnet-runtime
-	code-server --install-extension muhammad-sammy.csharp
+	code-server --install-extension ms-dotnettools.csharp
 	cd /opt/code/dotnet && /root/dotnet/dotnet restore
 	ln -s /root/dotnet/dotnet /usr/bin/dotnet
 	ln -s /root/.dotnet/tools/dotnet-interactive /usr/bin/dotnet-interactive
@@ -329,6 +357,7 @@ function stop() {
 }
 
 optinstall=false
+optpatch=false
 optjava=false
 optpython=false
 optnode=false
@@ -337,9 +366,10 @@ optdotnet=false
 optstart=false
 optstop=false
 
-while getopts ":ijpgdso" o; do
+while getopts ":iajpgdso" o; do
     case "${o}" in
         i) optinstall=true ;;
+        a) optpatch=true ;;
         j) optjava=true ;;
         p) optpython=true ;;
         g) optgo=true ;;
@@ -352,6 +382,7 @@ shift $((OPTIND-1))
 
 mkdir -p /opt/steps
 $optinstall && [ ! -f /opt/steps/install ] && install_code && install_start_script && conf_code && touch /opt/steps/install
+$optpatch && [ ! -f /opt/steps/patch ] && patch_extensions_gallery && touch /opt/steps/patch
 $optgo && [ ! -f /opt/steps/kgo ] && kgo && touch /opt/steps/kgo
 $optpython && [ ! -f /opt/steps/kpython ] && kpython && touch /opt/steps/kpython
 $optdotnet && [ ! -f /opt/steps/knet ] && knet && touch /opt/steps/knet
