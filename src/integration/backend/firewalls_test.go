@@ -43,7 +43,7 @@ func (fw *fwTest) testCreateFirewall(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	_, err := testBackend.CreateFirewall(
 		&backends.CreateFirewallInput{
-			BackendType: backends.BackendTypeAWS,
+			BackendType: backendType,
 			Name:        "test-firewall",
 			Description: "test-firewall-description",
 			Owner:       "test-owner",
@@ -64,29 +64,12 @@ func (fw *fwTest) testCreateFirewall(t *testing.T) {
 
 func (fw *fwTest) testUpdateFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
+
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	f := testBackend.GetInventory().Firewalls.WithName("test-firewall").Describe()
 	require.NotEmpty(t, f)
 	require.Equal(t, len(f), 1)
 	err := f.Update(backends.PortsIn{
-		{
-			Port: backends.Port{
-				FromPort:   80,
-				ToPort:     80,
-				SourceCidr: "0.0.0.0/0",
-				Protocol:   backends.ProtocolTCP,
-			},
-			Action: backends.PortActionDelete,
-		},
-	}, time.Minute*10)
-	require.NoError(t, err)
-
-	require.NoError(t, testBackend.RefreshChangedInventory())
-
-	f = testBackend.GetInventory().Firewalls.WithName("test-firewall").Describe()
-	require.NotEmpty(t, f)
-	require.Equal(t, len(f), 1)
-	err = f.Update(backends.PortsIn{
 		{
 			Port: backends.Port{
 				FromPort:   443,
@@ -95,6 +78,23 @@ func (fw *fwTest) testUpdateFirewall(t *testing.T) {
 				Protocol:   backends.ProtocolTCP,
 			},
 			Action: backends.PortActionAdd,
+		},
+	}, time.Minute*10)
+	require.NoError(t, err)
+
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	f = testBackend.GetInventory().Firewalls.WithName("test-firewall").Describe()
+	require.NotEmpty(t, f)
+	require.Equal(t, len(f), 1)
+	err = f.Update(backends.PortsIn{
+		{
+			Port: backends.Port{
+				FromPort:   80,
+				ToPort:     80,
+				SourceCidr: "0.0.0.0/0",
+				Protocol:   backends.ProtocolTCP,
+			},
+			Action: backends.PortActionDelete,
 		},
 	}, time.Minute*10)
 	require.NoError(t, err)
@@ -140,18 +140,26 @@ func (fw *fwTest) testCreateTestInstanceForFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
+	placement := fw.network.NetworkId
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=20,count=2"}
+	if cloud == "gcp" {
+		placement = Options.TestRegions[0] + "-a"
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=20,count=2"}
+	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
 		Name:             "test-instance",
 		Nodes:            1,
 		Image:            image,
-		NetworkPlacement: fw.network.NetworkId,
+		NetworkPlacement: placement,
 		Firewalls:        []string{"test-firewall"},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=2"},
+		Disks:            disks,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 1)
@@ -159,7 +167,11 @@ func (fw *fwTest) testCreateTestInstanceForFirewall(t *testing.T) {
 	require.NoError(t, err)
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName("test-instance")
 	require.Equal(t, inst.Count(), 1)
-	require.Len(t, inst.Describe()[0].Firewalls, 2)
+	fwCount := 2
+	if cloud == "gcp" {
+		fwCount = 3
+	}
+	require.Len(t, inst.Describe()[0].Firewalls, fwCount)
 }
 
 func (fw *fwTest) testRemoveFirewallFromInstance(t *testing.T) {
@@ -207,7 +219,11 @@ func (fw *fwTest) testAssignFirewallToInstance(t *testing.T) {
 	// get instance and confirm firewall added
 	inst = testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName("test-instance")
 	require.Equal(t, inst.Count(), 1)
-	require.Len(t, inst.Describe()[0].Firewalls, 2)
+	fwCount := 2
+	if cloud == "gcp" {
+		fwCount = 3
+	}
+	require.Len(t, inst.Describe()[0].Firewalls, fwCount)
 }
 
 func (fw *fwTest) testDeleteTestInstanceForFirewall(t *testing.T) {
@@ -225,6 +241,8 @@ func (fw *fwTest) testDeleteFirewall(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	require.Equal(t, testBackend.GetInventory().Firewalls.WithName("test-firewall").Count(), 0)
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), 1)
+	if backendType == backends.BackendTypeAWS {
+		require.Equal(t, testBackend.GetInventory().Firewalls.Count(), 1)
+	}
 	require.NoError(t, testBackend.GetInventory().Firewalls.Delete(2*time.Minute))
 }

@@ -317,90 +317,16 @@ func (b *backend) poll(items []string) []error {
 	slices.Sort(items)
 	items = slices.Compact(items)
 
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
-			log.Debug("Getting networks")
-			for n, v := range cloudList {
-				d, err := v.GetNetworks()
-				if err != nil {
-					errs = append(errs, err)
-				} else {
-					b.networks[n] = d
-				}
-			}
-			err := b.cache.Store(path.Join(b.project, "networks"), b.networks)
-			if err != nil {
-				errs = append(errs, err)
-			}
-		}
-	}()
+	netWg := new(sync.WaitGroup)
+	fwWg := new(sync.WaitGroup)
+	volWg := new(sync.WaitGroup)
+	instWg := new(sync.WaitGroup)
+	imgWg := new(sync.WaitGroup)
 
-	wg.Add(1)
+	// images can run immediately
+	imgWg.Add(1)
 	go func() {
-		defer wg.Done()
-		if len(items) == 0 || slices.Contains(items, CacheInvalidateFirewall) {
-			log.Debug("Getting firewalls")
-			for n, v := range cloudList {
-				d, err := v.GetFirewalls(b.networks[n])
-				if err != nil {
-					errs = append(errs, err)
-				} else {
-					b.firewalls[n] = d
-				}
-			}
-			err := b.cache.Store(path.Join(b.project, "firewalls"), b.firewalls)
-			if err != nil {
-				errs = append(errs, err)
-			}
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
-			log.Debug("Getting volumes")
-			for n, v := range cloudList {
-				d, err := v.GetVolumes()
-				if err != nil {
-					errs = append(errs, err)
-				} else {
-					b.volumes[n] = d
-				}
-			}
-			err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
-			if err != nil {
-				errs = append(errs, err)
-			}
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if len(items) == 0 || slices.Contains(items, CacheInvalidateInstance) {
-			log.Debug("Getting instances")
-			for n, v := range cloudList {
-				d, err := v.GetInstances(b.volumes[n], b.networks[n], b.firewalls[n])
-				if err != nil {
-					errs = append(errs, err)
-				} else {
-					b.instances[n] = d
-				}
-			}
-			err := b.cache.Store(path.Join(b.project, "instances"), b.instances)
-			if err != nil {
-				errs = append(errs, err)
-			}
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+		defer imgWg.Done()
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateImage) {
 			log.Debug("Getting images")
 			for n, v := range cloudList {
@@ -418,7 +344,93 @@ func (b *backend) poll(items []string) []error {
 		}
 	}()
 
-	wg.Wait()
+	// volumes can run immediately
+	volWg.Add(1)
+	go func() {
+		defer volWg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
+			log.Debug("Getting volumes")
+			for n, v := range cloudList {
+				d, err := v.GetVolumes()
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.volumes[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "volumes"), b.volumes)
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}()
+
+	netWg.Add(1)
+	go func() {
+		defer netWg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateNetwork) {
+			log.Debug("Getting networks")
+			for n, v := range cloudList {
+				d, err := v.GetNetworks()
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.networks[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "networks"), b.networks)
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}()
+
+	netWg.Wait() // must complete networks before we can do firewalls
+	fwWg.Add(1)
+	go func() {
+		defer fwWg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateFirewall) {
+			log.Debug("Getting firewalls")
+			for n, v := range cloudList {
+				d, err := v.GetFirewalls(b.networks[n])
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.firewalls[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "firewalls"), b.firewalls)
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}()
+
+	fwWg.Wait()  // must complete firewalls before we can do instances; this ensures networks completed too
+	volWg.Wait() // must complete volumes before we can do instances
+	instWg.Add(1)
+	go func() {
+		defer instWg.Done()
+		if len(items) == 0 || slices.Contains(items, CacheInvalidateInstance) {
+			log.Debug("Getting instances")
+			for n, v := range cloudList {
+				d, err := v.GetInstances(b.volumes[n], b.networks[n], b.firewalls[n])
+				if err != nil {
+					errs = append(errs, err)
+				} else {
+					b.instances[n] = d
+				}
+			}
+			err := b.cache.Store(path.Join(b.project, "instances"), b.instances)
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}()
+
+	// wait for all the above to complete
+	instWg.Wait()
+	imgWg.Wait()
 
 	if len(errs) == 0 && len(items) == 0 {
 		log.Debug("Storing metadata")

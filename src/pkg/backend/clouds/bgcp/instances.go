@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -31,6 +32,7 @@ import (
 	"github.com/rglonek/logger"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/maps"
+	dns "google.golang.org/api/dns/v1"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/proto"
@@ -74,18 +76,17 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 	}
 	expires, _ := time.Parse(time.RFC3339, tags[TAG_AEROLAB_EXPIRES])
 	state := backends.LifeCycleStateUnknown
-	switch inst.GetStatus() {
+	instanceStatus := inst.GetStatus()
+	switch instanceStatus {
 	case "PROVISIONING":
 		state = backends.LifeCycleStateCreating
 	case "RUNNING":
 		state = backends.LifeCycleStateRunning
-	case "SHUTTING_DOWN":
+	case "DELETING":
 		state = backends.LifeCycleStateTerminating
-	case "TERMINATED":
-		state = backends.LifeCycleStateTerminated
 	case "STOPPING":
 		state = backends.LifeCycleStateStopping
-	case "STOPPED":
+	case "TERMINATED":
 		state = backends.LifeCycleStateStopped
 	}
 	firewalls := inst.GetTags().Items
@@ -98,9 +99,9 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 	pph, _ := strconv.ParseFloat(tags[TAG_COST_PPH], 64)
 	volIDs := []string{}
 	for _, v := range inst.GetDisks() {
-		volIDs = append(volIDs, v.GetSource())
+		volIDs = append(volIDs, getValueFromURL(v.GetSource()))
 	}
-	vols := volumes.WithVolumeID(volIDs...).Describe()
+	vols := volumes.WithName(volIDs...).Describe()
 	dvols := backends.CostVolumes{}
 	avols := backends.CostVolumes{}
 	for _, vol := range vols {
@@ -145,7 +146,7 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 			Region:     tags[TAG_DNS_REGION],
 		}
 		if customDns.Name == "" {
-			customDns.Name = inst.GetName()
+			customDns.Name = fmt.Sprintf("i-%x", sha256.Sum224([]byte(inst.GetName())))
 		}
 	}
 	creationTime, _ := time.Parse(time.RFC3339, inst.GetCreationTimestamp())
@@ -154,11 +155,11 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 		ClusterUUID:  tags[TAG_CLUSTER_UUID],
 		NodeNo:       toInt(tags[TAG_NODE_NO]),
 		InstanceID:   inst.GetName(),
-		BackendType:  backends.BackendTypeAWS,
+		BackendType:  backends.BackendTypeGCP,
 		InstanceType: string(inst.GetMachineType()),
 		Name:         tags[TAG_NAME],
 		Description:  tags[TAG_AEROLAB_DESCRIPTION],
-		ZoneName:     inst.GetZone(),
+		ZoneName:     getValueFromURL(inst.GetZone()),
 		ZoneID:       inst.GetZone(),
 		CreationTime: creationTime,
 		Owner:        tags[TAG_AEROLAB_OWNER],
@@ -219,6 +220,11 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 	}
 	defer client.Close()
 
+	enabledRegions, err := s.ListEnabledZones()
+	if err != nil {
+		return nil, err
+	}
+
 	var i backends.InstanceList
 	it := client.AggregatedList(ctx, &computepb.AggregatedListInstancesRequest{
 		Project: s.credentials.Project,
@@ -234,7 +240,19 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 		}
 		instances := inst.Value.Instances
 		for _, instance := range instances {
-			i = append(i, s.getInstanceDetails(log, instance, volumes, networkList, firewallList))
+			iData := s.getInstanceDetails(log, instance, volumes, networkList, firewallList)
+			if iData == nil {
+				continue
+			}
+			if !s.listAllProjects {
+				if iData.Tags[TAG_AEROLAB_PROJECT] != s.project {
+					continue
+				}
+			}
+			if !slices.Contains(enabledRegions, zoneToRegion(iData.ZoneName)) {
+				continue
+			}
+			i = append(i, iData)
 		}
 	}
 	return i, nil
@@ -277,13 +295,15 @@ func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]st
 		for k, v := range tags {
 			newTags[k] = v
 		}
+		labels := encodeToLabels(newTags)
+		labels["usedby"] = "aerolab"
 		op, err := client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
-			Zone:     instance.ZoneID,
+			Zone:     instance.ZoneName,
 			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
 				LabelFingerprint: proto.String(instance.BackendSpecific.(*InstanceDetail).LabelFingerprint),
-				Labels:           newTags,
+				Labels:           labels,
 			},
 		})
 		if err != nil {
@@ -338,13 +358,15 @@ func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []strin
 			}
 			newTags[k] = v
 		}
+		labels := encodeToLabels(newTags)
+		labels["usedby"] = "aerolab"
 		op, err := client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
-			Zone:     instance.ZoneID,
+			Zone:     instance.ZoneName,
 			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
 				LabelFingerprint: proto.String(instance.BackendSpecific.(*InstanceDetail).LabelFingerprint),
-				Labels:           newTags,
+				Labels:           labels,
 			},
 		})
 		if err != nil {
@@ -394,7 +416,38 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// TODO: cleanup dns records in the background
+		dnsPerDomainID := make(map[string][]*backends.InstanceDNS)
+		for _, dns := range instances {
+			if dns.CustomDNS == nil {
+				continue
+			}
+			if _, ok := dnsPerDomainID[dns.CustomDNS.DomainID]; !ok {
+				dnsPerDomainID[dns.CustomDNS.DomainID] = []*backends.InstanceDNS{}
+			}
+			dnsPerDomainID[dns.CustomDNS.DomainID] = append(dnsPerDomainID[dns.CustomDNS.DomainID], dns.CustomDNS)
+			// DomainID - DNS Zone Name - ex aerospikeme
+			// DomainName - The parent domain name - ex aerospike.me
+			// Name - The tailing name of the record - ex aerolab-test-project-1-mydc-1
+			// Region - unused, DNS is global
+			// GetFQDN() - Full DNS Name of record - i.Name "." i.DomainName
+		}
+		if len(dnsPerDomainID) == 0 {
+			return
+		}
+		log.Detail("Cleaning up DNS records")
+		client, err := dns.NewService(ctx, option.WithHTTPClient(cli))
+		if err != nil {
+			log.Warn("Failed to get dns client, DNS will not be cleaned up: %s", err)
+			return
+		}
+		for domainID, dnsList := range dnsPerDomainID {
+			for _, dnsItem := range dnsList {
+				_, err = client.ResourceRecordSets.Delete(s.credentials.Project, domainID, strings.TrimSuffix(dnsItem.GetFQDN(), ".")+".", "A").Do()
+				if err != nil {
+					log.Warn("Failed to delete DNS records for domain %s, DNS will not be cleaned up: %s", domainID, err)
+				}
+			}
+		}
 	}()
 
 	ops := []*compute.Operation{}
@@ -402,7 +455,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		op, err := client.Delete(ctx, &computepb.DeleteInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
-			Zone:     instance.ZoneID,
+			Zone:     instance.ZoneName,
 		})
 		if err != nil {
 			return err
@@ -412,6 +465,8 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 
 	if waitDur > 0 {
 		log.Detail("Waiting for operations to complete")
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
 		for _, op := range ops {
 			err = op.Wait(ctx)
 			if err != nil {
@@ -457,7 +512,7 @@ func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur t
 		op, err := client.Stop(ctx, &computepb.StopInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
-			Zone:     instance.ZoneID,
+			Zone:     instance.ZoneName,
 		})
 		if err != nil {
 			return err
@@ -489,6 +544,8 @@ func (s *b) InstancesStop(instances backends.InstanceList, force bool, waitDur t
 
 	if waitDur > 0 {
 		log.Detail("Waiting for operations to complete")
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
 		for _, op := range ops {
 			err = op.Wait(ctx)
 			if err != nil {
@@ -525,7 +582,7 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 		op, err := client.Start(ctx, &computepb.StartInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
-			Zone:     instance.ZoneID,
+			Zone:     instance.ZoneName,
 		})
 		if err != nil {
 			return err
@@ -556,6 +613,8 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 
 	if waitDur > 0 {
 		log.Detail("Waiting for operations to complete")
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
 		for _, op := range ops {
 			err = op.Wait(ctx)
 			if err != nil {
@@ -563,6 +622,7 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 			}
 		}
 	}
+
 	retWait.Wait()
 	return reterr
 }
@@ -697,7 +757,7 @@ func (s *b) InstancesAssignFirewalls(instances backends.InstanceList, fw backend
 		_, err := client.SetTags(ctx, &computepb.SetTagsInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
-			Zone:     instance.ZoneID,
+			Zone:     instance.ZoneName,
 			TagsResource: &computepb.Tags{
 				Items:       newTags,
 				Fingerprint: proto.String(instance.BackendSpecific.(*InstanceDetail).TagFingerprint),
@@ -745,7 +805,7 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 		_, err := client.SetTags(ctx, &computepb.SetTagsInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
-			Zone:     instance.ZoneID,
+			Zone:     instance.ZoneName,
 			TagsResource: &computepb.Tags{
 				Items:       newTags,
 				Fingerprint: proto.String(instance.BackendSpecific.(*InstanceDetail).TagFingerprint),
@@ -912,7 +972,7 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 				lastDisk++
 			}
 
-			diskType := fmt.Sprintf("zones/%s/diskTypes/%s", zone, diskType)
+			diskTypeFull := fmt.Sprintf("zones/%s/diskTypes/%s", zone, diskType)
 			attachmentType := proto.String(computepb.AttachedDisk_SCRATCH.String())
 			var devIface *string
 			var piops *int64
@@ -935,7 +995,7 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
 					DiskSizeGb:            &size,
 					SourceImage:           simage,
-					DiskType:              proto.String(diskType),
+					DiskType:              proto.String(diskTypeFull),
 					ProvisionedIops:       piops,
 					ProvisionedThroughput: pput,
 					Labels:                nodeVolumeTagsEncoded,
@@ -966,7 +1026,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	if err != nil {
 		return nil, err
 	}
-	zone := az
+	zone := input.NetworkPlacement
 
 	log.Detail("Selected network placement: zone=%s az=%s vpc=%s subnet=%s", zone, az, vpc.NetworkId, subnet.SubnetId)
 
@@ -1002,49 +1062,98 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	log.Detail("Found security groups: %v", securityGroupIds)
 
 	// default project-VPC firewall if it does not exist
-	defaultFwName := TAG_FIREWALL_NAME_PREFIX + s.project + "-" + vpc.Name
-	if s.firewalls.WithName(defaultFwName).Count() == 0 {
-		fw, err := s.CreateFirewall(&backends.CreateFirewallInput{
-			BackendType: backends.BackendTypeAWS,
-			Name:        defaultFwName,
-			Description: "AeroLab default project-VPC firewall",
-			Ports: []*backends.Port{
-				{
-					FromPort:   22,
-					ToPort:     22,
-					SourceCidr: "0.0.0.0/0",
-					SourceId:   "",
-					Protocol:   backends.ProtocolTCP,
-				},
-				{
-					FromPort:   -1,
-					ToPort:     -1,
-					SourceCidr: "",
-					SourceId:   "self",
-					Protocol:   backends.ProtocolAll,
-				},
-			},
-			Network: vpc,
-		}, waitDur)
-		if err != nil {
-			var apiErr smithy.APIError
-			if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidGroup.Duplicate" {
-				// retrieve the existing firewall
+	err = func() error {
+		defaultFwName := sanitize(TAG_FIREWALL_NAME_PREFIX+vpc.Name, false)
+		defaultFwInternalName := sanitize(TAG_FIREWALL_NAME_PREFIX_INTERNAL+vpc.Name, false)
+		s.defaultFWCreateLock.Lock()
+		defer s.defaultFWCreateLock.Unlock()
+		getFirewalls := false
+		defer func() {
+			if getFirewalls {
 				_, err := s.GetFirewalls(s.networks)
 				if err != nil {
-					return nil, err
+					log.Error("Failed to refresh firewalls after creation: %v", err)
 				}
-				defaultFw := s.firewalls.WithName(defaultFwName).Describe()[0]
-				securityGroupIds = append(securityGroupIds, defaultFw.Name)
+			}
+		}()
+		if s.firewalls.WithName(defaultFwName).Count() == 0 {
+			getFirewalls = true
+			fw, err := s.CreateFirewall(&backends.CreateFirewallInput{
+				BackendType: backends.BackendTypeGCP,
+				Name:        defaultFwName,
+				Description: "AeroLab default project-VPC firewall",
+				Ports: []*backends.Port{
+					{
+						FromPort:   22,
+						ToPort:     22,
+						SourceCidr: "0.0.0.0/0",
+						SourceId:   "",
+						Protocol:   backends.ProtocolTCP,
+					},
+				},
+				Network: vpc,
+			}, waitDur)
+			if err != nil {
+				var apiErr smithy.APIError
+				if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidGroup.Duplicate" {
+					// retrieve the existing firewall
+					_, err := s.GetFirewalls(s.networks)
+					if err != nil {
+						return err
+					}
+					defaultFw := s.firewalls.WithName(defaultFwName).Describe()[0]
+					securityGroupIds = append(securityGroupIds, defaultFw.Name)
+				} else {
+					return err
+				}
 			} else {
-				return nil, err
+				securityGroupIds = append(securityGroupIds, fw.Firewall.Name)
 			}
 		} else {
-			securityGroupIds = append(securityGroupIds, fw.Firewall.Name)
+			defaultFw := s.firewalls.WithName(defaultFwName).Describe()[0]
+			securityGroupIds = append(securityGroupIds, defaultFw.Name)
 		}
-	} else {
-		defaultFw := s.firewalls.WithName(defaultFwName).Describe()[0]
-		securityGroupIds = append(securityGroupIds, defaultFw.Name)
+		if s.firewalls.WithName(defaultFwInternalName).Count() == 0 {
+			getFirewalls = true
+			fw, err := s.CreateFirewall(&backends.CreateFirewallInput{
+				BackendType: backends.BackendTypeGCP,
+				Name:        defaultFwInternalName,
+				Description: "AeroLab default project-VPC internal firewall",
+				Ports: []*backends.Port{
+					{
+						FromPort:   -1,
+						ToPort:     -1,
+						SourceCidr: "",
+						SourceId:   "self",
+						Protocol:   backends.ProtocolAll,
+					},
+				},
+				Network: vpc,
+			}, waitDur)
+			if err != nil {
+				var apiErr smithy.APIError
+				if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidGroup.Duplicate" {
+					// retrieve the existing firewall
+					_, err := s.GetFirewalls(s.networks)
+					if err != nil {
+						return err
+					}
+					defaultFw := s.firewalls.WithName(defaultFwInternalName).Describe()[0]
+					securityGroupIds = append(securityGroupIds, defaultFw.Name)
+				} else {
+					return err
+				}
+			} else {
+				securityGroupIds = append(securityGroupIds, fw.Firewall.Name)
+			}
+		} else {
+			defaultFw := s.firewalls.WithName(defaultFwInternalName).Describe()[0]
+			securityGroupIds = append(securityGroupIds, defaultFw.Name)
+		}
+		return nil
+	}()
+	if err != nil {
+		return nil, err
 	}
 
 	// get prices
@@ -1055,19 +1164,20 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	// create aws tags for ec2.CreateInstancesInput
 	gcpTags := map[string]string{
-		TAG_AEROLAB_OWNER:       input.Owner,
-		TAG_CLUSTER_NAME:        input.ClusterName,
-		TAG_AEROLAB_DESCRIPTION: input.Description,
-		TAG_AEROLAB_EXPIRES:     input.Expires.Format(time.RFC3339),
-		TAG_AEROLAB_PROJECT:     s.project,
-		TAG_AEROLAB_VERSION:     s.aerolabVersion,
-		TAG_OS_NAME:             input.Image.OSName,
-		TAG_OS_VERSION:          input.Image.OSVersion,
-		TAG_COST_PPH:            fmt.Sprintf("%f", costPPH),
-		TAG_COST_GB:             fmt.Sprintf("%f", costGB),
-		TAG_COST_SO_FAR:         "0",
-		TAG_START_TIME:          time.Now().Format(time.RFC3339),
-		TAG_CLUSTER_UUID:        clusterUUID,
+		TAG_AEROLAB_OWNER:         input.Owner,
+		TAG_CLUSTER_NAME:          input.ClusterName,
+		TAG_AEROLAB_DESCRIPTION:   input.Description,
+		TAG_AEROLAB_EXPIRES:       input.Expires.Format(time.RFC3339),
+		TAG_AEROLAB_PROJECT:       s.project,
+		TAG_AEROLAB_VERSION:       s.aerolabVersion,
+		TAG_OS_NAME:               input.Image.OSName,
+		TAG_OS_VERSION:            input.Image.OSVersion,
+		TAG_COST_PPH:              fmt.Sprintf("%f", costPPH),
+		TAG_COST_PER_GB:           fmt.Sprintf("%f", costGB),
+		TAG_COST_SO_FAR:           "0",
+		TAG_START_TIME:            time.Now().Format(time.RFC3339),
+		TAG_CLUSTER_UUID:          clusterUUID,
+		TAG_DELETE_ON_TERMINATION: strconv.FormatBool(true),
 	}
 	if input.CustomDNS != nil {
 		gcpTags[TAG_DNS_NAME] = input.CustomDNS.Name
@@ -1190,23 +1300,28 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		nodeVolumeTags[TAG_NODE_NO] = fmt.Sprintf("%d", i+1)
 		name := input.Name
 		if name == "" {
-			name = sanitize(fmt.Sprintf("%s-%s-%d", s.project, input.ClusterName, i+1))
+			name = sanitize(fmt.Sprintf("%s-%s-%d", s.project, input.ClusterName, i+1), true)
 		}
 		newNames = append(newNames, name)
 		nodeTags[TAG_NAME] = name
 		nodeVolumeTags[TAG_NAME] = name
 		// encode tags
 		nodeTagsEncoded := encodeToLabels(nodeTags)
+		nodeTagsEncoded["usedby"] = "aerolab"
 		nodeVolumeTagsEncoded := encodeToLabels(nodeVolumeTags)
-		_ = nodeVolumeTagsEncoded
+		nodeVolumeTagsEncoded["usedby"] = "aerolab"
 
 		disksList, err := getDeviceMappings(input.Disks, nodeVolumeTagsEncoded, input, zone)
 		if err != nil {
 			return nil, err
 		}
+		var minCpuPlatform *string
+		if input.MinCpuPlatform != "" {
+			minCpuPlatform = proto.String(input.MinCpuPlatform)
+		}
 		// Create instance
 		op, err := client.Insert(context.Background(), &computepb.InsertInstanceRequest{
-			Project: s.project,
+			Project: s.credentials.Project,
 			Zone:    zone,
 			InstanceResource: &computepb.Instance{
 				Labels: nodeTagsEncoded,
@@ -1220,7 +1335,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				},
 				Name:            &name,
 				MachineType:     proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", zone, input.InstanceType)),
-				MinCpuPlatform:  proto.String(input.MinCpuPlatform),
+				MinCpuPlatform:  minCpuPlatform,
 				ServiceAccounts: serviceAccounts,
 				Tags:            &computepb.Tags{Items: securityGroupIds},
 				Scheduling: &computepb.Scheduling{
@@ -1259,7 +1374,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	// get final instance details
 	log.Detail("Getting final instance details")
 	it := client.List(context.Background(), &computepb.ListInstancesRequest{
-		Project: s.project,
+		Project: s.credentials.Project,
 		Zone:    zone,
 		Filter:  proto.String(LABEL_FILTER_AEROLAB),
 	})
@@ -1297,7 +1412,46 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		}
 		log.Detail("Creating DNS records start")
 		defer log.Detail("Creating DNS records end")
-		// TODO: handle DNS creation if required
+		client, err := dns.NewService(ctx, option.WithHTTPClient(cli))
+		if err != nil {
+			log.Warn("Failed to get dns client, DNS will not be cleaned up: %s", err)
+			return
+		}
+		// check if the zone is marked as usedby:aerolab, and mark it if not
+		zone, err := client.ManagedZones.Get(s.credentials.Project, input.CustomDNS.DomainID).Do()
+		if err != nil {
+			log.Warn("Failed to get zone %s: %s", input.CustomDNS.DomainID, err)
+			return
+		}
+		if !strings.Contains(zone.Description, "usedby:aerolab") {
+			log.Warn("Zone %s is not marked as usedby:aerolab, marking it", input.CustomDNS.DomainID)
+			newDesc := zone.Description + " usedby:aerolab"
+			if newDesc == " usedby:aerolab" {
+				newDesc = "usedby:aerolab"
+			}
+			_, err = client.ManagedZones.Patch(s.credentials.Project, input.CustomDNS.DomainID, &dns.ManagedZone{
+				Description: newDesc,
+			}).Do()
+			if err != nil {
+				log.Warn("Failed to mark zone %s as usedby:aerolab: %s", input.CustomDNS.DomainID, err)
+				return
+			}
+		}
+		// create DNS records
+		for _, instance := range output.Instances {
+			if instance.CustomDNS != nil {
+				_, err = client.ResourceRecordSets.Create(s.credentials.Project, instance.CustomDNS.DomainID, &dns.ResourceRecordSet{
+					Kind:    "dns#resourceRecordSet",
+					Name:    strings.TrimSuffix(instance.CustomDNS.GetFQDN(), ".") + ".",
+					Rrdatas: []string{instance.IP.Routable()},
+					Ttl:     int64(10),
+					Type:    "A",
+				}).Do()
+				if err != nil {
+					log.Warn("Failed to create DNS record for instance %s: %s", instance.InstanceID, err)
+				}
+			}
+		}
 	}()
 	defer wg.Wait()
 
@@ -1341,8 +1495,52 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	return output, nil
 }
 
-// TODO: cleanup DNS
+// cleanup DNS
 func (s *b) CleanupDNS() error {
+	log := s.log.WithPrefix("DNS-CLEANUP: ")
+	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
+	if err != nil {
+		return fmt.Errorf("failed to get dns client, DNS will not be cleaned up: %s", err)
+	}
+	defer cli.CloseIdleConnections()
+	ctx := context.Background()
+	client, err := dns.NewService(ctx, option.WithHTTPClient(cli))
+	if err != nil {
+		return fmt.Errorf("failed to get dns client, DNS will not be cleaned up: %s", err)
+	}
+	// only cleanup DNS records for zones with the correct description field (has usedby:aerolab)
+	// only cleanup DNS records where the record starts with i-
+	zones, err := client.ManagedZones.List(s.credentials.Project).Do()
+	if err != nil {
+		return fmt.Errorf("failed to get zones: %s", err)
+	}
+	inst := s.instances.WithNotState(backends.LifeCycleStateTerminated).Describe()
+	for _, zone := range zones.ManagedZones {
+		if strings.Contains(zone.Description, "usedby:aerolab") {
+			resp, err := client.ResourceRecordSets.List(s.credentials.Project, zone.Name).Do()
+			if err != nil {
+				return fmt.Errorf("failed to get record sets: %s", err)
+			}
+			for _, record := range resp.Rrsets {
+				if strings.HasPrefix(record.Name, "i-") {
+					// only delete if the instance doesn't exist anymore
+					found := false
+					for _, i := range inst {
+						if i.CustomDNS != nil && i.CustomDNS.GetFQDN() == strings.TrimSuffix(record.Name, ".") {
+							found = true
+							break
+						}
+					}
+					if !found {
+						_, err := client.ResourceRecordSets.Delete(s.credentials.Project, zone.Name, record.Name, record.Type).Do()
+						if err != nil {
+							return fmt.Errorf("failed to delete record set %s: %s", record.Name, err)
+						}
+					}
+				}
+			}
+		}
+	}
 	return nil
 }
 

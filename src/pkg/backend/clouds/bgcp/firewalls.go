@@ -11,14 +11,13 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
 type FirewallDetail struct {
-	Metadata *metadata `json:"metadata" yaml:"metadata"`
+	Resource *computepb.Firewall `json:"resource" yaml:"resource"`
 }
 
 type PortDetail struct {
@@ -55,14 +54,13 @@ func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, 
 		if err != nil {
 			return nil, err
 		}
-		m := &metadata{}
-		err = m.decodeFromDescriptionField(stringValue(pair.Description))
+		m, err := decodeFromDescriptionField(stringValue(pair.Description))
 		if err != nil {
 			log.Detail("failed to decode metadata for firewall %s: %s", pair.Name, err)
 			continue
 		}
 		if !s.listAllProjects {
-			if m.AerolabProject != s.project {
+			if m[TAG_AEROLAB_PROJECT] != s.project && !strings.HasPrefix(pair.GetName(), TAG_FIREWALL_NAME_PREFIX) {
 				continue
 			}
 		}
@@ -130,19 +128,17 @@ func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, 
 		}
 		// fill list
 		i = append(i, &backends.Firewall{
-			BackendType: backends.BackendTypeGCP,
-			Name:        pair.GetName(),
-			FirewallID:  pair.GetSelfLink(),
-			Description: pair.GetDescription(),
-			ZoneName:    "",
-			ZoneID:      "",
-			Owner:       m.Owner,
-			Tags:        m.Custom,
-			Ports:       ports,
-			Network:     net,
-			BackendSpecific: &FirewallDetail{
-				Metadata: m,
-			},
+			BackendType:     backends.BackendTypeGCP,
+			Name:            pair.GetName(),
+			FirewallID:      pair.GetSelfLink(),
+			Description:     pair.GetDescription(),
+			ZoneName:        "",
+			ZoneID:          "",
+			Owner:           m[TAG_AEROLAB_OWNER],
+			Tags:            m,
+			Ports:           ports,
+			Network:         net,
+			BackendSpecific: &FirewallDetail{Resource: pair},
 		})
 	}
 	s.firewalls = i
@@ -171,7 +167,7 @@ func (s *b) FirewallsUpdate(fw backends.FirewallList, ports backends.PortsIn, wa
 	}
 	defer client.Close()
 	for _, fw := range fw {
-		err := s.firewallHandleUpdate(ctx, client, fw, ports)
+		err := s.firewallHandleUpdate(ctx, client, fw, ports, waitDur)
 		if err != nil {
 			return err
 		}
@@ -179,7 +175,7 @@ func (s *b) FirewallsUpdate(fw backends.FirewallList, ports backends.PortsIn, wa
 	return nil
 }
 
-func (s *b) firewallHandleUpdate(ctx context.Context, cli *compute.FirewallsClient, fw *backends.Firewall, ports backends.PortsIn) error {
+func (s *b) firewallHandleUpdate(ctx context.Context, cli *compute.FirewallsClient, fw *backends.Firewall, ports backends.PortsIn, waitDur time.Duration) error {
 	allow := []*computepb.Allowed{} // protocol and port list
 	dstCidr := []string{}           // allow if destination is in this range
 	srcCidr := []string{}           // allow if source is in this range
@@ -204,28 +200,44 @@ NEXTPORT:
 			srcTags = append(srcTags, port.SourceId)
 		}
 		targetTags = append(targetTags, port.BackendSpecific.(*PortDetail).TargetTags...)
-		if port.FromPort == port.ToPort {
-			allow = append(allow, &computepb.Allowed{
-				IPProtocol: &port.Protocol,
-				Ports:      []string{strconv.Itoa(port.FromPort)},
-			})
+		prot := port.Protocol
+		if prot == backends.ProtocolAll {
+			prot = "all"
+		}
+		if port.FromPort != -1 {
+			if port.FromPort == port.ToPort {
+				allow = append(allow, &computepb.Allowed{
+					IPProtocol: &prot,
+					Ports:      []string{strconv.Itoa(port.FromPort)},
+				})
+			} else {
+				allow = append(allow, &computepb.Allowed{
+					IPProtocol: &prot,
+					Ports:      []string{strconv.Itoa(port.FromPort) + "-" + strconv.Itoa(port.ToPort)},
+				})
+			}
 		} else {
 			allow = append(allow, &computepb.Allowed{
-				IPProtocol: &port.Protocol,
-				Ports:      []string{strconv.Itoa(port.FromPort) + "-" + strconv.Itoa(port.ToPort)},
+				IPProtocol: &prot,
 			})
 		}
 	}
 	for _, port := range ports {
 		switch port.Action {
 		case backends.PortActionAdd:
-			allowed := &computepb.Allowed{
-				IPProtocol: &port.Protocol,
+			prot := port.Protocol
+			if prot == backends.ProtocolAll {
+				prot = "all"
 			}
-			if port.FromPort == port.ToPort {
-				allowed.Ports = []string{strconv.Itoa(port.FromPort)}
-			} else {
-				allowed.Ports = []string{strconv.Itoa(port.FromPort) + "-" + strconv.Itoa(port.ToPort)}
+			allowed := &computepb.Allowed{
+				IPProtocol: &prot,
+			}
+			if port.FromPort != -1 {
+				if port.FromPort == port.ToPort {
+					allowed.Ports = []string{strconv.Itoa(port.FromPort)}
+				} else {
+					allowed.Ports = []string{strconv.Itoa(port.FromPort) + "-" + strconv.Itoa(port.ToPort)}
+				}
 			}
 			allow = append(allow, allowed)
 			if port.SourceCidr != "" {
@@ -237,12 +249,13 @@ NEXTPORT:
 			targetTags = append(targetTags, fw.Name)
 		}
 	}
-
+	desc := encodeToDescriptionField(fw.Tags)
 	op, err := cli.Update(ctx, &computepb.UpdateFirewallRequest{
 		Firewall: fw.Name,
 		Project:  s.credentials.Project,
 		FirewallResource: &computepb.Firewall{
 			Name:              &fw.Name,
+			Description:       &desc,
 			Allowed:           allow,
 			DestinationRanges: dstCidr,
 			Network:           &fw.Network.NetworkId,
@@ -254,9 +267,13 @@ NEXTPORT:
 	if err != nil {
 		return err
 	}
-	err = op.Wait(ctx)
-	if err != nil {
-		return err
+	if waitDur > 0 {
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
+		err = op.Wait(ctx)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -292,10 +309,14 @@ func (s *b) FirewallsDelete(fw backends.FirewallList, waitDur time.Duration) err
 		}
 		ops = append(ops, op)
 	}
-	for _, op := range ops {
-		err = op.Wait(ctx)
-		if err != nil {
-			return err
+	if waitDur > 0 {
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
+		for _, op := range ops {
+			err = op.Wait(ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -322,31 +343,34 @@ func (s *b) FirewallsAddTags(fw backends.FirewallList, tags map[string]string, w
 	defer client.Close()
 	ops := []*compute.Operation{}
 	for _, fw := range fw {
-		m := &metadata{}
-		err := deepCopy(fw.BackendSpecific.(*FirewallDetail).Metadata, m)
+		m, err := decodeFromDescriptionField(fw.Description)
 		if err != nil {
 			return err
 		}
 		for k, v := range tags {
-			m.Custom[k] = v
+			m[k] = v
 		}
-		desc := m.encodeToDescriptionField()
+		desc := encodeToDescriptionField(m)
+		res := fw.BackendSpecific.(*FirewallDetail).Resource
+		res.Description = &desc
 		op, err := client.Update(ctx, &computepb.UpdateFirewallRequest{
-			Firewall: fw.Name,
-			Project:  s.credentials.Project,
-			FirewallResource: &computepb.Firewall{
-				Description: &desc,
-			},
+			Firewall:         fw.Name,
+			Project:          s.credentials.Project,
+			FirewallResource: res,
 		})
 		if err != nil {
 			return err
 		}
 		ops = append(ops, op)
 	}
-	for _, op := range ops {
-		err = op.Wait(ctx)
-		if err != nil {
-			return err
+	if waitDur > 0 {
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
+		for _, op := range ops {
+			err = op.Wait(ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -373,31 +397,34 @@ func (s *b) FirewallsRemoveTags(fw backends.FirewallList, tagKeys []string, wait
 	defer client.Close()
 	ops := []*compute.Operation{}
 	for _, fw := range fw {
-		m := &metadata{}
-		err := deepCopy(fw.BackendSpecific.(*FirewallDetail).Metadata, m)
+		m, err := decodeFromDescriptionField(fw.Description)
 		if err != nil {
 			return err
 		}
 		for _, k := range tagKeys {
-			delete(m.Custom, k)
+			delete(m, k)
 		}
-		desc := m.encodeToDescriptionField()
+		desc := encodeToDescriptionField(m)
+		res := fw.BackendSpecific.(*FirewallDetail).Resource
+		res.Description = &desc
 		op, err := client.Update(ctx, &computepb.UpdateFirewallRequest{
-			Firewall: fw.Name,
-			Project:  s.credentials.Project,
-			FirewallResource: &computepb.Firewall{
-				Description: &desc,
-			},
+			Firewall:         fw.Name,
+			Project:          s.credentials.Project,
+			FirewallResource: res,
 		})
 		if err != nil {
 			return err
 		}
 		ops = append(ops, op)
 	}
-	for _, op := range ops {
-		err = op.Wait(ctx)
-		if err != nil {
-			return err
+	if waitDur > 0 {
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
+		for _, op := range ops {
+			err = op.Wait(ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -408,44 +435,31 @@ func (s *b) CreateFirewall(input *backends.CreateFirewallInput, waitDur time.Dur
 	log.Detail("Start")
 	defer log.Detail("End")
 	// generate all tags in tags variable
-	tags := &FirewallDetail{
-		Metadata: &metadata{
-			Owner:          input.Owner,
-			AerolabProject: s.project,
-			AerolabVersion: s.aerolabVersion,
-			Custom:         input.Tags,
-		},
+	m := make(map[string]string)
+	for k, v := range input.Tags {
+		m[k] = v
 	}
+	m[TAG_AEROLAB_OWNER] = input.Owner
+	m[TAG_AEROLAB_PROJECT] = s.project
+	m[TAG_AEROLAB_VERSION] = s.aerolabVersion
 	// create PortsOut
 	portsOut := backends.PortsOut{}
 	for _, port := range input.Ports {
 		if port.SourceCidr != "" {
 			portsOut = append(portsOut, &backends.PortOut{
 				Port: *port,
-				BackendSpecific: types.IpPermission{
-					FromPort:   aws.Int32(int32(port.FromPort)),
-					IpProtocol: aws.String(port.Protocol),
-					ToPort:     aws.Int32(int32(port.ToPort)),
-					IpRanges: []types.IpRange{
-						{
-							CidrIp: aws.String(port.SourceCidr),
-						},
-					},
+				BackendSpecific: &PortDetail{
+					TargetTags:        []string{input.Name},
+					DestinationRanges: []string{},
 				},
 			})
 		}
 		if port.SourceId != "" {
 			portsOut = append(portsOut, &backends.PortOut{
 				Port: *port,
-				BackendSpecific: types.IpPermission{
-					FromPort:   aws.Int32(int32(port.FromPort)),
-					IpProtocol: aws.String(port.Protocol),
-					ToPort:     aws.Int32(int32(port.ToPort)),
-					UserIdGroupPairs: []types.UserIdGroupPair{
-						{
-							GroupId: aws.String(port.SourceId),
-						},
-					},
+				BackendSpecific: &PortDetail{
+					TargetTags:        []string{input.Name},
+					DestinationRanges: []string{},
 				},
 			})
 		}
@@ -460,10 +474,10 @@ func (s *b) CreateFirewall(input *backends.CreateFirewallInput, waitDur time.Dur
 			ZoneName:        input.Network.ZoneName,
 			ZoneID:          input.Network.ZoneID,
 			Owner:           input.Owner,
-			Tags:            tags.Metadata.Custom,
+			Tags:            m,
 			Ports:           portsOut,
 			Network:         input.Network,
-			BackendSpecific: tags,
+			BackendSpecific: &FirewallDetail{},
 		},
 	}
 	defer s.invalidateCacheFunc(backends.CacheInvalidateFirewall)
@@ -479,21 +493,34 @@ func (s *b) CreateFirewall(input *backends.CreateFirewallInput, waitDur time.Dur
 	}
 	defer client.Close()
 
-	description := tags.Metadata.encodeToDescriptionField()
+	description := encodeToDescriptionField(m)
 	op, err := client.Insert(ctx, &computepb.InsertFirewallRequest{
 		Project: s.credentials.Project,
 		FirewallResource: &computepb.Firewall{
 			Name:        &input.Name,
 			Network:     &input.Network.NetworkId,
 			Description: &description,
+			Allowed: []*computepb.Allowed{
+				{
+					IPProtocol: aws.String("tcp"),
+					Ports:      []string{"22"},
+				},
+			},
+			TargetTags: []string{
+				input.Name,
+			},
 		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = op.Wait(ctx)
-	if err != nil {
-		return output, err
+	if waitDur > 0 {
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
+		err = op.Wait(ctx)
+		if err != nil {
+			return output, err
+		}
 	}
 
 	if len(input.Ports) > 0 {

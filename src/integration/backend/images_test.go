@@ -1,6 +1,7 @@
 package backend_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -33,17 +34,27 @@ func (i *imageTest) testCreateVanillaInstance(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 
 	image := getBasicImage(t)
+	placement := Options.TestRegions[0]
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=20,count=1,encrypted=true"}
+	if cloud == "gcp" {
+		if strings.Count(Options.TestRegions[0], "-") == 1 {
+			placement = Options.TestRegions[0] + "-a"
+		}
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=20,count=1"}
+	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
 		Name:             "test-instance",
 		Nodes:            1,
 		Image:            image,
-		NetworkPlacement: Options.TestRegions[0],
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		NetworkPlacement: placement,
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=1,encrypted=true"},
+		Disks:            disks,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 1)
@@ -80,7 +91,7 @@ func (i *imageTest) testImageCreate(t *testing.T) {
 	err := inst.Describe()[0].Stop(false, 10*time.Minute)
 	require.NoError(t, err)
 	out, err := testBackend.CreateImage(&backends.CreateImageInput{
-		BackendType: backends.BackendTypeAWS,
+		BackendType: backendType,
 		Instance:    inst.Describe()[0],
 		Name:        "test-image",
 		Description: "test-description",
@@ -100,6 +111,12 @@ func (i *imageTest) testImageCreate(t *testing.T) {
 	require.Equal(t, out.Image.Encrypted, true)
 	require.Equal(t, out.Image.OSName, "test-os")
 	require.Equal(t, out.Image.OSVersion, "test-os-version")
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	image := testBackend.GetInventory().Images.WithName("test-image").WithOSName("test-os").WithOSVersion("test-os-version")
+	require.Equal(t, image.Count(), 1)
+	if cloud == "aws" {
+		require.Equal(t, image.Describe()[0].Size, 30*backends.StorageGiB)
+	}
 }
 
 func (i *imageTest) testDeleteVanillaInstance(t *testing.T) {
@@ -120,18 +137,27 @@ func (i *imageTest) testCreateInstanceFromImage(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := testBackend.GetInventory().Images.WithName("test-image").WithOSName("test-os").WithOSVersion("test-os-version")
 	require.Equal(t, image.Count(), 1)
-	require.Equal(t, image.Describe()[0].Size, 30*backends.StorageGiB)
+	placement := Options.TestRegions[0]
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=30,count=1,encrypted=true"}
+	if cloud == "gcp" {
+		if strings.Count(Options.TestRegions[0], "-") == 1 {
+			placement = Options.TestRegions[0] + "-a"
+		}
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=30,count=1"}
+	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
 		Name:             "test-instance",
 		Nodes:            1,
 		Image:            image.Describe()[0],
-		NetworkPlacement: Options.TestRegions[0],
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		NetworkPlacement: placement,
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=30,count=1,encrypted=true"},
+		Disks:            disks,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 1)

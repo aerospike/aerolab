@@ -2,6 +2,7 @@ package backend_test
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,14 +14,30 @@ import (
 
 var osTestList = make(chan *osTestDef, 100)
 
+/* supported OSes:
+* AWS:
+  - amazon: 2023, 2
+  - ubuntu: 24.04, 22.04, 20.04, 18.04
+  - rocky: 9, 8
+  - centos: 10, 9
+  - debian: 12, 11, 10
+* GCP:
+  - ubuntu: 24.04, 22.04, 20.04, 18.04
+  - rocky: 9, 8
+  - centos: 9, 8
+  - debian: 12, 11, 10
+*/
+
 func fillOsTestList() {
-	osTestList <- &osTestDef{
-		name:    "amazon",
-		version: "2023",
-	}
-	osTestList <- &osTestDef{
-		name:    "amazon",
-		version: "2",
+	if cloud == "aws" {
+		osTestList <- &osTestDef{
+			name:    "amazon",
+			version: "2023",
+		}
+		osTestList <- &osTestDef{
+			name:    "amazon",
+			version: "2",
+		}
 	}
 	osTestList <- &osTestDef{
 		name:    "ubuntu",
@@ -58,13 +75,21 @@ func fillOsTestList() {
 		name:    "debian",
 		version: "10",
 	}
-	osTestList <- &osTestDef{
-		name:    "centos",
-		version: "10",
+	if cloud == "aws" {
+		osTestList <- &osTestDef{
+			name:    "centos",
+			version: "10",
+		}
 	}
 	osTestList <- &osTestDef{
 		name:    "centos",
 		version: "9",
+	}
+	if cloud == "gcp" {
+		osTestList <- &osTestDef{
+			name:    "centos",
+			version: "8",
+		}
 	}
 	close(osTestList)
 }
@@ -117,7 +142,7 @@ func testOS(t *testing.T) {
 }
 
 func (o *osTestDef) test(os *osTestDef) error {
-	instanceName := shortuuid.New()
+	instanceName := "z" + strings.ToLower(shortuuid.New())
 	// create new instance
 	err := testBackend.RefreshChangedInventory()
 	if err != nil {
@@ -130,18 +155,28 @@ func (o *osTestDef) test(os *osTestDef) error {
 	if image.Count() > 1 {
 		return fmt.Errorf("3: multiple images found for %s:%s", os.name, os.version)
 	}
+	placement := Options.TestRegions[0] + "a"
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=20,count=1"}
+	if cloud == "gcp" {
+		if strings.Count(Options.TestRegions[0], "-") == 1 {
+			placement = Options.TestRegions[0] + "-a"
+		}
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=20,count=1"}
+	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      instanceName,
 		Name:             instanceName,
 		Nodes:            1,
 		Image:            image.Describe()[0],
-		NetworkPlacement: Options.TestRegions[0],
+		NetworkPlacement: placement,
 		Firewalls:        []string{},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=1"},
+		Disks:            disks,
 	}, 5*time.Minute)
 	if err != nil {
 		return fmt.Errorf("4: image %s:%s %w", os.name, os.version, err)
@@ -157,13 +192,22 @@ func (o *osTestDef) test(os *osTestDef) error {
 	if inst.Count() != 1 {
 		return fmt.Errorf("7: image %s:%s expected 1 instance, got %d", os.name, os.version, inst.Count())
 	}
+	err = inst.Describe()[0].Stop(false, 10*time.Minute)
+	if err != nil {
+		return fmt.Errorf("7.1: image %s:%s %w", os.name, os.version, err)
+	}
+	err = testBackend.RefreshChangedInventory()
+	if err != nil {
+		return fmt.Errorf("7.2: image %s:%s %w", os.name, os.version, err)
+	}
 	// create image from instance
+	imageName := instanceName + "-image"
 	_, err = testBackend.CreateImage(&backends.CreateImageInput{
-		BackendType: backends.BackendTypeAWS,
+		BackendType: backendType,
 		Instance:    inst.Describe()[0],
-		Name:        instanceName,
+		Name:        imageName,
 		Description: "test-description",
-		SizeGiB:     12,
+		SizeGiB:     20,
 		Owner:       "test-owner",
 		Tags:        map[string]string{},
 		Encrypted:   false,
@@ -177,7 +221,7 @@ func (o *osTestDef) test(os *osTestDef) error {
 	if err != nil {
 		return fmt.Errorf("9: image %s:%s %w", os.name, os.version, err)
 	}
-	image = testBackend.GetInventory().Images.WithInAccount(true).WithName(instanceName)
+	image = testBackend.GetInventory().Images.WithInAccount(true).WithName(imageName)
 	if image.Count() != 1 {
 		return fmt.Errorf("10: image %s:%s expected 1 image, got %d", os.name, os.version, image.Count())
 	}
@@ -196,13 +240,13 @@ func (o *osTestDef) test(os *osTestDef) error {
 		Name:             instanceName,
 		Nodes:            1,
 		Image:            image.Describe()[0],
-		NetworkPlacement: Options.TestRegions[0],
+		NetworkPlacement: placement,
 		Firewalls:        []string{},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=1"},
+		Disks:            disks,
 	}, 5*time.Minute)
 	if err != nil {
 		return fmt.Errorf("13: image %s:%s %w", os.name, os.version, err)
@@ -224,7 +268,7 @@ func (o *osTestDef) test(os *osTestDef) error {
 		return fmt.Errorf("17: image %s:%s %w", os.name, os.version, err)
 	}
 	// destroy image
-	err = testBackend.GetInventory().Images.WithName(instanceName).DeleteImages(10 * time.Minute)
+	err = testBackend.GetInventory().Images.WithName(imageName).DeleteImages(10 * time.Minute)
 	if err != nil {
 		return fmt.Errorf("18: image %s:%s %w", os.name, os.version, err)
 	}

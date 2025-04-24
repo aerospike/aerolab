@@ -76,11 +76,21 @@ func Exec(i *ExecInput) *ExecOutput {
 	}
 
 	// ssh dial
-	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
-	if err != nil {
-		return &ExecOutput{
-			Err: fmt.Errorf("failed to dial: %s", err),
+	currentTimeout := i.ConnectTimeout
+	start := time.Now()
+	var conn *ssh.Client
+	for {
+		conn, err = ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
+		if err == nil {
+			break
 		}
+		currentTimeout -= time.Since(start)
+		if currentTimeout <= 0 && i.ConnectTimeout > 0 {
+			return &ExecOutput{
+				Err: fmt.Errorf("failed to dial: %s", err),
+			}
+		}
+		time.Sleep(time.Second)
 	}
 	defer conn.Close()
 

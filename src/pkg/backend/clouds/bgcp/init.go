@@ -8,6 +8,7 @@ import (
 	"path"
 	"slices"
 	"strconv"
+	"sync"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
@@ -38,6 +39,7 @@ type b struct {
 	invalidateCacheFunc func(names ...string) error
 	listAllProjects     bool
 	allZones            []string
+	defaultFWCreateLock sync.Mutex
 }
 
 func init() {
