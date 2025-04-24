@@ -1,6 +1,7 @@
 package backend_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -41,7 +42,11 @@ func (tv *testVolume) testDeleteFirewalls(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 
 	fw := testBackend.GetInventory().Firewalls
-	require.Equal(t, fw.Count(), 1)
+	fwCount := 1
+	if cloud == "gcp" {
+		fwCount = 2
+	}
+	require.Equal(t, fw.Count(), fwCount)
 	err := fw.Delete(10 * time.Minute)
 	require.NoError(t, err)
 	require.NoError(t, testBackend.RefreshChangedInventory())
@@ -52,20 +57,26 @@ func (tv *testVolume) testDeleteFirewalls(t *testing.T) {
 func (tv *testVolume) testCreateAttachedVolumeGetPrice(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
+	diskType := "gp2"
+	placement := Options.TestRegions[0]
+	if cloud == "gcp" {
+		diskType = "pd-ssd"
+		placement = placement + "-a"
+	}
 	price, err := testBackend.CreateVolumeGetPrice(&backends.CreateVolumeInput{
-		BackendType:       backends.BackendTypeAWS,
+		BackendType:       backendType,
 		VolumeType:        backends.VolumeTypeAttachedDisk,
 		Name:              "test-attached-volume",
 		Description:       "test-description",
 		SizeGiB:           10,
-		Placement:         Options.TestRegions[0],
+		Placement:         placement,
 		Iops:              0,
 		Throughput:        0,
 		Owner:             "test-owner",
 		Tags:              map[string]string{},
 		Encrypted:         false,
 		Expires:           time.Time{},
-		DiskType:          "gp2",
+		DiskType:          diskType,
 		SharedDiskOneZone: false,
 	})
 	require.NoError(t, err)
@@ -74,9 +85,13 @@ func (tv *testVolume) testCreateAttachedVolumeGetPrice(t *testing.T) {
 
 func (tv *testVolume) testCreateSharedVolumeGetPrice(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "gcp" {
+		t.Skip("GCP does not support shared volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	price, err := testBackend.CreateVolumeGetPrice(&backends.CreateVolumeInput{
-		BackendType:       backends.BackendTypeAWS,
+		BackendType:       backendType,
 		VolumeType:        backends.VolumeTypeSharedDisk,
 		Name:              "test-shared-volume",
 		Description:       "test-description",
@@ -98,20 +113,26 @@ func (tv *testVolume) testCreateSharedVolumeGetPrice(t *testing.T) {
 func (tv *testVolume) testCreateAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
+	diskType := "gp2"
+	placement := Options.TestRegions[0]
+	if cloud == "gcp" {
+		diskType = "pd-ssd"
+		placement = placement + "-a"
+	}
 	vol, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
-		BackendType:       backends.BackendTypeAWS,
+		BackendType:       backendType,
 		VolumeType:        backends.VolumeTypeAttachedDisk,
 		Name:              "test-attached-volume",
 		Description:       "test-description",
 		SizeGiB:           10,
-		Placement:         Options.TestRegions[0],
+		Placement:         placement,
 		Iops:              0,
 		Throughput:        0,
 		Owner:             "test-owner",
 		Tags:              map[string]string{},
 		Encrypted:         false,
 		Expires:           time.Time{},
-		DiskType:          "gp2",
+		DiskType:          diskType,
 		SharedDiskOneZone: false,
 	})
 	require.NoError(t, err)
@@ -124,9 +145,13 @@ func (tv *testVolume) testCreateAttachedVolume(t *testing.T) {
 
 func (tv *testVolume) testCreateSharedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "gcp" {
+		t.Skip("GCP does not support shared volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
-		BackendType:       backends.BackendTypeAWS,
+		BackendType:       backendType,
 		VolumeType:        backends.VolumeTypeSharedDisk,
 		Name:              "test-shared-volume",
 		Description:       "test-description",
@@ -164,6 +189,10 @@ func (tv *testVolume) testAddTagsToAttachedVolume(t *testing.T) {
 
 func (tv *testVolume) testAddTagsToSharedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "gcp" {
+		t.Skip("GCP does not support shared volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol := testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
 	require.Equal(t, vol.Count(), 1)
@@ -191,6 +220,10 @@ func (tv *testVolume) testRemoveTagsFromAttachedVolume(t *testing.T) {
 
 func (tv *testVolume) testRemoveTagsFromSharedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "gcp" {
+		t.Skip("GCP does not support shared volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol := testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
 	require.Equal(t, vol.Count(), 1)
@@ -206,18 +239,28 @@ func (tv *testVolume) testCreateTestInstance(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
+	placement := Options.TestRegions[0] + "a"
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=20,count=1"}
+	if cloud == "gcp" {
+		if strings.Count(Options.TestRegions[0], "-") == 1 {
+			placement = Options.TestRegions[0] + "-a"
+		}
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=20,count=1"}
+	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
 		Name:             "test-instance",
 		Nodes:            1,
 		Image:            image,
-		NetworkPlacement: Options.TestRegions[0] + "a",
+		NetworkPlacement: placement,
 		Firewalls:        []string{},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=1"},
+		Disks:            disks,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 1)
@@ -238,7 +281,11 @@ func (tv *testVolume) testAttachAttachedVolumeToInstance(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol = testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 1)
-	require.Contains(t, vol.Describe()[0].AttachedTo, inst.Describe()[0].InstanceID)
+	iid := inst.Describe()[0].InstanceID
+	if cloud == "gcp" {
+		iid = inst.Describe()[0].Name
+	}
+	require.Contains(t, vol.Describe()[0].AttachedTo, iid)
 }
 
 func (tv *testVolume) testResizeAttachedVolume(t *testing.T) {
@@ -251,7 +298,11 @@ func (tv *testVolume) testResizeAttachedVolume(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol = testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 1)
-	require.Equal(t, vol.Describe()[0].Size, 16*backends.StorageGiB)
+	if cloud == "gcp" {
+		require.Equal(t, vol.Describe()[0].Size, 17*backends.StorageGB)
+	} else {
+		require.Equal(t, vol.Describe()[0].Size, 16*backends.StorageGiB)
+	}
 }
 
 func (tv *testVolume) testDetachAttachedVolumeFromInstance(t *testing.T) {
@@ -271,6 +322,10 @@ func (tv *testVolume) testDetachAttachedVolumeFromInstance(t *testing.T) {
 
 func (tv *testVolume) testAttachSharedVolumeToInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "gcp" {
+		t.Skip("GCP does not support shared volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName("test-instance")
 	require.Equal(t, inst.Count(), 1)
@@ -285,6 +340,10 @@ func (tv *testVolume) testAttachSharedVolumeToInstance(t *testing.T) {
 
 func (tv *testVolume) testDetachSharedVolumeFromInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "gcp" {
+		t.Skip("GCP does not support shared volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName("test-instance")
 	require.Equal(t, inst.Count(), 1)
@@ -322,6 +381,10 @@ func (tv *testVolume) testDeleteAttachedVolume(t *testing.T) {
 
 func (tv *testVolume) testDeleteSharedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "gcp" {
+		t.Skip("GCP does not support shared volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 
 	vol := testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)

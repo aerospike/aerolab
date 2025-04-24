@@ -69,11 +69,15 @@ func (s *b) GetImages() (backends.ImageList, error) {
 					return
 				}
 			}
-			tags := &metadata{}
-			err = tags.decodeFromLabels(image.Labels)
+			tags, err := decodeFromLabels(image.Labels)
 			if err != nil {
-				errs = errors.Join(errs, err)
-				return
+				log.Detail("failed to decode metadata for image %s: %s", image.GetName(), err)
+				continue
+			}
+			if !s.listAllProjects {
+				if tags[TAG_AEROLAB_PROJECT] != s.project {
+					continue
+				}
 			}
 			arch := backends.ArchitectureX8664
 			if *image.Architecture == "ARM64" {
@@ -81,21 +85,21 @@ func (s *b) GetImages() (backends.ImageList, error) {
 			}
 			im := &backends.Image{
 				BackendType:  backends.BackendTypeGCP,
-				Name:         *image.Name,
-				Description:  *image.Description,
+				Name:         image.GetName(),
+				Description:  image.GetDescription(),
 				Size:         backends.StorageSize(*image.DiskSizeGb) * backends.StorageGB,
-				ImageId:      *image.SelfLink,
+				ImageId:      image.GetSelfLink(),
 				ZoneName:     strings.Join(image.StorageLocations, ","),
 				ZoneID:       strings.Join(image.StorageLocations, ","),
 				CreationTime: ctime,
-				Owner:        tags.Owner,
-				Tags:         tags.Custom,
+				Owner:        tags[TAG_AEROLAB_OWNER],
+				Tags:         tags,
 				Encrypted:    image.ImageEncryptionKey != nil,
 				Architecture: arch,
 				Public:       false,
 				State:        backends.VolumeStateAvailable,
-				OSName:       tags.OsName,
-				OSVersion:    tags.OsVersion,
+				OSName:       tags[TAG_OS_NAME],
+				OSVersion:    tags[TAG_OS_VERSION],
 				InAccount:    true,
 				Username:     "root",
 				BackendSpecific: &ImageDetail{
@@ -108,10 +112,10 @@ func (s *b) GetImages() (backends.ImageList, error) {
 		}
 	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for _, project := range []string{"ubuntu-os-cloud", "debian-cloud", "centos-cloud", "rocky-linux-cloud"} {
+	wg.Add(4)
+	for _, project := range []string{"ubuntu-os-cloud", "debian-cloud", "centos-cloud", "rocky-linux-cloud"} {
+		go func(project string) {
+			defer wg.Done()
 			log.Detail("Listing generic images for %s: start", project)
 			defer log.Detail("Listing generic images for %s: end", project)
 			iter := client.List(ctx, &computepb.ListImagesRequest{
@@ -179,10 +183,10 @@ func (s *b) GetImages() (backends.ImageList, error) {
 				}
 				im := &backends.Image{
 					BackendType:  backends.BackendTypeGCP,
-					Name:         *image.Name,
-					Description:  *image.Description,
+					Name:         image.GetName(),
+					Description:  image.GetDescription(),
 					Size:         backends.StorageSize(*image.DiskSizeGb) * backends.StorageGB,
-					ImageId:      *image.SelfLink,
+					ImageId:      image.GetSelfLink(),
 					ZoneName:     strings.Join(image.StorageLocations, ","),
 					ZoneID:       strings.Join(image.StorageLocations, ","),
 					CreationTime: ctime,
@@ -223,8 +227,8 @@ func (s *b) GetImages() (backends.ImageList, error) {
 				}
 				ilock.Unlock()
 			}
-		}
-	}()
+		}(project)
+	}
 
 	wg.Wait()
 	if errs != nil {
@@ -265,6 +269,8 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 		ops = append(ops, op)
 	}
 	if waitDur > 0 {
+		ctx, cancel := context.WithTimeout(ctx, waitDur)
+		defer cancel()
 		log.Detail("Waiting for operations to complete")
 		for _, op := range ops {
 			err = op.Wait(ctx)
@@ -306,11 +312,13 @@ func (s *b) ImagesAddTags(images backends.ImageList, tags map[string]string) err
 		for k, v := range tags {
 			newTags[k] = v
 		}
+		labels := encodeToLabels(newTags)
+		labels["usedby"] = "aerolab"
 		op, err := client.Patch(ctx, &computepb.PatchImageRequest{
 			Image: image.Name,
 			ImageResource: &computepb.Image{
 				LabelFingerprint: proto.String(image.BackendSpecific.(*ImageDetail).LabelFingerprint),
-				Labels:           newTags,
+				Labels:           labels,
 			},
 			Project: s.credentials.Project,
 		})
@@ -358,11 +366,13 @@ func (s *b) ImagesRemoveTags(images backends.ImageList, tagKeys []string) error 
 			}
 			newTags[k] = v
 		}
+		labels := encodeToLabels(newTags)
+		labels["usedby"] = "aerolab"
 		op, err := client.Patch(ctx, &computepb.PatchImageRequest{
 			Image: image.Name,
 			ImageResource: &computepb.Image{
 				LabelFingerprint: proto.String(image.BackendSpecific.(*ImageDetail).LabelFingerprint),
-				Labels:           newTags,
+				Labels:           labels,
 			},
 			Project: s.credentials.Project,
 		})
@@ -385,17 +395,19 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	log := s.log.WithPrefix("CreateImage: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	m := &metadata{
-		Name:           input.Name,
-		Description:    input.Description,
-		OsName:         input.OSName,
-		OsVersion:      input.OSVersion,
-		Owner:          input.Owner,
-		AerolabProject: s.project,
-		AerolabVersion: s.aerolabVersion,
-		Custom:         input.Tags,
+	m := make(map[string]string)
+	for k, v := range input.Tags {
+		m[k] = v
 	}
-	labels := m.encodeToLabels()
+	m[TAG_AEROLAB_OWNER] = input.Owner
+	m[TAG_AEROLAB_PROJECT] = s.project
+	m[TAG_AEROLAB_VERSION] = s.aerolabVersion
+	m[TAG_AEROLAB_DESCRIPTION] = input.Description
+	m[TAG_OS_NAME] = input.OSName
+	m[TAG_OS_VERSION] = input.OSVersion
+	m[TAG_NAME] = input.Name
+	labels := encodeToLabels(m)
+	labels["usedby"] = "aerolab"
 	output = &backends.CreateImageOutput{
 		Image: &backends.Image{
 			BackendType:  input.BackendType,
@@ -439,11 +451,12 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
 	op, err := client.Insert(ctx, &computepb.InsertImageRequest{
-		Project: s.project,
+		Project: s.credentials.Project,
 		ImageResource: &computepb.Image{
 			Labels:     labels,
 			Name:       proto.String(input.Name),
 			SourceDisk: proto.String(input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].VolumeID),
+			DiskSizeGb: proto.Int64(int64(input.SizeGiB * backends.StorageGiB / backends.StorageGB)),
 		},
 	})
 	if err != nil {
@@ -455,7 +468,7 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	}
 	// fill output imageId and labelFingerprint
 	iter := client.List(ctx, &computepb.ListImagesRequest{
-		Project: s.project,
+		Project: s.credentials.Project,
 		Filter:  proto.String(LABEL_FILTER_AEROLAB),
 	})
 	for {

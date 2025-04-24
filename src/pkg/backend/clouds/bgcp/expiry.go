@@ -54,14 +54,12 @@ func (s *b) InstancesChangeExpiry(instances backends.InstanceList, expiry time.T
 	log := s.log.WithPrefix("InstancesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	// TODO: implement
-	return nil
+	return instances.AddTags(map[string]string{TAG_AEROLAB_EXPIRES: expiry.Format(time.RFC3339)})
 }
 
 func (s *b) VolumesChangeExpiry(volumes backends.VolumeList, expiry time.Time) error {
 	log := s.log.WithPrefix("VolumesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	// TODO: implement
-	return nil
+	return volumes.AddTags(map[string]string{TAG_AEROLAB_EXPIRES: expiry.Format(time.RFC3339)}, 2*time.Minute)
 }

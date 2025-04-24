@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,8 +20,8 @@ import (
 )
 
 type VolumeDetail struct {
-	LabelFingerprint string    `json:"labelFingerprint" yaml:"labelFingerprint"`
-	Metadata         *metadata `json:"metadata" yaml:"metadata"`
+	LabelFingerprint string   `json:"labelFingerprint" yaml:"labelFingerprint"`
+	AttachedTo       []string `json:"attachedTo" yaml:"attachedTo"`
 }
 
 func (s *b) GetVolumes() (backends.VolumeList, error) {
@@ -74,18 +74,17 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 					errs = errors.Join(errs, err)
 					return
 				}
-				meta := &metadata{}
-				err = meta.decodeFromLabels(pair.Labels)
+				meta, err := decodeFromLabels(pair.Labels)
 				if err != nil {
 					log.Warn("failed to decode metadata for volume %s: %s", pair.Name, err)
 					continue
 				}
 				if !s.listAllProjects {
-					if meta.AerolabProject != s.project {
+					if meta[TAG_AEROLAB_PROJECT] != s.project {
 						continue
 					}
 				}
-				expires, _ := time.Parse(time.RFC3339, meta.Expires)
+				expires, _ := time.Parse(time.RFC3339, meta[TAG_AEROLAB_EXPIRES])
 				state := backends.VolumeStateUnknown
 				switch stringValue(pair.Status) {
 				case computepb.Disk_CREATING.String():
@@ -102,14 +101,18 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 					state = backends.VolumeStateConfiguring
 				}
 				attachedTo := pair.GetUsers()
-				deleteOnTermination := meta.DeleteOnTermination
-				cpg := meta.CostPerGb
+				attachedToShort := []string{}
+				for _, user := range attachedTo {
+					attachedToShort = append(attachedToShort, getValueFromURL(user))
+				}
+				deleteOnTermination := meta[TAG_DELETE_ON_TERMINATION] == "true"
+				cpg, _ := strconv.ParseFloat(meta[TAG_COST_PER_GB], 64)
 				createTime, _ := time.Parse(time.RFC3339, pair.GetCreationTimestamp())
 				ilock.Lock()
 				i = append(i, &backends.Volume{
 					Name:                pair.GetName(),
 					Description:         pair.GetDescription(),
-					Owner:               meta.Owner,
+					Owner:               meta[TAG_AEROLAB_OWNER],
 					BackendType:         backends.BackendTypeGCP,
 					ZoneName:            zone,
 					ZoneID:              getValueFromURL(pair.GetZone()),
@@ -118,14 +121,14 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 					Iops:                int(pair.GetProvisionedIops()),
 					Throughput:          backends.StorageSize(pair.GetProvisionedThroughput()) * backends.StorageMB,
 					Size:                backends.StorageSize(pair.GetSizeGb()) * backends.StorageGB,
-					Tags:                meta.Custom,
+					Tags:                meta,
 					FileSystemId:        pair.GetName(),
 					VolumeType:          backends.VolumeTypeAttachedDisk,
 					Expires:             expires,
 					DiskType:            getValueFromURL(pair.GetType()),
 					State:               state,
 					DeleteOnTermination: deleteOnTermination,
-					AttachedTo:          attachedTo,
+					AttachedTo:          attachedToShort,
 					EstimatedCostUSD: backends.CostVolume{
 						PricePerGBHour: cpg,
 						SizeGB:         int64(backends.StorageSize(pair.GetSizeGb()) * backends.StorageGB),
@@ -133,7 +136,7 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 					},
 					BackendSpecific: &VolumeDetail{
 						LabelFingerprint: pair.GetLabelFingerprint(),
-						Metadata:         meta,
+						AttachedTo:       attachedTo,
 					},
 				})
 				ilock.Unlock()
@@ -184,13 +187,12 @@ func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, 
 			}
 			defer client.Close()
 			for _, vol := range vols {
-				data := &metadata{}
-				data.decodeFromLabels(vol.Tags)
-				if data.Custom == nil {
-					data.Custom = make(map[string]string)
+				data := vol.Tags
+				for k, v := range tags {
+					data[k] = v
 				}
-				maps.Copy(data.Custom, tags)
-				labels := data.encodeToLabels()
+				labels := encodeToLabels(data)
+				labels["usedby"] = "aerolab"
 				_, err = client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
 					Project:  s.credentials.Project,
 					Zone:     zone,
@@ -248,15 +250,15 @@ func (s *b) VolumesRemoveTags(volumes backends.VolumeList, tagKeys []string, wai
 			}
 			defer client.Close()
 			for _, vol := range vols {
-				data := &metadata{}
-				data.decodeFromLabels(vol.Tags)
-				if data.Custom == nil {
+				data := vol.Tags
+				if data == nil {
 					continue
 				}
 				for _, tag := range tagKeys {
-					delete(data.Custom, tag)
+					delete(data, tag)
 				}
-				labels := data.encodeToLabels()
+				labels := encodeToLabels(data)
+				labels["usedby"] = "aerolab"
 				_, err = client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
 					Project:  s.credentials.Project,
 					Zone:     zone,
@@ -326,11 +328,15 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 				}
 				ops = append(ops, op)
 			}
-			for _, op := range ops {
-				err = op.Wait(ctx)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
+			if waitDur > 0 {
+				ctx, cancel := context.WithTimeout(ctx, waitDur)
+				defer cancel()
+				for _, op := range ops {
+					err = op.Wait(ctx)
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
 				}
 			}
 		}(zone, vols)
@@ -398,11 +404,15 @@ func (s *b) ResizeVolumes(volumes backends.VolumeList, newSizeGiB backends.Stora
 				}
 				ops = append(ops, op)
 			}
-			for _, op := range ops {
-				err = op.Wait(ctx)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
+			if waitDur > 0 {
+				ctx, cancel := context.WithTimeout(ctx, waitDur)
+				defer cancel()
+				for _, op := range ops {
+					err = op.Wait(ctx)
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
 				}
 			}
 		}(zone, ids)
@@ -474,11 +484,15 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 				ops = append(ops, op)
 			}
 			log.Detail("zone=%s wait for volumes to be in in-use state", zone)
-			for _, op := range ops {
-				err = op.Wait(ctx)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
+			if waitDur > 0 {
+				ctx, cancel := context.WithTimeout(ctx, waitDur)
+				defer cancel()
+				for _, op := range ops {
+					err = op.Wait(ctx)
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
 				}
 			}
 		}(zone, ids)
@@ -531,7 +545,7 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 				volName := ""
 				vols := instance.BackendSpecific.(*InstanceDetail).Volumes
 				for _, vol := range vols {
-					if vol.VolumeID == id.FileSystemId {
+					if vol.VolumeID == id.FileSystemId || getValueFromURL(vol.VolumeID) == id.FileSystemId {
 						volName = vol.Device
 						break
 					}
@@ -554,11 +568,15 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 				ops = append(ops, op)
 			}
 			log.Detail("zone=%s wait for volumes to be in detached state", zone)
-			for _, op := range ops {
-				err = op.Wait(ctx)
-				if err != nil {
-					reterr = errors.Join(reterr, err)
-					return
+			if waitDur > 0 {
+				ctx, cancel := context.WithTimeout(ctx, waitDur)
+				defer cancel()
+				for _, op := range ops {
+					err = op.Wait(ctx)
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
 				}
 			}
 		}(zone, ids)
@@ -572,11 +590,15 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 	log.Detail("Start")
 	defer log.Detail("End")
 
-	_, _, zone, err := s.resolveNetworkPlacement(input.Placement)
+	_, _, _, err = s.resolveNetworkPlacement(input.Placement)
 	if err != nil {
 		return 0, err
 	}
-	region := zone
+	region := input.Placement
+	if strings.Count(region, "-") == 2 {
+		parts := strings.Split(region, "-")
+		region = parts[0] + "-" + parts[1]
+	}
 
 	switch input.VolumeType {
 	case backends.VolumeTypeAttachedDisk:
@@ -606,11 +628,16 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	log.Detail("Start")
 	defer log.Detail("End")
 
-	_, _, zone, err := s.resolveNetworkPlacement(input.Placement)
+	_, _, _, err = s.resolveNetworkPlacement(input.Placement)
 	if err != nil {
 		return nil, err
 	}
-	region := zone
+	region := input.Placement
+	if strings.Count(region, "-") == 2 {
+		parts := strings.Split(region, "-")
+		region = parts[0] + "-" + parts[1]
+	}
+	zone := input.Placement
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 
 	ppgb := 0.0
@@ -643,18 +670,21 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		if input.Throughput > 0 {
 			throughput = proto.Int64(int64(input.Throughput))
 		}
-		tagsIn := &metadata{
-			Name:           input.Name,
-			Owner:          input.Owner,
-			Description:    input.Description,
-			Expires:        input.Expires.Format(time.RFC3339),
-			AerolabProject: s.project,
-			AerolabVersion: s.aerolabVersion,
-			CostPerGb:      ppgb,
-			StartTime:      time.Now(),
-			Custom:         input.Tags,
+		tagsIn := make(map[string]string)
+		for k, v := range input.Tags {
+			tagsIn[k] = v
 		}
-		labels := tagsIn.encodeToLabels()
+		tagsIn[TAG_NAME] = input.Name
+		tagsIn[TAG_AEROLAB_OWNER] = input.Owner
+		tagsIn[TAG_AEROLAB_DESCRIPTION] = input.Description
+		tagsIn[TAG_AEROLAB_EXPIRES] = input.Expires.Format(time.RFC3339)
+		tagsIn[TAG_AEROLAB_PROJECT] = s.project
+		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
+		tagsIn[TAG_COST_PER_GB] = fmt.Sprintf("%f", ppgb)
+		tagsIn[TAG_START_TIME] = time.Now().Format(time.RFC3339)
+		labels := encodeToLabels(tagsIn)
+		labels["usedby"] = "aerolab"
+		diskTypeFull := fmt.Sprintf("zones/%s/diskTypes/%s", zone, input.DiskType)
 		op, err := client.Insert(ctx, &computepb.InsertDiskRequest{
 			Project: s.credentials.Project,
 			Zone:    zone,
@@ -665,7 +695,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 				Zone:                  proto.String(zone),
 				ProvisionedIops:       iops,
 				ProvisionedThroughput: throughput,
-				Type:                  proto.String(input.DiskType),
+				Type:                  proto.String(diskTypeFull),
 			},
 		})
 		if err != nil {
@@ -677,7 +707,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		}
 		return &backends.CreateVolumeOutput{
 			Volume: backends.Volume{
-				BackendType:         backends.BackendTypeAWS,
+				BackendType:         backends.BackendTypeGCP,
 				VolumeType:          backends.VolumeTypeAttachedDisk,
 				Name:                input.Name,
 				Description:         input.Description,

@@ -1,6 +1,7 @@
 package backend_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -25,19 +26,33 @@ func (d *testInstancesDNS) testCreateInstance(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
+	placement := Options.TestRegions[0] + "a"
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=20,count=1"}
+	if cloud == "gcp" {
+		if strings.Count(Options.TestRegions[0], "-") == 1 {
+			placement = Options.TestRegions[0] + "-a"
+		}
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=20,count=1"}
+	}
+	domainId := "Z08885863MUP8ENZ1K1Z7"
+	if cloud == "gcp" {
+		domainId = "aerospikeme"
+	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
 		Nodes:            3,
 		Image:            image,
-		NetworkPlacement: Options.TestRegions[0] + "a",
+		NetworkPlacement: placement,
 		Firewalls:        []string{},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=1"},
+		Disks:            disks,
 		CustomDNS: &backends.InstanceDNS{
-			DomainID:   "Z08885863MUP8ENZ1K1Z7",
+			DomainID:   domainId,
 			DomainName: "aerospike.me",
 			Region:     "us-east-1",
 		},
@@ -51,11 +66,15 @@ func (d *testInstancesDNS) testCreateInstance(t *testing.T) {
 
 func (d *testInstancesDNS) testInstancesDNS(t *testing.T) {
 	require.NoError(t, setup(false))
+	domainId := "Z08885863MUP8ENZ1K1Z7"
+	if cloud == "gcp" {
+		domainId = "aerospikeme"
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
 	require.Equal(t, inst.Count(), 3)
 	for _, i := range inst.Describe() {
-		require.Equal(t, i.CustomDNS.DomainID, "Z08885863MUP8ENZ1K1Z7")
+		require.Equal(t, i.CustomDNS.DomainID, domainId)
 		require.Equal(t, i.CustomDNS.DomainName, "aerospike.me")
 		require.Equal(t, i.CustomDNS.Region, "us-east-1")
 		require.Equal(t, i.CustomDNS.Name, i.InstanceID)

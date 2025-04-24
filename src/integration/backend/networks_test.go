@@ -3,6 +3,7 @@ package backend_test
 import (
 	"testing"
 
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,9 +22,15 @@ func (n *networkTest) testListNetworks(t *testing.T) {
 	nets := testBackend.GetInventory().Networks.WithAerolabManaged(false)
 	require.Equal(t, nets.Count(), 1)
 	subs := nets.Subnets()
-	require.Equal(t, len(subs), 3)
+	subCount := 1
+	if backendType == backends.BackendTypeAWS {
+		subCount = 3
+	}
+	require.Equal(t, len(subs), subCount)
 	subs = subs.WithDefault(true)
 	subs = subs.WithAerolabManaged(false)
-	subs = subs.WithZoneID("ca-central-1a")
+	if backendType == backends.BackendTypeAWS {
+		subs = subs.WithZoneID("ca-central-1a")
+	}
 	require.Equal(t, len(subs), 1)
 }

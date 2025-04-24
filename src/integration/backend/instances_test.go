@@ -131,11 +131,19 @@ func testCreateInstance(t *testing.T) {
 	require.Equal(t, insts.Instances.Count(), 3)
 	err = testBackend.RefreshChangedInventory()
 	require.NoError(t, err)
-	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), 1)
+	fwCount := 1
+	if cloud == "gcp" {
+		fwCount = 2
+	}
+	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), fwCount)
 	require.Equal(t, testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).Count(), 3)
 	require.Equal(t, testBackend.GetInventory().Volumes.Count(), 6)
 	for _, vol := range testBackend.GetInventory().Volumes.Describe() {
-		require.Equal(t, vol.Size, 20*backends.StorageGiB)
+		if cloud == "gcp" {
+			require.Equal(t, vol.Size, 20*backends.StorageGB)
+		} else {
+			require.Equal(t, vol.Size, 20*backends.StorageGiB)
+		}
 	}
 }
 
@@ -280,7 +288,11 @@ func testInstancesTerminate(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	require.Equal(t, testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).Count(), 0)
 	require.Equal(t, testBackend.GetInventory().Volumes.Count(), 0)
-	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), 1)
+	fwCount := 1
+	if cloud == "gcp" {
+		fwCount = 2
+	}
+	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), fwCount)
 	require.NoError(t, testBackend.GetInventory().Firewalls.Delete(2*time.Minute))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), 0)

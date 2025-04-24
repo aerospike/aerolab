@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"time"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -27,9 +28,19 @@ func NewSftp(i *ClientConf) (*Sftp, error) {
 	}
 
 	// ssh dial
-	conn, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
-	if err != nil {
-		return o, err
+	currentTimeout := i.ConnectTimeout
+	start := time.Now()
+	var conn *ssh.Client
+	for {
+		conn, err = ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
+		if err == nil {
+			break
+		}
+		currentTimeout -= time.Since(start)
+		if currentTimeout <= 0 && i.ConnectTimeout > 0 {
+			return o, fmt.Errorf("failed to dial: %s", err)
+		}
+		time.Sleep(time.Second)
 	}
 	o.conn = conn
 
