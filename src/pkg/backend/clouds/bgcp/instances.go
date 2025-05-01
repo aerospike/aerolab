@@ -1497,6 +1497,14 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 // cleanup DNS
 func (s *b) CleanupDNS() error {
+	regions, err := s.ListEnabledZones()
+	if err != nil {
+		return fmt.Errorf("failed to list enabled zones: %s", err)
+	}
+	if len(regions) == 0 {
+		s.log.Detail("GCP DNS CLEANUP: No regions enabled, skipping DNS cleanup")
+		return nil
+	}
 	log := s.log.WithPrefix("DNS-CLEANUP: ")
 	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
 	if err != nil {

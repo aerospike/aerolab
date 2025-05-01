@@ -1530,6 +1530,14 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 }
 
 func (s *b) CleanupDNS() error {
+	regions, err := s.ListEnabledZones()
+	if err != nil {
+		return fmt.Errorf("failed to list enabled zones: %s", err)
+	}
+	if len(regions) == 0 {
+		s.log.Detail("AWS DNS CLEANUP: No regions enabled, skipping DNS cleanup")
+		return nil
+	}
 	// connect to route53
 	cli, err := getRoute53Client(s.credentials, &s.project)
 	if err != nil {

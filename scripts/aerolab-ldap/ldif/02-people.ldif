@@ -1,3 +1,0 @@
-dn: ou=People,dc=aerospike,dc=com
-objectClass: organizationalUnit
-ou: People

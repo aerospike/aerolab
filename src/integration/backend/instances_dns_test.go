@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test02_InstancesDNS(t *testing.T) {
+func Test20_InstancesDNS(t *testing.T) {
 	t.Cleanup(cleanup)
 	test := &testInstancesDNS{}
 	t.Run("setup", testSetup)

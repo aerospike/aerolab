@@ -1,0 +1,129 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Package",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${fileDirname}",
+            "args": [
+                "prep"
+            ]
+        },
+    {
+            "name": "ginkgo",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${workspaceFolder}/integration/backend/backend_suite_test.go",
+            "env": {
+                "AEROLAB_CLOUD": "gcp",
+                "AWS_PROFILE": "eks",
+                "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
+                "GCP_PROJECT": "aerolab-test-project-1",
+                "AEROLAB_GCP_TEST_REGIONS": "us-central1",
+                "AEROLAB_SKIP_CLEANUP": "true",
+                "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
+            },
+            "args": [
+                "-test.run",
+                "TestBackend"
+            ]
+        },
+    {
+        "name": "Test whole package",
+        "type": "go",
+        "request": "launch",
+        "mode": "test",
+        "program": "${fileDirname}",
+        "env": {
+                "AEROLAB_CLOUD": "gcp",
+                "AWS_PROFILE": "eks",
+                "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
+                "GCP_PROJECT": "aerolab-test-project-1",
+                "AEROLAB_GCP_TEST_REGIONS": "us-central1",
+                "AEROLAB_SKIP_CLEANUP": "true",
+                "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
+        },
+        "showLog": true
+    },
+    {
+        "name": "Test Current File",
+        "type": "go",
+        "request": "launch",
+        "mode": "test",
+        "program": "${fileDirname}",
+        "args": [
+            "-test.v",
+            "-test.failfast",
+            "-test.count=1",
+            "-test.timeout=0"
+        ],
+        "env": {
+                "AEROLAB_CLOUD": "gcp",
+                "AWS_PROFILE": "eks",
+                "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
+                "GCP_PROJECT": "aerolab-test-project-1",
+                "AEROLAB_GCP_TEST_REGIONS": "us-central1",
+                "AEROLAB_SKIP_CLEANUP": "true",
+                "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
+        },
+        "showLog": true
+    },
+    {
+        "name": "Test Current Function",
+        "type": "go",
+        "request": "launch",
+        "mode": "test",
+        "program": "${fileDirname}",
+        "args": [
+            "-test.v",
+            "-test.failfast",
+            "-test.count=1",
+            "-test.timeout=0",
+            "-test.run",
+            "${selectedText}"
+        ],
+        "env": {
+            "AEROLAB_CLOUD": "gcp",
+            "AWS_PROFILE": "eks",
+            "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
+            "GCP_PROJECT": "aerolab-test-project-1",
+            "AEROLAB_GCP_TEST_REGIONS": "us-central1",
+            "AEROLAB_SKIP_CLEANUP": "true",
+            "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
+        },
+        "showLog": true
+    },
+    {
+        "name": "Test pattern",
+        "type": "go",
+        "request": "launch",
+        "mode": "test",
+        "args": ["-test.failfast", "-test.v", "-test.run", "${input:testPattern}", "-test.count=1", "-test.timeout=0"],
+        "program": "${fileDirname}",
+        "env": {
+            "AEROLAB_CLOUD": "gcp",
+            "AWS_PROFILE": "eks",
+            "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
+            "GCP_PROJECT": "aerolab-test-project-1",
+            "AEROLAB_GCP_TEST_REGIONS": "us-central1",
+            "AEROLAB_SKIP_CLEANUP": "true",
+            "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
+        },
+        "showLog": true
+    }
+    ],
+    "inputs": [
+        {
+            "id": "testPattern",
+            "type": "promptString",
+            "description": "Enter test pattern to run",
+            "default": "TestInstances"
+        }
+    ]
+}

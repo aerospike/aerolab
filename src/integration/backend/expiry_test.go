@@ -6,12 +6,13 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/stretchr/testify/require"
 )
 
 type expiryTest struct{}
 
-func Test06_Expiry(t *testing.T) {
+func Test40_Expiry(t *testing.T) {
 	t.Cleanup(cleanup)
 	expiryTest := &expiryTest{}
 	t.Run("setup", testSetup)
@@ -37,55 +38,78 @@ func (e *expiryTest) testCleanupFirewalls(t *testing.T) {
 
 func (e *expiryTest) testExpiryInstall(t *testing.T) {
 	require.NoError(t, setup(false))
-	err := testBackend.ExpiryInstall(backends.BackendTypeAWS, 2, 6, true, true, true, true, Options.TestRegions...)
+	eksCtl := false
+	if backendType == backends.BackendTypeAWS {
+		eksCtl = true
+	}
+	err := testBackend.ExpiryInstall(backendType, 2, 6, eksCtl, true, true, true, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
 	require.NoError(t, err)
 	require.Equal(t, len(expiryList.ExpirySystems), len(Options.TestRegions))
 	for _, expiry := range expiryList.ExpirySystems {
 		require.Equal(t, expiry.InstallationSuccess, true)
-		require.Equal(t, expiry.BackendType, backends.BackendTypeAWS)
+		require.Equal(t, expiry.BackendType, backendType)
 		require.Contains(t, Options.TestRegions, expiry.Zone)
 		require.Equal(t, expiry.FrequencyMinutes, 2)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
+		if backendType == backends.BackendTypeAWS {
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, eksCtl)
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
+		} else if backendType == backends.BackendTypeGCP {
+			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).LogLevel, 6)
+			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).CleanupDNS, true)
+		}
 	}
 }
 
 func (e *expiryTest) testExpiryChangeFrequency(t *testing.T) {
 	require.NoError(t, setup(false))
-	err := testBackend.ExpiryChangeFrequency(backends.BackendTypeAWS, 1, Options.TestRegions...)
+	err := testBackend.ExpiryChangeFrequency(backendType, 1, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
 	require.NoError(t, err)
 	require.Equal(t, len(expiryList.ExpirySystems), len(Options.TestRegions))
 	for _, expiry := range expiryList.ExpirySystems {
 		require.Equal(t, expiry.InstallationSuccess, true)
-		require.Equal(t, expiry.BackendType, backends.BackendTypeAWS)
+		require.Equal(t, expiry.BackendType, backendType)
 		require.Contains(t, Options.TestRegions, expiry.Zone)
 		require.Equal(t, expiry.FrequencyMinutes, 1)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
+		if backendType == backends.BackendTypeAWS {
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
+		} else if backendType == backends.BackendTypeGCP {
+			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).LogLevel, 6)
+			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).CleanupDNS, true)
+		}
 	}
 }
 
 func (e *expiryTest) testExpiryUpgrade(t *testing.T) {
 	require.NoError(t, setup(false))
-	err := testBackend.ExpiryInstall(backends.BackendTypeAWS, 10, 5, true, true, true, true, Options.TestRegions...)
+	eksCtl := false
+	if backendType == backends.BackendTypeAWS {
+		eksCtl = true
+	}
+	err := testBackend.ExpiryInstall(backendType, 10, 5, eksCtl, true, true, true, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
 	require.NoError(t, err)
 	require.Equal(t, len(expiryList.ExpirySystems), len(Options.TestRegions))
 	for _, expiry := range expiryList.ExpirySystems {
 		require.Equal(t, expiry.InstallationSuccess, true)
-		require.Equal(t, expiry.BackendType, backends.BackendTypeAWS)
+		require.Equal(t, expiry.BackendType, backendType)
 		require.Contains(t, Options.TestRegions, expiry.Zone)
 		require.Equal(t, expiry.FrequencyMinutes, 1)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
+		if backendType == backends.BackendTypeAWS {
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 6)
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, true)
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, true)
+		} else if backendType == backends.BackendTypeGCP {
+			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).LogLevel, 6)
+			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).CleanupDNS, true)
+		}
 	}
 }
 
@@ -93,18 +117,26 @@ func (e *expiryTest) testCreateInstance(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
+	placement := Options.TestRegions[0] + "a"
+	itype := "r6a.large"
+	disks := []string{"type=gp2,size=20,count=1"}
+	if cloud == "gcp" {
+		placement = Options.TestRegions[0] + "-a"
+		itype = "e2-standard-4"
+		disks = []string{"type=pd-ssd,size=20,count=1"}
+	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
 		Name:             "test-instance",
 		Nodes:            1,
 		Image:            image,
-		NetworkPlacement: Options.TestRegions[0],
+		NetworkPlacement: placement,
 		Firewalls:        []string{},
-		BackendType:      backends.BackendTypeAWS,
-		InstanceType:     "r6a.large",
+		BackendType:      backendType,
+		InstanceType:     itype,
 		Owner:            "test-owner",
 		Description:      "test-description",
-		Disks:            []string{"type=gp2,size=20,count=1"},
+		Disks:            disks,
 		Expires:          time.Now().Add(90 * time.Second),
 	}, 2*time.Minute)
 	require.NoError(t, err)
@@ -118,20 +150,26 @@ func (e *expiryTest) testCreateInstance(t *testing.T) {
 func (e *expiryTest) testCreateAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
+	diskType := "gp2"
+	placement := Options.TestRegions[0]
+	if cloud == "gcp" {
+		diskType = "pd-ssd"
+		placement = placement + "-a"
+	}
 	_, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
-		BackendType:       backends.BackendTypeAWS,
+		BackendType:       backendType,
 		VolumeType:        backends.VolumeTypeAttachedDisk,
 		Name:              "test-attached-volume",
 		Description:       "test-description",
 		SizeGiB:           10,
-		Placement:         Options.TestRegions[0],
+		Placement:         placement,
 		Iops:              0,
 		Throughput:        0,
 		Owner:             "test-owner",
 		Tags:              map[string]string{},
 		Encrypted:         false,
 		Expires:           time.Now().Add(60 * time.Second),
-		DiskType:          "gp2",
+		DiskType:          diskType,
 		SharedDiskOneZone: false,
 	})
 	require.NoError(t, err)
@@ -142,6 +180,10 @@ func (e *expiryTest) testCreateAttachedVolume(t *testing.T) {
 
 func (e *expiryTest) testCreateSharedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if backendType == backends.BackendTypeGCP {
+		t.Skip("GCP does not support shared volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	_, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
 		BackendType:       backends.BackendTypeAWS,
@@ -175,28 +217,35 @@ func (e *expiryTest) testWaitForExpiry(t *testing.T) {
 	require.Equal(t, inst.Count(), 0)
 	vol := testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 0)
-	vol = testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
-	require.Equal(t, vol.Count(), 0)
+	if backendType == backends.BackendTypeAWS {
+		vol = testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
+		require.Equal(t, vol.Count(), 0)
+	}
 }
 
 func (e *expiryTest) testExpiryChangeConfiguration(t *testing.T) {
 	require.NoError(t, setup(false))
-	err := testBackend.ExpiryChangeConfiguration(backends.BackendTypeAWS, 3, false, false, Options.TestRegions...)
+	err := testBackend.ExpiryChangeConfiguration(backendType, 3, false, false, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
 	require.NoError(t, err)
 	require.Equal(t, len(expiryList.ExpirySystems), len(Options.TestRegions))
 	for _, expiry := range expiryList.ExpirySystems {
 		require.Equal(t, expiry.InstallationSuccess, true)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 3)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, false)
-		require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, false)
+		if backendType == backends.BackendTypeAWS {
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).LogLevel, 3)
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).ExpireEksctl, false)
+			require.Equal(t, expiry.BackendSpecific.(*baws.ExpiryDetail).CleanupDNS, false)
+		} else if backendType == backends.BackendTypeGCP {
+			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).LogLevel, 3)
+			require.Equal(t, expiry.BackendSpecific.(*bgcp.ExpirySystemDetail).CleanupDNS, false)
+		}
 	}
 }
 
 func (e *expiryTest) testExpiryRemove(t *testing.T) {
 	require.NoError(t, setup(false))
-	err := testBackend.ExpiryRemove(backends.BackendTypeAWS, Options.TestRegions...)
+	err := testBackend.ExpiryRemove(backendType, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
 	require.NoError(t, err)

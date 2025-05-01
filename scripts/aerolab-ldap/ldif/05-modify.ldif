@@ -1,4 +1,0 @@
-dn: cn=read-write-udf,dc=aerospike,dc=com
-changetype: modify
-add: memberuid
-memberuid: badwan

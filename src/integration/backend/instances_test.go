@@ -12,10 +12,9 @@ import (
 )
 
 // test cases
-func Test01_Instances(t *testing.T) {
+func Test15_Instances(t *testing.T) {
 	t.Cleanup(cleanup)
 	t.Run("setup", testSetup)
-	t.Run("inventory print", testInventoryPrint)
 	t.Run("inventory empty", testInventoryEmpty)
 	t.Run("create instance get price", testCreateInstanceGetPrice)
 	t.Run("create 3 instances", testCreateInstance)

@@ -255,3 +255,13 @@ func testInventoryPrint(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Printf("%s\n", string(j))
 }
+
+func testExpiriesPrint(t *testing.T) {
+	require.NoError(t, setup(false))
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	expiries, err := testBackend.ExpiryList()
+	require.NoError(t, err)
+	j, err := json.MarshalIndent(expiries, "", "  ")
+	require.NoError(t, err)
+	fmt.Printf("%s\n", string(j))
+}

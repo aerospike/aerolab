@@ -12,7 +12,7 @@ import (
 
 type imageTest struct{}
 
-func Test03_Images(t *testing.T) {
+func Test25_Images(t *testing.T) {
 	t.Cleanup(cleanup)
 	imageTest := &imageTest{}
 	t.Run("setup", testSetup)
