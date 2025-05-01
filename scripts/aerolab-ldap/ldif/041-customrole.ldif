@@ -1,4 +1,0 @@
-dn: cn=customrole,dc=aerospike,dc=com
-objectClass: top
-objectClass: posixGroup
-gidNumber: 683

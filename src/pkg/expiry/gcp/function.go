@@ -12,8 +12,15 @@ import (
 	_ "embed"
 )
 
+//go:embed bootstrap
+var bootstrap []byte
+
 func init() {
-	functions.HTTP("AerolabExpire", aerolabExpire)
+	err := os.WriteFile("expiry", bootstrap, 0755)
+	if err != nil {
+		log.Fatalf("Failed to write binary: %v", err)
+	}
+	functions.HTTP("aerolabExpire", aerolabExpire)
 }
 
 func aerolabExpire(w http.ResponseWriter, r *http.Request) {
@@ -28,10 +35,10 @@ func aerolabExpire(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Incorrect input token", http.StatusBadRequest)
 		return
 	}
-	os.Chmod("bootstrap", 0755)
-	out, err := exec.Command("./bootstrap").CombinedOutput()
+	os.Chmod("expiry", 0755)
+	out, err := exec.Command("./expiry").CombinedOutput()
 	if err != nil {
-		log.Printf("Failed to run bootstrap: %v", err)
+		log.Printf("Failed to run expiry: %v", err)
 		log.Print(string(out))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
