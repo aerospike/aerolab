@@ -1,8 +1,13 @@
 package clouds
 
 type Credentials struct {
-	AWS AWS `yaml:"aws" json:"aws"`
-	GCP GCP `yaml:"gcp" json:"gcp"`
+	AWS    AWS    `yaml:"aws" json:"aws"`
+	GCP    GCP    `yaml:"gcp" json:"gcp"`
+	DOCKER DOCKER `yaml:"docker" json:"docker"`
+}
+
+type DOCKER struct {
+	// TODO: Add docker credentials
 }
 
 type AWS struct {
