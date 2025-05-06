@@ -637,14 +637,14 @@ func (c *volumeExecMountCmd) installEFSUtilsDeb() error {
 		return nil
 	}
 	// deps
-	command := []string{"/bin/bash", "-c", "apt-get update && apt-get -y install git binutils rustc cargo pkg-config libssl-dev"}
+	command := []string{"/bin/bash", "-c", "ln -fs /usr/share/zoneinfo/UTC /etc/localtime && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install git binutils pkg-config libssl-dev wget gcc gettext-base && wget -Orustup.sh https://sh.rustup.rs && bash rustup.sh -y"}
 	out, err := exec.Command(command[0], command[1:]...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %s", err, string(out))
 	}
 	// git clone
 	if _, err := os.Stat("efs-utils"); err != nil {
-		command := []string{"git", "clone", "--depth", "1", "--branch", "v2.1.0", "https://github.com/aws/efs-utils"}
+		command := []string{"git", "clone", "--depth", "1", "--branch", "v2.3.0", "https://github.com/aws/efs-utils"}
 		out, err := exec.Command(command[0], command[1:]...).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("%s: %s", err, string(out))
@@ -652,14 +652,14 @@ func (c *volumeExecMountCmd) installEFSUtilsDeb() error {
 	}
 
 	// compile
-	command = []string{"/bin/bash", "-c", "cd efs-utils && ./build-deb.sh"}
+	command = []string{"/bin/bash", "-c", "export PATH=$PATH:/root/.cargo/bin && cd efs-utils && ./build-deb.sh"}
 	out, err = exec.Command(command[0], command[1:]...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %s", err, string(out))
 	}
 
 	// install
-	command = []string{"/bin/bash", "-c", "apt-get update && apt-get -y install ./efs-utils/build/amazon-efs-utils*deb"}
+	command = []string{"/bin/bash", "-c", "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y install ./efs-utils/build/amazon-efs-utils*deb"}
 	out, err = exec.Command(command[0], command[1:]...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %s", err, string(out))
