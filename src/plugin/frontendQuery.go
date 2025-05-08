@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v7"
+	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/bestmethod/logger"
 	"github.com/rglonek/sbs"
 )

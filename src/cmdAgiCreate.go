@@ -95,7 +95,7 @@ type agiCreateCmd struct {
 	MonitorAutoCertEmail    string               `long:"monitor-autocert-email" description:"Monitor Creation: TLS: if autocert is specified, specify a valid email address to use with letsencrypt" simplemode:"false"`
 	MonitorCertFile         string               `long:"monitor-cert-file" description:"Monitor Creation: TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile" simplemode:"false"` // TLS: cert file (if not using autocert), default: snakeoil
 	MonitorKeyFile          string               `long:"monitor-key-file" description:"Monitor Creation: TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile" simplemode:"false"`           // TLS: key file (if not using autocert), default: snakeoil
-	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
+	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"8.0.0.*"`
 	Distro                  TypeDistro           `short:"d" long:"distro" description:"Custom distro" default:"ubuntu" simplemode:"false"`
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool                 `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`

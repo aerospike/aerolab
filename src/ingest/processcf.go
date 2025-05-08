@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/aerospike/aerospike-client-go/v7"
+	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 	"github.com/gabriel-vasile/mimetype"
