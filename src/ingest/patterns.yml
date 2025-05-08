@@ -309,6 +309,18 @@ defs:
             export:
                 - "quiesced this (?P<thisQuiesce>\\d+) node"
         -
+            setName: "principal"
+            search: "principal node - applied new succession list"
+            replace:
+                -
+                    regex: " principal node - applied new succession list"
+                    sub: " principal node - 1 applied new succession list"
+                -
+                    regex: " non-principal node - applied new succession list"
+                    sub: " non-principal node - 0 applied new succession list"
+            export:
+                - "principal node - (?P<thisPrinc>\\d+) applied new succession list"
+        -
             setName: "restarts"
             labels:
                 - "build"
@@ -642,6 +654,10 @@ defs:
             setName: "truncate"
             search: "truncat"
             export:
+                - "{(?P<Namespace>[^}]+)\\|[^ ]+} got command to truncate to now \\((?P<truncStart>\\d+)\\)"
+                - "{(?P<Namespace>[^}]+)\\|[^ ]+} got command to truncate to (?P<truncStart>\\d+)"
+                - "{(?P<Namespace>[^}]+)\\|[^ ]+} truncating to (?P<truncNow>\\d+) on (?P<truncThread>\\d+) threads"
+                - "{(?P<Namespace>[^}]+)\\|[^ ]+} done truncate to (?P<truncEnd>\\d+) deleted (?P<truncDel>\\d+)"
                 - "{(?P<Namespace>[^}]+)} got command to truncate to now \\((?P<truncStart>\\d+)\\)"
                 - "{(?P<Namespace>[^}]+)} got command to truncate to (?P<truncStart>\\d+)"
                 - "{(?P<Namespace>[^}]+)} truncating to (?P<truncNow>\\d+) on (?P<truncThread>\\d+) threads"

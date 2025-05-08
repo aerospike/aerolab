@@ -10,7 +10,7 @@ import (
 	"runtime/pprof"
 	"sync"
 
-	"github.com/aerospike/aerospike-client-go/v7"
+	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/bestmethod/logger"
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
@@ -110,6 +110,27 @@ func Init(config *Config) (*Ingest, error) {
 		config:   config,
 		patterns: p,
 		progress: new(Progress),
+		binList: &binList{
+			BinNames: []string{
+				"BINLIST",
+				"cfName",
+				"summary",
+				"health",
+				"conffile",
+				"sysinfo",
+				"build",
+				"clientConns",
+				"ip",
+				"migrations",
+				"nodeId",
+				"uptime",
+				"integrity",
+				"clusterKey",
+				"principal",
+				"clusterSize",
+				"clusterName",
+			},
+		},
 	}
 	logger.Debug("INIT: Connect to backend")
 	err = i.dbConnect()
@@ -117,6 +138,24 @@ func Init(config *Config) (*Ingest, error) {
 		return nil, fmt.Errorf("could not connect to the database: %s", err)
 	}
 	logger.Debug("INIT: Backend connected")
+	// load the bin list
+	bkey, err := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "BINLIST")
+	if err != nil {
+		return nil, fmt.Errorf("could not create key for bin list: %s", err)
+	}
+	bbin, err := i.db.Get(nil, bkey, "BINLIST")
+	if err != nil {
+		logger.Debug("INIT: could not get bin list: %s", err)
+	} else {
+		aBinList := []string{}
+		err = json.Unmarshal([]byte(bbin.Bins["BINLIST"].(string)), &aBinList)
+		if err != nil {
+			logger.Debug("INIT: could not unmarshal bin list: %s", err)
+		} else {
+			i.binList.BinNames = aBinList
+			logger.Debug("INIT: Existing bin list loaded")
+		}
+	}
 	if config.CPUProfilingOutputFile != "" {
 		logger.Debug("INIT: Enabling CPU profiling")
 		var err error
