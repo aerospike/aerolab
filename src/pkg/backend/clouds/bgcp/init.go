@@ -15,6 +15,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
+	"github.com/aerospike/aerolab/pkg/counters"
 	"github.com/aerospike/aerolab/pkg/file"
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
@@ -40,6 +41,7 @@ type b struct {
 	listAllProjects     bool
 	allZones            []string
 	defaultFWCreateLock sync.Mutex
+	createInstanceCount *counters.Int
 }
 
 func init() {
@@ -73,6 +75,7 @@ func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project strin
 	s.workDir = workDir
 	s.invalidateCacheFunc = invalidateCacheFunc
 	s.listAllProjects = listAllProjects
+	s.createInstanceCount = counters.NewInt(0)
 	// read regions
 	err := s.setConfigRegions()
 	if err != nil {

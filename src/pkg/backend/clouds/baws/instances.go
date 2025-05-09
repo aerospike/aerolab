@@ -41,9 +41,9 @@ type InstanceDetail struct {
 	SpotInstanceRequestId string                    `yaml:"spotInstanceRequestID" json:"spotInstanceRequestID"`
 	LifecycleType         string                    `yaml:"lifecycleType" json:"lifecycleType"`
 	Volumes               []instanceVolume          `yaml:"volumes" json:"volumes"`
-	FirewallList          backends.FirewallList     `yaml:"firewallList" json:"firewallList"`
-	Network               *backends.Network         `yaml:"network" json:"network"`
-	Subnet                *backends.Subnet          `yaml:"subnet" json:"subnet"`
+	FirewallIDs           []string                  `yaml:"firewallIDs" json:"firewallIDs"`
+	NetworkID             string                    `yaml:"networkID" json:"networkID"`
+	SubnetID              string                    `yaml:"subnetID" json:"subnetID"`
 }
 
 type instanceVolume struct {
@@ -122,13 +122,6 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 			sub = ssub[0]
 		}
 	}
-	fwPointers := backends.FirewallList{}
-	for _, fw := range firewalls {
-		fwx := firewallList.WithFirewallID(fw)
-		if fwx.Count() > 0 {
-			fwPointers = append(fwPointers, fwx.Describe()[0])
-		}
-	}
 	var customDns *backends.InstanceDNS
 	if tags[TAG_DNS_DOMAIN_NAME] != "" {
 		customDns = &backends.InstanceDNS{
@@ -190,9 +183,9 @@ func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backend
 			SpotInstanceRequestId: aws.ToString(inst.SpotInstanceRequestId),
 			LifecycleType:         string(inst.InstanceLifecycle),
 			Volumes:               volslist,
-			FirewallList:          fwPointers,
-			Network:               net,
-			Subnet:                sub,
+			FirewallIDs:           firewalls,
+			NetworkID:             net.NetworkId,
+			SubnetID:              sub.SubnetId,
 		},
 	}
 }
@@ -461,7 +454,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 	}
 
 	// if no more instances exist for this project, delete the ssh key from amazon and locally from filepath.Join(s.sshKeysDir, s.project)
-	if removeSSHKey {
+	if removeSSHKey && s.createInstanceCount.Get() == 0 {
 		log.Detail("Remove SSH keys as no more instances exist for this project")
 		os.Remove(filepath.Join(s.sshKeysDir, s.project))
 		os.Remove(filepath.Join(s.sshKeysDir, s.project+".pub"))
@@ -938,6 +931,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	log := s.log.WithPrefix("CreateInstances: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
+	s.createInstanceCount.Inc()
+	defer s.createInstanceCount.Dec()
 
 	// early check - DNS
 	if input.CustomDNS != nil && input.CustomDNS.Name != "" && input.Nodes > 1 {
@@ -1134,7 +1129,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 
 	if len(blockDeviceMappings) > 0 {
-		// TODO: modify the first block device mapping to be the root volume
+		// modify the first block device mapping to be the root volume
 		blockDeviceMappings[0].DeviceName = aws.String(input.Image.BackendSpecific.(*ImageDetail).RootDeviceName)
 	}
 

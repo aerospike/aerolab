@@ -9,6 +9,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike/aerolab/pkg/counters"
 	"github.com/aerospike/aerolab/pkg/file"
 	"github.com/rglonek/logger"
 )
@@ -29,6 +30,7 @@ type b struct {
 	workDir             string
 	invalidateCacheFunc func(names ...string) error
 	listAllProjects     bool
+	createInstanceCount *counters.Int
 }
 
 func init() {
@@ -55,6 +57,7 @@ func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project strin
 	s.workDir = workDir
 	s.invalidateCacheFunc = invalidateCacheFunc
 	s.listAllProjects = listAllProjects
+	s.createInstanceCount = counters.NewInt(0)
 	// read regions
 	err := s.setConfigRegions()
 	if err != nil {

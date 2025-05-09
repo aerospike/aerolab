@@ -15,9 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// TODO: expiry: telemetry if enabled
-// TODO: backend: telemetry if enabled
-
 type InstanceTypeList []*InstanceType
 
 type InstanceType struct {
@@ -125,19 +122,25 @@ type Cloud interface {
 }
 
 type Backend interface {
-	GetInventory() *Inventory
+	// inventory handling
+	GetInventory() *Inventory                   // get currently cached inventory
+	ForceRefreshInventory() error               // force refresh all inventory items from backends
+	RefreshChangedInventory() error             // refresh inventory items which have been marked as changed by actions
+	GetRefreshedInventory() (*Inventory, error) // refresh changed inventory and get the new inventory
+	// region handling
 	AddRegion(backendType BackendType, names ...string) error
 	RemoveRegion(backendType BackendType, names ...string) error
 	ListEnabledRegions(backendType BackendType) (name []string, err error)
-	ForceRefreshInventory() error   // force refresh all inventory items from backends
-	RefreshChangedInventory() error // refresh inventory items which have been marked as changed by actions
+	// create actions
 	CreateFirewall(input *CreateFirewallInput, waitDur time.Duration) (*CreateFirewallOutput, error)
 	CreateVolume(input *CreateVolumeInput) (*CreateVolumeOutput, error)
 	CreateVolumeGetPrice(input *CreateVolumeInput) (costGB float64, err error)
 	CreateImage(input *CreateImageInput, waitDur time.Duration) (*CreateImageOutput, error)
 	CreateInstances(input *CreateInstanceInput, waitDur time.Duration) (*CreateInstanceOutput, error)
 	CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error)
-	CleanupDNS() error // cleanup stale DNS records, if spot instances are being used, this is normally run by the expiry handler
+	// cleanup
+	CleanupDNS() error                                    // cleanup stale DNS records, if spot instances are being used, this is normally run by the expiry handler
+	DeleteProjectResources(backendType BackendType) error // delete all resources in the project in the given backend type, this does NOT remove the ExpirySystem which is project-agnostic
 	// expiry
 	ExpiryInstall(backendType BackendType, intervalMinutes int, logLevel int, expireEksctl bool, cleanupDNS bool, force bool, onUpdateKeepOriginalSettings bool, zones ...string) error // if force is false, it will only install if previous installation was failed or version is different
 	ExpiryRemove(backendType BackendType, zones ...string) error
@@ -449,6 +452,11 @@ func (b *backend) poll(items []string) []error {
 	return errs
 }
 
+func (b *backend) GetRefreshedInventory() (*Inventory, error) {
+	err := b.RefreshChangedInventory()
+	return b.GetInventory(), err
+}
+
 func (b *backend) GetInventory() *Inventory {
 	networks := NetworkList{}
 	for _, v := range b.networks {
@@ -543,5 +551,40 @@ func (b *backend) invalidate(items ...string) error {
 		return err
 	}
 	log.Debug("Invalidated, returning")
+	return nil
+}
+
+func (b *backend) DeleteProjectResources(backendType BackendType) error {
+	log := b.log.WithPrefix("DeleteProjectResources ")
+	log.Debug("Deleting project resources for backend type: %v", backendType)
+	err := b.ForceRefreshInventory()
+	if err != nil {
+		return err
+	}
+	inventory := b.GetInventory()
+	err = inventory.Instances.WithBackendType(backendType).WithNotState(LifeCycleStateTerminated).Terminate(time.Minute * 10)
+	if err != nil {
+		return err
+	}
+	inventory, err = b.GetRefreshedInventory()
+	if err != nil {
+		return err
+	}
+	err = inventory.Volumes.WithBackendType(backendType).DeleteVolumes(inventory.Firewalls.Describe(), time.Minute*10)
+	if err != nil {
+		return err
+	}
+	err = inventory.Images.WithBackendType(backendType).DeleteImages(time.Minute * 10)
+	if err != nil {
+		return err
+	}
+	err = inventory.Firewalls.WithBackendType(backendType).Delete(time.Minute * 10)
+	if err != nil {
+		return err
+	}
+	err = b.CleanupDNS()
+	if err != nil {
+		return err
+	}
 	return nil
 }
