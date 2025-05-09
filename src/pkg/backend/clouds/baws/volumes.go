@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -755,7 +756,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					}
 				}
 				// resolve default firewall that instances use in the given VPC
-				defaultFwName := TAG_FIREWALL_NAME_PREFIX + s.project + "_" + instance.BackendSpecific.(*InstanceDetail).Network.NetworkId
+				defaultFwName := TAG_FIREWALL_NAME_PREFIX + s.project + "_" + instance.BackendSpecific.(*InstanceDetail).NetworkID
 				fw := s.firewalls.WithName(defaultFwName).Describe()
 				if len(fw) == 0 {
 					reterr = errors.Join(reterr, fmt.Errorf("default security group for volume-network(vpc) %s not found", defaultFwName))
@@ -770,7 +771,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					// create mount target
 					_, err = cli.CreateMountTarget(context.TODO(), &efs.CreateMountTargetInput{
 						FileSystemId:   aws.String(id.FileSystemId),
-						SubnetId:       aws.String(instance.BackendSpecific.(*InstanceDetail).Subnet.SubnetId),
+						SubnetId:       aws.String(instance.BackendSpecific.(*InstanceDetail).SubnetID),
 						SecurityGroups: []string{secGroupId},
 					})
 					if err != nil {
@@ -779,7 +780,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					}
 				}
 				// check if the security group is assigned to instance; if not, assign it
-				if instance.BackendSpecific.(*InstanceDetail).FirewallList.WithFirewallID(secGroupId).Count() == 0 {
+				if !slices.Contains(instance.BackendSpecific.(*InstanceDetail).FirewallIDs, secGroupId) {
 					err = instance.AssignFirewalls(backends.FirewallList{{
 						FirewallID: secGroupId,
 					}})
