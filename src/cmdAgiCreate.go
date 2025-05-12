@@ -488,6 +488,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			break
 		}
 		if foundVol != nil {
+			if v, ok := foundVol.Tags["aerolab7agiav"]; ok {
+				c.AerospikeVersion = TypeAerospikeVersion(v)
+			} else {
+				c.AerospikeVersion = "6.4.0.26" // do not break the existing behaviour, if we are missing a version sticker, default to old version on AGI restarts with existing volumes
+			}
 			c.Aws.InstanceType = foundVol.Tags["agiinstance"]
 			c.Gcp.InstanceType = foundVol.Tags["agiinstance"]
 			if foundVol.Tags["aginodim"] == "true" {
@@ -683,10 +688,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	if a.opts.Config.Backend.Type == "aws" {
 		a.opts.Cluster.Create.volExtraTags = map[string]string{
-			"agiinstance": c.Aws.InstanceType,
-			"aginodim":    fmt.Sprintf("%t", c.NoDIM),
-			"termonpow":   fmt.Sprintf("%t", c.Aws.TerminateOnPoweroff),
-			"isspot":      fmt.Sprintf("%t", c.Aws.SpotInstance),
+			"agiinstance":   c.Aws.InstanceType,
+			"aginodim":      fmt.Sprintf("%t", c.NoDIM),
+			"termonpow":     fmt.Sprintf("%t", c.Aws.TerminateOnPoweroff),
+			"isspot":        fmt.Sprintf("%t", c.Aws.SpotInstance),
+			"aerolab7agiav": c.AerospikeVersion.String(),
 		}
 	} else if a.opts.Config.Backend.Type == "gcp" {
 		a.opts.Cluster.Create.volExtraTags = map[string]string{
