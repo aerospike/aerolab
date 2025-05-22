@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v7"
+	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/gabriel-vasile/mimetype"
 )
 
@@ -23,6 +23,13 @@ type Ingest struct {
 	wp           *aerospike.WritePolicy
 	end          bool
 	endLock      *sync.Mutex
+	binList      *binList
+}
+
+type binList struct {
+	lock     sync.Mutex
+	BinNames []string `json:"binNames"`
+	changed  bool
 }
 
 type lineErrors struct {

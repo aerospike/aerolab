@@ -5430,7 +5430,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "11.2.0"
+      "version": "11.2.6"
     },
     {
       "type": "datasource",
@@ -5589,7 +5589,7 @@
         "content": "<center><h1><font color=yellow>${ClusterName}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "11.2.6",
       "targets": [
         {
           "datasource": {
@@ -5624,7 +5624,7 @@
         "content": "<center><h1><font color=green>${Label}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "11.2.6",
       "targets": [
         {
           "datasource": {
@@ -5659,7 +5659,7 @@
         "content": "<center><pre><h2><font color=green>${Sources}</font></h2></pre></center>",
         "mode": "html"
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "11.2.6",
       "targets": [
         {
           "datasource": {
@@ -5696,7 +5696,7 @@
         "content": "<center><h1><font color=orange>${TimeRange}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "11.2.6",
       "targets": [
         {
           "datasource": {
@@ -5861,6 +5861,105 @@
             "uid": "GQq4KWPVk"
           },
           "title": "Quiesced Node Count during Rebalance"
+        },
+        {
+          "datasource": {
+            "type": "simpod-json-datasource",
+            "uid": "${DS_JSON}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "barWidthFactor": 0.6,
+                "drawStyle": "points",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineStyle": {
+                  "fill": "solid"
+                },
+                "lineWidth": 1,
+                "pointSize": 10,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 12,
+            "x": 0,
+            "y": 27
+          },
+          "id": 89,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "table",
+              "placement": "right",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "simpod-json-datasource",
+                "uid": "${DS_JSON}"
+              },
+              "editorMode": "code",
+              "payload": "{\n  \"filterBy\":[{\n      \"name\": \"NodeIdent\",\n      \"mustExist\": true\n    },\n    {\n      \"name\": \"ClusterName\",\n      \"mustExist\": true\n    }],\n    \"timestampBinName\": \"timestamp\",\n    \"groupBy\": [{\n    \t\"name\": \"ClusterName\",\n    \t\"required\": true\n    },{\n    \t\"name\": \"NodeIdent\",\n    \t\"required\": true    \n    }],\n    \"bins\": [{\n      \"name\": \"thisPrinc\",\n      \"displayName\": \"\",\n      \"type\": \"number\",\n      \"required\": true,\n      \"singlarSeriesExtend\": \"$SingularSeriesExtend\",\n    \"maxIntervalSeconds\": $MaxIntervalSeconds\n    }]\n}",
+              "refId": "A",
+              "target": "principal"
+            }
+          ],
+          "title": "Principal Node",
+          "type": "timeseries"
         }
       ],
       "title": "Cluster",
@@ -6236,8 +6335,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
