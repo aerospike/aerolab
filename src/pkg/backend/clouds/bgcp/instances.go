@@ -26,8 +26,6 @@ import (
 	"github.com/aerospike/aerolab/pkg/parallelize"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/structtags"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
 	"github.com/rglonek/logger"
@@ -849,6 +847,9 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 			switch input.BackendSpecificParams[backends.BackendTypeGCP].(type) {
 			case *CreateInstanceParams:
 				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeGCP].(*CreateInstanceParams)
+			case CreateInstanceParams:
+				item := input.BackendSpecificParams[backends.BackendTypeGCP].(CreateInstanceParams)
+				backendSpecificParams = &item
 			default:
 				return 0, 0, fmt.Errorf("invalid backend-specific parameters for gcp")
 			}
@@ -979,14 +980,14 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 			if err != nil {
 				return nil, fmt.Errorf("invalid disk definition %s - iops must be a number", diskDef)
 			}
-			iops = aws.Int32(int32(i))
+			iops = proto.Int32(int32(i))
 		}
 		if diskThroughput != "" {
 			t, err := strconv.ParseInt(diskThroughput, 10, 32)
 			if err != nil {
 				return nil, fmt.Errorf("invalid disk definition %s - throughput must be a number", diskDef)
 			}
-			throughput = aws.Int32(int32(t))
+			throughput = proto.Int32(int32(t))
 		}
 
 		for i := int64(0); i < count; i++ {
@@ -1064,6 +1065,9 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			switch input.BackendSpecificParams[backends.BackendTypeGCP].(type) {
 			case *CreateInstanceParams:
 				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeGCP].(*CreateInstanceParams)
+			case CreateInstanceParams:
+				item := input.BackendSpecificParams[backends.BackendTypeGCP].(CreateInstanceParams)
+				backendSpecificParams = &item
 			default:
 				return nil, fmt.Errorf("invalid backend-specific parameters for gcp")
 			}
@@ -1074,7 +1078,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	}
 	// early check - DNS
 	if backendSpecificParams.CustomDNS != nil && backendSpecificParams.CustomDNS.Name != "" && input.Nodes > 1 {
-		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
+		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as GCP Domains does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
 	}
 
 	vpc, subnet, az, err := s.resolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
@@ -1149,8 +1153,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				Network: vpc,
 			}, waitDur)
 			if err != nil {
-				var apiErr smithy.APIError
-				if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidGroup.Duplicate" {
+				if strings.Contains(err.Error(), "already exists") {
 					// retrieve the existing firewall
 					_, err := s.GetFirewalls(s.networks)
 					if err != nil {
@@ -1186,8 +1189,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				Network: vpc,
 			}, waitDur)
 			if err != nil {
-				var apiErr smithy.APIError
-				if errors.As(err, &apiErr) && apiErr.ErrorCode() == "InvalidGroup.Duplicate" {
+				if strings.Contains(err.Error(), "already exists") {
 					// retrieve the existing firewall
 					_, err := s.GetFirewalls(s.networks)
 					if err != nil {
@@ -1217,7 +1219,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		return nil, err
 	}
 
-	// create aws tags for ec2.CreateInstancesInput
+	// create gcp tags for ec2.CreateInstancesInput
 	gcpTags := map[string]string{
 		TAG_AEROLAB_OWNER:         input.Owner,
 		TAG_CLUSTER_NAME:          input.ClusterName,
@@ -1262,7 +1264,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	// resolve SSHKeyName
 	sshKeyPath := filepath.Join(s.sshKeysDir, s.project)
 
-	// if key does not exist in aws, create it
+	// if key does not exist in gcp, create it
 	var publicKeyBytes []byte
 	if _, err := os.Stat(sshKeyPath); os.IsNotExist(err) {
 		log.Detail("SSH key %s does not exist, creating it", sshKeyPath)

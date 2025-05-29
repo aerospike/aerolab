@@ -178,27 +178,27 @@ func (e *expiryTest) testCreateAttachedVolume(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	diskType := "gp2"
-	placement := Options.TestRegions[0]
-	if cloud == "gcp" {
-		diskType = "pd-ssd"
-		placement = placement + "-a"
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateVolumeParams{
+			DiskType:  "gp2",
+			Placement: Options.TestRegions[0],
+			SizeGiB:   10,
+		},
+		backends.BackendTypeGCP: &bgcp.CreateVolumeParams{
+			DiskType:  "pd-ssd",
+			Placement: Options.TestRegions[0] + "-a",
+			SizeGiB:   10,
+		},
 	}
 	_, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
-		BackendType:       backendType,
-		VolumeType:        backends.VolumeTypeAttachedDisk,
-		Name:              "test-attached-volume",
-		Description:       "test-description",
-		SizeGiB:           10,
-		Placement:         placement,
-		Iops:              0,
-		Throughput:        0,
-		Owner:             "test-owner",
-		Tags:              map[string]string{},
-		Encrypted:         false,
-		Expires:           time.Now().Add(60 * time.Second),
-		DiskType:          diskType,
-		SharedDiskOneZone: false,
+		BackendType:           backendType,
+		VolumeType:            backends.VolumeTypeAttachedDisk,
+		Name:                  "test-attached-volume",
+		Description:           "test-description",
+		Owner:                 "test-owner",
+		Tags:                  map[string]string{},
+		Expires:               time.Now().Add(60 * time.Second),
+		BackendSpecificParams: params,
 	})
 	require.NoError(t, err)
 	require.NoError(t, testBackend.RefreshChangedInventory())
@@ -217,21 +217,20 @@ func (e *expiryTest) testCreateSharedVolume(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateVolumeParams{
+			Placement: Options.TestRegions[0],
+		},
+	}
 	_, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
-		BackendType:       backends.BackendTypeAWS,
-		VolumeType:        backends.VolumeTypeSharedDisk,
-		Name:              "test-shared-volume",
-		Description:       "test-description",
-		SizeGiB:           100,
-		Placement:         Options.TestRegions[0],
-		Iops:              0,
-		Throughput:        0,
-		Owner:             "test-owner",
-		Tags:              map[string]string{},
-		Encrypted:         false,
-		Expires:           time.Now().Add(110 * time.Second),
-		DiskType:          "",
-		SharedDiskOneZone: false,
+		BackendType:           backends.BackendTypeAWS,
+		VolumeType:            backends.VolumeTypeSharedDisk,
+		Name:                  "test-shared-volume",
+		Description:           "test-description",
+		Owner:                 "test-owner",
+		Tags:                  map[string]string{},
+		Expires:               time.Now().Add(110 * time.Second),
+		BackendSpecificParams: params,
 	})
 	require.NoError(t, err)
 	require.NoError(t, testBackend.RefreshChangedInventory())

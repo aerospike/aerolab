@@ -14,6 +14,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/structtags"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -22,6 +23,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
 )
+
+type CreateVolumeParams struct {
+	// attached volumes only - volume size
+	SizeGiB int `yaml:"sizeGiB" json:"sizeGiB"`
+	// vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, zone: will use the default VPC, first subnet in the zone
+	Placement string `yaml:"placement" json:"placement" required:"true"`
+	// for attached disk only: gp2, gp3, etc
+	DiskType string `yaml:"diskType" json:"diskType" required:"true"`
+	// optional: attach disk only, provisioned iops
+	Iops int `yaml:"iops" json:"iops"`
+	// optional: attach disk only, bytes/second
+	Throughput int `yaml:"throughput" json:"throughput"`
+	// optional: whether the volume uses encryption
+	Encrypted bool `yaml:"encrypted" json:"encrypted"`
+	// optional: deploy the shared disk in one AZ only - limited availability, lower latency
+	SharedDiskOneZone bool `yaml:"sharedDiskOneZone" json:"sharedDiskOneZone"`
+}
 
 type VolumeDetail struct {
 	FileSystemArn        string `yaml:"fileSystemArn" json:"fileSystemArn"`
@@ -994,8 +1012,28 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 	log := s.log.WithPrefix("CreateVolumeGetPrice: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-
-	_, _, zone, err := s.resolveNetworkPlacement(input.Placement)
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateVolumeParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeAWS]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeAWS].(type) {
+			case *CreateVolumeParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeAWS].(*CreateVolumeParams)
+			case CreateVolumeParams:
+				item := input.BackendSpecificParams[backends.BackendTypeAWS].(CreateVolumeParams)
+				backendSpecificParams = &item
+			default:
+				return 0, fmt.Errorf("invalid backend-specific parameters for aws")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return 0, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
+	if backendSpecificParams.SizeGiB == 0 && input.VolumeType == backends.VolumeTypeAttachedDisk {
+		return 0, errors.New("sizeGiB is required for attached disk")
+	}
+	_, _, zone, err := s.resolveNetworkPlacement(backendSpecificParams.Placement)
 	if err != nil {
 		return 0, err
 	}
@@ -1003,14 +1041,14 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 
 	switch input.VolumeType {
 	case backends.VolumeTypeAttachedDisk:
-		price, err := s.GetVolumePrice(region, input.DiskType)
+		price, err := s.GetVolumePrice(region, backendSpecificParams.DiskType)
 		if err != nil {
 			return 0, err
 		}
 		costGB = price.PricePerGBHour
 	case backends.VolumeTypeSharedDisk:
 		zoneType := "GeneralPurpose"
-		if input.SharedDiskOneZone {
+		if backendSpecificParams.SharedDiskOneZone {
 			zoneType = "OneZone"
 		}
 		price, err := s.GetVolumePrice(region, fmt.Sprintf("SharedDisk_%s", zoneType))
@@ -1029,7 +1067,29 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	log.Detail("Start")
 	defer log.Detail("End")
 
-	_, _, zone, err := s.resolveNetworkPlacement(input.Placement)
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateVolumeParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeAWS]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeAWS].(type) {
+			case *CreateVolumeParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeAWS].(*CreateVolumeParams)
+			case CreateVolumeParams:
+				item := input.BackendSpecificParams[backends.BackendTypeAWS].(CreateVolumeParams)
+				backendSpecificParams = &item
+			default:
+				return nil, fmt.Errorf("invalid backend-specific parameters for aws")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return nil, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
+	if backendSpecificParams.SizeGiB == 0 && input.VolumeType == backends.VolumeTypeAttachedDisk {
+		return nil, errors.New("sizeGiB is required for attached disk")
+	}
+
+	_, _, zone, err := s.resolveNetworkPlacement(backendSpecificParams.Placement)
 	if err != nil {
 		return nil, err
 	}
@@ -1039,7 +1099,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	ppgb := 0.0
 	switch input.VolumeType {
 	case backends.VolumeTypeAttachedDisk:
-		price, err := s.GetVolumePrice(region, input.DiskType)
+		price, err := s.GetVolumePrice(region, backendSpecificParams.DiskType)
 		if err != nil {
 			log.Detail("error getting volume price: %s", err)
 		} else {
@@ -1050,12 +1110,12 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 			return nil, err
 		}
 		var iops *int32
-		if input.Iops > 0 {
-			iops = aws.Int32(int32(input.Iops))
+		if backendSpecificParams.Iops > 0 {
+			iops = aws.Int32(int32(backendSpecificParams.Iops))
 		}
 		var throughput *int32
-		if input.Throughput > 0 {
-			throughput = aws.Int32(int32(input.Throughput))
+		if backendSpecificParams.Throughput > 0 {
+			throughput = aws.Int32(int32(backendSpecificParams.Throughput))
 		}
 		tagsIn := make(map[string]string)
 		for k, v := range input.Tags {
@@ -1082,11 +1142,11 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		}
 		out, err := cli.CreateVolume(context.TODO(), &ec2.CreateVolumeInput{
 			AvailabilityZone:  aws.String(zone),
-			Encrypted:         aws.Bool(input.Encrypted),
+			Encrypted:         aws.Bool(backendSpecificParams.Encrypted),
 			Iops:              iops,
 			Throughput:        throughput,
-			VolumeType:        types.VolumeType(input.DiskType),
-			Size:              aws.Int32(int32(input.SizeGiB)),
+			VolumeType:        types.VolumeType(backendSpecificParams.DiskType),
+			Size:              aws.Int32(int32(backendSpecificParams.SizeGiB)),
 			TagSpecifications: tagsOut,
 		})
 		if err != nil {
@@ -1098,24 +1158,24 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 				VolumeType:          backends.VolumeTypeAttachedDisk,
 				Name:                input.Name,
 				Description:         input.Description,
-				Size:                backends.StorageSize(input.SizeGiB) * backends.StorageGiB,
+				Size:                backends.StorageSize(backendSpecificParams.SizeGiB) * backends.StorageGiB,
 				FileSystemId:        "",
 				ZoneName:            region,
 				ZoneID:              zone,
 				CreationTime:        aws.ToTime(out.CreateTime),
-				Iops:                input.Iops,
-				Throughput:          backends.StorageSize(input.Throughput),
+				Iops:                backendSpecificParams.Iops,
+				Throughput:          backends.StorageSize(backendSpecificParams.Throughput),
 				Owner:               input.Owner,
 				Tags:                tagsIn,
-				Encrypted:           input.Encrypted,
+				Encrypted:           backendSpecificParams.Encrypted,
 				Expires:             input.Expires,
-				DiskType:            input.DiskType,
+				DiskType:            backendSpecificParams.DiskType,
 				State:               backends.VolumeStateAvailable,
 				DeleteOnTermination: false,
 				AttachedTo:          nil,
 				EstimatedCostUSD: backends.CostVolume{
 					PricePerGBHour: price.PricePerGBHour,
-					SizeGB:         int64(input.SizeGiB),
+					SizeGB:         int64(backendSpecificParams.SizeGiB),
 					CreateTime:     aws.ToTime(out.CreateTime),
 				},
 				BackendSpecific: nil,
@@ -1123,7 +1183,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		}, nil
 	case backends.VolumeTypeSharedDisk:
 		zoneType := "GeneralPurpose"
-		if input.SharedDiskOneZone {
+		if backendSpecificParams.SharedDiskOneZone {
 			zoneType = "OneZone"
 		}
 		price, err := s.GetVolumePrice(region, fmt.Sprintf("SharedDisk_%s", zoneType))
@@ -1138,9 +1198,9 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		}
 		var throughputMode etypes.ThroughputMode
 		var throughput *float64
-		if input.Throughput > 0 {
+		if backendSpecificParams.Throughput > 0 {
 			throughputMode = etypes.ThroughputModeProvisioned
-			throughput = aws.Float64(float64(input.Throughput) * 8 / 1024 / 1024)
+			throughput = aws.Float64(float64(backendSpecificParams.Throughput) * 8 / 1024 / 1024)
 		} else {
 			throughputMode = etypes.ThroughputModeBursting
 		}
@@ -1165,13 +1225,13 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		}
 		var oneZone *string
 		zoneId := region
-		if input.SharedDiskOneZone {
+		if backendSpecificParams.SharedDiskOneZone {
 			oneZone = aws.String(zone)
 			zoneId = zone
 		}
 		out, err := cli.CreateFileSystem(context.TODO(), &efs.CreateFileSystemInput{
 			CreationToken:                aws.String(uuid.New().String() + fmt.Sprintf("%d", time.Now().UnixMicro())),
-			Encrypted:                    aws.Bool(input.Encrypted),
+			Encrypted:                    aws.Bool(backendSpecificParams.Encrypted),
 			ThroughputMode:               throughputMode,
 			PerformanceMode:              etypes.PerformanceModeGeneralPurpose,
 			ProvisionedThroughputInMibps: throughput,
@@ -1187,24 +1247,24 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 				VolumeType:          backends.VolumeTypeSharedDisk,
 				Name:                input.Name,
 				Description:         input.Description,
-				Size:                backends.StorageSize(input.SizeGiB) * backends.StorageGiB,
+				Size:                backends.StorageSize(backendSpecificParams.SizeGiB) * backends.StorageGiB,
 				FileSystemId:        aws.ToString(out.FileSystemId),
 				ZoneName:            region,
 				ZoneID:              zoneId,
 				CreationTime:        aws.ToTime(out.CreationTime),
-				Iops:                input.Iops,
-				Throughput:          backends.StorageSize(input.Throughput),
+				Iops:                backendSpecificParams.Iops,
+				Throughput:          backends.StorageSize(backendSpecificParams.Throughput),
 				Owner:               input.Owner,
 				Tags:                tagsIn,
-				Encrypted:           input.Encrypted,
+				Encrypted:           backendSpecificParams.Encrypted,
 				Expires:             input.Expires,
-				DiskType:            input.DiskType,
+				DiskType:            backendSpecificParams.DiskType,
 				State:               backends.VolumeStateAvailable,
 				DeleteOnTermination: false,
 				AttachedTo:          nil,
 				EstimatedCostUSD: backends.CostVolume{
 					PricePerGBHour: price.PricePerGBHour,
-					SizeGB:         int64(input.SizeGiB),
+					SizeGB:         int64(backendSpecificParams.SizeGiB),
 					CreateTime:     aws.ToTime(out.CreationTime),
 				},
 				BackendSpecific: &VolumeDetail{

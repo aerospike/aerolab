@@ -13,11 +13,25 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
+	"github.com/aerospike/aerolab/pkg/structtags"
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/proto"
 )
+
+type CreateVolumeParams struct {
+	// volume size; as GCP uses GB instead, the system will translate GiB to nearest GB and use that in GCP calls
+	SizeGiB int `yaml:"sizeGiB" json:"sizeGiB"`
+	// specify placement as zone
+	Placement string `yaml:"placement" json:"placement" required:"true"`
+	// pd-ssd, etc
+	DiskType string `yaml:"diskType" json:"diskType" required:"true"`
+	// optional: provisioned iops
+	Iops int `yaml:"iops" json:"iops"`
+	// optional: mb/second
+	Throughput int `yaml:"throughput" json:"throughput"`
+}
 
 type VolumeDetail struct {
 	LabelFingerprint string   `json:"labelFingerprint" yaml:"labelFingerprint"`
@@ -589,12 +603,33 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 	log := s.log.WithPrefix("CreateVolumeGetPrice: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateVolumeParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeGCP]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeGCP].(type) {
+			case *CreateVolumeParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeGCP].(*CreateVolumeParams)
+			case CreateVolumeParams:
+				item := input.BackendSpecificParams[backends.BackendTypeGCP].(CreateVolumeParams)
+				backendSpecificParams = &item
+			default:
+				return 0, fmt.Errorf("invalid backend-specific parameters for gcp")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return 0, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
+	if backendSpecificParams.SizeGiB == 0 && input.VolumeType == backends.VolumeTypeAttachedDisk {
+		return 0, errors.New("sizeGiB is required for attached disk")
+	}
 
-	_, _, _, err = s.resolveNetworkPlacement(input.Placement)
+	_, _, _, err = s.resolveNetworkPlacement(backendSpecificParams.Placement)
 	if err != nil {
 		return 0, err
 	}
-	region := input.Placement
+	region := backendSpecificParams.Placement
 	if strings.Count(region, "-") == 2 {
 		parts := strings.Split(region, "-")
 		region = parts[0] + "-" + parts[1]
@@ -602,21 +637,13 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 
 	switch input.VolumeType {
 	case backends.VolumeTypeAttachedDisk:
-		price, err := s.GetVolumePrice(region, input.DiskType)
+		price, err := s.GetVolumePrice(region, backendSpecificParams.DiskType)
 		if err != nil {
 			return 0, err
 		}
 		costGB = price.PricePerGBHour
 	case backends.VolumeTypeSharedDisk:
-		zoneType := "GeneralPurpose"
-		if input.SharedDiskOneZone {
-			zoneType = "OneZone"
-		}
-		price, err := s.GetVolumePrice(region, fmt.Sprintf("SharedDisk_%s", zoneType))
-		if err != nil {
-			return 0, err
-		}
-		costGB = price.PricePerGBHour
+		return 0, errors.New("shared disk not supported on GCP")
 	default:
 		return 0, errors.New("volume type invalid")
 	}
@@ -627,23 +654,44 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	log := s.log.WithPrefix("CreateVolume: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateVolumeParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeGCP]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeGCP].(type) {
+			case *CreateVolumeParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeGCP].(*CreateVolumeParams)
+			case CreateVolumeParams:
+				item := input.BackendSpecificParams[backends.BackendTypeGCP].(CreateVolumeParams)
+				backendSpecificParams = &item
+			default:
+				return nil, fmt.Errorf("invalid backend-specific parameters for gcp")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return nil, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
+	if backendSpecificParams.SizeGiB == 0 && input.VolumeType == backends.VolumeTypeAttachedDisk {
+		return nil, errors.New("sizeGiB is required for attached disk")
+	}
 
-	_, _, _, err = s.resolveNetworkPlacement(input.Placement)
+	_, _, _, err = s.resolveNetworkPlacement(backendSpecificParams.Placement)
 	if err != nil {
 		return nil, err
 	}
-	region := input.Placement
+	region := backendSpecificParams.Placement
 	if strings.Count(region, "-") == 2 {
 		parts := strings.Split(region, "-")
 		region = parts[0] + "-" + parts[1]
 	}
-	zone := input.Placement
+	zone := backendSpecificParams.Placement
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 
 	ppgb := 0.0
 	switch input.VolumeType {
 	case backends.VolumeTypeAttachedDisk:
-		price, err := s.GetVolumePrice(region, input.DiskType)
+		price, err := s.GetVolumePrice(region, backendSpecificParams.DiskType)
 		if err != nil {
 			log.Detail("error getting volume price: %s", err)
 		} else {
@@ -663,12 +711,12 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		defer client.Close()
 
 		var iops *int64
-		if input.Iops > 0 {
-			iops = proto.Int64(int64(input.Iops))
+		if backendSpecificParams.Iops > 0 {
+			iops = proto.Int64(int64(backendSpecificParams.Iops))
 		}
 		var throughput *int64
-		if input.Throughput > 0 {
-			throughput = proto.Int64(int64(input.Throughput))
+		if backendSpecificParams.Throughput > 0 {
+			throughput = proto.Int64(int64(backendSpecificParams.Throughput))
 		}
 		tagsIn := make(map[string]string)
 		for k, v := range input.Tags {
@@ -684,14 +732,14 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		tagsIn[TAG_START_TIME] = time.Now().Format(time.RFC3339)
 		labels := encodeToLabels(tagsIn)
 		labels["usedby"] = "aerolab"
-		diskTypeFull := fmt.Sprintf("zones/%s/diskTypes/%s", zone, input.DiskType)
+		diskTypeFull := fmt.Sprintf("zones/%s/diskTypes/%s", zone, backendSpecificParams.DiskType)
 		op, err := client.Insert(ctx, &computepb.InsertDiskRequest{
 			Project: s.credentials.Project,
 			Zone:    zone,
 			DiskResource: &computepb.Disk{
 				Name:                  proto.String(input.Name),
 				Labels:                labels,
-				SizeGb:                proto.Int64(int64(backends.StorageSize(input.SizeGiB) * backends.StorageGiB / backends.StorageGB)),
+				SizeGb:                proto.Int64(int64(backends.StorageSize(backendSpecificParams.SizeGiB) * backends.StorageGiB / backends.StorageGB)),
 				Zone:                  proto.String(zone),
 				ProvisionedIops:       iops,
 				ProvisionedThroughput: throughput,
@@ -711,24 +759,24 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 				VolumeType:          backends.VolumeTypeAttachedDisk,
 				Name:                input.Name,
 				Description:         input.Description,
-				Size:                backends.StorageSize(input.SizeGiB) * backends.StorageGiB,
+				Size:                backends.StorageSize(backendSpecificParams.SizeGiB) * backends.StorageGiB,
 				FileSystemId:        "",
 				ZoneName:            region,
 				ZoneID:              zone,
 				CreationTime:        time.Now(),
-				Iops:                input.Iops,
-				Throughput:          backends.StorageSize(input.Throughput),
+				Iops:                backendSpecificParams.Iops,
+				Throughput:          backends.StorageSize(backendSpecificParams.Throughput),
 				Owner:               input.Owner,
 				Tags:                input.Tags,
-				Encrypted:           input.Encrypted,
+				Encrypted:           true,
 				Expires:             input.Expires,
-				DiskType:            input.DiskType,
+				DiskType:            backendSpecificParams.DiskType,
 				State:               backends.VolumeStateAvailable,
 				DeleteOnTermination: false,
 				AttachedTo:          nil,
 				EstimatedCostUSD: backends.CostVolume{
 					PricePerGBHour: ppgb,
-					SizeGB:         int64(input.SizeGiB),
+					SizeGB:         int64(backendSpecificParams.SizeGiB),
 					CreateTime:     time.Now(),
 				},
 				BackendSpecific: nil,
