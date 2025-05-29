@@ -580,6 +580,9 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			switch input.BackendSpecificParams[backends.BackendTypeDocker].(type) {
 			case *CreateInstanceParams:
 				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeDocker].(*CreateInstanceParams)
+			case CreateInstanceParams:
+				item := input.BackendSpecificParams[backends.BackendTypeDocker].(CreateInstanceParams)
+				backendSpecificParams = &item
 			default:
 				return nil, fmt.Errorf("invalid backend-specific parameters for docker")
 			}

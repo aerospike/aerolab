@@ -10,10 +10,10 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"google.golang.org/protobuf/proto"
 )
 
 type FirewallDetail struct {
@@ -502,7 +502,7 @@ func (s *b) CreateFirewall(input *backends.CreateFirewallInput, waitDur time.Dur
 			Description: &description,
 			Allowed: []*computepb.Allowed{
 				{
-					IPProtocol: aws.String("tcp"),
+					IPProtocol: proto.String("tcp"),
 					Ports:      []string{"22"},
 				},
 			},

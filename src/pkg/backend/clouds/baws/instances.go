@@ -860,6 +860,9 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 			switch input.BackendSpecificParams[backends.BackendTypeAWS].(type) {
 			case *CreateInstanceParams:
 				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeAWS].(*CreateInstanceParams)
+			case CreateInstanceParams:
+				item := input.BackendSpecificParams[backends.BackendTypeAWS].(CreateInstanceParams)
+				backendSpecificParams = &item
 			default:
 				return 0, 0, fmt.Errorf("invalid backend-specific parameters for aws")
 			}
@@ -988,6 +991,9 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			switch input.BackendSpecificParams[backends.BackendTypeAWS].(type) {
 			case *CreateInstanceParams:
 				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeAWS].(*CreateInstanceParams)
+			case CreateInstanceParams:
+				item := input.BackendSpecificParams[backends.BackendTypeAWS].(CreateInstanceParams)
+				backendSpecificParams = &item
 			default:
 				return nil, fmt.Errorf("invalid backend-specific parameters for aws")
 			}

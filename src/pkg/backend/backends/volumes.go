@@ -11,20 +11,14 @@ import (
 )
 
 type CreateVolumeInput struct {
-	BackendType       BackendType       `yaml:"backendType" json:"backendType"`
-	VolumeType        VolumeType        `yaml:"volumeType" json:"volumeType"`
-	Name              string            `yaml:"name" json:"name"`
-	Description       string            `yaml:"description" json:"description"` // from description or tags if no description field
-	SizeGiB           int               `yaml:"sizeGiB" json:"sizeGiB"`
-	Placement         string            `yaml:"placement" json:"placement"` // vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, zone: will use the default VPC, first subnet in the zone
-	Iops              int               `yaml:"iops" json:"iops"`
-	Throughput        int               `yaml:"throughput" json:"throughput"` // bytes/second
-	Owner             string            `yaml:"owner" json:"owner"`           // from tags
-	Tags              map[string]string `yaml:"tags" json:"tags"`             // all tags
-	Encrypted         bool              `yaml:"encrypted" json:"encrypted"`
-	Expires           time.Time         `yaml:"expires" json:"expires"` // from tags
-	DiskType          string            `yaml:"diskType" json:"diskType"`
-	SharedDiskOneZone bool              `yaml:"sharedDiskOneZone" json:"sharedDiskOneZone"`
+	BackendType           BackendType                 `yaml:"backendType" json:"backendType" required:"true"`         // pick a cloud backend
+	VolumeType            VolumeType                  `yaml:"volumeType" json:"volumeType" required:"true"`           // shared or attached
+	Name                  string                      `yaml:"name" json:"name" required:"true"`                       // name of the volume
+	Description           string                      `yaml:"description" json:"description"`                         // from description or tags if no description field
+	Owner                 string                      `yaml:"owner" json:"owner"`                                     // from tags
+	Tags                  map[string]string           `yaml:"tags" json:"tags"`                                       // all tags
+	Expires               time.Time                   `yaml:"expires" json:"expires"`                                 // from tags
+	BackendSpecificParams map[BackendType]interface{} `yaml:"backendSpecific" json:"backendSpecific" required:"true"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
 type CreateVolumeOutput struct {

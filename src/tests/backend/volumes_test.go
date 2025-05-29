@@ -69,27 +69,27 @@ func (tv *testVolume) testCreateAttachedVolumeGetPrice(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	diskType := "gp2"
-	placement := Options.TestRegions[0]
-	if cloud == "gcp" {
-		diskType = "pd-ssd"
-		placement = placement + "-a"
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateVolumeParams{
+			DiskType:  "gp2",
+			Placement: Options.TestRegions[0],
+			SizeGiB:   10,
+		},
+		backends.BackendTypeGCP: &bgcp.CreateVolumeParams{
+			DiskType:  "pd-ssd",
+			Placement: Options.TestRegions[0] + "-a",
+			SizeGiB:   10,
+		},
 	}
 	price, err := testBackend.CreateVolumeGetPrice(&backends.CreateVolumeInput{
-		BackendType:       backendType,
-		VolumeType:        backends.VolumeTypeAttachedDisk,
-		Name:              "test-attached-volume",
-		Description:       "test-description",
-		SizeGiB:           10,
-		Placement:         placement,
-		Iops:              0,
-		Throughput:        0,
-		Owner:             "test-owner",
-		Tags:              map[string]string{},
-		Encrypted:         false,
-		Expires:           time.Time{},
-		DiskType:          diskType,
-		SharedDiskOneZone: false,
+		BackendType:           backendType,
+		VolumeType:            backends.VolumeTypeAttachedDisk,
+		Name:                  "test-attached-volume",
+		Description:           "test-description",
+		Owner:                 "test-owner",
+		Tags:                  map[string]string{},
+		Expires:               time.Time{},
+		BackendSpecificParams: params,
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, price, 0)
@@ -106,21 +106,20 @@ func (tv *testVolume) testCreateSharedVolumeGetPrice(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateVolumeParams{
+			Placement: Options.TestRegions[0],
+		},
+	}
 	price, err := testBackend.CreateVolumeGetPrice(&backends.CreateVolumeInput{
-		BackendType:       backendType,
-		VolumeType:        backends.VolumeTypeSharedDisk,
-		Name:              "test-shared-volume",
-		Description:       "test-description",
-		SizeGiB:           0,
-		Placement:         Options.TestRegions[0],
-		Iops:              0,
-		Throughput:        0,
-		Owner:             "test-owner",
-		Tags:              map[string]string{},
-		Encrypted:         false,
-		Expires:           time.Time{},
-		DiskType:          "",
-		SharedDiskOneZone: false,
+		BackendType:           backendType,
+		VolumeType:            backends.VolumeTypeSharedDisk,
+		Name:                  "test-shared-volume",
+		Description:           "test-description",
+		Owner:                 "test-owner",
+		Tags:                  map[string]string{},
+		Expires:               time.Time{},
+		BackendSpecificParams: params,
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, price, 0)
@@ -133,27 +132,27 @@ func (tv *testVolume) testCreateAttachedVolume(t *testing.T) {
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	diskType := "gp2"
-	placement := Options.TestRegions[0]
-	if cloud == "gcp" {
-		diskType = "pd-ssd"
-		placement = placement + "-a"
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateVolumeParams{
+			DiskType:  "gp2",
+			Placement: Options.TestRegions[0],
+			SizeGiB:   10,
+		},
+		backends.BackendTypeGCP: &bgcp.CreateVolumeParams{
+			DiskType:  "pd-ssd",
+			Placement: Options.TestRegions[0] + "-a",
+			SizeGiB:   10,
+		},
 	}
 	vol, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
-		BackendType:       backendType,
-		VolumeType:        backends.VolumeTypeAttachedDisk,
-		Name:              "test-attached-volume",
-		Description:       "test-description",
-		SizeGiB:           10,
-		Placement:         placement,
-		Iops:              0,
-		Throughput:        0,
-		Owner:             "test-owner",
-		Tags:              map[string]string{},
-		Encrypted:         false,
-		Expires:           time.Time{},
-		DiskType:          diskType,
-		SharedDiskOneZone: false,
+		BackendType:           backendType,
+		VolumeType:            backends.VolumeTypeAttachedDisk,
+		Name:                  "test-attached-volume",
+		Description:           "test-description",
+		Owner:                 "test-owner",
+		Tags:                  map[string]string{},
+		Expires:               time.Time{},
+		BackendSpecificParams: params,
 	})
 	require.NoError(t, err)
 	require.Equal(t, vol.Volume.VolumeType, backends.VolumeTypeAttachedDisk)
@@ -169,26 +168,25 @@ func (tv *testVolume) testCreateSharedVolume(t *testing.T) {
 		t.Skip("GCP does not support shared volumes")
 		return
 	}
-	dt := "gp2"
-	if cloud == "docker" {
-		dt = "local"
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateVolumeParams{
+			Placement: Options.TestRegions[0],
+		},
+		backends.BackendTypeDocker: &bdocker.CreateVolumeParams{
+			Driver:    "local",
+			Placement: Options.TestRegions[0],
+		},
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
-		BackendType:       backendType,
-		VolumeType:        backends.VolumeTypeSharedDisk,
-		Name:              "test-shared-volume",
-		Description:       "test-description",
-		SizeGiB:           0,
-		Placement:         Options.TestRegions[0],
-		Iops:              0,
-		Throughput:        0,
-		Owner:             "test-owner",
-		Tags:              map[string]string{},
-		Encrypted:         false,
-		Expires:           time.Time{},
-		DiskType:          dt,
-		SharedDiskOneZone: false,
+		BackendType:           backendType,
+		VolumeType:            backends.VolumeTypeSharedDisk,
+		Name:                  "test-shared-volume",
+		Description:           "test-description",
+		Owner:                 "test-owner",
+		Tags:                  map[string]string{},
+		Expires:               time.Time{},
+		BackendSpecificParams: params,
 	})
 	require.NoError(t, err)
 	require.Equal(t, vol.Volume.VolumeType, backends.VolumeTypeSharedDisk)

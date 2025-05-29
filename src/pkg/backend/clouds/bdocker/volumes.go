@@ -3,14 +3,23 @@ package bdocker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/structtags"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/lithammer/shortuuid"
 )
+
+type CreateVolumeParams struct {
+	// specify "region" as defined - docker instance, leave empty for default
+	Placement string `yaml:"placement" json:"placement"`
+	// volume driver, leave empty for default
+	Driver string `yaml:"driver" json:"driver"`
+}
 
 type VolumeDetail struct {
 	Docker *volume.Volume `json:"docker" yaml:"docker"`
@@ -205,9 +214,28 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	if input.VolumeType != backends.VolumeTypeSharedDisk {
 		return nil, errors.New("volume type not supported")
 	}
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateVolumeParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeDocker]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeDocker].(type) {
+			case *CreateVolumeParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeDocker].(*CreateVolumeParams)
+			case CreateVolumeParams:
+				item := input.BackendSpecificParams[backends.BackendTypeDocker].(CreateVolumeParams)
+				backendSpecificParams = &item
+			default:
+				return nil, fmt.Errorf("invalid backend-specific parameters for docker")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return nil, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
+
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 
-	cli, err := s.getDockerClient(input.Placement)
+	cli, err := s.getDockerClient(backendSpecificParams.Placement)
 	if err != nil {
 		return nil, err
 	}
@@ -222,8 +250,8 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	tagsIn[TAG_AEROLAB_PROJECT] = s.project
 	tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
 	driver := "local"
-	if input.DiskType != "" {
-		driver = input.DiskType
+	if backendSpecificParams.Driver != "" {
+		driver = backendSpecificParams.Driver
 	}
 	out, err := cli.VolumeCreate(context.Background(), volume.CreateOptions{
 		Driver:     driver,
@@ -242,8 +270,8 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 			Description:         input.Description,
 			Size:                0,
 			FileSystemId:        input.Name,
-			ZoneName:            input.Placement,
-			ZoneID:              input.Placement,
+			ZoneName:            backendSpecificParams.Placement,
+			ZoneID:              backendSpecificParams.Placement,
 			CreationTime:        time.Now(),
 			Iops:                0,
 			Throughput:          0,

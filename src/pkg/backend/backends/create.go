@@ -20,6 +20,9 @@ func (s *backend) CreateVolume(input *CreateVolumeInput) (output *CreateVolumeOu
 	defer func() {
 		s.log.Detail("CreateVolume: err=%v, took=%v", err, time.Since(start))
 	}()
+	if err := structtags.CheckRequired(input); err != nil {
+		return nil, fmt.Errorf("required fields missing: %w", err)
+	}
 	return s.enabledBackends[input.BackendType].CreateVolume(input)
 }
 
