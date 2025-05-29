@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/stretchr/testify/require"
 )
@@ -48,30 +51,36 @@ func (at *archTest) testDeployAmd64(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getArchImage(t, backends.ArchitectureX8664)
-	placement := Options.TestRegions[0] + "a"
-	itype := "r6a.large"
-	disks := []string{"type=gp2,size=20,count=1"}
-	if cloud == "gcp" {
-		placement = Options.TestRegions[0] + "-a"
-		itype = "e2-standard-4"
-		disks = []string{"type=pd-ssd,size=20,count=1"}
-	} else if cloud == "docker" {
-		placement = "default,default"
-		itype = ""
-		disks = []string{}
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "a",
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "-a",
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeDocker: &bdocker.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: "default,default",
+			Disks:            []string{},
+			Firewalls:        []string{},
+		},
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
-		ClusterName:      "test-amd64",
-		Name:             "test-amd64",
-		Nodes:            1,
-		Image:            image,
-		NetworkPlacement: placement,
-		Firewalls:        []string{},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
+		ClusterName:           "test-amd64",
+		Name:                  "test-amd64",
+		Nodes:                 1,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 1)
@@ -100,30 +109,36 @@ func (at *archTest) testDeployArm64(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getArchImage(t, backends.ArchitectureARM64)
-	placement := Options.TestRegions[0] + "a"
-	itype := "r6g.large"
-	disks := []string{"type=gp2,size=20,count=1"}
-	if cloud == "gcp" {
-		placement = Options.TestRegions[0] + "-a"
-		itype = "t2a-standard-2"
-		disks = []string{"type=pd-ssd,size=20,count=1"}
-	} else if cloud == "docker" {
-		placement = "default,default"
-		itype = ""
-		disks = []string{}
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "a",
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "-a",
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeDocker: &bdocker.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: "default,default",
+			Disks:            []string{},
+			Firewalls:        []string{},
+		},
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
-		ClusterName:      "test-arm64",
-		Name:             "test-arm64",
-		Nodes:            1,
-		Image:            image,
-		NetworkPlacement: placement,
-		Firewalls:        []string{},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
+		ClusterName:           "test-arm64",
+		Name:                  "test-arm64",
+		Nodes:                 1,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 1)

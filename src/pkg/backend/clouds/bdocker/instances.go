@@ -24,6 +24,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/parallelize"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/structtags"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -39,12 +40,37 @@ import (
 )
 
 type CreateInstanceParams struct {
+	// the image to use for the instances(nodes)
+	Image *backends.Image `yaml:"image" json:"image" required:"true"`
+	// specify the friendly-name of the docker server instance, followed by "," and the network name, e.g. docker-server,network1
+	//
+	// can specify 'default' as network name and 'default' as server name; can omit server name, in which case default will be used, and can omit network name, in which case the default network will be used
+	//
+	// ex: specify both: default,default ; omit server name: ,default ; omit network name: default, or leave empty to omit both
+	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement"`
+	// volume types and sizes, backend-specific definitions
+	//
+	// docker format:
+	//   {volumeName}:{mountTargetDirectory}
+	//   example: volume1:/mnt/data
+	//
+	// used for mounting volumes to containers at startup
+	Disks []string `yaml:"disks" json:"disks"`
+	// optional: specify extra ports to expose and map. Acceptable formats:
+	//   [+]{hostPort}:{containerPort} ; example: 8080:80 ; if the definition is prefixed with a +, the port will be mapped to the next available port (starting 8080)
+	//
+	//   host={hostIP:hostPORT},container={containerPORT},incr ; example: host=0.0.0.0:8080,container=80 ; incr parameter has same effect as the + prefix
+	//
+	//   [+]{hostIP:hostPORT},{containerPORT} ; example: 0.0.0.0:8080,80 ; if the definition is prefixed with a +, the port will be mapped to the next available port (starting 8080)
+	// port 22 will be automatically mapped to the next unused port (starting 2200)
+	Firewalls []string `yaml:"firewalls" json:"firewalls"`
 	// --log-to-stderr - Will cause logging of all started services to be sent to stderr, this allows docker logs to view all service logs
+	//
 	// --no-logfile    - No journal logging
+	//
 	// --no-pidtrack   - Disable execve capture for cgroup-free PID tracking
-	Cmd strslice.StrSlice `yaml:"cmd" json:"cmd"`
-	// in seconds
-	StopTimeout       *int                `yaml:"stopTimeout" json:"stopTimeout"`
+	Cmd               strslice.StrSlice   `yaml:"cmd" json:"cmd"`
+	StopTimeout       *int                `yaml:"stopTimeout" json:"stopTimeout"` // seconds
 	CapAdd            strslice.StrSlice   `yaml:"capAdd" json:"capAdd"`
 	CapDrop           strslice.StrSlice   `yaml:"capDrop" json:"capDrop"`
 	DNS               strslice.StrSlice   `yaml:"dns" json:"dns"`
@@ -241,7 +267,7 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 	}
 
 	removeSSHKey := false
-	if s.instances.WithBackendType(backends.BackendTypeAWS).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count() {
+	if s.instances.WithBackendType(backends.BackendTypeDocker).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count() {
 		removeSSHKey = true
 	}
 
@@ -551,15 +577,17 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	backendSpecificParams := &CreateInstanceParams{}
 	if input.BackendSpecificParams != nil {
 		if _, ok := input.BackendSpecificParams[backends.BackendTypeDocker]; ok {
-			backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeDocker].(*CreateInstanceParams)
+			switch input.BackendSpecificParams[backends.BackendTypeDocker].(type) {
+			case *CreateInstanceParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeDocker].(*CreateInstanceParams)
+			default:
+				return nil, fmt.Errorf("invalid backend-specific parameters for docker")
+			}
 		}
 	}
-
-	// early check - DNS
-	if input.CustomDNS != nil {
-		return nil, fmt.Errorf("custom DNS is not supported for docker")
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return nil, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
 	}
-
 	// if cluster with given ClusterName already exists in s.instances, find last node number, so we know where to count up for the instances we will be creating
 	lastNodeNo := 0
 	clusterUUID := uuid.New().String()
@@ -579,8 +607,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		TAG_EXPIRES:         input.Expires.Format(time.RFC3339),
 		TAG_AEROLAB_PROJECT: s.project,
 		TAG_AEROLAB_VERSION: s.aerolabVersion,
-		TAG_OS_NAME:         input.Image.OSName,
-		TAG_OS_VERSION:      input.Image.OSVersion,
+		TAG_OS_NAME:         backendSpecificParams.Image.OSName,
+		TAG_OS_VERSION:      backendSpecificParams.Image.OSVersion,
 		TAG_CLUSTER_UUID:    clusterUUID,
 	}
 	for k, v := range input.Tags {
@@ -592,8 +620,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	// connect
 	serverName := "default"
 	networkName := "bridge"
-	if input.NetworkPlacement != "" {
-		split := strings.Split(input.NetworkPlacement, ",")
+	if backendSpecificParams.NetworkPlacement != "" {
+		split := strings.Split(backendSpecificParams.NetworkPlacement, ",")
 		if len(split) > 0 {
 			serverName = split[0]
 		}
@@ -665,19 +693,19 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	// if image is public, check if we have a custom build already; if not: make one
 	// we need to track who is building the image, so that if another CreateInstances is already building this particular image, we should just wait for it to finish
-	imgName := input.Image.Name
-	if input.Image.Public {
-		if input.Image.BackendSpecific.(*ImageDetail).Docker == nil {
+	imgName := backendSpecificParams.Image.Name
+	if backendSpecificParams.Image.Public {
+		if backendSpecificParams.Image.BackendSpecific.(*ImageDetail).Docker == nil {
 			s.builderMutex.Lock()
-			if _, ok := s.builders[input.Image.ZoneName]; !ok {
-				s.builders[input.Image.ZoneName] = make(map[string]*dockerBuilder)
+			if _, ok := s.builders[backendSpecificParams.Image.ZoneName]; !ok {
+				s.builders[backendSpecificParams.Image.ZoneName] = make(map[string]*dockerBuilder)
 			}
-			if builder, ok := s.builders[input.Image.ZoneName][input.Image.Name]; ok {
+			if builder, ok := s.builders[backendSpecificParams.Image.ZoneName][backendSpecificParams.Image.Name]; ok {
 				builder.wg.Wait()
 				if builder.docker != nil {
-					reassign := input.Image.BackendSpecific.(*ImageDetail)
+					reassign := backendSpecificParams.Image.BackendSpecific.(*ImageDetail)
 					reassign.Docker = builder.docker
-					input.Image.BackendSpecific = reassign
+					backendSpecificParams.Image.BackendSpecific = reassign
 					s.builderMutex.Unlock()
 				} else {
 					imgName = ""
@@ -686,21 +714,21 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				imgName = ""
 			}
 			if imgName == "" {
-				s.builders[input.Image.ZoneName][input.Image.Name] = &dockerBuilder{
+				s.builders[backendSpecificParams.Image.ZoneName][backendSpecificParams.Image.Name] = &dockerBuilder{
 					docker: nil,
 					wg:     new(sync.WaitGroup),
 				}
-				s.builders[input.Image.ZoneName][input.Image.Name].wg.Add(1)
+				s.builders[backendSpecificParams.Image.ZoneName][backendSpecificParams.Image.Name].wg.Add(1)
 				s.builderMutex.Unlock()
 				err = func() error {
-					defer s.builders[input.Image.ZoneName][input.Image.Name].wg.Done()
+					defer s.builders[backendSpecificParams.Image.ZoneName][backendSpecificParams.Image.Name].wg.Done()
 					imgLabels := map[string]string{
 						TAG_AEROLAB_VERSION: s.aerolabVersion,
-						TAG_OS_NAME:         input.Image.OSName,
-						TAG_OS_VERSION:      input.Image.OSVersion,
-						TAG_PUBLIC_NAME:     input.Image.Name,
+						TAG_OS_NAME:         backendSpecificParams.Image.OSName,
+						TAG_OS_VERSION:      backendSpecificParams.Image.OSVersion,
+						TAG_PUBLIC_NAME:     backendSpecificParams.Image.Name,
 						TAG_PUBLIC_TEMPLATE: "true",
-						TAG_ARCHITECTURE:    input.Image.Architecture.String(),
+						TAG_ARCHITECTURE:    backendSpecificParams.Image.Architecture.String(),
 					}
 					// create a new image using docker build process, and assign it to the image variable, ensure the correct tags are set TAG_PUBLIC_NAME,TAG_PUBLIC_TEMPLATE, OS_NAME, OS_VERSION, ARCHITECTURE
 					df, err := scripts.ReadFile("scripts/Dockerfile")
@@ -711,7 +739,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					if err != nil {
 						return fmt.Errorf("failed to read userdata.sh: %v", err)
 					}
-					df = []byte(fmt.Sprintf(string(df), input.Image.Name))
+					df = []byte(fmt.Sprintf(string(df), backendSpecificParams.Image.Name))
 					buf := new(bytes.Buffer)
 					tw := tar.NewWriter(buf)
 					tw.WriteHeader(&tar.Header{
@@ -729,11 +757,11 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					tw.Flush()
 					tw.Close()
 					pf := "linux/amd64"
-					if input.Image.Architecture == backends.ArchitectureARM64 {
+					if backendSpecificParams.Image.Architecture == backends.ArchitectureARM64 {
 						pf = "linux/arm64"
 					}
-					newNameTag := input.Image.Architecture.String() + "-" + input.Image.OSName + "-" + input.Image.OSVersion + ":" + shortuuid.NewWithNamespace(input.Image.Name)
-					if s.isPodman[input.Image.ZoneName] {
+					newNameTag := backendSpecificParams.Image.Architecture.String() + "-" + backendSpecificParams.Image.OSName + "-" + backendSpecificParams.Image.OSVersion
+					if s.isPodman[backendSpecificParams.Image.ZoneName] {
 						newNameTag = "localhost/" + newNameTag
 					}
 					builder, err := cli.ImageBuild(context.Background(), buf, types.ImageBuildOptions{
@@ -784,16 +812,16 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 						return fmt.Errorf("failed to read docker build response: %v", err)
 					}
 
-					reassign := input.Image.BackendSpecific.(*ImageDetail)
+					reassign := backendSpecificParams.Image.BackendSpecific.(*ImageDetail)
 					reassign.Docker = &image.Summary{
 						Created:  time.Now().Unix(),
 						ID:       newNameTag,
 						Labels:   imgLabels,
-						ParentID: input.Image.Name,
+						ParentID: backendSpecificParams.Image.Name,
 						RepoTags: []string{newNameTag},
 					}
-					input.Image.BackendSpecific = reassign
-					s.builders[input.Image.ZoneName][input.Image.Name].docker = reassign.Docker
+					backendSpecificParams.Image.BackendSpecific = reassign
+					s.builders[backendSpecificParams.Image.ZoneName][backendSpecificParams.Image.Name].docker = reassign.Docker
 					return nil
 				}()
 				if err != nil {
@@ -801,10 +829,10 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				}
 			}
 		}
-		if len(input.Image.BackendSpecific.(*ImageDetail).Docker.RepoTags) > 0 {
-			imgName = input.Image.BackendSpecific.(*ImageDetail).Docker.RepoTags[0]
+		if len(backendSpecificParams.Image.BackendSpecific.(*ImageDetail).Docker.RepoTags) > 0 {
+			imgName = backendSpecificParams.Image.BackendSpecific.(*ImageDetail).Docker.RepoTags[0]
 		} else {
-			imgName = input.Image.BackendSpecific.(*ImageDetail).Docker.ID
+			imgName = backendSpecificParams.Image.BackendSpecific.(*ImageDetail).Docker.ID
 		}
 	}
 
@@ -824,7 +852,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		nodeTags[TAG_NAME] = name
 		// Create instance
 		mounts := []mount.Mount{}
-		for _, volume := range input.Disks {
+		for _, volume := range backendSpecificParams.Disks {
 			vsplit := strings.Split(volume, ":")
 			if len(vsplit) != 2 {
 				return nil, fmt.Errorf("invalid disk format: %s", volume)
@@ -837,7 +865,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		}
 
 		// get port bindings, and add them to used port list for the next looped run
-		exposedPorts, portBindings, portList, err := s.getExposedPorts(input.Firewalls)
+		exposedPorts, portBindings, portList, err := s.getExposedPorts(backendSpecificParams.Firewalls)
 		if err != nil {
 			return nil, err
 		}
@@ -910,7 +938,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		}, &network.NetworkingConfig{
 			EndpointsConfig: endpoints,
 		}, &v1.Platform{
-			Architecture: input.Image.Architecture.String(),
+			Architecture: backendSpecificParams.Image.Architecture.String(),
 			OS:           "linux",
 			OSVersion:    "",
 			OSFeatures:   []string{},
@@ -952,7 +980,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		now := time.Now()
 		success := true
 		out := output.Instances.Exec(&backends.ExecInput{
-			Username:        input.Image.Username,
+			Username:        backendSpecificParams.Image.Username,
 			ParallelThreads: input.ParallelSSHThreads,
 			ConnectTimeout:  5 * time.Second,
 			ExecDetail: sshexec.ExecDetail{

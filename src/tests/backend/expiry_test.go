@@ -137,27 +137,31 @@ func (e *expiryTest) testCreateInstance(t *testing.T) {
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
-	placement := Options.TestRegions[0] + "a"
-	itype := "r6a.large"
-	disks := []string{"type=gp2,size=20,count=1"}
-	if cloud == "gcp" {
-		placement = Options.TestRegions[0] + "-a"
-		itype = "e2-standard-4"
-		disks = []string{"type=pd-ssd,size=20,count=1"}
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "a",
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "-a",
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=1"},
+			Firewalls:        []string{},
+		},
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
-		ClusterName:      "test-cluster",
-		Name:             "test-instance",
-		Nodes:            1,
-		Image:            image,
-		NetworkPlacement: placement,
-		Firewalls:        []string{},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
-		Expires:          time.Now().Add(90 * time.Second),
+		ClusterName:           "test-cluster",
+		Name:                  "test-instance",
+		Nodes:                 1,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		Expires:               time.Now().Add(90 * time.Second),
+		BackendSpecificParams: params,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 1)

@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/lithammer/shortuuid"
 	"github.com/stretchr/testify/require"
 )
@@ -172,39 +175,48 @@ func (o *osTestDef) test(os *osTestDef) error {
 	if err != nil {
 		return fmt.Errorf("1: image %s:%s %w", os.name, os.version, err)
 	}
-	image := testBackend.GetInventory().Images.WithInAccount(false).WithOSName(os.name).WithOSVersion(os.version).WithArchitecture(backends.ArchitectureX8664)
-	if image.Count() == 0 {
+	images := testBackend.GetInventory().Images.WithInAccount(false).WithOSName(os.name).WithOSVersion(os.version).WithArchitecture(backends.ArchitectureX8664)
+	if images.Count() == 0 {
 		return fmt.Errorf("2: image %s:%s not found", os.name, os.version)
 	}
-	if image.Count() > 1 {
+	if images.Count() > 1 {
 		return fmt.Errorf("3: multiple images found for %s:%s", os.name, os.version)
 	}
+	image := images.Describe()[0]
 	placement := Options.TestRegions[0] + "a"
-	itype := "r6a.large"
-	disks := []string{"type=gp2,size=20,count=1"}
-	if cloud == "gcp" {
-		if strings.Count(Options.TestRegions[0], "-") == 1 {
-			placement = Options.TestRegions[0] + "-a"
-		}
-		itype = "e2-standard-4"
-		disks = []string{"type=pd-ssd,size=20,count=1"}
-	} else if cloud == "docker" {
-		itype = ""
-		disks = []string{}
-		placement = "default,default"
+	if strings.Count(Options.TestRegions[0], "-") == 1 {
+		placement = Options.TestRegions[0] + "-a"
+	}
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "a",
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: placement,
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeDocker: &bdocker.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: "default,default",
+			Disks:            []string{},
+			Firewalls:        []string{},
+		},
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
-		ClusterName:      instanceName,
-		Name:             instanceName,
-		Nodes:            1,
-		Image:            image.Describe()[0],
-		NetworkPlacement: placement,
-		Firewalls:        []string{},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
+		ClusterName:           instanceName,
+		Name:                  instanceName,
+		Nodes:                 1,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	}, 5*time.Minute)
 	if err != nil {
 		return fmt.Errorf("4: image %s:%s %w", os.name, os.version, err)
@@ -249,10 +261,11 @@ func (o *osTestDef) test(os *osTestDef) error {
 	if err != nil {
 		return fmt.Errorf("9: image %s:%s %w", os.name, os.version, err)
 	}
-	image = testBackend.GetInventory().Images.WithInAccount(true).WithName(imageName)
-	if image.Count() != 1 {
-		return fmt.Errorf("10: image %s:%s expected 1 image, got %d", os.name, os.version, image.Count())
+	images = testBackend.GetInventory().Images.WithInAccount(true).WithName(imageName)
+	if images.Count() != 1 {
+		return fmt.Errorf("10: image %s:%s expected 1 image, got %d", os.name, os.version, images.Count())
 	}
+	image = images.Describe()[0]
 	// destroy original instance
 	err = testBackend.GetInventory().Instances.WithName(instanceName).Terminate(10 * time.Minute)
 	if err != nil {
@@ -263,18 +276,40 @@ func (o *osTestDef) test(os *osTestDef) error {
 		return fmt.Errorf("12: image %s:%s %w", os.name, os.version, err)
 	}
 	// create new instance from image
+	placement = Options.TestRegions[0] + "a"
+	if strings.Count(Options.TestRegions[0], "-") == 1 {
+		placement = Options.TestRegions[0] + "-a"
+	}
+	params = map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "a",
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: placement,
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=1"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeDocker: &bdocker.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: "default,default",
+			Disks:            []string{},
+			Firewalls:        []string{},
+		},
+	}
 	insts, err = testBackend.CreateInstances(&backends.CreateInstanceInput{
-		ClusterName:      instanceName,
-		Name:             instanceName,
-		Nodes:            1,
-		Image:            image.Describe()[0],
-		NetworkPlacement: placement,
-		Firewalls:        []string{},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
+		ClusterName:           instanceName,
+		Name:                  instanceName,
+		Nodes:                 1,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	}, 5*time.Minute)
 	if err != nil {
 		return fmt.Errorf("13: image %s:%s %w", os.name, os.version, err)

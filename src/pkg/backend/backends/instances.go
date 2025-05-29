@@ -15,56 +15,15 @@ import (
 
 type CreateInstanceInput struct {
 	// a user-friendly name for the cluster of instances(nodes)
-	ClusterName string `yaml:"clusterName" json:"clusterName"`
+	ClusterName string `yaml:"clusterName" json:"clusterName" required:"true"`
 	// number of instances(nodes) to create
-	Nodes int `yaml:"nodes" json:"nodes"`
-	// the image to use for the instances(nodes)
-	Image *Image `yaml:"image" json:"image"`
-	// aws: specify either region (ca-central-1) or zone (ca-central-1a) or vpc-id (vpc-0123456789abcdefg) or subnet-id (subnet-0123456789abcdefg)
-	// aws: vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, region: will use the default VPC, first subnet in the zone, zone: will use the default VPC-subnet in the zone
-	//
-	// gcp: specify the zone for placement, e.g. us-central1-a
-	//
-	// docker: specify the friendly-name of the docker server instance, followed by "," and the network name, e.g. docker-server,network1
-	// can specify 'default' as network name and 'default' as server name; can omit server name, in which case default will be used, and can omit network name, in which case the default network will be used
-	// ex: specify both: default,default ; omit server name: ,default ; omit network name: default, or leave empty to omit both
-	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement"`
+	Nodes int `yaml:"nodes" json:"nodes" required:"true"`
 	// backend type
-	BackendType BackendType `yaml:"backendType" json:"backendType"`
+	BackendType BackendType `yaml:"backendType" json:"backendType" required:"true"`
+	// backend-specific parameters; use ex: bdocker.CreateInstanceParams, baws.CreateInstanceParams, bgcp.CreateInstanceParams, etc
+	BackendSpecificParams map[BackendType]interface{} `yaml:"backendSpecificParams" json:"backendSpecificParams" required:"true"`
 	// optional: the name of the ssh key to use for the instances(nodes); if not set, the default ssh key for the project will be used
 	SSHKeyName string `yaml:"sshKeyName" json:"sshKeyName"`
-	// GCP/AWS: instance type
-	InstanceType string `yaml:"instanceType" json:"instanceType"`
-	// volume types and sizes, backend-specific definitions
-	//
-	// aws format:
-	//   type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]
-	//   example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2
-	//
-	// gcp format:
-	//   type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]
-	//   example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2
-	//
-	// docker format:
-	//   {volumeName}:{mountTargetDirectory}
-	//   example: volume1:/mnt/data
-	//
-	// GCP/AWS: first specified volume is the root volume, all subsequent volumes are additional attached volumes
-	// Docker: used for mounting volumes to containers at startup
-	Disks []string `yaml:"disks" json:"disks"`
-	// GCP/AWS:
-	//   optional: names of firewalls to assign to the instances(nodes)
-	//   will always create a project-wide firewall and assign it to the instances(nodes); this firewall allows communication between the instances(nodes) and port 22/tcp from the outside
-	//
-	// Docker:
-	//   optional: specify extra ports to expose and map. Acceptable formats:
-	//     [+]{hostPort}:{containerPort} ; example: 8080:80 ; if the definition is prefixed with a +, the port will be mapped to the next available port (starting 8080)
-	//     host={hostIP:hostPORT},container={containerPORT},incr ; example: host=0.0.0.0:8080,container=80 ; incr parameter has same effect as the + prefix
-	//     [+]{hostIP:hostPORT},{containerPORT} ; example: 0.0.0.0:8080,80 ; if the definition is prefixed with a +, the port will be mapped to the next available port (starting 8080)
-	//   port 22 will be automatically mapped to the next unused port (starting 2200)
-	Firewalls []string `yaml:"firewalls" json:"firewalls"`
-	// optional: if true, the instances(nodes) will be created as spot instances
-	SpotInstance bool `yaml:"spotInstance" json:"spotInstance"`
 	// optional: the name of the instance(node); if not set, the default name will be used (project-clusterName-nodeNo)
 	Name string `yaml:"name" json:"name"`
 	// optional: the owner of the instance(node); this will create an owner tag on the instance(node)
@@ -75,22 +34,10 @@ type CreateInstanceInput struct {
 	Expires time.Time `yaml:"expires" json:"expires"`
 	// optional: the description of the instance(node); if not set, will not create a description tag
 	Description string `yaml:"description" json:"description"`
-	// optional: if true, will not create a public IP for the instance(node)
-	DisablePublicIP bool `yaml:"disablePublicIP" json:"disablePublicIP"`
 	// optional: if true, will terminate the instance(node) when it is stopped from the instance itself (poweroff or shutdown)
 	TerminateOnStop bool `yaml:"terminateOnStop" json:"terminateOnStop"`
-	// optional: the IAM instance profile to use for the instance(node)
-	IAMInstanceProfile string `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
 	// optional: the number of parallel SSH threads to use for the instance(node); if not set, will use the number of Nodes being created
 	ParallelSSHThreads int `yaml:"parallelSSHThreads" json:"parallelSSHThreads"`
-	// optional: if true, will not enable the root user for the instance if the default user is not root
-	NoEnableRoot bool `yaml:"noEnableRoot" json:"noEnableRoot"`
-	// optional: the custom DNS to use for the instance(node); if not set, will not create a custom DNS
-	CustomDNS *InstanceDNS `yaml:"customDNS" json:"customDNS"`
-	// optional: the minimum CPU platform to use for the instance(node); if not set, will not create a minimum CPU platform
-	MinCpuPlatform string `yaml:"minCpuPlatform" json:"minCpuPlatform"`
-	// optional: backend-specific parameters; use ex: bdocker.CreateInstanceParams, baws.CreateInstanceParams, bgcp.CreateInstanceParams, etc
-	BackendSpecificParams map[BackendType]interface{} `yaml:"backendSpecificParams" json:"backendSpecificParams"`
 }
 
 type InstanceDNS struct {
