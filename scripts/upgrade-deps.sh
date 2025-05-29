@@ -1,4 +1,6 @@
+#!/bin/bash
 set -e
+pushd ../src
 pushd pkg/backend
 go get -u
 go mod tidy
@@ -13,3 +15,4 @@ go mod tidy
 popd
 bash new-expiry-version.sh
 go generate ./...
+popd
