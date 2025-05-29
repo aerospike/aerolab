@@ -307,6 +307,9 @@ func (v VolumeList) AddTags(tags map[string]string, waitDur time.Duration) error
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].VolumesAddTags(v.WithBackendType(c).Describe(), tags, waitDur)
 			if err != nil {
 				retErr = err
@@ -324,6 +327,9 @@ func (v VolumeList) RemoveTags(tagKeys []string, waitDur time.Duration) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].VolumesRemoveTags(v.WithBackendType(c).Describe(), tagKeys, waitDur)
 			if err != nil {
 				retErr = err
@@ -341,6 +347,9 @@ func (v VolumeList) DeleteVolumes(fw FirewallList, waitDur time.Duration) error 
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].DeleteVolumes(v.WithBackendType(c).Describe(), fw, waitDur)
 			if err != nil {
 				retErr = err
@@ -358,6 +367,9 @@ func (v VolumeList) Attach(instance *Instance, sharedMountData *VolumeAttachShar
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].AttachVolumes(v.WithBackendType(c).Describe(), instance, sharedMountData, waitDur)
 			if err != nil {
 				retErr = err
@@ -375,6 +387,9 @@ func (v VolumeList) Detach(instance *Instance, waitDur time.Duration) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].DetachVolumes(v.WithBackendType(c).Describe(), instance, waitDur)
 			if err != nil {
 				retErr = err
@@ -392,6 +407,9 @@ func (v VolumeList) Resize(newSizeGiB StorageSize, waitDur time.Duration) error 
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].ResizeVolumes(v.WithBackendType(c).Describe(), newSizeGiB, waitDur)
 			if err != nil {
 				retErr = err
@@ -409,6 +427,9 @@ func (v VolumeList) ChangeExpiry(expiry time.Time) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].VolumesChangeExpiry(v.WithBackendType(c).Describe(), expiry)
 			if err != nil {
 				retErr = err

@@ -40,6 +40,11 @@ func (fw *fwTest) findNetwork(t *testing.T) {
 
 func (fw *fwTest) testCreateFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
+
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	_, err := testBackend.CreateFirewall(
 		&backends.CreateFirewallInput{
@@ -64,7 +69,10 @@ func (fw *fwTest) testCreateFirewall(t *testing.T) {
 
 func (fw *fwTest) testUpdateFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
-
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	f := testBackend.GetInventory().Firewalls.WithName("test-firewall").Describe()
 	require.NotEmpty(t, f)
@@ -113,6 +121,10 @@ func (fw *fwTest) testUpdateFirewall(t *testing.T) {
 
 func (fw *fwTest) testAddTagsFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	f := testBackend.GetInventory().Firewalls.WithName("test-firewall")
 	require.Equal(t, f.Count(), 1)
@@ -126,6 +138,10 @@ func (fw *fwTest) testAddTagsFirewall(t *testing.T) {
 
 func (fw *fwTest) testRemoveTagsFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	f := testBackend.GetInventory().Firewalls.WithName("test-firewall")
 	require.Equal(t, f.Count(), 1)
@@ -138,6 +154,10 @@ func (fw *fwTest) testRemoveTagsFirewall(t *testing.T) {
 
 func (fw *fwTest) testCreateTestInstanceForFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := fw.network.NetworkId
@@ -176,6 +196,10 @@ func (fw *fwTest) testCreateTestInstanceForFirewall(t *testing.T) {
 
 func (fw *fwTest) testRemoveFirewallFromInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 
 	// get firewall
@@ -200,6 +224,10 @@ func (fw *fwTest) testRemoveFirewallFromInstance(t *testing.T) {
 
 func (fw *fwTest) testAssignFirewallToInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 
 	// get firewall
@@ -228,6 +256,10 @@ func (fw *fwTest) testAssignFirewallToInstance(t *testing.T) {
 
 func (fw *fwTest) testDeleteTestInstanceForFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	require.NoError(t, testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName("test-instance").Terminate(time.Minute*10))
 	require.NoError(t, testBackend.RefreshChangedInventory())
@@ -236,6 +268,10 @@ func (fw *fwTest) testDeleteTestInstanceForFirewall(t *testing.T) {
 
 func (fw *fwTest) testDeleteFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	require.NoError(t, testBackend.GetInventory().Firewalls.WithName("test-firewall").Delete(time.Minute*10))
 	require.NoError(t, testBackend.RefreshChangedInventory())

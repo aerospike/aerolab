@@ -22,12 +22,18 @@ type CreateInstanceInput struct {
 	Image *Image `yaml:"image" json:"image"`
 	// aws: specify either region (ca-central-1) or zone (ca-central-1a) or vpc-id (vpc-0123456789abcdefg) or subnet-id (subnet-0123456789abcdefg)
 	// aws: vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, region: will use the default VPC, first subnet in the zone, zone: will use the default VPC-subnet in the zone
+	//
+	// gcp: specify the zone for placement, e.g. us-central1-a
+	//
+	// docker: specify the friendly-name of the docker server instance, followed by "," and the network name, e.g. docker-server,network1
+	// can specify 'default' as network name and 'default' as server name; can omit server name, in which case default will be used, and can omit network name, in which case the default network will be used
+	// ex: specify both: default,default ; omit server name: ,default ; omit network name: default, or leave empty to omit both
 	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement"`
 	// backend type
 	BackendType BackendType `yaml:"backendType" json:"backendType"`
 	// optional: the name of the ssh key to use for the instances(nodes); if not set, the default ssh key for the project will be used
 	SSHKeyName string `yaml:"sshKeyName" json:"sshKeyName"`
-	// instance type
+	// GCP/AWS: instance type
 	InstanceType string `yaml:"instanceType" json:"instanceType"`
 	// volume types and sizes, backend-specific definitions
 	//
@@ -39,10 +45,23 @@ type CreateInstanceInput struct {
 	//   type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]
 	//   example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2
 	//
-	// first specified volume is the root volume, all subsequent volumes are additional attached volumes
+	// docker format:
+	//   {volumeName}:{mountTargetDirectory}
+	//   example: volume1:/mnt/data
+	//
+	// GCP/AWS: first specified volume is the root volume, all subsequent volumes are additional attached volumes
+	// Docker: used for mounting volumes to containers at startup
 	Disks []string `yaml:"disks" json:"disks"`
-	// optional: names of firewalls to assign to the instances(nodes)
-	// will always create a project-wide firewall and assign it to the instances(nodes); this firewall allows communication between the instances(nodes) and port 22/tcp from the outside
+	// GCP/AWS:
+	//   optional: names of firewalls to assign to the instances(nodes)
+	//   will always create a project-wide firewall and assign it to the instances(nodes); this firewall allows communication between the instances(nodes) and port 22/tcp from the outside
+	//
+	// Docker:
+	//   optional: specify extra ports to expose and map. Acceptable formats:
+	//     [+]{hostPort}:{containerPort} ; example: 8080:80 ; if the definition is prefixed with a +, the port will be mapped to the next available port (starting 8080)
+	//     host={hostIP:hostPORT},container={containerPORT},incr ; example: host=0.0.0.0:8080,container=80 ; incr parameter has same effect as the + prefix
+	//     [+]{hostIP:hostPORT},{containerPORT} ; example: 0.0.0.0:8080,80 ; if the definition is prefixed with a +, the port will be mapped to the next available port (starting 8080)
+	//   port 22 will be automatically mapped to the next unused port (starting 2200)
 	Firewalls []string `yaml:"firewalls" json:"firewalls"`
 	// optional: if true, the instances(nodes) will be created as spot instances
 	SpotInstance bool `yaml:"spotInstance" json:"spotInstance"`
@@ -64,12 +83,14 @@ type CreateInstanceInput struct {
 	IAMInstanceProfile string `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
 	// optional: the number of parallel SSH threads to use for the instance(node); if not set, will use the number of Nodes being created
 	ParallelSSHThreads int `yaml:"parallelSSHThreads" json:"parallelSSHThreads"`
-	// optional: if true, will not enable the root user for the instance(node)
+	// optional: if true, will not enable the root user for the instance if the default user is not root
 	NoEnableRoot bool `yaml:"noEnableRoot" json:"noEnableRoot"`
 	// optional: the custom DNS to use for the instance(node); if not set, will not create a custom DNS
 	CustomDNS *InstanceDNS `yaml:"customDNS" json:"customDNS"`
 	// optional: the minimum CPU platform to use for the instance(node); if not set, will not create a minimum CPU platform
 	MinCpuPlatform string `yaml:"minCpuPlatform" json:"minCpuPlatform"`
+	// optional: backend-specific parameters; use ex: bdocker.CreateInstanceParams, baws.CreateInstanceParams, bgcp.CreateInstanceParams, etc
+	BackendSpecificParams map[BackendType]interface{} `yaml:"backendSpecificParams" json:"backendSpecificParams"`
 }
 
 type InstanceDNS struct {
@@ -449,6 +470,9 @@ func (v InstanceList) AddTags(tags map[string]string) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].InstancesAddTags(v.WithBackendType(c).Describe(), tags)
 			if err != nil {
 				retErr = err
@@ -466,6 +490,9 @@ func (v InstanceList) RemoveTags(tagKeys []string) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].InstancesRemoveTags(v.WithBackendType(c).Describe(), tagKeys)
 			if err != nil {
 				retErr = err
@@ -483,6 +510,9 @@ func (v InstanceList) Terminate(waitDur time.Duration) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].InstancesTerminate(v.WithBackendType(c).Describe(), waitDur)
 			if err != nil {
 				retErr = err
@@ -500,6 +530,9 @@ func (v InstanceList) Stop(force bool, waitDur time.Duration) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].InstancesStop(v.WithBackendType(c).Describe(), force, waitDur)
 			if err != nil {
 				retErr = err
@@ -517,6 +550,9 @@ func (v InstanceList) Start(waitDur time.Duration) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].InstancesStart(v.WithBackendType(c).Describe(), waitDur)
 			if err != nil {
 				retErr = err
@@ -534,6 +570,9 @@ func (v InstanceList) Exec(e *ExecInput) []*ExecOutput {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			out := cloudList[c].InstancesExec(v.WithBackendType(c).Describe(), e)
 			outs = append(outs, out...)
 		}()
@@ -550,6 +589,9 @@ func (v InstanceList) GetSftpConfig(username string) ([]*sshexec.ClientConf, err
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			out, err := cloudList[c].InstancesGetSftpConfig(v.WithBackendType(c).Describe(), username)
 			if err != nil {
 				nerr = errors.Join(nerr, err)
@@ -569,6 +611,9 @@ func (v InstanceList) AssignFirewalls(fw FirewallList) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].InstancesAssignFirewalls(v.WithBackendType(c).Describe(), fw)
 			if err != nil {
 				retErr = err
@@ -603,7 +648,7 @@ func (b *backend) CleanupDNS() error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := cloudList[c].CleanupDNS()
+			err := b.enabledBackends[c].CleanupDNS()
 			if err != nil {
 				retErr = err
 			}
@@ -632,6 +677,9 @@ func (v InstanceList) ChangeExpiry(expiry time.Time) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].InstancesChangeExpiry(v.WithBackendType(c).Describe(), expiry)
 			if err != nil {
 				retErr = err
@@ -707,6 +755,9 @@ func (v InstanceList) UpdateHostsFile(withList InstanceList, parallelSSHThreads 
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].InstancesUpdateHostsFile(v.WithBackendType(c).Describe(), hostsEntries, parallelSSHThreads)
 			if err != nil {
 				retErr = err

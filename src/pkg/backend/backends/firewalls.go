@@ -203,6 +203,9 @@ func (v FirewallList) AddTags(tags map[string]string, waitDur time.Duration) err
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].FirewallsAddTags(v.WithBackendType(c).Describe(), tags, waitDur)
 			if err != nil {
 				retErr = err
@@ -220,6 +223,9 @@ func (v FirewallList) RemoveTags(tagKeys []string, waitDur time.Duration) error 
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].FirewallsRemoveTags(v.WithBackendType(c).Describe(), tagKeys, waitDur)
 			if err != nil {
 				retErr = err
@@ -237,6 +243,9 @@ func (v FirewallList) Delete(waitDur time.Duration) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].FirewallsDelete(v.WithBackendType(c).Describe(), waitDur)
 			if err != nil {
 				retErr = err
@@ -254,6 +263,9 @@ func (v FirewallList) Update(ports PortsIn, waitDur time.Duration) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].FirewallsUpdate(v.WithBackendType(c).Describe(), ports, waitDur)
 			if err != nil {
 				retErr = err

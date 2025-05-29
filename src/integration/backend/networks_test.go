@@ -20,7 +20,11 @@ func (n *networkTest) testListNetworks(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	nets := testBackend.GetInventory().Networks.WithAerolabManaged(false)
-	require.Equal(t, nets.Count(), 1)
+	netCount := 1
+	if backendType == backends.BackendTypeDocker && !podman {
+		netCount = 3
+	}
+	require.Equal(t, nets.Count(), netCount)
 	subs := nets.Subnets()
 	subCount := 1
 	if backendType == backends.BackendTypeAWS {

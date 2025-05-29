@@ -15,6 +15,7 @@ import (
 func Test15_Instances(t *testing.T) {
 	t.Cleanup(cleanup)
 	t.Run("setup", testSetup)
+	t.Run("delete root images", testDeleteRootImages)
 	t.Run("inventory empty", testInventoryEmpty)
 	t.Run("create instance get price", testCreateInstanceGetPrice)
 	t.Run("create 3 instances", testCreateInstance)
@@ -58,6 +59,10 @@ func getBasicImage(t *testing.T) *backends.Image {
 
 func testCreateInstanceGetPrice(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("Docker does not support pricing")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
@@ -113,6 +118,10 @@ func testCreateInstance(t *testing.T) {
 		placement = Options.TestRegions[0] + "-a"
 		itype = "e2-standard-4"
 		disks = []string{"type=pd-ssd,size=20,count=2"}
+	} else if cloud == "docker" {
+		placement = "default,default"
+		itype = ""
+		disks = []string{}
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
@@ -133,10 +142,16 @@ func testCreateInstance(t *testing.T) {
 	fwCount := 1
 	if cloud == "gcp" {
 		fwCount = 2
+	} else if cloud == "docker" {
+		fwCount = 0
 	}
 	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), fwCount)
 	require.Equal(t, testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).Count(), 3)
-	require.Equal(t, testBackend.GetInventory().Volumes.Count(), 6)
+	volCount := 6
+	if cloud == "docker" {
+		volCount = 0
+	}
+	require.Equal(t, testBackend.GetInventory().Volumes.Count(), volCount)
 	for _, vol := range testBackend.GetInventory().Volumes.Describe() {
 		if cloud == "gcp" {
 			require.Equal(t, vol.Size, 20*backends.StorageGB)
@@ -148,6 +163,10 @@ func testCreateInstance(t *testing.T) {
 
 func testInstanceCreateTags(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("Docker does not support late tagging")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	insts := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
 	require.Equal(t, insts.Count(), 3)
@@ -164,6 +183,10 @@ func testInstanceCreateTags(t *testing.T) {
 
 func testInstanceRemoveTags(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("Docker does not support late tagging")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	insts := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
 	require.NoError(t, insts.RemoveTags([]string{"test-tag"}))
@@ -178,6 +201,10 @@ func testInstanceRemoveTags(t *testing.T) {
 
 func testInstanceChangeExpiry(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("Docker does not support late tagging")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	insts := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
 	require.Equal(t, insts.Count(), 3)
@@ -290,9 +317,13 @@ func testInstancesTerminate(t *testing.T) {
 	fwCount := 1
 	if cloud == "gcp" {
 		fwCount = 2
+	} else if cloud == "docker" {
+		fwCount = 0
 	}
 	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), fwCount)
-	require.NoError(t, testBackend.GetInventory().Firewalls.Delete(2*time.Minute))
-	require.NoError(t, testBackend.RefreshChangedInventory())
-	require.Equal(t, testBackend.GetInventory().Firewalls.Count(), 0)
+	if fwCount > 0 {
+		require.NoError(t, testBackend.GetInventory().Firewalls.Delete(2*time.Minute))
+		require.NoError(t, testBackend.RefreshChangedInventory())
+		require.Equal(t, testBackend.GetInventory().Firewalls.Count(), 0)
+	}
 }

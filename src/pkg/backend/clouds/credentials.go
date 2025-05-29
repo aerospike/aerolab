@@ -1,5 +1,7 @@
 package clouds
 
+import "time"
+
 type Credentials struct {
 	AWS    AWS    `yaml:"aws" json:"aws"`
 	GCP    GCP    `yaml:"gcp" json:"gcp"`
@@ -7,7 +9,16 @@ type Credentials struct {
 }
 
 type DOCKER struct {
-	// TODO: Add docker credentials
+	EnableDefaultFromEnv bool                    `yaml:"enableDefaultFromEnv" json:"enableDefaultFromEnv"`
+	Regions              map[string]DockerRegion `yaml:"regions" json:"regions"` // map[regionName]definition-of-region
+}
+
+type DockerRegion struct {
+	DockerHost     string        `yaml:"dockerHost" json:"dockerHost"`         // tcp://host:port, unix:///path/to/socket, ssh://user@host:port, http://host:port, https://host:port
+	DockerCertPath string        `yaml:"dockerCertPath" json:"dockerCertPath"` // only use with https:// host type
+	DockerKeyPath  string        `yaml:"dockerKeyPath" json:"dockerKeyPath"`   // only use with https:// host type
+	DockerCaPath   string        `yaml:"dockerCaPath" json:"dockerCaPath"`     // only use with https:// host type
+	Timeout        time.Duration `yaml:"timeout" json:"timeout"`               // connection timeout
 }
 
 type AWS struct {

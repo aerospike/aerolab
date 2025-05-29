@@ -26,8 +26,8 @@ type ExpirySystem struct {
 
 func (b *backend) ExpiryList() (*ExpiryList, error) {
 	ret := &ExpiryList{}
-	for _, c := range ListBackendTypes() {
-		expirySystems, err := cloudList[c].ExpiryList()
+	for c := range b.enabledBackends {
+		expirySystems, err := b.enabledBackends[c].ExpiryList()
 		if err != nil {
 			return ret, err
 		}
@@ -50,12 +50,12 @@ func (b *backend) ExpiryInstall(backendType BackendType, intervalMinutes int, lo
 	if logLevel == 0 {
 		logLevel = 3
 	}
-	return cloudList[backendType].ExpiryInstall(intervalMinutes, logLevel, expireEksctl, cleanupDNS, force, onUpdateKeepOriginalSettings, zones...)
+	return b.enabledBackends[backendType].ExpiryInstall(intervalMinutes, logLevel, expireEksctl, cleanupDNS, force, onUpdateKeepOriginalSettings, zones...)
 }
 
 // remove the expiry system for the given backend type
 func (b *backend) ExpiryRemove(backendType BackendType, zones ...string) error {
-	return cloudList[backendType].ExpiryRemove(zones...)
+	return b.enabledBackends[backendType].ExpiryRemove(zones...)
 }
 
 // change the frequency of the expiry system for the given backend type
@@ -64,7 +64,7 @@ func (b *backend) ExpiryChangeFrequency(backendType BackendType, intervalMinutes
 	if intervalMinutes == 0 {
 		intervalMinutes = 15
 	}
-	return cloudList[backendType].ExpiryChangeFrequency(intervalMinutes, zones...)
+	return b.enabledBackends[backendType].ExpiryChangeFrequency(intervalMinutes, zones...)
 }
 
 // change the configuration of the expiry system for the given backend type
@@ -75,5 +75,5 @@ func (b *backend) ExpiryChangeConfiguration(backendType BackendType, logLevel in
 	if logLevel == 0 {
 		logLevel = 3
 	}
-	return cloudList[backendType].ExpiryChangeConfiguration(logLevel, expireEksctl, cleanupDNS, zones...)
+	return b.enabledBackends[backendType].ExpiryChangeConfiguration(logLevel, expireEksctl, cleanupDNS, zones...)
 }

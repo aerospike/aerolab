@@ -17,16 +17,30 @@ func Test25_Images(t *testing.T) {
 	imageTest := &imageTest{}
 	t.Run("setup", testSetup)
 	t.Run("inventory empty", testInventoryEmpty)
+	t.Run("delete root images", testDeleteRootImages)
 	t.Run("create vanilla instance", imageTest.testCreateVanillaInstance)
 	t.Run("add file to instance", imageTest.testAddFileToInstance)
 	t.Run("image create", imageTest.testImageCreate)
 	t.Run("delete vanilla instance", imageTest.testDeleteVanillaInstance)
 	t.Run("create test instance from image", imageTest.testCreateInstanceFromImage)
 	t.Run("read file from instance", imageTest.testReadFileFromInstance)
-	t.Run("image delete", imageTest.testImageDelete)
 	t.Run("delete test instance from image", imageTest.testDeleteInstanceFromImage)
+	t.Run("image delete", imageTest.testImageDelete)
 	t.Run("delete firewall", imageTest.testDeleteFirewall)
+	t.Run("delete root images", testDeleteRootImages)
 	t.Run("end inventory empty", testInventoryEmpty)
+}
+
+func testDeleteRootImages(t *testing.T) {
+	require.NoError(t, setup(false))
+	if cloud != "docker" {
+		t.Skip("only docker supports removing root public images")
+		return
+	}
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	image := testBackend.GetInventory().Images.WithInAccount(false)
+	err := image.DeleteImages(5 * time.Minute)
+	require.NoError(t, err)
 }
 
 func (i *imageTest) testCreateVanillaInstance(t *testing.T) {
@@ -43,6 +57,10 @@ func (i *imageTest) testCreateVanillaInstance(t *testing.T) {
 		}
 		itype = "e2-standard-4"
 		disks = []string{"type=pd-ssd,size=20,count=1"}
+	} else if cloud == "docker" {
+		itype = ""
+		disks = []string{}
+		placement = ""
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
@@ -112,7 +130,11 @@ func (i *imageTest) testImageCreate(t *testing.T) {
 	require.Equal(t, out.Image.OSName, "test-os")
 	require.Equal(t, out.Image.OSVersion, "test-os-version")
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	image := testBackend.GetInventory().Images.WithName("test-image").WithOSName("test-os").WithOSVersion("test-os-version")
+	wn := "test-image"
+	if cloud == "docker" {
+		wn = "test-image:latest"
+	}
+	image := testBackend.GetInventory().Images.WithName(wn).WithOSName("test-os").WithOSVersion("test-os-version")
 	require.Equal(t, image.Count(), 1)
 	if cloud == "aws" {
 		require.Equal(t, image.Describe()[0].Size, 30*backends.StorageGiB)
@@ -135,7 +157,11 @@ func (i *imageTest) testDeleteVanillaInstance(t *testing.T) {
 func (i *imageTest) testCreateInstanceFromImage(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	image := testBackend.GetInventory().Images.WithName("test-image").WithOSName("test-os").WithOSVersion("test-os-version")
+	wn := "test-image"
+	if cloud == "docker" {
+		wn = "test-image:latest"
+	}
+	image := testBackend.GetInventory().Images.WithName(wn).WithOSName("test-os").WithOSVersion("test-os-version")
 	require.Equal(t, image.Count(), 1)
 	placement := Options.TestRegions[0]
 	itype := "r6a.large"
@@ -146,6 +172,10 @@ func (i *imageTest) testCreateInstanceFromImage(t *testing.T) {
 		}
 		itype = "e2-standard-4"
 		disks = []string{"type=pd-ssd,size=30,count=1"}
+	} else if cloud == "docker" {
+		itype = ""
+		disks = []string{}
+		placement = ""
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      "test-cluster",
@@ -189,13 +219,17 @@ func (i *imageTest) testReadFileFromInstance(t *testing.T) {
 func (i *imageTest) testImageDelete(t *testing.T) {
 	require.NoError(t, setup(false))
 	require.NoError(t, testBackend.RefreshChangedInventory())
-	image := testBackend.GetInventory().Images.WithName("test-image")
+	wn := "test-image"
+	if cloud == "docker" {
+		wn = "test-image:latest"
+	}
+	image := testBackend.GetInventory().Images.WithName(wn)
 	require.Equal(t, image.Count(), 1)
 	err := image.DeleteImages(5 * time.Minute)
 	require.NoError(t, err)
 	err = testBackend.RefreshChangedInventory()
 	require.NoError(t, err)
-	image = testBackend.GetInventory().Images.WithName("test-image")
+	image = testBackend.GetInventory().Images.WithName(wn)
 	require.Equal(t, image.Count(), 0)
 }
 
@@ -214,6 +248,10 @@ func (i *imageTest) testDeleteInstanceFromImage(t *testing.T) {
 
 func (i *imageTest) testDeleteFirewall(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	require.NoError(t, testBackend.GetInventory().Firewalls.Delete(5*time.Minute))
 }

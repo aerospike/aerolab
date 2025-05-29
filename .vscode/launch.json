@@ -21,7 +21,8 @@
             "mode": "test",
             "program": "${workspaceFolder}/integration/backend/backend_suite_test.go",
             "env": {
-                "AEROLAB_CLOUD": "gcp",
+                "AEROLAB_CLOUD": "podman",
+                "AEROLAB_DOCKER_TEST_REGIONS": "default",
                 "AWS_PROFILE": "eks",
                 "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
                 "GCP_PROJECT": "aerolab-test-project-1",
@@ -41,13 +42,14 @@
         "mode": "test",
         "program": "${fileDirname}",
         "env": {
-                "AEROLAB_CLOUD": "gcp",
-                "AWS_PROFILE": "eks",
-                "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
-                "GCP_PROJECT": "aerolab-test-project-1",
-                "AEROLAB_GCP_TEST_REGIONS": "us-central1",
-                "AEROLAB_SKIP_CLEANUP": "true",
-                "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
+            "AEROLAB_CLOUD": "podman",
+            "AEROLAB_DOCKER_TEST_REGIONS": "default",
+            "AWS_PROFILE": "eks",
+            "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
+            "GCP_PROJECT": "aerolab-test-project-1",
+            "AEROLAB_GCP_TEST_REGIONS": "us-central1",
+            "AEROLAB_SKIP_CLEANUP": "true",
+            "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
         },
         "showLog": true
     },
@@ -64,13 +66,14 @@
             "-test.timeout=0"
         ],
         "env": {
-                "AEROLAB_CLOUD": "gcp",
-                "AWS_PROFILE": "eks",
-                "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
-                "GCP_PROJECT": "aerolab-test-project-1",
-                "AEROLAB_GCP_TEST_REGIONS": "us-central1",
-                "AEROLAB_SKIP_CLEANUP": "true",
-                "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
+            "AEROLAB_CLOUD": "podman",
+            "AEROLAB_DOCKER_TEST_REGIONS": "default",
+            "AWS_PROFILE": "eks",
+            "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
+            "GCP_PROJECT": "aerolab-test-project-1",
+            "AEROLAB_GCP_TEST_REGIONS": "us-central1",
+            "AEROLAB_SKIP_CLEANUP": "true",
+            "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
         },
         "showLog": true
     },
@@ -89,7 +92,8 @@
             "${selectedText}"
         ],
         "env": {
-            "AEROLAB_CLOUD": "gcp",
+            "AEROLAB_CLOUD": "podman",
+            "AEROLAB_DOCKER_TEST_REGIONS": "default",
             "AWS_PROFILE": "eks",
             "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
             "GCP_PROJECT": "aerolab-test-project-1",
@@ -107,7 +111,8 @@
         "args": ["-test.failfast", "-test.v", "-test.run", "${input:testPattern}", "-test.count=1", "-test.timeout=0"],
         "program": "${fileDirname}",
         "env": {
-            "AEROLAB_CLOUD": "gcp",
+            "AEROLAB_CLOUD": "podman",
+            "AEROLAB_DOCKER_TEST_REGIONS": "default",
             "AWS_PROFILE": "eks",
             "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
             "GCP_PROJECT": "aerolab-test-project-1",

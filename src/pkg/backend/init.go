@@ -9,6 +9,6 @@ import (
 
 type Config backends.Config
 
-func New(project string, c *Config, pollInventoryHourly bool) (backends.Backend, error) {
-	return backends.InternalNew(project, (*backends.Config)(c), pollInventoryHourly)
+func New(project string, c *Config, pollInventoryHourly bool, enabledBackends []backends.BackendType) (backends.Backend, error) {
+	return backends.InternalNew(project, (*backends.Config)(c), pollInventoryHourly, enabledBackends)
 }

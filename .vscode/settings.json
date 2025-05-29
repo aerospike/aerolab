@@ -1,12 +1,14 @@
 {
     "go.testEnvVars": {
         "AEROLAB_CLOUD": "gcp",
+        "AEROLAB_DOCKER_TEST_REGIONS": "default",
         "AWS_PROFILE": "eks",
         "AEROLAB_AWS_TEST_REGIONS": "ca-central-1",
         "GCP_PROJECT": "aerolab-test-project-1",
         "AEROLAB_GCP_TEST_REGIONS": "us-central1",
         "AEROLAB_SKIP_CLEANUP": "true",
-        "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp"
+        "AEROLAB_TEST_CUSTOM_TMPDIR": "./tmp",
+        "DOCKER_HOST": "unix:///Users/rglonek/.docker/run/docker.sock"
     },
     "go.testFlags": ["-test.failfast", "-test.v", "-test.count=1", "-test.timeout=0"]
 }
