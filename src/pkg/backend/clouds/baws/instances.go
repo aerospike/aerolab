@@ -22,6 +22,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/parallelize"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/structtags"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -32,6 +33,37 @@ import (
 	"github.com/lithammer/shortuuid"
 	"golang.org/x/crypto/ssh"
 )
+
+type CreateInstanceParams struct {
+	// the image to use for the instances(nodes)
+	Image *backends.Image `yaml:"image" json:"image" required:"true"`
+	// specify either region (ca-central-1) or zone (ca-central-1a) or vpc-id (vpc-0123456789abcdefg) or subnet-id (subnet-0123456789abcdefg)
+	//
+	// vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, region: will use the default VPC, first subnet in the zone, zone: will use the default VPC-subnet in the zone
+	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement" required:"true"`
+	// instance type
+	InstanceType string `yaml:"instanceType" json:"instanceType" required:"true"`
+	// volume types and sizes, backend-specific definitions
+	//
+	// aws format:
+	//   type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]
+	//   example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2
+	//
+	// first specified volume is the root volume, all subsequent volumes are additional attached volumes
+	Disks []string `yaml:"disks" json:"disks" required:"true"`
+	// optional: names of firewalls to assign to the instances(nodes)
+	//
+	// will always create a project-wide firewall and assign it to the instances(nodes); this firewall allows communication between the instances(nodes) and port 22/tcp from the outside
+	Firewalls []string `yaml:"firewalls" json:"firewalls"`
+	// optional: if true, the instances(nodes) will be created as spot instances
+	SpotInstance bool `yaml:"spotInstance" json:"spotInstance"`
+	// optional: if true, will not create a public IP for the instance(node)
+	DisablePublicIP bool `yaml:"disablePublicIP" json:"disablePublicIP"`
+	// optional: the IAM instance profile to use for the instance(node)
+	IAMInstanceProfile string `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
+	// optional: the custom DNS to use for the instance(node); if not set, will not create a custom DNS
+	CustomDNS *backends.InstanceDNS `yaml:"customDNS" json:"customDNS"`
+}
 
 type InstanceDetail struct {
 	SecurityGroups        []types.GroupIdentifier   `yaml:"securityGroups" json:"securityGroups"`
@@ -51,7 +83,7 @@ type instanceVolume struct {
 	VolumeID string `yaml:"volumeID" json:"volumeID"`
 }
 
-func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backends.VolumeList, networkList backends.NetworkList, firewallList backends.FirewallList) *backends.Instance {
+func (s *b) getInstanceDetails(inst types.Instance, zone string, volumes backends.VolumeList, networkList backends.NetworkList) *backends.Instance {
 	tags := make(map[string]string)
 	for _, t := range inst.Tags {
 		tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
@@ -234,7 +266,7 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 				for _, res := range out.Reservations {
 					for _, inst := range res.Instances {
 						ilock.Lock()
-						i = append(i, s.getInstanceDetails(inst, zone, volumes, networkList, firewallList))
+						i = append(i, s.getInstanceDetails(inst, zone, volumes, networkList))
 						ilock.Unlock()
 					}
 				}
@@ -821,21 +853,36 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 }
 
 func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPPH, costGB float64, err error) {
-	_, _, zone, err := s.resolveNetworkPlacement(input.NetworkPlacement)
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateInstanceParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeAWS]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeAWS].(type) {
+			case *CreateInstanceParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeAWS].(*CreateInstanceParams)
+			default:
+				return 0, 0, fmt.Errorf("invalid backend-specific parameters for aws")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return 0, 0, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
+	_, _, zone, err := s.resolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
 	if err != nil {
 		return 0, 0, err
 	}
 	zone = zone[:len(zone)-1]
-	instanceType, err := s.GetInstanceType(zone, input.InstanceType)
+	instanceType, err := s.GetInstanceType(zone, backendSpecificParams.InstanceType)
 	if err != nil {
 		return 0, 0, err
 	}
-	if input.SpotInstance {
+	if backendSpecificParams.SpotInstance {
 		costPPH = instanceType.PricePerHour.Spot
 	} else {
 		costPPH = instanceType.PricePerHour.OnDemand
 	}
-	for _, diskDef := range input.Disks {
+	for _, diskDef := range backendSpecificParams.Disks {
 		parts := strings.Split(diskDef, ",")
 		addCostGB := float64(0)
 		count := int64(1)
@@ -934,12 +981,27 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	s.createInstanceCount.Inc()
 	defer s.createInstanceCount.Dec()
 
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateInstanceParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeAWS]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeAWS].(type) {
+			case *CreateInstanceParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeAWS].(*CreateInstanceParams)
+			default:
+				return nil, fmt.Errorf("invalid backend-specific parameters for aws")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return nil, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
 	// early check - DNS
-	if input.CustomDNS != nil && input.CustomDNS.Name != "" && input.Nodes > 1 {
-		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", input.CustomDNS.Name)
+	if backendSpecificParams.CustomDNS != nil && backendSpecificParams.CustomDNS.Name != "" && input.Nodes > 1 {
+		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
 	}
 
-	vpc, subnet, az, err := s.resolveNetworkPlacement(input.NetworkPlacement)
+	vpc, subnet, az, err := s.resolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
 	if err != nil {
 		return nil, err
 	}
@@ -961,7 +1023,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	// resolve firewalls from s.firewalls so we know they are in the right VPC
 	firewallIds := make(map[string]string) // map of firewallID -> name
 	securityGroupIds := []string{}
-	for _, fwNameOrId := range input.Firewalls {
+	for _, fwNameOrId := range backendSpecificParams.Firewalls {
 		isId := false
 		if strings.HasPrefix(fwNameOrId, "sg-") {
 			isId = true
@@ -1037,7 +1099,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	blockDeviceMappings := []types.BlockDeviceMapping{}
 	lastDisk := 'a' - 1
 	nextLetter := 'a'
-	for _, diskDef := range input.Disks {
+	for _, diskDef := range backendSpecificParams.Disks {
 		parts := strings.Split(diskDef, ",")
 		var diskType, diskSize, diskIops, diskThroughput, diskCount string
 		var encrypted bool
@@ -1130,7 +1192,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	if len(blockDeviceMappings) > 0 {
 		// modify the first block device mapping to be the root volume
-		blockDeviceMappings[0].DeviceName = aws.String(input.Image.BackendSpecific.(*ImageDetail).RootDeviceName)
+		blockDeviceMappings[0].DeviceName = aws.String(backendSpecificParams.Image.BackendSpecific.(*ImageDetail).RootDeviceName)
 	}
 
 	log.Detail("Block device mappings: %v", blockDeviceMappings)
@@ -1169,11 +1231,11 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		},
 		{
 			Key:   aws.String(TAG_OS_NAME),
-			Value: aws.String(input.Image.OSName),
+			Value: aws.String(backendSpecificParams.Image.OSName),
 		},
 		{
 			Key:   aws.String(TAG_OS_VERSION),
-			Value: aws.String(input.Image.OSVersion),
+			Value: aws.String(backendSpecificParams.Image.OSVersion),
 		},
 		{
 			Key:   aws.String(TAG_COST_PPH),
@@ -1196,22 +1258,22 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			Value: aws.String(clusterUUID),
 		},
 	}
-	if input.CustomDNS != nil {
+	if backendSpecificParams.CustomDNS != nil {
 		awsTags = append(awsTags, types.Tag{
 			Key:   aws.String(TAG_DNS_NAME),
-			Value: aws.String(input.CustomDNS.Name),
+			Value: aws.String(backendSpecificParams.CustomDNS.Name),
 		})
 		awsTags = append(awsTags, types.Tag{
 			Key:   aws.String(TAG_DNS_REGION),
-			Value: aws.String(input.CustomDNS.Region),
+			Value: aws.String(backendSpecificParams.CustomDNS.Region),
 		})
 		awsTags = append(awsTags, types.Tag{
 			Key:   aws.String(TAG_DNS_DOMAIN_ID),
-			Value: aws.String(input.CustomDNS.DomainID),
+			Value: aws.String(backendSpecificParams.CustomDNS.DomainID),
 		})
 		awsTags = append(awsTags, types.Tag{
 			Key:   aws.String(TAG_DNS_DOMAIN_NAME),
-			Value: aws.String(input.CustomDNS.DomainName),
+			Value: aws.String(backendSpecificParams.CustomDNS.DomainName),
 		})
 	}
 	for k, v := range input.Tags {
@@ -1282,7 +1344,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	// Create instances
 	runResults := []types.Instance{}
 	var marketType *types.InstanceMarketOptionsRequest
-	if input.SpotInstance {
+	if backendSpecificParams.SpotInstance {
 		marketType = &types.InstanceMarketOptionsRequest{
 			MarketType: types.MarketTypeSpot,
 		}
@@ -1292,14 +1354,14 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		shutdownBehavior = types.ShutdownBehaviorTerminate
 	}
 	var iam *types.IamInstanceProfileSpecification
-	if input.IAMInstanceProfile != "" {
-		if strings.HasPrefix(input.IAMInstanceProfile, "arn:aws:iam::") {
+	if backendSpecificParams.IAMInstanceProfile != "" {
+		if strings.HasPrefix(backendSpecificParams.IAMInstanceProfile, "arn:aws:iam::") {
 			iam = &types.IamInstanceProfileSpecification{
-				Arn: aws.String(input.IAMInstanceProfile),
+				Arn: aws.String(backendSpecificParams.IAMInstanceProfile),
 			}
 		} else {
 			iam = &types.IamInstanceProfileSpecification{
-				Name: aws.String(input.IAMInstanceProfile),
+				Name: aws.String(backendSpecificParams.IAMInstanceProfile),
 			}
 		}
 	}
@@ -1339,8 +1401,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		})
 		// Create instance
 		runResult, err := cli.RunInstances(context.Background(), &ec2.RunInstancesInput{
-			ImageId:                           aws.String(input.Image.ImageId),
-			InstanceType:                      types.InstanceType(input.InstanceType),
+			ImageId:                           aws.String(backendSpecificParams.Image.ImageId),
+			InstanceType:                      types.InstanceType(backendSpecificParams.InstanceType),
 			MinCount:                          aws.Int32(1),
 			MaxCount:                          aws.Int32(1),
 			IamInstanceProfile:                iam,
@@ -1351,7 +1413,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					DeviceIndex:              aws.Int32(0),
 					SubnetId:                 aws.String(subnet.SubnetId),
 					Groups:                   securityGroupIds,
-					AssociatePublicIpAddress: aws.Bool(!input.DisablePublicIP),
+					AssociatePublicIpAddress: aws.Bool(!backendSpecificParams.DisablePublicIP),
 				},
 			},
 			TagSpecifications: []types.TagSpecification{
@@ -1413,7 +1475,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		Instances: make(backends.InstanceList, len(runResults)),
 	}
 	for i, instance := range runResults {
-		output.Instances[i] = s.getInstanceDetails(instance, zone, s.volumes, s.networks, s.firewalls)
+		output.Instances[i] = s.getInstanceDetails(instance, zone, s.volumes, s.networks)
 	}
 
 	// handle DNS creation if required
@@ -1421,19 +1483,19 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if input.CustomDNS == nil {
+		if backendSpecificParams.CustomDNS == nil {
 			return
 		}
 		log.Detail("Creating DNS records start")
 		defer log.Detail("Creating DNS records end")
-		cli, err := getRoute53Client(s.credentials, &input.CustomDNS.Region)
+		cli, err := getRoute53Client(s.credentials, &backendSpecificParams.CustomDNS.Region)
 		if err != nil {
 			log.Warn("Failed to get route53 client, DNS will not be created: %s", err)
 			return
 		}
 		_, err = cli.ChangeTagsForResource(context.Background(), &route53.ChangeTagsForResourceInput{
 			ResourceType: rtypes.TagResourceTypeHostedzone,
-			ResourceId:   aws.String(input.CustomDNS.DomainID),
+			ResourceId:   aws.String(backendSpecificParams.CustomDNS.DomainID),
 			AddTags: []rtypes.Tag{
 				{Key: aws.String(TAG_AEROLAB_PROJECT), Value: aws.String(s.project)},
 				{Key: aws.String(TAG_AEROLAB_VERSION), Value: aws.String(s.aerolabVersion)},
@@ -1459,7 +1521,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			}
 		}
 		change, err := cli.ChangeResourceRecordSets(context.Background(), &route53.ChangeResourceRecordSetsInput{
-			HostedZoneId: aws.String(input.CustomDNS.DomainID),
+			HostedZoneId: aws.String(backendSpecificParams.CustomDNS.DomainID),
 			ChangeBatch: &rtypes.ChangeBatch{
 				Changes: changes,
 			},
@@ -1490,7 +1552,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		now := time.Now()
 		success := true
 		out := output.Instances.Exec(&backends.ExecInput{
-			Username:        input.Image.Username,
+			Username:        backendSpecificParams.Image.Username,
 			ParallelThreads: input.ParallelSSHThreads,
 			ConnectTimeout:  5 * time.Second,
 			ExecDetail: sshexec.ExecDetail{

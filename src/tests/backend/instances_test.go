@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 )
 
@@ -66,41 +69,49 @@ func testCreateInstanceGetPrice(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
-	itype := "r6a.large"
-	disks := []string{"type=gp2,size=20,count=2"}
-	if cloud == "gcp" {
-		if strings.Count(Options.TestRegions[0], "-") == 1 {
-			placement = Options.TestRegions[0] + "-a"
-		}
-		itype = "e2-standard-4"
-		disks = []string{"type=pd-ssd,size=20,count=2"}
+	if strings.Count(Options.TestRegions[0], "-") == 1 {
+		placement = Options.TestRegions[0] + "-a"
+	}
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "a",
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=2"},
+			Firewalls:        []string{"test-aerolab-fw"},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: placement,
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=2"},
+			Firewalls:        []string{"test-aerolab-fw"},
+		},
+		backends.BackendTypeDocker: &bdocker.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: "default,default",
+			Disks:            []string{},
+			Firewalls:        []string{},
+		},
 	}
 	costPPH, costGB, err := testBackend.CreateInstancesGetPrice(&backends.CreateInstanceInput{
-		ClusterName:      "test-cluster",
-		Nodes:            3,
-		Image:            image,
-		NetworkPlacement: placement,
-		Firewalls:        []string{"test-aerolab-fw"},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
+		ClusterName:           "test-cluster",
+		Nodes:                 3,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	})
 	require.NoError(t, err)
 	require.NotZero(t, costPPH)
 	require.NotZero(t, costGB)
 	costPPH1, costGB1, err := testBackend.CreateInstancesGetPrice(&backends.CreateInstanceInput{
-		ClusterName:      "test-cluster",
-		Nodes:            1,
-		Image:            image,
-		NetworkPlacement: placement,
-		Firewalls:        []string{"test-aerolab-fw"},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
+		ClusterName:           "test-cluster",
+		Nodes:                 1,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	})
 	require.NoError(t, err)
 	require.Equal(t, costPPH1*3, costPPH)
@@ -112,28 +123,38 @@ func testCreateInstance(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
-	itype := "r6a.large"
-	disks := []string{"type=gp2,size=20,count=2"}
-	if cloud == "gcp" {
+	if strings.Count(Options.TestRegions[0], "-") == 1 {
 		placement = Options.TestRegions[0] + "-a"
-		itype = "e2-standard-4"
-		disks = []string{"type=pd-ssd,size=20,count=2"}
-	} else if cloud == "docker" {
-		placement = "default,default"
-		itype = ""
-		disks = []string{}
+	}
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "a",
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=2"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: placement,
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=2"},
+			Firewalls:        []string{},
+		},
+		backends.BackendTypeDocker: &bdocker.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: "default,default",
+			Disks:            []string{},
+			Firewalls:        []string{},
+		},
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
-		ClusterName:      "test-cluster",
-		Nodes:            3,
-		Image:            image,
-		NetworkPlacement: placement,
-		Firewalls:        []string{},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
+		ClusterName:           "test-cluster",
+		Nodes:                 3,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 3)

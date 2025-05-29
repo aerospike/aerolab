@@ -1,6 +1,11 @@
 package backends
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"github.com/aerospike/aerolab/pkg/structtags"
+)
 
 func (s *backend) CreateFirewall(input *CreateFirewallInput, waitDur time.Duration) (output *CreateFirewallOutput, err error) {
 	start := time.Now()
@@ -31,6 +36,9 @@ func (s *backend) CreateInstances(input *CreateInstanceInput, waitDur time.Durat
 	defer func() {
 		s.log.Detail("CreateInstances: err=%v, took=%v", err, time.Since(start))
 	}()
+	if err := structtags.CheckRequired(input); err != nil {
+		return nil, fmt.Errorf("required fields missing: %w", err)
+	}
 	return s.enabledBackends[input.BackendType].CreateInstances(input, waitDur)
 }
 

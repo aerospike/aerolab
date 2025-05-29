@@ -25,6 +25,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
 	"github.com/aerospike/aerolab/pkg/parallelize"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/structtags"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/smithy-go"
 	"github.com/google/uuid"
@@ -37,6 +38,35 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/protobuf/proto"
 )
+
+type CreateInstanceParams struct {
+	// the image to use for the instances(nodes)
+	Image *backends.Image `yaml:"image" json:"image" required:"true"`
+	// specify the zone for placement, e.g. us-central1-a
+	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement" required:"true"`
+	// instance type
+	InstanceType string `yaml:"instanceType" json:"instanceType" required:"true"`
+	// volume types and sizes, backend-specific definitions
+	//
+	// gcp format:
+	//   type={pd-*,hyperdisk-*,local-ssd}[,size={GB}][,iops={cnt}][,throughput={mb/s}][,count=5]
+	//   example: type=pd-ssd,size=20 type=hyperdisk-balanced,size=20,iops=3060,throughput=155,count=2
+	//
+	// first specified volume is the root volume, all subsequent volumes are additional attached volumes
+	Disks []string `yaml:"disks" json:"disks" required:"true"`
+	// optional: names of firewalls to assign to the instances(nodes)
+	//
+	// will always create a project-wide firewall and assign it to the instances(nodes); this firewall allows communication between the instances(nodes) and port 22/tcp from the outside
+	Firewalls []string `yaml:"firewalls" json:"firewalls"`
+	// optional: if true, the instances(nodes) will be created as spot instances
+	SpotInstance bool `yaml:"spotInstance" json:"spotInstance"`
+	// optional: the IAM instance profile to use for the instance(node)
+	IAMInstanceProfile string `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
+	// optional: the custom DNS to use for the instance(node); if not set, will not create a custom DNS
+	CustomDNS *backends.InstanceDNS `yaml:"customDNS" json:"customDNS"`
+	// optional: the minimum CPU platform to use for the instance(node); if not set, will not create a minimum CPU platform
+	MinCpuPlatform string `yaml:"minCpuPlatform" json:"minCpuPlatform"`
+}
 
 type InstanceDetail struct {
 	FirewallTags     []string         `yaml:"firewallTags" json:"firewallTags"`
@@ -68,7 +98,7 @@ func getArchitecture(instance *computepb.Instance) backends.Architecture {
 	return backends.ArchitectureX8664
 }
 
-func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, volumes backends.VolumeList, networkList backends.NetworkList, firewallList backends.FirewallList) *backends.Instance {
+func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, volumes backends.VolumeList, networkList backends.NetworkList) *backends.Instance {
 	tags, err := decodeFromLabels(inst.Labels)
 	if err != nil {
 		log.Detail("Error decoding labels: %s", err)
@@ -233,7 +263,7 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 		}
 		instances := inst.Value.Instances
 		for _, instance := range instances {
-			iData := s.getInstanceDetails(log, instance, volumes, networkList, firewallList)
+			iData := s.getInstanceDetails(log, instance, volumes, networkList)
 			if iData == nil {
 				continue
 			}
@@ -812,16 +842,31 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 }
 
 func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPPH, costGB float64, err error) {
-	instanceType, err := s.GetInstanceType(input.NetworkPlacement, input.InstanceType)
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateInstanceParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeGCP]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeGCP].(type) {
+			case *CreateInstanceParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeGCP].(*CreateInstanceParams)
+			default:
+				return 0, 0, fmt.Errorf("invalid backend-specific parameters for gcp")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return 0, 0, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
+	instanceType, err := s.GetInstanceType(backendSpecificParams.NetworkPlacement, backendSpecificParams.InstanceType)
 	if err != nil {
 		return 0, 0, err
 	}
-	if input.SpotInstance {
+	if backendSpecificParams.SpotInstance {
 		costPPH = instanceType.PricePerHour.Spot
 	} else {
 		costPPH = instanceType.PricePerHour.OnDemand
 	}
-	for _, diskDef := range input.Disks {
+	for _, diskDef := range backendSpecificParams.Disks {
 		parts := strings.Split(diskDef, ",")
 		addCostGB := float64(0)
 		count := int64(1)
@@ -833,7 +878,7 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 			switch strings.ToLower(kv[0]) {
 			case "type":
 				diskType := kv[1]
-				volumePrice, err := s.GetVolumePrice(input.NetworkPlacement, diskType)
+				volumePrice, err := s.GetVolumePrice(backendSpecificParams.NetworkPlacement, diskType)
 				if err != nil {
 					return 0, 0, err
 				}
@@ -878,7 +923,7 @@ func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, su
 	return vpc, subnet, zone, nil
 }
 
-func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, input *backends.CreateInstanceInput, zone string) ([]*computepb.AttachedDisk, error) {
+func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, zone string, backendSpecificParams *CreateInstanceParams) ([]*computepb.AttachedDisk, error) {
 	// parse disks into ec2.CreateInstancesInput so we know the definitions are fine and have a block device mapping done
 	disksList := []*computepb.AttachedDisk{}
 	lastDisk := 'a' - 1
@@ -951,7 +996,7 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 				if !strings.HasPrefix(diskType, "pd-") && !strings.HasPrefix(diskType, "hyperdisk-") {
 					return nil, fmt.Errorf("first (root volume) disk must be of type pd-* or hyperdisk-*")
 				}
-				simage = proto.String(input.Image.ImageId)
+				simage = proto.String(backendSpecificParams.Image.ImageId)
 				boot = true
 				nI++
 			}
@@ -1012,16 +1057,31 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	s.createInstanceCount.Inc()
 	defer s.createInstanceCount.Dec()
 
+	// resolve backend-specific parameters
+	backendSpecificParams := &CreateInstanceParams{}
+	if input.BackendSpecificParams != nil {
+		if _, ok := input.BackendSpecificParams[backends.BackendTypeGCP]; ok {
+			switch input.BackendSpecificParams[backends.BackendTypeGCP].(type) {
+			case *CreateInstanceParams:
+				backendSpecificParams = input.BackendSpecificParams[backends.BackendTypeGCP].(*CreateInstanceParams)
+			default:
+				return nil, fmt.Errorf("invalid backend-specific parameters for gcp")
+			}
+		}
+	}
+	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
+		return nil, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
+	}
 	// early check - DNS
-	if input.CustomDNS != nil && input.CustomDNS.Name != "" && input.Nodes > 1 {
-		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", input.CustomDNS.Name)
+	if backendSpecificParams.CustomDNS != nil && backendSpecificParams.CustomDNS.Name != "" && input.Nodes > 1 {
+		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
 	}
 
-	vpc, subnet, az, err := s.resolveNetworkPlacement(input.NetworkPlacement)
+	vpc, subnet, az, err := s.resolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
 	if err != nil {
 		return nil, err
 	}
-	zone := input.NetworkPlacement
+	zone := backendSpecificParams.NetworkPlacement
 
 	log.Detail("Selected network placement: zone=%s az=%s vpc=%s subnet=%s", zone, az, vpc.NetworkId, subnet.SubnetId)
 
@@ -1038,7 +1098,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	// resolve firewalls from s.firewalls so we know they are in the right VPC
 	securityGroupIds := []string{}
-	for _, fwNameOrId := range input.Firewalls {
+	for _, fwNameOrId := range backendSpecificParams.Firewalls {
 		found := false
 		for _, fw := range s.firewalls {
 			if fw.Name == fwNameOrId {
@@ -1165,8 +1225,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		TAG_AEROLAB_EXPIRES:       input.Expires.Format(time.RFC3339),
 		TAG_AEROLAB_PROJECT:       s.project,
 		TAG_AEROLAB_VERSION:       s.aerolabVersion,
-		TAG_OS_NAME:               input.Image.OSName,
-		TAG_OS_VERSION:            input.Image.OSVersion,
+		TAG_OS_NAME:               backendSpecificParams.Image.OSName,
+		TAG_OS_VERSION:            backendSpecificParams.Image.OSVersion,
 		TAG_COST_PPH:              fmt.Sprintf("%f", costPPH),
 		TAG_COST_PER_GB:           fmt.Sprintf("%f", costGB),
 		TAG_COST_SO_FAR:           "0",
@@ -1174,11 +1234,11 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		TAG_CLUSTER_UUID:          clusterUUID,
 		TAG_DELETE_ON_TERMINATION: strconv.FormatBool(true),
 	}
-	if input.CustomDNS != nil {
-		gcpTags[TAG_DNS_NAME] = input.CustomDNS.Name
-		gcpTags[TAG_DNS_REGION] = input.CustomDNS.Region
-		gcpTags[TAG_DNS_DOMAIN_ID] = input.CustomDNS.DomainID
-		gcpTags[TAG_DNS_DOMAIN_NAME] = input.CustomDNS.DomainName
+	if backendSpecificParams.CustomDNS != nil {
+		gcpTags[TAG_DNS_NAME] = backendSpecificParams.CustomDNS.Name
+		gcpTags[TAG_DNS_REGION] = backendSpecificParams.CustomDNS.Region
+		gcpTags[TAG_DNS_DOMAIN_ID] = backendSpecificParams.CustomDNS.DomainID
+		gcpTags[TAG_DNS_DOMAIN_NAME] = backendSpecificParams.CustomDNS.DomainName
 	}
 	for k, v := range input.Tags {
 		gcpTags[k] = v
@@ -1262,14 +1322,14 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	onHostMaintenance := "MIGRATE"
 	autoRestart := true
 	provisioning := "STANDARD"
-	if input.SpotInstance {
+	if backendSpecificParams.SpotInstance {
 		provisioning = "SPOT"
 		autoRestart = false
 		onHostMaintenance = "TERMINATE"
 		gcpTags["isspot"] = "true"
 	}
 	var serviceAccounts []*computepb.ServiceAccount
-	if input.TerminateOnStop || input.IAMInstanceProfile != "" {
+	if input.TerminateOnStop || backendSpecificParams.IAMInstanceProfile != "" {
 		serviceAccounts = []*computepb.ServiceAccount{
 			{
 				Scopes: []string{
@@ -1277,7 +1337,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				},
 			},
 		}
-		if !strings.HasSuffix(input.IAMInstanceProfile, "::nopricing") {
+		if !strings.HasSuffix(backendSpecificParams.IAMInstanceProfile, "::nopricing") {
 			serviceAccounts[0].Scopes = append(serviceAccounts[0].Scopes, "https://www.googleapis.com/auth/cloud-billing.readonly")
 		}
 	}
@@ -1306,13 +1366,13 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		nodeVolumeTagsEncoded := encodeToLabels(nodeVolumeTags)
 		nodeVolumeTagsEncoded["usedby"] = "aerolab"
 
-		disksList, err := getDeviceMappings(input.Disks, nodeVolumeTagsEncoded, input, zone)
+		disksList, err := getDeviceMappings(backendSpecificParams.Disks, nodeVolumeTagsEncoded, zone, backendSpecificParams)
 		if err != nil {
 			return nil, err
 		}
 		var minCpuPlatform *string
-		if input.MinCpuPlatform != "" {
-			minCpuPlatform = proto.String(input.MinCpuPlatform)
+		if backendSpecificParams.MinCpuPlatform != "" {
+			minCpuPlatform = proto.String(backendSpecificParams.MinCpuPlatform)
 		}
 		// Create instance
 		op, err := client.Insert(context.Background(), &computepb.InsertInstanceRequest{
@@ -1329,7 +1389,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 					},
 				},
 				Name:            &name,
-				MachineType:     proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", zone, input.InstanceType)),
+				MachineType:     proto.String(fmt.Sprintf("zones/%s/machineTypes/%s", zone, backendSpecificParams.InstanceType)),
 				MinCpuPlatform:  minCpuPlatform,
 				ServiceAccounts: serviceAccounts,
 				Tags:            &computepb.Tags{Items: securityGroupIds},
@@ -1395,14 +1455,14 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		Instances: make(backends.InstanceList, len(runResults)),
 	}
 	for i, instance := range runResults {
-		output.Instances[i] = s.getInstanceDetails(log, instance, s.volumes, s.networks, s.firewalls)
+		output.Instances[i] = s.getInstanceDetails(log, instance, s.volumes, s.networks)
 	}
 
 	wg := new(sync.WaitGroup)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if input.CustomDNS == nil {
+		if backendSpecificParams.CustomDNS == nil {
 			return
 		}
 		log.Detail("Creating DNS records start")
@@ -1413,22 +1473,22 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			return
 		}
 		// check if the zone is marked as usedby:aerolab, and mark it if not
-		zone, err := client.ManagedZones.Get(s.credentials.Project, input.CustomDNS.DomainID).Do()
+		zone, err := client.ManagedZones.Get(s.credentials.Project, backendSpecificParams.CustomDNS.DomainID).Do()
 		if err != nil {
-			log.Warn("Failed to get zone %s: %s", input.CustomDNS.DomainID, err)
+			log.Warn("Failed to get zone %s: %s", backendSpecificParams.CustomDNS.DomainID, err)
 			return
 		}
 		if !strings.Contains(zone.Description, "usedby:aerolab") {
-			log.Warn("Zone %s is not marked as usedby:aerolab, marking it", input.CustomDNS.DomainID)
+			log.Warn("Zone %s is not marked as usedby:aerolab, marking it", backendSpecificParams.CustomDNS.DomainID)
 			newDesc := zone.Description + " usedby:aerolab"
 			if newDesc == " usedby:aerolab" {
 				newDesc = "usedby:aerolab"
 			}
-			_, err = client.ManagedZones.Patch(s.credentials.Project, input.CustomDNS.DomainID, &dns.ManagedZone{
+			_, err = client.ManagedZones.Patch(s.credentials.Project, backendSpecificParams.CustomDNS.DomainID, &dns.ManagedZone{
 				Description: newDesc,
 			}).Do()
 			if err != nil {
-				log.Warn("Failed to mark zone %s as usedby:aerolab: %s", input.CustomDNS.DomainID, err)
+				log.Warn("Failed to mark zone %s as usedby:aerolab: %s", backendSpecificParams.CustomDNS.DomainID, err)
 				return
 			}
 		}
@@ -1456,7 +1516,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		now := time.Now()
 		success := true
 		out := output.Instances.Exec(&backends.ExecInput{
-			Username:        input.Image.Username,
+			Username:        backendSpecificParams.Image.Username,
 			ParallelThreads: input.ParallelSSHThreads,
 			ConnectTimeout:  5 * time.Second,
 			ExecDetail: sshexec.ExecDetail{

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,35 +33,42 @@ func (d *testInstancesDNS) testCreateInstance(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
-	itype := "r6a.large"
-	disks := []string{"type=gp2,size=20,count=1"}
-	if cloud == "gcp" {
-		if strings.Count(Options.TestRegions[0], "-") == 1 {
-			placement = Options.TestRegions[0] + "-a"
-		}
-		itype = "e2-standard-4"
-		disks = []string{"type=pd-ssd,size=20,count=1"}
+	if strings.Count(Options.TestRegions[0], "-") == 1 {
+		placement = Options.TestRegions[0] + "-a"
 	}
-	domainId := "Z08885863MUP8ENZ1K1Z7"
-	if cloud == "gcp" {
-		domainId = "aerospikeme"
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "a",
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=1"},
+			Firewalls:        []string{},
+			CustomDNS: &backends.InstanceDNS{
+				DomainID:   "Z08885863MUP8ENZ1K1Z7",
+				DomainName: "aerospike.me",
+				Region:     "us-east-1",
+			},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: placement,
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=1"},
+			Firewalls:        []string{},
+			CustomDNS: &backends.InstanceDNS{
+				DomainID:   "aerospikeme",
+				DomainName: "aerospike.me",
+				Region:     "global",
+			},
+		},
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
-		ClusterName:      "test-cluster",
-		Nodes:            3,
-		Image:            image,
-		NetworkPlacement: placement,
-		Firewalls:        []string{},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
-		CustomDNS: &backends.InstanceDNS{
-			DomainID:   domainId,
-			DomainName: "aerospike.me",
-			Region:     "us-east-1",
-		},
+		ClusterName:           "test-cluster",
+		Nodes:                 3,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 3)

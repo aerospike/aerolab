@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -160,26 +162,30 @@ func (fw *fwTest) testCreateTestInstanceForFirewall(t *testing.T) {
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
-	placement := fw.network.NetworkId
-	itype := "r6a.large"
-	disks := []string{"type=gp2,size=20,count=2"}
-	if cloud == "gcp" {
-		placement = Options.TestRegions[0] + "-a"
-		itype = "e2-standard-4"
-		disks = []string{"type=pd-ssd,size=20,count=2"}
+	params := map[backends.BackendType]interface{}{
+		backends.BackendTypeAWS: &baws.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: fw.network.NetworkId,
+			InstanceType:     "r6a.large",
+			Disks:            []string{"type=gp2,size=20,count=2"},
+			Firewalls:        []string{"test-firewall"},
+		},
+		backends.BackendTypeGCP: &bgcp.CreateInstanceParams{
+			Image:            image,
+			NetworkPlacement: Options.TestRegions[0] + "-a",
+			InstanceType:     "e2-standard-4",
+			Disks:            []string{"type=pd-ssd,size=20,count=2"},
+			Firewalls:        []string{"test-firewall"},
+		},
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
-		ClusterName:      "test-cluster",
-		Name:             "test-instance",
-		Nodes:            1,
-		Image:            image,
-		NetworkPlacement: placement,
-		Firewalls:        []string{"test-firewall"},
-		BackendType:      backendType,
-		InstanceType:     itype,
-		Owner:            "test-owner",
-		Description:      "test-description",
-		Disks:            disks,
+		ClusterName:           "test-cluster",
+		Name:                  "test-instance",
+		Nodes:                 1,
+		BackendType:           backendType,
+		Owner:                 "test-owner",
+		Description:           "test-description",
+		BackendSpecificParams: params,
 	}, 2*time.Minute)
 	require.NoError(t, err)
 	require.Equal(t, insts.Instances.Count(), 1)
