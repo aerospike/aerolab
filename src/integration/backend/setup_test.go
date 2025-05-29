@@ -26,6 +26,7 @@ var (
 	aerolabVersion string = "v0.0.0"
 	Options        *BackendTestOptions
 	cloud          string
+	podman         bool
 	testBackend    backends.Backend
 	backendType    backends.BackendType
 )
@@ -44,6 +45,10 @@ func (o *BackendTestOptions) Validate() error {
 		return errors.New("AEROLAB_CLOUD environment variable not set")
 	}
 	cloud = os.Getenv("AEROLAB_CLOUD")
+	if cloud == "podman" {
+		cloud = "docker"
+		podman = true
+	}
 
 	switch cloud {
 	case "aws":
@@ -56,6 +61,8 @@ func (o *BackendTestOptions) Validate() error {
 			return errors.New("GCP_PROJECT environment variable not set")
 		}
 		backendType = backends.BackendTypeGCP
+	case "docker":
+		backendType = backends.BackendTypeDocker
 	}
 
 	if value, isSet := os.LookupEnv("AEROLAB_SKIP_CLEANUP"); isSet {
@@ -113,6 +120,21 @@ func setup(fresh bool) error {
 				TokenCacheFilePath: filepath.Join(tempDir, "gcp_token.json"),
 			},
 		},
+		DOCKER: clouds.DOCKER{
+			EnableDefaultFromEnv: true,
+		},
+	}
+
+	btype := backends.BackendTypeAWS
+	switch cloud {
+	case "aws":
+		btype = backends.BackendTypeAWS
+	case "gcp":
+		btype = backends.BackendTypeGCP
+	case "docker":
+		btype = backends.BackendTypeDocker
+	default:
+		return errors.New("invalid cloud: " + cloud)
 	}
 
 	// Put setup boilerplate here
@@ -126,19 +148,9 @@ func setup(fresh bool) error {
 			AerolabVersion:  aerolabVersion,
 			ListAllProjects: false,
 		},
-		false)
+		false, []backends.BackendType{btype})
 	if err != nil {
 		return err
-	}
-
-	btype := backends.BackendTypeAWS
-	switch cloud {
-	case "aws":
-		btype = backends.BackendTypeAWS
-	case "gcp":
-		btype = backends.BackendTypeGCP
-	default:
-		return errors.New("invalid cloud: " + cloud)
 	}
 	err = testBackend.AddRegion(btype, Options.TestRegions...)
 	if err != nil {
@@ -199,7 +211,7 @@ func cleanupBackend() error {
 		expiryRegions = append(expiryRegions, expiry.Zone)
 	}
 
-	err = testBackend.ExpiryRemove(backends.BackendTypeAWS, expiryRegions...)
+	err = testBackend.ExpiryRemove(backendType, expiryRegions...)
 	if err != nil {
 		return err
 	}
@@ -238,7 +250,11 @@ func testInventoryEmpty(t *testing.T) {
 	require.Equal(t, inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).Count(), 0)
 	require.Equal(t, inventory.Volumes.Count(), 0)
 	require.Equal(t, inventory.Networks.WithAerolabManaged(true).Count(), 0)
-	require.Equal(t, inventory.Networks.WithAerolabManaged(false).Count(), 1)
+	netCount := 1
+	if cloud == "docker" && !podman {
+		netCount = 3
+	}
+	require.Equal(t, inventory.Networks.WithAerolabManaged(false).Count(), netCount)
 	require.Equal(t, inventory.Firewalls.Count(), 0)
 	require.Equal(t, inventory.Images.WithInAccount(true).Count(), 0)
 	require.GreaterOrEqual(t, inventory.Images.WithInAccount(false).Count(), 20)

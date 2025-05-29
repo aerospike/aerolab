@@ -1,7 +1,7 @@
 Env vars:
 * AEROLAB_SKIP_CLEANUP
 * AEROLAB_TEST_CUSTOM_TMPDIR
-* AEROLAB_CLOUD = aws|gcp
+* AEROLAB_CLOUD = aws|gcp|docker
   * aws:
     * AWS_PROFILE
     * AEROLAB_AWS_TEST_REGIONS
@@ -10,3 +10,5 @@ Env vars:
     * AEROLAB_GCP_TEST_REGIONS
     * GCP_CLIENT_ID
     * GCP_CLIENT_SECRET
+  * docker:
+    * AEROLAB_DOCKER_TEST_REGIONS=default

@@ -15,30 +15,35 @@ func Test35_Volumes(t *testing.T) {
 	t.Cleanup(cleanup)
 	tv := &testVolume{}
 	t.Run("setup", testSetup)
-	t.Run("inventory empty", testInventoryEmpty)
-	t.Run("create attached volume get price", tv.testCreateAttachedVolumeGetPrice)
-	t.Run("create shared volume get price", tv.testCreateSharedVolumeGetPrice)
-	t.Run("create test instance", tv.testCreateTestInstance)
-	t.Run("create attached volume", tv.testCreateAttachedVolume)
-	t.Run("add tags to attached volume", tv.testAddTagsToAttachedVolume)
-	t.Run("remove tags from attached volume", tv.testRemoveTagsFromAttachedVolume)
-	t.Run("attach attached volume to instance", tv.testAttachAttachedVolumeToInstance)
-	t.Run("resize attached volume", tv.testResizeAttachedVolume)
-	t.Run("detach attached volume from instance", tv.testDetachAttachedVolumeFromInstance)
-	t.Run("create shared volume", tv.testCreateSharedVolume)
-	t.Run("add tags to shared volume", tv.testAddTagsToSharedVolume)
-	t.Run("remove tags from shared volume", tv.testRemoveTagsFromSharedVolume)
-	t.Run("attach shared volume to instance", tv.testAttachSharedVolumeToInstance)
-	t.Run("detach shared volume from instance", tv.testDetachSharedVolumeFromInstance)
-	t.Run("delete test instance", tv.testDeleteTestInstance)
-	t.Run("delete attached volume", tv.testDeleteAttachedVolume)
-	t.Run("delete shared volume", tv.testDeleteSharedVolume)
-	t.Run("delete firewalls", tv.testDeleteFirewalls)
-	t.Run("end inventory empty", testInventoryEmpty)
+	t.Run("inventory empty", testInventoryEmpty)                                                    // all
+	t.Run("create attached volume get price", tv.testCreateAttachedVolumeGetPrice)                  // no docker
+	t.Run("create shared volume get price", tv.testCreateSharedVolumeGetPrice)                      // no docker
+	t.Run("create test instance", tv.testCreateTestInstance)                                        // no docker
+	t.Run("create attached volume", tv.testCreateAttachedVolume)                                    // no docker
+	t.Run("add tags to attached volume", tv.testAddTagsToAttachedVolume)                            // no docker
+	t.Run("remove tags from attached volume", tv.testRemoveTagsFromAttachedVolume)                  // no docker
+	t.Run("attach attached volume to instance", tv.testAttachAttachedVolumeToInstance)              // no docker
+	t.Run("resize attached volume", tv.testResizeAttachedVolume)                                    // no docker
+	t.Run("detach attached volume from instance", tv.testDetachAttachedVolumeFromInstance)          // no docker
+	t.Run("create shared volume", tv.testCreateSharedVolume)                                        // docker,aws
+	t.Run("add tags to shared volume", tv.testAddTagsToSharedVolume)                                // aws
+	t.Run("remove tags from shared volume", tv.testRemoveTagsFromSharedVolume)                      // aws
+	t.Run("create test instance with attached volume", tv.testCreateTestInstanceWithAttachedVolume) // docker only
+	t.Run("attach shared volume to instance", tv.testAttachSharedVolumeToInstance)                  // aws
+	t.Run("detach shared volume from instance", tv.testDetachSharedVolumeFromInstance)              // aws
+	t.Run("delete test instance", tv.testDeleteTestInstance)                                        // all
+	t.Run("delete attached volume", tv.testDeleteAttachedVolume)                                    // no docker
+	t.Run("delete shared volume", tv.testDeleteSharedVolume)                                        // docker,aws
+	t.Run("delete firewalls", tv.testDeleteFirewalls)                                               // no docker
+	t.Run("end inventory empty", testInventoryEmpty)                                                // all
 }
 
 func (tv *testVolume) testDeleteFirewalls(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 
 	fw := testBackend.GetInventory().Firewalls
@@ -56,6 +61,10 @@ func (tv *testVolume) testDeleteFirewalls(t *testing.T) {
 
 func (tv *testVolume) testCreateAttachedVolumeGetPrice(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support pricing")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	diskType := "gp2"
 	placement := Options.TestRegions[0]
@@ -89,6 +98,10 @@ func (tv *testVolume) testCreateSharedVolumeGetPrice(t *testing.T) {
 		t.Skip("GCP does not support shared volumes")
 		return
 	}
+	if cloud == "docker" {
+		t.Skip("docker does not support pricing")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	price, err := testBackend.CreateVolumeGetPrice(&backends.CreateVolumeInput{
 		BackendType:       backendType,
@@ -112,6 +125,10 @@ func (tv *testVolume) testCreateSharedVolumeGetPrice(t *testing.T) {
 
 func (tv *testVolume) testCreateAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support attached volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	diskType := "gp2"
 	placement := Options.TestRegions[0]
@@ -149,6 +166,10 @@ func (tv *testVolume) testCreateSharedVolume(t *testing.T) {
 		t.Skip("GCP does not support shared volumes")
 		return
 	}
+	dt := "gp2"
+	if cloud == "docker" {
+		dt = "local"
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol, err := testBackend.CreateVolume(&backends.CreateVolumeInput{
 		BackendType:       backendType,
@@ -163,7 +184,7 @@ func (tv *testVolume) testCreateSharedVolume(t *testing.T) {
 		Tags:              map[string]string{},
 		Encrypted:         false,
 		Expires:           time.Time{},
-		DiskType:          "gp2",
+		DiskType:          dt,
 		SharedDiskOneZone: false,
 	})
 	require.NoError(t, err)
@@ -175,6 +196,10 @@ func (tv *testVolume) testCreateSharedVolume(t *testing.T) {
 
 func (tv *testVolume) testAddTagsToAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support retagging")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol := testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 1)
@@ -189,6 +214,10 @@ func (tv *testVolume) testAddTagsToAttachedVolume(t *testing.T) {
 
 func (tv *testVolume) testAddTagsToSharedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support retagging")
+		return
+	}
 	if cloud == "gcp" {
 		t.Skip("GCP does not support shared volumes")
 		return
@@ -207,6 +236,11 @@ func (tv *testVolume) testAddTagsToSharedVolume(t *testing.T) {
 
 func (tv *testVolume) testRemoveTagsFromAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support retagging")
+		return
+	}
+
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol := testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 1)
@@ -220,6 +254,11 @@ func (tv *testVolume) testRemoveTagsFromAttachedVolume(t *testing.T) {
 
 func (tv *testVolume) testRemoveTagsFromSharedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support retagging")
+		return
+	}
+
 	if cloud == "gcp" {
 		t.Skip("GCP does not support shared volumes")
 		return
@@ -237,6 +276,10 @@ func (tv *testVolume) testRemoveTagsFromSharedVolume(t *testing.T) {
 
 func (tv *testVolume) testCreateTestInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker instance test is separate")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
@@ -271,6 +314,10 @@ func (tv *testVolume) testCreateTestInstance(t *testing.T) {
 
 func (tv *testVolume) testAttachAttachedVolumeToInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support attached volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName("test-instance")
 	require.Equal(t, inst.Count(), 1)
@@ -290,6 +337,10 @@ func (tv *testVolume) testAttachAttachedVolumeToInstance(t *testing.T) {
 
 func (tv *testVolume) testResizeAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support attached volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol := testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
 	require.Equal(t, vol.Count(), 1)
@@ -307,6 +358,10 @@ func (tv *testVolume) testResizeAttachedVolume(t *testing.T) {
 
 func (tv *testVolume) testDetachAttachedVolumeFromInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support attached volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName("test-instance")
 	require.Equal(t, inst.Count(), 1)
@@ -326,6 +381,10 @@ func (tv *testVolume) testAttachSharedVolumeToInstance(t *testing.T) {
 		t.Skip("GCP does not support shared volumes")
 		return
 	}
+	if cloud == "docker" {
+		t.Skip("docker does not support shared volume late attach - must be done as instance is created")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).WithName("test-instance")
 	require.Equal(t, inst.Count(), 1)
@@ -342,6 +401,10 @@ func (tv *testVolume) testDetachSharedVolumeFromInstance(t *testing.T) {
 	require.NoError(t, setup(false))
 	if cloud == "gcp" {
 		t.Skip("GCP does not support shared volumes")
+		return
+	}
+	if cloud == "docker" {
+		t.Skip("docker does not support shared volume late attach - must be done as instance is created")
 		return
 	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
@@ -367,6 +430,10 @@ func (tv *testVolume) testDeleteTestInstance(t *testing.T) {
 
 func (tv *testVolume) testDeleteAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support attached volumes")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 
 	vol := testBackend.GetInventory().Volumes.WithName("test-attached-volume").WithType(backends.VolumeTypeAttachedDisk)
@@ -395,4 +462,35 @@ func (tv *testVolume) testDeleteSharedVolume(t *testing.T) {
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	vol = testBackend.GetInventory().Volumes.WithName("test-shared-volume").WithType(backends.VolumeTypeSharedDisk)
 	require.Equal(t, vol.Count(), 0)
+}
+
+func (tv *testVolume) testCreateTestInstanceWithAttachedVolume(t *testing.T) {
+	require.NoError(t, setup(false))
+	if cloud != "docker" {
+		t.Skip("this test is for docker only")
+		return
+	}
+	require.NoError(t, testBackend.RefreshChangedInventory())
+	image := getBasicImage(t)
+	placement := ""
+	itype := ""
+	disks := []string{"test-shared-volume:/mnt/shared"}
+	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
+		ClusterName:      "test-cluster",
+		Name:             "test-instance",
+		Nodes:            1,
+		Image:            image,
+		NetworkPlacement: placement,
+		Firewalls:        []string{},
+		BackendType:      backendType,
+		InstanceType:     itype,
+		Owner:            "test-owner",
+		Description:      "test-description",
+		Disks:            disks,
+	}, 2*time.Minute)
+	require.NoError(t, err)
+	require.Equal(t, insts.Instances.Count(), 1)
+	err = testBackend.RefreshChangedInventory()
+	require.NoError(t, err)
+	require.Equal(t, testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated).Count(), 1)
 }

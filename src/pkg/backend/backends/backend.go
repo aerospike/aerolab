@@ -54,6 +54,9 @@ func (b *backend) AddRegion(backendType BackendType, names ...string) error {
 }
 
 func (b *backend) RemoveRegion(backendType BackendType, names ...string) error {
+	if _, ok := cloudList[backendType]; !ok {
+		return fmt.Errorf("backend type %s not found", backendType)
+	}
 	err := cloudList[backendType].DisableZones(names...)
 	if err != nil {
 		return err
@@ -71,8 +74,12 @@ func (b *backend) RemoveRegion(backendType BackendType, names ...string) error {
 }
 
 func (b *backend) ListEnabledRegions(backendType BackendType) (name []string, err error) {
+	if _, ok := cloudList[backendType]; !ok {
+		return nil, fmt.Errorf("backend type %s not found", backendType)
+	}
 	return cloudList[backendType].ListEnabledZones()
 }
+
 func (b *backend) pollTimer() {
 	log := b.log.WithPrefix("pollTimer")
 	for {
@@ -111,7 +118,7 @@ func (b *backend) ForceRefreshInventory() error {
 	return errors.New(errstring)
 }
 
-func InternalNew(project string, c *Config, pollInventoryHourly bool) (Backend, error) {
+func InternalNew(project string, c *Config, pollInventoryHourly bool, enabledBackends []BackendType) (Backend, error) {
 	if project == "" {
 		return nil, errors.New("project name cannot be empty")
 	}
@@ -120,7 +127,13 @@ func InternalNew(project string, c *Config, pollInventoryHourly bool) (Backend, 
 	b.log.SetLogLevel(c.LogLevel)
 	b.log.SetPrefix("BACKEND ")
 	b.log.MillisecondLogging(c.LogMillisecond)
-	for cname, cloud := range cloudList {
+	b.enabledBackends = make(map[BackendType]Cloud)
+	for _, cname := range enabledBackends {
+		cloud, ok := cloudList[cname]
+		if !ok {
+			return nil, fmt.Errorf("backend type %s not found", cname)
+		}
+		b.enabledBackends[cname] = cloud
 		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)+" "), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.invalidate, c.ListAllProjects)
 		if err != nil {
 			return nil, err
@@ -133,7 +146,7 @@ func InternalNew(project string, c *Config, pollInventoryHourly bool) (Backend, 
 	if b.config.Cache {
 		err := b.loadCache()
 		if err == nil {
-			for cname, cloud := range cloudList {
+			for cname, cloud := range b.enabledBackends {
 				cloud.SetInventory(b.networks[cname], b.firewalls[cname], b.instances[cname], b.volumes[cname], b.images[cname])
 			}
 			if pollInventoryHourly {
@@ -145,6 +158,7 @@ func InternalNew(project string, c *Config, pollInventoryHourly bool) (Backend, 
 			b.log.Warn("Could not load cache files: %s", err)
 		}
 	}
+	// TODO: are we sure we want to forceRefresh on aerolab start? What about disk caching? It doesn't make sense to have disk caching if we are not going to actually use it.
 	err := b.ForceRefreshInventory()
 	if err != nil {
 		return b, err

@@ -7,7 +7,7 @@ func (s *backend) CreateFirewall(input *CreateFirewallInput, waitDur time.Durati
 	defer func() {
 		s.log.Detail("CreateFirewall: err=%v, took=%v", err, time.Since(start))
 	}()
-	return cloudList[input.BackendType].CreateFirewall(input, waitDur)
+	return s.enabledBackends[input.BackendType].CreateFirewall(input, waitDur)
 }
 
 func (s *backend) CreateVolume(input *CreateVolumeInput) (output *CreateVolumeOutput, err error) {
@@ -15,7 +15,7 @@ func (s *backend) CreateVolume(input *CreateVolumeInput) (output *CreateVolumeOu
 	defer func() {
 		s.log.Detail("CreateVolume: err=%v, took=%v", err, time.Since(start))
 	}()
-	return cloudList[input.BackendType].CreateVolume(input)
+	return s.enabledBackends[input.BackendType].CreateVolume(input)
 }
 
 func (s *backend) CreateImage(input *CreateImageInput, waitDur time.Duration) (output *CreateImageOutput, err error) {
@@ -23,7 +23,7 @@ func (s *backend) CreateImage(input *CreateImageInput, waitDur time.Duration) (o
 	defer func() {
 		s.log.Detail("CreateImage: err=%v, took=%v", err, time.Since(start))
 	}()
-	return cloudList[input.BackendType].CreateImage(input, waitDur)
+	return s.enabledBackends[input.BackendType].CreateImage(input, waitDur)
 }
 
 func (s *backend) CreateInstances(input *CreateInstanceInput, waitDur time.Duration) (output *CreateInstanceOutput, err error) {
@@ -31,7 +31,7 @@ func (s *backend) CreateInstances(input *CreateInstanceInput, waitDur time.Durat
 	defer func() {
 		s.log.Detail("CreateInstances: err=%v, took=%v", err, time.Since(start))
 	}()
-	return cloudList[input.BackendType].CreateInstances(input, waitDur)
+	return s.enabledBackends[input.BackendType].CreateInstances(input, waitDur)
 }
 
 func (s *backend) CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error) {
@@ -39,7 +39,7 @@ func (s *backend) CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, 
 	defer func() {
 		s.log.Detail("CreateInstancesGetPrice: costPPH=%f, costGB=%f, err=%v, took=%v", costPPH, costGB, err, time.Since(start))
 	}()
-	return cloudList[input.BackendType].CreateInstancesGetPrice(input)
+	return s.enabledBackends[input.BackendType].CreateInstancesGetPrice(input)
 }
 
 func (s *backend) CreateVolumeGetPrice(input *CreateVolumeInput) (costGB float64, err error) {
@@ -47,5 +47,5 @@ func (s *backend) CreateVolumeGetPrice(input *CreateVolumeInput) (costGB float64
 	defer func() {
 		s.log.Detail("CreateVolumeGetPrice: costGB=%f, err=%v, took=%v", costGB, err, time.Since(start))
 	}()
-	return cloudList[input.BackendType].CreateVolumeGetPrice(input)
+	return s.enabledBackends[input.BackendType].CreateVolumeGetPrice(input)
 }

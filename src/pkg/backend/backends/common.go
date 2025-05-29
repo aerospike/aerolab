@@ -3,6 +3,7 @@ package backends
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 
 	"gopkg.in/yaml.v3"
 )
@@ -260,8 +261,9 @@ const (
 type Architecture int
 
 const (
-	ArchitectureX8664 Architecture = iota
-	ArchitectureARM64 Architecture = iota
+	ArchitectureX8664  Architecture = iota
+	ArchitectureARM64  Architecture = iota
+	ArchitectureNative Architecture = iota
 )
 
 func (a Architecture) String() string {
@@ -270,6 +272,15 @@ func (a Architecture) String() string {
 		return "amd64"
 	case ArchitectureARM64:
 		return "arm64"
+	case ArchitectureNative:
+		switch runtime.GOARCH {
+		case "amd64":
+			return "amd64"
+		case "arm64":
+			return "arm64"
+		default:
+			return "unknown"
+		}
 	default:
 		return "unknown"
 	}
@@ -281,6 +292,8 @@ func (a *Architecture) FromString(s string) error {
 		*a = ArchitectureX8664
 	case "arm64":
 		*a = ArchitectureARM64
+	case "native", "default":
+		*a = ArchitectureNative
 	default:
 		return fmt.Errorf("unknown architecture: %s", s)
 	}

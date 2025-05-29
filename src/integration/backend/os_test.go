@@ -28,6 +28,8 @@ var osTestList = make(chan *osTestDef, 100)
   - debian: 12, 11, 10
 */
 
+var osTestSequential = false
+
 func fillOsTestList() {
 	if cloud == "aws" {
 		osTestList <- &osTestDef{
@@ -51,9 +53,11 @@ func fillOsTestList() {
 		name:    "ubuntu",
 		version: "20.04",
 	}
-	osTestList <- &osTestDef{
-		name:    "ubuntu",
-		version: "18.04",
+	if cloud != "docker" {
+		osTestList <- &osTestDef{
+			name:    "ubuntu",
+			version: "18.04",
+		}
 	}
 	osTestList <- &osTestDef{
 		name:    "rocky",
@@ -71,9 +75,11 @@ func fillOsTestList() {
 		name:    "debian",
 		version: "11",
 	}
-	osTestList <- &osTestDef{
-		name:    "debian",
-		version: "10",
+	if cloud != "docker" {
+		osTestList <- &osTestDef{
+			name:    "debian",
+			version: "10",
+		}
 	}
 	if cloud == "aws" {
 		osTestList <- &osTestDef{
@@ -85,7 +91,7 @@ func fillOsTestList() {
 		name:    "centos",
 		version: "9",
 	}
-	if cloud == "gcp" {
+	if cloud != "aws" {
 		osTestList <- &osTestDef{
 			name:    "centos",
 			version: "8",
@@ -99,10 +105,14 @@ type osTestDef struct {
 	version string
 }
 
+// docker container list -a |awk '{print $1}' |grep -v CONTAINER |xargs docker rm -f
+// docker image list |grep -- -image |awk '{print $3}' |xargs docker rmi
+// docker image list |grep -- '^amd64-' |awk '{print $3}' |xargs docker rmi
 func Test99_OS(t *testing.T) {
 	t.Cleanup(cleanup)
 	t.Run("setup", testSetup)
 	t.Run("inventory empty", testInventoryEmpty)
+	t.Run("test delete root images", testDeleteRootImages)
 	t.Run("os", testOS)
 	t.Run("remove firewalls", testOSRemoveFirewalls)
 	t.Run("end inventory empty", testInventoryEmpty)
@@ -110,6 +120,10 @@ func Test99_OS(t *testing.T) {
 
 func testOSRemoveFirewalls(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support firewalls")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	err := testBackend.GetInventory().Firewalls.Delete(10 * time.Minute)
 	require.NoError(t, err)
@@ -117,28 +131,38 @@ func testOSRemoveFirewalls(t *testing.T) {
 
 func testOS(t *testing.T) {
 	fillOsTestList()
-	errs := make(chan error, 100)
-	wg := sync.WaitGroup{}
-	for osTest := range osTestList {
-		wg.Add(1)
-		go func(osTest *osTestDef) {
-			defer wg.Done()
+	if osTestSequential {
+		for osTest := range osTestList {
+			t.Logf("testing %s:%s", osTest.name, osTest.version)
 			err := osTest.test(osTest)
 			if err != nil {
-				errs <- err
+				require.NoError(t, err)
 			}
-		}(osTest)
-	}
-	wg.Wait()
-	close(errs)
-	isErr := false
-	for err := range errs {
-		if err != nil {
-			t.Log(err)
-			isErr = true
 		}
+	} else {
+		errs := make(chan error, 100)
+		wg := sync.WaitGroup{}
+		for osTest := range osTestList {
+			wg.Add(1)
+			go func(osTest *osTestDef) {
+				defer wg.Done()
+				err := osTest.test(osTest)
+				if err != nil {
+					errs <- err
+				}
+			}(osTest)
+		}
+		wg.Wait()
+		close(errs)
+		isErr := false
+		for err := range errs {
+			if err != nil {
+				t.Log(err)
+				isErr = true
+			}
+		}
+		require.False(t, isErr)
 	}
-	require.False(t, isErr)
 }
 
 func (o *osTestDef) test(os *osTestDef) error {
@@ -164,6 +188,10 @@ func (o *osTestDef) test(os *osTestDef) error {
 		}
 		itype = "e2-standard-4"
 		disks = []string{"type=pd-ssd,size=20,count=1"}
+	} else if cloud == "docker" {
+		itype = ""
+		disks = []string{}
+		placement = "default,default"
 	}
 	insts, err := testBackend.CreateInstances(&backends.CreateInstanceInput{
 		ClusterName:      instanceName,
@@ -201,7 +229,7 @@ func (o *osTestDef) test(os *osTestDef) error {
 		return fmt.Errorf("7.2: image %s:%s %w", os.name, os.version, err)
 	}
 	// create image from instance
-	imageName := instanceName + "-image"
+	imageName := instanceName + "-image:latest"
 	_, err = testBackend.CreateImage(&backends.CreateImageInput{
 		BackendType: backendType,
 		Instance:    inst.Describe()[0],

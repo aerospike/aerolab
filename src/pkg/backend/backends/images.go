@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -225,9 +226,12 @@ func (v ImageList) DeleteImages(waitDur time.Duration) error {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
 			err := cloudList[c].ImagesDelete(v.WithBackendType(c).Describe(), waitDur)
 			if err != nil {
-				retErr = err
+				retErr = errors.Join(retErr, err)
 			}
 		}()
 	}

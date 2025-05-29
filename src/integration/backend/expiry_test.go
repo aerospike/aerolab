@@ -32,12 +32,20 @@ func Test40_Expiry(t *testing.T) {
 
 func (e *expiryTest) testCleanupFirewalls(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	require.NoError(t, testBackend.GetInventory().Firewalls.Delete(10*time.Minute))
 }
 
 func (e *expiryTest) testExpiryInstall(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	eksCtl := false
 	if backendType == backends.BackendTypeAWS {
 		eksCtl = true
@@ -65,6 +73,10 @@ func (e *expiryTest) testExpiryInstall(t *testing.T) {
 
 func (e *expiryTest) testExpiryChangeFrequency(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	err := testBackend.ExpiryChangeFrequency(backendType, 1, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
@@ -88,6 +100,10 @@ func (e *expiryTest) testExpiryChangeFrequency(t *testing.T) {
 
 func (e *expiryTest) testExpiryUpgrade(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	eksCtl := false
 	if backendType == backends.BackendTypeAWS {
 		eksCtl = true
@@ -115,6 +131,10 @@ func (e *expiryTest) testExpiryUpgrade(t *testing.T) {
 
 func (e *expiryTest) testCreateInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
@@ -149,6 +169,10 @@ func (e *expiryTest) testCreateInstance(t *testing.T) {
 
 func (e *expiryTest) testCreateAttachedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	diskType := "gp2"
 	placement := Options.TestRegions[0]
@@ -180,6 +204,10 @@ func (e *expiryTest) testCreateAttachedVolume(t *testing.T) {
 
 func (e *expiryTest) testCreateSharedVolume(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	if backendType == backends.BackendTypeGCP {
 		t.Skip("GCP does not support shared volumes")
 		return
@@ -209,6 +237,10 @@ func (e *expiryTest) testCreateSharedVolume(t *testing.T) {
 
 func (e *expiryTest) testWaitForExpiry(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	t.Log("Sleeping for 5 minutes")
 	time.Sleep(5 * time.Minute)
 	t.Log("Checking inventory")
@@ -225,6 +257,10 @@ func (e *expiryTest) testWaitForExpiry(t *testing.T) {
 
 func (e *expiryTest) testExpiryChangeConfiguration(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	err := testBackend.ExpiryChangeConfiguration(backendType, 3, false, false, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()
@@ -245,6 +281,10 @@ func (e *expiryTest) testExpiryChangeConfiguration(t *testing.T) {
 
 func (e *expiryTest) testExpiryRemove(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support expiry")
+		return
+	}
 	err := testBackend.ExpiryRemove(backendType, Options.TestRegions...)
 	require.NoError(t, err)
 	expiryList, err := testBackend.ExpiryList()

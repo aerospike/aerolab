@@ -24,6 +24,10 @@ func Test20_InstancesDNS(t *testing.T) {
 
 func (d *testInstancesDNS) testCreateInstance(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support dns")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	image := getBasicImage(t)
 	placement := Options.TestRegions[0] + "a"
@@ -66,6 +70,10 @@ func (d *testInstancesDNS) testCreateInstance(t *testing.T) {
 
 func (d *testInstancesDNS) testInstancesDNS(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support dns")
+		return
+	}
 	domainId := "Z08885863MUP8ENZ1K1Z7"
 	if cloud == "gcp" {
 		domainId = "aerospikeme"
@@ -83,6 +91,10 @@ func (d *testInstancesDNS) testInstancesDNS(t *testing.T) {
 
 func (d *testInstancesDNS) testInstancesTerminate(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support dns")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	inst := testBackend.GetInventory().Instances.WithNotState(backends.LifeCycleStateTerminated)
 	err := inst.Terminate(2 * time.Minute)
@@ -95,6 +107,10 @@ func (d *testInstancesDNS) testInstancesTerminate(t *testing.T) {
 
 func (d *testInstancesDNS) testCleanupDNS(t *testing.T) {
 	require.NoError(t, setup(false))
+	if cloud == "docker" {
+		t.Skip("docker does not support dns")
+		return
+	}
 	require.NoError(t, testBackend.RefreshChangedInventory())
 	err := testBackend.CleanupDNS()
 	require.NoError(t, err)

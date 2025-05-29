@@ -267,6 +267,7 @@ func init() {
 		}
 	}()
 }
+
 func makeClientConfig(i *ClientConf) (*ssh.ClientConfig, error) {
 	config := &ssh.ClientConfig{
 		User:            i.Username,

@@ -162,6 +162,7 @@ type backend struct {
 	log             *logger.Logger
 	invalidated     []string
 	invalidatedLock *sync.Mutex
+	enabledBackends map[BackendType]Cloud
 }
 
 func getBackendObject(project string, c *Config) *backend {
@@ -332,7 +333,7 @@ func (b *backend) poll(items []string) []error {
 		defer imgWg.Done()
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateImage) {
 			log.Debug("Getting images")
-			for n, v := range cloudList {
+			for n, v := range b.enabledBackends {
 				d, err := v.GetImages()
 				if err != nil {
 					errs = append(errs, err)
@@ -353,7 +354,7 @@ func (b *backend) poll(items []string) []error {
 		defer volWg.Done()
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateVolume) {
 			log.Debug("Getting volumes")
-			for n, v := range cloudList {
+			for n, v := range b.enabledBackends {
 				d, err := v.GetVolumes()
 				if err != nil {
 					errs = append(errs, err)
@@ -373,7 +374,7 @@ func (b *backend) poll(items []string) []error {
 		defer netWg.Done()
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateNetwork) {
 			log.Debug("Getting networks")
-			for n, v := range cloudList {
+			for n, v := range b.enabledBackends {
 				d, err := v.GetNetworks()
 				if err != nil {
 					errs = append(errs, err)
@@ -394,7 +395,7 @@ func (b *backend) poll(items []string) []error {
 		defer fwWg.Done()
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateFirewall) {
 			log.Debug("Getting firewalls")
-			for n, v := range cloudList {
+			for n, v := range b.enabledBackends {
 				d, err := v.GetFirewalls(b.networks[n])
 				if err != nil {
 					errs = append(errs, err)
@@ -416,7 +417,7 @@ func (b *backend) poll(items []string) []error {
 		defer instWg.Done()
 		if len(items) == 0 || slices.Contains(items, CacheInvalidateInstance) {
 			log.Debug("Getting instances")
-			for n, v := range cloudList {
+			for n, v := range b.enabledBackends {
 				d, err := v.GetInstances(b.volumes[n], b.networks[n], b.firewalls[n])
 				if err != nil {
 					errs = append(errs, err)
@@ -444,7 +445,7 @@ func (b *backend) poll(items []string) []error {
 			errs = append(errs, err)
 		}
 	}
-	for cname, cloud := range cloudList {
+	for cname, cloud := range b.enabledBackends {
 		cloud.SetInventory(b.networks[cname], b.firewalls[cname], b.instances[cname], b.volumes[cname], b.images[cname])
 	}
 	log.Debug("Done")
