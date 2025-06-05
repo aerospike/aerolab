@@ -13,7 +13,7 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
-	"github.com/aerospike/aerolab/pkg/structtags"
+	"github.com/aerospike/aerolab/pkg/utils/structtags"
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
