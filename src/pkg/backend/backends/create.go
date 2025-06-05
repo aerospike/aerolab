@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aerospike/aerolab/pkg/structtags"
+	"github.com/aerospike/aerolab/pkg/utils/structtags"
 )
 
 func (s *backend) CreateFirewall(input *CreateFirewallInput, waitDur time.Duration) (output *CreateFirewallOutput, err error) {

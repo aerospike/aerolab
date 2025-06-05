@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/structtags"
+	"github.com/aerospike/aerolab/pkg/utils/structtags"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/lithammer/shortuuid"

@@ -11,8 +11,8 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
-	"github.com/aerospike/aerolab/pkg/counters"
-	"github.com/aerospike/aerolab/pkg/file"
+	"github.com/aerospike/aerolab/pkg/utils/counters"
+	"github.com/aerospike/aerolab/pkg/utils/file"
 	"github.com/rglonek/logger"
 )
 
