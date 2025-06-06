@@ -92,7 +92,7 @@ func (i *Ingest) enum() (map[string]*EnumFile, error) {
 		}
 
 		// not collectinfo assign archive/text vars
-		if contentType.Is("application/gzip") || contentType.Is("application/zip") || contentType.Is("application/x-tar") || contentType.Is("application/x-bzip2") || contentType.Is("application/x-rar-compressed") || contentType.Is("application/x-7z-compressed") {
+		if contentType.Is("application/gzip") || contentType.Is("application/zip") || contentType.Is("application/x-tar") || contentType.Is("application/x-bzip2") || contentType.Is("application/x-rar-compressed") || contentType.Is("application/x-xz") || contentType.Is("application/x-7z-compressed") {
 			file.IsArchive = true
 		} else if contentType.Is("application/json") || contentType.Is("application/x-ndjson") || contentType.Is("text/plain") || contentType.Is("text/csv") || contentType.Is("text/tab-separated-values") {
 			file.IsText = true

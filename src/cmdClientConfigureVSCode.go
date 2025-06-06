@@ -5,10 +5,11 @@ import (
 )
 
 type clientConfigureVSCodeCmd struct {
-	ClientName TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
-	Machines   TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
-	Kernels    string         `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
-	Help       helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClientName        TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
+	Machines          TypeMachines   `short:"l" long:"machines" description:"Comma separated list of machines, empty=all" default:""`
+	Kernels           string         `short:"k" long:"kernels" description:"comma-separated list; options: go,python,java,dotnet; default: all kernels"`
+	UseAltMarketplace bool           `long:"use-alt-marketplace" description:"use alternative marketplace"`
+	Help              helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *clientConfigureVSCodeCmd) Execute(args []string) error {

@@ -7,13 +7,14 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/aerospike/aerospike-client-go/v7"
-	"github.com/aerospike/aerospike-client-go/v7/types"
+	"github.com/aerospike/aerospike-client-go/v8"
+	"github.com/aerospike/aerospike-client-go/v8/types"
 	"github.com/bestmethod/inslice"
 	"github.com/bestmethod/logger"
 	"github.com/rglonek/sbs"
@@ -170,6 +171,12 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 							return
 						}
 						bin := aerospike.NewBin(k, sbs.ByteSliceToString(metajson))
+						i.binList.lock.Lock()
+						if !slices.Contains(i.binList.BinNames, k) {
+							i.binList.BinNames = append(i.binList.BinNames, k)
+							i.binList.changed = true
+						}
+						i.binList.lock.Unlock()
 						aerr = i.db.PutBins(i.wp, key, bin)
 						if aerr != nil {
 							metaLock.Unlock()
@@ -190,6 +197,14 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 					return
 				}
 				for {
+					i.binList.lock.Lock()
+					for k := range data {
+						if !slices.Contains(i.binList.BinNames, k) {
+							i.binList.BinNames = append(i.binList.BinNames, k)
+							i.binList.changed = true
+						}
+					}
+					i.binList.lock.Unlock()
 					err = i.db.Put(i.wp, key, data)
 					if err != nil {
 						if err.Matches(types.ResultCode(types.DEVICE_OVERLOAD)) {
@@ -203,6 +218,10 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 						break
 					}
 				}
+				serr := i.storeBinList()
+				if serr != nil {
+					logger.Error("Log Processor: could not store bin list: %s", serr)
+				}
 				wg.Done()
 				<-threads
 			}(data.Metadata, data.Data, data.FileName, data.LogLine, data.SetName, data.UniqNodeString)
@@ -210,10 +229,42 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	}
 	wg.Wait()
 
+	// attempt to store the bin list again
+	serr := i.storeBinList()
+	if serr != nil {
+		time.Sleep(time.Second * 5)
+		serr = i.storeBinList()
+		if serr != nil {
+			logger.Error("Log Processor: could not store bin list: %s", serr)
+		}
+	}
+
 	// done
 	i.progress.Lock()
 	i.progress.LogProcessor.Finished = true
 	i.progress.Unlock()
+	return nil
+}
+
+func (i *Ingest) storeBinList() error {
+	i.binList.lock.Lock()
+	defer i.binList.lock.Unlock()
+	if i.binList.changed {
+		binListJson, err := json.Marshal(i.binList.BinNames)
+		if err != nil {
+			return err
+		}
+		key, err := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "BINLIST")
+		if err != nil {
+			return err
+		}
+		bin := aerospike.NewBin("BINLIST", sbs.ByteSliceToString(binListJson))
+		err = i.db.PutBins(i.wp, key, bin)
+		if err != nil {
+			return err
+		}
+		i.binList.changed = false
+	}
 	return nil
 }
 
