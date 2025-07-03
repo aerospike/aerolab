@@ -627,6 +627,7 @@ function initDatatable() {
     $('#invclusters').DataTable({
         "stateSaveParams": function (settings, data) {
             data.order = [[0,"asc"],[1,"asc"]];
+            data.search.search = "";
         },
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
@@ -909,6 +910,7 @@ function initDatatable() {
     $('#invclients').DataTable({
         "stateSaveParams": function (settings, data) {
             data.order = [[0,"asc"],[1,"asc"]];
+            data.search.search = "";
         },
         order: [[0,"asc"],[1,"asc"]],
         fixedColumns: {left: 2, right: 1},
@@ -1228,6 +1230,7 @@ function initDatatable() {
     $('#invagi').DataTable({
         "stateSaveParams": function (settings, data) {
             data.order = [];
+            data.search.search = "";
         },
         order: [],
         fixedColumns: {left: 2, right: 1},
@@ -1496,6 +1499,7 @@ function initDatatable() {
     $('#invtemplates').DataTable({
         "stateSaveParams": function (settings, data) {
             data.order = [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]];
+            data.search.search = "";
         },
         order: [[0,"asc"],[1,"asc"],[2,"asc"],[3,"asc"]],
         fixedColumns: {left: 1},
@@ -1568,6 +1572,7 @@ function initDatatable() {
     $('#invvolumes').DataTable({
         "stateSaveParams": function (settings, data) {
             data.order = [0,"asc"];
+            data.search.search = "";
         },
         order: [0,"asc"],
         fixedColumns: {left: 1},
@@ -1679,6 +1684,7 @@ function initDatatable() {
     $('#invfirewalls').DataTable({
         "stateSaveParams": function (settings, data) {
             data.order = [[0,"asc"],[1,"asc"]];
+            data.search.search = "";
         },
         order: [[0,"asc"],[1,"asc"]],
         buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
@@ -1766,6 +1772,7 @@ function initDatatable() {
     $('#invexpiry').DataTable({
         "stateSaveParams": function (settings, data) {
             data.order = [0,"asc"];
+            data.search.search = "";
         },
         order: [0,"asc"],
         buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{
@@ -1813,6 +1820,7 @@ function initDatatable() {
     $('#invsubnets').DataTable({
         "stateSaveParams": function (settings, data) {
             data.order = [[3,"asc"],[6,"asc"]];
+            data.search.search = "";
         },
         order: [[3,"asc"],[6,"asc"]],
         buttons: [{extend: "colvis", text:"Columns",className:"btn btn-default dtTooltip",titleAttr:"Choose which columns to show"},{extend: 'myspacer'},{extend: 'reload',className: 'btn btn-info',}],

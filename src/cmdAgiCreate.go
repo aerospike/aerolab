@@ -95,7 +95,7 @@ type agiCreateCmd struct {
 	MonitorAutoCertEmail    string               `long:"monitor-autocert-email" description:"Monitor Creation: TLS: if autocert is specified, specify a valid email address to use with letsencrypt" simplemode:"false"`
 	MonitorCertFile         string               `long:"monitor-cert-file" description:"Monitor Creation: TLS: certificate file to use if not using letsencrypt; default: generate self-signed" yaml:"certFile" simplemode:"false"` // TLS: cert file (if not using autocert), default: snakeoil
 	MonitorKeyFile          string               `long:"monitor-key-file" description:"Monitor Creation: TLS: key file to use if not using letsencrypt; default: generate self-signed" yaml:"keyFile" simplemode:"false"`           // TLS: key file (if not using autocert), default: snakeoil
-	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"6.4.0.*"`
+	AerospikeVersion        TypeAerospikeVersion `short:"v" long:"aerospike-version" description:"Custom Aerospike server version" default:"8.0.0.*"`
 	Distro                  TypeDistro           `short:"d" long:"distro" description:"Custom distro" default:"ubuntu" simplemode:"false"`
 	FeaturesFilePath        flags.Filename       `short:"f" long:"featurefile" description:"Features file to install, or directory containing feature files"`
 	FeaturesFilePrintDetail bool                 `long:"featurefile-printdetail" description:"Print details of discovered features files" hidden:"true"`
@@ -488,6 +488,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 			break
 		}
 		if foundVol != nil {
+			if v, ok := foundVol.Tags["aerolab7agiav"]; ok {
+				c.AerospikeVersion = TypeAerospikeVersion(v)
+			} else {
+				c.AerospikeVersion = "6.4.0.26" // do not break the existing behaviour, if we are missing a version sticker, default to old version on AGI restarts with existing volumes
+			}
 			c.Aws.InstanceType = foundVol.Tags["agiinstance"]
 			c.Gcp.InstanceType = foundVol.Tags["agiinstance"]
 			if foundVol.Tags["aginodim"] == "true" {
@@ -668,7 +673,7 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	a.opts.Cluster.Create.Aws.Ebs = c.Aws.Ebs
 	a.opts.Cluster.Create.Aws.SecurityGroupID = c.Aws.SecurityGroupID
 	a.opts.Cluster.Create.Aws.SubnetID = c.Aws.SubnetID
-	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), fmt.Sprintf("agiLabel=%s", c.AGILabel), fmt.Sprintf("agiinstance=%s", c.Aws.InstanceType), fmt.Sprintf("aginodim=%t", c.NoDIM), fmt.Sprintf("termonpow=%t", c.Aws.TerminateOnPoweroff), fmt.Sprintf("isspot=%t", c.Aws.SpotInstance), fmt.Sprintf("agiSrcLocal=%s", sourceStringLocal), fmt.Sprintf("agiSrcSftp=%s", sourceStringSftp), fmt.Sprintf("agiSrcS3=%s", sourceStringS3))
+	a.opts.Cluster.Create.Aws.Tags = append(c.Aws.Tags, "aerolab7agiav="+c.AerospikeVersion.String(), "aerolab4features="+strconv.Itoa(int(ClusterFeatureAGI)), fmt.Sprintf("aerolab4ssl=%t", !c.ProxyDisableSSL), fmt.Sprintf("agiLabel=%s", c.AGILabel), fmt.Sprintf("agiinstance=%s", c.Aws.InstanceType), fmt.Sprintf("aginodim=%t", c.NoDIM), fmt.Sprintf("termonpow=%t", c.Aws.TerminateOnPoweroff), fmt.Sprintf("isspot=%t", c.Aws.SpotInstance), fmt.Sprintf("agiSrcLocal=%s", sourceStringLocal), fmt.Sprintf("agiSrcSftp=%s", sourceStringSftp), fmt.Sprintf("agiSrcS3=%s", sourceStringS3))
 	a.opts.Cluster.Create.Aws.NamePrefix = c.Aws.NamePrefix
 	a.opts.Cluster.Create.Aws.Expires = c.Aws.Expires
 	a.opts.Cluster.Create.Aws.PublicIP = false
@@ -683,10 +688,11 @@ func (c *agiCreateCmd) Execute(args []string) error {
 	}
 	if a.opts.Config.Backend.Type == "aws" {
 		a.opts.Cluster.Create.volExtraTags = map[string]string{
-			"agiinstance": c.Aws.InstanceType,
-			"aginodim":    fmt.Sprintf("%t", c.NoDIM),
-			"termonpow":   fmt.Sprintf("%t", c.Aws.TerminateOnPoweroff),
-			"isspot":      fmt.Sprintf("%t", c.Aws.SpotInstance),
+			"agiinstance":   c.Aws.InstanceType,
+			"aginodim":      fmt.Sprintf("%t", c.NoDIM),
+			"termonpow":     fmt.Sprintf("%t", c.Aws.TerminateOnPoweroff),
+			"isspot":        fmt.Sprintf("%t", c.Aws.SpotInstance),
+			"aerolab7agiav": c.AerospikeVersion.String(),
 		}
 	} else if a.opts.Config.Backend.Type == "gcp" {
 		a.opts.Cluster.Create.volExtraTags = map[string]string{
