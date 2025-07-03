@@ -2,7 +2,7 @@ Buildroot: ./
 Name: aerolab
 Version: VERSIONHERE
 Release: 2
-Summary: Tool for deploying non-prod Aerospike server clusters on docker or in AWS
+Summary: Tool for deploying non-prod Aerospike server clusters on Docker, AWS, or GCP
 License: see github.com/aerospike/aerolab
 Group: aerospike
 
@@ -14,7 +14,7 @@ Group: aerospike
 %description
 
 
-Tool for deploying non-prod Aerospike server clusters on docker or in AWS
+Tool for deploying non-prod Aerospike server clusters on Docker, AWS, or GCP
 
 %files
 "/usr/bin/aerolab"

@@ -3,7 +3,7 @@
 # Cluster commands
 
 AeroLab `cluster` commands deal with provisioning and destroying Aerospike
-machines, whether they're on Docker containers or AWS VMs.
+machines, whether they're on Docker containers, AWS or GCP.
 
 ### Create a two-node Aerospike cluster
 
