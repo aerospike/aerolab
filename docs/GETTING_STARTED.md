@@ -2,8 +2,8 @@
 
 ## One-time setup
 
-Follow either the Docker or AWS instructions below, depending on the backend you use.
-You can use both backends at once, and use AeroLab commands on either one.
+Follow the Docker, AWS, or GCP instructions below, depending on the backend you use.
+You can use multiple backends simultaneously and run AeroLab commands on any of them.
 
 ### Docker instructions
 

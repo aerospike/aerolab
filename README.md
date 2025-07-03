@@ -1,7 +1,7 @@
 
 # AeroLab
 
-AeroLab is a tool that creates Aerospike development and testing clusters in Docker or on AWS, streamlining efforts to test cluster configuration options, upgrade procedures, and client applications in a controlled development environment.
+AeroLab is a tool that creates Aerospike development and testing clusters on Docker, AWS, or GCP, streamlining efforts to test cluster configuration options, upgrade procedures, and client applications in a controlled development environment.
 
 **NOTE:** AeroLab is intended for local development and testing environments. It is not recommended for production operations. 
 
