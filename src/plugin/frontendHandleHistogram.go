@@ -9,14 +9,14 @@ import (
 	"time"
 
 	//"github.com/HdrHistogram/hdrhistogram-go"
-	"github.com/aerospike/aerospike-client-go/v7"
-	"github.com/bestmethod/logger"
+	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/bestmethod/inslice"
+	"github.com/bestmethod/logger"
 	"github.com/rglonek/sbs"
 )
 
 type HistogramRequest struct {
-	Range     struct {
+	Range struct {
 		From time.Time `json:"from"`
 		To   time.Time `json:"to"`
 	} `json:"range"`
@@ -66,7 +66,7 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 		responseError(w, http.StatusBadRequest, "Metric %s does not exist in target %s (remote:%s)", req.Metric.Name, req.Metric.Target, r.RemoteAddr)
 		return
 	}
-	
+
 	// Build the filter expression for the metric
 	filter := aerospike.ExpEq(aerospike.ExpIntBin(req.Metric.Target), aerospike.ExpIntVal(int64(idxval)))
 
