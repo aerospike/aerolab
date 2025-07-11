@@ -100,6 +100,9 @@ func get(url string, timeout time.Duration, out interface{}) error {
 }
 
 func (r *Releases) WithTag(tag string) *Release {
+	if r == nil || len(*r) == 0 {
+		return nil
+	}
 	for _, release := range *r {
 		if release.TagName == tag {
 			return &release
@@ -109,6 +112,9 @@ func (r *Releases) WithTag(tag string) *Release {
 }
 
 func (r *Releases) WithTagPrefix(prefix string) Releases {
+	if r == nil || len(*r) == 0 {
+		return nil
+	}
 	releases := make(Releases, 0)
 	for _, release := range *r {
 		if strings.HasPrefix(release.TagName, prefix) {
@@ -120,6 +126,9 @@ func (r *Releases) WithTagPrefix(prefix string) Releases {
 
 // either give only prereleases or only non-prereleases
 func (r *Releases) WithPrerelease(prerelease bool) Releases {
+	if r == nil || len(*r) == 0 {
+		return nil
+	}
 	releases := make(Releases, 0)
 	for _, release := range *r {
 		if release.Prerelease == prerelease {
@@ -130,6 +139,9 @@ func (r *Releases) WithPrerelease(prerelease bool) Releases {
 }
 
 func (r *Releases) Latest() *Release {
+	if r == nil || len(*r) == 0 {
+		return nil
+	}
 	var answer *Release
 	for _, release := range *r {
 		if answer == nil || release.PublishedAt.After(answer.PublishedAt) {
@@ -140,6 +152,9 @@ func (r *Releases) Latest() *Release {
 }
 
 func (a *Assets) WithName(name string) *Asset {
+	if a == nil || len(*a) == 0 {
+		return nil
+	}
 	for _, asset := range *a {
 		if asset.Name == name {
 			return &asset
@@ -148,37 +163,49 @@ func (a *Assets) WithName(name string) *Asset {
 	return nil
 }
 
-func (a *Assets) WithNamePrefix(prefix string) Assets {
+func (a *Assets) WithNamePrefix(prefix string) *Assets {
+	if a == nil || len(*a) == 0 {
+		return nil
+	}
 	assets := make(Assets, 0)
 	for _, asset := range *a {
 		if strings.HasPrefix(asset.Name, prefix) {
 			assets = append(assets, asset)
 		}
 	}
-	return assets
+	return &assets
 }
 
-func (a *Assets) WithNameSuffix(suffix string) Assets {
+func (a *Assets) WithNameSuffix(suffix string) *Assets {
+	if a == nil || len(*a) == 0 {
+		return nil
+	}
 	assets := make(Assets, 0)
 	for _, asset := range *a {
 		if strings.HasSuffix(asset.Name, suffix) {
 			assets = append(assets, asset)
 		}
 	}
-	return assets
+	return &assets
 }
 
-func (a *Assets) WithNameContains(contains string) Assets {
+func (a *Assets) WithNameContains(contains string) *Assets {
+	if a == nil || len(*a) == 0 {
+		return nil
+	}
 	assets := make(Assets, 0)
 	for _, asset := range *a {
 		if strings.Contains(asset.Name, contains) {
 			assets = append(assets, asset)
 		}
 	}
-	return assets
+	return &assets
 }
 
-func (a *Assets) WithNamePattern(regex string) Assets {
+func (a *Assets) WithNamePattern(regex string) *Assets {
+	if a == nil || len(*a) == 0 {
+		return nil
+	}
 	re := regexp.MustCompile(regex)
 	assets := make(Assets, 0)
 	for _, asset := range *a {
@@ -186,17 +213,34 @@ func (a *Assets) WithNamePattern(regex string) Assets {
 			assets = append(assets, asset)
 		}
 	}
-	return assets
+	return &assets
 }
 
-func (a *Assets) WithContentType(ctype string) Assets {
+func (a *Assets) WithContentType(ctype string) *Assets {
+	if a == nil || len(*a) == 0 {
+		return nil
+	}
 	assets := make(Assets, 0)
 	for _, asset := range *a {
 		if asset.ContentType == ctype {
 			assets = append(assets, asset)
 		}
 	}
-	return assets
+	return &assets
+}
+
+func (a *Assets) List() Assets {
+	if a == nil || len(*a) == 0 {
+		return nil
+	}
+	return *a
+}
+
+func (a *Assets) First() *Asset {
+	if a == nil || len(*a) == 0 {
+		return nil
+	}
+	return &(*a)[0]
 }
 
 func (a *Asset) Download(timeout time.Duration) (io.ReadCloser, error) {

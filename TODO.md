@@ -1,19 +1,10 @@
 # TODO
 
-## Software installers/downloaders
-
-* Grafana
-* Aerolab
-* Prometheus
-* Vscode App
-* EksCtl
-* Golang, python3 (+pip), java, dotnet, gcc, make (build-essential+)
-
 ## Software configurators
 
 * Aerospike server `aerospike.conf`, xdr conf between clusters
 * Aerospike server live - reroster, xdr, etc
-* Aerospike tools `astools.cong`
+* Aerospike tools `astools.conf`
 * Aerospike exporter `ape.toml`
 * Aerospike Backup Service
 * Grafana
@@ -21,16 +12,14 @@
 * Prometheus
 * Vscode Extensions for common languages
 * EksCtl
+* Goproxy
+* easytc
 * AeroLab AGI
   * plugin
   * inject
   * proxy
   * grafana-fix
-
-# Linux tools
-
-* iptables
-* iproute2 (easytc)
+* nftables rule manager
 
 ## Other
 
