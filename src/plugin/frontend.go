@@ -19,6 +19,7 @@ func (p *Plugin) Listen() error {
 	http.HandleFunc("/variable", p.handleVariable)
 	http.HandleFunc("/tag-keys", p.handleTagKeys)
 	http.HandleFunc("/tag-values", p.handleTagValues)
+	http.HandleFunc("/histogram", p.handleHistogram)
 	http.HandleFunc("/", p.handlePing)
 	logger.Info("Listener: start")
 	if err := p.srv.ListenAndServe(); err != http.ErrServerClosed {
