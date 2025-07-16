@@ -2065,7 +2065,7 @@ func (d *backendGcp) ListTemplates() ([]backendVersion, error) {
 			bv = append(bv, backendVersion{
 				distroName:       image.Labels[gcpServerTagOperatingSystem],
 				distroVersion:    gcpResourceNameBack(image.Labels[gcpServerTagOSVersion]),
-				aerospikeVersion: gcpResourceNameBack(image.Labels[gcpServerTagAerospikeVersion]),
+				aerospikeVersion: gcpAerospikeVersionDecode(image.Labels[gcpServerTagAerospikeVersion]),
 				isArm:            isArm,
 			})
 		}
@@ -2338,6 +2338,10 @@ func gcpResourceName(name string) string {
 
 func gcpResourceNameBack(name string) string {
 	return strings.ReplaceAll(name, "-", ".")
+}
+
+func gcpAerospikeVersionDecode(name string) string {
+	return strings.ReplaceAll(gcpResourceNameBack(name), ".rc", "-rc")
 }
 
 func (d *backendGcp) deleteInstances(list []*computepb.Instance) error {

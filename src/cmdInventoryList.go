@@ -652,10 +652,10 @@ func (c *inventoryListCmd) run(showClusters bool, showClients bool, showTemplate
 		}
 		for _, v := range inv.Templates {
 			vv := table.Row{
-				strings.ReplaceAll(v.AerospikeVersion, "-", "."),
+				v.AerospikeVersion,
 				v.Arch,
 				v.Distribution,
-				strings.ReplaceAll(v.OSVersion, "-", "."),
+				v.OSVersion,
 			}
 			if c.AWSFull {
 				vv = append(vv, v.Region)
