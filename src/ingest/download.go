@@ -190,6 +190,11 @@ func (i *Ingest) DownloadS3() error {
 }
 
 func (i *Ingest) downloadS3File(client *s3.S3, f string) error {
+	i.progress.Lock()
+	i.progress.Downloader.changed = true
+	i.progress.Downloader.S3Files[f].StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
+	i.progress.Unlock()
+
 	out, err := client.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(i.config.Downloader.S3Source.BucketName),
 		Key:    aws.String(f),
@@ -237,6 +242,7 @@ func (i *Ingest) downloadS3File(client *s3.S3, f string) error {
 	i.progress.Lock()
 	i.progress.Downloader.changed = true
 	i.progress.Downloader.S3Files[f].IsDownloaded = true
+	i.progress.Downloader.S3Files[f].FinishTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
 	i.progress.Unlock()
 	return nil
 }
@@ -330,6 +336,10 @@ func (i *Ingest) DownloadAsftp() error {
 		threads <- true
 		go func(f string) {
 			logger.Detail("sftp Thread secured, proceeding to download %s", f)
+			i.progress.Lock()
+			i.progress.Downloader.changed = true
+			i.progress.Downloader.SftpFiles[f].StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
+			i.progress.Unlock()
 			err := sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource"))
 			if err != nil {
 				err = sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource"))
@@ -344,6 +354,7 @@ func (i *Ingest) DownloadAsftp() error {
 				i.progress.Lock()
 				i.progress.Downloader.changed = true
 				i.progress.Downloader.SftpFiles[f].IsDownloaded = true
+				i.progress.Downloader.SftpFiles[f].FinishTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
 				i.progress.Unlock()
 			}
 			<-threads

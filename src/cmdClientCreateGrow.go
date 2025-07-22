@@ -12,7 +12,6 @@ type clientCreateCmd struct {
 	ElasticSearch clientCreateElasticSearchCmd `command:"elasticsearch" subcommands-optional:"true" description:"deploy elasticsearch with the es connector for aerospike" webicon:"fas fa-magnifying-glass" invwebforce:"true"`
 	RestGateway   clientCreateRestGatewayCmd   `command:"rest-gateway" subcommands-optional:"true" description:"deploy a rest-gateway client machine" webicon:"fas fa-dungeon" invwebforce:"true"`
 	Graph         clientCreateGraphCmd         `command:"graph" subcommands-optional:"true" description:"deploy a graph client machine" webicon:"fas fa-diagram-project" invwebforce:"true"`
-	Vector        clientCreateVectorCmd        `command:"vector" subcommands-optional:"true" description:"deploy a vector client machine" webicon:"fa-solid fa-wand-sparkles" invwebforce:"true"`
 	EksCtl        clientCreateEksCtlCmd        `command:"eksctl" subcommands-optional:"true" description:"deploy a client machine with preconfigured eksctl for k8s aerospike cluster deployments" webicon:"fas fa-box-open" invwebforce:"true"`
 	// NEW_CLIENTS_CREATE
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -110,13 +109,6 @@ func init() {
 	addBackendSwitch("client.grow.graph", "aws", &a.opts.Client.Grow.Graph.Aws)
 	addBackendSwitch("client.grow.graph", "gcp", &a.opts.Client.Grow.Graph.Gcp)
 	addBackendSwitch("client.grow.graph", "docker", &a.opts.Client.Grow.Graph.Docker)
-
-	addBackendSwitch("client.create.vector", "aws", &a.opts.Client.Create.Vector.Aws)
-	addBackendSwitch("client.create.vector", "gcp", &a.opts.Client.Create.Vector.Gcp)
-	addBackendSwitch("client.create.vector", "docker", &a.opts.Client.Create.Vector.Docker)
-	addBackendSwitch("client.grow.vector", "aws", &a.opts.Client.Grow.Vector.Aws)
-	addBackendSwitch("client.grow.vector", "gcp", &a.opts.Client.Grow.Vector.Gcp)
-	addBackendSwitch("client.grow.vector", "docker", &a.opts.Client.Grow.Vector.Docker)
 
 	addBackendSwitch("client.create.eksctl", "aws", &a.opts.Client.Create.EksCtl.Aws)
 	addBackendSwitch("client.create.eksctl", "gcp", &a.opts.Client.Create.EksCtl.Gcp)

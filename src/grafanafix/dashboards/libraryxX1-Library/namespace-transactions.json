@@ -15358,13 +15358,13 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "11.2.0"
+      "version": "11.2.6"
     },
     {
       "type": "datasource",
       "id": "simpod-json-datasource",
       "name": "JSON",
-      "version": "0.6.3"
+      "version": "0.6.5"
     },
     {
       "type": "panel",
@@ -15517,7 +15517,7 @@
         "content": "<center><h1><font color=yellow>${ClusterName}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "11.2.6",
       "targets": [
         {
           "datasource": {
@@ -15552,7 +15552,7 @@
         "content": "<center><h1><font color=green>${Label}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "11.2.6",
       "targets": [
         {
           "datasource": {
@@ -15587,7 +15587,7 @@
         "content": "<center><pre><h2><font color=green>${Sources}</font></h2></pre></center>",
         "mode": "html"
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "11.2.6",
       "targets": [
         {
           "datasource": {
@@ -15624,7 +15624,7 @@
         "content": "<center><h1><font color=orange>${TimeRange}</font></h1></center>",
         "mode": "html"
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "11.2.6",
       "targets": [
         {
           "datasource": {
@@ -19196,6 +19196,60 @@
         "queryValue": "",
         "skipUrlSync": false,
         "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "false",
+          "value": "false"
+        },
+        "description": "Safety check normally won't load graphs with more than 1000 series (lines) in a graph. This disables said safety.",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "DisableSeriesSafety",
+        "options": [
+          {
+            "selected": true,
+            "text": "false",
+            "value": "false"
+          },
+          {
+            "selected": false,
+            "text": "true",
+            "value": "true"
+          }
+        ],
+        "query": "false,true",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "false",
+          "value": "false"
+        },
+        "description": "The plugin has a safety preventing it drawing too many datapoints per panel in order to prevent OOM issues and grafana crashes. This disables said safety.",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "DisableDataSizeSafety",
+        "options": [
+          {
+            "selected": true,
+            "text": "false",
+            "value": "false"
+          },
+          {
+            "selected": false,
+            "text": "true",
+            "value": "true"
+          }
+        ],
+        "query": "false,true",
+        "skipUrlSync": false,
+        "type": "custom"
       }
     ]
   },
@@ -19207,6 +19261,6 @@
   "timezone": "",
   "title": "Namespace Transactions",
   "uid": "nstransact",
-  "version": 2,
+  "version": 3,
   "weekStart": ""
 }

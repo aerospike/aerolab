@@ -7424,6 +7424,63 @@
         "queryValue": "",
         "skipUrlSync": false,
         "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "false",
+          "value": "false"
+        },
+        "description": "Safety check normally won't load graphs with more than 1000 series (lines) in a graph. This disables said safety.",
+        "hide": 0,
+        "includeAll": false,
+        "label": "",
+        "multi": false,
+        "name": "DisableSeriesSafety",
+        "options": [
+          {
+            "selected": true,
+            "text": "false",
+            "value": "false"
+          },
+          {
+            "selected": false,
+            "text": "true",
+            "value": "true"
+          }
+        ],
+        "query": "false,true",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "false",
+          "value": "false"
+        },
+        "description": "The plugin has a safety preventing it drawing too many datapoints per panel in order to prevent OOM issues and grafana crashes. This disables said safety.",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "DisableDataSizeSafety",
+        "options": [
+          {
+            "selected": true,
+            "text": "false",
+            "value": "false"
+          },
+          {
+            "selected": false,
+            "text": "true",
+            "value": "true"
+          }
+        ],
+        "query": "false,true",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
       }
     ]
   },
@@ -7435,6 +7492,6 @@
   "timezone": "",
   "title": "General Stats",
   "uid": "vfXTPgPVk",
-  "version": 2,
+  "version": 4,
   "weekStart": ""
 }

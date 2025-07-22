@@ -5,16 +5,9 @@
 Follow the Docker, AWS, or GCP instructions below, depending on the backend you use.
 You can use multiple backends simultaneously and run AeroLab commands on any of them.
 
-### Docker instructions
+### Docker and Podman
 
-1. Docker on your machine. Below are some of the example methods to obtain docker:
-  * Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) on your machine.
-  * Install [Docker Laptop](https://github.com/aerospike-community/docker-laptop/blob/docker-laptop/README.md) on your MacOS machine.
-  * Install Docker on Linux for your linux distribution.
-
-2. Start Docker. To make sure it's running, run `docker version` at the command line.
-
-3. Configure disk, RAM,and CPU resources. In the Docker tray-icon, go to `Preferences`. Configure the required disk, RAM and CPU resources. At least 2 cores and 2 GB of RAM is recommended for a single-node cluster.
+See [docker-setup.md](docker-setup.md)
 
 ### AWS
 

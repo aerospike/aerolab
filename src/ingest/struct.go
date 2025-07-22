@@ -319,6 +319,8 @@ type LogFile struct {
 	Size        int64
 	Processed   int64
 	Finished    bool
+	StartTime   string
+	FinishTime  string
 }
 
 type ProgressCollectProcessor struct {
@@ -338,6 +340,8 @@ type CfFile struct {
 	ProcessingAttempted bool
 	Processed           bool
 	Errors              []string
+	StartTime           string
+	FinishTime          string
 }
 
 type DownloaderFile struct {
@@ -345,6 +349,8 @@ type DownloaderFile struct {
 	LastModified time.Time
 	IsDownloaded bool
 	Error        string
+	StartTime    string
+	FinishTime   string
 }
 
 type EnumFile struct {

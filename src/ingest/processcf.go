@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/bestmethod/inslice"
@@ -215,6 +216,17 @@ func (i *Ingest) sendClusterInfo(ct *cfContents) {
 }
 
 func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[string]map[string]string) (string, error) {
+	i.progress.Lock()
+	i.progress.CollectinfoProcessor.changed = true
+	cf.StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
+	i.progress.Unlock()
+	defer func() {
+		i.progress.Lock()
+		i.progress.CollectinfoProcessor.changed = true
+		cf.FinishTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
+		i.progress.Unlock()
+	}()
+
 	ct := &cfContents{
 		ipToNode: make(map[string][]string),
 	}
