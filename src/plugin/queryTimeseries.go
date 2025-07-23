@@ -39,7 +39,15 @@ func (p *responsePoint) MarshalJSON() ([]byte, error) {
 }
 
 func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, r *http.Request) ([]*timeseriesResponse, error) {
-	logger.Detail("Build query (type:timeseries) (remote:%s)", remote)
+	disableSeriesSafety := false
+	if v, ok := req.selectedVars["DisableSeriesSafety"]; ok && v[0] == "true" {
+		disableSeriesSafety = true
+	}
+	disableDPSafety := false
+	if v, ok := req.selectedVars["DisableDataSizeSafety"]; ok && v[0] == "true" {
+		disableDPSafety = true
+	}
+	logger.Detail("DisableSeriesSafety:%t DisableDataSizeSafety:%t (type:timeseries) (remote:%s)", disableSeriesSafety, disableDPSafety, remote)
 	ntime := time.Now()
 	// fill bin list for the statement
 	binListA := []string{req.Targets[i].Payload.TimestampBinName}
@@ -242,9 +250,11 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 				}
 			}
 			datapointCount++
-			if datapointCount > p.config.MaxDataPointsReceived {
-				p.cache.lock.RUnlock()
-				return resp, errors.New("too many datapoints received, limit data by zooming in or selecting dropdown filters")
+			if !disableDPSafety {
+				if datapointCount > p.config.MaxDataPointsReceived {
+					p.cache.lock.RUnlock()
+					return resp, errors.New("too many datapoints received, limit data by zooming in or selecting dropdown filters")
+				}
 			}
 		}
 		if p.config.LogLevel > 5 {
@@ -299,9 +309,11 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			}
 			if found < 0 {
 				found = len(resp)
-				if len(resp) == p.config.MaxSeriesPerGraph {
-					p.cache.lock.RUnlock()
-					return resp, errors.New("too many series for graph, reduce series by selecting dropdown filters")
+				if !disableSeriesSafety {
+					if len(resp) == p.config.MaxSeriesPerGraph {
+						p.cache.lock.RUnlock()
+						return resp, errors.New("too many series for graph, reduce series by selecting dropdown filters")
+					}
 				}
 				resp = append(resp, &timeseriesResponse{
 					Datapoints: []*responsePoint{},

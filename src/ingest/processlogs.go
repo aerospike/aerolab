@@ -320,6 +320,11 @@ type processResult struct {
 }
 
 func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *processResult, labels map[string]interface{}, nodePrefix int, uniqNodeString string) {
+	i.progress.Lock()
+	i.progress.LogProcessor.Files[fileName].StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
+	i.progress.LogProcessor.changed = true
+	i.progress.Unlock()
+
 	_, fn := path.Split(fileName)
 	var unmatched *os.File
 	var err error
@@ -454,6 +459,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 	i.progress.Lock()
 	i.progress.LogProcessor.Files[fileName].Processed = i.progress.LogProcessor.Files[fileName].Size
 	i.progress.LogProcessor.Files[fileName].Finished = true
+	i.progress.LogProcessor.Files[fileName].FinishTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
 	i.progress.LogProcessor.changed = true
 	i.progress.Unlock()
 }

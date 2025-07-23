@@ -229,12 +229,14 @@
                                         <th>Size</th>
                                         <th>Downloaded</th>
                                         <th>Error</th>
+                                        <th>Time</th>
                                     </tr></thead><tbody></tbody><tfoot><tr>
                                         <th>Source</th>
                                         <th>File</th>
                                         <th>Size</th>
                                         <th>Downloaded</th>
                                         <th>Error</th>
+                                        <th>Time</th>
                                 </tr></tfoot></table></span>
                             </div>
                             <div class="tab-pane" id="filesun" aria-labelledby="#filesun">
@@ -288,6 +290,7 @@
                                         <th>ProcessedSize</th>
                                         <th>CompletePct</th>
                                         <th>IsFinished</th>
+                                        <th>Time</th>
                                         <th>LineErrors</th>
                                     </tr></thead><tbody></tbody><tfoot><tr>
                                         <th>File</th>
@@ -297,6 +300,7 @@
                                         <th>ProcessedSize</th>
                                         <th>CompletePct</th>
                                         <th>IsFinished</th>
+                                        <th>Time</th>
                                         <th>LineErrors</th>
                                 </tr></tfoot></table></span>
                             </div>
@@ -308,6 +312,7 @@
                                         <th>Renamed</th>
                                         <th>OriginalName</th>
                                         <th>Processed</th>
+                                        <th>Time</th>
                                         <th>Errors</th>
                                     </tr></thead><tbody></tbody><tfoot><tr>
                                         <th>File</th>
@@ -316,6 +321,7 @@
                                         <th>Renamed</th>
                                         <th>OriginalName</th>
                                         <th>Processed</th>
+                                        <th>Time</th>
                                         <th>Errors</th>
                                 </tr></tfoot></table></span>
                             </div>
@@ -662,7 +668,11 @@
                         for (var source of ["S3","Sftp"]) {
                             let src=source+"Files";
                             for (var fn in data[src]) {
-                                out.push([source,fn,formatBytes(data[src][fn]["Size"]),data[src][fn]["IsDownloaded"],data[src][fn]["Error"]]);
+                                var ntime = data[src][fn]["StartTime"];
+                                if (data[src][fn]["FinishTime"] != "") {
+                                    ntime = data[src][fn]["FinishTime"]
+                                };
+                                out.push([source,fn,formatBytes(data[src][fn]["Size"]),data[src][fn]["IsDownloaded"],data[src][fn]["Error"],ntime]);
                             };
                         };
                         $("#filesdl").css("text-align","left");
@@ -779,6 +789,10 @@
                                 }
                             }
                             var pct = Math.floor((data["Files"][fn]["Processed"] / data["Files"][fn]["Size"])*100);
+                            var ntime = data["Files"][fn]["StartTime"];
+                            if (data["Files"][fn]["FinishTime"] != "") {
+                                ntime = data["Files"][fn]["FinishTime"]
+                            };
                             out.push([
                                 fn,
                                 data["Files"][fn]["ClusterName"],
@@ -787,6 +801,7 @@
                                 formatBytes(data["Files"][fn]["Processed"]),
                                 pct,
                                 data["Files"][fn]["Finished"],
+                                ntime,
                                 errStr.join("<br>"),
                             ]);
                         };
@@ -816,6 +831,10 @@
                             if (data["Files"][fn]["Errors"] != null && data["Files"][fn]["Errors"].length > 0) {
                                 errStr = data["Files"][fn]["Errors"].join("<br>");
                             }
+                            var ntime = data["Files"][fn]["StartTime"];
+                            if (data["Files"][fn]["FinishTime"] != "") {
+                                ntime = data["Files"][fn]["FinishTime"]
+                            };
                             out.push([
                                 fn,
                                 formatBytes(data["Files"][fn]["Size"]),
@@ -823,6 +842,7 @@
                                 data["Files"][fn]["Renamed"],
                                 data["Files"][fn]["OriginalName"],
                                 data["Files"][fn]["Processed"],
+                                ntime,
                                 errStr,
                             ]);
                         };

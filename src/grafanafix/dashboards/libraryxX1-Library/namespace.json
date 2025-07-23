@@ -13287,8 +13287,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -13388,8 +13387,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -13489,8 +13487,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -13590,8 +13587,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -13691,8 +13687,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -13792,8 +13787,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -13893,8 +13887,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -13994,8 +13987,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -14095,8 +14087,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -14210,8 +14201,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -14311,8 +14301,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -14412,8 +14401,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -14513,8 +14501,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -14614,8 +14601,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -14715,8 +14701,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -15077,7 +15062,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 9
+            "y": 11
           },
           "id": 160,
           "libraryPanel": {
@@ -15091,7 +15076,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 9
+            "y": 11
           },
           "id": 159,
           "libraryPanel": {
@@ -15105,7 +15090,7 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 9
+            "y": 11
           },
           "id": 158,
           "libraryPanel": {
@@ -15119,7 +15104,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 16
+            "y": 18
           },
           "id": 161,
           "libraryPanel": {
@@ -15133,7 +15118,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 16
+            "y": 18
           },
           "id": 162,
           "libraryPanel": {
@@ -15147,7 +15132,7 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 16
+            "y": 18
           },
           "id": 186,
           "libraryPanel": {
@@ -16006,8 +15991,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16107,8 +16091,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16208,8 +16191,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -16678,7 +16660,7 @@
           "title": "Devices - Cache Read Pct"
         }
       ],
-      "title": "Devices",
+      "title": "Devices (asd v6-)",
       "type": "row"
     },
     {
@@ -16696,7 +16678,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 20
+            "y": 22
           },
           "id": 106,
           "libraryPanel": {
@@ -16710,7 +16692,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 20
+            "y": 22
           },
           "id": 107,
           "libraryPanel": {
@@ -16724,7 +16706,7 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 20
+            "y": 22
           },
           "id": 108,
           "libraryPanel": {
@@ -16738,7 +16720,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 27
+            "y": 29
           },
           "id": 109,
           "libraryPanel": {
@@ -16752,7 +16734,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 27
+            "y": 29
           },
           "id": 110,
           "libraryPanel": {
@@ -16766,7 +16748,7 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 27
+            "y": 29
           },
           "id": 111,
           "libraryPanel": {
@@ -16780,7 +16762,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 34
+            "y": 36
           },
           "id": 112,
           "libraryPanel": {
@@ -16794,7 +16776,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 34
+            "y": 36
           },
           "id": 113,
           "libraryPanel": {
@@ -16808,7 +16790,7 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 34
+            "y": 36
           },
           "id": 114,
           "libraryPanel": {
@@ -16822,7 +16804,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 41
+            "y": 43
           },
           "id": 115,
           "libraryPanel": {
@@ -16836,7 +16818,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 41
+            "y": 43
           },
           "id": 116,
           "libraryPanel": {
@@ -16850,7 +16832,7 @@
             "h": 7,
             "w": 8,
             "x": 16,
-            "y": 41
+            "y": 43
           },
           "id": 117,
           "libraryPanel": {
@@ -16864,7 +16846,7 @@
             "h": 7,
             "w": 8,
             "x": 0,
-            "y": 48
+            "y": 50
           },
           "id": 118,
           "libraryPanel": {
@@ -16878,7 +16860,7 @@
             "h": 7,
             "w": 8,
             "x": 8,
-            "y": 48
+            "y": 50
           },
           "id": 119,
           "libraryPanel": {
@@ -19186,6 +19168,60 @@
         ],
         "query": "0,REPEAT,DISABLE",
         "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "false",
+          "value": "false"
+        },
+        "description": "Safety check normally won't load graphs with more than 1000 series (lines) in a graph. This disables said safety.",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "DisableSeriesSafety",
+        "options": [
+          {
+            "selected": true,
+            "text": "false",
+            "value": "false"
+          },
+          {
+            "selected": false,
+            "text": "true",
+            "value": "true"
+          }
+        ],
+        "query": "false,true",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "current": {
+          "selected": false,
+          "text": "false",
+          "value": "false"
+        },
+        "description": "The plugin has a safety preventing it drawing too many datapoints per panel in order to prevent OOM issues and grafana crashes. This disables said safety.",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "DisableDataSizeSafety",
+        "options": [
+          {
+            "selected": true,
+            "text": "false",
+            "value": "false"
+          },
+          {
+            "selected": false,
+            "text": "true",
+            "value": "true"
+          }
+        ],
+        "query": "false,true",
         "skipUrlSync": false,
         "type": "custom"
       }

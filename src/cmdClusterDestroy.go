@@ -35,6 +35,10 @@ func (c *clusterDestroyCmd) doDestroy(typeName string, args []string) error {
 	if err != nil {
 		return err
 	}
+	nodeCount := 0
+	for _, n := range nodes {
+		nodeCount += len(n)
+	}
 	var nerr error
 	nerrLock := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
@@ -46,7 +50,18 @@ func (c *clusterDestroyCmd) doDestroy(typeName string, args []string) error {
 	if !c.Force {
 		for {
 			reader := bufio.NewReader(os.Stdin)
-			fmt.Printf("Are you sure you want to destroy clusters [%s] (y/n)? ", strings.Join(cList, ", "))
+			backendString := "Backend: docker"
+			if a.opts.Config.Backend.Type == "aws" {
+				backendString = fmt.Sprintf("Backend: AWS Region: %s", a.opts.Config.Backend.Region)
+				if a.opts.Config.Backend.AWSProfile != "" {
+					backendString = fmt.Sprintf("%s AWSProfile: %s", backendString, a.opts.Config.Backend.Region)
+				}
+			}
+			if a.opts.Config.Backend.Type == "gcp" {
+				backendString = fmt.Sprintf("Backend: GCP Project: %s", a.opts.Config.Backend.Project)
+			}
+			fmt.Println("\n" + backendString)
+			fmt.Printf("Are you sure you want to destroy clusters [%s] (%d nodes) (y/n)? ", strings.Join(cList, ", "), nodeCount)
 
 			yesno, err := reader.ReadString('\n')
 			if err != nil {
