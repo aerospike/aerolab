@@ -34,7 +34,7 @@ func (c *confAdjustCmd) Execute(args []string) error {
 		if c.Command != "" || c.Key != "" || len(c.Values) > 0 {
 			args = append([]string{c.Command, c.Key}, c.Values...)
 		} else {
-			c.help("E0")
+			c.help("Zero args provided and no values are set")
 			return nil
 		}
 	}
@@ -43,7 +43,7 @@ func (c *confAdjustCmd) Execute(args []string) error {
 	if len(args) > 1 {
 		path = args[1]
 	} else if command != "get" {
-		c.help("E1")
+		c.help("Command provided requires more arguments")
 		return nil
 	}
 	setValues := []string{""}
@@ -51,12 +51,12 @@ func (c *confAdjustCmd) Execute(args []string) error {
 	switch command {
 	case "get":
 		if len(args) > 2 {
-			c.help("E2")
+			c.help("Get command does not accept value parameters")
 			return nil
 		}
 	case "delete":
 		if len(args) != 2 {
-			c.help("E3")
+			c.help("Invalid argument count for delete command")
 			return nil
 		}
 	case "set":
@@ -65,7 +65,7 @@ func (c *confAdjustCmd) Execute(args []string) error {
 		}
 	case "create":
 		if len(args) != 2 {
-			c.help("E4")
+			c.help("Invalid argument count for create command")
 			return nil
 		}
 	}
@@ -206,7 +206,7 @@ func (c *confAdjustCmd) Execute(args []string) error {
 }
 
 func (c *confAdjustCmd) help(debugtext string) {
-	debug(debugtext)
+	fmt.Println("ERR: " + debugtext)
 	comm := path.Base(os.Args[0]) + " conf adjust"
 	fmt.Printf("\nUsage: %s [OPTIONS] {command} {path} [set-value1] [set-value2] [...set-valueX]\n", comm)
 	fmt.Println("\n" + `[OPTIONS]
