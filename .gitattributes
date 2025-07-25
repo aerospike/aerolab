@@ -1,0 +1,4 @@
+web/agiproxy/dist/** linguist-vendored
+web/adminlte-3.2.0-template.tgz linguist-vendored
+web/dev/dist/** linguist-vendored
+web/dev/plugins/** linguist-vendored

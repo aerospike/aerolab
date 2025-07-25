@@ -1,0 +1,5 @@
+/bin/aerolab*
+!bin/aerolabrpm
+.DS_Store
+.vscode
+.idea

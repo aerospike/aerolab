@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -17,7 +18,6 @@ import (
 	serviceusagepb "cloud.google.com/go/serviceusage/apiv1/serviceusagepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
-	"github.com/bestmethod/inslice"
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/cloudbilling/v1"
 	"google.golang.org/api/iterator"
@@ -483,7 +483,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 					parts := strings.Split(zone, "-")
 					zone = parts[0] + "-" + parts[1]
 				}
-				if inslice.HasString(i.ServiceRegions, zone) {
+				if slices.Contains(i.ServiceRegions, zone) {
 					zoneFound = true
 					break
 				}
