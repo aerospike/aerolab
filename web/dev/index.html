@@ -1,0 +1,619 @@
+{{ define "main" }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="{{.WebRoot}}www/dist/img/favicon.ico">
+  <title>{{ .PageTitle }}</title>
+  <!-- nocache -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <!-- filebrowser widget -->
+  <link href="{{.WebRoot}}www/plugins/jquery-ui/jquery-ui.min.css" rel="stylesheet"/>
+  <link href="{{.WebRoot}}www/plugins/filebrowser/filebrowser.css" rel="stylesheet">
+  <!-- Google Font: Source Sans Pro -->
+  <link rel="stylesheet" href="{{.WebRoot}}www/dist/fonts/sourcesans.css">
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/fontawesome-free/css/all.min.css">
+  <!-- Theme style -->
+  <link rel="stylesheet" href="{{.WebRoot}}www/dist/css/adminlte.min.css">
+  <!-- select2 -->
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/select2/css/select2.min.css">
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
+  <!-- toastr -->
+  <link rel="stylesheet" href="{{.WebRoot}}www/plugins/toastr/toastr.min.css">
+  <!-- datatables -->
+  {{if .IsInventory}}
+  <link href="{{.WebRoot}}www/plugins/datatables-full/datatables.min.css" rel="stylesheet">
+  {{end}}
+  <!-- builtin -->
+  <style>{{template "maincss"}}</style>
+  <style>{{template "highlighter"}}</style>
+</head>
+<body class="hold-transition sidebar-mini{{if .FixedFooter}} layout-footer-fixed{{end}}{{if .FixedNavbar}} layout-navbar-fixed{{end}}">
+<div id="filebrowser-wrapper"></div>
+<iframe id="mydownloader" style="display:none;"></iframe>
+<!-- spinner -->
+<div class="overlay-disable" id="loadingSpinner">
+  <div class="overlay-spinner">
+    <div class="d-flex justify-content-center">  
+      <div class="spinner-border text-primary" role="status" style="width: 6rem; height: 6rem; z-index: 20;">
+        <span class="sr-only">Loading...</span>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /spinner -->
+<!-- no connection -->
+<div class="overlay-disable" id="noConnectOverlay">
+  <div class="overlay-spinner">
+    <div class="d-flex justify-content-center">  
+      <div class="text-primary" role="status" style="width: 20rem; height: 6rem; z-index: 20; text-align: center;">
+        <span class="" style="font-weight: 900; font-size: x-large; color: black;">Connectivity to aerolab lost!</span>
+        <button onclick="reconnect();" id="reconnect">Reconnect</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /no connection -->
+
+<div class="wrapper">
+
+  <!-- Navbar -->
+  <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+    <!-- Left navbar links -->
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+      </li>
+      {{ range .Navigation.Top }}
+      <li class="nav-item d-sm-inline-block">
+        <a href="{{.Href}}" class="nav-link" target="{{.Target}}">{{.Name}}</a>
+      </li>
+      {{end}}
+      {{if .ShowSimpleModeButton}}
+      <!-- simple mode -->
+      <li class="nav-item d-sm-inline-block">
+        <a style="text-align: center;" href="#" class="nav-link" data-toggle="tooltip" title="Turn simple mode on/off, hiding less frequently used features">
+          <p>&nbsp;&nbsp;&nbsp;
+            <input type="checkbox" class="custom-control-input" id="simpleMode" name="simpleMode"{{if .SimpleMode}} checked{{end}}>
+            <label class="custom-control-label" for="simpleMode">Simple Mode</label>
+          </p>
+        </a>
+      </li>
+      <div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>
+      {{end}}
+    </ul>
+
+    <!-- Right navbar links -->
+    <ul class="navbar-nav ml-auto">
+      <!-- Notifications Dropdown Menu -->
+      <li class="nav-item dropdown">
+        <a class="nav-link" data-toggle="dropdown" href="#" onclick="updateJobList();">
+          <i class="far fa-bell fa-lg" id="pending-action-icon"></i>
+          <span class="badge badge-warning navbar-badge" id="pending-action-count">0</span>
+        </a>
+        <div class="dropdown-menu dropdown-menu-xl dropdown-menu-right" id="pending-user-action-list">
+          {{if .PendingActionsShowAllUsersToggle}}
+          <form>
+            <span class="dropdown-header">
+              <div class="custom-control custom-switch">
+                <input type="checkbox" class="custom-control-input" id="pending-action-showall" onchange="pendingActionShowAll(this);"{{if .PendingActionsShowAllUsersToggleChecked}} checked{{end}}>
+                <label class="custom-control-label" for="pending-action-showall">Show all users</label>
+              </div>
+            </span>
+          </form>
+          {{else}}
+          <span class="dropdown-header">
+            {{if .PendingActionsShowAllUsersToggleChecked}}
+            All user actions
+            {{else}}
+            Current user actions
+            {{end}}
+          </span>
+          {{end}}
+          <div class="dropdown-divider"></div>
+          <form>
+            <span class="dropdown-header">
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commands" download="commands.sh" data-toggle="tooltipleft" title="Export commands to a shell script"><i class="fa-solid fa-terminal"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandh" download="commands.md" data-toggle="tooltipleft" title="Export history to a markdown file"><i class="fa-brands fa-markdown"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandjb" download="commands-bash.ipynb" data-toggle="tooltipleft" title="Export history to a jupyter file (bash kernel)"><i class="fa-regular fa-floppy-disk"></i></a>
+                <a type="button" class="btn btn-default btn-sm" href="{{.WebRoot}}www/api/commandjm" download="commands-magic.ipynb" data-toggle="tooltipleft" title="Export history to a jupyter file (ipython kernel)"><i class="fa-brands fa-python"></i></a>
+            </span>
+          </form>
+          <div class="jobslist">
+            <div class="dropdown-divider"></div>
+            <a href="#" class="dropdown-item">
+              <i class="fas fa-spinner fa-spin mr-2"></i> Loading list...
+              <span class="float-right text-muted text-sm">now</span>
+              <!--<br><span class="text-muted text-sm">username</span><span class="text-muted float-right text-sm">user email</span>-->
+            </a>  
+          </div>
+          <div class="dropdown-divider"></div>
+          <a href="#" class="dropdown-item dropdown-footer" onclick="clearNotifications();">Clear History</a>
+        </div>
+      </li>
+      <!--
+      <li class="nav-item">
+        <a class="nav-link" data-widget="control-sidebar" data-slide="true" href="#" role="button">
+          <i class="fas fa-border-all fa-lg"></i>
+        </a>
+      </li>
+      -->
+    </ul>
+  </nav>
+  <!-- /.navbar -->
+
+  <!-- Main Sidebar Container -->
+  <aside class="main-sidebar sidebar-dark-primary elevation-4">
+    <!-- Brand Logo -->
+    <a href="{{.WebRoot}}" class="brand-link">
+      <img src="{{.WebRoot}}www/dist/img/aerolab.png" alt="A" class="brand-image img-circle elevation-3" style="opacity: .8">
+      <span class="brand-text font-weight-light">AeroLab</span>{{if .BetaTag}}&nbsp;<button type="button" class="btn btn-warning btn-xs beta">BETA</button>{{end}}
+    </a>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <!-- Sidebar Menu -->
+      <nav class="mt-2">
+        <ul class="nav nav-pills nav-sidebar nav-child-indent flex-column text-sm" data-widget="treeview" role="menu" data-accordion="false" id="mainMenu">
+          {{if .PendingActionsShowAllUsersToggle}}
+          <div id="userShow" style="display: none;">
+          <li class="nav-item">
+            <a href="#" class="nav-link">
+              <i class="nav-icon fas fa-user"></i>
+              <p id="currentUser">undefined</p>
+            </a>
+          </li>
+          <div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>
+          </div>
+          {{end}}
+          <!-- actual menu -->          
+          {{ template "menuItems" .Menu.Items }}
+        </ul>
+      </nav>
+      <!-- /.sidebar-menu -->
+    </div>
+    <!-- /.sidebar -->
+  </aside>
+
+  <div class="modal fade" id="modal-xl">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" id="formSize">
+      <div class="modal-content">
+        <div class="overlay" id="xlModalSpinner">
+          <i class="fas fa-2x fa-sync fa-spin"></i>
+        </div>
+        <div class="modal-header">
+          <h4 class="modal-title" id="xlModalTitle"></h4>
+          <div class="btn-group dropup" id="abrtButton">
+            &nbsp;&nbsp;<button type="button" class="btn btn-danger dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+              Abort
+            </button>
+            <div class="dropdown-menu">
+              <a class="dropdown-item" href="#" id="abrtSigInt">Clean Terminate</a>
+              <a class="dropdown-item" href="#" id="abrtSigKill">Kill</a>
+            </div>
+          </div>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close" onclick="hideCommandOut();">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="highlight"><pre class="highlight"><code id="xlModalBody"></code></pre></div>
+        </div>
+        <input type="hidden" name="abrtJobId" id="abrtJobId">
+        <div class="modal-footer justify-content-between">
+          <button type="button" class="btn btn-primary" data-dismiss="modal" onclick="hideCommandOut();">Close</button>
+          <button type="button" class="btn btn-primary" data-dismiss="modal" onclick="hideCommandOut();window.location.href = '{{.WebRoot}}';">Inventory</button>
+          <button type="button" class="btn btn-primary" id="btnCopyLog" data-toggle="tooltip" title="Copy run log to clipboard"><span class="fas fa-clipboard"></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content Wrapper. Contains page content -->
+  <div class="content-wrapper">
+    &nbsp;
+
+    <!-- Main content -->
+    <div class="content">
+      <div class="container-fluid">
+
+        {{if .IsForm}}
+        {{if .IsError}}
+        <div class="row">
+          <div class="col-md-3 col-sm-0">
+          </div>
+          <div class="col-md-6 col-sm-12">
+            <div class="card card-danger">
+              <div class="card-header">
+                <h3 class="card-title">{{.ErrorTitle}}</h3>
+              </div>
+              <div class="card-body">
+                {{.ErrorString}}
+              </div>
+            </div>
+          </div>
+        </div>
+        {{end}}
+        <div class="row">
+          <div class="col-md-3 col-sm-0">
+          </div>
+          <div class="col-md-6 col-sm-12">
+            <div class="card card-primary">
+              <div class="card-header">
+                <h3 class="card-title">{{.FormCommandTitle}}</h3>
+              </div>
+              <form method="post" id="mainForm">
+                <div class="card-body">
+                  <input type="hidden" name="action" value="" id="action">
+                  <input type="hidden" name="useShortSwitches" value="" id="useShortSwitches">
+                  <input type="hidden" name="useShowDefaults" value="" id="useShowDefaults">
+                  <input type="hidden" name="useBasicDefaults" value="" id="useBasicDefaults">
+                  {{ range .FormItems }}
+                  {{if .Type.Separator}}
+                  <div class="separator"><span class="right badge badge-info">{{.Separator.Name}}</span></div>
+                  {{end}}
+                  {{ if .Type.Input }}
+                  {{if .Input.Tags}}
+                  <div class="form-group" data-toggle="tooltipleft" title="{{.Input.Description}}">
+                    {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label>{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
+                    <select class="select2bs4tag updateCommandCli{{if .Input.Required}} aerolab-required{{end}}" multiple="multiple" style="width: 100%;" id="{{.Input.ID}}" name="{{.Input.ID}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} disabled{{end}}>
+                    </select>
+                    {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
+                  </div>
+                  {{else}}
+                  <div class="form-group">
+                    {{if .Input.Optional}}&nbsp;<button type="button" class="btn btn-default btn-sm" onclick="$('#{{.Input.ID}}').attr('hidden', function(index, attr){return attr == 'hidden' ? null : 'hidden';});$('#isSet-{{.Input.ID}}').val(function(index, value){return value == 'no' ? 'yes' : 'no';});"><span class="fas fa-eye"></span></button>&nbsp;{{end}}<label for="{{.Input.ID}}">{{if .Input.Required}}* {{end}}{{.Input.Name}}</label>
+                    {{ if eq .Input.Type "file" }}
+                    <div class="custom-file">
+                      <input type="{{.Input.Type}}" class="custom-file-input updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} disabled{{end}}>
+                      <label class="custom-file-label" for="{{.Input.ID}}">Choose file</label>
+                      <input type="hidden" class="xfileup" id="{{.Input.ID}}xfileup" name="{{.Input.ID}}">
+                    </div>
+                    {{ else }}
+                    <input{{if ne .Input.Mask "" }} data-inputmask-alias="datetime" data-inputmask-inputformat="{{.Input.Mask}}" data-mask{{end}} type="{{.Input.Type}}" {{if .Input.IsFile}}onclick="getBrowser(this,'{{.Input.Name}}');"{{end}}class="form-control updateCommandCli{{if .Input.Required}} aerolab-required{{end}} checkForGetParams" id="{{.Input.ID}}" name="{{.Input.ID}}" placeholder="{{.Input.Default}}" data-toggle="tooltipleft" title="{{.Input.Description}}"{{if .Input.Optional}} hidden="hidden"{{end}}{{if .Input.Disabled}} readonly value="{{.Input.Default}}"{{end}}>
+                    {{ end }}
+                    {{if .Input.Optional}}<input type="hidden" id="isSet-{{.Input.ID}}" name="isSet-{{.Input.ID}}" value="no">{{end}}
+                  </div>
+                  {{end}}
+                  {{end}}
+                  {{if .Type.Toggle}}
+                  {{if .Toggle.Optional}}
+                  <div class="form-group">
+                    <label>{{.Toggle.Name}}</label>
+                    <br>
+                    <div class="btn-group" data-toggle="buttons">
+                      <label class="btn btn-default" >
+                        <input type="radio"  name="{{.Toggle.ID}}" id="{{.Toggle.ID}}-on" value="on" class="updateCommandCli"> ON
+                      </label>
+                      <label class="btn btn-default active" >
+                        <input type="radio" name="{{.Toggle.ID}}" id="{{.Toggle.ID}}-unset" value="unset" checked="checked" class="updateCommandCli"> UNSET
+                      </label>
+                      <label class="btn btn-default" >
+                        <input type="radio"  name="{{.Toggle.ID}}" id="{{.Toggle.ID}}-off" value="off" class="updateCommandCli"> OFF
+                      </label>
+                    </div>
+                  </div>
+                  {{else}}
+                  <div class="form-group">
+                    <div class="custom-control custom-switch" data-toggle="tooltipleft" title="{{.Toggle.Description}}">
+                      <input type="checkbox" class="custom-control-input checkForGetParamsToggle updateCommandCli" id="{{.Toggle.ID}}" name="{{.Toggle.ID}}"{{if .Toggle.On}} checked{{end}}{{if .Toggle.Disabled}} disabled{{end}}>
+                      <label class="custom-control-label" for="{{.Toggle.ID}}">{{.Toggle.Name}}</label>
+                    </div>
+                  </div>
+                  {{end}}
+                  {{end}}
+                  {{if .Type.Select}}
+                  <div class="form-group" data-toggle="tooltipleft" title="{{.Select.Description}}">
+                    <label>{{if .Select.Required}}* {{end}}{{.Select.Name}}</label>
+                    <select class="select2bs4 updateCommandCli checkForGetParamsSelect{{if .Select.Required}} aerolab-required{{end}}"{{if .Select.Multiple}} multiple="multiple"{{end}} style="width: 100%;" id="{{.Select.ID}}" name="{{.Select.ID}}" valname="{{.Select.Name}}">
+                    {{range .Select.Items}}
+                    <option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>
+                    {{end}}
+                    </select>
+                  </div>
+                  {{end}}
+                  {{end}}
+                </div>
+                <div class="card-footer">
+                  <button type="button" class="btn btn-primary" id="btnRun1">Run</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+        <br><br><br><br><br><br>
+        {{end}}
+        {{if .IsInventory}}
+        {{template "inventory" . }}
+        {{end}}
+      </div><!-- /.container-fluid -->
+    </div>
+    <!-- /.content -->
+  </div>
+  <!-- /.content-wrapper -->
+  
+  <!-- Control Sidebar -->
+  <aside class="control-sidebar control-sidebar-dark">
+    <!-- Control sidebar content goes here -->
+    <div class="p-3">
+      <h5>Quick Settings</h5>
+      <p>TODO: Change backend, aws-region, gcp-project, docker-arch, aws-profile</p>
+    </div>
+    <div class="p-3">
+      <h5>Quick Inventory</h5>
+      <p>TODO: Show a list of clusters and clients, allowing to expand clusters/clients to see a list of nodes, and a dropdown for quick actions</p>
+    </div>
+  </aside>
+  <!-- /.control-sidebar -->
+
+  <!-- Main Footer -->
+  <footer class="main-footer">
+    {{if .IsForm}}
+    <div class="row">
+      <div class="language-bash col-md-12 col-sm-12 col-12 highlighter-rouge">
+        <div class="card card-default">
+          <div class="card-header">
+            <h3 class="card-title">
+              Command Line
+            </h3>
+              <div class="card-tools">
+                <ul class="nav nav-pills ml-auto">
+                <li class="nav-item">
+                  <div class="custom-control custom-switch" data-toggle="tooltiptop" title="Set to use short-format switches where available"><input type="checkbox" class="custom-control-input" id="shortSwitches" name="shortSwitches"{{if .ShortSwitches}} checked{{end}}><label class="custom-control-label" for="shortSwitches">Use short switches&nbsp;&nbsp;</label></div>
+                </li>
+                <li class="nav-item">
+                  <div class="custom-control custom-switch" data-toggle="tooltiptop" title="Set to show all parameters, including user-defined default overrides"><input type="checkbox" class="custom-control-input" id="showDefaults" name="showDefaults"{{if .ShowDefaults}} checked{{end}}><label class="custom-control-label" for="showDefaults">Show defaults&nbsp;&nbsp;&nbsp;&nbsp;</label></div>
+                </li>
+                </ul>
+              </div>
+              <div class="row"><div class="col-12"></div></div>
+          </div>
+          <div class="highlight"><pre class="highlight"><button type="button" class="btn btn-primary" id="btnRun2" data-toggle="tooltiptop" title="Run"><span class="fas fa-play"></span></button>&nbsp;<button type="button" class="btn btn-default" id="btnCopyCommand" data-toggle="tooltiptop" title="Copy to clipboard"><span class="fas fa-clipboard"></span></button>&nbsp;<button type="button" class="btn btn-success" id="btnShowCommand" data-toggle="tooltiptop" title="Refresh"><span class="fas fa-arrows-rotate"></span></button>&nbsp;<code id="cmdBuilder"></code></pre></div>
+        </div>
+      </div>
+    </div>
+    {{end}}
+    <!-- To the right -->
+      <div class="float-right d-none d-sm-inline">
+      Template by AdminLTE
+      </div>
+      <!-- Default to the left -->
+      <strong>Copyright &copy; 2024 <a href="https://aerospike.com">Aerospike</a>.</strong> All rights reserved.
+  </footer>
+</div>
+<!-- ./wrapper -->
+
+<!-- REQUIRED SCRIPTS -->
+
+<!-- jQuery -->
+<script src="{{.WebRoot}}www/plugins/jquery/jquery.min.js"></script>
+<!-- filebrowser widget -->
+<script src="{{.WebRoot}}www/plugins/jquery-ui/jquery-ui.min.js"></script>
+<script src="{{.WebRoot}}www/plugins/filebrowser/filebrowser.js"></script>
+<!-- Bootstrap 4 -->
+<script src="{{.WebRoot}}www/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<!-- AdminLTE App -->
+<script src="{{.WebRoot}}www/dist/js/adminlte.min.js"></script>
+<!-- fontawesome -->
+<script src="{{.WebRoot}}www/plugins/fontawesome-free/js/all.min.js"></script>
+<!-- select2 -->
+<script src="{{.WebRoot}}www/plugins/select2/js/select2.full.min.js"></script>
+<!-- toastr -->
+<script src="{{.WebRoot}}www/plugins/toastr/toastr.min.js"></script>
+<!-- jscookie -->
+<script src="{{.WebRoot}}www/plugins/cookie/js.cookie.min.js"></script>
+<!-- datatables -->
+{{if .IsInventory}}
+<script src="{{.WebRoot}}www/plugins/datatables-full/datatables.min.js"></script>
+{{end}}
+<script src="{{.WebRoot}}www/plugins/inputmask/jquery.inputmask.min.js"></script>
+<script>
+  //$('#datemask').inputmask('dd/mm/yyyy', { 'placeholder': 'dd/mm/yyyy' });
+  $('[data-mask]').inputmask();
+</script>
+<!-- builtin -->
+<script>{{template "mainjs" .}}</script>
+</body>
+</html>
+{{end}}
+
+{{ define "menuItems" }}
+{{ range . }}
+<li class="nav-item{{if .HasChildren}} menu {{if .IsActive}}menu-open{{else}}menu-closed{{end}}{{end}}">
+  <a href="{{if .HasChildren}}#{{else}}{{.Href}}{{end}}" class="nav-link{{if .IsActive}} active{{.ActiveColor}}{{end}}" data-toggle="tooltip" title="{{.Tooltip}}">
+    <i class="nav-icon {{.Icon}}"></i>
+    <p>
+      {{.Name}}
+      {{if .HasChildren}}<i class="right fas fa-angle-left"></i>{{end}}
+      {{if .Badge.Show}}<span class="right badge {{.Badge.Type}}">{{.Badge.Text}}</span>{{end}}
+    </p>
+  </a>
+  {{if .HasChildren}}
+  <ul class="nav nav-treeview">
+  {{ template "menuItems" .Items }}
+  </ul>
+  {{end}}
+</li>
+{{if .DrawSeparator}}<div class="user-panel mt-1 pb-1 mb-2 d-flex"></div>{{end}}
+{{end}}
+{{end}}
+
+{{ define "inventory" }}
+<div class="row">
+  <div class="col-12">
+    <div class="card card-primary card-tabs">
+      <div class="card-header p-0 pt-1">
+
+        <ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
+          {{if not .HideInventory.Clusters}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabClusters-tab" data-toggle="pill" href="#inventoryTabClusters" role="tab" aria-controls="inventoryTabClusters" aria-selected="false">Clusters</a>
+          </li>
+          {{end}}
+          {{if not .HideInventory.Clients}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabClients-tab" data-toggle="pill" href="#inventoryTabClients" role="tab" aria-controls="inventoryTabClients" aria-selected="false">Clients</a>
+          </li>
+          {{end}}
+          {{if not .HideInventory.AGI}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabAGI-tab" data-toggle="pill" href="#inventoryTabAGI" role="tab" aria-controls="inventoryTabAGI" aria-selected="false">AGI</a>
+          </li>
+          {{end}}
+          {{if not .HideInventory.Templates}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabTemplates-tab" data-toggle="pill" href="#inventoryTabTemplates" role="tab" aria-controls="inventoryTabTemplates" aria-selected="false">Templates</a>
+          </li>
+          {{end}}
+          {{if not .HideInventory.Volumes}}
+          {{ if ne .Backend "docker" }}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryVolumes-tab" data-toggle="pill" href="#inventoryVolumes" role="tab" aria-controls="inventoryVolumes" aria-selected="false">{{if eq .Backend "aws"}}EFS{{end}}{{if eq .Backend "gcp"}}Volumes{{end}}</a>
+          </li>
+          {{end}}
+          {{end}}
+          {{if not .HideInventory.Firewalls}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabFirewalls-tab" data-toggle="pill" href="#inventoryTabFirewalls" role="tab" aria-controls="inventoryTabFirewalls" aria-selected="false">{{if eq .Backend "aws"}}SecurityGroups{{end}}{{if eq .Backend "gcp"}}Firewalls{{end}}{{if eq .Backend "docker"}}Networks{{end}}</a>
+          </li>
+          {{end}}
+          {{if not .HideInventory.Expiry}}
+          {{ if ne .Backend "docker" }}
+          <li class="nav-item">
+          <a class="nav-link inventoryTab" id="inventoryTabExpirySystem-tab" data-toggle="pill" href="#inventoryTabExpirySystem" role="tab" aria-controls="inventoryTabExpirySystem" aria-selected="false">ExpirySystem</a>
+          </li>
+          {{end}}
+          {{end}}
+          {{if not .HideInventory.Subnets}}
+          {{if eq .Backend "aws"}}
+          <li class="nav-item">
+            <a class="nav-link inventoryTab" id="inventoryTabSubnets-tab" data-toggle="pill" href="#inventoryTabSubnets" role="tab" aria-controls="inventoryTabSubnets" aria-selected="false">Subnets</a>
+          </li>
+          {{end}}
+          {{end}}
+        </ul>
+
+      </div>
+      <div class="card-body">
+        <div class="tab-content" id="custom-tabs-one-tabContent">
+
+          <div class="tab-pane fade" id="inventoryTabClusters" role="tabpanel" aria-labelledby="inventoryTabClusters-tab">
+            <table id="invclusters" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$clusters := index .Inventory "Clusters"}}{{range $clusters.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="tab-pane fade" id="inventoryTabClients" role="tabpanel" aria-labelledby="inventoryTabClients-tab">
+            <table id="invclients" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$clients := index .Inventory "Clients"}}{{range $clients.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="tab-pane fade" id="inventoryTabAGI" role="tabpanel" aria-labelledby="inventoryTabAGI-tab">
+            <table id="invagi" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$agi := index .Inventory "AGI"}}{{range $agi.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          <div class="tab-pane fade" id="inventoryTabTemplates" role="tabpanel" aria-labelledby="inventoryTabTemplates-tab">
+            <table id="invtemplates" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$templates := index .Inventory "Templates"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          {{ if ne .Backend "docker" }}
+          <div class="tab-pane fade" id="inventoryVolumes" role="tabpanel" aria-labelledby="inventoryVolumes-tab">
+            <table id="invvolumes" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$vols := index .Inventory "Volumes"}}{{range $vols.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+          {{end}}
+
+          <div class="tab-pane fade" id="inventoryTabFirewalls" role="tabpanel" aria-labelledby="inventoryTabFirewalls-tab">
+            <table id="invfirewalls" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$fw := index .Inventory "FirewallRules"}}{{range $fw.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$fw := index .Inventory "FirewallRules"}}{{range $fw.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+
+          {{ if ne .Backend "docker" }}
+          <div class="tab-pane fade" id="inventoryTabExpirySystem" role="tabpanel" aria-labelledby="inventoryTabExpirySystem-tab">
+            <table id="invexpiry" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$templates := index .Inventory "ExpirySystem"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$templates := index .Inventory "ExpirySystem"}}{{range $templates.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+          {{end}}
+
+          {{if eq .Backend "aws"}}
+          <div class="tab-pane fade" id="inventoryTabSubnets" role="tabpanel" aria-labelledby="inventoryTabSubnets-tab">
+            <table id="invsubnets" class="table table-hover inventoryTable" style="width:100%">
+              <thead>
+                {{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </thead>
+              <tbody>
+              </tbody>
+              <tfoot>
+                {{$subnets := index .Inventory "Subnets"}}{{range $subnets.Fields}}<th>{{.FriendlyName}}</th>{{end}}
+              </tfoot>
+            </table>
+          </div>
+          {{end}}
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}
