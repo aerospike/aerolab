@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	compute "cloud.google.com/go/compute/apiv1"
 	"cloud.google.com/go/compute/apiv1/computepb"
@@ -127,6 +130,78 @@ func (s *b) ListEnabledZones() ([]string, error) {
 }
 
 func (s *b) EnableZones(names ...string) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	// check cache for valid regions
+	regionCacheFile := path.Join(s.configDir, "region-cache.json")
+	type regionCache struct {
+		Regions     []string  `json:"regions"`
+		LastUpdated time.Time `json:"last_updated"`
+	}
+	zoneList := []string{}
+	if _, err := os.Stat(regionCacheFile); err == nil {
+		f, err := os.Open(regionCacheFile)
+		if err != nil {
+			return err
+		}
+		var cache regionCache
+		err = json.NewDecoder(f).Decode(&cache)
+		f.Close()
+		if err != nil {
+			return err
+		}
+		if cache.LastUpdated.Add(24 * time.Hour).After(time.Now()) {
+			zoneList = cache.Regions
+		} else {
+			os.Remove(regionCacheFile)
+		}
+	}
+
+	// get region list from provider
+	if len(zoneList) == 0 {
+		cli, err := connect.GetClient(s.credentials, nil)
+		if err != nil {
+			return err
+		}
+		defer cli.CloseIdleConnections()
+		ctx := context.Background()
+		client, err := compute.NewZonesRESTClient(ctx, option.WithHTTPClient(cli))
+		if err != nil {
+			return err
+		}
+		defer client.Close()
+		it := client.List(ctx, &computepb.ListZonesRequest{
+			Project: s.credentials.Project,
+		})
+		for {
+			zone, err := it.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return err
+			}
+			zoneName := zone.GetName()
+			parts := strings.Split(zoneName, "-")
+			regionName := strings.Join(parts[:len(parts)-1], "-")
+			zoneList = append(zoneList, regionName)
+		}
+		// store cache
+		err = file.StoreJSON(regionCacheFile, ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regionCache{Regions: zoneList, LastUpdated: time.Now()})
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, name := range names {
+		if !slices.Contains(zoneList, name) {
+			return fmt.Errorf("region %s not found in GCP", name)
+		}
+	}
+
+	// add missing regions to the list
 	regions, err := s.ListEnabledZones()
 	if err != nil {
 		return err

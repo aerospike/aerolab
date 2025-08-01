@@ -160,3 +160,29 @@ func (f File) Download(timeout time.Duration) (io.ReadCloser, error) {
 	}
 	return resp.Body, nil
 }
+
+func (f Files) GetServerInstallerURL(arch ArchitectureType, osName OSName, osVersion string) (fileName string, installURL string, err error) {
+	for _, file := range f {
+		fDetail := file.ParseNameParts()
+		if fDetail == nil {
+			continue
+		}
+		if fDetail.ProductType != ProductTypeServer {
+			continue
+		}
+		if fDetail.FileType != FileTypeTGZ {
+			continue
+		}
+		if fDetail.Architecture != arch {
+			continue
+		}
+		if fDetail.OSName != osName {
+			continue
+		}
+		if fDetail.OSVersion != osVersion {
+			continue
+		}
+		return file.Name, file.DownloadLink, nil
+	}
+	return "", "", errors.New("no matching file found for given architecture, os name, and os version")
+}

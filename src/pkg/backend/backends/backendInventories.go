@@ -119,6 +119,10 @@ type Cloud interface {
 	FirewallsAddTags(fw FirewallList, tags map[string]string, waitDur time.Duration) error
 	FirewallsRemoveTags(fw FirewallList, tagKeys []string, waitDur time.Duration) error
 	CleanupDNS() error // cleanup stale DNS records, if spot instances are being used, this is normally run by the expiry handler
+	// docker-only commands
+	DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error // create a new docker network
+	DockerDeleteNetwork(region string, name string) error                                           // delete a docker network
+	DockerPruneNetworks(region string) error                                                        // remove unused docker networks
 }
 
 type Backend interface {
@@ -147,6 +151,12 @@ type Backend interface {
 	ExpiryChangeFrequency(backendType BackendType, intervalMinutes int, zones ...string) error
 	ExpiryList() (*ExpiryList, error)
 	ExpiryChangeConfiguration(backendType BackendType, logLevel int, expireEksctl bool, cleanupDNS bool, zones ...string) error
+	// close the backend object
+	Close() error
+	// special docker-only commands
+	DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error // create a new docker network
+	DockerDeleteNetwork(region string, name string) error                                           // delete a docker network
+	DockerPruneNetworks(region string) error                                                        // remove unused docker networks
 }
 
 type backend struct {
@@ -163,6 +173,7 @@ type backend struct {
 	invalidated     []string
 	invalidatedLock *sync.Mutex
 	enabledBackends map[BackendType]Cloud
+	closed          bool
 }
 
 func getBackendObject(project string, c *Config) *backend {

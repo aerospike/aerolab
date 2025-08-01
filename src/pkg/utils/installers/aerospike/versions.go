@@ -97,6 +97,16 @@ func vcompare(a, b string) bool {
 	return atail < btail
 }
 
+// default sort order means [0] is latest, use this to have [0] as oldest
+func (v Versions) SortOldestFirst() Versions {
+	versions := make(Versions, len(v))
+	copy(versions, v)
+	sort.Slice(versions, func(i, j int) bool {
+		return vcompare(versions[i].Name, versions[j].Name)
+	})
+	return versions
+}
+
 func (v Versions) WithName(name string) Versions {
 	versions := make(Versions, 0)
 	for _, version := range v {
