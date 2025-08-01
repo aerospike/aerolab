@@ -2,23 +2,29 @@
 
 ## Next - MVP
 
-* src/cli
-  * plus have CLI outputs in 2 formats: json, text; logging and telemetry should be in json only
-  * will need logger to handle that
-  * use error types, like {"Result": "ERROR", "Error": "GCP_FAILURE", "Message": "GCP failed to create instance"}
-  * when logging - include version of every installed software
+CODE:
+* do a documentation - dictate cool bells and whistles (code cleanup, listing items with json, table, etc, and all others)
+* all missing commands
+
+CONSIDER:
+* test disk caching of inventory (once we have commands so we can actually test it)
+* on backend initialization, we do not always want to do a full inventory at startup as we may be calling Execute from another Execute? Or will we?
+* do we want pagination at all for inventory listings? One would assume that not, as people know how to use `less`
+* consider how to solve the aerolab-embedded-in-aerolab problem better
+
+OTHER:
 * RELEASE.md
 * README.md
 * docs/*
 * src/Makefile
 * .github
-* telemetry
-* `aerolab migrate`
+* `aerolab migrate` - migrate the config directory to the new format (ssh keys, etc) AND the Instances in AWS/GCP. Warn Docker cannot be migrated.
 
 ## Notes
 
 ### Software configurators
 
+* when logging - include version of every installed software
 * when aerolab starts aerospike, we do do not get cake, but error, maybe we should grab the config and log that it didn't start
 * maybe builtin openvpn container deployment via aerolab? Or tailscale? Or SOMETHING!
 * Aerospike server `aerospike.conf`, xdr conf between clusters

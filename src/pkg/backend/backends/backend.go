@@ -14,13 +14,14 @@ import (
 )
 
 type Config struct {
-	RootDir         string              `yaml:"RootDir" json:"RootDir"`
-	Cache           bool                `yaml:"Cache" json:"Cache"`
-	Credentials     *clouds.Credentials `yaml:"Credentials" json:"Credentials"`
-	LogLevel        logger.LogLevel     `yaml:"logLevel" json:"logLevel"`
-	LogMillisecond  bool                `yaml:"logMillisecond" json:"logMillisecond"`
-	AerolabVersion  string              `yaml:"aerolabVersion" json:"aerolabVersion"`
-	ListAllProjects bool                `yaml:"listAllProjects" json:"listAllProjects"`
+	RootDir          string              `yaml:"RootDir" json:"RootDir"`
+	Cache            bool                `yaml:"Cache" json:"Cache"`
+	Credentials      *clouds.Credentials `yaml:"Credentials" json:"Credentials"`
+	LogLevel         logger.LogLevel     `yaml:"logLevel" json:"logLevel"`
+	LogMillisecond   bool                `yaml:"logMillisecond" json:"logMillisecond"`
+	AerolabVersion   string              `yaml:"aerolabVersion" json:"aerolabVersion"`
+	ListAllProjects  bool                `yaml:"listAllProjects" json:"listAllProjects"`
+	CustomSSHKeyPath string              `yaml:"customSSHKeyPath" json:"customSSHKeyPath"`
 }
 
 type cacheMetadata struct {
@@ -84,7 +85,16 @@ func (b *backend) pollTimer() {
 	log := b.log.WithPrefix("pollTimer")
 	for {
 		log.Debug("Sleeping for 1 hour")
-		time.Sleep(time.Hour)
+		sleepEnd := time.Now().Add(time.Hour)
+		for {
+			time.Sleep(time.Second)
+			if time.Now().After(sleepEnd) {
+				break
+			}
+			if b.closed {
+				return
+			}
+		}
 		log.Debug("Waking up")
 		b.pollLock.Lock()
 		log.Debug("Lock obtained, inventory refresh started")
@@ -134,7 +144,11 @@ func InternalNew(project string, c *Config, pollInventoryHourly bool, enabledBac
 			return nil, fmt.Errorf("backend type %s not found", cname)
 		}
 		b.enabledBackends[cname] = cloud
-		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, path.Join(c.RootDir, project, "ssh-keys", string(cname)), b.log.WithPrefix(string(cname)+" "), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.invalidate, c.ListAllProjects)
+		sshKeyPath := path.Join(c.RootDir, project, "ssh-keys", string(cname))
+		if c.CustomSSHKeyPath != "" {
+			sshKeyPath = path.Join(c.CustomSSHKeyPath, project, "ssh-keys", string(cname))
+		}
+		err := cloud.SetConfig(path.Join(c.RootDir, project, "config", string(cname)), c.Credentials, project, sshKeyPath, b.log.WithPrefix(string(cname)+" "), c.AerolabVersion, path.Join(c.RootDir, project, "workdir", string(cname)), b.invalidate, c.ListAllProjects)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +172,6 @@ func InternalNew(project string, c *Config, pollInventoryHourly bool, enabledBac
 			b.log.Warn("Could not load cache files: %s", err)
 		}
 	}
-	// TODO: are we sure we want to forceRefresh on aerolab start? What about disk caching? It doesn't make sense to have disk caching if we are not going to actually use it.
 	err := b.ForceRefreshInventory()
 	if err != nil {
 		return b, err
@@ -167,4 +180,9 @@ func InternalNew(project string, c *Config, pollInventoryHourly bool, enabledBac
 		go b.pollTimer()
 	}
 	return b, nil
+}
+
+func (b *backend) Close() error {
+	b.closed = true
+	return nil
 }

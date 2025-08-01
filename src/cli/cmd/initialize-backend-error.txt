@@ -1,0 +1,18 @@
+
+Create a config file and select a backend first using one of:
+
+$ %s config backend -t docker
+$ %s config backend -t aws -r region
+$ %s config backend -t gcp -o project-name
+
+See '%s config backend --help' for more information.
+
+Default aerolab home directory is ${HOME}/.aerolab
+Default config path is ${HOME}/.aerolab/conf
+
+To specify a custom aerolab home directory, set:
+   $ export AEROLAB_HOME=/path/to/new/dir
+
+To specify a custom configuration file, set the environment variable:
+   $ export AEROLAB_CONFIG_FILE=/path/to/file.conf
+

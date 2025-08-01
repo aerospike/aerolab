@@ -75,10 +75,9 @@ func (f File) ParseNameParts() *NameParts {
 			}
 		}
 		architecture := ArchitectureTypeUnknown
-		switch parts[4] {
-		case "x86", "amd64":
+		if strings.Contains(parts[4], "x86") || strings.Contains(parts[4], "amd64") {
 			architecture = ArchitectureTypeX86_64
-		case "aarch64", "arm64":
+		} else if strings.Contains(parts[4], "aarch64") || strings.Contains(parts[4], "arm64") {
 			architecture = ArchitectureTypeAARCH64
 		}
 		osName := ""

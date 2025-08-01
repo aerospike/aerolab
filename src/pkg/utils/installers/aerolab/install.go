@@ -15,6 +15,24 @@ import (
 //go:embed scripts
 var scripts embed.FS
 
+func GetLatestVersion(stable bool) (*github.Release, error) {
+	releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
+	if err != nil {
+		return nil, err
+	}
+	if stable {
+		releases = releases.WithPrerelease(false)
+	}
+	if len(releases) == 0 {
+		return nil, errors.New("no release found (1)")
+	}
+	release := releases.Latest()
+	if release == nil {
+		return nil, errors.New("no release found (2)")
+	}
+	return release, nil
+}
+
 // specify a specific version or get latest
 // if version ends with '*', it will match with prefix of version, and if multiple found, it will use the latest that matches that prefix
 // prerelease will only look through prereleases, otherwise only stable releases. nil means all releases

@@ -1,16 +1,22 @@
 package baws
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"slices"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
 	"github.com/aerospike/aerolab/pkg/utils/counters"
 	"github.com/aerospike/aerolab/pkg/utils/file"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/rglonek/logger"
 )
 
@@ -98,6 +104,72 @@ func (s *b) ListEnabledZones() ([]string, error) {
 }
 
 func (s *b) EnableZones(names ...string) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	// check cache for valid regions
+	regionCacheFile := path.Join(s.configDir, "region-cache.json")
+	type regionCache struct {
+		Regions     []string  `json:"regions"`
+		LastUpdated time.Time `json:"last_updated"`
+	}
+	rrList := []string{}
+	if _, err := os.Stat(regionCacheFile); err == nil {
+		f, err := os.Open(regionCacheFile)
+		if err != nil {
+			return err
+		}
+		var cache regionCache
+		err = json.NewDecoder(f).Decode(&cache)
+		f.Close()
+		if err != nil {
+			return err
+		}
+		if cache.LastUpdated.Add(24 * time.Hour).After(time.Now()) {
+			rrList = cache.Regions
+		} else {
+			os.Remove(regionCacheFile)
+		}
+	}
+
+	// get region list from provider
+	if len(rrList) == 0 {
+		cli, err := getEc2Client(s.credentials, aws.String(names[0]))
+		if err != nil {
+			if strings.Contains(err.Error(), "no such host") {
+				return fmt.Errorf("region %s not found in AWS", names[0])
+			}
+			return err
+		}
+		rr, err := cli.DescribeRegions(context.Background(), &ec2.DescribeRegionsInput{
+			AllRegions:  aws.Bool(true),
+			RegionNames: names,
+		})
+		if err != nil {
+			if strings.Contains(err.Error(), "no such host") {
+				return fmt.Errorf("region %s not found in AWS", names[0])
+			}
+			return err
+		}
+		for _, r := range rr.Regions {
+			rrList = append(rrList, *r.RegionName)
+		}
+		// store cache
+		err = file.StoreJSON(regionCacheFile, ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regionCache{Regions: rrList, LastUpdated: time.Now()})
+		if err != nil {
+			return err
+		}
+	}
+
+	// check if the regions are valid
+	for _, name := range names {
+		if !slices.Contains(rrList, name) {
+			return fmt.Errorf("region %s not found in AWS", name)
+		}
+	}
+
+	// add missing regions to the list
 	regions, err := s.ListEnabledZones()
 	if err != nil {
 		return err

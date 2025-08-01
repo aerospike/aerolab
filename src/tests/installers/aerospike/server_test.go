@@ -35,6 +35,23 @@ func serverScript(t *testing.T, np string) aerospike.Files {
 	return files
 }
 
+func Test000_LatestVersion(t *testing.T) {
+	products, err := aerospike.GetProducts(time.Second * 10)
+	require.NoError(t, err)
+	require.NotNil(t, products)
+	require.NotEmpty(t, products)
+	product := products.WithName("aerospike-server-enterprise")
+	require.NotEmpty(t, product)
+
+	versions, err := aerospike.GetVersions(time.Second*10, product[0])
+	require.NoError(t, err)
+	require.NotNil(t, versions)
+	require.NotEmpty(t, versions)
+	version := versions.Latest()
+	require.NotNil(t, version)
+	fmt.Println(version.Name)
+}
+
 func Test00_ServerScript(t *testing.T) {
 	fmt.Println("Getting file list")
 	files := serverScript(t, "6.")

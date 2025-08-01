@@ -11,7 +11,7 @@ import (
 	"github.com/lithammer/shortuuid"
 )
 
-type networkDetails struct {
+type NetworkDetails struct {
 	Scope      string
 	Driver     string
 	Internal   bool
@@ -95,7 +95,7 @@ func (s *b) GetNetworks() (backends.NetworkList, error) {
 					IsAerolabManaged: false,
 					State:            backends.NetworkStateAvailable,
 					Subnets:          subnets,
-					BackendSpecific: &networkDetails{
+					BackendSpecific: &NetworkDetails{
 						Scope:      network.Scope,
 						Driver:     network.Driver,
 						Internal:   network.Internal,

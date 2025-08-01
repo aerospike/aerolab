@@ -28,26 +28,33 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/scheduler v1.13.3
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.19
 	github.com/aws/smithy-go v1.22.4
+	github.com/bestmethod/inslice v0.0.0-20210212091431-146fa4d769bf
 	github.com/creasty/defaults v1.8.0
 	github.com/docker/docker v28.1.1+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/gabriel-vasile/mimetype v1.4.9
 	github.com/google/uuid v1.6.0
+	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/jessevdk/go-flags v1.6.1
 	github.com/jroimartin/gocui v0.5.0
 	github.com/lithammer/shortuuid v3.0.0+incompatible
+	github.com/mattn/go-isatty v0.0.20
+	github.com/mitchellh/go-ps v1.0.0
 	github.com/nwaples/rardecode v1.1.3
 	github.com/opencontainers/image-spec v1.1.1
 	github.com/pkg/sftp v1.13.9
 	github.com/rglonek/aerospike-config-file-parser v1.0.4
 	github.com/rglonek/envconfig v0.0.0-20230911195903-c4c689bf1744
-	github.com/rglonek/logger v0.2.2
+	github.com/rglonek/go-flags v1.6.3
+	github.com/rglonek/go-wget v0.0.2
+	github.com/rglonek/logger v0.2.4
 	github.com/rglonek/sbs v1.0.1
 	github.com/stretchr/testify v1.10.0
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	golang.org/x/crypto v0.37.0
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
 	golang.org/x/oauth2 v0.29.0
+	golang.org/x/sys v0.34.0
 	golang.org/x/term v0.31.0
 	google.golang.org/api v0.231.0
 	google.golang.org/grpc v1.72.0
@@ -97,7 +104,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
-	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
@@ -107,6 +114,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
@@ -123,7 +131,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sync v0.13.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.32.0 // indirect
