@@ -148,7 +148,7 @@ func setup(fresh bool) error {
 			AerolabVersion:  aerolabVersion,
 			ListAllProjects: false,
 		},
-		false, []backends.BackendType{btype})
+		false, []backends.BackendType{btype}, nil)
 	if err != nil {
 		return err
 	}
