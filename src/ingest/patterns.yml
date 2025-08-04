@@ -858,3 +858,18 @@ defs:
             export:
                 - "health-check-successes-(?P<espDC>[^ ]+) count=(?P<okCnt>\\d+)"
                 - "count=(?P<okCnt>\\d+)"
+        -
+            setName: "RecDispatchAwait"
+            search: "DEBUG metrics-ticker - record-dispatch-await: rate(per second)"
+            export:
+                - "mean=(?P<RateMean>[0-9\\.-Ee]+), m1=(?P<RateM1>[0-9\\.-Ee]+), m5=(?P<RateM5>[0-9\\.-Ee]+), m15=(?P<RateM15>[0-9\\.-Ee]+)"
+        -
+            setName: "RecDispatchAwait"
+            search: "DEBUG metrics-ticker - record-dispatch-await: duration(ms)"
+            export:
+                - "min=(?P<min>[0-9\\.-Ee]+), max=(?P<max>[0-9\\.-Ee]+), mean=(?P<mean>[0-9\\.-Ee]+), stddev=(?P<stddev>[0-9\\.-Ee]+), median=(?P<median>[0-9\\.-Ee]+), p75=(?P<p75>[0-9\\.-Ee]+), p95=(?P<p95>[0-9\\.-Ee]+), p98=(?P<p98>[0-9\\.-Ee]+), p99=(?P<p99>[0-9\\.-Ee]+), p999=(?P<p999>[0-9\\.-Ee]+)"
+        -
+            setName: "RecDispatchAwait"
+            search: "DEBUG metrics-ticker - record-dispatch-await: count"
+            export:
+                - "count=(?P<TotalCnt>\\d+)"
