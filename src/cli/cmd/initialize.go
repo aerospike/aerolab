@@ -75,10 +75,11 @@ type System struct {
 }
 
 type Init struct {
-	InitBackend        bool         // initialize backend as part of startup; if trying to pollInventoryHourly without filling InitBackend, set to false, and call GetBackend() later
-	RunExecuteFunction bool         // only set to true if you are initializing the application for the first time
-	UpgradeCheck       bool         // check for upgrades as part of startup, and print a message if a new version is available
-	Backend            *InitBackend // backend configuration; optional, if not specified, will be auto-filled
+	InitBackend        bool                // initialize backend as part of startup; if trying to pollInventoryHourly without filling InitBackend, set to false, and call GetBackend() later
+	RunExecuteFunction bool                // only set to true if you are initializing the application for the first time
+	UpgradeCheck       bool                // check for upgrades as part of startup, and print a message if a new version is available
+	Backend            *InitBackend        // backend configuration; optional, if not specified, will be auto-filled
+	ExistingInventory  *backends.Inventory // existing inventory, if requested to be set by the caller
 }
 
 type InitBackend struct {
@@ -352,7 +353,7 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 		ListAllProjects:  i.Backend.ListAllProjects,
 		CustomSSHKeyPath: string(s.Opts.Config.Backend.SshKeyPath),
 	}
-	b, err := backend.New("default", config, i.Backend.PollInventoryHourly, backendList)
+	b, err := backend.New("default", config, i.Backend.PollInventoryHourly, backendList, i.ExistingInventory)
 	if err != nil {
 		return fmt.Errorf("could not initialize backend: %w", err)
 	}

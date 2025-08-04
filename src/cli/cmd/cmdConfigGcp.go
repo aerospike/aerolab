@@ -38,7 +38,7 @@ func (c *ReauthenticateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.Reauthenticate(system)
+	err = c.Reauthenticate(system, cmd, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -47,7 +47,14 @@ func (c *ReauthenticateCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ReauthenticateCmd) Reauthenticate(system *System) error {
+func (c *ReauthenticateCmd) Reauthenticate(system *System, cmd []string, args []string) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: false, UpgradeCheck: false}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != "gcp" {
 		return errors.New("this command is only available for GCP backend type")
 	}
@@ -75,7 +82,7 @@ type EnableServicesCmd struct {
 
 func (c *EnableServicesCmd) Execute(args []string) error {
 	cmd := []string{"config", "gcp", "enable-services"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: false, UpgradeCheck: false}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -123,7 +130,7 @@ func (c *ListFirewallCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = ListSecurityGroups(system, c.Output, c.TableTheme, c.SortBy, "gcp")
+	err = ListSecurityGroups(system, c.Output, c.TableTheme, c.SortBy, "gcp", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -143,7 +150,7 @@ func (c *CreateFirewallCmd) Execute(args []string) error {
 	if c.IP == "discover-caller-ip" {
 		c.IP = getip2()
 	}
-	err = CreateSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, c.VPC, "gcp")
+	err = CreateSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, c.VPC, "gcp", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -160,7 +167,7 @@ func (c *DestroyFirewallCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = DeleteSecurityGroups(system, c.NamePrefix, c.All, "gcp")
+	err = DeleteSecurityGroups(system, c.NamePrefix, c.All, "gcp", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -177,7 +184,7 @@ func (c *LockFirewallCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = LockSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, "gcp")
+	err = LockSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, "gcp", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -58,7 +59,7 @@ func (c *PruneNetworksCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = PruneNetworks(system)
+	err = c.PruneNetworks(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -67,7 +68,14 @@ func (c *PruneNetworksCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func PruneNetworks(system *System) error {
+func (c *PruneNetworksCmd) PruneNetworks(system *System, inventory *backends.Inventory, args []string) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"config", "docker", "prune-networks"}, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != "docker" {
 		return errors.New("this function is only available for docker backend")
 	}
@@ -82,7 +90,7 @@ func (c *DeleteNetworkCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = DeleteNetwork(system, c.Name)
+	err = c.DeleteNetwork(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -91,11 +99,18 @@ func (c *DeleteNetworkCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func DeleteNetwork(system *System, name string) error {
+func (c *DeleteNetworkCmd) DeleteNetwork(system *System, inventory *backends.Inventory, args []string) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"config", "docker", "delete-network"}, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != "docker" {
 		return errors.New("this function is only available for docker backend")
 	}
-	return system.Backend.DockerDeleteNetwork("", name)
+	return system.Backend.DockerDeleteNetwork("", c.Name)
 }
 
 func (c *CreateNetworkCmd) Execute(args []string) error {
@@ -106,7 +121,7 @@ func (c *CreateNetworkCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.CreateNetwork(system)
+	err = c.CreateNetwork(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -115,7 +130,14 @@ func (c *CreateNetworkCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *CreateNetworkCmd) CreateNetwork(system *System) error {
+func (c *CreateNetworkCmd) CreateNetwork(system *System, inventory *backends.Inventory, args []string) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"config", "docker", "create-network"}, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != "docker" {
 		return errors.New("this function is only available for docker backend")
 	}
@@ -139,7 +161,7 @@ func (c *ListNetworksCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.ListNetworks(system)
+	err = c.ListNetworks(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -148,14 +170,21 @@ func (c *ListNetworksCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ListNetworksCmd) ListNetworks(system *System) error {
+func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inventory, args []string) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"config", "docker", "list-networks"}, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != "docker" {
 		return errors.New("this function is only available for docker backend")
 	}
 	if c.CSV {
 		c.Output = "csv"
 	}
-	inventory := system.Backend.GetInventory()
+	inventory = system.Backend.GetInventory()
 	net := inventory.Networks.Describe()
 
 	switch c.Output {

@@ -54,7 +54,7 @@ func awsLambdaMain() {
 		AerolabVersion:  os.Getenv("AEROLAB_VERSION"),
 		ListAllProjects: true,
 		Credentials:     h.Credentials,
-	}, false, []backends.BackendType{backends.BackendTypeAWS})
+	}, false, []backends.BackendType{backends.BackendTypeAWS}, nil)
 	if err != nil {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
@@ -97,7 +97,7 @@ func gcpCloudRunMain() {
 		AerolabVersion:  os.Getenv("AEROLAB_VERSION"),
 		ListAllProjects: true,
 		Credentials:     h.Credentials,
-	}, false, []backends.BackendType{backends.BackendTypeGCP})
+	}, false, []backends.BackendType{backends.BackendTypeGCP}, nil)
 	if err != nil {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
@@ -231,7 +231,7 @@ func serverMain() {
 		AerolabVersion:  strings.Trim(string(aver), "\n"),
 		ListAllProjects: true,
 		Credentials:     h.Credentials,
-	}, false, []backends.BackendType{cloud})
+	}, false, []backends.BackendType{cloud}, nil)
 	if err != nil {
 		log.Fatalf("Failed to initialize backend: %v", err)
 	}
