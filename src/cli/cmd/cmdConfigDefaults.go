@@ -83,6 +83,13 @@ func (c *ConfigDefaultsCmd) Execute(args []string) error {
 }
 
 func (c *ConfigDefaultsCmd) ConfigDefaults(system *System, args []string) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: false}, []string{"config", "defaults"}, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	err := c.configDefaults(system, args)
 	if err != nil {
 		return err

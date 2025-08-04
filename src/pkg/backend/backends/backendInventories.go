@@ -469,6 +469,39 @@ func (b *backend) GetRefreshedInventory() (*Inventory, error) {
 	return b.GetInventory(), err
 }
 
+func (b *backend) setInventory(inventory *Inventory) {
+	for _, v := range inventory.Networks.Describe() {
+		if _, ok := b.networks[v.BackendType]; !ok {
+			b.networks[v.BackendType] = NetworkList{}
+		}
+		b.networks[v.BackendType] = append(b.networks[v.BackendType], v)
+	}
+	for _, v := range inventory.Firewalls.Describe() {
+		if _, ok := b.firewalls[v.BackendType]; !ok {
+			b.firewalls[v.BackendType] = FirewallList{}
+		}
+		b.firewalls[v.BackendType] = append(b.firewalls[v.BackendType], v)
+	}
+	for _, v := range inventory.Volumes.Describe() {
+		if _, ok := b.volumes[v.BackendType]; !ok {
+			b.volumes[v.BackendType] = VolumeList{}
+		}
+		b.volumes[v.BackendType] = append(b.volumes[v.BackendType], v)
+	}
+	for _, v := range inventory.Instances.Describe() {
+		if _, ok := b.instances[v.BackendType]; !ok {
+			b.instances[v.BackendType] = InstanceList{}
+		}
+		b.instances[v.BackendType] = append(b.instances[v.BackendType], v)
+	}
+	for _, v := range inventory.Images.Describe() {
+		if _, ok := b.images[v.BackendType]; !ok {
+			b.images[v.BackendType] = ImageList{}
+		}
+		b.images[v.BackendType] = append(b.images[v.BackendType], v)
+	}
+}
+
 func (b *backend) GetInventory() *Inventory {
 	networks := NetworkList{}
 	for _, v := range b.networks {

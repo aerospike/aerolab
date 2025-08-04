@@ -69,7 +69,7 @@ func (c *ListSecGroupsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = ListSecurityGroups(system, c.Output, c.TableTheme, c.SortBy, "aws")
+	err = ListSecurityGroups(system, c.Output, c.TableTheme, c.SortBy, "aws", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -86,7 +86,7 @@ func (c *ListSubnetsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = ListSubnets(system, c.Output, c.TableTheme, c.SortBy, "aws")
+	err = ListSubnets(system, c.Output, c.TableTheme, c.SortBy, "aws", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -109,7 +109,7 @@ func (c *CreateSecGroupsCmd) Execute(args []string) error {
 	if !strings.Contains(c.IP, "/") {
 		c.IP = c.IP + "/32"
 	}
-	err = CreateSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, c.VPC, "aws")
+	err = CreateSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, c.VPC, "aws", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -126,7 +126,7 @@ func (c *DestroySecGroupsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = DeleteSecurityGroups(system, c.NamePrefix, c.All, "aws")
+	err = DeleteSecurityGroups(system, c.NamePrefix, c.All, "aws", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -143,7 +143,7 @@ func (c *LockSecGroupsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = LockSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, "aws")
+	err = LockSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, "aws", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

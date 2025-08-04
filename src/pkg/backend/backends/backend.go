@@ -128,7 +128,7 @@ func (b *backend) ForceRefreshInventory() error {
 	return errors.New(errstring)
 }
 
-func InternalNew(project string, c *Config, pollInventoryHourly bool, enabledBackends []BackendType) (Backend, error) {
+func InternalNew(project string, c *Config, pollInventoryHourly bool, enabledBackends []BackendType, setInventory *Inventory) (Backend, error) {
 	if project == "" {
 		return nil, errors.New("project name cannot be empty")
 	}
@@ -157,6 +157,18 @@ func InternalNew(project string, c *Config, pollInventoryHourly bool, enabledBac
 		Enabled: b.config.Cache,
 		Dir:     path.Join(c.RootDir, project, "cache"),
 	}
+	// if we are told to set the inventory to a specific value
+	if setInventory != nil {
+		b.setInventory(setInventory)
+		for cname, cloud := range b.enabledBackends {
+			cloud.SetInventory(b.networks[cname], b.firewalls[cname], b.instances[cname], b.volumes[cname], b.images[cname])
+		}
+		if pollInventoryHourly {
+			go b.pollTimer()
+		}
+		return b, nil
+	}
+	// if we have disk caching enabled, load the cache
 	if b.config.Cache {
 		err := b.loadCache()
 		if err == nil {
@@ -172,6 +184,7 @@ func InternalNew(project string, c *Config, pollInventoryHourly bool, enabledBac
 			b.log.Warn("Could not load cache files: %s", err)
 		}
 	}
+	// force refresh the inventory as we do not have one yet
 	err := b.ForceRefreshInventory()
 	if err != nil {
 		return b, err

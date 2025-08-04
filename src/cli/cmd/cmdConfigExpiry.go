@@ -29,7 +29,7 @@ func (c *ExpiryInstallCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.ExpiryInstall(system)
+	err = c.ExpiryInstall(system, cmd, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -38,7 +38,14 @@ func (c *ExpiryInstallCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ExpiryInstallCmd) ExpiryInstall(system *System) error {
+func (c *ExpiryInstallCmd) ExpiryInstall(system *System, cmd []string, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	regions, err := system.Backend.ListEnabledRegions(backends.BackendType(system.Opts.Config.Backend.Type))
 	if err != nil {
 		return err
@@ -58,7 +65,7 @@ func (c *ExpiryRemoveCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.ExpiryRemove(system)
+	err = c.ExpiryRemove(system, cmd, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -67,7 +74,14 @@ func (c *ExpiryRemoveCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ExpiryRemoveCmd) ExpiryRemove(system *System) error {
+func (c *ExpiryRemoveCmd) ExpiryRemove(system *System, cmd []string, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	regions, err := system.Backend.ListEnabledRegions(backends.BackendType(system.Opts.Config.Backend.Type))
 	if err != nil {
 		return err
@@ -88,7 +102,7 @@ func (c *ExpiryCheckFreqCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.ExpiryCheckFreq(system)
+	err = c.ExpiryCheckFreq(system, cmd, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -97,7 +111,14 @@ func (c *ExpiryCheckFreqCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ExpiryCheckFreqCmd) ExpiryCheckFreq(system *System) error {
+func (c *ExpiryCheckFreqCmd) ExpiryCheckFreq(system *System, cmd []string, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	regions, err := system.Backend.ListEnabledRegions(backends.BackendType(system.Opts.Config.Backend.Type))
 	if err != nil {
 		return err
@@ -120,7 +141,7 @@ func (c *ExpiryListCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.ExpiryList(system)
+	err = c.ExpiryList(system, cmd, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -129,7 +150,14 @@ func (c *ExpiryListCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ExpiryListCmd) ExpiryList(system *System) error {
+func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	expiries, err := system.Backend.ExpiryList()
 	if err != nil {
 		return err

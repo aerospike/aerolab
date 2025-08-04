@@ -14,11 +14,18 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-func ListSubnets(system *System, output string, tableTheme string, sortBy []string, backendType string) error {
+func ListSubnets(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != backendType {
 		return errors.New("this command is only available for AWS/GCP backend types; selected backend does not match command constraints")
 	}
-	inventory := system.Backend.GetInventory()
+	inventory = system.Backend.GetInventory()
 	net := inventory.Networks.Describe()
 
 	switch output {
@@ -69,11 +76,18 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 	return nil
 }
 
-func ListSecurityGroups(system *System, output string, tableTheme string, sortBy []string, backendType string) error {
+func ListSecurityGroups(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != backendType {
 		return errors.New("this command is only available for AWS/GCP backend types; selected backend does not match command constraints")
 	}
-	inventory := system.Backend.GetInventory()
+	inventory = system.Backend.GetInventory()
 	fw := inventory.Firewalls.Describe()
 
 	switch output {
@@ -136,7 +150,14 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 	return nil
 }
 
-func CreateSecurityGroups(system *System, namePrefix string, ip string, portList []string, vpc string, backendType string) error {
+func CreateSecurityGroups(system *System, namePrefix string, ip string, portList []string, vpc string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != backendType {
 		return errors.New("this command is only available for AWS/GCP backend types; selected backend does not match command constraints")
 	}
@@ -176,7 +197,14 @@ func CreateSecurityGroups(system *System, namePrefix string, ip string, portList
 	return err
 }
 
-func DeleteSecurityGroups(system *System, namePrefix string, all bool, backendType string) error {
+func DeleteSecurityGroups(system *System, namePrefix string, all bool, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != backendType {
 		return errors.New("this command is only available for AWS/GCP backend types; selected backend does not match command constraints")
 	}
@@ -193,7 +221,14 @@ func DeleteSecurityGroups(system *System, namePrefix string, all bool, backendTy
 	return fw.Delete(time.Minute)
 }
 
-func LockSecurityGroups(system *System, namePrefix string, ip string, portList []string, backendType string) error {
+func LockSecurityGroups(system *System, namePrefix string, ip string, portList []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
+		if err != nil {
+			return err
+		}
+	}
 	if system.Opts.Config.Backend.Type != backendType {
 		return errors.New("this command is only available for AWS/GCP backend types; selected backend does not match command constraints")
 	}
