@@ -122,7 +122,7 @@ func GetTableWriter(renderType string, theme string, sortBy []string) (*TableWri
 	if isTerminal {
 		width, _, err := term.GetSize(int(os.Stdout.Fd()))
 		if err != nil || width < 1 {
-			return nil, ErrTerminalWidthUnknown
+			width = 40
 		} else {
 			if width < 40 {
 				width = 40
