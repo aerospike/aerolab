@@ -3,10 +3,13 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
@@ -127,9 +130,10 @@ func (c *ExpiryCheckFreqCmd) ExpiryCheckFreq(system *System, cmd []string, args 
 }
 
 type ExpiryListCmd struct {
-	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, csv, tsv, html, markdown)" default:"table"`
+	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
 	TableTheme string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
 	SortBy     []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
+	Pager      bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
 	Help       HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -141,7 +145,7 @@ func (c *ExpiryListCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.ExpiryList(system, cmd, args, system.Backend.GetInventory())
+	err = c.ExpiryList(system, cmd, args, system.Backend.GetInventory(), os.Stdout, nil)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -150,7 +154,7 @@ func (c *ExpiryListCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, inventory *backends.Inventory) error {
+func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, inventory *backends.Inventory, out io.Writer, page *pager.Pager) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
@@ -158,29 +162,70 @@ func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, 
 			return err
 		}
 	}
+	if system.Opts.Config.Backend.Type == "docker" {
+		return nil
+	}
 	expiries, err := system.Backend.ExpiryList()
 	if err != nil {
 		return err
 	}
+	if c.Pager && page == nil {
+		page, err = pager.New(out)
+		if err != nil {
+			return err
+		}
+		err = page.Start()
+		if err != nil {
+			return err
+		}
+		defer page.Close()
+		out = page
+	}
 	switch c.Output {
+	case "jq":
+		params := []string{}
+		if page != nil && page.HasColors() {
+			params = append(params, "-C")
+		}
+		cmd := exec.Command("jq", params...)
+		cmd.Stdout = out
+		cmd.Stderr = out
+		w, err := cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+		enc := json.NewEncoder(w)
+		go func() {
+			enc.Encode(expiries)
+			w.Close()
+		}()
+		err = cmd.Run()
+		if err != nil {
+			return err
+		}
 	case "json":
-		json.NewEncoder(os.Stdout).Encode(expiries)
+		json.NewEncoder(out).Encode(expiries)
 	case "json-indent":
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		enc.Encode(expiries)
 	case "text":
 		system.Logger.Info("Expiries:")
 		for _, expiry := range expiries.ExpirySystems {
-			fmt.Printf("Backend: %s, Version: %s, Zone: %s, InstallationSuccess: %t, FrequencyMinutes: %d\n", expiry.BackendType, expiry.Version, expiry.Zone, expiry.InstallationSuccess, expiry.FrequencyMinutes)
+			fmt.Fprintf(out, "Backend: %s, Version: %s, Zone: %s, InstallationSuccess: %t, FrequencyMinutes: %d\n", expiry.BackendType, expiry.Version, expiry.Zone, expiry.InstallationSuccess, expiry.FrequencyMinutes)
 		}
+		fmt.Fprintln(out, "")
 	default:
+		if len(c.SortBy) == 0 {
+			c.SortBy = []string{"Backend:asc", "Zone:asc"}
+		}
 		header := table.Row{"Backend", "Version", "Zone", "InstallationSuccess", "FrequencyMinutes"}
 		rows := []table.Row{}
 		for _, expiry := range expiries.ExpirySystems {
 			rows = append(rows, table.Row{expiry.BackendType, expiry.Version, expiry.Zone, expiry.InstallationSuccess, expiry.FrequencyMinutes})
 		}
-		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy)
+		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), c.Pager)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")
@@ -188,7 +233,8 @@ func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, 
 				return err
 			}
 		}
-		fmt.Println(t.RenderTable(printer.String("EXPIRIES"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(printer.String("EXPIRIES"), header, rows))
+		fmt.Fprintln(out, "")
 	}
 	return nil
 }

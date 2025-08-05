@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
+	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
@@ -31,9 +34,10 @@ type PruneNetworksCmd struct {
 }
 
 type ListNetworksCmd struct {
-	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, csv, tsv, html, markdown)" default:"table"`
+	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
 	TableTheme string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
 	SortBy     []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
+	Pager      bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
 	Help       HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 	CSV        bool     `short:"c" long:"csv" hidden:"true" webhidden:"true" description:"this no longer applies"` // NOTE: obsolete, but kept for backwards compatibility
 }
@@ -161,7 +165,7 @@ func (c *ListNetworksCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.ListNetworks(system, system.Backend.GetInventory(), args)
+	err = c.ListNetworks(system, system.Backend.GetInventory(), args, os.Stdout, nil)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -170,7 +174,7 @@ func (c *ListNetworksCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inventory, args []string) error {
+func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inventory, args []string, out io.Writer, page *pager.Pager) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"config", "docker", "list-networks"}, c, args...)
@@ -187,20 +191,57 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 	inventory = system.Backend.GetInventory()
 	net := inventory.Networks.Describe()
 
+	var err error
+	if c.Pager && page == nil {
+		page, err = pager.New(out)
+		if err != nil {
+			return err
+		}
+		err = page.Start()
+		if err != nil {
+			return err
+		}
+		defer page.Close()
+		out = page
+	}
+
 	switch c.Output {
+	case "jq":
+		params := []string{}
+		if page != nil && page.HasColors() {
+			params = append(params, "-C")
+		}
+		cmd := exec.Command("jq", params...)
+		cmd.Stdout = out
+		cmd.Stderr = out
+		w, err := cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+		enc := json.NewEncoder(w)
+		go func() {
+			enc.Encode(net)
+			w.Close()
+		}()
+		err = cmd.Run()
+		if err != nil {
+			return err
+		}
 	case "json":
-		json.NewEncoder(os.Stdout).Encode(net)
+		json.NewEncoder(out).Encode(net)
 	case "json-indent":
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		enc.Encode(net)
 	case "text":
 		system.Logger.Info("Networks:")
 		for _, net := range net {
 			detail := net.BackendSpecific.(*bdocker.NetworkDetails)
-			fmt.Printf("Backend: %s, Name: %s, CIDR: %s, Driver: %s, MTU: %s, NetID: %s\n",
+			fmt.Fprintf(out, "Backend: %s, Name: %s, CIDR: %s, Driver: %s, MTU: %s, NetID: %s\n",
 				net.BackendType, net.Name, net.Cidr, detail.Driver, detail.Options["com.docker.network.driver.mtu"], net.NetworkId)
 		}
+		fmt.Fprintln(out, "")
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Backend:asc", "Driver:asc", "Name:asc", "CIDR:asc"}
@@ -211,7 +252,7 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 			detail := net.BackendSpecific.(*bdocker.NetworkDetails)
 			rows = append(rows, table.Row{net.BackendType, net.Name, net.Cidr, detail.Driver, detail.Options["com.docker.network.driver.mtu"], net.NetworkId})
 		}
-		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy)
+		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), c.Pager)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")
@@ -219,7 +260,8 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 				return err
 			}
 		}
-		fmt.Println(t.RenderTable(printer.String("NETWORKS"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(printer.String("NETWORKS"), header, rows))
+		fmt.Fprintln(out, "")
 	}
 	return nil
 }

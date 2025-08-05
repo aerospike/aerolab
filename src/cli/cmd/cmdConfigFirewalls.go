@@ -4,17 +4,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"io"
+	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
+	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-func ListSubnets(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+func ListSubnets(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory, out io.Writer, usePager bool, page *pager.Pager) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
@@ -22,17 +24,65 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 			return err
 		}
 	}
+	if backendType == "docker" {
+		docker := &ListNetworksCmd{
+			Output:     output,
+			SortBy:     sortBy,
+			TableTheme: tableTheme,
+			Pager:      usePager,
+		}
+		err := docker.ListNetworks(system, system.Backend.GetInventory(), args, out, nil)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 	if system.Opts.Config.Backend.Type != backendType {
-		return errors.New("this command is only available for AWS/GCP backend types; selected backend does not match command constraints")
+		return errors.New("selected backend does not match command constraints")
 	}
 	inventory = system.Backend.GetInventory()
 	net := inventory.Networks.Describe()
 
+	if usePager && page == nil {
+		var err error
+		page, err = pager.New(out)
+		if err != nil {
+			return err
+		}
+		err = page.Start()
+		if err != nil {
+			return err
+		}
+		defer page.Close()
+		out = page
+	}
 	switch output {
+	case "jq":
+		params := []string{}
+		if page != nil && page.HasColors() {
+			params = append(params, "-C")
+		}
+		cmd := exec.Command("jq", params...)
+		cmd.Stdout = out
+		cmd.Stderr = out
+		w, err := cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+		enc := json.NewEncoder(w)
+		go func() {
+			enc.Encode(net)
+			w.Close()
+		}()
+		err = cmd.Run()
+		if err != nil {
+			return err
+		}
 	case "json":
-		json.NewEncoder(os.Stdout).Encode(net)
+		json.NewEncoder(out).Encode(net)
 	case "json-indent":
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		enc.Encode(net)
 	case "text":
@@ -45,11 +95,15 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 				} else if subnet.IsDefault {
 					ntype = "default"
 				}
-				fmt.Printf("Backend: %s, Network: %s, NetID: %s, Subnet: %s, SubnetID: %s, CIDR: %s, Owner: %s, PublicIP: %t, Type: %s\n",
+				fmt.Fprintf(out, "Backend: %s, Network: %s, NetID: %s, Subnet: %s, SubnetID: %s, CIDR: %s, Owner: %s, PublicIP: %t, Type: %s\n",
 					net.BackendType, net.Name, net.NetworkId, subnet.Name, subnet.SubnetId, subnet.Cidr, subnet.Owner, subnet.PublicIP, ntype)
 			}
 		}
+		fmt.Fprintln(out, "")
 	default:
+		if len(sortBy) == 0 {
+			sortBy = []string{"Backend:asc", "Network:asc", "NetID:asc", "Subnet:asc", "SubnetID:asc"}
+		}
 		header := table.Row{"Backend", "Network", "NetID", "Subnet", "SubnetID", "CIDR", "Owner", "PublicIP", "Type"}
 		rows := []table.Row{}
 		for _, net := range net {
@@ -63,7 +117,7 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 				rows = append(rows, table.Row{net.BackendType, net.Name, net.NetworkId, subnet.Name, subnet.SubnetId, subnet.Cidr, subnet.Owner, subnet.PublicIP, ntype})
 			}
 		}
-		t, err := printer.GetTableWriter(output, tableTheme, sortBy)
+		t, err := printer.GetTableWriter(output, tableTheme, sortBy, !page.HasColors(), usePager)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")
@@ -71,12 +125,13 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 				return err
 			}
 		}
-		fmt.Println(t.RenderTable(printer.String("NETWORKS"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(printer.String("NETWORKS"), header, rows))
+		fmt.Fprintln(out, "")
 	}
 	return nil
 }
 
-func ListSecurityGroups(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory) error {
+func ListSecurityGroups(system *System, output string, tableTheme string, sortBy []string, backendType string, cmd []string, c interface{}, args []string, inventory *backends.Inventory, owner string, out io.Writer, usePager bool, page *pager.Pager) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: false, ExistingInventory: inventory}, cmd, c, args...)
@@ -87,14 +142,56 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 	if system.Opts.Config.Backend.Type != backendType {
 		return errors.New("this command is only available for AWS/GCP backend types; selected backend does not match command constraints")
 	}
+	if backendType == "docker" {
+		return nil
+	}
 	inventory = system.Backend.GetInventory()
 	fw := inventory.Firewalls.Describe()
 
+	if owner != "" {
+		fw = fw.WithOwner(owner).Describe()
+	}
+
+	if usePager && page == nil {
+		var err error
+		page, err = pager.New(out)
+		if err != nil {
+			return err
+		}
+		err = page.Start()
+		if err != nil {
+			return err
+		}
+		defer page.Close()
+		out = page
+	}
 	switch output {
+	case "jq":
+		params := []string{}
+		if page != nil && page.HasColors() {
+			params = append(params, "-C")
+		}
+		cmd := exec.Command("jq", params...)
+		cmd.Stdout = out
+		cmd.Stderr = out
+		w, err := cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+		enc := json.NewEncoder(w)
+		go func() {
+			enc.Encode(fw)
+			w.Close()
+		}()
+		err = cmd.Run()
+		if err != nil {
+			return err
+		}
 	case "json":
-		json.NewEncoder(os.Stdout).Encode(fw)
+		json.NewEncoder(out).Encode(fw)
 	case "json-indent":
-		enc := json.NewEncoder(os.Stdout)
+		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		enc.Encode(fw)
 	case "text":
@@ -114,10 +211,14 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 				}
 				ports = append(ports, fmt.Sprintf("%s->%d:%d", source, port.Port.FromPort, port.Port.ToPort))
 			}
-			fmt.Printf("Backend: %s, Name: %s, ID: %s, Ports: %v, Targets: %v, Owner: %s, Zone: %s, Network: %s, NetworkID: %s\n",
+			fmt.Fprintf(out, "Backend: %s, Name: %s, ID: %s, Ports: %v, Targets: %v, Owner: %s, Zone: %s, Network: %s, NetworkID: %s\n",
 				fw.BackendType, fw.Name, fw.FirewallID, ports, targets, fw.Owner, fw.ZoneName, fw.Network.Name, fw.Network.NetworkId)
 		}
+		fmt.Fprintln(out, "")
 	default:
+		if len(sortBy) == 0 {
+			sortBy = []string{"Backend:asc", "Name:asc"}
+		}
 		header := table.Row{"Backend", "Name", "Ports", "Targets", "Owner", "Zone", "FwID", "Network", "NetworkID"}
 		rows := []table.Row{}
 		for _, fw := range fw {
@@ -137,7 +238,7 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 			}
 			rows = append(rows, table.Row{fw.BackendType, fw.Name, strings.Join(ports, "\n"), strings.Join(targets, "\n"), fw.Owner, fw.ZoneName, fw.FirewallID, fw.Network.Name, fw.Network.NetworkId})
 		}
-		t, err := printer.GetTableWriter(output, tableTheme, sortBy)
+		t, err := printer.GetTableWriter(output, tableTheme, sortBy, !page.HasColors(), usePager)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")
@@ -145,7 +246,8 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 				return err
 			}
 		}
-		fmt.Println(t.RenderTable(printer.String("FIREWALLS"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(printer.String("FIREWALLS"), header, rows))
+		fmt.Fprintln(out, "")
 	}
 	return nil
 }

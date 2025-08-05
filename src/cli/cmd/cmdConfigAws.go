@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"strings"
 )
 
@@ -23,16 +24,19 @@ func (c *ConfigAwsCmd) Execute(args []string) error {
 }
 
 type ListSecGroupsCmd struct {
-	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, csv, tsv, html, markdown)" default:"table"`
+	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
 	TableTheme string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
 	SortBy     []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
+	Owner      string   `short:"u" long:"owner" description:"Filter by owner"`
+	Pager      bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
 	Help       HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type ListSubnetsCmd struct {
-	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, csv, tsv, html, markdown)" default:"table"`
+	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
 	TableTheme string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
 	SortBy     []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
+	Pager      bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
 	Help       HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -69,7 +73,7 @@ func (c *ListSecGroupsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = ListSecurityGroups(system, c.Output, c.TableTheme, c.SortBy, "aws", cmd, c, args, system.Backend.GetInventory())
+	err = ListSecurityGroups(system, c.Output, c.TableTheme, c.SortBy, "aws", cmd, c, args, system.Backend.GetInventory(), c.Owner, os.Stdout, c.Pager, nil)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -86,7 +90,7 @@ func (c *ListSubnetsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = ListSubnets(system, c.Output, c.TableTheme, c.SortBy, "aws", cmd, c, args, system.Backend.GetInventory())
+	err = ListSubnets(system, c.Output, c.TableTheme, c.SortBy, "aws", cmd, c, args, system.Backend.GetInventory(), os.Stdout, c.Pager, nil)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
