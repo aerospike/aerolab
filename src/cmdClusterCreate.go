@@ -533,10 +533,12 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	}
 
 	if !isGrow && inslice.HasString(clusterList, string(c.ClusterName)) {
-		return logFatal("Cluster by this name already exists, did you mean 'cluster grow'?")
+		return logFatal("Cluster by this name already exists, did you mean 'cluster grow'? Available clusters: [%s]",
+			strings.Join(clusterList, ", "))
 	}
 	if isGrow && !inslice.HasString(clusterList, string(c.ClusterName)) {
-		return logFatal("Cluster by this name does not exists, did you mean 'cluster create'?")
+		return logFatal("Cluster by this name does not exists, did you mean 'cluster create'? Available clusters: [%s]",
+			strings.Join(clusterList, ", "))
 	}
 
 	totalNodes := c.NodeCount
