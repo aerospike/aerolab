@@ -8,11 +8,9 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/signal"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -259,13 +257,7 @@ func init() {
 		}
 	}
 	// init window resizer
-	go func() {
-		sigwinch := make(chan os.Signal, 1)
-		signal.Notify(sigwinch, syscall.SIGWINCH)
-		for range sigwinch {
-			resize(nil)
-		}
-	}()
+	go winResize()
 }
 
 func makeClientConfig(i *ClientConf) (*ssh.ClientConfig, error) {
