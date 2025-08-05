@@ -24,7 +24,9 @@ type TableWriter struct {
 	IsTerminal     bool
 }
 
-func GetTableWriter(renderType string, theme string, sortBy []string) (*TableWriter, error) {
+// withPager - do not set max-width of terminal, and test if we have a terminal by checking stdin instead of stdout (since stdout is piped to a pager)
+// forceColorOff - force colors off - very useful if the pager is not able to handle colors
+func GetTableWriter(renderType string, theme string, sortBy []string, forceColorOff bool, withPager bool) (*TableWriter, error) {
 	// sortBy parsing
 	sort := []table.SortBy{}
 	for _, sortItem := range sortBy {
@@ -75,7 +77,11 @@ func GetTableWriter(renderType string, theme string, sortBy []string) (*TableWri
 
 	// test if we are in a real terminal
 	isTerminal := false
-	if isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()) {
+	testFile := os.Stdout.Fd()
+	if withPager {
+		testFile = os.Stdin.Fd()
+	}
+	if isatty.IsTerminal(testFile) || isatty.IsCygwinTerminal(testFile) {
 		isTerminal = true
 	}
 
@@ -84,7 +90,7 @@ func GetTableWriter(renderType string, theme string, sortBy []string) (*TableWri
 	if theme != "default" {
 		isColor = false
 	}
-	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" {
+	if _, ok := os.LookupEnv("NO_COLOR"); ok || os.Getenv("CLICOLOR") == "0" || forceColorOff {
 		isColor = false
 	}
 
@@ -119,7 +125,7 @@ func GetTableWriter(renderType string, theme string, sortBy []string) (*TableWri
 	}
 
 	// set width
-	if isTerminal {
+	if isTerminal && !withPager {
 		width, _, err := term.GetSize(int(os.Stdout.Fd()))
 		if err != nil || width < 1 {
 			width = 40
