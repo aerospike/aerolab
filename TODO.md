@@ -3,13 +3,16 @@
 ## Next - MVP
 
 CODE:
-* do a documentation - dictate cool bells and whistles (code cleanup, listing items with json, table, etc, and all others)
 * all missing commands
+* subcommands left to do later:
+  * `inventory ansible`
+  * `inventory genders`
+  * `inventory hostfile`
+* instance-types backend in AWS is unable to pull prices for metal instances (probably it's under something other than `on-demand` or `spot`)
+* instance-types backend in GCP cannot pull some instances - notably ct5l and c2 types as well as some m_ types, x_ types and a4
 
 CONSIDER:
 * test disk caching of inventory (once we have commands so we can actually test it)
-* on backend initialization, we do not always want to do a full inventory at startup as we may be calling Execute from another Execute? Or will we?
-* do we want pagination at all for inventory listings? One would assume that not, as people know how to use `less`
 * consider how to solve the aerolab-embedded-in-aerolab problem better
 
 OTHER:
