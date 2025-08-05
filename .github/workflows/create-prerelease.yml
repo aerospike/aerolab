@@ -51,14 +51,14 @@ jobs:
             - name: setup GPG
               uses: aerospike/shared-workflows/devops/setup-gpg@v0.1.0
               with:
-                gpg-private-key: ${{ secrets.GPG_SECRET_KEY_ORG }}
-                gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY_ORG }}
-                gpg-key-pass: ${{ secrets.GPG_PASS_ORG }}
-                gpg-key-name: "Aerospike"
+                gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
+                gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
+                gpg-key-pass: ${{ secrets.GPG_PASS }}
+                gpg-key-name: "aerospike-inc"
             - name: "Sign linux packages"
               env:
                 GPG_TTY: no-tty
-                GPG_PASSPHRASE: ${{ secrets.GPG_PASS_ORG }}
+                GPG_PASSPHRASE: ${{ secrets.GPG_PASS }}
               run: |
                 # GPG sign rpm packages 
                 cd ~/work/aerolab/aerolab/bin/packages
@@ -222,14 +222,14 @@ jobs:
             - name: setup GPG
               uses: aerospike/shared-workflows/devops/setup-gpg@v0.1.0
               with:
-                gpg-private-key: ${{ secrets.GPG_SECRET_KEY_ORG }}
-                gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY_ORG }}
-                gpg-key-pass: ${{ secrets.GPG_PASS_ORG }}
-                gpg-key-name: "Aerospike"
+                gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
+                gpg-public-key: ${{ secrets.GPG_PUBLIC_KEY }}
+                gpg-key-pass: ${{ secrets.GPG_PASS }}
+                gpg-key-name: "aerospike-inc"
             - name: "Generate asc signatures"
               env:
                 GPG_TTY: no-tty
-                GPG_PASSPHRASE: ${{ secrets.GPG_PASS_ORG }}
+                GPG_PASSPHRASE: ${{ secrets.GPG_PASS }}
               run: |
                 cd Rlinux
                 ls |while read file; do
