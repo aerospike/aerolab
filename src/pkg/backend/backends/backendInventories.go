@@ -25,9 +25,19 @@ type InstanceType struct {
 	MemoryGiB        float64
 	NvmeCount        int
 	NvmeTotalSizeGiB int
-	Arch             []Architecture
+	Arch             Architectures
 	PricePerHour     InstanceTypePrice
 	BackendSpecific  interface{}
+}
+
+type Architectures []Architecture
+
+func (a Architectures) String() []string {
+	ret := []string{}
+	for _, arch := range a {
+		ret = append(ret, arch.String())
+	}
+	return ret
 }
 
 type InstanceTypePrice struct {
@@ -156,7 +166,10 @@ type Backend interface {
 	// special docker-only commands
 	DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error // create a new docker network
 	DockerDeleteNetwork(region string, name string) error                                           // delete a docker network
-	DockerPruneNetworks(region string) error                                                        // remove unused docker networks
+	DockerPruneNetworks(region string) error
+	// instance types and pricing
+	GetVolumePrices(backendType BackendType) (VolumePriceList, error)
+	GetInstanceTypes(backendType BackendType) (InstanceTypeList, error)
 }
 
 type backend struct {
@@ -198,6 +211,16 @@ type Inventory struct {
 	Volumes   Volumes   // permanent volumes which do not go away (not tied to instance lifetime), be it EFS, or EBS/pd-ssd
 	Instances Instances // all instances, clusters, clients, whatever
 	Images    Images    // images - used for templates; always prefilled with supported OS template images found in the backends, and then with customer image templates on top
+}
+
+func (i *Inventory) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		"networks":  i.Networks.Describe(),
+		"firewalls": i.Firewalls.Describe(),
+		"volumes":   i.Volumes.Describe(),
+		"instances": i.Instances.Describe(),
+		"images":    i.Images.Describe(),
+	}
 }
 
 func (i *Inventory) MarshalJSON() ([]byte, error) {

@@ -31,6 +31,8 @@ type Firewalls interface {
 	WithName(names ...string) Firewalls
 	// get volume from ID
 	WithFirewallID(ID ...string) Firewalls
+	// selector - by owner
+	WithOwner(owner ...string) Firewalls
 	// tag filter: if value is "", it will only check if tag key exists, not it's value
 	WithTags(tags map[string]string) Firewalls
 	// number of volumes in selector
@@ -163,6 +165,18 @@ func (v FirewallList) WithFirewallID(id ...string) Firewalls {
 			continue
 		}
 		ret = append(ret, volume)
+	}
+	return ret
+}
+
+func (v FirewallList) WithOwner(owner ...string) Firewalls {
+	ret := FirewallList{}
+	for _, fw := range v {
+		fw := fw
+		if !slices.Contains(owner, fw.Owner) {
+			continue
+		}
+		ret = append(ret, fw)
 	}
 	return ret
 }
