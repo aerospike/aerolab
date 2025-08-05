@@ -12,7 +12,8 @@ func (s *backend) CreateFirewall(input *CreateFirewallInput, waitDur time.Durati
 	defer func() {
 		s.log.Detail("CreateFirewall: err=%v, took=%v", err, time.Since(start))
 	}()
-	return s.enabledBackends[input.BackendType].CreateFirewall(input, waitDur)
+	output, err = s.enabledBackends[input.BackendType].CreateFirewall(input, waitDur)
+	return
 }
 
 func (s *backend) CreateVolume(input *CreateVolumeInput) (output *CreateVolumeOutput, err error) {
@@ -23,7 +24,8 @@ func (s *backend) CreateVolume(input *CreateVolumeInput) (output *CreateVolumeOu
 	if err := structtags.CheckRequired(input); err != nil {
 		return nil, fmt.Errorf("required fields missing: %w", err)
 	}
-	return s.enabledBackends[input.BackendType].CreateVolume(input)
+	output, err = s.enabledBackends[input.BackendType].CreateVolume(input)
+	return
 }
 
 func (s *backend) CreateImage(input *CreateImageInput, waitDur time.Duration) (output *CreateImageOutput, err error) {
@@ -31,7 +33,8 @@ func (s *backend) CreateImage(input *CreateImageInput, waitDur time.Duration) (o
 	defer func() {
 		s.log.Detail("CreateImage: err=%v, took=%v", err, time.Since(start))
 	}()
-	return s.enabledBackends[input.BackendType].CreateImage(input, waitDur)
+	output, err = s.enabledBackends[input.BackendType].CreateImage(input, waitDur)
+	return
 }
 
 func (s *backend) CreateInstances(input *CreateInstanceInput, waitDur time.Duration) (output *CreateInstanceOutput, err error) {
@@ -42,7 +45,8 @@ func (s *backend) CreateInstances(input *CreateInstanceInput, waitDur time.Durat
 	if err := structtags.CheckRequired(input); err != nil {
 		return nil, fmt.Errorf("required fields missing: %w", err)
 	}
-	return s.enabledBackends[input.BackendType].CreateInstances(input, waitDur)
+	output, err = s.enabledBackends[input.BackendType].CreateInstances(input, waitDur)
+	return
 }
 
 func (s *backend) CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, costGB float64, err error) {
@@ -50,7 +54,8 @@ func (s *backend) CreateInstancesGetPrice(input *CreateInstanceInput) (costPPH, 
 	defer func() {
 		s.log.Detail("CreateInstancesGetPrice: costPPH=%f, costGB=%f, err=%v, took=%v", costPPH, costGB, err, time.Since(start))
 	}()
-	return s.enabledBackends[input.BackendType].CreateInstancesGetPrice(input)
+	costPPH, costGB, err = s.enabledBackends[input.BackendType].CreateInstancesGetPrice(input)
+	return
 }
 
 func (s *backend) CreateVolumeGetPrice(input *CreateVolumeInput) (costGB float64, err error) {
@@ -58,5 +63,6 @@ func (s *backend) CreateVolumeGetPrice(input *CreateVolumeInput) (costGB float64
 	defer func() {
 		s.log.Detail("CreateVolumeGetPrice: costGB=%f, err=%v, took=%v", costGB, err, time.Since(start))
 	}()
-	return s.enabledBackends[input.BackendType].CreateVolumeGetPrice(input)
+	costGB, err = s.enabledBackends[input.BackendType].CreateVolumeGetPrice(input)
+	return
 }
