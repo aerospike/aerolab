@@ -143,13 +143,9 @@ func (s *b) EnableZones(names ...string) error {
 			return err
 		}
 		rr, err := cli.DescribeRegions(context.Background(), &ec2.DescribeRegionsInput{
-			AllRegions:  aws.Bool(true),
-			RegionNames: names,
+			AllRegions: aws.Bool(true),
 		})
 		if err != nil {
-			if strings.Contains(err.Error(), "no such host") {
-				return fmt.Errorf("region %s not found in AWS", names[0])
-			}
 			return err
 		}
 		for _, r := range rr.Regions {
