@@ -36,6 +36,8 @@ type Images interface {
 	WithZoneID(zoneIDs ...string) Images
 	// volume selector - by name
 	WithName(names ...string) Images
+	// owner selector
+	WithOwner(owner string) Images
 	// get volume from ID
 	WithImageID(ID ...string) Images
 	// tag filter, if value is "", it will match simply if key exists
@@ -204,6 +206,18 @@ func (v ImageList) WithInAccount(inOwnerAccount bool) Images {
 	for _, image := range v {
 		image := image
 		if image.InAccount != inOwnerAccount {
+			continue
+		}
+		ret = append(ret, image)
+	}
+	return ret
+}
+
+func (v ImageList) WithOwner(owner string) Images {
+	ret := ImageList{}
+	for _, image := range v {
+		image := image
+		if image.Owner != owner {
 			continue
 		}
 		ret = append(ret, image)
