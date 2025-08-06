@@ -121,6 +121,9 @@ func Initialize(i *Init, command []string, params interface{}, args ...string) (
 	}
 	s.Logger.SetLogLevel(s.logLevel)
 	s.Logger.SinkBuffer(s.LogBuffer, &s.LogBufferTruncated)
+	if command != nil {
+		s.Logger = s.Logger.WithPrefix(fmt.Sprintf("[%s] ", strings.Join(command, ".")))
+	}
 
 	// capture SIGINT/SIGTERM with telemetry using the shutdown handler
 	shutdown.AddLateCleanupJob("telemetry", func(isSignal bool) {
