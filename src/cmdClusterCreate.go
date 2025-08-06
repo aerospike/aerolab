@@ -532,12 +532,30 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 		return logFatal("Could not get cluster list: %s", err)
 	}
 
+	// Check if cluster already exists
+	// If cluster exists, ask if the user wants to (1) grow, and if not, (2) destroy and recreate
 	if !isGrow && inslice.HasString(clusterList, string(c.ClusterName)) {
+		fmt.Printf("A cluster named '%s' already exists. Did you mean 'cluster grow'? (y/n): ", c.ClusterName)
+		var response string
+		fmt.Scanln(&response)
+		if strings.ToLower(strings.TrimSpace(response)) == "y" {
+			// Call realExecute2 with isGrow = true (run as grow)
+			return c.realExecute2(args, true)
+		}
+		fmt.Printf("Do you want to destroy and recreate the cluster '%s'? (y/n): ", c.ClusterName)
+		fmt.Scanln(&response)
+		if strings.ToLower(strings.TrimSpace(response)) == "y" {
+			// Destroy cluster
+			a.opts.Cluster.Destroy.ClusterName = c.ClusterName
+			a.opts.Cluster.Destroy.Force = true
+			if err := a.opts.Cluster.Destroy.Execute(nil); err != nil {
+				return logFatal("Failed to destroy cluster: %v", err)
+			}
+			fmt.Println("Cluster destroyed. Recreating...")
+			// Re-run create
+			return c.realExecute2(args, false)
+		}
 		return logFatal("Cluster by this name already exists, did you mean 'cluster grow'? Available clusters: [%s]",
-			strings.Join(clusterList, ", "))
-	}
-	if isGrow && !inslice.HasString(clusterList, string(c.ClusterName)) {
-		return logFatal("Cluster by this name does not exists, did you mean 'cluster create'? Available clusters: [%s]",
 			strings.Join(clusterList, ", "))
 	}
 

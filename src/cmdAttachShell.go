@@ -33,11 +33,34 @@ func (c *attachShellCmd) run(args []string) (err error) {
 	if earlyProcess(args) {
 		return nil
 	}
+
 	var nodes []int
 	err = c.Node.ExpandNodes(string(c.ClusterName))
-	if err != nil {
-		return err
+
+	if err != nil { // Handle error if expandNodes fails, check if "Available clusters" list is output
+		// Offer existing cluster list, take user input, rerun command, with new cluster name
+		if strings.Contains(err.Error(), "Available clusters: [") {
+			fmt.Println(err.Error())
+			start := strings.Index(err.Error(), "[")
+			end := strings.Index(err.Error(), "]")
+			if start != -1 && end != -1 && end > start {
+				clusters := strings.Split(err.Error()[start+1:end], ", ")
+				fmt.Println("Select a cluster by a number: ")
+				for i, name := range clusters {
+					fmt.Printf("%d: %s\n", i+1, name)
+				}
+				var choice int
+				fmt.Print("Enter your choice: ")
+				fmt.Scanln(&choice)
+				if choice > 0 && choice <= len(clusters) {
+					c.ClusterName = TypeClusterName(strings.TrimSpace(clusters[choice-1]))
+					return c.run(args)
+				}
+			}
+			return err
+		}
 	}
+
 	if c.Node == "all" {
 		nodes, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {
