@@ -36,7 +36,7 @@ func (c *InstancesAttachCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	_, err = c.AttachInstances(system, system.Backend.GetInventory(), args, os.Stdin, os.Stdout, os.Stderr)
+	_, err = c.AttachInstances(system, system.Backend.GetInventory(), args, io.NopCloser(os.Stdin), os.Stdout, os.Stderr)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -45,7 +45,7 @@ func (c *InstancesAttachCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *InstancesAttachCmd) AttachInstances(system *System, inventory *backends.Inventory, args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) (output []*backends.ExecOutput, err error) {
+func (c *InstancesAttachCmd) AttachInstances(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer) (output []*backends.ExecOutput, err error) {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"instances", "attach"}, c)
