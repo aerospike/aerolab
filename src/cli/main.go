@@ -17,6 +17,7 @@ func main() {
 		return
 	}
 
+	exitCode := 0
 	// handle busybox style special cases and main application point runner
 	_, command := path.Split(os.Args[0])
 	switch command {
@@ -34,9 +35,11 @@ func main() {
 			if !errors.Is(err, cmd.ErrExecuteError) {
 				fmt.Println(err)
 			}
+			exitCode = 1
 		}
 	}
 	shutdown.WaitJobs()
+	os.Exit(exitCode)
 }
 
 func run(args []string) error {

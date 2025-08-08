@@ -1033,7 +1033,7 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 	if backendSpecificParams.SizeGiB == 0 && input.VolumeType == backends.VolumeTypeAttachedDisk {
 		return 0, errors.New("sizeGiB is required for attached disk")
 	}
-	_, _, zone, err := s.resolveNetworkPlacement(backendSpecificParams.Placement)
+	_, _, zone, err := s.ResolveNetworkPlacement(backendSpecificParams.Placement)
 	if err != nil {
 		return 0, err
 	}
@@ -1089,7 +1089,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		return nil, errors.New("sizeGiB is required for attached disk")
 	}
 
-	_, _, zone, err := s.resolveNetworkPlacement(backendSpecificParams.Placement)
+	_, _, zone, err := s.ResolveNetworkPlacement(backendSpecificParams.Placement)
 	if err != nil {
 		return nil, err
 	}

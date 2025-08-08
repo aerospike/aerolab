@@ -117,7 +117,7 @@ func ListSubnets(system *System, output string, tableTheme string, sortBy []stri
 				rows = append(rows, table.Row{net.BackendType, net.Name, net.NetworkId, subnet.Name, subnet.SubnetId, subnet.Cidr, subnet.Owner, subnet.PublicIP, ntype})
 			}
 		}
-		t, err := printer.GetTableWriter(output, tableTheme, sortBy, !page.HasColors(), usePager)
+		t, err := printer.GetTableWriter(output, tableTheme, sortBy, !page.HasColors(), page != nil)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")
@@ -238,7 +238,7 @@ func ListSecurityGroups(system *System, output string, tableTheme string, sortBy
 			}
 			rows = append(rows, table.Row{fw.BackendType, fw.Name, strings.Join(ports, "\n"), strings.Join(targets, "\n"), fw.Owner, fw.ZoneName, fw.FirewallID, fw.Network.Name, fw.Network.NetworkId})
 		}
-		t, err := printer.GetTableWriter(output, tableTheme, sortBy, !page.HasColors(), usePager)
+		t, err := printer.GetTableWriter(output, tableTheme, sortBy, !page.HasColors(), page != nil)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")

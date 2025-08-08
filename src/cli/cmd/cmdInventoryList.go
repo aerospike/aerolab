@@ -97,6 +97,17 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 		enc.Encode(inv)
 	default:
 		fmt.Fprintln(out, "")
+		if c.WithExpiries {
+			expiry := &ExpiryListCmd{
+				Output:     c.Output,
+				SortBy:     c.SortBy,
+				TableTheme: c.TableTheme,
+			}
+			err := expiry.ExpiryList(system, cmd, args, system.Backend.GetInventory(), out, page)
+			if err != nil {
+				return err
+			}
+		}
 		err := ListSubnets(system, c.Output, c.TableTheme, c.SortBy, system.Opts.Config.Backend.Type, cmd, c, args, system.Backend.GetInventory(), out, false, page)
 		if err != nil {
 			return err
@@ -105,16 +116,32 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 		if err != nil {
 			return err
 		}
-		if c.WithExpiries {
-			expiry := &ExpiryListCmd{
-				Output:     c.Output,
-				SortBy:     c.SortBy,
-				TableTheme: c.TableTheme,
-			}
-			err = expiry.ExpiryList(system, cmd, args, system.Backend.GetInventory(), out, page)
-			if err != nil {
-				return err
-			}
+		template := &TemplateListCmd{
+			Output:     c.Output,
+			TableTheme: c.TableTheme,
+			SortBy:     c.SortBy,
+			Pager:      false,
+			Filters: TemplateListFilter{
+				Owner: c.Owner,
+				Type:  "custom",
+			},
+		}
+		err = template.ListTemplates(system, system.Backend.GetInventory(), args, out, page)
+		if err != nil {
+			return err
+		}
+		instances := &InstancesListCmd{
+			Output:     c.Output,
+			SortBy:     c.SortBy,
+			TableTheme: c.TableTheme,
+			Pager:      false,
+			Filters: InstancesListFilter{
+				Owner: c.Owner,
+			},
+		}
+		err = instances.ListInstances(system, system.Backend.GetInventory(), args, out, page)
+		if err != nil {
+			return err
 		}
 	}
 	return nil

@@ -6,12 +6,13 @@ type Commands struct {
 	//Aerospike    aerospikeCmd    `command:"aerospike" subcommands-optional:"true" description:"Aerospike daemon controls" webicon:"fas fa-a"`
 	//Client       clientCmd       `command:"client" subcommands-optional:"true" description:"Create and manage Client machine groups" webicon:"fas fa-tv"`
 	Inventory InventoryCmd `command:"inventory" subcommands-optional:"true" description:"List or operate on all clusters, clients and templates" webicon:"fas fa-warehouse"`
+	Instances InstancesCmd `command:"instances" subcommands-optional:"true" description:"Create and manage instance clusters (cluster/client create use this)" webicon:"fas fa-server"`
 	//Attach       attachCmd       `command:"attach" subcommands-optional:"true" description:"Attach to a node and run a command" webicon:"fas fa-plug" simplemode:"false"`
 	//Net          netCmd          `command:"net" subcommands-optional:"true" description:"Firewall and latency simulation" webicon:"fas fa-network-wired"`
 	//Conf         confCmd         `command:"conf" subcommands-optional:"true" description:"Manage Aerospike configuration on running nodes" webicon:"fas fa-wrench"`
 	//Tls          tlsCmd          `command:"tls" subcommands-optional:"true" description:"Create or copy TLS certificates" webicon:"fas fa-lock"`
 	//Data         dataCmd         `command:"data" subcommands-optional:"true" description:"Insert/delete Aerospike data" webicon:"fas fa-folder-open"`
-	//Template     templateCmd     `command:"template" subcommands-optional:"true" description:"Manage or delete template images" webicon:"fas fa-file-image"`
+	Template  TemplateCmd  `command:"template" subcommands-optional:"true" description:"Manage or delete template images" webicon:"fas fa-file-image"`
 	Installer InstallerCmd `command:"installer" subcommands-optional:"true" description:"List or download Aerospike installer versions" webicon:"fas fa-plus"`
 	//Logs         logsCmd         `command:"logs" subcommands-optional:"true" description:"show or download logs" webicon:"fas fa-bars-progress"`
 	//Files        filesCmd        `command:"files" subcommands-optional:"true" description:"Upload/Download files to/from clients or clusters" webicon:"fas fa-file"`

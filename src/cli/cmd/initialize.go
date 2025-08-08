@@ -80,6 +80,7 @@ type Init struct {
 	UpgradeCheck       bool                // check for upgrades as part of startup, and print a message if a new version is available
 	Backend            *InitBackend        // backend configuration; optional, if not specified, will be auto-filled
 	ExistingInventory  *backends.Inventory // existing inventory, if requested to be set by the caller
+	AllBackendsHelp    bool                // if true, show help for all backends, not just the selected one
 }
 
 type InitBackend struct {
@@ -184,7 +185,7 @@ func Initialize(i *Init, command []string, params interface{}, args ...string) (
 	}
 
 	// hide switches for backends that are not currently enabled
-	if s.Opts.Config.Backend.Type != "" {
+	if s.Opts.Config.Backend.Type != "" && !i.AllBackendsHelp {
 		ShowHideBackend(s.Parser, []string{s.Opts.Config.Backend.Type})
 	}
 
@@ -356,7 +357,11 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 		ListAllProjects:  i.Backend.ListAllProjects,
 		CustomSSHKeyPath: string(s.Opts.Config.Backend.SshKeyPath),
 	}
-	b, err := backend.New("default", config, i.Backend.PollInventoryHourly, backendList, i.ExistingInventory)
+	project := os.Getenv("AEROLAB_PROJECT")
+	if project == "" {
+		project = "default"
+	}
+	b, err := backend.New(project, config, i.Backend.PollInventoryHourly, backendList, i.ExistingInventory)
 	if err != nil {
 		return fmt.Errorf("could not initialize backend: %w", err)
 	}

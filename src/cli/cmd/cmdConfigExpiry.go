@@ -225,7 +225,7 @@ func (c *ExpiryListCmd) ExpiryList(system *System, cmd []string, args []string, 
 		for _, expiry := range expiries.ExpirySystems {
 			rows = append(rows, table.Row{expiry.BackendType, expiry.Version, expiry.Zone, expiry.InstallationSuccess, expiry.FrequencyMinutes})
 		}
-		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), c.Pager)
+		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")

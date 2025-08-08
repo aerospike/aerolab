@@ -117,6 +117,10 @@ func (c *ClusterCreateCmd) ClusterCreate(system *System, cmd []string, args []st
             return err
         }
     }
+    // if we intend to use the inventory
+    if inventory == nil {
+        inventory = system.Backend.GetInventory()
+    }
 }
 ```
 
@@ -138,3 +142,23 @@ func (c *ClusterCreateCmd) ClusterCreate(system *System, cmd []string, args []st
     * the command function will initialize the system itself as needed
     * if the Inventory was passed to the command function, it will pass it to the system Init. This avoids re-fetching the inventory from the backend
     * if the Inventory was not passed to the command function, the system Init will fetch the inventory from the backend for this call
+
+## Cmd Tags
+
+* instances:
+    * `aerolab.type` - instance type, values:
+      * `template.create` - instance is a temp instance used for creating templates and should not otherwise exist
+      * values from `aerolab.image.type`
+    * `aerolab.soft.version` - software version, values:
+      * `5.1.0.1` - aerospike version
+      * `1.0.0` - AMS version
+      * etc
+* images:
+    * `aerolab.image.type` - image type, values:
+      * `aerospike` - aerospike image
+      * `ams` - AMS image
+      * etc
+    * `aerolab.soft.version` - software version, values:
+      * `5.1.0.1` - aerospike version
+      * `1.0.0` - AMS version
+      * etc

@@ -185,7 +185,7 @@ func (c *InventoryInstanceTypesCmd) InventoryInstanceTypes(system *System, cmd [
 				c.SortBy[i] = "Spot $/h:dscnum"
 			}
 		}
-		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), c.Pager)
+		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")

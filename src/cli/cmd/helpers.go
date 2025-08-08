@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/mattn/go-isatty"
 )
 
 func GetSelfPath() (string, error) {
@@ -97,4 +100,33 @@ func getip2() string {
 	json.Unmarshal(body, &ip)
 
 	return ip.Query
+}
+
+func IsInteractive() bool {
+	return os.Getenv("AEROLAB_NONINTERACTIVE") == "" && (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd()))
+}
+
+func AskForString(prompt string) (string, error) {
+	if IsInteractive() {
+		fmt.Printf("%s: ", prompt)
+		reader := bufio.NewReader(os.Stdin)
+		return reader.ReadString('\n')
+	}
+	return "", errors.New("not interactive")
+}
+
+func AskForInt(prompt string) (int, error) {
+	s, err := AskForString(prompt)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(s))
+}
+
+func AskForFloat(prompt string) (float64, error) {
+	s, err := AskForString(prompt)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseFloat(strings.TrimSpace(s), 64)
 }

@@ -950,8 +950,11 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		if err != nil {
 			return nil, fmt.Errorf("failed to create instance %d: %v", i+1, err)
 		}
-		if runResult.Warnings != nil {
-			log.Warn("DOCKER: name=%s, warnings=%v", name, runResult.Warnings)
+		for _, w := range runResult.Warnings {
+			if w == "" {
+				continue
+			}
+			log.Warn("DOCKER: name=%s, warnings=%v", name, w)
 		}
 		if err := cli.ContainerStart(context.Background(), runResult.ID, container.StartOptions{}); err != nil {
 			return nil, fmt.Errorf("failed to start instance %d: %v", i+1, err)
@@ -1253,4 +1256,8 @@ func (s *b) getExposedPorts(firewalls []string) (nat.PortSet, nat.PortMap, []int
 		}
 	}
 	return exposedPorts, portBindings, portList, nil
+}
+
+func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
+	return nil, nil, "", nil
 }
