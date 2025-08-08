@@ -3,6 +3,7 @@
 ## Next - MVP
 
 CODE:
+* Should we give people the ability to specify custom images via image name or ID for AWS/GCP?
 * `instances apply` - create, grow, destroy - apply a state - inform user what it destroys - with interactive mode
 * volume - manage volumes on running instances
 * `inventory list` - add volumes list
