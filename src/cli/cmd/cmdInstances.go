@@ -16,6 +16,12 @@ type InstancesCmd struct {
 	Stop    InstancesStopCmd    `command:"stop" subcommands-optional:"true" description:"Stop an instance or cluster" webicon:"fas fa-stop"`
 	Restart InstancesRestartCmd `command:"restart" subcommands-optional:"true" description:"Restart an instance or cluster" webicon:"fas fa-sync"`
 	Destroy InstancesDestroyCmd `command:"destroy" subcommands-optional:"true" description:"Destroy an instance or cluster" webicon:"fas fa-trash"`
+	Help    HelpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *InstancesCmd) Execute(args []string) error {
+	c.Help.Execute(args)
+	return nil
 }
 
 // expand node numbers, given as string, ex: 1,2,3,10-15

@@ -33,7 +33,7 @@ func (c *CompletionBashCmd) Execute(args []string) error {
 		fmt.Println("--- SCRIPT START ---")
 		fmt.Println(completionBash)
 		fmt.Println("\n--- RC FILE .bashrc CONTENTS ---")
-		fmt.Println("source ${HOME}/.aerolab.completion.bash")
+		fmt.Println("source ${HOME}/.config/aerolab/completion.bash")
 		fmt.Println("\n--- END ---")
 		return nil
 	}
@@ -44,7 +44,7 @@ func (c *CompletionBashCmd) Execute(args []string) error {
 	}
 
 	if c.CustomPath == "" {
-		c.CustomPath = flags.Filename(path.Join(h, ".aerolab.completion.bash"))
+		c.CustomPath = flags.Filename(path.Join(h, ".config", "aerolab", "completion.bash"))
 	}
 
 	// script

@@ -33,7 +33,7 @@ func (c *CompletionZshCmd) Execute(args []string) error {
 		fmt.Println("--- SCRIPT START ---")
 		fmt.Println(completionBash)
 		fmt.Println("\n--- RC FILE .zshrc CONTENTS ---")
-		fmt.Println("autoload -Uz compinit bashcompinit && compinit && bashcompinit\nsource ${HOME}/.aerolab.completion.zsh")
+		fmt.Println("autoload -Uz compinit bashcompinit && compinit && bashcompinit\nsource ${HOME}/.config/aerolab/completion.zsh")
 		fmt.Println("\n--- END ---")
 		return nil
 	}
@@ -44,7 +44,7 @@ func (c *CompletionZshCmd) Execute(args []string) error {
 	}
 
 	if c.CustomPath == "" {
-		c.CustomPath = flags.Filename(path.Join(h, ".aerolab.completion.zsh"))
+		c.CustomPath = flags.Filename(path.Join(h, ".config", "aerolab", "completion.zsh"))
 	}
 
 	// script
