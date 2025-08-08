@@ -20,6 +20,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
 	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
@@ -100,6 +101,7 @@ type InstancesCreateCmdDocker struct {
 	MaxRestartRetries  int            `long:"max-restart-retries" description:"Maximum number of restart attempts"`
 	ShmSize            int64          `long:"shm-size" description:"Size of /dev/shm in bytes"`
 	AdvancedConfigPath flags.Filename `long:"advanced-config" description:"Path to JSON file containing advanced Docker container configuration"`
+	CustomImage        bool           `long:"custom-image" description:"Use a custom image, even if it is not in the inventory"`
 }
 
 type InstancesGrowCmd struct {
@@ -374,7 +376,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		if c.Docker.ImageName == "" {
 			return nil, errors.New("docker: image-name is required")
 		}
-		if inventory.Images.WithName(c.Docker.ImageName).Count() == 0 {
+		if !c.Docker.CustomImage && inventory.Images.WithName(c.Docker.ImageName).Count() == 0 {
 			return nil, errors.New("docker: image " + c.Docker.ImageName + " does not exist")
 		}
 	}
@@ -407,6 +409,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 		tags[parts[0]] = parts[1]
 	}
+	if system.Opts.Config.Backend.Type == "docker" && c.Docker.CustomImage {
+		tags["aerolab.custom.image"] = "true"
+	}
 	dockerParams := &bdocker.CreateInstanceParams{
 		Image:             nil,
 		NetworkPlacement:  c.Docker.NetworkName,
@@ -429,6 +434,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		Resources:         container.Resources{},
 		MaskedPaths:       strslice.StrSlice{},
 		ReadonlyPaths:     strslice.StrSlice{},
+		SkipSshReadyCheck: c.Docker.CustomImage,
 	}
 	if c.Docker.AdvancedConfigPath != "" {
 		f, err := os.Open(string(c.Docker.AdvancedConfigPath))
@@ -520,7 +526,19 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		createInstancesInput.BackendSpecificParams["gcp"].(*bgcp.CreateInstanceParams).Image = inventory.Images.WithName(c.GCP.ImageName).Describe()[0]
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["docker"]; ok {
-		createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = inventory.Images.WithName(c.Docker.ImageName).Describe()[0]
+		if !c.Docker.CustomImage {
+			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = inventory.Images.WithName(c.Docker.ImageName).Describe()[0]
+		} else {
+			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = &backends.Image{
+				Name:      c.Docker.ImageName,
+				ZoneName:  "default",
+				Public:    false,
+				InAccount: true,
+				BackendSpecific: &bdocker.ImageDetail{
+					Docker: &image.Summary{},
+				},
+			}
+		}
 	}
 	awsRegion := c.AWS.NetworkPlacement
 	var err error

@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path"
@@ -25,6 +26,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/aerospike/aerolab/pkg/utils/structtags"
+	"github.com/charmbracelet/x/term"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
@@ -32,6 +34,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
+	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/uuid"
 	"github.com/lithammer/shortuuid"
@@ -86,6 +89,7 @@ type CreateInstanceParams struct {
 	Resources         container.Resources `yaml:"resources" json:"resources"`
 	MaskedPaths       strslice.StrSlice   `yaml:"maskedPaths" json:"maskedPaths"`
 	ReadonlyPaths     strslice.StrSlice   `yaml:"readonlyPaths" json:"readonlyPaths"`
+	SkipSshReadyCheck bool                `yaml:"skipSshReadyCheck" json:"skipSshReadyCheck"` // if set, will not test for ssh readiness
 }
 
 type InstanceDetail struct {
@@ -447,59 +451,110 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			outl.Unlock()
 			return
 		}
-		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, s.project))
-		if err != nil {
+		if d, ok := i.Tags["aerolab.custom.image"]; ok && d == "true" {
+			cli, err := s.getDockerClient(i.ZoneName)
+			if err != nil {
+				outl.Lock()
+				out = append(out, &backends.ExecOutput{
+					Output: &sshexec.ExecOutput{
+						Err: err,
+					},
+					Instance: i,
+				})
+				outl.Unlock()
+				return
+			}
+			env := []string{}
+			for _, x := range e.ExecDetail.Env {
+				env = append(env, x.Key+"="+x.Value)
+			}
+			env = append(env, "AEROLAB_CLUSTER_NAME="+i.ClusterName)
+			env = append(env, "AEROLAB_NODE_NO="+strconv.Itoa(i.NodeNo))
+			env = append(env, "AEROLAB_PROJECT_NAME="+s.project)
+			env = append(env, "AEROLAB_OWNER="+i.Owner)
+			cmd := e.ExecDetail.Command
+			if len(cmd) == 0 {
+				cmd = []string{"/bin/bash"}
+			}
+			sout := e.ExecDetail.Stdout
+			serr := e.ExecDetail.Stderr
+			var stdout, stderr bytes.Buffer
+			if sout == nil {
+				sout = &stdout
+			}
+			if serr == nil {
+				serr = &stderr
+			}
+			retCode, err := ExecWithCLI(context.Background(), cli, i.InstanceID, cmd, env, e.ExecDetail.Stdin, sout, serr, e.Terminal)
+			if retCode != 0 || err != nil {
+				err = errors.Join(err, fmt.Errorf("exec failed with exit code %d", retCode))
+			}
 			outl.Lock()
 			out = append(out, &backends.ExecOutput{
 				Output: &sshexec.ExecOutput{
-					Err: err,
+					Stdout: stdout.Bytes(),
+					Stderr: stderr.Bytes(),
+					Err:    err,
 				},
 				Instance: i,
 			})
 			outl.Unlock()
 			return
-		}
-		sshPort := 0
-		for _, x := range i.BackendSpecific.(*InstanceDetail).Docker.Ports {
-			if x.PrivatePort == 22 {
-				sshPort = int(x.PublicPort)
-				break
+		} else {
+			nKey, err := os.ReadFile(path.Join(s.sshKeysDir, s.project))
+			if err != nil {
+				outl.Lock()
+				out = append(out, &backends.ExecOutput{
+					Output: &sshexec.ExecOutput{
+						Err: err,
+					},
+					Instance: i,
+				})
+				outl.Unlock()
+				return
 			}
+			sshPort := 0
+			for _, x := range i.BackendSpecific.(*InstanceDetail).Docker.Ports {
+				if x.PrivatePort == 22 {
+					sshPort = int(x.PublicPort)
+					break
+				}
+			}
+			clientConf := sshexec.ClientConf{
+				Host:           "127.0.0.1",
+				Port:           sshPort,
+				Username:       e.Username,
+				PrivateKey:     nKey,
+				ConnectTimeout: e.ConnectTimeout,
+			}
+			execInput := &sshexec.ExecInput{
+				ClientConf: clientConf,
+				ExecDetail: e.ExecDetail,
+			}
+			execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+				Key:   "AEROLAB_CLUSTER_NAME",
+				Value: i.ClusterName,
+			})
+			execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+				Key:   "AEROLAB_NODE_NO",
+				Value: strconv.Itoa(i.NodeNo),
+			})
+			execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+				Key:   "AEROLAB_PROJECT_NAME",
+				Value: s.project,
+			})
+			execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
+				Key:   "AEROLAB_OWNER",
+				Value: i.Owner,
+			})
+			o := sshexec.Exec(execInput)
+			outl.Lock()
+			out = append(out, &backends.ExecOutput{
+				Output:   o,
+				Instance: i,
+			})
+			outl.Unlock()
 		}
-		clientConf := sshexec.ClientConf{
-			Host:           "127.0.0.1",
-			Port:           sshPort,
-			Username:       e.Username,
-			PrivateKey:     nKey,
-			ConnectTimeout: e.ConnectTimeout,
-		}
-		execInput := &sshexec.ExecInput{
-			ClientConf: clientConf,
-			ExecDetail: e.ExecDetail,
-		}
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
-			Key:   "AEROLAB_CLUSTER_NAME",
-			Value: i.ClusterName,
-		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
-			Key:   "AEROLAB_NODE_NO",
-			Value: strconv.Itoa(i.NodeNo),
-		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
-			Key:   "AEROLAB_PROJECT_NAME",
-			Value: s.project,
-		})
-		execInput.ExecDetail.Env = append(execInput.ExecDetail.Env, &sshexec.Env{
-			Key:   "AEROLAB_OWNER",
-			Value: i.Owner,
-		})
-		o := sshexec.Exec(execInput)
-		outl.Lock()
-		out = append(out, &backends.ExecOutput{
-			Output:   o,
-			Instance: i,
-		})
-		outl.Unlock()
 	})
 	return out
 }
@@ -980,6 +1035,10 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		output.Instances = append(output.Instances, inst.Describe()[0])
 	}
 
+	if backendSpecificParams.SkipSshReadyCheck {
+		return output, nil
+	}
+
 	// using ssh, wait for the instances to be ready
 	log.Detail("Waiting for instances to be ssh-ready")
 	for waitDur > 0 {
@@ -1260,4 +1319,82 @@ func (s *b) getExposedPorts(firewalls []string) (nat.PortSet, nat.PortMap, []int
 
 func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
 	return nil, nil, "", nil
+}
+
+// if using os.Stdin, you may want to provide io.NopCloser(os.Stdin) instead, to avoid closing stdin
+func ExecWithCLI(
+	ctx context.Context,
+	cli *client.Client,
+	containerID string,
+	cmd []string,
+	env []string,
+	stdin io.ReadCloser,
+	stdout io.Writer,
+	stderr io.Writer,
+	tty bool,
+) (int, error) {
+	// 1) create the exec
+	createResp, err := cli.ContainerExecCreate(ctx, containerID, container.ExecOptions{
+		Cmd:          strslice.StrSlice(cmd),
+		Env:          env,
+		Tty:          tty,
+		AttachStdin:  stdin != nil,
+		AttachStdout: stdout != nil,
+		AttachStderr: stderr != nil && !tty, // TTY merges stderr into stdout
+	})
+	if err != nil {
+		return -1, err
+	}
+	execID := createResp.ID
+
+	// 2) attach & start via docker/cli
+	opts := container.ExecAttachOptions{
+		Tty: tty,
+		// DetachKeys: "ctrl-p,ctrl-q", // set if you care
+	}
+	resp, err := cli.ContainerExecAttach(ctx, execID, opts)
+	if err != nil {
+		return -1, err
+	}
+	if tty {
+		sshexec.AddRestoreRequest()
+		defer sshexec.RestoreTerminal()
+		term.MakeRaw(os.Stdin.Fd())
+	}
+	go func() {
+		io.Copy(stdout, resp.Reader)
+		resp.Close()
+		resp.CloseWrite()
+		resp.Conn.Close()
+		stdin.Close()
+	}()
+	go func() {
+		io.Copy(stderr, resp.Reader)
+		resp.Close()
+		resp.CloseWrite()
+		resp.Conn.Close()
+		stdin.Close()
+	}()
+	go func() {
+		io.Copy(resp.Conn, stdin)
+	}()
+
+	// 3) wait for completion and collect exit code
+	t := time.NewTicker(200 * time.Millisecond)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return -1, ctx.Err()
+		case <-t.C:
+			inspect, err := cli.ContainerExecInspect(ctx, execID)
+			if err != nil {
+				return -1, err
+			}
+			if !inspect.Running {
+				return inspect.ExitCode, nil
+			}
+		}
+	}
 }

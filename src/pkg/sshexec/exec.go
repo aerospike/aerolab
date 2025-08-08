@@ -25,7 +25,7 @@ type ExecInput struct {
 
 type ExecDetail struct {
 	Command        []string      // command to run; for interactive, leave command empty, and set Stdin/out/err to os.Stdin/out/err
-	Stdin          io.Reader     // stdin if required
+	Stdin          io.ReadCloser // stdin if required
 	Stdout         io.Writer     // stdout, leave empty for the system to capture
 	Stderr         io.Writer     // stderr, leave empty for the system to capture; this will be empty and all output will go to stdout if Terminal=true
 	SessionTimeout time.Duration // timeout after which the connected running session will be forcibly terminated
@@ -236,6 +236,14 @@ func resize(session *ssh.Session) {
 
 var restore = func() {}
 var restoreCount atomic.Int64
+
+func AddRestoreRequest() {
+	restoreCount.Add(1)
+}
+
+func RestoreTerminal() {
+	restore()
+}
 
 func init() {
 	// handle restoring of terminal state

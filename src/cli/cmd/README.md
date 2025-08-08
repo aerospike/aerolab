@@ -153,6 +153,7 @@ func (c *ClusterCreateCmd) ClusterCreate(system *System, cmd []string, args []st
       * `5.1.0.1` - aerospike version
       * `1.0.0` - AMS version
       * etc
+    * `aerolab.custom.image` - Docker: if set, the instance is a custom image and attach should use docker's exec
 * images:
     * `aerolab.image.type` - image type, values:
       * `aerospike` - aerospike image
