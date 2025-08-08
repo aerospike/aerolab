@@ -252,7 +252,7 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 			detail := net.BackendSpecific.(*bdocker.NetworkDetails)
 			rows = append(rows, table.Row{net.BackendType, net.Name, net.Cidr, detail.Driver, detail.Options["com.docker.network.driver.mtu"], net.NetworkId})
 		}
-		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), c.Pager)
+		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)
 		if err != nil {
 			if err == printer.ErrTerminalWidthUnknown {
 				system.Logger.Warn("Couldn't get terminal width, using default width")

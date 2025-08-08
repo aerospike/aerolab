@@ -38,6 +38,8 @@ type CreateInstanceInput struct {
 	TerminateOnStop bool `yaml:"terminateOnStop" json:"terminateOnStop"`
 	// optional: the number of parallel SSH threads to use for the instance(node); if not set, will use the number of Nodes being created
 	ParallelSSHThreads int `yaml:"parallelSSHThreads" json:"parallelSSHThreads"`
+	// optional: just so it can be marshalled/printed, it is ignored by the backend
+	ImageName string `yaml:"imageName" json:"imageName"`
 }
 
 type InstanceDNS struct {
@@ -66,6 +68,8 @@ type Instances interface {
 	WithZoneID(zoneIDs ...string) Instances
 	// instance selector - by name
 	WithName(names ...string) Instances
+	// instance selector - by owner
+	WithOwner(owners ...string) Instances
 	// filter by cluster name(s)
 	WithClusterName(names ...string) Instances
 	// filter by node number(s)
@@ -80,6 +84,12 @@ type Instances interface {
 	WithNotState(states ...LifeCycleState) Instances
 	// filter by instance ID
 	WithInstanceID(instanceIDs ...string) Instances
+	// filter by architecture
+	WithArchitecture(architecture Architecture) Instances
+	// filter by OS name
+	WithOSName(osName string) Instances
+	// filter by OS version
+	WithOSVersion(osVersion string) Instances
 	// number of instances in selector
 	Count() int
 	// expose instance details to the caller
@@ -270,11 +280,59 @@ func (v InstanceList) WithBackendType(types ...BackendType) Instances {
 	return ret
 }
 
+func (v InstanceList) WithArchitecture(architecture Architecture) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if instance.Architecture != architecture {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+func (v InstanceList) WithOSName(osName string) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if instance.OperatingSystem.Name != osName {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+func (v InstanceList) WithOSVersion(osVersion string) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if instance.OperatingSystem.Version != osVersion {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
 func (v InstanceList) WithType(types ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
 		if !slices.Contains(types, instance.InstanceType) {
+			continue
+		}
+		ret = append(ret, instance)
+	}
+	return ret
+}
+
+func (v InstanceList) WithOwner(owners ...string) Instances {
+	ret := InstanceList{}
+	for _, instance := range v {
+		instance := instance
+		if !slices.Contains(owners, instance.Owner) {
 			continue
 		}
 		ret = append(ret, instance)
@@ -591,11 +649,11 @@ func (v InstanceList) RemoveFirewalls(fw FirewallList) error {
 func (b *backend) CleanupDNS() error {
 	var retErr error
 	wait := new(sync.WaitGroup)
-	for _, c := range ListBackendTypes() {
+	for cname := range b.enabledBackends {
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
-			err := b.enabledBackends[c].CleanupDNS()
+			err := b.enabledBackends[cname].CleanupDNS()
 			if err != nil {
 				retErr = err
 			}
@@ -713,4 +771,8 @@ func (v InstanceList) UpdateHostsFile(withList InstanceList, parallelSSHThreads 
 	}
 	wait.Wait()
 	return retErr
+}
+
+func (b *backend) ResolveNetworkPlacement(backendType BackendType, placement string) (vpc *Network, subnet *Subnet, zone string, err error) {
+	return b.enabledBackends[backendType].ResolveNetworkPlacement(placement)
 }

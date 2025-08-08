@@ -132,7 +132,9 @@ type Cloud interface {
 	// docker-only commands
 	DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error // create a new docker network
 	DockerDeleteNetwork(region string, name string) error                                           // delete a docker network
-	DockerPruneNetworks(region string) error                                                        // remove unused docker networks
+	DockerPruneNetworks(region string) error
+	// resolve network placement
+	ResolveNetworkPlacement(placement string) (vpc *Network, subnet *Subnet, zone string, err error)
 }
 
 type Backend interface {
@@ -170,6 +172,8 @@ type Backend interface {
 	// instance types and pricing
 	GetVolumePrices(backendType BackendType) (VolumePriceList, error)
 	GetInstanceTypes(backendType BackendType) (InstanceTypeList, error)
+	// resolve network placement
+	ResolveNetworkPlacement(backendType BackendType, placement string) (vpc *Network, subnet *Subnet, zone string, err error)
 }
 
 type backend struct {
@@ -642,7 +646,7 @@ func (b *backend) DeleteProjectResources(backendType BackendType) error {
 	if err != nil {
 		return err
 	}
-	err = inventory.Images.WithBackendType(backendType).DeleteImages(time.Minute * 10)
+	err = inventory.Images.WithBackendType(backendType).WithInAccount(true).DeleteImages(time.Minute * 10)
 	if err != nil {
 		return err
 	}
@@ -650,6 +654,11 @@ func (b *backend) DeleteProjectResources(backendType BackendType) error {
 	if err != nil {
 		return err
 	}
+	zones, err := b.ListEnabledRegions(backendType)
+	if err != nil {
+		return err
+	}
+	b.ExpiryRemove(backendType, zones...)
 	err = b.CleanupDNS()
 	if err != nil {
 		return err

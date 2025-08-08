@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -110,25 +112,35 @@ func (s *b) GetImages() (backends.ImageList, error) {
 			for distro, versions := range distrosMap {
 				for _, version := range versions {
 					for _, arch := range []string{"amd64", "arm64", "default"} {
+						archString := arch
 						architecture := backends.ArchitectureX8664
 						if arch == "arm64" {
 							architecture = backends.ArchitectureARM64
 						} else if arch == "default" {
 							architecture = backends.ArchitectureNative
+							if runtime.GOARCH == "amd64" {
+								archString = "amd64"
+							} else {
+								archString = "arm64"
+							}
 						}
 						imageName := imageNaming(distro, version, arch)
 						var sdImg *image.Summary
 						for _, img := range out {
 							// if arch, distro, version match, set sdImg
-							if img.Labels[TAG_ARCHITECTURE] == arch && img.Labels[TAG_OS_NAME] == distro && img.Labels[TAG_OS_VERSION] == version && img.Labels[TAG_PUBLIC_NAME] == imageName {
+							if img.Labels[TAG_ARCHITECTURE] == archString && img.Labels[TAG_OS_NAME] == distro && img.Labels[TAG_OS_VERSION] == version && img.Labels[TAG_PUBLIC_NAME] == imageName {
 								sdImg = &img
 							}
+						}
+						size := 0.0
+						if sdImg != nil {
+							size = math.Ceil(float64(sdImg.Size)/1024/1024/1024) * 1024 * 1024 * 1024
 						}
 						i = append(i, &backends.Image{
 							BackendType:  backends.BackendTypeDocker,
 							Name:         imageName,
-							Description:  "Default Docker image for " + distro + " " + version + " " + arch,
-							Size:         0,
+							Description:  "Default image for " + distro + " " + version + " " + arch,
+							Size:         backends.StorageSize(size),
 							ImageId:      imageName,
 							ZoneName:     zone,
 							ZoneID:       zone,
@@ -141,7 +153,7 @@ func (s *b) GetImages() (backends.ImageList, error) {
 							State:        backends.VolumeStateAvailable,
 							OSName:       distro,
 							OSVersion:    version,
-							InAccount:    false,
+							InAccount:    sdImg != nil,
 							Username:     "root",
 							BackendSpecific: &ImageDetail{
 								Docker: sdImg,
@@ -267,7 +279,7 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 				return
 			}
 			for _, id := range ids {
-				if !id.InAccount && id.Public && id.BackendSpecific != nil && id.BackendSpecific.(*ImageDetail).Docker != nil {
+				if id.InAccount && id.Public && id.BackendSpecific != nil && id.BackendSpecific.(*ImageDetail).Docker != nil {
 					customId := id.BackendSpecific.(*ImageDetail).Docker.ID
 					golog := log.WithPrefix(zone + "::" + customId + ": ")
 					golog.Detail("Deregistering Custom Root Image")
@@ -285,7 +297,7 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 						return
 					}
 					golog.Detail("Done")
-				} else if id.InAccount {
+				} else if !id.Public {
 					golog := log.WithPrefix(zone + "::" + id.ImageId + ": ")
 					golog.Detail("Deregistering Image")
 					_, err = cli.ImageRemove(context.Background(), id.ImageId, image.RemoveOptions{

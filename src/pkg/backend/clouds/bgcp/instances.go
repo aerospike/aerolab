@@ -897,7 +897,7 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 }
 
 // resolve network placement based on placement string
-func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
+func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
 	if strings.Count(placement, "-") == 2 {
 		parts := strings.Split(placement, "-")
 		placement = parts[0] + "-" + parts[1]
@@ -1081,7 +1081,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as GCP Domains does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
 	}
 
-	vpc, subnet, az, err := s.resolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
+	vpc, subnet, az, err := s.ResolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
 	if err != nil {
 		return nil, err
 	}

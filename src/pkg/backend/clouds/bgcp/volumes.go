@@ -145,7 +145,7 @@ func (s *b) GetVolumes() (backends.VolumeList, error) {
 					AttachedTo:          attachedToShort,
 					EstimatedCostUSD: backends.CostVolume{
 						PricePerGBHour: cpg,
-						SizeGB:         int64(backends.StorageSize(pair.GetSizeGb()) * backends.StorageGB),
+						SizeGB:         int64(backends.StorageSize(pair.GetSizeGb())),
 						CreateTime:     createTime,
 					},
 					BackendSpecific: &VolumeDetail{
@@ -625,7 +625,7 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 		return 0, errors.New("sizeGiB is required for attached disk")
 	}
 
-	_, _, _, err = s.resolveNetworkPlacement(backendSpecificParams.Placement)
+	_, _, _, err = s.ResolveNetworkPlacement(backendSpecificParams.Placement)
 	if err != nil {
 		return 0, err
 	}
@@ -676,7 +676,7 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		return nil, errors.New("sizeGiB is required for attached disk")
 	}
 
-	_, _, _, err = s.resolveNetworkPlacement(backendSpecificParams.Placement)
+	_, _, _, err = s.ResolveNetworkPlacement(backendSpecificParams.Placement)
 	if err != nil {
 		return nil, err
 	}

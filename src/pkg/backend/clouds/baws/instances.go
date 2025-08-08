@@ -40,7 +40,7 @@ type CreateInstanceParams struct {
 	// specify either region (ca-central-1) or zone (ca-central-1a) or vpc-id (vpc-0123456789abcdefg) or subnet-id (subnet-0123456789abcdefg)
 	//
 	// vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, region: will use the default VPC, first subnet in the zone, zone: will use the default VPC-subnet in the zone
-	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement" required:"true"`
+	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement"`
 	// instance type
 	InstanceType string `yaml:"instanceType" json:"instanceType" required:"true"`
 	// volume types and sizes, backend-specific definitions
@@ -871,7 +871,7 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
 		return 0, 0, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
 	}
-	_, _, zone, err := s.resolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
+	_, _, zone, err := s.ResolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -914,7 +914,7 @@ func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPP
 	return costPPH * float64(input.Nodes), costGB * float64(input.Nodes), nil
 }
 
-func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
+func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
 	switch {
 	case strings.HasPrefix(placement, "vpc-"):
 		for _, n := range s.networks {
@@ -958,7 +958,7 @@ func (s *b) resolveNetworkPlacement(placement string) (vpc *backends.Network, su
 				continue
 			}
 			for _, s := range n.Subnets {
-				if s.ZoneName == placement || s.ZoneID == placement {
+				if s.ZoneName == placement || s.ZoneID == placement || placement == "" {
 					vpc = n
 					subnet = s
 					zone = s.ZoneID
@@ -1007,7 +1007,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
 	}
 
-	vpc, subnet, az, err := s.resolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
+	vpc, subnet, az, err := s.ResolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
 	if err != nil {
 		return nil, err
 	}
