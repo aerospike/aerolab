@@ -654,11 +654,6 @@ func (b *backend) DeleteProjectResources(backendType BackendType) error {
 	if err != nil {
 		return err
 	}
-	zones, err := b.ListEnabledRegions(backendType)
-	if err != nil {
-		return err
-	}
-	b.ExpiryRemove(backendType, zones...)
 	err = b.CleanupDNS()
 	if err != nil {
 		return err

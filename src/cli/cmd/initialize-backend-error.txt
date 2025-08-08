@@ -7,8 +7,8 @@ $ %s config backend -t gcp -o project-name
 
 See '%s config backend --help' for more information.
 
-Default aerolab home directory is ${HOME}/.aerolab
-Default config path is ${HOME}/.aerolab/conf
+Default aerolab home directory is ${HOME}/.config/aerolab
+Default config path is ${HOME}/.config/aerolab/conf
 
 To specify a custom aerolab home directory, set:
    $ export AEROLAB_HOME=/path/to/new/dir

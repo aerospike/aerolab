@@ -16,7 +16,7 @@ func AerolabRootDir() (dirPath string, err error) {
 	if err != nil {
 		return
 	}
-	dirPath = path.Join(home, ".aerolab")
+	dirPath = path.Join(home, ".config", "aerolab")
 	instPath := filepath.Join(home, "AppData", "Local", "Aerospike", "AeroLab", "bin")
 	myPath, _ := filepath.Split(os.Args[0])
 	myPath = strings.TrimSuffix(myPath, "\\")

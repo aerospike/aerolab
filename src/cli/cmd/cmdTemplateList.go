@@ -24,7 +24,7 @@ type TemplateListCmd struct {
 }
 
 type TemplateListFilter struct {
-	Type  string `short:"T" long:"type" description:"Filter by type of template. Values: custom, public, all" default:"all"`
+	Type  string `short:"T" long:"type" description:"Filter by type of template. Values: custom, public, all" default:"custom"`
 	Owner string `short:"O" long:"owner" description:"Filter by owner of the template"`
 }
 

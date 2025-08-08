@@ -2,7 +2,11 @@
 
 ## Next - MVP
 
+FIRST:
+* with docker, I should be able to use custom images, with a custom image it should allow option to NOT install systemd
+
 CODE:
+* `instances apply` - create, grow, destroy - apply a state - inform user what it destroys - with interactive mode
 * volume - manage volumes on running instances
 * `inventory list` - add volumes list
 * subcommands:
@@ -36,6 +40,7 @@ OTHER:
 * src/Makefile
 * .github
 * `aerolab migrate` - migrate the config directory to the new format (ssh keys, etc) AND the Instances in AWS/GCP. Warn Docker cannot be migrated.
+  * support --from HOME --to HOME, or if not specified, migrate from `~/.aerolab` to `~/.config/aerolab`
 
 ## Notes
 

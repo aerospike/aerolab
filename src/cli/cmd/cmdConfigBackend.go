@@ -16,7 +16,7 @@ import (
 
 type ConfigBackendCmd struct {
 	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:"" webchoice:"aws,gcp,docker"`
-	SshKeyPath     flags.Filename `short:"p" long:"key-path" description:"Specify a custom path to store SSH keys in, default: ${HOME}/.aerolab" webtype:"text"`
+	SshKeyPath     flags.Filename `short:"p" long:"key-path" description:"Specify a custom path to store SSH keys in, default: ${HOME}/.config/aerolab" webtype:"text"`
 	Region         string         `short:"r" long:"region" description:"Specify a list of regions to enable, comma-separated" default:""`
 	InventoryCache bool           `short:"c" long:"inventory-cache" description:"Enable local inventory cache - use only if not sharing the GCP/AWS project/account with other users"`
 
@@ -85,7 +85,7 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 	if c.SshKeyPath != "" {
 		fmt.Printf("Config.Backend.SshKeyPath = %s\n", c.SshKeyPath)
 	} else {
-		fmt.Println("Config.Backend.SshKeyPath = ${HOME}/.aerolab")
+		fmt.Println("Config.Backend.SshKeyPath = ${HOME}/.config/aerolab")
 	}
 	if c.Type == "aws" {
 		fmt.Printf("Config.Backend.AWSProfile = %s\n", c.AWSProfile)
