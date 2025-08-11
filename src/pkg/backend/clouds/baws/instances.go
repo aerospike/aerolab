@@ -36,7 +36,7 @@ import (
 
 type CreateInstanceParams struct {
 	// the image to use for the instances(nodes)
-	Image *backends.Image `yaml:"image" json:"image" required:"true"`
+	Image *backends.Image `yaml:"image" json:"image"`
 	// specify either region (ca-central-1) or zone (ca-central-1a) or vpc-id (vpc-0123456789abcdefg) or subnet-id (subnet-0123456789abcdefg)
 	//
 	// vpc: will use first subnet in the vpc, subnet: will use the specified subnet id, region: will use the default VPC, first subnet in the zone, zone: will use the default VPC-subnet in the zone
@@ -63,6 +63,8 @@ type CreateInstanceParams struct {
 	IAMInstanceProfile string `yaml:"iamInstanceProfile" json:"iamInstanceProfile"`
 	// optional: the custom DNS to use for the instance(node); if not set, will not create a custom DNS
 	CustomDNS *backends.InstanceDNS `yaml:"customDNS" json:"customDNS"`
+	// optional: if specified, and Image==nil, will lookup this image ID and use it (for custom images)
+	CustomImageID string `yaml:"customImageID" json:"customImageID"`
 }
 
 type InstanceDetail struct {
@@ -999,14 +1001,18 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			}
 		}
 	}
+
+	// check we have everything we need
 	if err := structtags.CheckRequired(backendSpecificParams); err != nil {
 		return nil, fmt.Errorf("required fields missing in backend-specific parameters: %w", err)
 	}
+
 	// early check - DNS
 	if backendSpecificParams.CustomDNS != nil && backendSpecificParams.CustomDNS.Name != "" && input.Nodes > 1 {
 		return nil, fmt.Errorf("DNS name %s is set, but nodes > 1, this is not allowed as AWS Route53 does not support creating CNAME records for multiple nodes", backendSpecificParams.CustomDNS.Name)
 	}
 
+	// resolve network placement
 	vpc, subnet, az, err := s.ResolveNetworkPlacement(backendSpecificParams.NetworkPlacement)
 	if err != nil {
 		return nil, err
@@ -1014,6 +1020,75 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	zone := az[:len(az)-1]
 
 	log.Detail("Selected network placement: zone=%s az=%s vpc=%s subnet=%s", zone, az, vpc.NetworkId, subnet.SubnetId)
+
+	// custom image lookup
+	if backendSpecificParams.Image == nil && backendSpecificParams.CustomImageID != "" {
+		log.Detail("Looking up custom image %s", backendSpecificParams.CustomImageID)
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			return nil, err
+		}
+		paginator := ec2.NewDescribeImagesPaginator(cli, &ec2.DescribeImagesInput{
+			ImageIds: []string{backendSpecificParams.CustomImageID},
+		})
+		for paginator.HasMorePages() {
+			page, err := paginator.NextPage(context.TODO())
+			if err != nil {
+				return nil, err
+			}
+			if len(page.Images) == 0 {
+				return nil, fmt.Errorf("image %s not found", backendSpecificParams.CustomImageID)
+			}
+			image := page.Images[0]
+			tags := make(map[string]string)
+			for _, t := range image.Tags {
+				tags[aws.ToString(t.Key)] = aws.ToString(t.Value)
+			}
+			arch := backends.ArchitectureX8664
+			if image.Architecture == types.ArchitectureValuesArm64 {
+				arch = backends.ArchitectureARM64
+			}
+			snap := &types.EbsBlockDevice{}
+			if len(image.BlockDeviceMappings) > 0 {
+				snap = image.BlockDeviceMappings[0].Ebs
+			}
+			cdstring := *image.CreationDate
+			if len(cdstring) < 19 {
+				continue
+			}
+			cd, _ := time.Parse("2006-01-02T15:04:05", cdstring[0:19])
+			backendSpecificParams.Image = &backends.Image{
+				Name:         tags[TAG_NAME],
+				Description:  tags[TAG_DESCRIPTION],
+				Owner:        aws.ToString(image.OwnerId),
+				ImageId:      aws.ToString(image.ImageId),
+				BackendType:  backends.BackendTypeAWS,
+				ZoneName:     zone,
+				ZoneID:       zone,
+				Architecture: arch,
+				Public:       aws.ToBool(image.Public),
+				CreationTime: cd,
+				Encrypted:    aws.ToBool(snap.Encrypted),
+				InAccount:    false,
+				Size:         backends.StorageSize(aws.ToInt32(image.BlockDeviceMappings[0].Ebs.VolumeSize)) * backends.StorageGiB,
+				Tags:         tags,
+				State:        backends.VolumeStateAvailable,
+				OSName:       aws.ToString(image.PlatformDetails),
+				OSVersion:    aws.ToString(image.PlatformDetails),
+				Username:     "root", // getImageUser(image.OSName, image.OSVersion),
+				BackendSpecific: &ImageDetail{
+					SnapshotID:     aws.ToString(snap.SnapshotId),
+					RootDeviceName: aws.ToString(image.RootDeviceName),
+				},
+			}
+			log.Detail("Found custom image %s", backendSpecificParams.CustomImageID)
+			break
+		}
+	}
+
+	if backendSpecificParams.Image == nil {
+		return nil, fmt.Errorf("image not found")
+	}
 
 	// if cluster with given ClusterName already exists in s.instances, find last node number, so we know where to count up for the instances we will be creating
 	lastNodeNo := 0
