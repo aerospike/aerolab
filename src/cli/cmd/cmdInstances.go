@@ -10,6 +10,7 @@ import (
 type InstancesCmd struct {
 	Create          InstancesCreateCmd          `command:"create" subcommands-optional:"true" description:"Create a new instance cluster" webicon:"fas fa-plus"`
 	Grow            InstancesGrowCmd            `command:"grow" subcommands-optional:"true" description:"Grow an existing instance cluster" webicon:"fas fa-plus"`
+	Apply           InstancesApplyCmd           `command:"apply" subcommands-optional:"true" description:"Apply a state to an instance cluster: automatically create, grow, destroy to match cluster size" webicon:"fas fa-plus"`
 	List            InstancesListCmd            `command:"list" subcommands-optional:"true" description:"List instances" webicon:"fas fa-list"`
 	Attach          InstancesAttachCmd          `command:"attach" subcommands-optional:"true" description:"Attach to an instance or cluster" webicon:"fas fa-terminal"`
 	Start           InstancesStartCmd           `command:"start" subcommands-optional:"true" description:"Start an instance or cluster" webicon:"fas fa-play"`
