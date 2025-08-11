@@ -17,6 +17,10 @@ type InstancesCmd struct {
 	Stop            InstancesStopCmd            `command:"stop" subcommands-optional:"true" description:"Stop an instance or cluster" webicon:"fas fa-stop"`
 	Restart         InstancesRestartCmd         `command:"restart" subcommands-optional:"true" description:"Restart an instance or cluster" webicon:"fas fa-sync"`
 	UpdateHostsFile InstancesUpdateHostsFileCmd `command:"update-hosts-file" subcommands-optional:"true" description:"Update the hosts file on the instances" webicon:"fas fa-file-alt"`
+	AddTags         InstancesAddTagsCmd         `command:"add-tags" subcommands-optional:"true" description:"Add tags to instances" webicon:"fas fa-tags"`
+	RemoveTags      InstancesRemoveTagsCmd      `command:"remove-tags" subcommands-optional:"true" description:"Remove tags from instances" webicon:"fas fa-tags"`
+	AssignFirewalls InstancesAssignFirewallsCmd `command:"assign-firewalls" subcommands-optional:"true" description:"Assign firewalls to instances" webicon:"fas fa-firewall"`
+	RemoveFirewalls InstancesRemoveFirewallsCmd `command:"remove-firewalls" subcommands-optional:"true" description:"Remove firewalls from instances" webicon:"fas fa-firewall"`
 	Destroy         InstancesDestroyCmd         `command:"destroy" subcommands-optional:"true" description:"Destroy an instance or cluster" webicon:"fas fa-trash"`
 	Help            HelpCmd                     `command:"help" subcommands-optional:"true" description:"Print help"`
 }

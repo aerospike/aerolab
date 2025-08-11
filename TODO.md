@@ -3,7 +3,7 @@
 ## Next - MVP
 
 CODE:
-* volume - manage volumes on running instances
+* volumes - manage volumes on running instances
 * `inventory list` - add volumes list
 * subcommands:
   * `inventory ansible`
