@@ -3,14 +3,14 @@
 ## Next - MVP
 
 CODE:
-* volumes - manage volumes on running instances
-* `inventory list` - add volumes list
+* all `volumes` subcommands
 * subcommands:
   * `inventory ansible`
   * `inventory genders`
   * `inventory hostfile`
 * files - upload/download files to/from instances
 * attach - wrapper around instances attach, plus extra functionality
+* template - create aerospike templates (wrap instances create, install aerospike, instances stop, images create, instances destroy)
 * cluster, client - wrapper around instances command + templates + their own software installation and configuration
 * conf - manager aerospike configuration on running instances
 * aerospike - start/stop/restart/status of aerospike on running instances
