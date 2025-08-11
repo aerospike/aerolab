@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/aerospike/aerolab/cli/cmd"
+	cmd "github.com/aerospike/aerolab/cli/cmd/v1"
 	"github.com/aerospike/aerolab/pkg/eks/eksexpiry"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 )
