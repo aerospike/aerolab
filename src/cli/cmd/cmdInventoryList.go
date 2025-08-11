@@ -130,6 +130,19 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 		if err != nil {
 			return err
 		}
+		volumes := &VolumesListCmd{
+			Output:     c.Output,
+			SortBy:     c.SortBy,
+			TableTheme: c.TableTheme,
+			Pager:      false,
+			Filters: VolumesListFilter{
+				Owner: c.Owner,
+			},
+		}
+		err = volumes.ListVolumes(system, system.Backend.GetInventory(), args, out, page)
+		if err != nil {
+			return err
+		}
 		instances := &InstancesListCmd{
 			Output:     c.Output,
 			SortBy:     c.SortBy,

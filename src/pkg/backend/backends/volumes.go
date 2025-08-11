@@ -104,6 +104,10 @@ type Volumes interface {
 	WithExpired(expired bool) Volumes
 	// filter by delete on termination (volumes created with instances)
 	WithDeleteOnTermination(deleteOnTermination bool) Volumes
+	// filter by owner
+	WithOwner(owner ...string) Volumes
+	// filter by attached to instance
+	WithAttached(attached bool) Volumes
 	// number of volumes in selector
 	Count() int
 	// expose instance details to the caller
@@ -183,6 +187,30 @@ func (v VolumeList) WithType(types ...VolumeType) Volumes {
 	for _, volume := range v {
 		volume := volume
 		if !slices.Contains(types, volume.VolumeType) {
+			continue
+		}
+		ret = append(ret, volume)
+	}
+	return ret
+}
+
+func (v VolumeList) WithOwner(owner ...string) Volumes {
+	ret := VolumeList{}
+	for _, volume := range v {
+		volume := volume
+		if !slices.Contains(owner, volume.Owner) {
+			continue
+		}
+		ret = append(ret, volume)
+	}
+	return ret
+}
+
+func (v VolumeList) WithAttached(attached bool) Volumes {
+	ret := VolumeList{}
+	for _, volume := range v {
+		volume := volume
+		if attached != (len(volume.AttachedTo) > 0) {
 			continue
 		}
 		ret = append(ret, volume)
