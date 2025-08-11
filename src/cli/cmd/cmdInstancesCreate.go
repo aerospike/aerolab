@@ -75,7 +75,7 @@ type InstancesCreateCmdAws struct {
 	DisablePublicIP    bool          `long:"no-public-ip" description:"Disable public IP assignment to the instances"`
 	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
 	CustomDNS          InstanceDNS   `group:"Automated Custom Route53 DNS" namespace:"dns" description:"backend-aws"`
-	CustomImage        bool          `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; will cause an image lookup during creation"`
+	CustomImage        bool          `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; will cause an image lookup during creation; use with --image <image-id>"`
 }
 
 type InstancesCreateCmdGcp struct {
@@ -89,7 +89,7 @@ type InstancesCreateCmdGcp struct {
 	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
 	MinCPUPlatform     string        `long:"min-cpu-platform" description:"Minimum CPU platform to use for the instances"`
 	CustomDNS          InstanceDNS   `group:"Automated Custom GCP DNS" namespace:"dns" description:"backend-gcp"`
-	CustomImage        bool          `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; will cause an image lookup during creation"`
+	CustomImage        bool          `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; will cause an image lookup during creation; use with --image projects/<project>/global/images/<image>"`
 }
 
 type InstancesCreateCmdDocker struct {
@@ -469,6 +469,14 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	if system.Opts.Config.Backend.Type == "gcp" {
 		expire = time.Now().Add(c.GCP.Expire)
 	}
+	awsCustomImageID := ""
+	if c.AWS.CustomImage {
+		awsCustomImageID = c.AWS.ImageName
+	}
+	gcpCustomImageID := ""
+	if c.GCP.CustomImage {
+		gcpCustomImageID = c.GCP.ImageName
+	}
 	createInstancesInput := &backends.CreateInstanceInput{
 		ClusterName:        c.ClusterName,
 		Nodes:              c.Count,
@@ -493,6 +501,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				DisablePublicIP:    c.AWS.DisablePublicIP,
 				IAMInstanceProfile: c.AWS.IAMInstanceProfile,
 				CustomDNS:          c.AWS.CustomDNS.makeInstanceDNS(),
+				CustomImageID:      awsCustomImageID,
 			},
 			"gcp": &bgcp.CreateInstanceParams{
 				Image:              nil,
@@ -504,6 +513,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				IAMInstanceProfile: c.GCP.IAMInstanceProfile,
 				CustomDNS:          c.GCP.CustomDNS.makeInstanceDNS(),
 				MinCpuPlatform:     c.GCP.MinCPUPlatform,
+				CustomImageID:      gcpCustomImageID,
 			},
 			"docker": dockerParams,
 		},

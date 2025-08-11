@@ -39,7 +39,7 @@ import (
 
 type CreateInstanceParams struct {
 	// the image to use for the instances(nodes)
-	Image *backends.Image `yaml:"image" json:"image" required:"true"`
+	Image *backends.Image `yaml:"image" json:"image"`
 	// specify the zone for placement, e.g. us-central1-a
 	NetworkPlacement string `yaml:"networkPlacement" json:"networkPlacement" required:"true"`
 	// instance type
@@ -64,6 +64,9 @@ type CreateInstanceParams struct {
 	CustomDNS *backends.InstanceDNS `yaml:"customDNS" json:"customDNS"`
 	// optional: the minimum CPU platform to use for the instance(node); if not set, will not create a minimum CPU platform
 	MinCpuPlatform string `yaml:"minCpuPlatform" json:"minCpuPlatform"`
+	// optional: if specified, and Image==nil, will lookup this image ID and use it (for custom images)
+	// format: projects/<project>/global/images/<image>
+	CustomImageID string `yaml:"customImageID" json:"customImageID"`
 }
 
 type InstanceDetail struct {
@@ -1088,6 +1091,25 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	zone := backendSpecificParams.NetworkPlacement
 
 	log.Detail("Selected network placement: zone=%s az=%s vpc=%s subnet=%s", zone, az, vpc.NetworkId, subnet.SubnetId)
+
+	// custom image lookup
+	if backendSpecificParams.Image == nil && backendSpecificParams.CustomImageID != "" {
+		backendSpecificParams.Image = &backends.Image{
+			ImageId:     backendSpecificParams.CustomImageID,
+			Username:    "root",
+			OSName:      "custom",
+			OSVersion:   "custom",
+			BackendType: backends.BackendTypeGCP,
+			ZoneName:    zone,
+			ZoneID:      zone,
+			Public:      true,
+			InAccount:   false,
+		}
+	}
+
+	if backendSpecificParams.Image == nil {
+		return nil, fmt.Errorf("image not found")
+	}
 
 	// if cluster with given ClusterName already exists in s.instances, find last node number, so we know where to count up for the instances we will be creating
 	lastNodeNo := 0

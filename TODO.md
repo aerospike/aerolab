@@ -3,7 +3,6 @@
 ## Next - MVP
 
 CODE:
-* `instances create` AWS and GCP - CustomImage switch - implement in CreateInstanceParams in GCP and AWS, and make them lookup image dynamically for that case
 * `instances apply` - create, grow, destroy - apply a state - inform user what it destroys - with interactive mode
 * volume - manage volumes on running instances
 * `inventory list` - add volumes list
