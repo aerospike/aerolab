@@ -117,6 +117,10 @@ func (c *CreateSecGroupsCmd) Execute(args []string) error {
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+	err = UpdateDiskCache(system)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
 
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)
@@ -134,6 +138,10 @@ func (c *DestroySecGroupsCmd) Execute(args []string) error {
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+	err = UpdateDiskCache(system)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
 
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)
@@ -148,6 +156,10 @@ func (c *LockSecGroupsCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	err = LockSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, "aws", cmd, c, args, system.Backend.GetInventory())
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
+	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

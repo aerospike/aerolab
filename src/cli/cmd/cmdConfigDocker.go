@@ -67,6 +67,10 @@ func (c *PruneNetworksCmd) Execute(args []string) error {
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+	err = UpdateDiskCache(system)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
 
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)
@@ -98,6 +102,10 @@ func (c *DeleteNetworkCmd) Execute(args []string) error {
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+	err = UpdateDiskCache(system)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
 
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)
@@ -126,6 +134,10 @@ func (c *CreateNetworkCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	err = c.CreateNetwork(system, system.Backend.GetInventory(), args)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
+	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
