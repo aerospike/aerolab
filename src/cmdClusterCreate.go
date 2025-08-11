@@ -324,6 +324,119 @@ func (c *clusterCreateCmd) realExecute(args []string, isGrow bool) error {
 	return c.realExecute2(args, isGrow)
 }
 
+// / --- BubbleTea list model for interactive selection ---
+
+// type clusterItem string
+
+// func (c clusterItem) Title() string       { return string(c) }
+// func (c clusterItem) Description() string { return "" }
+// func (c clusterItem) FilterValue() string { return string(c) }
+
+// type model struct {
+// 	list     list.Model
+// 	choice   string
+// 	quitting bool
+// }
+
+// func initialModel(clusters []string) model {
+// 	items := make([]list.Item, len(clusters))
+// 	for i, c := range clusters {
+// 		items[i] = clusterItem(c)
+// 	}
+
+// 	const defaultWidth = 30
+// 	l := list.New(items, list.NewDefaultDelegate(), defaultWidth, len(items)+2)
+// 	l.Title = "Select a cluster"
+// 	l.SetShowStatusBar(false)
+// 	l.SetFilteringEnabled(false)
+
+// 	return model{list: l}
+// }
+
+// func (m model) Init() tea.Cmd {
+// 	return nil
+// }
+
+// func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// 	switch msg := msg.(type) {
+
+// 	case tea.KeyMsg:
+// 		switch msg.String() {
+// 		case "ctrl+c", "q":
+// 			m.quitting = true
+// 			return m, tea.Quit
+// 		case "enter":
+// 			i, ok := m.list.SelectedItem().(clusterItem)
+// 			if ok {
+// 				m.choice = string(i)
+// 			}
+// 			return m, tea.Quit
+// 		}
+// 	}
+
+// 	var cmd tea.Cmd
+// 	m.list, cmd = m.list.Update(msg)
+// 	return m, cmd
+// }
+
+// func (m model) View() string {
+// 	if m.quitting && m.choice == "" {
+// 		return "No cluster selected.\n"
+// 	}
+// 	if m.choice != "" {
+// 		return fmt.Sprintf("Selected cluster: %s\n", m.choice)
+// 	}
+// 	return m.list.View()
+// }
+
+// /// --- BubbleTea list model for interactive selection ---
+
+// BubbleTea model for yes/no
+// type yesNoItem string
+
+// func (y yesNoItem) Title() string       { return string(y) }
+// func (y yesNoItem) Description() string { return "" }
+// func (y yesNoItem) FilterValue() string { return string(y) }
+
+// func yesNoPrompt(prompt string) (string, error) {
+// 	items := []list.Item{yesNoItem("Yes"), yesNoItem("No")}
+// 	const defaultWidth = 1000
+// 	l := list.New(items, list.NewDefaultDelegate(), defaultWidth, len(items)+2)
+// 	l.Title = prompt
+// 	l.SetShowStatusBar(false)
+// 	l.SetFilteringEnabled(false)
+// 	m := model{list: l}
+// 	p := tea.NewProgram(m)
+// 	finalModel, err := p.Run()
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	choice := finalModel.(model).choice
+// 	return choice, nil
+// }
+
+// func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// 	switch msg := msg.(type) {
+// 	case tea.KeyMsg:
+// 		switch msg.String() {
+// 		case "ctrl+c", "q":
+// 			m.quitting = true
+// 			return m, tea.Quit
+// 		case "enter":
+// 			// Handle both clusterItem and yesNoItem
+// 			if i, ok := m.list.SelectedItem().(yesNoItem); ok {
+// 				m.choice = string(i)
+// 			} else if i, ok := m.list.SelectedItem().(clusterItem); ok {
+// 				m.choice = string(i)
+// 			}
+// 			return m, tea.Quit
+// 		}
+// 	}
+// 	var cmd tea.Cmd
+// 	m.list, cmd = m.list.Update(msg)
+// 	return m, cmd
+// }
+
 func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	if inslice.HasString(args, "help") {
 		if a.opts.Config.Backend.Type == "docker" {
@@ -535,26 +648,50 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	// Check if cluster already exists
 	// If cluster exists, ask if the user wants to (1) grow, and if not, (2) destroy and recreate
 	if !isGrow && inslice.HasString(clusterList, string(c.ClusterName)) {
-		fmt.Printf("A cluster named '%s' already exists. Did you mean 'cluster grow'? (y/n): ", c.ClusterName)
-		var response string
-		fmt.Scanln(&response)
-		if strings.ToLower(strings.TrimSpace(response)) == "y" {
-			// Call realExecute2 with isGrow = true (run as grow)
+		// fmt.Printf("A cluster named '%s' already exists. Did you mean 'cluster grow'? (y/n): ", c.ClusterName)
+		// //get response from user
+		// var response string
+		// fmt.Scanln(&response)
+		// if strings.ToLower(strings.TrimSpace(response)) == "y" { // If user says "y", execute grow
+		// 	return c.realExecute2(args, true)
+		// }
+
+		// fmt.Printf("Do you want to destroy and recreate the cluster '%s'? (y/n): ", c.ClusterName) // If !isGrow and user doesn't say "y", then ask about destroy-create
+		// fmt.Scanln(&response)
+		// if strings.ToLower(strings.TrimSpace(response)) == "y" {
+		// 	// Destroy cluster
+		// 	a.opts.Cluster.Destroy.ClusterName = c.ClusterName
+		// 	a.opts.Cluster.Destroy.Force = true
+		// 	if err := a.opts.Cluster.Destroy.Execute(nil); err != nil {
+		// 		return logFatal("Failed to destroy cluster: %v", err)
+		// 	}
+		// 	fmt.Println("Cluster destroyed. Recreating...")
+		// 	// Re-run create
+		// 	return c.realExecute2(args, false)
+		// }
+
+		choice, err := yesNoPrompt(fmt.Sprintf("A cluster named '%s' already exists. Did you mean 'cluster grow'?", c.ClusterName))
+		if err != nil {
+			return err
+		}
+		if strings.ToLower(strings.TrimSpace(choice)) == "yes" {
 			return c.realExecute2(args, true)
 		}
-		fmt.Printf("Do you want to destroy and recreate the cluster '%s'? (y/n): ", c.ClusterName)
-		fmt.Scanln(&response)
-		if strings.ToLower(strings.TrimSpace(response)) == "y" {
-			// Destroy cluster
+
+		choice, err = yesNoPrompt(fmt.Sprintf("Do you want to destroy and recreate the cluster '%s'?", c.ClusterName))
+		if err != nil {
+			return err
+		}
+		if strings.ToLower(strings.TrimSpace(choice)) == "yes" {
 			a.opts.Cluster.Destroy.ClusterName = c.ClusterName
 			a.opts.Cluster.Destroy.Force = true
 			if err := a.opts.Cluster.Destroy.Execute(nil); err != nil {
 				return logFatal("Failed to destroy cluster: %v", err)
 			}
 			fmt.Println("Cluster destroyed. Recreating...")
-			// Re-run create
 			return c.realExecute2(args, false)
 		}
+
 		return logFatal("Cluster by this name already exists, did you mean 'cluster grow'? Available clusters: [%s]",
 			strings.Join(clusterList, ", "))
 	}
@@ -1607,15 +1744,15 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 
 func (c *clusterCreateCmd) thpString() string {
 	return `[Service]
-	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/enabled || echo"
-	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/defrag || echo"
-	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/enabled || echo"
-	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/defrag || echo"
-	ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/transparent_hugepage/khugepaged/defrag || echo"
-	ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/redhat_transparent_hugepage/khugepaged/defrag || echo"
-	ExecStartPre=/bin/bash -c "sysctl -w vm.min_free_kbytes=1310720 || echo"
-	ExecStartPre=/bin/bash -c "sysctl -w vm.swappiness=0 || echo"
-	`
+ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/enabled || echo"
+ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/defrag || echo"
+ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/enabled || echo"
+ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/defrag || echo"
+ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/transparent_hugepage/khugepaged/defrag || echo"
+ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/redhat_transparent_hugepage/khugepaged/defrag || echo"
+ExecStartPre=/bin/bash -c "sysctl -w vm.min_free_kbytes=1310720 || echo"
+ExecStartPre=/bin/bash -c "sysctl -w vm.swappiness=0 || echo"
+`
 }
 
 func isLegalName(name string) bool {
