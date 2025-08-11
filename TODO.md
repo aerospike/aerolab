@@ -3,7 +3,6 @@
 ## Next - MVP
 
 CODE:
-* `instances apply` - create, grow, destroy - apply a state - inform user what it destroys - with interactive mode
 * volume - manage volumes on running instances
 * `inventory list` - add volumes list
 * subcommands:
