@@ -33,10 +33,10 @@ type InstancesApplyCmd struct {
 }
 
 type InstancesApplyCmdHooks struct {
-	BeforeEachCreate flags.Filename `short:"b" long:"before-each-create" description:"Path to a command or script to run before each instance is created if cluster does not exist"`
-	BeforeEachGrow   flags.Filename `short:"g" long:"before-each-grow" description:"Path to a command or script to run before each instance is added when growing the cluster"`
-	BeforeEachShrink flags.Filename `short:"s" long:"before-each-shrink" description:"Path to a command or script to run before each instance is removed when shrinking the cluster"`
-	Noop             flags.Filename `short:"n" long:"noop" description:"Path to a command or script to run if cluster is already at the desired size"`
+	BeforeEachCreate flags.Filename `short:"B" long:"before-each-create" description:"Path to a command or script to run before each instance is created if cluster does not exist"`
+	BeforeEachGrow   flags.Filename `short:"G" long:"before-each-grow" description:"Path to a command or script to run before each instance is added when growing the cluster"`
+	BeforeEachShrink flags.Filename `short:"S" long:"before-each-shrink" description:"Path to a command or script to run before each instance is removed when shrinking the cluster"`
+	Noop             flags.Filename `short:"N" long:"noop" description:"Path to a command or script to run if cluster is already at the desired size"`
 	OutputToStdout   bool           `long:"output-to-stdout" description:"Output the output of the hooks to stdout"`
 }
 
