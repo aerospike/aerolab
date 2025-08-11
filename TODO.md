@@ -3,10 +3,6 @@
 ## Next - MVP
 
 CODE:
-* Each command which changes instance states in Execute should update changed inventory at the end if disk cache is enabled.
-* Need inventory refresh-disk-cache feature that nukes and refreshes it.
-* Need instances update hosts file
-* Debian 13 is out
 * `instances create` AWS and GCP - CustomImage switch - implement in CreateInstanceParams in GCP and AWS, and make them lookup image dynamically for that case
 * `instances apply` - create, grow, destroy - apply a state - inform user what it destroys - with interactive mode
 * volume - manage volumes on running instances

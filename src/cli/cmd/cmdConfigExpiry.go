@@ -36,6 +36,10 @@ func (c *ExpiryInstallCmd) Execute(args []string) error {
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+	err = UpdateDiskCache(system)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
 
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)
@@ -69,6 +73,10 @@ func (c *ExpiryRemoveCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	err = c.ExpiryRemove(system, cmd, args, system.Backend.GetInventory())
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
+	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -106,6 +114,10 @@ func (c *ExpiryCheckFreqCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	err = c.ExpiryCheckFreq(system, cmd, args, system.Backend.GetInventory())
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
+	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

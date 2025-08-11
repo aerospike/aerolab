@@ -30,6 +30,10 @@ func (c *InstancesDestroyCmd) Execute(args []string) error {
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+	err = UpdateDiskCache(system)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
 
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)

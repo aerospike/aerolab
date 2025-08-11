@@ -130,3 +130,15 @@ func AskForFloat(prompt string) (float64, error) {
 	}
 	return strconv.ParseFloat(strings.TrimSpace(s), 64)
 }
+
+func UpdateDiskCache(system *System) error {
+	if !system.Opts.Config.Backend.InventoryCache {
+		return nil
+	}
+	system.Logger.Info("Updating disk cache")
+	err := system.Backend.RefreshChangedInventory()
+	if err != nil {
+		return err
+	}
+	return nil
+}
