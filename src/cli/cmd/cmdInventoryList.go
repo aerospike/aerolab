@@ -116,17 +116,17 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 		if err != nil {
 			return err
 		}
-		template := &TemplateListCmd{
+		images := &ImagesListCmd{
 			Output:     c.Output,
 			TableTheme: c.TableTheme,
 			SortBy:     c.SortBy,
 			Pager:      false,
-			Filters: TemplateListFilter{
+			Filters: ImagesListFilter{
 				Owner: c.Owner,
 				Type:  "custom",
 			},
 		}
-		err = template.ListTemplates(system, system.Backend.GetInventory(), args, out, page)
+		err = images.ListImages(system, system.Backend.GetInventory(), args, out, page)
 		if err != nil {
 			return err
 		}

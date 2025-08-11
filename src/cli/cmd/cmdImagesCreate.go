@@ -9,28 +9,28 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 )
 
-type TemplateCreateCmd struct {
-	Name         string   `short:"n" long:"name" description:"Set template name"`
-	Description  string   `short:"d" long:"description" description:"Set template description"`
-	InstanceName string   `short:"N" long:"instance-name" description:"Name of the instance to create the template from"`
-	SizeGiB      int      `short:"s" long:"size" description:"Set template size in GiB; default is the size of the root volume of the instance"`
-	Owner        string   `short:"o" long:"owner" description:"Set template owner"`
-	Type         string   `short:"t" long:"type" description:"Set template type; sets aerolab.image.type tag"`
-	Version      string   `short:"v" long:"version" description:"Set template version; sets aerolab.soft.version tag"`
-	Tags         []string `short:"T" long:"tag" description:"Set extra template tags, as k=v"`
-	DryRun       bool     `long:"dry-run" description:"Do not actually create the template, just run the basic checks"`
+type ImagesCreateCmd struct {
+	Name         string   `short:"n" long:"name" description:"Set image name"`
+	Description  string   `short:"d" long:"description" description:"Set image description"`
+	InstanceName string   `short:"N" long:"instance-name" description:"Name of the instance to create the image from"`
+	SizeGiB      int      `short:"s" long:"size" description:"Set image size in GiB; default is the size of the root volume of the instance"`
+	Owner        string   `short:"o" long:"owner" description:"Set image owner"`
+	Type         string   `short:"t" long:"type" description:"Set image type; sets aerolab.image.type tag"`
+	Version      string   `short:"v" long:"version" description:"Set image version; sets aerolab.soft.version tag"`
+	Tags         []string `short:"T" long:"tag" description:"Set extra image tags, as k=v"`
+	DryRun       bool     `long:"dry-run" description:"Do not actually create the image, just run the basic checks"`
 	Help         HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *TemplateCreateCmd) Execute(args []string) error {
-	cmd := []string{"template", "create"}
+func (c *ImagesCreateCmd) Execute(args []string) error {
+	cmd := []string{"images", "create"}
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	_, err = c.CreateTemplate(system, system.Backend.GetInventory(), args)
+	_, err = c.CreateImage(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -39,10 +39,10 @@ func (c *TemplateCreateCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.Inventory, args []string) (*backends.Image, error) {
+func (c *ImagesCreateCmd) CreateImage(system *System, inventory *backends.Inventory, args []string) (*backends.Image, error) {
 	if system == nil {
 		var err error
-		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"template", "create"}, c, args...)
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"images", "create"}, c, args...)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +72,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	if c.SizeGiB == 0 {
 		c.SizeGiB = int(instance.AttachedVolumes.Describe()[0].Size / 1024 / 1024 / 1024)
 	} else if instance.AttachedVolumes.Count() > 0 && c.SizeGiB < int(instance.AttachedVolumes.Describe()[0].Size/1024/1024/1024) {
-		return nil, fmt.Errorf("template size %d is smaller than the size of the root volume %d", c.SizeGiB, int(instance.AttachedVolumes.Describe()[0].Size/1024/1024/1024))
+		return nil, fmt.Errorf("image size %d is smaller than the size of the root volume %d", c.SizeGiB, int(instance.AttachedVolumes.Describe()[0].Size/1024/1024/1024))
 	}
 
 	// check name validity
@@ -94,10 +94,10 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		return nil, fmt.Errorf("owner is required")
 	}
 
-	// check if the template already exists
+	// check if the image already exists
 	images := inventory.Images.WithName(c.Name)
 	if images.Count() > 0 {
-		return nil, fmt.Errorf("template %s already exists", c.Name)
+		return nil, fmt.Errorf("image %s already exists", c.Name)
 	}
 
 	// check if the tags can be parsed
@@ -116,12 +116,12 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 
 	// dry run
 	if c.DryRun {
-		system.Logger.Info("Dry run, not creating template")
+		system.Logger.Info("Dry run, not creating image")
 		return nil, nil
 	}
 
-	// create the template
-	system.Logger.Info("Creating template")
+	// create the image
+	system.Logger.Info("Creating image")
 	image, err := system.Backend.CreateImage(&backends.CreateImageInput{
 		BackendType: backends.BackendType(system.Opts.Config.Backend.Type),
 		Instance:    instance,
@@ -137,6 +137,6 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	if err != nil {
 		return nil, err
 	}
-	system.Logger.Info("Template created with ImageID: %s", image.Image.ImageId)
+	system.Logger.Info("Image created with ImageID: %s", image.Image.ImageId)
 	return image.Image, nil
 }

@@ -14,29 +14,29 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-type TemplateListCmd struct {
-	Output     string             `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
-	TableTheme string             `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
-	SortBy     []string           `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
-	Pager      bool               `short:"p" long:"pager" description:"Use a pager to display the output"`
-	Filters    TemplateListFilter `group:"Filters" namespace:"filter"`
-	Help       HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
+type ImagesListCmd struct {
+	Output     string           `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
+	TableTheme string           `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
+	SortBy     []string         `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
+	Pager      bool             `short:"p" long:"pager" description:"Use a pager to display the output"`
+	Filters    ImagesListFilter `group:"Filters" namespace:"filter"`
+	Help       HelpCmd          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-type TemplateListFilter struct {
-	Type  string `short:"T" long:"type" description:"Filter by type of template. Values: custom, public, all" default:"custom"`
-	Owner string `short:"O" long:"owner" description:"Filter by owner of the template"`
+type ImagesListFilter struct {
+	Type  string `short:"T" long:"type" description:"Filter by type of image. Values: custom, public, all" default:"custom"`
+	Owner string `short:"O" long:"owner" description:"Filter by owner of the image"`
 }
 
-func (c *TemplateListCmd) Execute(args []string) error {
-	cmd := []string{"template", "list"}
+func (c *ImagesListCmd) Execute(args []string) error {
+	cmd := []string{"images", "list"}
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.ListTemplates(system, system.Backend.GetInventory(), args, os.Stdout, nil)
+	err = c.ListImages(system, system.Backend.GetInventory(), args, os.Stdout, nil)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -45,10 +45,10 @@ func (c *TemplateListCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *TemplateListCmd) ListTemplates(system *System, inventory *backends.Inventory, args []string, out io.Writer, page *pager.Pager) error {
+func (c *ImagesListCmd) ListImages(system *System, inventory *backends.Inventory, args []string, out io.Writer, page *pager.Pager) error {
 	if system == nil {
 		var err error
-		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"template", "list"}, c, args...)
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"images", "list"}, c, args...)
 		if err != nil {
 			return err
 		}
@@ -117,7 +117,7 @@ func (c *TemplateListCmd) ListTemplates(system *System, inventory *backends.Inve
 		enc.SetIndent("", "  ")
 		enc.Encode(images)
 	case "text":
-		system.Logger.Info("Templates:")
+		system.Logger.Info("Images:")
 		for _, image := range images {
 			fmt.Fprintf(out, "Backend: %s, Name: %s, ID: %s, Zone: %s, Public: %t, SizeGiB: %d, Owner: %s, Architecture: %s, OSName: %s, OSVersion: %s, Type: %s, Version: %s, Description: %s\n",
 				image.BackendType, image.Name, image.ImageId, image.ZoneName, !image.InAccount, image.Size/1024/1024/1024, image.Owner, image.Architecture.String(), image.OSName, image.OSVersion, image.Tags["aerolab.image.type"], image.Tags["aerolab.soft.version"], image.Description)
@@ -144,7 +144,7 @@ func (c *TemplateListCmd) ListTemplates(system *System, inventory *backends.Inve
 				return err
 			}
 		}
-		fmt.Fprintln(out, t.RenderTable(printer.String("TEMPLATES"), header, rows))
+		fmt.Fprintln(out, t.RenderTable(printer.String("IMAGES"), header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil
