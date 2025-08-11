@@ -1,7 +1,7 @@
 #!/bin/bash
 # supported distros; centos-stream distros corresponding to the rockylinux are also supported
 # amazon linux is also supported
-distros=(rockylinux:9 rockylinux:8 ubuntu:24.04 ubuntu:22.04 ubuntu:20.04 debian:12 debian:11)
+distros=(rockylinux:9 rockylinux:8 ubuntu:24.04 ubuntu:22.04 ubuntu:20.04 debian:13 debian:12 debian:11)
 
 docker stop -t 1 testefs >/dev/null 2>&1 && sleep 2
 for distro in "${distros[@]}"; do

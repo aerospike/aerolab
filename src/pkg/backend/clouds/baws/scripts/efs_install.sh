@@ -1,6 +1,6 @@
 #!/bin/bash
 
-### supported distros: rockylinux:9 rockylinux:8 ubuntu:24.04 ubuntu:22.04 ubuntu:20.04 debian:12 debian:11 centos:stream9 centos:stream8 amazonlinux:2023 amazonlinux:2
+### supported distros: rockylinux:9 rockylinux:8 ubuntu:24.04 ubuntu:22.04 ubuntu:20.04 debian:13 debian:12 debian:11 centos:stream9 centos:stream8 amazonlinux:2023 amazonlinux:2
 ### usage: ./efs_install.sh [fips]
 ### fips parameter will enable fips mode in efs utils; note: this requires that fips edition of openssh is installed
 

@@ -7,20 +7,20 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 )
 
-type TemplateVacuumCmd struct {
+type ImagesVacuumCmd struct {
 	DryRun bool    `short:"d" long:"dry-run" description:"Do not actually delete the templates, just list them"`
 	Help   HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *TemplateVacuumCmd) Execute(args []string) error {
-	cmd := []string{"template", "vacuum"}
+func (c *ImagesVacuumCmd) Execute(args []string) error {
+	cmd := []string{"images", "vacuum"}
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.VacuumTemplates(system, system.Backend.GetInventory(), args)
+	err = c.VacuumImages(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -29,10 +29,10 @@ func (c *TemplateVacuumCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *TemplateVacuumCmd) VacuumTemplates(system *System, inventory *backends.Inventory, args []string) error {
+func (c *ImagesVacuumCmd) VacuumImages(system *System, inventory *backends.Inventory, args []string) error {
 	if system == nil {
 		var err error
-		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"template", "vacuum"}, c, args...)
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"images", "vacuum"}, c, args...)
 		if err != nil {
 			return err
 		}
@@ -40,12 +40,12 @@ func (c *TemplateVacuumCmd) VacuumTemplates(system *System, inventory *backends.
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	dangling := inventory.Instances.WithTags(map[string]string{"aerolab.type": "template.create"}).WithNotState(backends.LifeCycleStateTerminated)
+	dangling := inventory.Instances.WithTags(map[string]string{"aerolab.type": "images.create"}).WithNotState(backends.LifeCycleStateTerminated)
 	if dangling.Count() == 0 {
-		system.Logger.Info("No templates to vacuum found")
+		system.Logger.Info("No images to vacuum found")
 		return nil
 	}
-	system.Logger.Info("Found %d vacuumable templates, deleting...", dangling.Count())
+	system.Logger.Info("Found %d vacuumable images, deleting...", dangling.Count())
 	if c.DryRun {
 		system.Logger.Info("Dry run, not deleting")
 		for _, instance := range dangling.Describe() {

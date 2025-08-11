@@ -75,6 +75,7 @@ type InstancesCreateCmdAws struct {
 	DisablePublicIP    bool          `long:"no-public-ip" description:"Disable public IP assignment to the instances"`
 	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
 	CustomDNS          InstanceDNS   `group:"Automated Custom Route53 DNS" namespace:"dns" description:"backend-aws"`
+	CustomImage        bool          `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; will cause an image lookup during creation"`
 }
 
 type InstancesCreateCmdGcp struct {
@@ -88,6 +89,7 @@ type InstancesCreateCmdGcp struct {
 	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
 	MinCPUPlatform     string        `long:"min-cpu-platform" description:"Minimum CPU platform to use for the instances"`
 	CustomDNS          InstanceDNS   `group:"Automated Custom GCP DNS" namespace:"dns" description:"backend-gcp"`
+	CustomImage        bool          `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; will cause an image lookup during creation"`
 }
 
 type InstancesCreateCmdDocker struct {
@@ -101,7 +103,7 @@ type InstancesCreateCmdDocker struct {
 	MaxRestartRetries  int            `long:"max-restart-retries" description:"Maximum number of restart attempts"`
 	ShmSize            int64          `long:"shm-size" description:"Size of /dev/shm in bytes"`
 	AdvancedConfigPath flags.Filename `long:"advanced-config" description:"Path to JSON file containing advanced Docker container configuration"`
-	CustomImage        bool           `long:"custom-image" description:"Use a custom image, even if it is not in the inventory"`
+	CustomImage        bool           `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; won't install systemd/ssh and will use docker's exec for attaching"`
 }
 
 type InstancesGrowCmd struct {

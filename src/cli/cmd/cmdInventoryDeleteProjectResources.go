@@ -11,8 +11,9 @@ import (
 )
 
 type InventoryDeleteProjectResourcesCmd struct {
-	Force bool    `short:"f" long:"force" description:"Force deletion without confirmation"`
-	Help  HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Expiry bool    `long:"expiry" description:"Also remove the expiry system; WARN: expiry system is NOT project-bound but global"`
+	Force  bool    `short:"f" long:"force" description:"Force deletion without confirmation"`
+	Help   HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *InventoryDeleteProjectResourcesCmd) Execute(args []string) error {
@@ -60,5 +61,20 @@ func (c *InventoryDeleteProjectResourcesCmd) DeleteProjectResources(system *Syst
 		}
 	}
 	system.Logger.Info("Deleting resources...")
-	return system.Backend.DeleteProjectResources(backends.BackendType(system.Opts.Config.Backend.Type))
+	err := system.Backend.DeleteProjectResources(backends.BackendType(system.Opts.Config.Backend.Type))
+	if err != nil {
+		return err
+	}
+	if c.Expiry {
+		system.Logger.Info("Removing expiry system...")
+		zones, err := system.Backend.ListEnabledRegions(backends.BackendType(system.Opts.Config.Backend.Type))
+		if err != nil {
+			return err
+		}
+		err = system.Backend.ExpiryRemove(backends.BackendType(system.Opts.Config.Backend.Type), zones...)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
