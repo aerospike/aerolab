@@ -94,7 +94,7 @@ func (c *InstancesApplyCmd) Apply(system *System, inventory *backends.Inventory,
 		return errors.New("count must be at least 0")
 	}
 
-	cluster := inventory.Instances.WithClusterName(c.ClusterName)
+	cluster := inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).WithClusterName(c.ClusterName)
 	action := ""
 	if cluster.Count() == 0 && c.Count == 0 {
 		action = "noop"
