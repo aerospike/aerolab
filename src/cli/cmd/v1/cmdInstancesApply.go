@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"sort"
@@ -29,15 +30,33 @@ type InstancesApplyCmd struct {
 	NoInstallExpiry    bool                     `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
 	Force              bool                     `long:"force" description:"Do not ask for confirmation when destroying instances"`
 	DryRun             bool                     `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
-	Help               HelpCmd                  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Help               InstancesApplyCmdHelp    `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+type InstancesApplyCmdHelp struct {
+	AllBackends bool `long:"all" description:"Show help for all backends, not just the selected one"`
+}
+
+func (c *InstancesApplyCmdHelp) Execute(args []string) error {
+	PrintHelp(c.AllBackends, "Each hook can be specified multiple times, and will be run in the order specified.\n\nCreate/Grow after- hooks and all shrink hooks the following environment variables available:\n\n  CLUSTER_NAME - the name of the cluster the action is running on\n\n  NODE_NO - the node number(s) of the instance(s) the action is running on, comma separated\n\n")
+	return nil
 }
 
 type InstancesApplyCmdHooks struct {
-	BeforeEachCreate flags.Filename `short:"B" long:"before-each-create" description:"Path to a command or script to run before each instance is created if cluster does not exist"`
-	BeforeEachGrow   flags.Filename `short:"G" long:"before-each-grow" description:"Path to a command or script to run before each instance is added when growing the cluster"`
-	BeforeEachShrink flags.Filename `short:"S" long:"before-each-shrink" description:"Path to a command or script to run before each instance is removed when shrinking the cluster"`
-	Noop             flags.Filename `short:"N" long:"noop" description:"Path to a command or script to run if cluster is already at the desired size"`
-	OutputToStdout   bool           `long:"output-to-stdout" description:"Output the output of the hooks to stdout"`
+	BeforeAllCreate  []flags.Filename `long:"before-all-create" description:"Path to a command or script to run before all instances are created if cluster does not exist"`
+	AfterAllCreate   []flags.Filename `long:"after-all-create" description:"Path to a command or script to run after all instances are created if cluster does not exist"`
+	BeforeEachCreate []flags.Filename `long:"before-each-create" description:"Path to a command or script to run before each instance is created if cluster does not exist"`
+	AfterEachCreate  []flags.Filename `long:"after-each-create" description:"Path to a command or script to run after each instance is created if cluster does not exist"`
+	BeforeAllGrow    []flags.Filename `long:"before-all-grow" description:"Path to a command or script to run before all instances are added when growing the cluster"`
+	AfterAllGrow     []flags.Filename `long:"after-all-grow" description:"Path to a command or script to run after all instances are added when growing the cluster"`
+	BeforeEachGrow   []flags.Filename `long:"before-each-grow" description:"Path to a command or script to run before each instance is added when growing the cluster"`
+	AfterEachGrow    []flags.Filename `long:"after-each-grow" description:"Path to a command or script to run after each instance is added when growing the cluster"`
+	BeforeAllShrink  []flags.Filename `long:"before-all-shrink" description:"Path to a command or script to run before all instances are removed when shrinking the cluster"`
+	AfterAllShrink   []flags.Filename `long:"after-all-shrink" description:"Path to a command or script to run after all instances are removed when shrinking the cluster"`
+	BeforeEachShrink []flags.Filename `long:"before-each-shrink" description:"Path to a command or script to run before each instance is removed when shrinking the cluster"`
+	AfterEachShrink  []flags.Filename `long:"after-each-shrink" description:"Path to a command or script to run after each instance is removed when shrinking the cluster"`
+	Noop             []flags.Filename `long:"noop" description:"Path to a command or script to run if cluster is already at the desired size"`
+	OutputToStdout   bool             `long:"output-to-stdout" description:"Output the output of the hooks to stdout"`
 }
 
 func (c *InstancesApplyCmd) Execute(args []string) error {
@@ -100,9 +119,11 @@ func (c *InstancesApplyCmd) Apply(system *System, inventory *backends.Inventory,
 		return c.grow(system, inventory, args, c.Count-cluster.Count())
 	case "noop":
 		system.Logger.Info("Cluster %s is already at the desired size of %d instances", c.ClusterName, c.Count)
-		err := c.runHook(system, c.Hooks.Noop)
-		if err != nil {
-			return err
+		for _, hook := range c.Hooks.Noop {
+			err := c.runHook(system, hook, map[string]string{})
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	case "shrink":
@@ -128,25 +149,71 @@ func (c *InstancesApplyCmd) create(system *System, inventory *backends.Inventory
 		Docker:             c.Docker,
 		NoInstallExpiry:    c.NoInstallExpiry,
 		DryRun:             c.DryRun,
-		Help:               c.Help,
 	}
-	if c.Hooks.BeforeEachCreate == "" {
-		_, err := create.CreateInstances(system, inventory, args, "create")
+	for _, hook := range c.Hooks.BeforeAllCreate {
+		err := c.runHook(system, hook, map[string]string{})
 		if err != nil {
 			return err
 		}
 	}
+	if len(c.Hooks.BeforeEachCreate) == 0 && len(c.Hooks.AfterEachCreate) == 0 {
+		re, err := create.CreateInstances(system, inventory, args, "create")
+		if err != nil {
+			return err
+		}
+		nodes := []int{}
+		for _, instance := range re.Describe() {
+			nodes = append(nodes, instance.NodeNo)
+		}
+		sort.Ints(nodes)
+		nodesStr := []string{}
+		for _, node := range nodes {
+			nodesStr = append(nodesStr, strconv.Itoa(node))
+		}
+		for _, hook := range c.Hooks.AfterAllCreate {
+			err := c.runHook(system, hook, map[string]string{
+				"CLUSTER_NAME": c.ClusterName,
+				"NODE_NO":      strings.Join(nodesStr, ","),
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	create.Count = 1
+	nodes := []string{}
 	for i := 0; i < c.Count; i++ {
 		a := "grow"
 		if i == 0 {
 			a = "create"
 		}
-		err := c.runHook(system, c.Hooks.BeforeEachCreate)
+		for _, hook := range c.Hooks.BeforeEachCreate {
+			err := c.runHook(system, hook, map[string]string{})
+			if err != nil {
+				return err
+			}
+		}
+		re, err := create.CreateInstances(system, inventory, args, a)
 		if err != nil {
 			return err
 		}
-		_, err = create.CreateInstances(system, inventory, args, a)
+		nodes = append(nodes, strconv.Itoa(re.Describe()[0].NodeNo))
+		for _, hook := range c.Hooks.AfterEachCreate {
+			err := c.runHook(system, hook, map[string]string{
+				"CLUSTER_NAME": c.ClusterName,
+				"NODE_NO":      nodes[i],
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	for _, hook := range c.Hooks.AfterAllCreate {
+		err := c.runHook(system, hook, map[string]string{
+			"CLUSTER_NAME": c.ClusterName,
+			"NODE_NO":      strings.Join(nodes, ","),
+		})
 		if err != nil {
 			return err
 		}
@@ -170,21 +237,67 @@ func (c *InstancesApplyCmd) grow(system *System, inventory *backends.Inventory, 
 		Docker:             c.Docker,
 		NoInstallExpiry:    c.NoInstallExpiry,
 		DryRun:             c.DryRun,
-		Help:               c.Help,
 	}
-	if c.Hooks.BeforeEachGrow == "" {
-		_, err := create.CreateInstances(system, inventory, args, "grow")
+	for _, hook := range c.Hooks.BeforeAllGrow {
+		err := c.runHook(system, hook, map[string]string{})
 		if err != nil {
 			return err
 		}
+	}
+	if len(c.Hooks.BeforeEachGrow) == 0 && len(c.Hooks.AfterEachGrow) == 0 {
+		re, err := create.CreateInstances(system, inventory, args, "grow")
+		if err != nil {
+			return err
+		}
+		nodes := []int{}
+		for _, instance := range re.Describe() {
+			nodes = append(nodes, instance.NodeNo)
+		}
+		sort.Ints(nodes)
+		nodesStr := []string{}
+		for _, node := range nodes {
+			nodesStr = append(nodesStr, strconv.Itoa(node))
+		}
+		for _, hook := range c.Hooks.AfterAllGrow {
+			err := c.runHook(system, hook, map[string]string{
+				"CLUSTER_NAME": c.ClusterName,
+				"NODE_NO":      strings.Join(nodesStr, ","),
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	create.Count = 1
+	nodes := []string{}
 	for i := 0; i < count; i++ {
-		err := c.runHook(system, c.Hooks.BeforeEachGrow)
+		for _, hook := range c.Hooks.BeforeEachGrow {
+			err := c.runHook(system, hook, map[string]string{})
+			if err != nil {
+				return err
+			}
+		}
+		re, err := create.CreateInstances(system, inventory, args, "grow")
 		if err != nil {
 			return err
 		}
-		_, err = create.CreateInstances(system, inventory, args, "grow")
+		nodes = append(nodes, strconv.Itoa(re.Describe()[0].NodeNo))
+		for _, hook := range c.Hooks.AfterEachGrow {
+			err := c.runHook(system, hook, map[string]string{
+				"CLUSTER_NAME": c.ClusterName,
+				"NODE_NO":      nodes[i],
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	for _, hook := range c.Hooks.AfterAllGrow {
+		err := c.runHook(system, hook, map[string]string{
+			"CLUSTER_NAME": c.ClusterName,
+			"NODE_NO":      strings.Join(nodes, ","),
+		})
 		if err != nil {
 			return err
 		}
@@ -212,21 +325,62 @@ func (c *InstancesApplyCmd) shrink(system *System, inventory *backends.Inventory
 			ClusterName: c.ClusterName,
 			NodeNo:      strings.Join(nodesStr, ","),
 		},
-		Help: c.Help,
 	}
-	if c.Hooks.BeforeEachShrink == "" {
+	for _, hook := range c.Hooks.BeforeAllShrink {
+		err := c.runHook(system, hook, map[string]string{
+			"CLUSTER_NAME": c.ClusterName,
+			"NODE_NO":      strings.Join(nodesStr, ","),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	if len(c.Hooks.BeforeEachShrink) == 0 && len(c.Hooks.AfterEachShrink) == 0 {
 		_, err := destroy.DestroyInstances(system, inventory, args)
 		if err != nil {
 			return err
 		}
+		for _, hook := range c.Hooks.AfterAllShrink {
+			err := c.runHook(system, hook, map[string]string{
+				"CLUSTER_NAME": c.ClusterName,
+				"NODE_NO":      strings.Join(nodesStr, ","),
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	for i := 0; i < count; i++ {
 		destroy.Filters.NodeNo = nodesStr[i]
-		err := c.runHook(system, c.Hooks.BeforeEachShrink)
+		for _, hook := range c.Hooks.BeforeEachShrink {
+			err := c.runHook(system, hook, map[string]string{
+				"CLUSTER_NAME": c.ClusterName,
+				"NODE_NO":      nodesStr[i],
+			})
+			if err != nil {
+				return err
+			}
+		}
+		_, err := destroy.DestroyInstances(system, inventory, args)
 		if err != nil {
 			return err
 		}
-		_, err = destroy.DestroyInstances(system, inventory, args)
+		for _, hook := range c.Hooks.AfterEachShrink {
+			err := c.runHook(system, hook, map[string]string{
+				"CLUSTER_NAME": c.ClusterName,
+				"NODE_NO":      nodesStr[i],
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	for _, hook := range c.Hooks.AfterAllShrink {
+		err := c.runHook(system, hook, map[string]string{
+			"CLUSTER_NAME": c.ClusterName,
+			"NODE_NO":      strings.Join(nodesStr, ","),
+		})
 		if err != nil {
 			return err
 		}
@@ -234,13 +388,16 @@ func (c *InstancesApplyCmd) shrink(system *System, inventory *backends.Inventory
 	return nil
 }
 
-func (c *InstancesApplyCmd) runHook(system *System, hook flags.Filename) error {
+func (c *InstancesApplyCmd) runHook(system *System, hook flags.Filename, env map[string]string) error {
 	if c.DryRun {
 		system.Logger.Info("DRY-RUN: Would run hook %s", string(hook))
 		return nil
 	}
 	system.Logger.Info("Running hook %s", string(hook))
 	cmd := exec.Command("bash", "-c", string(hook))
+	for k, v := range env {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
 	var buf bytes.Buffer
 	if c.Hooks.OutputToStdout {
 		cmd.Stdout = os.Stdout
