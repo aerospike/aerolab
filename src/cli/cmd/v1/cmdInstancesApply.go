@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -391,8 +392,13 @@ func (c *InstancesApplyCmd) runHook(system *System, hook flags.Filename, env map
 		return nil
 	}
 	system.Logger.Info("Running hook %s", string(hook))
-	// TODO: bash won't work on windows :/
-	cmd := exec.Command("bash", "-c", string(hook))
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/C", string(hook))
+	} else {
+		cmd = exec.Command("bash", "-c", string(hook))
+	}
 	for k, v := range env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
