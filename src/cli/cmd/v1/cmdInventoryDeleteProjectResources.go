@@ -24,11 +24,8 @@ func (c *InventoryDeleteProjectResourcesCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.DeleteProjectResources(system, system.Backend.GetInventory(), args)
-	if err != nil {
-		return Error(err, system, cmd, c, args)
-	}
-	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

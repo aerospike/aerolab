@@ -21,11 +21,8 @@ func (c *InstancesAssignFirewallsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.AssignFirewalls(system, system.Backend.GetInventory(), args)
-	if err != nil {
-		return Error(err, system, cmd, c, args)
-	}
-	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -47,11 +44,8 @@ func (c *InstancesRemoveFirewallsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.RemoveFirewalls(system, system.Backend.GetInventory(), args)
-	if err != nil {
-		return Error(err, system, cmd, c, args)
-	}
-	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
