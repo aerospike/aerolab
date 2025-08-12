@@ -30,11 +30,8 @@ func (c *ImagesCreateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	_, err = c.CreateImage(system, system.Backend.GetInventory(), args)
-	if err != nil {
-		return Error(err, system, cmd, c, args)
-	}
-	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

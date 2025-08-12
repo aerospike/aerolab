@@ -38,7 +38,7 @@ type InstancesApplyCmdHelp struct {
 }
 
 func (c *InstancesApplyCmdHelp) Execute(args []string) error {
-	PrintHelp(c.AllBackends, "Each hook can be specified multiple times, and will be run in the order specified.\n\nCreate/Grow after- hooks and all shrink hooks the following environment variables available:\n\n  CLUSTER_NAME - the name of the cluster the action is running on\n\n  NODE_NO - the node number(s) of the instance(s) the action is running on, comma separated\n\n")
+	PrintHelp(c.AllBackends, "Each hook can be specified multiple times, and will be run in the order specified.\n\nCreate/Grow after- hooks and all shrink hooks the following environment variables available:\n  CLUSTER_NAME - the name of the cluster the action is running on\n  NODE_NO - the node number(s) of the instance(s) the action is running on, comma separated\n\n")
 	return nil
 }
 
@@ -67,11 +67,8 @@ func (c *InstancesApplyCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.Apply(system, system.Backend.GetInventory(), args)
-	if err != nil {
-		return Error(err, system, cmd, c, args)
-	}
-	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -394,6 +391,7 @@ func (c *InstancesApplyCmd) runHook(system *System, hook flags.Filename, env map
 		return nil
 	}
 	system.Logger.Info("Running hook %s", string(hook))
+	// TODO: bash won't work on windows :/
 	cmd := exec.Command("bash", "-c", string(hook))
 	for k, v := range env {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))

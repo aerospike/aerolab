@@ -200,9 +200,6 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	if err != nil {
 		log.Printf("ERROR: Could not save file: %s", err)
 	}
-	err = UpdateDiskCache(system)
-	if err != nil {
-		return Error(err, system, []string{"config", "backend"}, c, args)
-	}
+	UpdateDiskCache(system)
 	return nil
 }

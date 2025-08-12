@@ -118,11 +118,8 @@ func (c *InstancesGrowCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	_, err = c.CreateInstances(system, system.Backend.GetInventory(), args, "grow")
-	if err != nil {
-		return Error(err, system, cmd, c, args)
-	}
-	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -139,11 +136,8 @@ func (c *InstancesCreateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	_, err = c.CreateInstances(system, system.Backend.GetInventory(), args, "create")
-	if err != nil {
-		return Error(err, system, cmd, c, args)
-	}
-	err = UpdateDiskCache(system)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
