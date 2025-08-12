@@ -21,6 +21,7 @@ type InstancesCmd struct {
 	RemoveTags      InstancesRemoveTagsCmd      `command:"remove-tags" subcommands-optional:"true" description:"Remove tags from instances" webicon:"fas fa-tags"`
 	AssignFirewalls InstancesAssignFirewallsCmd `command:"assign-firewalls" subcommands-optional:"true" description:"Assign firewalls to instances" webicon:"fas fa-firewall"`
 	RemoveFirewalls InstancesRemoveFirewallsCmd `command:"remove-firewalls" subcommands-optional:"true" description:"Remove firewalls from instances" webicon:"fas fa-firewall"`
+	ChangeExpiry    InstancesChangeExpiryCmd    `command:"change-expiry" subcommands-optional:"true" description:"Change the expiry of instances" webicon:"fas fa-calendar-alt"`
 	Destroy         InstancesDestroyCmd         `command:"destroy" subcommands-optional:"true" description:"Destroy an instance or cluster" webicon:"fas fa-trash"`
 	Help            HelpCmd                     `command:"help" subcommands-optional:"true" description:"Print help"`
 }
