@@ -17,7 +17,7 @@ type InstancesStopCmd struct {
 
 func (c *InstancesStopCmd) Execute(args []string) error {
 	cmd := []string{"instances", "stop"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
