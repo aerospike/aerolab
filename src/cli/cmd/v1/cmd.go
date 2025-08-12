@@ -16,7 +16,7 @@ type Commands struct {
 	//Template templateCmd    `command:"template" subcommands-optional:"true" description:"Manage or delete templates" webicon:"fas fa-file-image"`
 	Installer InstallerCmd `command:"installer" subcommands-optional:"true" description:"List or download Aerospike installer versions" webicon:"fas fa-plus"`
 	//Logs         logsCmd         `command:"logs" subcommands-optional:"true" description:"show or download logs" webicon:"fas fa-bars-progress"`
-	//Files        filesCmd        `command:"files" subcommands-optional:"true" description:"Upload/Download files to/from clients or clusters" webicon:"fas fa-file"`
+	Files FilesCmd `command:"files" subcommands-optional:"true" description:"Upload/Download files to/from instances" webicon:"fas fa-file"`
 	//XDR          xdrCmd          `command:"xdr" subcommands-optional:"true" description:"Mange clusters' xdr configuration" webicon:"fas fa-object-group"`
 	//Roster       rosterCmd       `command:"roster" subcommands-optional:"true" description:"Show or apply strong-consistency rosters" webicon:"fas fa-sliders"`
 	Completion CompletionCmd `command:"completion" subcommands-optional:"true" description:"Install shell completion scripts" webicon:"fas fa-arrows-turn-to-dots" webhidden:"true"`
