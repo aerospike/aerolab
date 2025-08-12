@@ -15,7 +15,7 @@ type InstancesAssignFirewallsCmd struct {
 
 func (c *InstancesAssignFirewallsCmd) Execute(args []string) error {
 	cmd := []string{"instances", "assign-firewalls"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -38,7 +38,7 @@ type InstancesRemoveFirewallsCmd struct {
 
 func (c *InstancesRemoveFirewallsCmd) Execute(args []string) error {
 	cmd := []string{"instances", "remove-firewalls"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

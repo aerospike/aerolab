@@ -61,8 +61,8 @@ type InstancesApplyCmdHooks struct {
 }
 
 func (c *InstancesApplyCmd) Execute(args []string) error {
-	cmd := []string{"instances", "grow"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	cmd := []string{"instances", "apply"}
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

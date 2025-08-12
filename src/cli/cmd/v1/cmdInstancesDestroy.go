@@ -20,7 +20,7 @@ type InstancesDestroyCmd struct {
 
 func (c *InstancesDestroyCmd) Execute(args []string) error {
 	cmd := []string{"instances", "destroy"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

@@ -112,7 +112,7 @@ type InstancesGrowCmd struct {
 
 func (c *InstancesGrowCmd) Execute(args []string) error {
 	cmd := []string{"instances", "grow"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -130,7 +130,7 @@ func (c *InstancesGrowCmd) Execute(args []string) error {
 
 func (c *InstancesCreateCmd) Execute(args []string) error {
 	cmd := []string{"instances", "create"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

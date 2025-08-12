@@ -15,7 +15,7 @@ type InstancesAddTagsCmd struct {
 
 func (c *InstancesAddTagsCmd) Execute(args []string) error {
 	cmd := []string{"instances", "add-tags"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -77,7 +77,7 @@ type InstancesRemoveTagsCmd struct {
 
 func (c *InstancesRemoveTagsCmd) Execute(args []string) error {
 	cmd := []string{"instances", "remove-tags"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: false}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
