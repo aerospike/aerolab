@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
@@ -8,7 +9,8 @@ import (
 
 type InstancesUpdateHostsFileCmd struct {
 	On                 []string `short:"o" long:"on" description:"Update hosts file on these clusters only; default: all clusters"`
-	With               []string `short:"w" long:"with" description:"Include only these cluster instances; default: all instances"`
+	With               []string `short:"w" long:"with" description:"Include only instances in these clusters; default: all clusters"`
+	IgnoreNotRunning   bool     `short:"i" long:"ignore-not-running" description:"Ignore instances that are not running"`
 	ParallelSSHThreads int      `short:"p" long:"parallel-ssh-threads" description:"Number of parallel SSH threads" default:"10"`
 	Help               HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -41,14 +43,22 @@ func (c *InstancesUpdateHostsFileCmd) UpdateHostsFile(system *System, inventory 
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	on := inventory.Instances.Describe()
-	with := inventory.Instances.Describe()
+	on := inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).Describe()
+	with := inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).Describe()
 	if len(c.On) > 0 {
 		on = inventory.Instances.WithClusterName(c.On...).Describe()
 	}
 	if len(c.With) > 0 {
 		with = inventory.Instances.WithClusterName(c.With...).Describe()
 	}
+	if on.WithState(backends.LifeCycleStateRunning).Count() != on.Count() && !c.IgnoreNotRunning {
+		return fmt.Errorf("some instances are not running, use --ignore-not-running to update the hosts file anyway")
+	}
+	if with.WithState(backends.LifeCycleStateRunning).Count() != with.Count() && !c.IgnoreNotRunning {
+		return fmt.Errorf("some instances are not running, use --ignore-not-running to update the hosts file anyway")
+	}
+	on = on.WithState(backends.LifeCycleStateRunning).Describe()
+	with = with.WithState(backends.LifeCycleStateRunning).Describe()
 	err := on.UpdateHostsFile(with, c.ParallelSSHThreads)
 	if err != nil {
 		return err

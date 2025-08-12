@@ -65,7 +65,7 @@ func (c *InstancesAssignFirewallsCmd) AssignFirewalls(system *System, inventory 
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	instances, err := c.Filter.filter(inventory.Instances.Describe(), true)
+	instances, err := c.Filter.filter(inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).Describe(), true)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func (c *InstancesRemoveFirewallsCmd) RemoveFirewalls(system *System, inventory 
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	instances, err := c.Filter.filter(inventory.Instances.Describe(), true)
+	instances, err := c.Filter.filter(inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).Describe(), true)
 	if err != nil {
 		return err
 	}

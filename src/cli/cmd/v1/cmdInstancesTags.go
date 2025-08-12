@@ -43,7 +43,7 @@ func (c *InstancesAddTagsCmd) AddTags(system *System, inventory *backends.Invent
 		inventory = system.Backend.GetInventory()
 	}
 
-	instances, err := c.Filter.filter(inventory.Instances.Describe(), true)
+	instances, err := c.Filter.filter(inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).Describe(), true)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func (c *InstancesRemoveTagsCmd) RemoveTags(system *System, inventory *backends.
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	instances, err := c.Filter.filter(inventory.Instances.Describe(), true)
+	instances, err := c.Filter.filter(inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).Describe(), true)
 	if err != nil {
 		return err
 	}
