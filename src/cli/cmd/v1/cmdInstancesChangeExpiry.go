@@ -44,7 +44,7 @@ func (c *InstancesChangeExpiryCmd) ChangeExpiryInstances(system *System, invento
 		inventory = system.Backend.GetInventory()
 	}
 
-	instances, err := c.Filters.filter(inventory.Instances.WithState(backends.LifeCycleStateStopped).Describe(), true)
+	instances, err := c.Filters.filter(inventory.Instances.WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).Describe(), true)
 	if err != nil {
 		return nil, err
 	}
