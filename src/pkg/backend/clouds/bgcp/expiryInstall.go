@@ -72,21 +72,31 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 		}
 	} else {
 		// if force is false, only remove if the version is different or installation failed
+		newZones := []string{}
 		for _, region := range zones {
+			found := false
 			for _, expirySystem := range expirySystems {
 				if expirySystem.Zone == region {
+					found = true
 					if expirySystem.InstallationSuccess {
 						installedVersion, _ := strconv.ParseFloat(strings.Trim(expirySystem.Version, "\r\n\t "), 64)
 						latestVersion, _ := strconv.ParseFloat(strings.Trim(backends.ExpiryVersion, "\r\n\t "), 64)
 						if installedVersion < latestVersion {
 							toRemove = append(toRemove, region)
+							newZones = append(newZones, region)
 						}
 					} else {
 						toRemove = append(toRemove, region)
+						newZones = append(newZones, region)
 					}
+					break
 				}
 			}
+			if !found {
+				newZones = append(newZones, region)
+			}
 		}
+		zones = newZones
 		if len(toRemove) > 0 {
 			err = s.ExpiryRemove(toRemove...)
 			if err != nil {
