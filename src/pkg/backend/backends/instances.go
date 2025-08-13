@@ -113,6 +113,8 @@ type InstanceAction interface {
 	Exec(*ExecInput) []*ExecOutput
 	// get sftp config
 	GetSftpConfig(username string) ([]*sshexec.ClientConf, error)
+	// get ssh key path
+	GetSSHKeyPath() []string
 	// firewalls
 	AssignFirewalls(fw FirewallList) error
 	RemoveFirewalls(fw FirewallList) error
@@ -263,6 +265,10 @@ func (i *Instance) GetSftpConfig(username string) (*sshexec.ClientConf, error) {
 		return nil, err
 	}
 	return out[0], nil
+}
+
+func (i *Instance) GetSSHKeyPath() string {
+	return InstanceList{i}.GetSSHKeyPath()[0]
 }
 
 // list of all Instances, for the Inventory interface
@@ -606,7 +612,25 @@ func (v InstanceList) GetSftpConfig(username string) ([]*sshexec.ClientConf, err
 		}()
 	}
 	wait.Wait()
-	return outs, nil
+	return outs, nerr
+}
+
+func (v InstanceList) GetSSHKeyPath() []string {
+	var outs []string
+	wait := new(sync.WaitGroup)
+	for _, c := range ListBackendTypes() {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			if v.WithBackendType(c).Count() == 0 {
+				return
+			}
+			out := cloudList[c].InstancesGetSSHKeyPath(v.WithBackendType(c).Describe())
+			outs = append(outs, out...)
+		}()
+	}
+	wait.Wait()
+	return outs
 }
 
 func (v InstanceList) AssignFirewalls(fw FirewallList) error {

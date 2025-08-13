@@ -559,6 +559,17 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 	return out
 }
 
+func (s *b) InstancesGetSSHKeyPath(instances backends.InstanceList) []string {
+	log := s.log.WithPrefix("InstancesGetSSHKeyPath: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	out := []string{}
+	for range instances {
+		out = append(out, path.Join(s.sshKeysDir, s.project))
+	}
+	return out
+}
+
 func (s *b) InstancesGetSftpConfig(instances backends.InstanceList, username string) ([]*sshexec.ClientConf, error) {
 	log := s.log.WithPrefix("InstancesGetSftpConfig: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
