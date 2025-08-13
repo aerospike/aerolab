@@ -32,11 +32,15 @@ type InstancesCreateCmd struct {
 	Count              int                      `short:"c" long:"count" description:"Number of instances to create" default:"1"`
 	Name               string                   `short:"N" long:"name" description:"Name of the instance to create (since count instances only)"`
 	Owner              string                   `short:"o" long:"owner" description:"Owner of the instances"`
+	Type               string                   `short:"e" long:"type" description:"Type of the instances (aerospike, client, etc.), will create aerolab.type tag" default:"none"`
 	Tags               []string                 `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
 	Description        string                   `short:"d" long:"description" description:"Description of the instances"`
 	TerminateOnStop    bool                     `short:"T" long:"terminate-on-stop" description:"Terminate the instances when they are stopped"`
 	ParallelSSHThreads int                      `short:"p" long:"parallel-ssh-threads" description:"Number of parallel SSH threads to use for the instances" default:"10"`
 	SSHKeyName         string                   `short:"k" long:"ssh-key-name" description:"Name of a custom SSH key to use for the instances"`
+	OS                 string                   `long:"os" description:"OS to use for the instances" default:"ubuntu"`
+	Version            string                   `long:"version" description:"Version of the OS to use for the instances" default:"24.04"`
+	Arch               string                   `long:"arch" description:"Architecture override to use for the instances (amd64, arm64)"`
 	AWS                InstancesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
 	GCP                InstancesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
 	Docker             InstancesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
@@ -65,7 +69,7 @@ func (d *InstanceDNS) makeInstanceDNS() *backends.InstanceDNS {
 }
 
 type InstancesCreateCmdAws struct {
-	ImageName          string        `long:"image" description:"Name of the image to use for the instances"`
+	ImageID            string        `long:"image" description:"Custom image ID to use for the instances; ignores OS, Version, Arch"`
 	Expire             time.Duration `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
 	NetworkPlacement   string        `long:"placement" description:"Network placement of the instances, specify either region name, VPC-ID or subnet-ID; empty=default at first region"`
 	InstanceType       string        `long:"instance" description:"Instance type to use for the instances"`
@@ -75,11 +79,10 @@ type InstancesCreateCmdAws struct {
 	DisablePublicIP    bool          `long:"no-public-ip" description:"Disable public IP assignment to the instances"`
 	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
 	CustomDNS          InstanceDNS   `group:"Automated Custom Route53 DNS" namespace:"dns" description:"backend-aws"`
-	CustomImage        bool          `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; will cause an image lookup during creation; use with --image <image-id>"`
 }
 
 type InstancesCreateCmdGcp struct {
-	ImageName          string        `long:"image" description:"Name of the image to use for the instances"`
+	ImageName          string        `long:"image" description:"Custom image name to use for the instances; ignores OS, Version, Arch; format: projects/<project>/global/images/<image>"`
 	Expire             time.Duration `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
 	Zone               string        `long:"zone" description:"Network placement of the instances, specify a zone name; empty=default at first region"`
 	InstanceType       string        `long:"instance" description:"Instance type to use for the instances"`
@@ -89,11 +92,10 @@ type InstancesCreateCmdGcp struct {
 	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
 	MinCPUPlatform     string        `long:"min-cpu-platform" description:"Minimum CPU platform to use for the instances"`
 	CustomDNS          InstanceDNS   `group:"Automated Custom GCP DNS" namespace:"dns" description:"backend-gcp"`
-	CustomImage        bool          `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; will cause an image lookup during creation; use with --image projects/<project>/global/images/<image>"`
 }
 
 type InstancesCreateCmdDocker struct {
-	ImageName          string         `long:"image" description:"Name of the image to use for the instances"`
+	ImageName          string         `long:"image" description:"Custom image name to use for the instances; ignores OS, Version, Arch"`
 	NetworkName        string         `long:"network" description:"Name of the network to use for the instances; default: default"` // convert to ",VALUE" for docker
 	Disks              []string       `long:"disk" description:"Format: {volumeName}:{mountTargetDirectory}; example: volume1:/mnt/data; used for mounting volumes to containers at startup"`
 	ExposePorts        []string       `long:"expose" description:"Format: [+]{hostPort}:{containerPort} or host={hostIP:hostPORT},container={containerPORT},incr or [+]{hostIP:hostPORT},{containerPORT}\n; example: 8080:80 or +8080:80 or host=0.0.0.0:8080,container=80,incr\n; + or incr maps to next available port"`
@@ -103,7 +105,6 @@ type InstancesCreateCmdDocker struct {
 	MaxRestartRetries  int            `long:"max-restart-retries" description:"Maximum number of restart attempts"`
 	ShmSize            int64          `long:"shm-size" description:"Size of /dev/shm in bytes"`
 	AdvancedConfigPath flags.Filename `long:"advanced-config" description:"Path to JSON file containing advanced Docker container configuration"`
-	CustomImage        bool           `long:"custom-image" description:"Use a custom image, even if it is not in the inventory; won't install systemd/ssh and will use docker's exec for attaching"`
 }
 
 type InstancesGrowCmd struct {
@@ -167,7 +168,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	}
 
 	if c.Name != "" {
-		if inventory.Instances.WithName(c.Name).Count() > 0 {
+		if inventory.Instances.WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).WithName(c.Name).Count() > 0 {
 			if IsInteractive() {
 				choice, quitting, err := choice.Choice("Instance with name "+c.Name+" already exists. What do you want to do?", choice.Items{
 					choice.Item("Destroy"),
@@ -213,7 +214,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 
 	switch action {
 	case "create":
-		if inventory.Instances.WithClusterName(c.ClusterName).Count() > 0 {
+		if inventory.Instances.WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).WithClusterName(c.ClusterName).Count() > 0 {
 			if IsInteractive() {
 				choice, quitting, err := choice.Choice("Cluster "+c.ClusterName+" already exists. What do you want to do?", choice.Items{
 					choice.Item("Destroy"),
@@ -251,7 +252,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			}
 		}
 	case "grow":
-		if inventory.Instances.WithClusterName(c.ClusterName).Count() == 0 {
+		if inventory.Instances.WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).WithClusterName(c.ClusterName).Count() == 0 {
 			if IsInteractive() {
 				choice, quitting, err := choice.Choice("Cluster "+c.ClusterName+" does not exist. What do you want to do?", choice.Items{
 					choice.Item("Create"),
@@ -334,25 +335,69 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	}
 
 	itype := ""
+	itypeArch := backends.ArchitectureNative
 	installExpiry := false
+	awsCustomImage := false
+	gcpCustomImage := false
+	dockerCustomImage := false
+
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
 		itype = c.AWS.InstanceType
-		if c.AWS.ImageName == "" {
-			return nil, errors.New("aws: image-name is required")
+	case "gcp":
+		itype = c.GCP.InstanceType
+	}
+
+	if system.Opts.Config.Backend.Type != "docker" {
+		if itype == "" {
+			return nil, errors.New("instance type is required")
 		}
-		if strings.HasPrefix(c.AWS.ImageName, "ami-") {
-			if inventory.Images.WithImageID(c.AWS.ImageName).Count() == 0 {
-				return nil, errors.New("aws: image ID " + c.AWS.ImageName + " does not exist")
+		instanceTypes, err := system.Backend.GetInstanceTypes(backends.BackendType(system.Opts.Config.Backend.Type))
+		if err != nil {
+			return nil, err
+		}
+		found := false
+		for _, it := range instanceTypes {
+			if it.Name == itype {
+				found = true
+				itypeArch = it.Arch[0]
+				break
 			}
-		} else if inventory.Images.WithName(c.AWS.ImageName).Count() == 0 {
-			return nil, errors.New("aws: image Name " + c.AWS.ImageName + " does not exist")
+		}
+		if !found {
+			return nil, errors.New("instance type " + itype + " does not exist")
+		}
+	}
+
+	switch system.Opts.Config.Backend.Type {
+	case "aws":
+		if c.AWS.ImageID == "" {
+			narch := itypeArch
+			switch c.Arch {
+			case "amd64":
+				narch = backends.ArchitectureX8664
+			case "arm64":
+				narch = backends.ArchitectureARM64
+			}
+			img := inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).Describe()
+			if img.Count() == 0 {
+				return nil, errors.New("aws: image " + c.OS + " " + c.Version + " " + c.Arch + " does not exist")
+			}
+			c.AWS.ImageID = img.Describe()[0].ImageId
+		} else {
+			awsCustomImage = true
+		}
+		if strings.HasPrefix(c.AWS.ImageID, "ami-") {
+			if inventory.Images.WithImageID(c.AWS.ImageID).Count() == 0 {
+				return nil, errors.New("aws: image ID " + c.AWS.ImageID + " does not exist")
+			}
+		} else if inventory.Images.WithName(c.AWS.ImageID).Count() == 0 {
+			return nil, errors.New("aws: image Name " + c.AWS.ImageID + " does not exist")
 		}
 		if c.AWS.Expire > 0 && !c.NoInstallExpiry {
 			installExpiry = true
 		}
 	case "gcp":
-		itype = c.GCP.InstanceType
 		if c.GCP.Zone == "" {
 			return nil, errors.New("zone is required")
 		}
@@ -368,7 +413,20 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			return nil, errors.New("zone " + zoneTest + " is not enabled")
 		}
 		if c.GCP.ImageName == "" {
-			return nil, errors.New("gcp: image-name is required")
+			narch := itypeArch
+			switch c.Arch {
+			case "amd64":
+				narch = backends.ArchitectureX8664
+			case "arm64":
+				narch = backends.ArchitectureARM64
+			}
+			img := inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).Describe()
+			if img.Count() == 0 {
+				return nil, errors.New("gcp: image " + c.OS + " " + c.Version + " " + c.Arch + " does not exist")
+			}
+			c.GCP.ImageName = img.Describe()[0].Name
+		} else {
+			gcpCustomImage = true
 		}
 		if inventory.Images.WithName(c.GCP.ImageName).Count() == 0 {
 			return nil, errors.New("gcp: image " + c.GCP.ImageName + " does not exist")
@@ -378,29 +436,19 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 	case "docker":
 		if c.Docker.ImageName == "" {
-			return nil, errors.New("docker: image-name is required")
-		}
-		if !c.Docker.CustomImage && inventory.Images.WithName(c.Docker.ImageName).Count() == 0 {
-			return nil, errors.New("docker: image " + c.Docker.ImageName + " does not exist")
-		}
-	}
-	if system.Opts.Config.Backend.Type != "docker" {
-		if itype == "" {
-			return nil, errors.New("instance type is required")
-		}
-		instanceTypes, err := system.Backend.GetInstanceTypes(backends.BackendType(system.Opts.Config.Backend.Type))
-		if err != nil {
-			return nil, err
-		}
-		found := false
-		for _, it := range instanceTypes {
-			if it.Name == itype {
-				found = true
-				break
+			narch := ""
+			switch c.Arch {
+			case "amd64":
+				narch = "amd64/"
+			case "arm64":
+				narch = "arm64v8/"
 			}
+			c.Docker.ImageName = fmt.Sprintf("%s%s:%s", narch, c.OS, c.Version)
+		} else {
+			dockerCustomImage = true
 		}
-		if !found {
-			return nil, errors.New("instance type " + itype + " does not exist")
+		if dockerCustomImage && inventory.Images.WithName(c.Docker.ImageName).Count() == 0 {
+			return nil, errors.New("docker: image " + c.Docker.ImageName + " does not exist")
 		}
 	}
 
@@ -413,9 +461,10 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 		tags[parts[0]] = parts[1]
 	}
-	if system.Opts.Config.Backend.Type == "docker" && c.Docker.CustomImage {
+	if system.Opts.Config.Backend.Type == "docker" && dockerCustomImage {
 		tags["aerolab.custom.image"] = "true"
 	}
+	tags["aerolab.type"] = c.Type
 	dockerParams := &bdocker.CreateInstanceParams{
 		Image:             nil,
 		NetworkPlacement:  c.Docker.NetworkName,
@@ -438,7 +487,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		Resources:         container.Resources{},
 		MaskedPaths:       strslice.StrSlice{},
 		ReadonlyPaths:     strslice.StrSlice{},
-		SkipSshReadyCheck: c.Docker.CustomImage,
+		SkipSshReadyCheck: dockerCustomImage,
 	}
 	if c.Docker.AdvancedConfigPath != "" {
 		f, err := os.Open(string(c.Docker.AdvancedConfigPath))
@@ -454,7 +503,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	imageName := ""
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
-		imageName = c.AWS.ImageName
+		imageName = c.AWS.ImageID
 	case "gcp":
 		imageName = c.GCP.ImageName
 	case "docker":
@@ -468,11 +517,11 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		expire = time.Now().Add(c.GCP.Expire)
 	}
 	awsCustomImageID := ""
-	if c.AWS.CustomImage {
-		awsCustomImageID = c.AWS.ImageName
+	if awsCustomImage {
+		awsCustomImageID = c.AWS.ImageID
 	}
 	gcpCustomImageID := ""
-	if c.GCP.CustomImage {
+	if gcpCustomImage {
 		gcpCustomImageID = c.GCP.ImageName
 	}
 	createInstancesInput := &backends.CreateInstanceInput{
@@ -530,17 +579,17 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		pf.Flush()
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["aws"]; ok {
-		if strings.HasPrefix(c.AWS.ImageName, "ami-") {
-			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = inventory.Images.WithImageID(c.AWS.ImageName).Describe()[0]
+		if strings.HasPrefix(c.AWS.ImageID, "ami-") {
+			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = inventory.Images.WithImageID(c.AWS.ImageID).Describe()[0]
 		} else {
-			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = inventory.Images.WithName(c.AWS.ImageName).Describe()[0]
+			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = inventory.Images.WithName(c.AWS.ImageID).Describe()[0]
 		}
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["gcp"]; ok {
 		createInstancesInput.BackendSpecificParams["gcp"].(*bgcp.CreateInstanceParams).Image = inventory.Images.WithName(c.GCP.ImageName).Describe()[0]
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["docker"]; ok {
-		if !c.Docker.CustomImage {
+		if !dockerCustomImage {
 			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = inventory.Images.WithName(c.Docker.ImageName).Describe()[0]
 		} else {
 			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = &backends.Image{
