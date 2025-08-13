@@ -635,12 +635,12 @@ func (d *deviceName) next() string {
 }
 
 func (d *deviceName) doNext(start string) string {
-	for i := 'a'; i <= 'z'; i++ {
+	for i := 'b'; i <= 'z'; i++ {
 		x := start + string(i)
-		deviceName := "xvd" + x
+		deviceName := "xvdb" + x
 		inUse := false
 		for _, n := range d.names {
-			if !strings.HasPrefix(n, "xvd") && !strings.HasPrefix(n, "/dev/xvd") {
+			if !strings.HasPrefix(n, "xvdb") && !strings.HasPrefix(n, "/dev/xvdb") {
 				continue
 			}
 			if strings.HasSuffix(n, x) {
@@ -713,7 +713,7 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 				_, err = cli.AttachVolume(context.TODO(), &ec2.AttachVolumeInput{
 					VolumeId:   aws.String(id.FileSystemId),
 					InstanceId: aws.String(instance.InstanceID),
-					Device:     aws.String(nextDev),
+					Device:     aws.String("/dev/" + nextDev),
 				})
 				if err != nil {
 					reterr = errors.Join(reterr, err)

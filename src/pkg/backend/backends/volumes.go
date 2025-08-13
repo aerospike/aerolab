@@ -28,6 +28,7 @@ type CreateVolumeOutput struct {
 type VolumeType int
 
 const (
+	VolumeTypeUnknown      VolumeType = iota // unknown volume type
 	VolumeTypeAttachedDisk VolumeType = iota // example: pd-ssd,ebs
 	VolumeTypeSharedDisk   VolumeType = iota // example: EFS
 )

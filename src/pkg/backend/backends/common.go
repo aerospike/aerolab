@@ -193,6 +193,12 @@ func (a VolumeState) String() string {
 		return "Fail"
 	case VolumeStateConfiguring:
 		return "Configuring"
+	case VolumeStateUnknown:
+		return "Unknown"
+	case VolumeStateAttaching:
+		return "Attaching"
+	case VolumeStateDetaching:
+		return "Detaching"
 	default:
 		return "unknown"
 	}
@@ -214,6 +220,12 @@ func (a *VolumeState) FromString(s string) error {
 		*a = VolumeStateFail
 	case "Configuring":
 		*a = VolumeStateConfiguring
+	case "Unknown":
+		*a = VolumeStateUnknown
+	case "Attaching":
+		*a = VolumeStateAttaching
+	case "Detaching":
+		*a = VolumeStateDetaching
 	default:
 		return fmt.Errorf("unknown volume state: %s", s)
 	}
