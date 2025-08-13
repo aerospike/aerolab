@@ -399,7 +399,8 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 	case "gcp":
 		if c.GCP.Zone == "" {
-			return nil, errors.New("zone is required")
+			c.GCP.Zone = system.Opts.Config.Backend.Region + "-a"
+			system.Logger.Info("Using default zone %s", c.GCP.Zone)
 		}
 		regions, err := system.Backend.ListEnabledRegions(backends.BackendType(system.Opts.Config.Backend.Type))
 		if err != nil {
