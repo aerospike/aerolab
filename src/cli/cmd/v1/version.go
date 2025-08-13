@@ -8,7 +8,8 @@ import (
 //go:generate bash -c "git rev-parse --short HEAD > embed_commit.txt"
 //go:generate bash version.sh
 //go:generate bash -c "echo '-unofficial' > embed_tail.txt"
-//go:generate bash -c "cp embed_commit.txt ../../../web/dev/version.cfg"
+//go:generate bash -c "cp embed_commit.txt ../../../../web/dev/version.cfg"
+//go:generate bash -c "cd ../../../pkg/expiry && bash compile.sh"
 
 //go:embed embed_commit.txt
 var vCommit string
