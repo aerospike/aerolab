@@ -104,6 +104,7 @@ type Cloud interface {
 	InstancesStart(instances InstanceList, waitDur time.Duration) error
 	InstancesExec(instances InstanceList, e *ExecInput) []*ExecOutput
 	InstancesGetSftpConfig(instances InstanceList, username string) ([]*sshexec.ClientConf, error)
+	InstancesGetSSHKeyPath(instances InstanceList) []string
 	InstancesAssignFirewalls(instances InstanceList, fw FirewallList) error
 	InstancesRemoveFirewalls(instances InstanceList, fw FirewallList) error
 	InstancesUpdateHostsFile(instances InstanceList, hostsEntries []string, parallelSSHThreads int) error
