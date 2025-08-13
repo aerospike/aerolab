@@ -126,9 +126,20 @@ func (i *Sftp) ReadFile(f *FileReader) error {
 
 // upload files recursively to remote
 func (i *Sftp) Upload(sourcePath string, destPath string) error {
+	return i.upload(sourcePath, destPath, path.Base(sourcePath), 0)
+}
+
+func (i *Sftp) upload(sourcePath string, destPath string, sourceRoot string, depth int) error {
 	info, err := os.Stat(sourcePath)
 	if err != nil {
 		return fmt.Errorf("failed to get source info: %v", err)
+	}
+
+	// if destPath exists and is a directory, append the source file name to the destPath
+	if depth == 0 {
+		if st, err := i.client.Stat(destPath); err == nil && st.IsDir() {
+			destPath = path.Join(destPath, sourceRoot)
+		}
 	}
 
 	// Check if source is a directory
@@ -150,7 +161,7 @@ func (i *Sftp) Upload(sourcePath string, destPath string) error {
 			dst := path.Join(destPath, entry.Name())
 
 			// Recursively call Upload
-			err = i.Upload(src, dst)
+			err = i.upload(src, dst, sourceRoot, depth+1)
 			if err != nil {
 				return fmt.Errorf("failed to upload %s: %v", src, err)
 			}
@@ -186,6 +197,10 @@ func (i *Sftp) uploadFile(sourcePath string, destPath string) error {
 
 // download files recursively from remote
 func (i *Sftp) Download(sourcePath string, destPath string) error {
+	return i.download(sourcePath, destPath, 0)
+}
+
+func (i *Sftp) download(sourcePath string, destPath string, depth int) error {
 	info, err := i.client.Stat(sourcePath)
 	if err != nil {
 		return fmt.Errorf("failed to get remote source info: %v", err)
@@ -210,14 +225,14 @@ func (i *Sftp) Download(sourcePath string, destPath string) error {
 			dst := path.Join(destPath, entry.Name())
 
 			// Recursively call Download
-			err = i.Download(src, dst)
+			err = i.download(src, dst, depth+1)
 			if err != nil {
 				return fmt.Errorf("failed to download %s: %v", src, err)
 			}
 		}
 	} else {
 		// Download a single file
-		err = i.downloadFile(sourcePath, destPath)
+		err = i.downloadFile(sourcePath, destPath, depth)
 		if err != nil {
 			return err
 		}
@@ -226,7 +241,15 @@ func (i *Sftp) Download(sourcePath string, destPath string) error {
 	return nil
 }
 
-func (i *Sftp) downloadFile(sourcePath string, destPath string) error {
+func (i *Sftp) downloadFile(sourcePath string, destPath string, depth int) error {
+	if depth == 0 {
+		// Check if destPath is a directory
+		destInfo, err := os.Stat(destPath)
+		if err == nil && destInfo.IsDir() {
+			// Join destPath with filename from sourcePath
+			destPath = path.Join(destPath, path.Base(sourcePath))
+		}
+	}
 	file, err := os.Create(destPath)
 	if err != nil {
 		return fmt.Errorf("failed to create local file: %v", err)
