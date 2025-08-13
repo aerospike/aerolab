@@ -2,14 +2,10 @@
 
 ## Next - MVP
 
+Finish coding and test: volumes, attach shell
+
 CODE:
-* all `volumes` subcommands
-* subcommands:
-  * `inventory ansible`
-  * `inventory genders`
-  * `inventory hostfile`
-* files - upload/download files to/from instances
-* attach - wrapper around instances attach, plus extra functionality
+* attach - client, aql, asadm, asinfo, agi, trino
 * template - create aerospike templates (wrap instances create, install aerospike, instances stop, images create, instances destroy)
 * cluster, client - wrapper around instances command + templates + their own software installation and configuration
 * conf - manager aerospike configuration on running instances
