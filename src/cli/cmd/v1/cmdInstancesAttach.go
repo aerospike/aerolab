@@ -10,6 +10,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/rglonek/go-flags"
 )
 
 type InstancesAttachCmd struct {
@@ -18,6 +19,9 @@ type InstancesAttachCmd struct {
 	SessionTimeout  time.Duration       `short:"S" long:"session-timeout" description:"Session timeout"`
 	Env             []string            `short:"e" long:"env" description:"Environment variables to set, as k=v"`
 	NoTerminal      bool                `long:"no-terminal" description:"Do not use a terminal"`
+	Out             flags.Filename      `long:"stdout" description:"Path output file to redirect stdout to"`
+	Err             flags.Filename      `long:"stderr" description:"Path output file to redirect stderr to (only works if --no-terminal is specified, otherwise all output goes to stdout)"`
+	Detach          bool                `long:"detach" description:"detach the process stdin - will not kill process on CTRL+C; it is up to the process to detach stdout/err"`
 	Filters         InstancesListFilter `group:"Filters" namespace:"filter"`
 	Help            AttachHelpCmd       `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -45,6 +49,8 @@ func (c *InstancesAttachCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
+// if c.Out or c.Err is set, it will redirect stdout/stderr to the file, ignoring the stdout/stderr parameters
+// if c.Detach is set, stdin will be nil, and the prameter will be ignored
 func (c *InstancesAttachCmd) AttachInstances(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer) (output []*backends.ExecOutput, err error) {
 	if system == nil {
 		var err error
@@ -78,6 +84,25 @@ func (c *InstancesAttachCmd) AttachInstances(system *System, inventory *backends
 		env = append(env, &sshexec.Env{Key: parts[0], Value: parts[1]})
 	}
 
+	if c.Detach {
+		stdin = nil
+	}
+	if c.Out != "" {
+		out, err := os.OpenFile(string(c.Out), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, err
+		}
+		stdout = out
+		defer out.Close()
+	}
+	if c.Err != "" {
+		eout, err := os.OpenFile(string(c.Err), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, err
+		}
+		stderr = eout
+		defer eout.Close()
+	}
 	output = instances.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        args,
