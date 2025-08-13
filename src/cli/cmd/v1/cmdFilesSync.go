@@ -110,7 +110,7 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 	if c.SourceCluster.String() == c.DestinationCluster.String() {
 		if len(destInt) > 0 {
 			if slices.Contains(destInt, int(c.SourceNode)) {
-				destInt = slices.Delete(destInt, slices.Index(destInt, int(c.SourceNode)), 1)
+				destInt = slices.Delete(destInt, slices.Index(destInt, int(c.SourceNode)), slices.Index(destInt, int(c.SourceNode))+1)
 				dest = dest.WithNodeNo(destInt...).Describe()
 			}
 		}
@@ -144,7 +144,7 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 	// upload to destination
 	up := &FilesUploadCmd{
 		ClusterName:     c.DestinationCluster,
-		Nodes:           c.DestinationNodes,
+		Nodes:           TypeNodes(strings.Join(destNodes, ",")),
 		ParallelThreads: c.ParallelThreads,
 		Files: FilesRestUploadCmd{
 			Source:      flags.Filename(path.Join(tmpPath, string(c.Path.Path))),
