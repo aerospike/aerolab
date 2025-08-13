@@ -109,10 +109,10 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 			if err != nil {
 				return err
 			}
-			if opts == "abort" || abort {
+			if opts == "Abort" || abort {
 				return errors.New("destination already exists")
 			}
-			if opts == "remove" {
+			if opts == "Remove" {
 				err = os.RemoveAll(string(c.Files.Destination))
 				if err != nil {
 					return err
