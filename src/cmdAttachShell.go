@@ -39,7 +39,7 @@ func (c *attachShellCmd) run(args []string) (err error) { // method "run"
 
 	var nodes []int
 	err = c.Node.ExpandNodes(string(c.ClusterName))
-	if !isatty.IsTerminal(os.Stdout.Fd()) && !isatty.IsTerminal(os.Stdin.Fd()) {
+	if !isatty.IsTerminal(os.Stdout.Fd()) || !isatty.IsTerminal(os.Stdin.Fd()) {
 		return err //old functionality
 	} else {
 		if err != nil { // Handle error if expandNodes fails, check if "Available clusters" list is output
