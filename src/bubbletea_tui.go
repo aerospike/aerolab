@@ -36,7 +36,7 @@ import (
 
 //
 
-// (2) --- BubbleTea  interactive selection bread and butter compoents, don't need to change these ---
+// (2) --- BubbleTea  interactive selection bread and butter components, don't need to change these ---
 type item string
 
 func (y item) Title() string       { return string(y) } // returns item title
@@ -117,6 +117,7 @@ func (m bubbleteaModel) View() string {
 // --- BubbleTea  interactive selection bread and butter components ---
 
 // (3) YES OR NO interactive bubbletea prompt in action (please refer to cmdClusterCreate.go)
+// - accepts an optional list of prompts
 
 func yesNoPrompt(prompt string, items ...list.Item) (string, error) {
 	if len(items) == 0 {
@@ -139,17 +140,11 @@ func yesNoPrompt(prompt string, items ...list.Item) (string, error) {
 }
 
 // (4) Instructions for reusability / wrapping bubbletea around your prompts
-// 	 1. **For Yes/No style prompts:**
+// 	 (i) **For Yes/No style prompts:**
 //      - Just call `yesNoPrompt("Your question here?")`.
 //      - It will return the user's choice ("Yes" or "No") as a string.
 //
-//   2. **For other list-based prompts:**
-//      - Copy the `yesNoPrompt` function and rename it (e.g., `multiChoicePrompt`).
-//      - Replace the `items` slice with your own options, e.g.:
-//            items := []list.Item{item("Option A"), item("Option B"), item("Option C")}
-//      - Everything else (list setup, model, running the program) works the same.
-//
-//   3. **Customizing behavior:**
+//   (ii) **Customizing behavior:**
 ///      - The logic for quitting, selecting items, or rendering output
 //        lives inside `bubbleteaModel.Update` and `bubbleteaModel.View`.
 //      - If you need special behavior (like different keybindings),
