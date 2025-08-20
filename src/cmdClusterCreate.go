@@ -19,6 +19,7 @@ import (
 	"github.com/aerospike/aerolab/gcplabels"
 	"github.com/aerospike/aerolab/parallelize"
 	"github.com/bestmethod/inslice"
+	"github.com/mattn/go-isatty"
 	aeroconf "github.com/rglonek/aerospike-config-file-parser"
 	flags "github.com/rglonek/jeddevdk-goflags"
 )
@@ -533,10 +534,49 @@ func (c *clusterCreateCmd) realExecute2(args []string, isGrow bool) error {
 	}
 
 	if !isGrow && inslice.HasString(clusterList, string(c.ClusterName)) {
-		return logFatal("Cluster by this name already exists, did you mean 'cluster grow'?")
-	}
-	if isGrow && !inslice.HasString(clusterList, string(c.ClusterName)) {
-		return logFatal("Cluster by this name does not exists, did you mean 'cluster create'?")
+		if !isatty.IsTerminal(os.Stdout.Fd()) || !isatty.IsTerminal(os.Stdin.Fd()) {
+			return logFatal("Cluster by this name does not exists, did you mean 'cluster grow'? Available clusters: [%s]",
+				strings.Join(clusterList, ", "))
+		}
+
+		// instead of yesNoPrompt do "did you mean cluster grow or destroy and recreate cluster"
+		choice, err := yesNoPrompt(fmt.Sprintf("A cluster named '%s' already exists. What would you like to do: ", c.ClusterName), item("Cluster grow"), item("Destroy and recreate cluster"))
+
+		if err != nil {
+			return err
+		}
+
+		if strings.ToLower(strings.TrimSpace(choice)) == "cluster grow" {
+			return c.realExecute2(args, true)
+		}
+
+		if strings.ToLower(strings.TrimSpace(choice)) == "destroy and recreate cluster" {
+			a.opts.Cluster.Destroy.ClusterName = c.ClusterName
+			a.opts.Cluster.Destroy.Force = true
+			if err := a.opts.Cluster.Destroy.Execute(nil); err != nil {
+				return logFatal("Failed to destroy cluster: %v", err)
+			}
+			fmt.Println("Cluster destroyed. Recreating...")
+			return c.realExecute2(args, false)
+		} else {
+			return logFatal("Exited")
+		}
+
+	} else if isGrow && !inslice.HasString(clusterList, string(c.ClusterName)) {
+		if !isatty.IsTerminal(os.Stdout.Fd()) || !isatty.IsTerminal(os.Stdin.Fd()) {
+			return logFatal("Cluster by this name does not exists, did you mean 'cluster create'?")
+		}
+
+		//if terminal, prompt them
+		choice, err := yesNoPrompt(fmt.Sprintf("A cluster named '%s' already exists. Did you mean 'cluster create'?", c.ClusterName))
+		if err != nil {
+			return err
+		}
+		if strings.ToLower(strings.TrimSpace(choice)) == "yes" {
+			return c.realExecute2(args, false)
+		} else {
+			return logFatal("Exited")
+		}
 	}
 
 	totalNodes := c.NodeCount
@@ -1587,15 +1627,15 @@ sed -e "s/access-address.*/access-address ${INTIP}/g" -e "s/alternate-access-add
 
 func (c *clusterCreateCmd) thpString() string {
 	return `[Service]
-	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/enabled || echo"
-	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/defrag || echo"
-	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/enabled || echo"
-	ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/defrag || echo"
-	ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/transparent_hugepage/khugepaged/defrag || echo"
-	ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/redhat_transparent_hugepage/khugepaged/defrag || echo"
-	ExecStartPre=/bin/bash -c "sysctl -w vm.min_free_kbytes=1310720 || echo"
-	ExecStartPre=/bin/bash -c "sysctl -w vm.swappiness=0 || echo"
-	`
+ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/enabled || echo"
+ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/transparent_hugepage/defrag || echo"
+ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/enabled || echo"
+ExecStartPre=/bin/bash -c "echo 'never' > /sys/kernel/mm/redhat_transparent_hugepage/defrag || echo"
+ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/transparent_hugepage/khugepaged/defrag || echo"
+ExecStartPre=/bin/bash -c "echo 0 > /sys/kernel/mm/redhat_transparent_hugepage/khugepaged/defrag || echo"
+ExecStartPre=/bin/bash -c "sysctl -w vm.min_free_kbytes=1310720 || echo"
+ExecStartPre=/bin/bash -c "sysctl -w vm.swappiness=0 || echo"
+`
 }
 
 func isLegalName(name string) bool {

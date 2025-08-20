@@ -4,10 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mattn/go-isatty"
 )
 
 type attachShellCmd struct {
@@ -29,15 +32,41 @@ func (c *attachShellCmd) Execute(args []string) error {
 	return c.run(args)
 }
 
-func (c *attachShellCmd) run(args []string) (err error) {
+func (c *attachShellCmd) run(args []string) (err error) { // method "run"
 	if earlyProcess(args) {
 		return nil
 	}
+
 	var nodes []int
 	err = c.Node.ExpandNodes(string(c.ClusterName))
-	if err != nil {
-		return err
+	if !isatty.IsTerminal(os.Stdout.Fd()) || !isatty.IsTerminal(os.Stdin.Fd()) {
+		return err //old functionality
+	} else {
+		if err != nil { // Handle error if expandNodes fails, check if "Available clusters" list is output
+			// Offer existing cluster list, take user input, rerun command, with new cluster name
+			if strings.Contains(err.Error(), "Available clusters: [") {
+				fmt.Println(err.Error())
+				start := strings.Index(err.Error(), "[") // returns index of first occurrence of "["
+				end := strings.Index(err.Error(), "]")
+				if start != -1 && end != -1 && end > start {
+					clusters := strings.Split(err.Error()[start+1:end], ", ") // split cluster names, extract from list, creates a slice
+					fmt.Println("Select a cluster by a number: ")
+					for i, name := range clusters { //iterates through clusters slice
+						fmt.Printf("%d: %s\n", i+1, name) //prints each cluster with number
+					}
+					var choice int
+					fmt.Print("Enter your choice: ")
+					fmt.Scanln(&choice)                        // reads user input
+					if choice > 0 && choice <= len(clusters) { // checks if choice is valid
+						c.ClusterName = TypeClusterName(strings.TrimSpace(clusters[choice-1]))
+						return c.run(args)
+					}
+				}
+				return err
+			}
+		}
 	}
+
 	if c.Node == "all" {
 		nodes, err = b.NodeListInCluster(string(c.ClusterName))
 		if err != nil {

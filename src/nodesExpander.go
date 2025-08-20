@@ -43,21 +43,21 @@ func (t *TypeNodesPlusAllOption) ExpandNodes(clusterName string) error {
 }
 
 func expandNodes(nodes string, clusterName string) (string, error) {
-	clusters, err := b.ClusterList()
+	clusters, err := b.ClusterList() // Get the list of clusters
 	if err != nil {
 		return "", err
 	}
 
-	var clusterNames []string
+	var clusterNames []string // Determine which clusters to use
 	if clusterName != "all" && clusterName != "ALL" {
 		clusterNames = strings.Split(clusterName, ",")
 	} else {
 		clusterNames = clusters
 	}
 
-	for _, n := range clusterNames {
+	for _, n := range clusterNames { // Check if cluster exists, list available clusters
 		if !inslice.HasString(clusters, n) {
-			return "", fmt.Errorf("cluster `%s' does not exist", n)
+			return "", fmt.Errorf("cluster `%s' does not exist. Available clusters: [%s]", n, strings.Join(clusters, ", "))
 		}
 	}
 	list := []int{}
