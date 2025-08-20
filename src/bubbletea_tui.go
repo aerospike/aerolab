@@ -2,9 +2,12 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"strings"
 
 	list "github.com/charmbracelet/bubbles/list" //their documentation is useful
 	tea "github.com/charmbracelet/bubbletea"     // higher level documentation
+	"github.com/charmbracelet/lipgloss"
 )
 
 // This file includes all the basic bubbletea TUI blueprints that you may use/apply
@@ -46,6 +49,38 @@ type bubbleteaModel struct { //struct for bubbletea model
 	quitting bool       //quitting status, type bool
 }
 
+var (
+	titleStyle        = lipgloss.NewStyle().MarginLeft(2)
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(4)
+	selectedItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("170"))
+	paginationStyle   = list.DefaultStyles().PaginationStyle.PaddingLeft(4)
+	helpStyle         = list.DefaultStyles().HelpStyle.PaddingLeft(4).PaddingBottom(1)
+	quitTextStyle     = lipgloss.NewStyle().Margin(1, 0, 2, 4)
+)
+
+type itemDelegate struct{}
+
+func (d itemDelegate) Height() int                             { return 1 }
+func (d itemDelegate) Spacing() int                            { return 0 }
+func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
+func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	i, ok := listItem.(item)
+	if !ok {
+		return
+	}
+
+	str := fmt.Sprintf("%d. %s", index+1, i)
+
+	fn := itemStyle.Render
+	if index == m.Index() {
+		fn = func(s ...string) string {
+			return selectedItemStyle.Render("> " + strings.Join(s, " "))
+		}
+	}
+
+	fmt.Fprint(w, fn(str))
+}
+
 func (m bubbleteaModel) Init() tea.Cmd { // Init inputs m (model of type defined above)
 	return nil
 }
@@ -83,10 +118,13 @@ func (m bubbleteaModel) View() string {
 
 // (3) YES OR NO interactive bubbletea prompt in action (please refer to cmdClusterCreate.go)
 
-func yesNoPrompt(prompt string) (string, error) {
-	items := []list.Item{item("Yes"), item("No")}
+func yesNoPrompt(prompt string, items ...list.Item) (string, error) {
+	if len(items) == 0 {
+		items = []list.Item{item("Yes"), item("No")}
+	}
 	const defaultWidth = 80
-	l := list.New(items, list.NewDefaultDelegate(), defaultWidth, len(items)+2)
+	l := list.New(items, itemDelegate{}, defaultWidth, len(items)+4)
+	l.SetShowPagination(false)
 	l.Title = prompt
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
