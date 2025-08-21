@@ -7,7 +7,7 @@ type Commands struct {
 	//Client       clientCmd       `command:"client" subcommands-optional:"true" description:"Create and manage Client machine groups" webicon:"fas fa-tv"`
 	Inventory InventoryCmd `command:"inventory" subcommands-optional:"true" description:"List or operate on all clusters, clients and images" webicon:"fas fa-warehouse"`
 	Instances InstancesCmd `command:"instances" subcommands-optional:"true" description:"Create and manage instance clusters (cluster/client create use this)" webicon:"fas fa-server"`
-	//Attach       attachCmd       `command:"attach" subcommands-optional:"true" description:"Attach to a node and run a command" webicon:"fas fa-plug" simplemode:"false"`
+	Attach    AttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to a node and run a command" webicon:"fas fa-plug" simplemode:"false"`
 	//Net          netCmd          `command:"net" subcommands-optional:"true" description:"Firewall and latency simulation" webicon:"fas fa-network-wired"`
 	//Conf         confCmd         `command:"conf" subcommands-optional:"true" description:"Manage Aerospike configuration on running nodes" webicon:"fas fa-wrench"`
 	//Tls          tlsCmd          `command:"tls" subcommands-optional:"true" description:"Create or copy TLS certificates" webicon:"fas fa-lock"`
@@ -21,7 +21,7 @@ type Commands struct {
 	//Roster       rosterCmd       `command:"roster" subcommands-optional:"true" description:"Show or apply strong-consistency rosters" webicon:"fas fa-sliders"`
 	Completion CompletionCmd `command:"completion" subcommands-optional:"true" description:"Install shell completion scripts" webicon:"fas fa-arrows-turn-to-dots" webhidden:"true"`
 	//AGI          agiCmd          `command:"agi" subcommands-optional:"true" description:"Launch or manage AGI troubleshooting instances" webicon:"fas fa-chart-line"`
-	//Volume       volumeCmd       `command:"volume" subcommands-optional:"true" description:"Volume management (AWS EFS/GCP Volume only)" webicon:"fas fa-hard-drive" simplemode:"false"`
+	Volumes      VolumesCmd      `command:"volumes" subcommands-optional:"true" description:"Volume management (AWS EFS/GCP Volume only)" webicon:"fas fa-hard-drive" simplemode:"false"`
 	ShowCommands ShowcommandsCmd `command:"showcommands" subcommands-optional:"true" description:"Install showsysinfo,showconf,showinterrupts on the current system" webicon:"fas fa-terminal"`
 	//Rest         restCmd         `command:"rest-api" subcommands-optional:"true" description:"Launch HTTP rest API" webicon:"fas fa-globe" webhidden:"true"`
 	//Web          webCmd          `command:"webui" subcommands-optional:"true" description:"Launch AeroLab Web UI" webicon:"fas fa-globe" webhidden:"true"`

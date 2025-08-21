@@ -149,11 +149,13 @@ func (c *ClusterCreateCmd) ClusterCreate(system *System, cmd []string, args []st
     * `aerolab.type` - instance type, values:
       * `template.create` - instance is a temp instance used for creating templates and should not otherwise exist
       * values from `aerolab.image.type`
+      * `aerospike`, `agi`, or `vscode` etc
     * `aerolab.soft.version` - software version, values:
       * `5.1.0.1` - aerospike version
       * `1.0.0` - AMS version
       * etc
     * `aerolab.custom.image` - Docker: if set, the instance is a custom image and attach should use docker's exec
+    * `aerolab.old.type` - instance type, values: `client` - this is for backwards compatibility only
 * images:
     * `aerolab.image.type` - image type, values:
       * `aerospike` - aerospike image
