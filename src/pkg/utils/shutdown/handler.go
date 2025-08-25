@@ -3,6 +3,7 @@ package shutdown
 import (
 	"os"
 	"os/signal"
+	"slices"
 	"sync"
 	"syscall"
 )
@@ -30,16 +31,16 @@ func WaitJobs() {
 }
 
 func waitJobs(isSignal bool) {
-	cleanupJobsMutex.Lock() // we never unlock, as new jobs cannot be added now that we are in shutdown
 	isShuttingDownMutex.Lock()
 	isShuttingDown = true
 	isShuttingDownMutex.Unlock()
-	for _, job := range earlyCleanupJobs {
-		job(isSignal)
+	cleanupJobsMutex.Lock() // we never unlock, as new jobs cannot be added now that we are in shutdown
+	for i := len(earlyCleanupJobs) - 1; i >= 0; i-- {
+		earlyCleanupJobs[i].Func(isSignal)
 	}
 	waiter.Wait()
-	for _, job := range lateCleanupJobs {
-		job(isSignal)
+	for i := len(lateCleanupJobs) - 1; i >= 0; i-- {
+		lateCleanupJobs[i].Func(isSignal)
 	}
 }
 
@@ -48,8 +49,13 @@ func DoneJob() {
 	waiter.Done()
 }
 
-var earlyCleanupJobs = make(map[string]func(isSignal bool))
-var lateCleanupJobs = make(map[string]func(isSignal bool))
+type CleanupJob struct {
+	Name string
+	Func func(isSignal bool)
+}
+
+var earlyCleanupJobs = []CleanupJob{}
+var lateCleanupJobs = []CleanupJob{}
 var cleanupJobsMutex sync.Mutex
 
 // add a job that will run cleanup before waiting for jobs to complete
@@ -57,7 +63,7 @@ var cleanupJobsMutex sync.Mutex
 func AddEarlyCleanupJob(name string, job func(isSignal bool)) {
 	cleanupJobsMutex.Lock()
 	defer cleanupJobsMutex.Unlock()
-	earlyCleanupJobs[name] = job
+	earlyCleanupJobs = append(earlyCleanupJobs, CleanupJob{Name: name, Func: job})
 }
 
 // add a job that will run cleanup after waiting for jobs to complete
@@ -65,19 +71,23 @@ func AddEarlyCleanupJob(name string, job func(isSignal bool)) {
 func AddLateCleanupJob(name string, job func(isSignal bool)) {
 	cleanupJobsMutex.Lock()
 	defer cleanupJobsMutex.Unlock()
-	lateCleanupJobs[name] = job
+	lateCleanupJobs = append(lateCleanupJobs, CleanupJob{Name: name, Func: job})
 }
 
 func DeleteEarlyCleanupJob(name string) {
 	cleanupJobsMutex.Lock()
 	defer cleanupJobsMutex.Unlock()
-	delete(earlyCleanupJobs, name)
+	earlyCleanupJobs = slices.DeleteFunc(earlyCleanupJobs, func(job CleanupJob) bool {
+		return job.Name == name
+	})
 }
 
 func DeleteLateCleanupJob(name string) {
 	cleanupJobsMutex.Lock()
 	defer cleanupJobsMutex.Unlock()
-	delete(lateCleanupJobs, name)
+	lateCleanupJobs = slices.DeleteFunc(lateCleanupJobs, func(job CleanupJob) bool {
+		return job.Name == name
+	})
 }
 
 func init() {
