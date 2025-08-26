@@ -25,6 +25,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/aerospike/aerolab/pkg/utils/structtags"
 	"github.com/charmbracelet/x/term"
 	"github.com/docker/docker/api/types"
@@ -547,7 +548,30 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 				Key:   "AEROLAB_OWNER",
 				Value: i.Owner,
 			})
-			o := sshexec.Exec(execInput)
+			session, conn, err := sshexec.ExecPrepare(execInput)
+			if err != nil {
+				outl.Lock()
+				out = append(out, &backends.ExecOutput{
+					Output: &sshexec.ExecOutput{
+						Err: err,
+					},
+					Instance: i,
+				})
+				outl.Unlock()
+				return
+			}
+			isInterrupted := false
+			shutdown.AddEarlyCleanupJob("ssh-exec-"+i.InstanceID, func(isSignal bool) {
+				if isSignal {
+					isInterrupted = true
+					session.Close()
+					conn.Close()
+				}
+			})
+			o := sshexec.ExecRun(session, conn, execInput)
+			if isInterrupted {
+				o.Err = errors.New("interrupted")
+			}
 			outl.Lock()
 			out = append(out, &backends.ExecOutput{
 				Output:   o,
