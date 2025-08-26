@@ -59,48 +59,24 @@ func (o *ExecOutput) addWarn(f string, params ...interface{}) {
 }
 
 func Exec(i *ExecInput) *ExecOutput {
-	// make bash script
-	var script string
-	if len(i.Command) > 0 {
-		script = makeScript(i.Command)
-	}
-
-	// get client config
-	config, err := makeClientConfig(&i.ClientConf)
+	session, conn, err := ExecPrepare(i)
 	if err != nil {
 		return &ExecOutput{
 			Err: err,
 		}
 	}
+	return ExecRun(session, conn, i)
+}
 
-	// ssh dial
-	currentTimeout := i.ConnectTimeout
-	start := time.Now()
-	var conn *ssh.Client
-	for {
-		conn, err = ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
-		if err == nil {
-			break
-		}
-		currentTimeout -= time.Since(start)
-		if currentTimeout <= 0 && i.ConnectTimeout > 0 {
-			return &ExecOutput{
-				Err: fmt.Errorf("failed to dial: %s", err),
-			}
-		}
-		time.Sleep(time.Second)
-	}
-	defer conn.Close()
-
-	// Create a session
-	session, err := conn.NewSession()
-	if err != nil {
-		return &ExecOutput{
-			Err: fmt.Errorf("failed to create session: %s", err),
-		}
-	}
+func ExecRun(session *ssh.Session, conn *ssh.Client, i *ExecInput) *ExecOutput {
 	defer session.Close()
-
+	defer conn.Close()
+	// make bash script
+	var script string
+	if len(i.Command) > 0 {
+		script = makeScript(i.Command)
+	}
+	var err error
 	// define outputs
 	out := &ExecOutput{}
 
@@ -144,7 +120,11 @@ func Exec(i *ExecInput) *ExecOutput {
 
 	// Handle window resize
 	sessid := uuid.New().String()
-	resize(session)
+	if i.Stdin == os.Stdin {
+		resize(session)
+	} else {
+		resize(nil)
+	}
 	sessionsLock.Lock()
 	sessions[sessid] = session
 	sessionsLock.Unlock()
@@ -203,6 +183,37 @@ func Exec(i *ExecInput) *ExecOutput {
 
 	// done
 	return out
+}
+
+func ExecPrepare(i *ExecInput) (session *ssh.Session, conn *ssh.Client, err error) {
+	// get client config
+	config, err := makeClientConfig(&i.ClientConf)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// ssh dial
+	currentTimeout := i.ConnectTimeout
+	start := time.Now()
+	for {
+		conn, err = ssh.Dial("tcp", fmt.Sprintf("%s:%d", i.Host, i.Port), config)
+		if err == nil {
+			break
+		}
+		currentTimeout -= time.Since(start)
+		if currentTimeout <= 0 && i.ConnectTimeout > 0 {
+			return nil, nil, fmt.Errorf("failed to dial: %s", err)
+		}
+		time.Sleep(time.Second)
+	}
+
+	// Create a session
+	session, err = conn.NewSession()
+	if err != nil {
+		conn.Close()
+		return nil, nil, fmt.Errorf("failed to create session: %s", err)
+	}
+	return session, conn, nil
 }
 
 var sessionsLock = new(sync.RWMutex)
