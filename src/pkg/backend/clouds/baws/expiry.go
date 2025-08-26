@@ -210,7 +210,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 				break
 			}
 		}
-		if e != nil {
+		if e != nil && e.FrequencyMinutes > 0 {
 			intervalMinutes = e.FrequencyMinutes
 			expireEksctl = e.BackendSpecific.(*ExpiryDetail).ExpireEksctl
 			cleanupDNS = e.BackendSpecific.(*ExpiryDetail).CleanupDNS
