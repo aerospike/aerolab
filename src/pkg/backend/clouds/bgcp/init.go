@@ -90,7 +90,7 @@ func (s *b) SetConfig(dir string, credentials *clouds.Credentials, project strin
 		return err
 	}
 	defer cli.CloseIdleConnections()
-	zones, err := s.listAllZones()
+	_, zones, err := s.listAllZones()
 	if err != nil {
 		return err
 	}
@@ -134,65 +134,9 @@ func (s *b) EnableZones(names ...string) error {
 		return nil
 	}
 
-	// check cache for valid regions
-	regionCacheFile := path.Join(s.configDir, "region-cache.json")
-	type regionCache struct {
-		Regions     []string  `json:"regions"`
-		LastUpdated time.Time `json:"last_updated"`
-	}
-	zoneList := []string{}
-	if _, err := os.Stat(regionCacheFile); err == nil {
-		f, err := os.Open(regionCacheFile)
-		if err != nil {
-			return err
-		}
-		var cache regionCache
-		err = json.NewDecoder(f).Decode(&cache)
-		f.Close()
-		if err != nil {
-			return err
-		}
-		if cache.LastUpdated.Add(24 * time.Hour).After(time.Now()) {
-			zoneList = cache.Regions
-		} else {
-			os.Remove(regionCacheFile)
-		}
-	}
-
-	// get region list from provider
-	if len(zoneList) == 0 {
-		cli, err := connect.GetClient(s.credentials, nil)
-		if err != nil {
-			return err
-		}
-		defer cli.CloseIdleConnections()
-		ctx := context.Background()
-		client, err := compute.NewZonesRESTClient(ctx, option.WithHTTPClient(cli))
-		if err != nil {
-			return err
-		}
-		defer client.Close()
-		it := client.List(ctx, &computepb.ListZonesRequest{
-			Project: s.credentials.Project,
-		})
-		for {
-			zone, err := it.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				return err
-			}
-			zoneName := zone.GetName()
-			parts := strings.Split(zoneName, "-")
-			regionName := strings.Join(parts[:len(parts)-1], "-")
-			zoneList = append(zoneList, regionName)
-		}
-		// store cache
-		err = file.StoreJSON(regionCacheFile, ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regionCache{Regions: zoneList, LastUpdated: time.Now()})
-		if err != nil {
-			return err
-		}
+	zoneList, _, err := s.listAllZones()
+	if err != nil {
+		return err
 	}
 
 	for _, name := range names {
@@ -243,37 +187,75 @@ func toInt(s string) int {
 	return i
 }
 
-func (s *b) listAllZones() ([]string, error) {
+func (s *b) listAllZones() (regions []string, zones []string, err error) {
 	log := s.log.WithPrefix("ListAllZones: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
 
-	cli, err := connect.GetClient(s.credentials, log.WithPrefix("AUTH: "))
-	if err != nil {
-		return nil, err
+	// check cache for valid regions
+	regionCacheFile := path.Join(s.configDir, "region-cache.json")
+	type regionCache struct {
+		Regions     []string  `json:"regions"`
+		Zones       []string  `json:"zones"`
+		LastUpdated time.Time `json:"last_updated"`
 	}
-	defer cli.CloseIdleConnections()
-
-	ctx := context.Background()
-	client, err := compute.NewZonesRESTClient(ctx, option.WithHTTPClient(cli))
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	var zones []string
-	it := client.List(ctx, &computepb.ListZonesRequest{
-		Project: s.credentials.Project,
-	})
-	for {
-		zone, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
+	zoneList := []string{}
+	nzones := []string{}
+	if _, err := os.Stat(regionCacheFile); err == nil {
+		f, err := os.Open(regionCacheFile)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		zones = append(zones, zone.GetName())
+		var cache regionCache
+		err = json.NewDecoder(f).Decode(&cache)
+		f.Close()
+		if err != nil {
+			return nil, nil, err
+		}
+		if cache.LastUpdated.Add(24 * time.Hour).After(time.Now()) {
+			zoneList = cache.Regions
+		} else {
+			os.Remove(regionCacheFile)
+		}
 	}
-	return zones, nil
+
+	// get region list from provider
+	if len(zoneList) == 0 {
+		cli, err := connect.GetClient(s.credentials, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer cli.CloseIdleConnections()
+		ctx := context.Background()
+		client, err := compute.NewZonesRESTClient(ctx, option.WithHTTPClient(cli))
+		if err != nil {
+			return nil, nil, err
+		}
+		defer client.Close()
+		it := client.List(ctx, &computepb.ListZonesRequest{
+			Project: s.credentials.Project,
+		})
+		for {
+			zone, err := it.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return nil, nil, err
+			}
+			zoneName := zone.GetName()
+			parts := strings.Split(zoneName, "-")
+			regionName := strings.Join(parts[:len(parts)-1], "-")
+			if !slices.Contains(zoneList, regionName) {
+				zoneList = append(zoneList, regionName)
+			}
+			nzones = append(nzones, zoneName)
+		}
+		// store cache
+		err = file.StoreJSON(regionCacheFile, ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regionCache{Regions: zoneList, Zones: nzones, LastUpdated: time.Now()})
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	return zoneList, nzones, nil
 }

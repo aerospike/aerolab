@@ -108,54 +108,9 @@ func (s *b) EnableZones(names ...string) error {
 		return nil
 	}
 
-	// check cache for valid regions
-	regionCacheFile := path.Join(s.configDir, "region-cache.json")
-	type regionCache struct {
-		Regions     []string  `json:"regions"`
-		LastUpdated time.Time `json:"last_updated"`
-	}
-	rrList := []string{}
-	if _, err := os.Stat(regionCacheFile); err == nil {
-		f, err := os.Open(regionCacheFile)
-		if err != nil {
-			return err
-		}
-		var cache regionCache
-		err = json.NewDecoder(f).Decode(&cache)
-		f.Close()
-		if err != nil {
-			return err
-		}
-		if cache.LastUpdated.Add(24 * time.Hour).After(time.Now()) {
-			rrList = cache.Regions
-		} else {
-			os.Remove(regionCacheFile)
-		}
-	}
-
-	// get region list from provider
-	if len(rrList) == 0 {
-		cli, err := getEc2Client(s.credentials, aws.String(names[0]))
-		if err != nil {
-			if strings.Contains(err.Error(), "no such host") {
-				return fmt.Errorf("region %s not found in AWS", names[0])
-			}
-			return err
-		}
-		rr, err := cli.DescribeRegions(context.Background(), &ec2.DescribeRegionsInput{
-			AllRegions: aws.Bool(true),
-		})
-		if err != nil {
-			return err
-		}
-		for _, r := range rr.Regions {
-			rrList = append(rrList, *r.RegionName)
-		}
-		// store cache
-		err = file.StoreJSON(regionCacheFile, ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regionCache{Regions: rrList, LastUpdated: time.Now()})
-		if err != nil {
-			return err
-		}
+	rrList, err := s.getAllRegions(names[0])
+	if err != nil {
+		return err
 	}
 
 	// check if the regions are valid
@@ -205,4 +160,57 @@ func (s *b) DisableZones(names ...string) error {
 func toInt(s string) int {
 	i, _ := strconv.Atoi(s)
 	return i
+}
+
+func (s *b) getAllRegions(name string) ([]string, error) {
+	// check cache for valid regions
+	regionCacheFile := path.Join(s.configDir, "region-cache.json")
+	type regionCache struct {
+		Regions     []string  `json:"regions"`
+		LastUpdated time.Time `json:"last_updated"`
+	}
+	rrList := []string{}
+	if _, err := os.Stat(regionCacheFile); err == nil {
+		f, err := os.Open(regionCacheFile)
+		if err != nil {
+			return nil, err
+		}
+		var cache regionCache
+		err = json.NewDecoder(f).Decode(&cache)
+		f.Close()
+		if err != nil {
+			return nil, err
+		}
+		if cache.LastUpdated.Add(24 * time.Hour).After(time.Now()) {
+			rrList = cache.Regions
+		} else {
+			os.Remove(regionCacheFile)
+		}
+	}
+
+	// get region list from provider
+	if len(rrList) == 0 {
+		cli, err := getEc2Client(s.credentials, aws.String(name))
+		if err != nil {
+			if strings.Contains(err.Error(), "no such host") {
+				return nil, fmt.Errorf("region %s not found in AWS", name)
+			}
+			return nil, err
+		}
+		rr, err := cli.DescribeRegions(context.Background(), &ec2.DescribeRegionsInput{
+			AllRegions: aws.Bool(true),
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, r := range rr.Regions {
+			rrList = append(rrList, *r.RegionName)
+		}
+		// store cache
+		err = file.StoreJSON(regionCacheFile, ".tmp", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644, regionCache{Regions: rrList, LastUpdated: time.Now()})
+		if err != nil {
+			return nil, err
+		}
+	}
+	return rrList, nil
 }

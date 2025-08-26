@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
+	"github.com/rglonek/logger"
 )
 
 type ImagesCreateCmd struct {
@@ -18,6 +19,7 @@ type ImagesCreateCmd struct {
 	Type         string   `short:"t" long:"type" description:"Set image type; sets aerolab.image.type tag"`
 	Version      string   `short:"v" long:"version" description:"Set image version; sets aerolab.soft.version tag"`
 	Tags         []string `short:"T" long:"tag" description:"Set extra image tags, as k=v"`
+	Timeout      int      `long:"timeout" description:"Set timeout in minutes for the image creation" default:"10"`
 	DryRun       bool     `long:"dry-run" description:"Do not actually create the image, just run the basic checks"`
 	Help         HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -31,7 +33,7 @@ func (c *ImagesCreateCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	defer UpdateDiskCache(system)
-	_, err = c.CreateImage(system, system.Backend.GetInventory(), args)
+	_, err = c.CreateImage(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -40,7 +42,7 @@ func (c *ImagesCreateCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ImagesCreateCmd) CreateImage(system *System, inventory *backends.Inventory, args []string) (*backends.Image, error) {
+func (c *ImagesCreateCmd) CreateImage(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) (*backends.Image, error) {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"images", "create"}, c, args...)
@@ -53,7 +55,7 @@ func (c *ImagesCreateCmd) CreateImage(system *System, inventory *backends.Invent
 	}
 
 	// find the instance and check it's state
-	system.Logger.Info("Validating parameters")
+	logger.Info("Validating parameters")
 	if c.InstanceName == "" {
 		return nil, fmt.Errorf("instance-name is required")
 	}
@@ -113,16 +115,16 @@ func (c *ImagesCreateCmd) CreateImage(system *System, inventory *backends.Invent
 	tags["aerolab.image.type"] = c.Type
 	tags["aerolab.soft.version"] = c.Version
 
-	system.Logger.Info("Name: %s, Type: %s, Version: %s, Owner: %s, Tags: %v, FromInstance: %s", c.Name, c.Type, c.Version, c.Owner, tags, c.InstanceName)
+	logger.Info("Name: %s, Type: %s, Version: %s, Owner: %s, Tags: %v, FromInstance: %s", c.Name, c.Type, c.Version, c.Owner, tags, c.InstanceName)
 
 	// dry run
 	if c.DryRun {
-		system.Logger.Info("Dry run, not creating image")
+		logger.Info("Dry run, not creating image")
 		return nil, nil
 	}
 
 	// create the image
-	system.Logger.Info("Creating image")
+	logger.Info("Creating image")
 	image, err := system.Backend.CreateImage(&backends.CreateImageInput{
 		BackendType: backends.BackendType(system.Opts.Config.Backend.Type),
 		Instance:    instance,
@@ -134,10 +136,10 @@ func (c *ImagesCreateCmd) CreateImage(system *System, inventory *backends.Invent
 		Encrypted:   true,
 		OSName:      instance.OperatingSystem.Name,
 		OSVersion:   instance.OperatingSystem.Version,
-	}, time.Minute*10)
+	}, time.Duration(c.Timeout)*time.Minute)
 	if err != nil {
 		return nil, err
 	}
-	system.Logger.Info("Image created with ImageID: %s", image.Image.ImageId)
+	logger.Info("Image created with ImageID: %s", image.Image.ImageId)
 	return image.Image, nil
 }

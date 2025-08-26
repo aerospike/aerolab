@@ -9,6 +9,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
+	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 )
 
@@ -350,7 +352,80 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 
 	if system.Opts.Config.Backend.Type != "docker" {
 		if itype == "" {
-			return nil, errors.New("instance type is required")
+			if IsInteractive() {
+				var itypeList []string
+				itypes := make(map[string]string)
+				instanceTypes, err := system.Backend.GetInstanceTypes(backends.BackendType(system.Opts.Config.Backend.Type))
+				if err != nil {
+					return nil, err
+				}
+				lenghts := []int{0, 0, 0, 0, 0, 0, 0, 0}
+				for _, it := range instanceTypes {
+					if it.Region != system.Opts.Config.Backend.Region {
+						continue
+					}
+					arch := ""
+					if len(it.Arch) > 0 {
+						arch = it.Arch[0].String()
+					}
+					if lenghts[0] < len(it.Name) {
+						lenghts[0] = len(it.Name)
+					}
+					if lenghts[1] < len(arch) {
+						lenghts[1] = len(arch)
+					}
+					if lenghts[2] < len(fmt.Sprintf("%d", it.CPUs)) {
+						lenghts[2] = len(fmt.Sprintf("%d", it.CPUs))
+					}
+					if lenghts[3] < len(fmt.Sprintf("%0.2f", it.MemoryGiB)) {
+						lenghts[3] = len(fmt.Sprintf("%0.2f", it.MemoryGiB))
+					}
+					if lenghts[4] < len(fmt.Sprintf("%d", it.GPUs)) {
+						lenghts[4] = len(fmt.Sprintf("%d", it.GPUs))
+					}
+					if lenghts[5] < len(fmt.Sprintf("%d", it.NvmeCount)) {
+						lenghts[5] = len(fmt.Sprintf("%d", it.NvmeCount))
+					}
+					if lenghts[6] < len(fmt.Sprintf("%d", it.NvmeTotalSizeGiB)) {
+						lenghts[6] = len(fmt.Sprintf("%d", it.NvmeTotalSizeGiB))
+					}
+					if lenghts[7] < len(fmt.Sprintf("%0.4f", it.PricePerHour.OnDemand)) {
+						lenghts[7] = len(fmt.Sprintf("%0.4f", it.PricePerHour.OnDemand))
+					}
+				}
+				format := fmt.Sprintf("%%%ds (Arch=%%-%ds CPUs=%%-%dd RAM_GiB=%%-%d.2f GPUs=%%-%dd NVMe=%%-%dd NVMeTotalSizeGiB=%%-%dd OnDemandPricePerHour=%%-%d.4f)", lenghts[0], lenghts[1], lenghts[2], lenghts[3], lenghts[4], lenghts[5], lenghts[6], lenghts[7])
+				for _, it := range instanceTypes {
+					if it.Region != system.Opts.Config.Backend.Region {
+						continue
+					}
+					arch := ""
+					if len(it.Arch) > 0 {
+						arch = it.Arch[0].String()
+					}
+					val := fmt.Sprintf(format, it.Name, arch, it.CPUs, it.MemoryGiB, it.GPUs, it.NvmeCount, it.NvmeTotalSizeGiB, it.PricePerHour.OnDemand)
+					itypeList = append(itypeList, val)
+					itypes[val] = it.Name
+				}
+				sort.Strings(itypeList)
+				// get terminal height
+				_, termHeight, err := term.GetSize(int(os.Stdout.Fd()))
+				if err != nil {
+					return nil, err
+				}
+				choice, quitting, err := choice.ChoiceWithHeight("Instance type is required, pick one:", choice.StringSliceToItems(itypeList), termHeight-2)
+				if err != nil {
+					return nil, err
+				}
+				if quitting {
+					return nil, errors.New("aborted")
+				}
+				if choice == "" {
+					return nil, errors.New("aborted")
+				}
+				itype = itypes[choice]
+			} else {
+				return nil, errors.New("instance type is required")
+			}
 		}
 		instanceTypes, err := system.Backend.GetInstanceTypes(backends.BackendType(system.Opts.Config.Backend.Type))
 		if err != nil {

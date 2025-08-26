@@ -139,6 +139,8 @@ type Cloud interface {
 }
 
 type Backend interface {
+	// get set credentials object
+	GetCredentials() *clouds.Credentials
 	// inventory handling
 	GetInventory() *Inventory                   // get currently cached inventory
 	ForceRefreshInventory() error               // force refresh all inventory items from backends
@@ -660,4 +662,8 @@ func (b *backend) DeleteProjectResources(backendType BackendType) error {
 		return err
 	}
 	return nil
+}
+
+func (b *backend) GetCredentials() *clouds.Credentials {
+	return b.config.Credentials
 }

@@ -321,7 +321,11 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 			ClientSecret: i.Backend.GCPClientSecret,
 		}
 	}
-	tokenCacheFilePath := path.Join(rootDir, "default", "config", "gcp")
+	project := os.Getenv("AEROLAB_PROJECT")
+	if project == "" {
+		project = "default"
+	}
+	tokenCacheFilePath := path.Join(rootDir, "projects", project, "config", "gcp")
 	if _, err := os.Stat(tokenCacheFilePath); os.IsNotExist(err) {
 		err = os.MkdirAll(tokenCacheFilePath, 0755)
 		if err != nil {
@@ -329,7 +333,7 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 		}
 	}
 	config := &backend.Config{
-		RootDir: rootDir,
+		RootDir: path.Join(rootDir, "projects"),
 		Cache:   i.Backend.UseCache,
 		Credentials: &clouds.Credentials{
 			AWS: clouds.AWS{
@@ -356,10 +360,6 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 		AerolabVersion:   aver,
 		ListAllProjects:  i.Backend.ListAllProjects,
 		CustomSSHKeyPath: string(s.Opts.Config.Backend.SshKeyPath),
-	}
-	project := os.Getenv("AEROLAB_PROJECT")
-	if project == "" {
-		project = "default"
 	}
 	b, err := backend.New(project, config, i.Backend.PollInventoryHourly, backendList, i.ExistingInventory)
 	if err != nil {

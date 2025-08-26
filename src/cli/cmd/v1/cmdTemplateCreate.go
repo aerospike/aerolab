@@ -13,6 +13,7 @@ import (
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/lithammer/shortuuid"
+	"github.com/rglonek/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -23,6 +24,7 @@ type TemplateCreateCmd struct {
 	AerospikeVersion string  `short:"A" long:"aerospike-version" description:"Aerospike version to create the template for" default:"latest"`
 	Owner            string  `short:"o" long:"owner" description:"Owner of the template" default:"none"`
 	DisablePublicIP  bool    `short:"p" long:"disable-public-ip" description:"Disable public IP assignment to the instances in AWS"`
+	Timeout          int     `short:"t" long:"timeout" description:"Set timeout in minutes for the template creation" default:"10"`
 	DryRun           bool    `short:"n" long:"dry-run" description:"Do not actually create the template, just run the basic checks"`
 	NoVacuum         bool    `short:"V" long:"no-vacuum" description:"Do not vacuum an existing template creation instance on failure"`
 	Help             HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -37,7 +39,7 @@ func (c *TemplateCreateCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	defer UpdateDiskCache(system)
-	_, err = c.CreateTemplate(system, system.Backend.GetInventory(), args)
+	_, err = c.CreateTemplate(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -46,7 +48,7 @@ func (c *TemplateCreateCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.Inventory, args []string) (name string, err error) {
+func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) (name string, err error) {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"template", "create"}, c, args...)
@@ -232,42 +234,43 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		Type:         "aerospike",
 		Version:      c.AerospikeVersion + "-" + flavor,
 		Tags:         []string{"aerolab.soft.version=" + c.AerospikeVersion + "-" + flavor},
+		Timeout:      c.Timeout,
 		DryRun:       false,
 	}
 
-	system.Logger.Info("Aerospike Version: %s, Flavor: %s, Distro: %s, OS Version: %s, Arch: %s", c.AerospikeVersion, flavor, c.Distro, osVersion, c.Arch)
+	logger.Info("Aerospike Version: %s, Flavor: %s, Distro: %s, OS Version: %s, Arch: %s", c.AerospikeVersion, flavor, c.Distro, osVersion, c.Arch)
 	if c.DryRun {
-		system.Logger.Info("Dry run, not creating the template")
+		logger.Info("Dry run, not creating the template")
 		if needToVacuum {
-			system.Logger.Info("Need to vacuum an existing template creation instance, would destroy the following instances:")
+			logger.Info("Need to vacuum an existing template creation instance, would destroy the following instances:")
 			for _, instance := range instances.Describe() {
-				system.Logger.Info("  name=%s, zone=%s, state=%s, tags=%v", instance.Name, instance.ZoneName, instance.InstanceState, instance.Tags)
+				logger.Info("  name=%s, zone=%s, state=%s, tags=%v", instance.Name, instance.ZoneName, instance.InstanceState, instance.Tags)
 			}
 		}
 		y := yaml.NewEncoder(os.Stderr)
 		y.SetIndent(2)
-		system.Logger.Info("1. InstancesCreateCmd:")
+		logger.Info("1. InstancesCreateCmd:")
 		y.Encode(instancesCreate)
-		system.Logger.Info("2. Run Install Script")
-		system.Logger.Info("3. InstancesStop")
-		system.Logger.Info("4. ImagesCreateCmd:")
+		logger.Info("2. Run Install Script")
+		logger.Info("3. InstancesStop")
+		logger.Info("4. ImagesCreateCmd:")
 		y.Encode(imagesCreate)
-		system.Logger.Info("5. InstancesDestroy")
+		logger.Info("5. InstancesDestroy")
 		y.Close()
-		system.Logger.Info("Install Script (base64):")
-		system.Logger.Info("%s", base64.StdEncoding.EncodeToString(installScript))
+		logger.Info("Install Script (base64):")
+		logger.Info("%s", base64.StdEncoding.EncodeToString(installScript))
 		return "", nil
 	}
 
 	if needToVacuum {
-		system.Logger.Info("Vacuuming an existing template creation instance(s)")
+		logger.Info("Vacuuming an existing template creation instance(s)")
 		err := instances.Terminate(time.Minute * 10)
 		if err != nil {
 			return "", fmt.Errorf("could not vacuum existing template creation instance: %s", err)
 		}
 	}
 
-	system.Logger.Info("Creating instances")
+	logger.Info("Creating instances")
 	inst, err := instancesCreate.CreateInstances(system, inventory, nil, "create")
 	if err != nil {
 		return "", fmt.Errorf("could not create instances: %s", err)
@@ -279,31 +282,31 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		}
 		if !c.NoVacuum {
 			c.NoVacuum = true
-			system.Logger.Info("Abort: destroying temporary template creation instances")
+			logger.Info("Abort: destroying temporary template creation instances")
 			err := inst.Terminate(time.Minute * 10)
 			if err != nil {
-				system.Logger.Error("could not destroy temporary template creation instances: %s", err)
+				logger.Error("could not destroy temporary template creation instances: %s", err)
 			}
 		}
 	})
 
 	defer func() {
 		if !c.NoVacuum {
-			system.Logger.Info("Destroying temporary template creation instances on failure")
+			logger.Info("Destroying temporary template creation instances on failure")
 			err := inst.Terminate(time.Minute * 10)
 			if err != nil {
-				system.Logger.Error("could not destroy temporary template creation instances: %s", err)
+				logger.Error("could not destroy temporary template creation instances: %s", err)
 			}
 		}
 	}()
 
-	system.Logger.Info("Uploading install script to instances")
+	logger.Info("Uploading install script to instances")
 	confs, err := inst.GetSftpConfig("root")
 	if err != nil {
 		return "", fmt.Errorf("could not get sftp config: %s", err)
 	}
 	for _, conf := range confs {
-		system.Logger.Info("Uploading install script to instance %s", conf.Host)
+		logger.Info("Uploading install script to instance %s", conf.Host)
 		cli, err := sshexec.NewSftp(conf)
 		if err != nil {
 			return "", fmt.Errorf("could not create sftp client: %s", err)
@@ -317,7 +320,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		if err != nil {
 			return "", fmt.Errorf("could not upload install script: %s", err)
 		}
-		system.Logger.Info("Uploaded install script to instance %s, running it now", conf.Host)
+		logger.Info("Uploaded install script to instance %s, running it now", conf.Host)
 		outputs := inst.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
 				Command:        []string{"bash", "/tmp/install.sh"},
@@ -344,22 +347,22 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		}
 	}
 
-	system.Logger.Info("Stopping instances")
+	logger.Info("Stopping instances")
 	err = inst.Stop(false, time.Minute*10)
 	if err != nil {
 		return "", fmt.Errorf("could not stop instances: %s", err)
 	}
 
-	system.Logger.Info("Creating image")
+	logger.Info("Creating image")
 	inst.Describe()[0].AttachedVolumes = backends.VolumeList{}
 	newInst := append(inventory.Instances.Describe(), inst.Describe()...)
 	inventory.Instances = newInst
-	image, err := imagesCreate.CreateImage(system, inventory, nil)
+	image, err := imagesCreate.CreateImage(system, inventory, logger, nil)
 	if err != nil {
 		return "", fmt.Errorf("could not create image: %s", err)
 	}
 
-	system.Logger.Info("Destroying temporary instances")
+	logger.Info("Destroying temporary instances")
 	err = inst.Terminate(time.Minute * 10)
 	if err != nil {
 		return "", fmt.Errorf("could not destroy temporary instances: %s", err)
