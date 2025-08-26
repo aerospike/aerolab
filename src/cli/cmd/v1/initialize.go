@@ -42,7 +42,7 @@ func Error(err error, system *System, command []string, params interface{}, args
 	if err == nil {
 		return nil
 	}
-	system.Logger.Error(err.Error())
+	system.Logger.Error("%s", err.Error())
 	return &ExecuteError{
 		Err:    err,
 		Logger: system.Logger,
