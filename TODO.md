@@ -3,7 +3,6 @@
 ## Next - MVP
 
 CODE:
-* template - create aerospike templates (wrap instances create, install aerospike, instances stop, images create, instances destroy)
 * cluster, client - wrapper around instances command + templates + their own software installation and configuration
 * conf - manager aerospike configuration on running instances
 * aerospike - start/stop/restart/status of aerospike on running instances

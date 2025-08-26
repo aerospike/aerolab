@@ -12,8 +12,8 @@ type Commands struct {
 	//Conf         confCmd         `command:"conf" subcommands-optional:"true" description:"Manage Aerospike configuration on running nodes" webicon:"fas fa-wrench"`
 	//Tls          tlsCmd          `command:"tls" subcommands-optional:"true" description:"Create or copy TLS certificates" webicon:"fas fa-lock"`
 	//Data         dataCmd         `command:"data" subcommands-optional:"true" description:"Insert/delete Aerospike data" webicon:"fas fa-folder-open"`
-	Images ImagesCmd `command:"images" subcommands-optional:"true" description:"Manage or delete images" webicon:"fas fa-file-image"`
-	//Template templateCmd    `command:"template" subcommands-optional:"true" description:"Manage or delete templates" webicon:"fas fa-file-image"`
+	Images    ImagesCmd    `command:"images" subcommands-optional:"true" description:"Manage or delete images" webicon:"fas fa-file-image"`
+	Template  TemplateCmd  `command:"template" subcommands-optional:"true" description:"Manage or delete aerospike server templates" webicon:"fas fa-file-image"`
 	Installer InstallerCmd `command:"installer" subcommands-optional:"true" description:"List or download Aerospike installer versions" webicon:"fas fa-plus"`
 	//Logs         logsCmd         `command:"logs" subcommands-optional:"true" description:"show or download logs" webicon:"fas fa-bars-progress"`
 	Files FilesCmd `command:"files" subcommands-optional:"true" description:"Upload/Download files to/from instances" webicon:"fas fa-file"`
