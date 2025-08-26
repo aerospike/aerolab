@@ -24,8 +24,9 @@ type ImagesListCmd struct {
 }
 
 type ImagesListFilter struct {
-	Type  string `short:"T" long:"type" description:"Filter by type of image. Values: custom, public, all" default:"custom"`
-	Owner string `short:"O" long:"owner" description:"Filter by owner of the image"`
+	Type         string `short:"T" long:"type" description:"Filter by type of image. Values: custom, public, all" default:"custom"`
+	SoftwareType string `short:"S" long:"software-type" description:"Filter by software type of image. Values: aerospike, ams, etc"`
+	Owner        string `short:"O" long:"owner" description:"Filter by owner of the image"`
 }
 
 func (c *ImagesListCmd) Execute(args []string) error {
@@ -61,7 +62,9 @@ func (c *ImagesListCmd) ListImages(system *System, inventory *backends.Inventory
 	if c.Filters.Owner != "" {
 		images = images.WithOwner(c.Filters.Owner).Describe()
 	}
-
+	if c.Filters.SoftwareType != "" {
+		images = images.WithTags(map[string]string{"aerolab.image.type": c.Filters.SoftwareType}).Describe()
+	}
 	switch c.Filters.Type {
 	case "custom":
 		images = images.WithInAccount(true).Describe()
