@@ -10,6 +10,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/rglonek/go-flags"
 )
 
@@ -64,16 +65,53 @@ func (c *InstancesAttachCmd) AttachInstances(system *System, inventory *backends
 	}
 
 	instances := inventory.Instances.WithState(backends.LifeCycleStateRunning).Describe()
+	items := choice.Items{}
+	itemInstances := make(map[string]backends.Instance)
+	for _, i := range instances {
+		opt := fmt.Sprintf("Name=%s, Zone=%s, Cluster=%s, Node=%d", i.Name, i.ZoneName, i.ClusterName, i.NodeNo)
+		items = append(items, choice.Item(opt))
+		itemInstances[opt] = *i
+	}
 
 	instances, err = c.Filters.filter(instances, true)
-	if err != nil {
+	if err != nil && !IsInteractive() {
 		return nil, err
 	}
 	if len(instances) == 0 {
-		return nil, fmt.Errorf("no instances found")
+		if IsInteractive() && len(items) > 0 {
+			ans, quitting, err := choice.Choice("No instances found matching the criteria, did you mean one of these?", items)
+			if err != nil {
+				return nil, err
+			}
+			if quitting {
+				return nil, fmt.Errorf("no instances found")
+			}
+			inst, ok := itemInstances[ans]
+			if !ok {
+				return nil, fmt.Errorf("no instance found")
+			}
+			instances = backends.InstanceList{&inst}
+		} else {
+			return nil, fmt.Errorf("no instances found")
+		}
 	}
 	if len(instances) > 1 && len(args) == 0 {
-		return nil, fmt.Errorf("multiple instances found, please use a filter to select a single instance or specify a command to run -- see help")
+		if IsInteractive() && len(items) > 0 {
+			ans, quitting, err := choice.Choice("Multiple instances found matching the criteria, did you mean one of these?", items)
+			if err != nil {
+				return nil, err
+			}
+			if quitting {
+				return nil, fmt.Errorf("multiple instances found, please use a filter to select a single instance or specify a command to run -- see help")
+			}
+			inst, ok := itemInstances[ans]
+			if !ok {
+				return nil, fmt.Errorf("multiple instances found, please use a filter to select a single instance or specify a command to run -- see help")
+			}
+			instances = backends.InstanceList{&inst}
+		} else {
+			return nil, fmt.Errorf("multiple instances found, please use a filter to select a single instance or specify a command to run -- see help")
+		}
 	}
 	env := []*sshexec.Env{}
 	for _, e := range c.Env {

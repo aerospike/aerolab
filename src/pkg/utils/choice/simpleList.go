@@ -24,7 +24,17 @@ type Item string
 
 func (i Item) FilterValue() string { return "" }
 
-type itemDelegate struct{}
+func StringSliceToItems(slice []string) Items {
+	items := make(Items, len(slice))
+	for i, s := range slice {
+		items[i] = Item(s)
+	}
+	return items
+}
+
+type itemDelegate struct {
+	lenght int
+}
 
 func (d itemDelegate) Height() int                             { return 1 }
 func (d itemDelegate) Spacing() int                            { return 0 }
@@ -35,7 +45,9 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		return
 	}
 
-	str := fmt.Sprintf("%d. %s", index+1, i)
+	// get number of digits in d.lenght
+	digits := len(fmt.Sprintf("%d", d.lenght))
+	str := fmt.Sprintf("%*d. %s", digits, index+1, i)
 
 	fn := itemStyle.Render
 	if index == m.Index() {
@@ -93,10 +105,10 @@ func (m *model) View() string {
 	return "\n" + m.list.View()
 }
 
-func Choice(title string, items Items) (choice string, quitting bool, err error) {
+func ChoiceWithHeight(title string, items Items, height int) (choice string, quitting bool, err error) {
 	const defaultWidth = 20
 
-	l := list.New(items, itemDelegate{}, defaultWidth, listHeight)
+	l := list.New(items, itemDelegate{lenght: len(items)}, defaultWidth, height)
 	l.Title = title
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
@@ -111,6 +123,10 @@ func Choice(title string, items Items) (choice string, quitting bool, err error)
 	}
 
 	return m.choice, m.quitting, nil
+}
+
+func Choice(title string, items Items) (choice string, quitting bool, err error) {
+	return ChoiceWithHeight(title, items, listHeight)
 }
 
 type Items []list.Item

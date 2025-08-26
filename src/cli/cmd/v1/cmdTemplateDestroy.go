@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"errors"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/utils/choice"
+	"github.com/rglonek/logger"
 )
 
 type TemplateDestroyCmd struct {
@@ -27,9 +29,9 @@ func (c *TemplateDestroyCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
-
+	system.Logger.Info("Backend: %s, Project: %s", system.Opts.Config.Backend.Type, os.Getenv("AEROLAB_PROJECT"))
 	defer UpdateDiskCache(system)
-	err = c.DestroyTemplate(system, system.Backend.GetInventory(), args)
+	err = c.DestroyTemplate(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -38,7 +40,7 @@ func (c *TemplateDestroyCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *TemplateDestroyCmd) DestroyTemplate(system *System, inventory *backends.Inventory, args []string) error {
+func (c *TemplateDestroyCmd) DestroyTemplate(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) error {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"template", "destroy"}, c, args...)
@@ -67,7 +69,7 @@ func (c *TemplateDestroyCmd) DestroyTemplate(system *System, inventory *backends
 		} else if !strings.HasSuffix(c.AerospikeVersion, "-enterprise") {
 			c.AerospikeVersion = strings.TrimRight(c.AerospikeVersion, "e") + "-enterprise"
 		}
-		system.Logger.Info("Aerospike Version: %s", c.AerospikeVersion)
+		logger.Info("Aerospike Version: %s", c.AerospikeVersion)
 		images = images.WithTags(map[string]string{"aerolab.soft.version": c.AerospikeVersion})
 	}
 	if c.Arch != "" {
@@ -80,15 +82,15 @@ func (c *TemplateDestroyCmd) DestroyTemplate(system *System, inventory *backends
 	}
 
 	if c.DryRun {
-		system.Logger.Info("Dry run, would destroy the following images:")
+		logger.Info("Dry run, would destroy the following images:")
 		for _, image := range images.Describe() {
-			system.Logger.Info("  name=%s, distro=%s, version=%s, arch=%s, aerospike-version=%s", image.Name, image.OSName, image.OSVersion, image.Architecture, image.Tags["aerolab.soft.version"])
+			logger.Info("  name=%s, distro=%s, version=%s, arch=%s, aerospike-version=%s", image.Name, image.OSName, image.OSVersion, image.Architecture, image.Tags["aerolab.soft.version"])
 		}
 		return nil
 	}
 
 	if images.Count() == 0 {
-		system.Logger.Info("No images found matching the criteria")
+		logger.Info("No images found matching the criteria")
 		return nil
 	}
 
@@ -109,7 +111,7 @@ func (c *TemplateDestroyCmd) DestroyTemplate(system *System, inventory *backends
 		}
 	}
 
-	system.Logger.Info("Destroying %d images", images.Count())
+	logger.Info("Destroying %d images", images.Count())
 	err := images.DeleteImages(time.Minute * 10)
 	if err != nil {
 		return err
