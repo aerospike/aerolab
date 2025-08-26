@@ -16,6 +16,7 @@ type FilesEditCmd struct {
 	Node        TypeNode        `short:"l" long:"node" description:"Node number" default:"1"`
 	Editor      string          `short:"e" long:"editor" description:"Editor command; must be present on the node" default:"vi"`
 	Path        FilesSingleCmd  `positional-args:"true"`
+	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type FilesSingleCmd struct {

@@ -11,6 +11,7 @@ import (
 type InstancesAddTagsCmd struct {
 	Tags   []string            `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
 	Filter InstancesListFilter `group:"Filters" namespace:"filter"`
+	Help   HelpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *InstancesAddTagsCmd) Execute(args []string) error {
@@ -73,6 +74,7 @@ func (c *InstancesAddTagsCmd) AddTags(system *System, inventory *backends.Invent
 type InstancesRemoveTagsCmd struct {
 	Tags   []string            `short:"t" long:"tag" description:"Tag names to remove from the instances"`
 	Filter InstancesListFilter `group:"Filters" namespace:"filter"`
+	Help   HelpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *InstancesRemoveTagsCmd) Execute(args []string) error {

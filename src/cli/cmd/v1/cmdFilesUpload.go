@@ -17,6 +17,7 @@ type FilesUploadCmd struct {
 	Nodes           TypeNodes          `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
 	ParallelThreads int                `short:"t" long:"threads" description:"Run on this many nodes in parallel" default:"10"`
 	Files           FilesRestUploadCmd `positional-args:"true"`
+	Help            HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type FilesRestUploadCmd struct {

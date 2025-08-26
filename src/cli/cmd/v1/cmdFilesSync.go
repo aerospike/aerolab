@@ -19,6 +19,7 @@ type FilesSyncCmd struct {
 	DestinationNodes   TypeNodes       `short:"o" long:"destn-nodes" description:"Destination node numbers; default: all except source node" default:""`
 	ParallelThreads    int             `short:"t" long:"threads" description:"Run on this many nodes in parallel" default:"10"`
 	Path               FilesSingleCmd  `positional-args:"true"`
+	Help               HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *FilesSyncCmd) Execute(args []string) error {

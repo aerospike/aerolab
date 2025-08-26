@@ -21,6 +21,7 @@ type VolumesListCmd struct {
 	SortBy     []string          `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
 	Pager      bool              `short:"p" long:"pager" description:"Use a pager to display the output"`
 	Filters    VolumesListFilter `group:"Filters" namespace:"filter"`
+	Help       HelpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type VolumesListFilter struct {
