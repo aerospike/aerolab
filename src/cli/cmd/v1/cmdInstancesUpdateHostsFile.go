@@ -35,7 +35,7 @@ func (c *InstancesUpdateHostsFileCmd) Execute(args []string) error {
 func (c *InstancesUpdateHostsFileCmd) UpdateHostsFile(system *System, inventory *backends.Inventory, args []string) error {
 	if system == nil {
 		var err error
-		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"instances", "start"}, c, args...)
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"instances", "update-hosts-file"}, c, args...)
 		if err != nil {
 			return err
 		}

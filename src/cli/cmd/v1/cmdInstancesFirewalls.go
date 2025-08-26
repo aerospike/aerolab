@@ -11,6 +11,7 @@ import (
 type InstancesAssignFirewallsCmd struct {
 	Firewalls []string            `short:"f" long:"firewall" description:"Firewall names to assign to the instances"`
 	Filter    InstancesListFilter `group:"Filters" namespace:"filter"`
+	Help      HelpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *InstancesAssignFirewallsCmd) Execute(args []string) error {
@@ -34,6 +35,7 @@ func (c *InstancesAssignFirewallsCmd) Execute(args []string) error {
 type InstancesRemoveFirewallsCmd struct {
 	Firewalls []string            `short:"f" long:"firewall" description:"Firewall names to remove from the instances"`
 	Filter    InstancesListFilter `group:"Filters" namespace:"filter"`
+	Help      HelpCmd             `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *InstancesRemoveFirewallsCmd) Execute(args []string) error {
