@@ -114,7 +114,7 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 			if slices.Contains(toRemove, region) {
 				for _, expirySystem := range expirySystems {
 					if expirySystem.Zone == region {
-						if expirySystem.FrequencyMinutes != -1 {
+						if expirySystem.FrequencyMinutes > 0 {
 							newCron, err = intervalToCron(expirySystem.FrequencyMinutes)
 							if err != nil {
 								return err
