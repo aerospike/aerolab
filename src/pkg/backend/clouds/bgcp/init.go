@@ -214,6 +214,7 @@ func (s *b) listAllZones() (regions []string, zones []string, err error) {
 		}
 		if cache.LastUpdated.Add(24 * time.Hour).After(time.Now()) {
 			zoneList = cache.Regions
+			nzones = cache.Zones
 		} else {
 			os.Remove(regionCacheFile)
 		}

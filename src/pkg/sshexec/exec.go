@@ -120,7 +120,7 @@ func ExecRun(session *ssh.Session, conn *ssh.Client, i *ExecInput) *ExecOutput {
 
 	// Handle window resize
 	sessid := uuid.New().String()
-	if i.Stdin == os.Stdin {
+	if i.Terminal {
 		resize(session)
 	} else {
 		resize(nil)
