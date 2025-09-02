@@ -1076,6 +1076,9 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	// using ssh, wait for the instances to be ready
 	log.Detail("Waiting for instances to be ssh-ready")
+	if backendSpecificParams.Image.Username == "" {
+		backendSpecificParams.Image.Username = "root"
+	}
 	for waitDur > 0 {
 		now := time.Now()
 		success := true
@@ -1401,17 +1404,23 @@ func ExecWithCLI(
 		resp.Close()
 		resp.CloseWrite()
 		resp.Conn.Close()
-		stdin.Close()
+		if stdin != nil {
+			stdin.Close()
+		}
 	}()
 	go func() {
 		io.Copy(stderr, resp.Reader)
 		resp.Close()
 		resp.CloseWrite()
 		resp.Conn.Close()
-		stdin.Close()
+		if stdin != nil {
+			stdin.Close()
+		}
 	}()
 	go func() {
-		io.Copy(resp.Conn, stdin)
+		if stdin != nil {
+			io.Copy(resp.Conn, stdin)
+		}
 	}()
 
 	// 3) wait for completion and collect exit code

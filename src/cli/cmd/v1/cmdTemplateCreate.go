@@ -48,6 +48,49 @@ func (c *TemplateCreateCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
+func resolveAerospikeServerVersion(aerospikeVersion string) (version *aerospike.Version, flavor string, err error) {
+	// find and resolve aerospike version
+	products, err := aerospike.GetProducts(time.Second * 10)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not get products: %s", err)
+	}
+	products = products.WithNamePrefix("aerospike-server-")
+	if strings.HasSuffix(aerospikeVersion, "c") {
+		products = products.WithNameSuffix("-community")
+		flavor = "community"
+	} else if strings.HasSuffix(aerospikeVersion, "f") {
+		products = products.WithNameSuffix("-federal")
+		flavor = "federal"
+	} else {
+		products = products.WithNameSuffix("-enterprise")
+		flavor = "enterprise"
+	}
+	if len(products) == 0 {
+		return nil, "", fmt.Errorf("aerospike version %s not found", aerospikeVersion)
+	}
+	versions, err := aerospike.GetVersions(time.Second*10, products[0])
+	if err != nil {
+		return nil, "", fmt.Errorf("could not get versions: %s", err)
+	}
+	if strings.HasPrefix(aerospikeVersion, "latest") {
+		version = versions.Latest()
+		if version == nil {
+			return nil, "", fmt.Errorf("version not found")
+		}
+	} else {
+		aerospikeVersion = strings.TrimRight(aerospikeVersion, "cf")
+		versions = versions.WithName(aerospikeVersion)
+		if len(versions) == 0 {
+			return nil, "", fmt.Errorf("aerospike version %s not found", aerospikeVersion)
+		}
+		version = versions.Latest()
+		if version == nil {
+			return nil, "", fmt.Errorf("version not found")
+		}
+	}
+	return version, flavor, nil
+}
+
 func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) (name string, err error) {
 	if system == nil {
 		var err error
@@ -60,49 +103,11 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		inventory = system.Backend.GetInventory()
 	}
 
-	// find and resolve aerospike version
-	products, err := aerospike.GetProducts(time.Second * 10)
+	version, flavor, err := resolveAerospikeServerVersion(c.AerospikeVersion)
 	if err != nil {
-		return "", fmt.Errorf("could not get products: %s", err)
+		return "", err
 	}
-	products = products.WithNamePrefix("aerospike-server-")
-	var flavor string
-	if strings.HasSuffix(c.AerospikeVersion, "c") {
-		products = products.WithNameSuffix("-community")
-		flavor = "community"
-	} else if strings.HasSuffix(c.AerospikeVersion, "f") {
-		products = products.WithNameSuffix("-federal")
-		flavor = "federal"
-	} else {
-		products = products.WithNameSuffix("-enterprise")
-		flavor = "enterprise"
-	}
-	if len(products) == 0 {
-		return "", fmt.Errorf("aerospike version %s not found", c.AerospikeVersion)
-	}
-	versions, err := aerospike.GetVersions(time.Second*10, products[0])
-	if err != nil {
-		return "", fmt.Errorf("could not get versions: %s", err)
-	}
-	var version *aerospike.Version
-	if strings.HasPrefix(c.AerospikeVersion, "latest") {
-		version = versions.Latest()
-		if version == nil {
-			return "", fmt.Errorf("version not found")
-		}
-		c.AerospikeVersion = version.Name
-	} else {
-		c.AerospikeVersion = strings.TrimRight(c.AerospikeVersion, "cf")
-		versions = versions.WithName(c.AerospikeVersion)
-		if len(versions) == 0 {
-			return "", fmt.Errorf("aerospike version %s not found", c.AerospikeVersion)
-		}
-		version = versions.Latest()
-		if version == nil {
-			return "", fmt.Errorf("version not found")
-		}
-		c.AerospikeVersion = version.Name
-	}
+	c.AerospikeVersion = version.Name
 
 	// get the installer URL
 	files, err := aerospike.GetFiles(time.Second*10, *version)
@@ -170,6 +175,10 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		needToVacuum = true
 	}
 
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
+	}
+
 	// build the structs for instances create and images create, instances stop and instances destroy commands (optionally vacuum too)
 	instName := strings.ToLower(shortuuid.New())
 	instancesCreate := &InstancesCreateCmd{
@@ -191,7 +200,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			Expire:             20 * time.Minute,
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
 			InstanceType:       "t3.medium",
-			Disks:              []string{"type=gp2,size=20,encrypted=true"},
+			Disks:              []string{"type=gp2,size=12"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
 			DisablePublicIP:    c.DisablePublicIP,
@@ -203,7 +212,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			Expire:             20 * time.Minute,
 			Zone:               system.Opts.Config.Backend.Region + "-a",
 			InstanceType:       "e2-standard-2",
-			Disks:              []string{"type=pd-ssd,size=20"},
+			Disks:              []string{"type=pd-ssd,size=12"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
 			IAMInstanceProfile: "",
@@ -229,13 +238,14 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		Name:         instName,
 		Description:  "Aerospike Server " + c.AerospikeVersion + " " + flavor + " " + c.Distro + " " + osVersion,
 		InstanceName: instName,
-		SizeGiB:      20,
+		SizeGiB:      12,
 		Owner:        c.Owner,
 		Type:         "aerospike",
 		Version:      c.AerospikeVersion + "-" + flavor,
 		Tags:         []string{"aerolab.soft.version=" + c.AerospikeVersion + "-" + flavor},
 		Timeout:      c.Timeout,
 		DryRun:       false,
+		IsOfficial:   true,
 	}
 
 	logger.Info("Aerospike Version: %s, Flavor: %s, Distro: %s, OS Version: %s, Arch: %s", c.AerospikeVersion, flavor, c.Distro, osVersion, c.Arch)
@@ -357,7 +367,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	inst.Describe()[0].AttachedVolumes = backends.VolumeList{}
 	newInst := append(inventory.Instances.Describe(), inst.Describe()...)
 	inventory.Instances = newInst
-	image, err := imagesCreate.CreateImage(system, inventory, logger, nil)
+	image, err := imagesCreate.CreateImage(system, inventory, logger.WithPrefix("[images.create] "), nil)
 	if err != nil {
 		return "", fmt.Errorf("could not create image: %s", err)
 	}

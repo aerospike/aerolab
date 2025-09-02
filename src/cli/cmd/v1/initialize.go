@@ -107,17 +107,17 @@ func Initialize(i *Init, command []string, params interface{}, args ...string) (
 	}
 	s.logLevel = logger.INFO
 	switch strings.ToUpper(os.Getenv("AEROLAB_LOG_LEVEL")) {
-	case "DEBUG":
+	case "DEBUG", "5":
 		s.logLevel = logger.DEBUG
-	case "INFO":
+	case "INFO", "4":
 		s.logLevel = logger.INFO
-	case "DETAIL":
+	case "DETAIL", "6":
 		s.logLevel = logger.DETAIL
-	case "ERROR":
+	case "ERROR", "2":
 		s.logLevel = logger.ERROR
-	case "CRITICAL":
+	case "CRITICAL", "1":
 		s.logLevel = logger.CRITICAL
-	case "WARNING":
+	case "WARNING", "3":
 		s.logLevel = logger.WARNING
 	}
 	s.Logger.SetLogLevel(s.logLevel)

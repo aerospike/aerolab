@@ -1,8 +1,13 @@
 package cmd
 
+import "embed"
+
+//go:embed scripts
+var scripts embed.FS
+
 type Commands struct {
 	Config  ConfigCmd  `command:"config" subcommands-optional:"true" description:"Show or change aerolab configuration" webicon:"fas fa-toolbox"`
-	Cluster clusterCmd `command:"cluster" subcommands-optional:"true" description:"Create and manage Aerospike clusters and nodes" webicon:"fas fa-database"`
+	Cluster ClusterCmd `command:"cluster" subcommands-optional:"true" description:"Create and manage Aerospike clusters and nodes" webicon:"fas fa-database"`
 	//Aerospike    aerospikeCmd    `command:"aerospike" subcommands-optional:"true" description:"Aerospike daemon controls" webicon:"fas fa-a"`
 	//Client       clientCmd       `command:"client" subcommands-optional:"true" description:"Create and manage Client machine groups" webicon:"fas fa-tv"`
 	Inventory InventoryCmd `command:"inventory" subcommands-optional:"true" description:"List or operate on all clusters, clients and images" webicon:"fas fa-warehouse"`
@@ -29,14 +34,4 @@ type Commands struct {
 	Upgrade UpgradeCmd `command:"upgrade" subcommands-optional:"true" description:"Upgrade AeroLab binary" webicon:"fas fa-circle-up"`
 	//WebRun       webRunCmd       `command:"webrun" subcommands-optional:"true" description:"Upgrade AeroLab binary" hidden:"true"`
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-}
-
-// TODO: delete me: I am here so that the code will work before I code this function
-type clusterCmd struct {
-	Create clusterCreateCmd `command:"create" subcommands-optional:"true" description:"Create a new Aerospike cluster" webicon:"fas fa-plus"`
-}
-
-// TODO: delete me: I am here so that the code will work before I code this function
-type clusterCreateCmd struct {
-	FeaturesFilePath string `short:"f" long:"features-file-path" description:"Path to the features file" webtype:"text"`
 }

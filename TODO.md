@@ -2,8 +2,11 @@
 
 ## Next - MVP
 
+NEXT:
+* the rest of the cluster commands
+
 CODE:
-* cluster, client - wrapper around instances command + templates + their own software installation and configuration
+* client - wrapper around instances command + templates + their own software installation and configuration
 * conf - manager aerospike configuration on running instances
 * aerospike - start/stop/restart/status of aerospike on running instances
 * logs - download logs from running instances
@@ -12,6 +15,7 @@ CODE:
 * Others to code after:
   * tls, net, data, agi
   * web, rest
+* cluster create TODOs
 * instance-types backend in AWS is unable to pull prices for metal instances (probably it's under something other than `on-demand` or `spot`)
 * instance-types backend in GCP cannot pull some instances - notably ct5l and c2 types as well as some m_ types, x_ types and a4
 

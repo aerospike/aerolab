@@ -20,6 +20,8 @@ type ImagesCreateCmd struct {
 	Version      string   `short:"v" long:"version" description:"Set image version; sets aerolab.soft.version tag"`
 	Tags         []string `short:"T" long:"tag" description:"Set extra image tags, as k=v"`
 	Timeout      int      `long:"timeout" description:"Set timeout in minutes for the image creation" default:"10"`
+	IsOfficial   bool     `short:"i" long:"official" description:"Instance was created using an official OS image (has systemd)"`
+	Encrypted    bool     `short:"e" long:"encrypted" description:"Set to create an encrypted image"`
 	DryRun       bool     `long:"dry-run" description:"Do not actually create the image, just run the basic checks"`
 	Help         HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -114,6 +116,7 @@ func (c *ImagesCreateCmd) CreateImage(system *System, inventory *backends.Invent
 	}
 	tags["aerolab.image.type"] = c.Type
 	tags["aerolab.soft.version"] = c.Version
+	tags["aerolab.is.official"] = fmt.Sprintf("%t", c.IsOfficial)
 
 	logger.Info("Name: %s, Type: %s, Version: %s, Owner: %s, Tags: %v, FromInstance: %s", c.Name, c.Type, c.Version, c.Owner, tags, c.InstanceName)
 
@@ -133,7 +136,7 @@ func (c *ImagesCreateCmd) CreateImage(system *System, inventory *backends.Invent
 		SizeGiB:     backends.StorageSize(c.SizeGiB),
 		Owner:       c.Owner,
 		Tags:        tags,
-		Encrypted:   true,
+		Encrypted:   c.Encrypted,
 		OSName:      instance.OperatingSystem.Name,
 		OSVersion:   instance.OperatingSystem.Version,
 	}, time.Duration(c.Timeout)*time.Minute)

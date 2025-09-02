@@ -75,7 +75,7 @@ type InstancesCreateCmdAws struct {
 	Expire             time.Duration `long:"expire" description:"Expire the instances in a given time, format: 1h, 1d, 1w, 1m, 1y" default:"30h"`
 	NetworkPlacement   string        `long:"placement" description:"Network placement of the instances, specify either region name, VPC-ID or subnet-ID; empty=default at first region"`
 	InstanceType       string        `long:"instance" description:"Instance type to use for the instances"`
-	Disks              []string      `long:"disk" description:"Format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]\n; example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=gp2,size=20,encrypted=true"`
+	Disks              []string      `long:"disk" description:"Format: type={gp2|gp3|io2|io1},size={GB}[,iops={cnt}][,throughput={mb/s}][,count=5][,encrypted=true|false]\n; example: type=gp2,size=20 type=gp3,size=100,iops=5000,throughput=200,count=2; first specified volume is the root volume, all subsequent volumes are additional attached volumes" default:"type=gp2,size=20"`
 	Firewalls          []string      `long:"firewall" description:"Extra security group names to assign to the instances"`
 	SpotInstance       bool          `long:"spot" description:"Create spot instances"`
 	DisablePublicIP    bool          `long:"no-public-ip" description:"Disable public IP assignment to the instances"`
@@ -342,6 +342,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	awsCustomImage := false
 	gcpCustomImage := false
 	dockerCustomImage := false
+	dockerImageFromOfficial := false
 
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
@@ -361,7 +362,11 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				}
 				lenghts := []int{0, 0, 0, 0, 0, 0, 0, 0}
 				for _, it := range instanceTypes {
-					if it.Region != system.Opts.Config.Backend.Region {
+					region := it.Region
+					if strings.Count(region, "-") == 2 {
+						region = region[:strings.LastIndex(region, "-")]
+					}
+					if region != system.Opts.Config.Backend.Region {
 						continue
 					}
 					arch := ""
@@ -393,11 +398,43 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 						lenghts[7] = len(fmt.Sprintf("%0.4f", it.PricePerHour.OnDemand))
 					}
 				}
-				format := fmt.Sprintf("%%%ds (Arch=%%-%ds CPUs=%%-%dd RAM_GiB=%%-%d.2f GPUs=%%-%dd NVMe=%%-%dd NVMeTotalSizeGiB=%%-%dd OnDemandPricePerHour=%%-%d.4f)", lenghts[0], lenghts[1], lenghts[2], lenghts[3], lenghts[4], lenghts[5], lenghts[6], lenghts[7])
+				format := fmt.Sprintf("%%-%ds (Arch=%%%ds CPUs=%%-%dd RAM_GiB=%%-%d.2f GPUs=%%-%dd NVMe=%%-%dd NVMeTotalSizeGiB=%%-%dd OnDemandPricePerHour=%%-%d.4f)", lenghts[0], lenghts[1], lenghts[2], lenghts[3], lenghts[4], lenghts[5], lenghts[6], lenghts[7])
+				foundTypes := []string{}
+				sort.Slice(instanceTypes, func(i, j int) bool {
+					n1 := strings.Split(strings.Join(strings.Split(instanceTypes[i].Name, "-")[0:2], "-"), ".")[0]
+					n2 := strings.Split(strings.Join(strings.Split(instanceTypes[j].Name, "-")[0:2], "-"), ".")[0]
+					if n1 < n2 {
+						return true
+					}
+					if n1 > n2 {
+						return false
+					}
+					if instanceTypes[i].CPUs < instanceTypes[j].CPUs {
+						return true
+					}
+					if instanceTypes[i].CPUs > instanceTypes[j].CPUs {
+						return false
+					}
+					if instanceTypes[i].MemoryGiB < instanceTypes[j].MemoryGiB {
+						return true
+					}
+					if instanceTypes[i].MemoryGiB > instanceTypes[j].MemoryGiB {
+						return false
+					}
+					return false
+				})
 				for _, it := range instanceTypes {
-					if it.Region != system.Opts.Config.Backend.Region {
+					region := it.Region
+					if strings.Count(region, "-") == 2 {
+						region = region[:strings.LastIndex(region, "-")]
+					}
+					if region != system.Opts.Config.Backend.Region {
 						continue
 					}
+					if slices.Contains(foundTypes, it.Name) {
+						continue
+					}
+					foundTypes = append(foundTypes, it.Name)
 					arch := ""
 					if len(it.Arch) > 0 {
 						arch = it.Arch[0].String()
@@ -406,7 +443,6 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 					itypeList = append(itypeList, val)
 					itypes[val] = it.Name
 				}
-				sort.Strings(itypeList)
 				// get terminal height
 				_, termHeight, err := term.GetSize(int(os.Stdout.Fd()))
 				if err != nil {
@@ -512,6 +548,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 	case "docker":
 		if c.Docker.ImageName == "" {
+			dockerImageFromOfficial = true
 			narch := ""
 			switch c.Arch {
 			case "amd64":
@@ -523,8 +560,13 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		} else {
 			dockerCustomImage = true
 		}
-		if dockerCustomImage && inventory.Images.WithName(c.Docker.ImageName).Count() == 0 {
-			return nil, errors.New("docker: image " + c.Docker.ImageName + " does not exist")
+		if dockerCustomImage {
+			if inventory.Images.WithName(c.Docker.ImageName).Count() == 0 {
+				return nil, errors.New("docker: image " + c.Docker.ImageName + " does not exist")
+			}
+			if inventory.Images.WithName(c.Docker.ImageName).Describe()[0].Tags["aerolab.is.official"] == "true" {
+				dockerImageFromOfficial = true
+			}
 		}
 	}
 
@@ -537,7 +579,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 		tags[parts[0]] = parts[1]
 	}
-	if system.Opts.Config.Backend.Type == "docker" && dockerCustomImage {
+	if system.Opts.Config.Backend.Type == "docker" && !dockerImageFromOfficial {
 		tags["aerolab.custom.image"] = "true"
 	}
 	tags["aerolab.type"] = c.Type
@@ -563,7 +605,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		Resources:         container.Resources{},
 		MaskedPaths:       strslice.StrSlice{},
 		ReadonlyPaths:     strslice.StrSlice{},
-		SkipSshReadyCheck: dockerCustomImage,
+		SkipSshReadyCheck: !dockerImageFromOfficial,
 	}
 	if c.Docker.AdvancedConfigPath != "" {
 		f, err := os.Open(string(c.Docker.AdvancedConfigPath))
@@ -599,6 +641,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	gcpCustomImageID := ""
 	if gcpCustomImage {
 		gcpCustomImageID = c.GCP.ImageName
+	}
+	if c.Owner == "" {
+		c.Owner = currentOwnerUser
 	}
 	createInstancesInput := &backends.CreateInstanceInput{
 		ClusterName:        c.ClusterName,
