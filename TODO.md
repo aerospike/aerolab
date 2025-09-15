@@ -2,22 +2,28 @@
 
 ## Next - MVP
 
-NEXT:
-* the rest of the cluster commands
-
 CODE:
-* client - wrapper around instances command + templates + their own software installation and configuration
+* template create owner: none (on docker at least)
+* cluster / instances create - should we set custom hostname? AWS at least does not do it. Should we?
+* cluster create - if aws/gcp, give note that they are not adding public IP systemd script, and a separate command on how to do that
+* cluster add *
+* cluster partition *
+* cluster apply
 * conf - manager aerospike configuration on running instances
+* conf public-ip feature - to install public-ip patching systemd script to instances in aws/gcp
+* cluster start TODOs and all other cluster create/cluster TODOs
 * aerospike - start/stop/restart/status of aerospike on running instances
 * logs - download logs from running instances
+* client - wrapper around instances command + templates + their own software installation and configuration
 * roster - manage strong-consistency rosters on running instances
 * xdr - manage xdr configuration on running instances
 * Others to code after:
   * tls, net, data, agi
   * web, rest
-* cluster create TODOs
+* All cmd package TODOs in code
 * instance-types backend in AWS is unable to pull prices for metal instances (probably it's under something other than `on-demand` or `spot`)
 * instance-types backend in GCP cannot pull some instances - notably ct5l and c2 types as well as some m_ types, x_ types and a4
+* test using custom images with `instances create` on all backends
 
 CONSIDER:
 * aerolab if failed grow/create/apply on capacity, retry automatically
