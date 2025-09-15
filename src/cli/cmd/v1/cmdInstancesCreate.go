@@ -43,6 +43,8 @@ type InstancesCreateCmd struct {
 	OS                 string                   `long:"os" description:"OS to use for the instances" default:"ubuntu"`
 	Version            string                   `long:"version" description:"Version of the OS to use for the instances" default:"24.04"`
 	Arch               string                   `long:"arch" description:"Architecture override to use for the instances (amd64, arm64)"`
+	ImageType          string                   `long:"image-type" description:"Image software type to search for"`
+	ImageVersion       string                   `long:"image-version" description:"Version of the image software to search for"`
 	AWS                InstancesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
 	GCP                InstancesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
 	Docker             InstancesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
@@ -491,6 +493,12 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				narch = backends.ArchitectureARM64
 			}
 			img := inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).Describe()
+			if c.ImageType != "" {
+				img = img.WithTags(map[string]string{"aerolab.image.type": c.ImageType}).Describe()
+			}
+			if c.ImageVersion != "" {
+				img = img.WithTags(map[string]string{"aerolab.soft.version": c.ImageVersion}).Describe()
+			}
 			if img.Count() == 0 {
 				return nil, errors.New("aws: image " + c.OS + " " + c.Version + " " + c.Arch + " does not exist")
 			}
@@ -533,6 +541,12 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				narch = backends.ArchitectureARM64
 			}
 			img := inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).Describe()
+			if c.ImageType != "" {
+				img = img.WithTags(map[string]string{"aerolab.image.type": c.ImageType}).Describe()
+			}
+			if c.ImageVersion != "" {
+				img = img.WithTags(map[string]string{"aerolab.soft.version": c.ImageVersion}).Describe()
+			}
 			if img.Count() == 0 {
 				return nil, errors.New("gcp: image " + c.OS + " " + c.Version + " " + c.Arch + " does not exist")
 			}
