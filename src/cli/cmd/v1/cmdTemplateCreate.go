@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -79,7 +80,11 @@ func resolveAerospikeServerVersion(aerospikeVersion string) (version *aerospike.
 		}
 	} else {
 		aerospikeVersion = strings.TrimRight(aerospikeVersion, "cf")
-		versions = versions.WithName(aerospikeVersion)
+		if strings.HasSuffix(aerospikeVersion, "*") || strings.HasSuffix(aerospikeVersion, ".") {
+			versions = versions.WithNamePrefix(strings.TrimSuffix(aerospikeVersion, "*"))
+		} else {
+			versions = versions.WithName(aerospikeVersion)
+		}
 		if len(versions) == 0 {
 			return nil, "", fmt.Errorf("aerospike version %s not found", aerospikeVersion)
 		}
@@ -200,7 +205,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			Expire:             20 * time.Minute,
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
 			InstanceType:       "t3.medium",
-			Disks:              []string{"type=gp2,size=12"},
+			Disks:              []string{"type=gp2,size=20"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
 			DisablePublicIP:    c.DisablePublicIP,
@@ -212,7 +217,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			Expire:             20 * time.Minute,
 			Zone:               system.Opts.Config.Backend.Region + "-a",
 			InstanceType:       "e2-standard-2",
-			Disks:              []string{"type=pd-ssd,size=12"},
+			Disks:              []string{"type=pd-ssd,size=20"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
 			IAMInstanceProfile: "",
@@ -238,7 +243,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		Name:         instName,
 		Description:  "Aerospike Server " + c.AerospikeVersion + " " + flavor + " " + c.Distro + " " + osVersion,
 		InstanceName: instName,
-		SizeGiB:      12,
+		SizeGiB:      20,
 		Owner:        c.Owner,
 		Type:         "aerospike",
 		Version:      c.AerospikeVersion + "-" + flavor,
@@ -331,14 +336,23 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			return "", fmt.Errorf("could not upload install script: %s", err)
 		}
 		logger.Info("Uploaded install script to instance %s, running it now", conf.Host)
+		var stdout, stderr *os.File
+		var stdin io.ReadCloser = nil
+		terminal := false
+		if system.logLevel >= 5 {
+			stdout = os.Stdout
+			stderr = os.Stderr
+			terminal = true
+			stdin = io.NopCloser(os.Stdin)
+		}
 		outputs := inst.Exec(&backends.ExecInput{
 			ExecDetail: sshexec.ExecDetail{
 				Command:        []string{"bash", "/tmp/install.sh"},
-				Terminal:       false,
+				Terminal:       terminal,
 				SessionTimeout: 15 * time.Minute,
-				Stdin:          nil,
-				Stdout:         nil,
-				Stderr:         nil,
+				Stdin:          stdin,
+				Stdout:         stdout,
+				Stderr:         stderr,
 			},
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
