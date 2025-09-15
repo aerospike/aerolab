@@ -80,6 +80,30 @@ type FileReader struct {
 	Destination io.Writer // destination writer to which the file will be written
 }
 
+func (i *Sftp) RawClient() *sftp.Client {
+	return i.client
+}
+
+func (i *Sftp) IsExists(path string) bool {
+	_, err := i.client.Stat(path)
+	return err == nil
+}
+
+func (i *Sftp) Mkdir(path string, perm os.FileMode) error {
+	if i.IsExists(path) {
+		return nil
+	}
+	err := i.client.Mkdir(path)
+	if err != nil {
+		return err
+	}
+	err = i.client.Chmod(path, perm)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // write a file to remote
 // if mkdir is set, will check if directory exists; if it doesn't, one will be created
 func (i *Sftp) WriteFile(mkdir bool, f *FileWriter) error {
