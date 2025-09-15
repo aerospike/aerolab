@@ -405,8 +405,9 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		OS:                 c.DistroName.String(),
 		Version:            c.DistroVersion.String(),
 		Arch:               arch.String(),
+		ImageType:          "aerospike",
+		ImageVersion:       av,
 		AWS: InstancesCreateCmdAws{
-			ImageID:            templateName,
 			Expire:             c.Aws.Expires,
 			NetworkPlacement:   c.Aws.SubnetID,
 			InstanceType:       c.Aws.InstanceType.String(),
@@ -418,7 +419,6 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			CustomDNS:          c.Aws.InstanceDNS,
 		},
 		GCP: InstancesCreateCmdGcp{
-			ImageName:          templateName,
 			Expire:             c.Gcp.Expires,
 			Zone:               c.Gcp.Zone.String(),
 			InstanceType:       c.Gcp.InstanceType.String(),
@@ -1175,6 +1175,11 @@ func setClusterName(conf []byte, name string) (data []byte, err error) {
 	return data, nil
 }
 
+// modes:
+// - default: do nothing
+// - auto: determine the best mode based on current config, or otherwise default to mesh
+// - mesh: use mesh mode
+// - mcast: use multicast mode
 func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []string) (data []byte, err error) {
 	if mode == "default" {
 		return conf, nil
@@ -1194,6 +1199,29 @@ func fixHeartbeats(conf []byte, mode string, addr string, port string, intIps []
 	}
 	if ac.Stanza("network").Stanza("heartbeat").Type("timeout") == aeroconf.ValueNil {
 		ac.Stanza("network").Stanza("heartbeat").SetValue("timeout", "10")
+	}
+
+	if mode == "auto" {
+		if ac.Stanza("network").Stanza("heartbeat").Type("mode") == aeroconf.ValueNil {
+			mode = "mesh"
+		} else {
+			vals, err := ac.Stanza("network").Stanza("heartbeat").GetValues("mode")
+			if err != nil {
+				return conf, err
+			}
+			for _, val := range vals {
+				if strings.Trim(*val, "\r\n\t ") == "mesh" {
+					mode = "mesh"
+					break
+				} else if strings.Trim(*val, "\r\n\t ") == "multicast" {
+					mode = "mcast"
+					break
+				}
+			}
+			if mode == "auto" {
+				mode = "mesh"
+			}
+		}
 	}
 
 	switch mode {
