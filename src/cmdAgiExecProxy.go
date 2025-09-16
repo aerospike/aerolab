@@ -1164,84 +1164,150 @@ func (c *agiExecProxyCmd) fbHandler(w http.ResponseWriter, r *http.Request) {
 	c.fbProxy.ServeHTTP(w, r)
 }
 
+func (c *agiExecProxyCmd) getTtyd() error {
+	logger.Info("Getting ttyd...")
+	fd, err := os.OpenFile("/usr/local/bin/ttyd", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
+	if err != nil {
+		return fmt.Errorf("ttyd-MAKEFILE: %s", err)
+	}
+	arch := "x86_64" // .aarch64
+	narch, _ := exec.Command("uname", "-m").CombinedOutput()
+	if strings.Contains(string(narch), "arm") || strings.Contains(string(narch), "aarch") {
+		arch = "aarch64"
+	}
+	client := &http.Client{}
+	client.Timeout = time.Minute
+	defer client.CloseIdleConnections()
+	req, err := http.NewRequest("GET", "https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd."+arch, nil)
+	if err != nil {
+		fd.Close()
+		return err
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		fd.Close()
+		return err
+	}
+	_, err = io.Copy(fd, response.Body)
+	response.Body.Close()
+	fd.Close()
+	if err != nil {
+		return fmt.Errorf("ttyd-DOWNLOAD: %s", err)
+	}
+	logger.Info("Running gotty!")
+	nlabel := []byte{}
+	for _, labelFile := range []string{"/opt/agi/label", "/opt/agi/name"} {
+		nlabela, _ := os.ReadFile(labelFile)
+		if string(nlabela) == "" {
+			continue
+		}
+		if len(nlabel) == 0 {
+			nlabel = nlabela
+		} else {
+			nlabel = append(nlabel, []byte(" - ")...)
+			nlabel = append(nlabel, nlabela...)
+		}
+	}
+	for i := range nlabel {
+		if nlabel[i] == 32 || nlabel[i] == 45 || nlabel[i] == 46 || nlabel[i] == 61 || nlabel[i] == 95 {
+			continue
+		}
+		if nlabel[i] >= 48 && nlabel[i] <= 58 {
+			continue
+		}
+		if nlabel[i] >= 65 && nlabel[i] <= 90 {
+			continue
+		}
+		if nlabel[i] >= 97 && nlabel[i] <= 122 {
+			continue
+		}
+		nlabel[i] = ' '
+	}
+	com := exec.Command("/usr/local/bin/ttyd", "-t", "titleFixed="+string(nlabel), "-t", "scrollback=10000", "-T", "vt220", "-W", "-p", "8852", "-i", "lo", "-P", "5", "-b", "/agi/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* lnav tool is installed for log analysis' && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
+	com.Dir = c.EntryDir
+	sout, err := com.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("gotty cannot start: could not create stdout pipe: %s", err)
+	}
+	serr, err2 := com.StderrPipe()
+	if err2 != nil {
+		return fmt.Errorf("gotty cannot start: could not create stderr pipe: %s", err2)
+	}
+	err = com.Start()
+	if err != nil {
+		return fmt.Errorf("gotty cannot start: %s", err)
+	}
+	go c.gottyWatcher(sout)
+	go c.gottyWatcher(serr)
+	err = com.Wait()
+	if err != nil {
+		return fmt.Errorf("gotty exited with error: %s", err)
+	}
+	return nil
+}
+
+func (c *agiExecProxyCmd) getFilebrowser() error {
+	logger.Info("Getting filebrowser...")
+	fd, err := os.OpenFile("/opt/filebrowser.tgz", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
+	if err != nil {
+		return err
+	}
+	arch := "amd64"
+	narch, _ := exec.Command("uname", "-m").CombinedOutput()
+	if strings.Contains(string(narch), "arm") || strings.Contains(string(narch), "aarch") {
+		arch = "arm64"
+	}
+	client := &http.Client{}
+	client.Timeout = time.Minute
+	defer client.CloseIdleConnections()
+	req, err := http.NewRequest("GET", "https://github.com/filebrowser/filebrowser/releases/download/v2.32.0/linux-"+arch+"-filebrowser.tar.gz", nil)
+	if err != nil {
+		fd.Close()
+		return err
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		fd.Close()
+		return err
+	}
+	_, err = io.Copy(fd, response.Body)
+	response.Body.Close()
+	fd.Close()
+	if err != nil {
+		return err
+	}
+	logger.Info("Unpack filebrowser")
+	out, err := exec.Command("tar", "-zxvf", "/opt/filebrowser.tgz", "-C", "/usr/local/bin/", "filebrowser").CombinedOutput()
+	if err != nil {
+		return err
+	}
+	logger.Info("Running filebrowser!")
+	com := exec.Command("/usr/local/bin/filebrowser", "-p", "8853", "-r", c.EntryDir, "--noauth", "-d", "/opt/filebrowser.db", "-b", "/agi/filebrowser/")
+	com.Dir = c.EntryDir
+	out, err = com.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("filebrowser: %s %s", err, string(out))
+	}
+	return nil
+}
+
 func (c *agiExecProxyCmd) getDeps() {
 	go func() {
-		logger.Info("Getting ttyd...")
-		fd, err := os.OpenFile("/usr/local/bin/ttyd", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
-		if err != nil {
-			logger.Error("ttyd-MAKEFILE: %s", err)
-			return
-		}
-		arch := "x86_64" // .aarch64
-		narch, _ := exec.Command("uname", "-m").CombinedOutput()
-		if strings.Contains(string(narch), "arm") || strings.Contains(string(narch), "aarch") {
-			arch = "aarch64"
-		}
-		resp, err := http.Get("https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd." + arch)
-		if err != nil {
-			logger.Error("ttyd-GET: %s", err)
-			fd.Close()
-			return
-		}
-		_, err = io.Copy(fd, resp.Body)
-		resp.Body.Close()
-		fd.Close()
-		if err != nil {
-			logger.Error("ttyd-DOWNLOAD: %s", err)
-			return
-		}
-		logger.Info("Running gotty!")
-		nlabel := []byte{}
-		for _, labelFile := range []string{"/opt/agi/label", "/opt/agi/name"} {
-			nlabela, _ := os.ReadFile(labelFile)
-			if string(nlabela) == "" {
-				continue
+		for {
+			err := c.getTtyd()
+			if err != nil {
+				logger.Info("ERROR: TTYD: %s", err)
 			}
-			if len(nlabel) == 0 {
-				nlabel = nlabela
-			} else {
-				nlabel = append(nlabel, []byte(" - ")...)
-				nlabel = append(nlabel, nlabela...)
-			}
+			time.Sleep(30 * time.Second)
 		}
-		for i := range nlabel {
-			if nlabel[i] == 32 || nlabel[i] == 45 || nlabel[i] == 46 || nlabel[i] == 61 || nlabel[i] == 95 {
-				continue
+	}()
+	go func() {
+		for {
+			err := c.getFilebrowser()
+			if err != nil {
+				logger.Info("ERROR: FILEBROWSER: %s", err)
 			}
-			if nlabel[i] >= 48 && nlabel[i] <= 58 {
-				continue
-			}
-			if nlabel[i] >= 65 && nlabel[i] <= 90 {
-				continue
-			}
-			if nlabel[i] >= 97 && nlabel[i] <= 122 {
-				continue
-			}
-			nlabel[i] = ' '
-		}
-		com := exec.Command("/usr/local/bin/ttyd", "-t", "titleFixed="+string(nlabel), "-t", "scrollback=10000", "-T", "vt220", "-W", "-p", "8852", "-i", "lo", "-P", "5", "-b", "/agi/ttyd", "/bin/bash", "-c", "export TMOUT=3600 && echo '* lnav tool is installed for log analysis' && echo '* aerospike-tools is installed' && echo '* less -S ...: enable horizontal scrolling in less using arrow keys' && echo '* showconf command: showconf collect_info.tgz' && echo '* showsysinfo command: showsysinfo collect_info.tgz' && echo '* showinterrupts command: showinterrupts collect_info.tgz' && /bin/bash")
-		com.Dir = c.EntryDir
-		sout, err := com.StdoutPipe()
-		if err != nil {
-			logger.Error("gotty cannot start: could not create stdout pipe: %s", err)
-			return
-		}
-		serr, err2 := com.StderrPipe()
-		if err2 != nil {
-			logger.Error("gotty cannot start: could not create stderr pipe: %s", err2)
-			return
-		}
-		err = com.Start()
-		if err != nil {
-			logger.Error("gotty cannot start: %s", err)
-			return
-		}
-		go c.gottyWatcher(sout)
-		go c.gottyWatcher(serr)
-		err = com.Wait()
-		if err != nil {
-			logger.Error("gotty exited with error: %s", err)
-			return
+			time.Sleep(30 * time.Second)
 		}
 	}()
 	go func() {
@@ -1267,45 +1333,6 @@ func (c *agiExecProxyCmd) getDeps() {
 			if err != nil {
 				logger.Error("failed to symlink showinterrupts: %s", err)
 			}
-		}
-	}()
-	go func() {
-		logger.Info("Getting filebrowser...")
-		fd, err := os.OpenFile("/opt/filebrowser.tgz", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
-		if err != nil {
-			logger.Error("filebrowser-MAKEFILE: %s", err)
-			return
-		}
-		arch := "amd64"
-		narch, _ := exec.Command("uname", "-m").CombinedOutput()
-		if strings.Contains(string(narch), "arm") || strings.Contains(string(narch), "aarch") {
-			arch = "arm64"
-		}
-		resp, err := http.Get("https://github.com/filebrowser/filebrowser/releases/download/v2.32.0/linux-" + arch + "-filebrowser.tar.gz")
-		if err != nil {
-			logger.Error("filebrowser-GET: %s", err)
-			fd.Close()
-			return
-		}
-		_, err = io.Copy(fd, resp.Body)
-		resp.Body.Close()
-		fd.Close()
-		if err != nil {
-			logger.Error("filebrowser-DOWNLOAD: %s", err)
-			return
-		}
-		logger.Info("Unpack filebrowser")
-		out, err := exec.Command("tar", "-zxvf", "/opt/filebrowser.tgz", "-C", "/usr/local/bin/", "filebrowser").CombinedOutput()
-		if err != nil {
-			logger.Error("filebrowser-unpack: %s (%s)", string(out), err)
-			return
-		}
-		logger.Info("Running filebrowser!")
-		com := exec.Command("/usr/local/bin/filebrowser", "-p", "8853", "-r", c.EntryDir, "--noauth", "-d", "/opt/filebrowser.db", "-b", "/agi/filebrowser/")
-		com.Dir = c.EntryDir
-		out, err = com.CombinedOutput()
-		if err != nil {
-			logger.Error("filebrowser: %s %s", err, string(out))
 		}
 	}()
 }
