@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -75,6 +76,7 @@ func (c *showcommandsCmd) Execute(args []string) error {
 type upgradeCmd struct {
 	Edge   bool    `long:"edge" description:"Include pre-releases when discovering versions"`
 	BugFix bool    `long:"bugfix" description:"Download latest (pre-)release bugfix version"`
+	Major  bool    `long:"major" description:"Upgrade to the next major version prerelease if available (v8); WARN: this may break things"`
 	DryRun bool    `long:"dryrun" description:"Set to show the upgrade source URL and destination path, do not upgrade"`
 	Force  bool    `long:"force" description:"Force upgrade, even if the available version is the same as, or older than, the currently installed one"`
 	Help   helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -107,6 +109,19 @@ func (c *upgradeCmd) Execute(args []string) error {
 		for _, presa := range pres {
 			if c.BugFix {
 				if strings.HasSuffix(strings.Split(presa.LatestVersion, "-")[0], ".0") {
+					continue
+				}
+			}
+			if !c.Major {
+				preMajor, err := strconv.Atoi(strings.Split(presa.LatestVersion, ".")[0])
+				if err != nil {
+					continue
+				}
+				nowMajor, err := strconv.Atoi(strings.Split(presa.CurrentVersion, ".")[0])
+				if err != nil {
+					continue
+				}
+				if preMajor != nowMajor {
 					continue
 				}
 			}
