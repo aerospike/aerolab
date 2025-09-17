@@ -382,9 +382,17 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	if system.Opts.Config.Backend.Type == "aws" {
 		tags = c.Aws.Tags
 		terminateOnStop = c.Aws.TerminateOnPoweroff
+		if !c.Aws.PublicIP {
+			logger.Warn("Public IP access address is not enabled for this cluster, you will be unable to connect to the instances from outside AWS.")
+			logger.Warn("To enable public IP access address, run: aerolab cluster add public-ip -n %s", c.ClusterName.String())
+		}
 	} else if system.Opts.Config.Backend.Type == "gcp" {
 		tags = c.Gcp.Tags
 		terminateOnStop = c.Gcp.TerminateOnPoweroff
+		if !c.Gcp.PublicIP {
+			logger.Warn("Public IP access address is not enabled for this cluster, you will be unable to connect to the instances from outside GCP.")
+			logger.Warn("To enable public IP access address, run: aerolab cluster add public-ip -n %s", c.ClusterName.String())
+		}
 	}
 	dockerExposePorts := []string{"+3100:3000"}
 	if c.Docker.ExposePortsToHost != "" {
