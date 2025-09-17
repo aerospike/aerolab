@@ -23,6 +23,14 @@ Note: you can download the template configuration file from this repository, in 
 aerolab cluster create -o aerospike.conf -c 2 -n mytest
 ```
 
+**Using GCP?**  If so, your command will likely look more like the following:
+
+```bash
+aerolab cluster create -o aerospike.conf -c 2 -n mytest --instance e2-medium --zone us-central1-a --disk pd-balanced:20 --disk pd-ssd:40 --firewall aerolab-managed-external
+```
+
+The `--instance` and `--zone` should be adjusted to your particular GCP needs.  The key thing to note here is the `--firewall` option.  If you don't specify this, Aerolab will not configure your cluster's firewall to use the same rules as what other Aerolab examples expect.
+
 ### Generate TLS certificates
 
 ```bash
@@ -38,6 +46,7 @@ aerolab aerospike restart -n mytest
 ### Connect using AQL
 
 Note: if using Docker Desktop, first run `aerolab cluster list` and grab the `ExposedPort` for node 1. Use that instead of `4333`.
+If you are connecting from one machine to another inside of a GCP deployment, use `aerolab cluster list` and grab the `PrivateIP` instead of the public IP.
 
 ```bash
 aerolab attach shell -n mytest
