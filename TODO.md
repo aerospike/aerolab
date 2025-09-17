@@ -3,9 +3,6 @@
 ## Next - MVP
 
 CODE:
-* template create owner: none (on docker at least)
-* cluster / instances create - should we set custom hostname? AWS at least does not do it. Should we?
-* cluster create - if aws/gcp, give note that they are not adding public IP systemd script, and a separate command on how to do that
 * cluster add *
 * cluster partition *
 * cluster apply

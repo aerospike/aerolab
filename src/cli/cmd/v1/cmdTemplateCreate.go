@@ -11,6 +11,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/installers"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
 	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/lithammer/shortuuid"
@@ -23,7 +24,7 @@ type TemplateCreateCmd struct {
 	DistroVersion    string  `short:"v" long:"distro-version" description:"Version of the distro to create the template for" default:"latest"`
 	Arch             string  `short:"a" long:"arch" description:"Architecture to create the template for" default:"amd64"`
 	AerospikeVersion string  `short:"A" long:"aerospike-version" description:"Aerospike version to create the template for" default:"latest"`
-	Owner            string  `short:"o" long:"owner" description:"Owner of the template" default:"none"`
+	Owner            string  `short:"o" long:"owner" description:"Owner of the template"`
 	DisablePublicIP  bool    `short:"p" long:"disable-public-ip" description:"Disable public IP assignment to the instances in AWS"`
 	Timeout          int     `short:"t" long:"timeout" description:"Set timeout in minutes for the template creation" default:"10"`
 	DryRun           bool    `short:"n" long:"dry-run" description:"Do not actually create the template, just run the basic checks"`
@@ -160,6 +161,51 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		if installScript == nil {
 			return "", fmt.Errorf("could not get install script: could not find a matching OS Version and Architecture for the given aerospike version %s %s", flavor, c.AerospikeVersion)
 		}
+	}
+
+	// add basic tools to the install script
+	installScript, err = installers.GetInstallScript(installers.Software{
+		Debug: system.logLevel >= 5,
+		Optional: installers.Installs{
+			Dependencies: []installers.Dependency{
+				{Command: "curl", Package: "curl"},
+				{Command: "jq", Package: "jq"},
+				{Command: "unzip", Package: "unzip"},
+				{Command: "zip", Package: "zip"},
+				{Command: "wget", Package: "wget"},
+				{Command: "git", Package: "git"},
+				{Command: "vim", Package: "vim"},
+				{Command: "nano", Package: "nano"},
+				{Command: "less", Package: "less"},
+				{Command: "lnav", Package: "lnav"},
+				{Command: "iptables", Package: "iptables"},
+				{Command: "tcpdump", Package: "tcpdump"},
+				{Command: "telnet", Package: "telnet"},
+				{Command: "mpstat", Package: "sysstat"},
+				{Command: "dig", Package: "dnsutils"},   // apt
+				{Command: "dig", Package: "bind-utils"}, // yum
+				{Command: "strings", Package: "binutils"},
+				{Command: "which", Package: "which"},
+				{Command: "ip", Package: "iproute2"},       // apt
+				{Command: "ip", Package: "iproute"},        // yum
+				{Command: "ip", Package: "iproute-tc"},     // yum
+				{Command: "python3", Package: "python3"},   // apt and some yum
+				{Command: "python3", Package: "python"},    // yum
+				{Command: "nc", Package: "netcat"},         // apt
+				{Command: "nc", Package: "nc"},             // yum
+				{Command: "ping", Package: "iputils-ping"}, // apt
+				{Command: "ping", Package: "iputils"},      // yum
+				{Command: "ldapsearch", Package: "ldap-utils"},
+				{Command: "netstat", Package: "net-tools"},
+				{Command: "lsb_release", Package: "lsb-release"},     // apt
+				{Command: "lsb_release", Package: "redhat-lsb-core"}, // yum
+				{Command: "lsb_release", Package: "redhat-lsb"},      // yum
+			},
+			Packages: []string{"python3-setuptools", "python3-distutils", "libcurl4", "libcurl4-openssl-dev", "libldap-common", "libcurl-openssl-devel", "initscripts"},
+		},
+	}, installScript)
+	if err != nil {
+		return "", fmt.Errorf("could not add basic tools to the install script: %s", err)
 	}
 
 	// check if the template already exists

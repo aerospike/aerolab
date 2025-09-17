@@ -10,6 +10,37 @@ fi
 # set -u # if variable is not set, error
 # set -o pipefail # die if any command in a pipeline fails, not just last one
 
+# if apt - disable unattended-upgrades, and handle conflicts for configuration files
+if command -v apt &> /dev/null; then
+# unattended upgrades
+export DEBIAN_FRONTEND=noninteractive
+apt-get update || true
+systemctl stop unattended-upgrades || true
+pkill --signal SIGKILL unattended-upgrades || true
+systemctl disable unattended-upgrades || true
+apt-get -y -f install || true
+apt-get -y purge unattended-upgrades || true
+# restart if we have to
+sed -i.bak "/#\$nrconf{restart} = .*/s/.*/\$nrconf{restart} = 'a';/" /etc/needrestart/needrestart.conf || true
+# conflict handling for configuration files
+cat <<'EOF' > /etc/apt/apt.conf.d/local || true
+Dpkg::Options {
+	"--force-confdef";
+	"--force-confold";
+}
+EOF
+cat <<'EOF' > /etc/dpkg/dpkg.cfg.d/local || true
+force-confdef
+force-confold
+EOF
+fi
+
+# if yum - disable sshd-keygen cloud init
+if command -v yum &> /dev/null; then
+    rm -f /etc/systemd/system/sshd-keygen\@.service.d/disable-sshd-keygen-if-cloud-init-active.conf
+    systemctl daemon-reload
+fi
+
 # check dependencies
 # names of packages to install the dependencies, so if dependency 0 "curl" is missing, it will install package 0 "curl"
 DEPS=({{ range .Required.Dependencies }}"{{ .Command }}" {{ end }})

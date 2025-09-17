@@ -5,6 +5,7 @@ type ClusterAddCmd struct {
 	//Firewall ClusterAddFirewallCmd `command:"firewall" subcommands-optional:"true" description:"Add firewall rules to an existing cluster" webicon:"fas fa-fire"`
 	//Expiry   ClusterAddExpiryCmd   `command:"expiry" subcommands-optional:"true" description:"Add or change hours until expiry for a cluster (aws|gcp only)" webicon:"fas fa-user-xmark"`
 	//AeroLab  ClusterAddAerolabCmd  `command:"aerolab" subcommands-optional:"true" description:"Deploy aerolab binary on a cluster" webicon:"fas fa-flask"`
+	//PublicIP ClusterAddPublicIPCmd `command:"public-ip" subcommands-optional:"true" description:"Add public IP access address to a cluster" webicon:"fas fa-globe"`
 	Help HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

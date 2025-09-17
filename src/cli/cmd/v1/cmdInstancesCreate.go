@@ -19,7 +19,9 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
+	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/choice"
+	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/strslice"
@@ -835,6 +837,40 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	if err != nil {
 		return nil, err
 	}
+	// patch the hostname, per instance, setting it to clustername-nodeno
+	system.Logger.Info("Patching hostnames, setting it to clustername-nodeno")
+	parallelize.ForEachLimit(instances.Instances, c.ParallelSSHThreads, func(instance *backends.Instance) {
+		hostname := fmt.Sprintf("%s-%d", strings.ReplaceAll(strings.ToLower(c.ClusterName), "_", "-"), instance.NodeNo)
+		instance.Exec(&backends.ExecInput{
+			ExecDetail: sshexec.ExecDetail{
+				Command:        []string{"hostname", hostname},
+				Stdin:          nil,
+				Stdout:         nil,
+				Stderr:         nil,
+				SessionTimeout: 0,
+				Env:            []*sshexec.Env{},
+				Terminal:       false,
+			},
+			Username:        "root",
+			ConnectTimeout:  15 * time.Second,
+			ParallelThreads: 1,
+		})
+		cfg, err := instance.GetSftpConfig("root")
+		if err != nil {
+			return
+		}
+		client, err := sshexec.NewSftp(cfg)
+		if err != nil {
+			return
+		}
+		defer client.Close()
+		client.WriteFile(true, &sshexec.FileWriter{
+			DestPath:    "/etc/hostname",
+			Source:      strings.NewReader(hostname),
+			Permissions: 0644,
+		})
+	})
+
 	return instances.Instances, nil
 }
 
