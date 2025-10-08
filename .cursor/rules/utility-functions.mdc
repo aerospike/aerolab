@@ -1,0 +1,159 @@
+---
+description: Guidelines for using Aerolab utility functions and helpers
+---
+
+# Aerolab Utility Functions Guidelines
+
+## Shutdown Management
+Always use the [shutdown package](mdc:src/pkg/utils/shutdown/handler.go) for graceful application termination:
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/shutdown"
+
+// In main function
+func main() {
+    defer shutdown.WaitJobs() // Ensure graceful shutdown
+    
+    // Register cleanup functions
+    shutdown.AddEarlyCleanupJob("close-listeners", func(isSignal bool) {
+        listener.Close()
+    })
+    
+    shutdown.AddLateCleanupJob("cleanup-temp", func(isSignal bool) {
+        os.RemoveAll("/tmp/myapp")
+    })
+    
+    // In worker goroutines
+    shutdown.AddJob()
+    go func() {
+        defer shutdown.DoneJob()
+        // ... do work ...
+        
+        // Check for shutdown during long operations
+        if shutdown.IsShuttingDown() {
+            return
+        }
+    }()
+}
+```
+
+## Interactive User Input
+Use the [choice package](mdc:src/pkg/utils/choice/simpleList.go) for terminal-based selections:
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/choice"
+
+options := []string{"option1", "option2", "option3"}
+items := choice.StringSliceToItems(options)
+selected, quit, err := choice.Choice("Select an option:", items)
+if err != nil || quit {
+    return
+}
+fmt.Printf("Selected: %s\n", selected)
+```
+
+## SSH Operations
+Use the [sshexec package](mdc:src/pkg/sshexec/exec.go) for remote operations:
+
+```go
+import "github.com/aerospike/aerolab/pkg/sshexec"
+
+input := &sshexec.ExecInput{
+    ClientConf: sshexec.ClientConf{
+        Host:           "example.com",
+        Port:           22,
+        Username:       "user",
+        Password:       "password", // or use PrivateKey
+        ConnectTimeout: 30 * time.Second,
+    },
+    ExecDetail: sshexec.ExecDetail{
+        Command:        []string{"ls", "-la"},
+        SessionTimeout: 5 * time.Minute,
+        Terminal:       false, // true for interactive sessions
+    },
+}
+
+output := sshexec.Exec(input)
+if output.Err != nil {
+    return fmt.Errorf("ssh command failed: %w", output.Err)
+}
+```
+
+## Job Queues and Concurrency
+Use job queues for managing concurrent operations:
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/jobqueue"
+
+// Simple job queue
+queue := jobqueue.NewSimpleQueue(5, 100) // 5 concurrent, 100 queued
+
+// Job queue with ID tracking
+queueWithIDs := jobqueue.NewQueueWithIDs(5, 100)
+```
+
+## Version Management
+Use the [versions package](mdc:src/pkg/utils/versions/versions.go) for version comparisons:
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/versions"
+
+result := versions.Compare("1.2.3", "1.2.4") // Returns -1
+latest := versions.Latest("1.2.3", "1.2.4")  // Returns "1.2.4"
+oldest := versions.Oldest("1.2.3", "1.2.4")  // Returns "1.2.3"
+```
+
+## Table Output
+Use the [printer package](mdc:src/pkg/utils/printer/printer.go) for formatted output:
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/printer"
+
+writer, err := printer.GetTableWriter(
+    "table",        // render type
+    "default",      // theme
+    []string{"name"}, // sort columns
+    false,          // force color off
+    true,           // with pager
+)
+if err != nil {
+    return err
+}
+// Use writer to format tabular data
+```
+
+## Context-Aware I/O
+Use [contextio package](mdc:src/pkg/utils/contextio/contextio.go) for cancellable I/O:
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/contextio"
+
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+writer := contextio.NewWriter(ctx, os.Stdout)
+reader := contextio.NewReader(ctx, os.Stdin)
+```
+
+## File Operations
+Use the [file package](mdc:src/pkg/utils/file/file.go) for safe file operations:
+- File existence checking
+- Path manipulation utilities
+- Safe file operations with proper error handling
+
+## Installation Scripts
+The [installers package](mdc:src/pkg/utils/installers/) provides installation utilities for:
+- Aerolab self-installation
+- Aerospike database
+- Programming language compilers (Go, Python, .NET)
+- Development tools (VSCode, Grafana, Prometheus)
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/installers/aerolab"
+
+// Get latest Aerolab version
+release, err := aerolab.GetLatestVersion(true) // stable only
+script, err := aerolab.GetLinuxInstallScript(&version, &prerelease)
+```
+
+Refer to [utils README](mdc:src/pkg/utils/README.md) for comprehensive utility documentation.

@@ -1,0 +1,21 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../deleteme2"
+		},
+		{
+			"path": "../logger"
+		},
+		{
+			"path": "../gaia"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.sh.tpl": "shellscript"
+		}
+	}
+}

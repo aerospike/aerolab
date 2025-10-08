@@ -1,0 +1,51 @@
+---
+alwaysApply: true
+---
+
+# Aerolab Package Structure and Architecture
+
+## Package Overview
+The Aerolab codebase is organized into 8 main packages in `src/pkg/`:
+
+- **agi** - Aerospike Grafana Integration for log processing and visualization
+- **backend** - Multi-cloud infrastructure management (AWS, GCP, Docker)
+- **conf** - Aerospike configuration file management
+- **eks** - Amazon EKS cluster management and automated expiry
+- **expiry** - Automated resource cleanup across cloud providers
+- **sshexec** - SSH and SFTP client functionality
+- **utils** - Comprehensive utility functions (15+ subpackages)
+- **webui** - Web interface components and utilities
+
+## Key Architecture Principles
+
+### Configuration Management
+All packages follow consistent configuration patterns:
+- `MakeConfig()` functions for creating configurations
+- Support for YAML files and environment variables via `envconfig`
+- Default value setting with the `defaults` package
+- Comprehensive validation and error handling
+
+### Multi-Cloud Support
+The backend system provides unified interfaces across:
+- **AWS (baws)** - EC2, EKS, IAM, Route53, CloudFormation
+- **GCP (bgcp)** - Compute Engine, Cloud Functions
+- **Docker (bdocker)** - Local development and testing
+
+### Error Handling Standards
+- Comprehensive error wrapping with context using `fmt.Errorf`
+- Detailed error messages for debugging
+- Graceful degradation where possible
+- Proper resource cleanup on errors
+
+### Concurrency Patterns
+- Thread-safe operations with proper mutex usage
+- Context-aware operations for cancellation
+- Graceful shutdown handling via `utils/shutdown` package
+- Job queues and worker pools in `utils/jobqueue`
+
+## Package Dependencies
+- Core packages: `backend`, `utils/shutdown`, `sshexec`
+- Specialized: `agi` (log processing), `expiry` (cleanup), `eks` (Kubernetes)
+- UI/Config: `webui`, `conf`
+
+Refer to [CONTEXT.md](mdc:src/pkg/CONTEXT.md) for comprehensive package documentation.

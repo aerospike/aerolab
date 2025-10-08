@@ -12,20 +12,48 @@ var waiter = new(sync.WaitGroup)
 var isShuttingDown = false
 var isShuttingDownMutex sync.Mutex
 
+// IsShuttingDown returns true if the application is currently in the shutdown process.
+// This function is thread-safe and can be used by goroutines to check if they should
+// terminate their operations gracefully.
+//
+// Returns:
+//   - bool: true if shutdown is in progress, false otherwise
 func IsShuttingDown() bool {
 	isShuttingDownMutex.Lock()
 	defer isShuttingDownMutex.Unlock()
 	return isShuttingDown
 }
 
-// add a job to the waiter: should be called from any go routine that needs to be waited for
+// AddJob registers a new job with the shutdown handler's wait group.
+// This should be called from any goroutine that needs to be waited for during shutdown.
+// Each call to AddJob must be paired with a corresponding call to DoneJob when the
+// goroutine completes its work.
+//
+// Usage:
+//
+//	shutdown.AddJob()
+//	go func() {
+//	    defer shutdown.DoneJob()
+//	    // ... do work ...
+//	}()
 func AddJob() {
 	cleanupJobsMutex.Lock()
 	waiter.Add(1)
 	cleanupJobsMutex.Unlock()
 }
 
-// wait for all jobs to complete: should be called from main() and any os.Exit/log.Fatal calls
+// WaitJobs waits for all registered jobs to complete and runs cleanup functions.
+// This should be called from main() and before any os.Exit/log.Fatal calls to ensure
+// graceful shutdown. It will:
+// 1. Set the shutdown flag to prevent new jobs from being added
+// 2. Run all early cleanup jobs in reverse order
+// 3. Wait for all active jobs to complete
+// 4. Run all late cleanup jobs in reverse order
+//
+// Usage:
+//
+//	defer shutdown.WaitJobs() // in main function
+//	// or before os.Exit/log.Fatal calls
 func WaitJobs() {
 	waitJobs(false)
 }
@@ -44,7 +72,15 @@ func waitJobs(isSignal bool) {
 	}
 }
 
-// mark a job as done: should be called from any go routine that needs to be waited for when it's done
+// DoneJob marks a job as completed in the shutdown handler's wait group.
+// This should be called from any goroutine that previously called AddJob when it
+// completes its work. It's typically used with defer to ensure it's always called.
+//
+// Usage:
+//
+//	shutdown.AddJob()
+//	defer shutdown.DoneJob()
+//	// ... do work ...
 func DoneJob() {
 	waiter.Done()
 }
@@ -58,22 +94,55 @@ var earlyCleanupJobs = []CleanupJob{}
 var lateCleanupJobs = []CleanupJob{}
 var cleanupJobsMutex sync.Mutex
 
-// add a job that will run cleanup before waiting for jobs to complete
-// all jobs run in goroutines, and are waited upon by the main thread
+// AddEarlyCleanupJob registers a cleanup function that will run before waiting for jobs to complete.
+// Early cleanup jobs are executed in reverse order (LIFO) during shutdown and are intended
+// for operations that should happen before waiting for worker goroutines to finish.
+//
+// Parameters:
+//   - name: A unique identifier for the cleanup job (used for deletion)
+//   - job: The cleanup function to execute. The isSignal parameter indicates if shutdown
+//     was triggered by a signal (SIGINT/SIGTERM) vs programmatic shutdown
+//
+// Usage:
+//
+//	shutdown.AddEarlyCleanupJob("close-listeners", func(isSignal bool) {
+//	    listener.Close()
+//	})
 func AddEarlyCleanupJob(name string, job func(isSignal bool)) {
 	cleanupJobsMutex.Lock()
 	defer cleanupJobsMutex.Unlock()
 	earlyCleanupJobs = append(earlyCleanupJobs, CleanupJob{Name: name, Func: job})
 }
 
-// add a job that will run cleanup after waiting for jobs to complete
-// all jobs run in goroutines, and are waited upon by the main thread
+// AddLateCleanupJob registers a cleanup function that will run after waiting for jobs to complete.
+// Late cleanup jobs are executed in reverse order (LIFO) during shutdown and are intended
+// for final cleanup operations that should happen after all worker goroutines have finished.
+//
+// Parameters:
+//   - name: A unique identifier for the cleanup job (used for deletion)
+//   - job: The cleanup function to execute. The isSignal parameter indicates if shutdown
+//     was triggered by a signal (SIGINT/SIGTERM) vs programmatic shutdown
+//
+// Usage:
+//
+//	shutdown.AddLateCleanupJob("cleanup-temp", func(isSignal bool) {
+//	    os.RemoveAll("/tmp/myapp")
+//	})
 func AddLateCleanupJob(name string, job func(isSignal bool)) {
 	cleanupJobsMutex.Lock()
 	defer cleanupJobsMutex.Unlock()
 	lateCleanupJobs = append(lateCleanupJobs, CleanupJob{Name: name, Func: job})
 }
 
+// DeleteEarlyCleanupJob removes a previously registered early cleanup job by name.
+// This is useful when a cleanup job is no longer needed or when replacing an existing job.
+//
+// Parameters:
+//   - name: The unique identifier of the cleanup job to remove
+//
+// Usage:
+//
+//	shutdown.DeleteEarlyCleanupJob("close-listeners")
 func DeleteEarlyCleanupJob(name string) {
 	cleanupJobsMutex.Lock()
 	defer cleanupJobsMutex.Unlock()
@@ -82,6 +151,15 @@ func DeleteEarlyCleanupJob(name string) {
 	})
 }
 
+// DeleteLateCleanupJob removes a previously registered late cleanup job by name.
+// This is useful when a cleanup job is no longer needed or when replacing an existing job.
+//
+// Parameters:
+//   - name: The unique identifier of the cleanup job to remove
+//
+// Usage:
+//
+//	shutdown.DeleteLateCleanupJob("cleanup-temp")
 func DeleteLateCleanupJob(name string) {
 	cleanupJobsMutex.Lock()
 	defer cleanupJobsMutex.Unlock()

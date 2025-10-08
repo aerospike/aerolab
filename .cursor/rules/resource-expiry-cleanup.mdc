@@ -1,0 +1,173 @@
+---
+description: Guidelines for resource expiry and automated cleanup systems
+---
+
+# Resource Expiry and Cleanup Guidelines
+
+## Expiry System Architecture
+The [expiry package](mdc:src/pkg/expiry/expire/expire.go) provides automated cleanup across multiple deployment modes:
+
+- **AWS Lambda** - CloudWatch event-triggered cleanup
+- **GCP Cloud Functions** - HTTP-triggered cleanup  
+- **GCP Cloud Run** - Container-based scalable cleanup
+- **Standalone Server** - Direct execution for development
+
+## Expiry Handler Usage
+```go
+import "github.com/aerospike/aerolab/pkg/expiry/expire"
+
+handler := &expire.ExpiryHandler{
+    Backend:      backend,           // Initialized backend instance
+    ExpireEksctl: true,             // Enable EKS cluster cleanup
+    CleanupDNS:   true,             // Enable DNS cleanup
+    Credentials:  credentials,       // Cloud provider credentials
+}
+
+// Run comprehensive expiry process
+err := handler.Expire()
+if err != nil {
+    log.Fatal("Expiry process failed:", err)
+}
+```
+
+## EKS-Specific Cleanup
+The [EKS package](mdc:src/pkg/eks/eksexpiry/expiry.go) provides comprehensive Kubernetes cluster cleanup:
+
+```go
+import "github.com/aerospike/aerolab/pkg/eks/eksexpiry"
+
+// Trigger EKS expiry process
+eksexpiry.Expiry()
+```
+
+### EKS Cleanup Process
+1. **Cluster Discovery** - List and evaluate clusters for expiration
+2. **CloudFormation Cleanup** - Delete eksctl-created stacks in proper order
+3. **EBS Volume Cleanup** - Remove persistent volumes from EBS CSI driver
+4. **IAM Cleanup** - Delete OIDC identity providers
+5. **Resource Validation** - Ensure complete cleanup
+
+## Resource Tagging Strategy
+Use consistent tags for expiration management:
+
+```go
+// Absolute expiration (Unix timestamp)
+tags["ExpireAt"] = strconv.FormatInt(expireTime.Unix(), 10)
+
+// Relative expiration (duration from creation)
+tags["initialExpiry"] = "24h"
+
+// Metadata tags
+tags["CreatedBy"] = "aerolab"
+tags["Project"] = projectName
+tags["Environment"] = "development"
+```
+
+## Environment Variables for Deployment
+
+### AWS Lambda
+```bash
+AWS_LAMBDA_FUNCTION_NAME=expiry-function
+AEROLAB_LOG_LEVEL=4
+AEROLAB_VERSION=8.0.0
+AWS_REGION=us-west-2
+AEROLAB_EXPIRE_EKSCTL=true
+AEROLAB_CLEANUP_DNS=true
+```
+
+### GCP Cloud Functions
+```bash
+FUNCTION_TARGET=ExpireResources
+AEROLAB_LOG_LEVEL=4
+AEROLAB_VERSION=8.0.0
+GCP_REGION=us-central1
+GCP_PROJECT=my-project
+AEROLAB_CLEANUP_DNS=true
+```
+
+## Expiry Process Flow
+```go
+func (h *ExpiryHandler) Expire() error {
+    // 1. Acquire lock to prevent concurrent runs
+    if !h.lock.TryLock() {
+        return nil // Another process is running
+    }
+    defer h.lock.Unlock()
+
+    // 2. Force refresh inventory from cloud providers
+    err := h.Backend.ForceRefreshInventory()
+    if err != nil {
+        return err
+    }
+
+    // 3. Get expired resources
+    inventory := h.Backend.GetInventory()
+    instances := inventory.Instances.WithExpired(true).Describe()
+    volumes := inventory.Volumes.WithExpired(true).Describe()
+
+    // 4. Terminate expired instances
+    if len(instances) > 0 {
+        err := instances.Terminate(10 * time.Minute)
+        if err != nil {
+            return err
+        }
+    }
+
+    // 5. Delete expired volumes
+    if len(volumes) > 0 {
+        err := volumes.DeleteVolumes(inventory.Firewalls.Describe(), 10*time.Minute)
+        if err != nil {
+            return err
+        }
+    }
+
+    // 6. Cleanup DNS records (if enabled)
+    if h.CleanupDNS {
+        err := h.Backend.CleanupDNS()
+        if err != nil {
+            return err
+        }
+    }
+
+    // 7. EKS cleanup (if enabled)
+    if h.ExpireEksctl {
+        regions, err := h.Backend.ListEnabledRegions(backends.BackendTypeAWS)
+        if err != nil {
+            return err
+        }
+        for _, region := range regions {
+            err = h.expireEksctl(region)
+            if err != nil {
+                return err
+            }
+        }
+    }
+
+    return nil
+}
+```
+
+## Error Handling and Logging
+```go
+// Log resource cleanup with details
+logLine := fmt.Sprintf("Terminating %d instances: ", len(instances))
+for _, instance := range instances {
+    logLine += fmt.Sprintf("clusterName=%s,nodeNo=%d,instanceID=%s;", 
+        instance.ClusterName, instance.NodeNo, instance.InstanceID)
+}
+log.Print(logLine)
+
+// Handle partial failures gracefully
+if err := cleanupOperation(); err != nil {
+    log.Printf("Cleanup warning: %v", err)
+    // Continue with other cleanup operations
+}
+```
+
+## Security Considerations
+- Verify resource ownership before deletion
+- Use proper IAM permissions for cleanup operations
+- Audit log all cleanup actions
+- Validate expiry tags before processing
+
+Refer to [expiry README](mdc:src/pkg/expiry/README.md) and [EKS README](mdc:src/pkg/eks/README.md) for comprehensive documentation.

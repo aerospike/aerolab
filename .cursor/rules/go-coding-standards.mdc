@@ -1,0 +1,89 @@
+---
+globs: *.go
+---
+
+# Go Coding Standards for Aerolab
+
+## Function Documentation
+All exported functions must have comprehensive comments following this format:
+
+```go
+// FunctionName performs a specific operation with detailed description.
+// Explain what the function does, its purpose, and any important behavior.
+//
+// Parameters:
+//   - param1: Description of the first parameter
+//   - param2: Description of the second parameter
+//
+// Returns:
+//   - returnType: Description of what is returned
+//   - error: nil on success, or an error describing what failed
+//
+// Usage:
+//
+//	result, err := FunctionName(param1, param2)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+func FunctionName(param1 string, param2 int) (returnType, error) {
+    // implementation
+}
+```
+
+## Configuration Patterns
+Follow the established configuration pattern used throughout Aerolab:
+
+```go
+// MakeConfig creates a new configuration with defaults, file, and environment support
+func MakeConfig(setDefaults bool, configFile string, parseEnv bool) (*Config, error) {
+    config := new(Config)
+    if setDefaults {
+        if err := defaults.Set(config); err != nil {
+            return nil, fmt.Errorf("could not set defaults: %s", err)
+        }
+    }
+    if configFile != "" {
+        // Load from file
+    }
+    if parseEnv {
+        err := envconfig.Process("PREFIX_", config)
+        if err != nil {
+            return nil, fmt.Errorf("could not process environment variables: %s", err)
+        }
+    }
+    return config, nil
+}
+```
+
+## Error Handling
+- Always wrap errors with context: `fmt.Errorf("operation failed: %w", err)`
+- Use descriptive error messages that help with debugging
+- Clean up resources in defer statements when errors occur
+- Return early on errors to avoid deep nesting
+
+## Shutdown Handling
+For long-running operations, integrate with the shutdown system:
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/shutdown"
+
+func longRunningOperation() {
+    shutdown.AddJob()
+    defer shutdown.DoneJob()
+    
+    // Check for shutdown during operation
+    if shutdown.IsShuttingDown() {
+        return
+    }
+    
+    // ... do work ...
+}
+```
+
+## Logging
+Use structured logging with appropriate levels:
+- `logger.Debug()` for detailed debugging information
+- `logger.Info()` for general information
+- `logger.Warn()` for warnings that don't stop execution
+- `logger.Error()` for errors that affect functionality
+- `logger.Fatal()` only for unrecoverable errors (use sparingly)

@@ -1,0 +1,105 @@
+---
+description: Guidelines for working with cloud backend integrations
+---
+
+# Cloud Backend Integration Guidelines
+
+## Backend Package Usage
+The [backend package](mdc:src/pkg/backend/init.go) provides unified multi-cloud management:
+
+```go
+import "github.com/aerospike/aerolab/pkg/backend"
+
+// Initialize backend with multiple cloud providers
+config := &backend.Config{
+    RootDir:         "/path/to/aerolab",
+    Cache:           true,
+    LogLevel:        4,
+    AerolabVersion:  "8.0.0",
+    ListAllProjects: false,
+}
+
+backend, err := backend.New("project-name", config, true,
+    []backends.BackendType{backends.BackendTypeAWS, backends.BackendTypeGCP}, nil)
+```
+
+## Cloud-Specific Clients
+Use the appropriate client getter functions from cloud packages:
+
+### AWS Integration
+```go
+import "github.com/aerospike/aerolab/pkg/backend/clouds/baws"
+
+// Get AWS service clients
+ec2Client, err := baws.GetEc2Client(credentials, &region)
+eksClient, err := baws.GetEksClient(credentials, &region)
+cfClient, err := baws.GetCloudformationClient(credentials, &region)
+iamClient, err := baws.GetIamClient(credentials, &region)
+```
+
+### GCP Integration
+```go
+import "github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
+
+// Get GCP credentials and clients
+creds, err := connect.GetCredentials(gcpCreds, logger)
+client, err := connect.GetClient(gcpCreds, logger)
+```
+
+## Resource Management Patterns
+
+### Inventory Management
+```go
+// Force refresh inventory from cloud providers
+err := backend.ForceRefreshInventory()
+if err != nil {
+    return err
+}
+
+// Get current inventory
+inventory := backend.GetInventory()
+
+// Filter resources by criteria
+instances := inventory.Instances.WithExpired(true).WithState(
+    backends.LifeCycleStateRunning,
+    backends.LifeCycleStateStopped,
+).Describe()
+```
+
+### Resource Tagging
+Follow consistent tagging patterns:
+- `ExpireAt` - Unix timestamp for absolute expiration
+- `initialExpiry` - Duration string for relative expiration
+- `CreatedBy` - User or system that created the resource
+- `Project` - Associated Aerolab project name
+
+### Error Handling for Cloud Operations
+```go
+// Handle cloud-specific errors with retries
+for retries := 0; retries < maxRetries; retries++ {
+    err := cloudOperation()
+    if err == nil {
+        break
+    }
+    
+    // Check for rate limiting or transient errors
+    if isRetryableError(err) {
+        time.Sleep(time.Duration(retries) * time.Second)
+        continue
+    }
+    
+    return fmt.Errorf("cloud operation failed after %d retries: %w", retries, err)
+}
+```
+
+## Multi-Region Operations
+```go
+// Add regions for different providers
+err = backend.AddRegion(backends.BackendTypeAWS, "us-west-2")
+err = backend.AddRegion(backends.BackendTypeGCP, "us-central1-a")
+
+// List enabled regions
+regions, err := backend.ListEnabledRegions(backends.BackendTypeAWS)
+```
+
+Refer to [backend README](mdc:src/pkg/backend/README.md) for comprehensive backend documentation.

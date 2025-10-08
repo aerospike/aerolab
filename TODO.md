@@ -3,11 +3,8 @@
 ## Next - MVP
 
 CODE:
-* cluster add *
-* cluster partition *
 * cluster apply
 * conf - manager aerospike configuration on running instances
-* conf public-ip feature - to install public-ip patching systemd script to instances in aws/gcp
 * cluster start TODOs and all other cluster create/cluster TODOs
 * aerospike - start/stop/restart/status of aerospike on running instances
 * logs - download logs from running instances
@@ -15,8 +12,11 @@ CODE:
 * roster - manage strong-consistency rosters on running instances
 * xdr - manage xdr configuration on running instances
 * Others to code after:
-  * tls, net, data, agi
-  * web, rest
+  * tls, net, data
+  * `aerolab migrate` - migrate the config directory to the new format (ssh keys, etc) AND the Instances in AWS/GCP. Warn Docker cannot be migrated.
+    * support --from HOME --to HOME, or if not specified, migrate from `~/.aerolab` to `~/.config/aerolab`
+  * migration documentation, together with general doc refresh, what's different, what breaks, what's better, new features
+  * agi, web, rest
 * All cmd package TODOs in code
 * instance-types backend in AWS is unable to pull prices for metal instances (probably it's under something other than `on-demand` or `spot`)
 * instance-types backend in GCP cannot pull some instances - notably ct5l and c2 types as well as some m_ types, x_ types and a4
@@ -25,7 +25,6 @@ CODE:
 CONSIDER:
 * aerolab if failed grow/create/apply on capacity, retry automatically
 * test disk caching of inventory (once we have commands so we can actually test it)
-* consider how to solve the aerolab-embedded-in-aerolab problem better
 * review all defaults
 * upgrade fix:
   * aerolab add downgrade option
@@ -39,8 +38,6 @@ OTHER:
 * docs/*
 * src/Makefile
 * .github
-* `aerolab migrate` - migrate the config directory to the new format (ssh keys, etc) AND the Instances in AWS/GCP. Warn Docker cannot be migrated.
-  * support --from HOME --to HOME, or if not specified, migrate from `~/.aerolab` to `~/.config/aerolab`
 
 ## Notes
 
@@ -71,13 +68,8 @@ OTHER:
 ### Other
 
 * Instance auto-sizing (or just sizing)
-* Telemetry
 * Action notifications
 * Retries/progress and continue from last point
-* Self upgrader
-* Showcommands - showsysinfo, etc
-* Aerospike data insert tool
-* TLS Generators
 
 ### Compatibility
 
