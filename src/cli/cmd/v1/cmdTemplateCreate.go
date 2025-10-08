@@ -200,6 +200,8 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 				{Command: "lsb_release", Package: "lsb-release"},     // apt
 				{Command: "lsb_release", Package: "redhat-lsb-core"}, // yum
 				{Command: "lsb_release", Package: "redhat-lsb"},      // yum
+				{Command: "ps", Package: "procps"},                   // apt
+				{Command: "ps", Package: "procps-ng"},                // yum
 			},
 			Packages: []string{"python3-setuptools", "python3-distutils", "libcurl4", "libcurl4-openssl-dev", "libldap-common", "libcurl-openssl-devel", "initscripts"},
 		},

@@ -24,6 +24,21 @@ type Item string
 
 func (i Item) FilterValue() string { return "" }
 
+// StringSliceToItems converts a slice of strings into a slice of Items for use with the choice system.
+// This is a utility function that transforms regular string slices into the format required
+// by the interactive choice interface.
+//
+// Parameters:
+//   - slice: A slice of strings to convert to choice items
+//
+// Returns:
+//   - Items: A slice of Item objects that can be used with Choice() and ChoiceWithHeight()
+//
+// Usage:
+//
+//	options := []string{"option1", "option2", "option3"}
+//	items := choice.StringSliceToItems(options)
+//	selected, quit, err := choice.Choice("Select an option:", items)
 func StringSliceToItems(slice []string) Items {
 	items := make(Items, len(slice))
 	for i, s := range slice {
@@ -105,6 +120,28 @@ func (m *model) View() string {
 	return "\n" + m.list.View()
 }
 
+// ChoiceWithHeight presents an interactive choice selection interface with a custom height.
+// This function displays a terminal-based list interface where users can navigate with arrow keys
+// and select an item with Enter. The interface supports pagination for long lists.
+//
+// Parameters:
+//   - title: The title to display above the choice list
+//   - items: The list of items to choose from (use StringSliceToItems to convert from strings)
+//   - height: The height of the choice interface in terminal lines
+//
+// Returns:
+//   - choice: The selected item as a string, empty if user quit without selecting
+//   - quitting: true if the user quit without making a selection (Ctrl+C or 'q')
+//   - err: nil on success, or an error if the interface failed to initialize
+//
+// Usage:
+//
+//	items := choice.StringSliceToItems([]string{"option1", "option2", "option3"})
+//	selected, quit, err := choice.ChoiceWithHeight("Select an option:", items, 10)
+//	if err != nil || quit {
+//	    return
+//	}
+//	fmt.Printf("Selected: %s\n", selected)
 func ChoiceWithHeight(title string, items Items, height int) (choice string, quitting bool, err error) {
 	const defaultWidth = 20
 
@@ -125,6 +162,27 @@ func ChoiceWithHeight(title string, items Items, height int) (choice string, qui
 	return m.choice, m.quitting, nil
 }
 
+// Choice presents an interactive choice selection interface with the default height.
+// This is a convenience function that calls ChoiceWithHeight with a predefined height of 14 lines.
+// It provides the same functionality as ChoiceWithHeight but with a standard interface size.
+//
+// Parameters:
+//   - title: The title to display above the choice list
+//   - items: The list of items to choose from (use StringSliceToItems to convert from strings)
+//
+// Returns:
+//   - choice: The selected item as a string, empty if user quit without selecting
+//   - quitting: true if the user quit without making a selection (Ctrl+C or 'q')
+//   - err: nil on success, or an error if the interface failed to initialize
+//
+// Usage:
+//
+//	items := choice.StringSliceToItems([]string{"option1", "option2", "option3"})
+//	selected, quit, err := choice.Choice("Select an option:", items)
+//	if err != nil || quit {
+//	    return
+//	}
+//	fmt.Printf("Selected: %s\n", selected)
 func Choice(title string, items Items) (choice string, quitting bool, err error) {
 	return ChoiceWithHeight(title, items, listHeight)
 }

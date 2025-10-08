@@ -1,0 +1,237 @@
+---
+description: Guidelines for web UI development and interface components
+---
+
+# Web UI Development Guidelines
+
+## WebUI Package Structure
+The [webui package](mdc:src/pkg/webui/website.go) provides comprehensive web interface components:
+
+- **Website Installation** - Extract embedded web assets
+- **Page Rendering** - Complete page structure definitions
+- **Form Management** - Dynamic form generation
+- **Navigation System** - Hierarchical menus
+- **Inventory Display** - Resource data presentation
+
+## Website Installation
+```go
+import "github.com/aerospike/aerolab/pkg/webui"
+
+// Install embedded website files
+err := webui.InstallWebsite("/var/www/aerolab", webui.Website)
+if err != nil {
+    log.Fatal("Failed to install website:", err)
+}
+```
+
+## Page Structure Creation
+```go
+page := &webui.Page{
+    PageTitle:   "Cluster Management",
+    IsForm:      true,
+    WebRoot:     "/aerolab",
+    Backend:     "aws",
+    CurrentUser: "admin",
+    BetaTag:     true,
+    SimpleMode:  false,
+    
+    Navigation: &webui.Nav{
+        Top: []*webui.NavTop{
+            {Name: "Home", Href: "/", Target: "_self"},
+            {Name: "Clusters", Href: "/clusters", Target: "_self"},
+        },
+    },
+}
+```
+
+## Form Generation
+Create dynamic forms with various input types:
+
+```go
+formItems := []*webui.FormItem{
+    // Text input
+    {
+        Type: webui.FormItemType{Input: true},
+        Input: webui.FormItemInput{
+            Name:        "Cluster Name",
+            Description: "Name for the new cluster",
+            ID:          "cluster-name",
+            Type:        "text",
+            Required:    true,
+            Default:     "my-cluster",
+        },
+    },
+    
+    // Select dropdown
+    {
+        Type: webui.FormItemType{Select: true},
+        Select: webui.FormItemSelect{
+            Name:        "Instance Type",
+            Description: "EC2 instance type",
+            ID:          "instance-type",
+            Required:    true,
+            Multiple:    false,
+            Items: []*webui.FormItemSelectItem{
+                {Name: "t3.micro", Value: "t3.micro", Selected: true},
+                {Name: "t3.small", Value: "t3.small", Selected: false},
+                {Name: "t3.medium", Value: "t3.medium", Selected: false},
+            },
+        },
+    },
+    
+    // Toggle switch
+    {
+        Type: webui.FormItemType{Toggle: true},
+        Toggle: webui.FormItemToggle{
+            Name:        "Enable Monitoring",
+            Description: "Enable cluster monitoring",
+            ID:          "enable-monitoring",
+            On:          true,
+            Disabled:    false,
+        },
+    },
+    
+    // Form separator
+    {
+        Type: webui.FormItemType{Separator: true},
+        Separator: webui.FormItemSeparator{
+            Name: "Advanced Options",
+        },
+    },
+}
+
+page.FormItems = formItems
+```
+
+## Menu System Configuration
+```go
+menu := &webui.MainMenu{
+    Items: webui.MenuItems{
+        {
+            Icon:        "fas fa-tachometer-alt",
+            Name:        "Dashboard",
+            Href:        "/dashboard",
+            ActiveColor: webui.ActiveColorBlue,
+            Badge: webui.MenuItemBadge{
+                Show: false,
+            },
+        },
+        {
+            Icon:        "fas fa-server",
+            Name:        "Clusters",
+            Href:        "/clusters",
+            HasChildren: true,
+            ActiveColor: webui.ActiveColorWhite,
+            Items: webui.MenuItems{
+                {Name: "List", Href: "/clusters/list"},
+                {Name: "Create", Href: "/clusters/create"},
+                {Name: "Templates", Href: "/clusters/templates"},
+            },
+        },
+        {
+            Icon:        "fas fa-exclamation-triangle",
+            Name:        "Alerts",
+            Href:        "/alerts",
+            Badge: webui.MenuItemBadge{
+                Show: true,
+                Type: webui.BadgeTypeDanger,
+                Text: "3",
+            },
+        },
+    },
+}
+
+// Set active menu item based on current path
+menu.Items.Set("/clusters/create", "/aerolab")
+page.Menu = menu
+```
+
+## Inventory Display
+```go
+inventory := map[string]*webui.InventoryItem{
+    "clusters": {
+        Fields: []*webui.InventoryItemField{
+            {Name: "name", FriendlyName: "Cluster Name", Backend: "aws"},
+            {Name: "status", FriendlyName: "Status", Backend: "aws"},
+            {Name: "nodes", FriendlyName: "Node Count", Backend: "aws"},
+            {Name: "region", FriendlyName: "Region", Backend: "aws"},
+        },
+    },
+    "volumes": {
+        Fields: []*webui.InventoryItemField{
+            {Name: "id", FriendlyName: "Volume ID", Backend: "aws"},
+            {Name: "size", FriendlyName: "Size (GB)", Backend: "aws"},
+            {Name: "type", FriendlyName: "Type", Backend: "aws"},
+            {Name: "attached", FriendlyName: "Attached To", Backend: "aws"},
+        },
+    },
+}
+
+page.Inventory = inventory
+page.IsInventory = true
+```
+
+## Error Page Handling
+```go
+errorPage := &webui.Page{
+    PageTitle:   "Error",
+    IsError:     true,
+    ErrorTitle:  "Operation Failed",
+    ErrorString: "The requested operation could not be completed.",
+    WebRoot:     "/aerolab",
+    Navigation:  navigation,
+    Menu:        menu,
+}
+```
+
+## Content Types and Constants
+```go
+// Use predefined constants for consistency
+const (
+    ContentTypeForm  = "form"
+    ContentTypeTable = "table"
+)
+
+// Badge types for status indicators
+const (
+    BadgeTypeWarning = "badge-warning"  // Yellow
+    BadgeTypeSuccess = "badge-success"  // Green
+    BadgeTypeDanger  = "badge-danger"   // Red
+)
+
+// Active colors for menu items
+const (
+    ActiveColorWhite = " bg-white"
+    ActiveColorBlue  = " bg-blue"
+)
+```
+
+## Hide Inventory Options
+```go
+page.HideInventory = webui.HideInventory{
+    Clusters:  false,
+    Clients:   true,   // Hide client inventory
+    AGI:       false,
+    Templates: false,
+    Volumes:   false,
+    Firewalls: true,   // Hide firewall inventory
+    Expiry:    false,
+    Subnets:   true,   // Hide subnet inventory
+}
+```
+
+## Form Validation and Security
+- Always validate form inputs on the server side
+- Use CSRF tokens for form protection
+- Sanitize user inputs to prevent XSS
+- Implement proper authentication and authorization
+- Use HTTPS for all form submissions
+
+## Responsive Design Considerations
+- Forms should work on mobile devices
+- Use appropriate input types (email, tel, url, etc.)
+- Implement proper keyboard navigation
+- Ensure accessibility compliance
+- Test across different screen sizes
+
+Refer to [webui README](mdc:src/pkg/webui/README.md) for comprehensive web UI documentation.

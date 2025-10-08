@@ -1,0 +1,121 @@
+---
+description: Guidelines for AGI log processing and Grafana integration
+---
+
+# AGI (Aerospike Grafana Integration) Guidelines
+
+## Log Ingestion Workflow
+The [AGI ingest package](mdc:src/pkg/agi/ingest/run.go) follows a structured pipeline:
+
+1. **Download** - Retrieve logs from S3, SFTP, or local sources
+2. **Unpack** - Decompress and extract log files
+3. **Preprocess** - Identify clusters, nodes, and log types
+4. **Process** - Parse logs and collectinfo concurrently
+5. **Store** - Insert processed data into Aerospike database
+
+## Configuration Pattern
+AGI packages use consistent configuration with environment variable support:
+
+```go
+// Environment variables follow LOGINGEST_ prefix pattern
+// LOGINGEST_S3SOURCE_ENABLED=true
+// LOGINGEST_S3SOURCE_BUCKET=my-bucket
+// LOGINGEST_S3SOURCE_REGION=us-west-2
+// LOGINGEST_AEROSPIKE_HOST=localhost
+// LOGINGEST_AEROSPIKE_PORT=3000
+
+config, err := ingest.MakeConfig(true, "config.yaml", true)
+if err != nil {
+    return fmt.Errorf("failed to create config: %w", err)
+}
+
+err = ingest.RunWithConfig(config)
+```
+
+## Grafana Integration Components
+
+### Plugin Backend
+The [plugin package](mdc:src/pkg/agi/plugin/init.go) provides Grafana datasource backend:
+- Query processing and caching
+- Metrics and timeseries data handling
+- Concurrent request management
+
+### Dashboard Management
+The [grafanafix package](mdc:src/pkg/agi/grafanafix/run.go) handles:
+- Automatic dashboard importing
+- Timezone configuration
+- Annotation management
+- Custom labeling and branding
+
+```go
+// Early setup for Grafana configuration
+err := grafanafix.EarlySetup(
+    "/etc/grafana/grafana.ini",
+    "/etc/grafana/provisioning",
+    "/var/lib/grafana/plugins",
+    "plugin-url",
+    8850, // grafana port
+)
+```
+
+## Data Source Configuration
+Configure multiple log sources:
+
+```yaml
+downloader:
+  s3Source:
+    enabled: true
+    bucket: "log-bucket"
+    region: "us-west-2"
+    pathPrefix: "logs/"
+    searchRegex: "^.*\\.tgz$"
+    threads: 4
+  
+  sftpSource:
+    enabled: true
+    host: "sftp.example.com"
+    port: 22
+    pathPrefix: "logs/"
+    searchRegex: "^.*\\.tgz$"
+    threads: 4
+```
+
+## Pattern Matching
+AGI uses sophisticated pattern matching for log parsing:
+- Timestamp extraction with multiple formats
+- Multiline log handling
+- Advanced regex patterns for different log types
+- Custom pattern files support
+
+## Performance Considerations
+- Use concurrent processing for logs and collectinfo
+- Configure appropriate thread counts for downloads
+- Enable CPU profiling for performance analysis
+- Monitor progress with built-in tracking
+
+## Error Handling
+AGI operations should handle partial failures gracefully:
+```go
+// Concurrent processing with error collection
+nerr := []error{}
+wg := new(sync.WaitGroup)
+
+wg.Add(2)
+go func() {
+    defer wg.Done()
+    if err := processLogs(); err != nil {
+        nerr = append(nerr, fmt.Errorf("log processing: %w", err))
+    }
+}()
+
+go func() {
+    defer wg.Done()
+    if err := processCollectInfo(); err != nil {
+        nerr = append(nerr, fmt.Errorf("collectinfo processing: %w", err))
+    }
+}()
+
+wg.Wait()
+```
+
+Refer to [AGI README](mdc:src/pkg/agi/README.md) for comprehensive AGI documentation.
