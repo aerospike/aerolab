@@ -51,14 +51,14 @@ func checkDistroVersion(distro string, version string) error {
 		}
 	case "centos":
 		switch version {
-		case "9", "7":
+		case "10", "9", "7":
 			return nil
 		case "8":
 			return nil
 		}
 	case "rocky":
 		switch version {
-		case "9", "8":
+		case "10", "9", "8":
 			return nil
 		}
 	case "amazon":
@@ -68,7 +68,7 @@ func checkDistroVersion(distro string, version string) error {
 		}
 	case "debian":
 		switch version {
-		case "12", "11", "10", "9", "8":
+		case "13", "12", "11", "10", "9", "8":
 			return nil
 		}
 	default:

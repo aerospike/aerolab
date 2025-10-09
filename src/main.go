@@ -120,9 +120,19 @@ func (writer logWriter) Write(bytes []byte) (int, error) {
 	return fmt.Fprint(os.Stderr, time.Now().Format("2006/01/02 15:04:05 -0700")+" "+string(bytes))
 }
 
+func (a *aerolab) writeCurrentVersion() {
+	ard, err := a.aerolabRootDir()
+	if err != nil {
+		return
+	}
+	nver := []byte(version)
+	os.WriteFile(path.Join(ard, "current-version.txt"), nver, 0644)
+}
+
 func main() {
 	log.SetFlags(0)
 	log.SetOutput(new(logWriter))
+	a.writeCurrentVersion()
 	if installSelf() {
 		return
 	}

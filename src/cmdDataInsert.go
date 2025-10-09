@@ -88,6 +88,15 @@ func (c *dataInsertCmd) insert(args []string) error {
 	if c.RunDirect {
 		var err error
 		log.Print("Insert start")
+		if c.InsertToPartitionList != "" {
+			log.Printf("namespace=%s set=%s partitions=%s bin_name=%s ttl=%d read_after_write=%t exists_action=%s", c.Namespace, c.Set, c.InsertToPartitionList, c.Bin, c.TTL, c.ReadAfterWrite, c.ExistsAction)
+		} else if c.InsertToPartitions != 0 {
+			log.Printf("namespace=%s set=%s partition_count=%d bin_name=%s ttl=%d read_after_write=%t exists_action=%s", c.Namespace, c.Set, c.InsertToPartitions, c.Bin, c.TTL, c.ReadAfterWrite, c.ExistsAction)
+		} else if c.InsertToNodes != "" {
+			log.Printf("namespace=%s set=%s master_nodes=%s bin_name=%s ttl=%d read_after_write=%t exists_action=%s", c.Namespace, c.Set, c.InsertToNodes, c.Bin, c.TTL, c.ReadAfterWrite, c.ExistsAction)
+		} else {
+			log.Printf("namespace=%s set=%s pk_start_key=%s%d pk_end_key=%s%d bin_name=%s ttl=%d read_after_write=%t exists_action=%s", c.Namespace, c.Set, c.PkPrefix, c.PkStartNumber, c.PkPrefix, c.PkEndNumber, c.Bin, c.TTL, c.ReadAfterWrite, c.ExistsAction)
+		}
 		switch c.Version {
 		case "8":
 			err = c.insert7(args)

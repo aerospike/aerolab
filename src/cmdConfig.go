@@ -23,6 +23,7 @@ type configCmd struct {
 	Aws      configAwsCmd      `command:"aws" subcommands-optional:"true" description:"AWS-only related management commands" webicon:"fa-brands fa-aws"`
 	Docker   configDockerCmd   `command:"docker" subcommands-optional:"true" description:"DOCKER-only related management commands" webicon:"fa-brands fa-docker"`
 	Gcp      configGcpCmd      `command:"gcp" subcommands-optional:"true" description:"GCP-only related management commands" webicon:"fa-brands fa-google"`
+	MyIP     configMyIPCmd     `command:"my-ip" subcommands-optional:"true" description:"Print my discovered external IP" webicon:"fas fa-vials"`
 	Help     helpCmd           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -32,17 +33,29 @@ func (c *configCmd) Execute(args []string) error {
 	return nil
 }
 
+type configMyIPCmd struct {
+}
+
+func (c *configMyIPCmd) Execute(args []string) error {
+	if earlyProcessV2(args, false) {
+		return nil
+	}
+	fmt.Println(getip2(a.opts.Config.Backend.UseAlternateIpDiscovery))
+	return nil
+}
+
 type configBackendCmd struct {
-	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:"" webchoice:"aws,gcp,docker"`
-	SshKeyPath     flags.Filename `short:"p" long:"key-path" description:"AWS and GCP backends: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/" webtype:"text"`
-	Region         string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
-	AWSProfile     string         `short:"P" long:"aws-profile" description:"AWS backend: provide a profile to use; setting this ignores the AWS_PROFILE env variable"`
-	AWSNoPublicIps bool           `long:"aws-nopublic-ip" description:"AWS backend: if set, aerolab will not request public IPs, and will operate on private IPs only"`
-	Project        string         `short:"o" long:"project" description:"GCP backend: override default gcp configured project" default:""`
-	Arch           string         `short:"a" long:"docker-arch" description:"set to either amd64 or arm64 to force a particular architecture on docker; see https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md"`
-	TmpDir         flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:"" webtype:"text"`
-	Help           helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
-	typeSet        string
+	Type                    string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:"" webchoice:"aws,gcp,docker"`
+	SshKeyPath              flags.Filename `short:"p" long:"key-path" description:"AWS and GCP backends: specify a path to store SSH keys in, default: ${HOME}/aerolab-keys/" default:"${HOME}/aerolab-keys/" webtype:"text"`
+	Region                  string         `short:"r" long:"region" description:"AWS backend: override default aws configured region" default:""`
+	AWSProfile              string         `short:"P" long:"aws-profile" description:"AWS backend: provide a profile to use; setting this ignores the AWS_PROFILE env variable"`
+	AWSNoPublicIps          bool           `long:"aws-nopublic-ip" description:"AWS backend: if set, aerolab will not request public IPs, and will operate on private IPs only"`
+	Project                 string         `short:"o" long:"project" description:"GCP backend: override default gcp configured project" default:""`
+	Arch                    string         `short:"a" long:"docker-arch" description:"set to either amd64 or arm64 to force a particular architecture on docker; see https://github.com/aerospike/aerolab/tree/master/docs/docker_multiarch.md"`
+	UseAlternateIpDiscovery bool           `long:"alt-ip-discovery" description:"Use alternate IP discovery services (in case the original one fails)"`
+	TmpDir                  flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory" default:"" webtype:"text"`
+	Help                    helpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
+	typeSet                 string
 }
 
 type configDefaultsCmd struct {

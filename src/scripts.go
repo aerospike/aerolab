@@ -267,6 +267,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update || exit 1
 grep DISTRIB_RELEASE=24.04 /etc/lsb-release
 if [ $? -ne 0 ]; then apt-get -y install python3-distutils || exit 1; fi
+apt-get -y install procps || exit 1
 apt-get -y install libcurl4 || exit 1
 apt-get -y install ldap-utils || exit 1
 apt-get -y install python3-setuptools || exit 1
@@ -569,18 +570,21 @@ chmod 755 /etc/init.d/aerospike
 `
 	aerospikeInstallScript["docker:amazon:2"] = aerospikeInstallScript["docker:centos:7"]
 
+	aerospikeInstallScript["docker:debian:13"] = aerospikeInstallScript["docker:ubuntu:22.04"]
 	aerospikeInstallScript["docker:debian:12"] = aerospikeInstallScript["docker:ubuntu:22.04"]
 	aerospikeInstallScript["docker:debian:11"] = aerospikeInstallScript["docker:ubuntu:22.04"]
 	aerospikeInstallScript["docker:debian:10"] = aerospikeInstallScript["docker:debian:11"]
 	aerospikeInstallScript["docker:debian:9"] = aerospikeInstallScript["docker:debian:11"]
 	aerospikeInstallScript["docker:debian:8"] = aerospikeInstallScript["docker:debian:11"]
 
+	aerospikeInstallScript["aws:debian:13"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["aws:debian:12"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["aws:debian:11"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["aws:debian:10"] = aerospikeInstallScript["aws:debian:11"]
 	aerospikeInstallScript["aws:debian:9"] = aerospikeInstallScript["aws:debian:11"]
 	aerospikeInstallScript["aws:debian:8"] = aerospikeInstallScript["aws:debian:11"]
 
+	aerospikeInstallScript["gcp:debian:13"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["gcp:debian:12"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["gcp:debian:11"] = aerospikeInstallScript["aws:ubuntu:22.04"]
 	aerospikeInstallScript["gcp:debian:10"] = aerospikeInstallScript["aws:debian:11"]
@@ -683,4 +687,12 @@ chmod 755 /etc/init.d/aerospike
 	aerospikeInstallScript["aws:rocky:9"] = aerospikeInstallScript["aws:centos:9"]
 	aerospikeInstallScript["docker:rocky:8"] = aerospikeInstallScript["docker:centos:8"]
 	aerospikeInstallScript["docker:rocky:9"] = aerospikeInstallScript["docker:centos:9"]
+
+	aerospikeInstallScript["gcp:centos:10"] = aerospikeInstallScript["gcp:centos:9"]
+	aerospikeInstallScript["aws:centos:10"] = aerospikeInstallScript["aws:centos:9"]
+	aerospikeInstallScript["docker:centos:10"] = aerospikeInstallScript["docker:centos:9"]
+
+	aerospikeInstallScript["gcp:rocky:10"] = aerospikeInstallScript["gcp:centos:10"]
+	aerospikeInstallScript["aws:rocky:10"] = aerospikeInstallScript["aws:centos:10"]
+	aerospikeInstallScript["docker:rocky:10"] = aerospikeInstallScript["docker:centos:10"]
 }

@@ -3062,7 +3062,7 @@ func (d *backendGcp) LockSecurityGroups(ip string, lockSSH bool, vpc string, nam
 		ip = "0.0.0.0/0"
 	} else {
 		if ip == "discover-caller-ip" {
-			ip = getip2()
+			ip = getip2(a.opts.Config.Backend.UseAlternateIpDiscovery)
 		}
 		if !strings.Contains(ip, "/") {
 			ip = ip + "/32"
@@ -3246,7 +3246,7 @@ func (d *backendGcp) createSecurityGroupsIfNotExist(namePrefix string, isAgi boo
 		}
 		if *firewallRule.Name == namePrefix {
 			existExternal = true
-			myIp := getip2()
+			myIp := getip2(a.opts.Config.Backend.UseAlternateIpDiscovery)
 			parsedIp := net.ParseIP(myIp)
 			for _, allowed := range firewallRule.Allowed {
 				extraPorts = append(extraPorts, allowed.Ports...)

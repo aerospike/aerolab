@@ -64,6 +64,7 @@ type aerospikeIsStableCmd struct {
 	WaitTimeout      int             `short:"o" long:"wait-timeout" description:"If set, will timeout if the cluster doesn't become stable by this many seconds"`
 	IgnoreMigrations bool            `short:"i" long:"ignore-migrations" description:"If set, will ignore migrations when checking if cluster is stable"`
 	IgnoreClusterKey bool            `short:"k" long:"ignore-cluster-key" description:"If set, will not check if the cluster key matches on all nodes in the cluster"`
+	NotClusterKey    string          `short:"c" long:"not-cluster-key" description:"If specified, then if this cluster key is matched, it will be ignored and treated as no-match"`
 	Verbose          bool            `short:"v" long:"verbose" description:"Enable verbose logging"`
 	parallelThreadsCmd
 	Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
@@ -188,9 +189,11 @@ func (c *aerospikeIsStableCmd) Execute(args []string) error {
 
 		same := true
 
-		if len(nodes) != len(clusterKeys) {
+		if len(nodes) != len(clusterKeys) { // incorrect number of node cluster keys
 			same = false
-		} else {
+		} else if !c.IgnoreClusterKey && c.NotClusterKey != "" && clusterKeys[0] == c.NotClusterKey { // if cluster key matches the nono list, same=false
+			same = false
+		} else { // check if clusters keys actually match
 			if !c.IgnoreClusterKey {
 				for _, k := range clusterKeys {
 					if clusterKeys[0] != k {
@@ -203,6 +206,7 @@ func (c *aerospikeIsStableCmd) Execute(args []string) error {
 
 		if same {
 			log.Print("aerospike.is-stable: Cluster Stable")
+			fmt.Println("cluster-key:" + clusterKeys[0])
 			return nil
 		}
 
