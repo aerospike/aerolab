@@ -239,7 +239,7 @@ func (d *backendAws) resolveSecGroupAndSubnet(secGroupID string, subnetID string
 			} else {
 				if groupPrefix != "AeroLabServer" && groupPrefix != "AeroLabClient" && !a.opts.Config.Backend.AWSNoPublicIps {
 					fwfound := false
-					myIp := getip2()
+					myIp := getip2(a.opts.Config.Backend.UseAlternateIpDiscovery)
 					parsedIp := net.ParseIP(myIp)
 					for _, perms := range out.SecurityGroups[0].IpPermissions {
 						if aws.Int64Value(perms.FromPort) == -1 || aws.Int64Value(perms.ToPort) == -1 {
@@ -358,7 +358,7 @@ func (d *backendAws) createSecGroups(vpc string, namePrefix string, isAgi bool, 
 
 	ip := "0.0.0.0/0"
 	if !isAgi && !a.opts.Config.Backend.AWSNoPublicIps {
-		ip = getip2()
+		ip = getip2(a.opts.Config.Backend.UseAlternateIpDiscovery)
 		if !strings.Contains(ip, "/") {
 			ip = ip + "/32"
 		}
@@ -821,7 +821,7 @@ func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupNam
 		ip = "0.0.0.0/0"
 	} else {
 		if ip == "discover-caller-ip" {
-			ip = getip2()
+			ip = getip2(a.opts.Config.Backend.UseAlternateIpDiscovery)
 		}
 		if !strings.Contains(ip, "/") {
 			ip = ip + "/32"
@@ -852,26 +852,62 @@ func (d *backendAws) lockSecurityGroups(ip string, portList []int64, secGroupNam
 	return nil
 }
 
-type IP struct {
-	Query string
+func getip2(preferAlt bool) string {
+	if preferAlt {
+		ret, err := getip2b()
+		if err == nil {
+			return ret
+		}
+	} else {
+		ret, err := getip2a()
+		if err == nil {
+			return ret
+		}
+	}
+	return "0.0.0.0/0"
 }
 
-func getip2() string {
+func getip2a() (string, error) {
 	req, err := http.Get("http://ip-api.com/json/")
 	if err != nil {
-		return err.Error()
+		return "", err
 	}
 	defer req.Body.Close()
 
 	body, err := io.ReadAll(req.Body)
 	if err != nil {
-		return err.Error()
+		return "", err
 	}
 
+	type IP struct {
+		Query string
+	}
 	var ip IP
 	json.Unmarshal(body, &ip)
 
-	return ip.Query
+	return ip.Query, nil
+}
+
+func getip2b() (string, error) {
+	req, err := http.Get("https://api.ipify.org?format=json")
+	if err != nil {
+		return "", err
+	}
+	defer req.Body.Close()
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return "", err
+	}
+
+	type ret struct {
+		IP string `json:"ip"`
+	}
+
+	var ip ret
+	json.Unmarshal(body, &ip)
+
+	return ip.IP, nil
 }
 
 func (d *backendAws) CreateSecurityGroups(vpc string, namePrefix string, isAgi bool, extraPorts []string, noDefaults bool) error {

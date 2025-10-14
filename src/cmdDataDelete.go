@@ -40,10 +40,11 @@ func (c *dataDeleteCmd) delete(args []string) error {
 	if c.RunDirect {
 		var err error
 		log.Print("Delete start")
+		log.Printf("namespace=%s set=%s pk_start_key=%s%d pk_end_key=%s%d", c.Namespace, c.Set, c.PkPrefix, c.PkStartNumber, c.PkPrefix, c.PkEndNumber)
 		switch c.Version {
-		case "7":
+		case "8":
 			err = c.delete7(args)
-		case "6":
+		case "7":
 			err = c.delete6(args)
 		case "5":
 			err = c.delete5(args)
@@ -53,7 +54,7 @@ func (c *dataDeleteCmd) delete(args []string) error {
 			err = errors.New("aerospike client version does not exist")
 		}
 		if err == nil {
-			log.Print("Insert done")
+			log.Print("Delete done")
 		}
 		return err
 	}

@@ -1279,7 +1279,7 @@ func (c *agiExecProxyCmd) getFilebrowser() error {
 	logger.Info("Unpack filebrowser")
 	out, err := exec.Command("tar", "-zxvf", "/opt/filebrowser.tgz", "-C", "/usr/local/bin/", "filebrowser").CombinedOutput()
 	if err != nil {
-		return err
+		return fmt.Errorf("filebrowser: %s %s", err, string(out))
 	}
 	logger.Info("Running filebrowser!")
 	com := exec.Command("/usr/local/bin/filebrowser", "-p", "8853", "-r", c.EntryDir, "--noauth", "-d", "/opt/filebrowser.db", "-b", "/agi/filebrowser/")
