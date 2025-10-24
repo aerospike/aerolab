@@ -81,7 +81,8 @@ func parsePortRange(port string) (string, int, int, error) {
 	return protocol, from, to, nil
 }
 
-func getip2() string {
+/*
+func getip2_old() string {
 	type IP struct {
 		Query string
 	}
@@ -100,6 +101,29 @@ func getip2() string {
 	json.Unmarshal(body, &ip)
 
 	return ip.Query
+}
+*/
+
+func getip2() string {
+	req, err := http.Get("https://api.ipify.org?format=json")
+	if err != nil {
+		return err.Error()
+	}
+	defer req.Body.Close()
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return err.Error()
+	}
+
+	type ret struct {
+		IP string `json:"ip"`
+	}
+
+	var ip ret
+	json.Unmarshal(body, &ip)
+
+	return ip.IP
 }
 
 func IsInteractive() bool {

@@ -174,3 +174,11 @@ func getStsClient(creds *clouds.AWS, region *string) (client *sts.Client, err er
 	client = sts.NewFromConfig(*cfg)
 	return client, nil
 }
+
+func GetStsClient(credentials *clouds.Credentials, region *string) (client *sts.Client, err error) {
+	var creds *clouds.AWS
+	if credentials != nil {
+		creds = &credentials.AWS
+	}
+	return getStsClient(creds, region)
+}

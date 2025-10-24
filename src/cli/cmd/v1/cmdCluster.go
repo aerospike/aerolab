@@ -1,9 +1,9 @@
 package cmd
 
 type ClusterCmd struct {
-	Create ClusterCreateCmd `command:"create" subcommands-optional:"true" description:"Create a new cluster" webicon:"fas fa-circle-plus" invwebforce:"true"`
-	Grow   ClusterGrowCmd   `command:"grow" subcommands-optional:"true" description:"Add nodes to cluster" webicon:"fas fa-circle-plus" invwebforce:"true"`
-	//Apply     ClusterApplyCmd     `command:"apply" subcommands-optional:"true" description:"Apply a cluster size (grow/shrink/create)" webicon:"fas fa-gear"`
+	Create    ClusterCreateCmd    `command:"create" subcommands-optional:"true" description:"Create a new cluster" webicon:"fas fa-circle-plus" invwebforce:"true"`
+	Grow      ClusterGrowCmd      `command:"grow" subcommands-optional:"true" description:"Add nodes to cluster" webicon:"fas fa-circle-plus" invwebforce:"true"`
+	Apply     ClusterApplyCmd     `command:"apply" subcommands-optional:"true" description:"Apply a cluster size (grow/shrink/create)" webicon:"fas fa-gear"`
 	List      ClusterListCmd      `command:"list" subcommands-optional:"true" description:"List clusters" webicon:"fas fa-list"`
 	Start     ClusterStartCmd     `command:"start" subcommands-optional:"true" description:"Start cluster" webicon:"fas fa-play" invwebforce:"true"`
 	Stop      ClusterStopCmd      `command:"stop" subcommands-optional:"true" description:"Stop cluster" webicon:"fas fa-stop" invwebforce:"true"`
@@ -18,6 +18,3 @@ type ClusterCmd struct {
 func (c *ClusterCmd) Execute(args []string) error {
 	return c.Help.Execute(args)
 }
-
-// TODO: apply will work out if it should create, grow or shink the cluster, and then call either ClusterCreateCmd, ClusterGrowCmd or ClusterDestroyCmd
-// borrow some code from instancesApplyCmd if need be

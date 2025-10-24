@@ -800,3 +800,11 @@ func (v InstanceList) UpdateHostsFile(withList InstanceList, parallelSSHThreads 
 func (b *backend) ResolveNetworkPlacement(backendType BackendType, placement string) (vpc *Network, subnet *Subnet, zone string, err error) {
 	return b.enabledBackends[backendType].ResolveNetworkPlacement(placement)
 }
+
+func (b *backend) AcceptVPCPeering(backendType BackendType, peeringConnectionID string) error {
+	return b.enabledBackends[backendType].AcceptVPCPeering(peeringConnectionID)
+}
+
+func (b *backend) GetAccountID(backendType BackendType) (string, error) {
+	return b.enabledBackends[backendType].GetAccountID()
+}

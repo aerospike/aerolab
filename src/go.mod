@@ -37,6 +37,7 @@ require (
 	github.com/docker/docker v28.1.1+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/gabriel-vasile/mimetype v1.4.9
+	github.com/go-resty/resty/v2 v2.16.5
 	github.com/google/uuid v1.6.0
 	github.com/jedib0t/go-pretty/v6 v6.6.8
 	github.com/jessevdk/go-flags v1.6.1
@@ -60,6 +61,7 @@ require (
 	golang.org/x/oauth2 v0.29.0
 	golang.org/x/sys v0.34.0
 	golang.org/x/term v0.31.0
+	golang.org/x/text v0.24.0
 	google.golang.org/api v0.231.0
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
@@ -148,7 +150,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.32.0 // indirect
 	google.golang.org/genproto v0.0.0-20250428153025-10db94c68c34 // indirect

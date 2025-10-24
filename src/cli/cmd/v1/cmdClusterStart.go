@@ -96,7 +96,14 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 	var errs error
 	if !c.NoFixMesh {
 		logger.Info("Fixing heartbeat configuration")
-		// TODO: fix mesh for nodes which do not use multicast - use conf.fix-mesh command function
+		fixMesh := &ConfFixMeshCmd{
+			ClusterName:     c.ClusterName,
+			Nodes:           c.Nodes,
+			ParallelThreads: c.Threads,
+		}
+		if err := fixMesh.FixMesh(system, inventory, logger, args); err != nil {
+			errs = errors.Join(errs, fmt.Errorf("failed to fix mesh configuration: %w", err))
+		}
 	}
 	if !c.NoStart {
 		logger.Info("Starting Aerospike")

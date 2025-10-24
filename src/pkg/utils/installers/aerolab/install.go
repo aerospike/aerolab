@@ -15,6 +15,18 @@ import (
 //go:embed scripts
 var scripts embed.FS
 
+func GetRelease(version string) (*github.Release, error) {
+	releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
+	if err != nil {
+		return nil, err
+	}
+	releases = releases.WithTagPrefix(version)
+	if len(releases) == 0 {
+		return nil, errors.New("no release found")
+	}
+	return releases.Latest(), nil
+}
+
 func GetLatestVersion(stable bool) (*github.Release, error) {
 	releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
 	if err != nil {
