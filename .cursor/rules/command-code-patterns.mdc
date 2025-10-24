@@ -1,0 +1,577 @@
+---
+alwaysApply: true
+---
+
+# Aerolab Command Development Context
+
+## Overview
+
+This document provides comprehensive context for developing new Aerolab CLI commands, based on the patterns and practices established during the development of aerospike-related commands. It serves as a guide for AI assistants or developers who need to understand how to create new commands from old code while following established project patterns.
+
+## Project Structure
+
+The Aerolab project is organized into several key packages:
+
+- **`src/cli/cmd/v1/`** - Main CLI command implementations
+- **`src/pkg/backend/`** - Backend infrastructure management (AWS, GCP, Docker)
+- **`src/pkg/sshexec/`** - SSH and SFTP client functionality
+- **`src/pkg/utils/`** - Utility functions and helpers
+
+## Command Development Patterns
+
+### 1. Basic Command Structure
+
+All commands follow a consistent pattern with these key components:
+
+```go
+type CommandNameCmd struct {
+    ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated" default:"mydc"`
+    Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+    Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+    Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+    // Additional command-specific fields...
+}
+```
+
+### 2. Execute Method Pattern
+
+Every command implements the `Execute` method following this exact pattern:
+
+```go
+func (c *CommandNameCmd) Execute(args []string) error {
+    cmd := []string{"command", "subcommand"}
+    system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
+    if err != nil {
+        return Error(err, system, cmd, c, args)
+    }
+    system.Logger.Info("Running %s", strings.Join(cmd, "."))
+
+    // Optional: defer UpdateDiskCache(system) for commands that modify state
+
+    result, err := c.MainFunction(system, system.Backend.GetInventory(), system.Logger, args, "subcommand")
+    if err != nil {
+        return Error(err, system, cmd, c, args)
+    }
+    
+    system.Logger.Info("Done")
+    return Error(nil, system, cmd, c, args)
+}
+```
+
+### 3. Main Function Pattern
+
+The main business logic function follows this pattern:
+
+```go
+func (c *CommandNameCmd) MainFunction(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string, action string) (backends.InstanceList, error) {
+    if system == nil {
+        var err error
+        system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"command", action}, c, args...)
+        if err != nil {
+            return nil, err
+        }
+    }
+    if inventory == nil {
+        inventory = system.Backend.GetInventory()
+    }
+    
+    // Multi-cluster support
+    if c.ClusterName.String() == "" {
+        return nil, fmt.Errorf("cluster name is required")
+    }
+    if strings.Contains(c.ClusterName.String(), ",") {
+        clusters := strings.Split(c.ClusterName.String(), ",")
+        var instances backends.InstanceList
+        for _, cluster := range clusters {
+            c.ClusterName = TypeClusterName(cluster)
+            inst, err := c.MainFunction(system, inventory, logger, args, action)
+            if err != nil {
+                return nil, err
+            }
+            instances = append(instances, inst...)
+        }
+        return instances, nil
+    }
+    
+    // Get cluster instances
+    cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
+    if cluster == nil {
+        return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+    }
+    
+    // Node filtering
+    if c.Nodes.String() != "" {
+        nodes, err := expandNodeNumbers(c.Nodes.String())
+        if err != nil {
+            return nil, err
+        }
+        cluster = cluster.WithNodeNo(nodes...)
+        if cluster.Count() != len(nodes) {
+            return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
+        }
+    }
+    
+    // Filter to running instances
+    cluster = cluster.WithState(backends.LifeCycleStateRunning)
+    if cluster.Count() == 0 {
+        logger.Info("No running instances found for cluster %s", c.ClusterName.String())
+        return nil, nil
+    }
+    
+    // Main business logic here...
+    
+    return cluster.Describe(), nil
+}
+```
+
+## Key Backend Operations
+
+### 1. Executing Commands on Instances
+
+Use the `Exec` method to run commands on instances:
+
+```go
+output := instance.Exec(&backends.ExecInput{
+    ExecDetail: sshexec.ExecDetail{
+        Command:        []string{"systemctl", "start", "aerospike"},
+        Stdin:          nil,
+        Stdout:         os.Stdout,  // or nil for no output
+        Stderr:         os.Stderr,  // or nil for no output
+        SessionTimeout: time.Minute,
+        Env:            []*sshexec.Env{},
+        Terminal:       false,  // or true for interactive
+    },
+    Username:        "root",
+    ConnectTimeout:  30 * time.Second,
+    ParallelThreads: c.Threads,
+})
+
+// Check for errors
+if output.Output.Err != nil {
+    logger.Error("Command failed: %s", output.Output.Err)
+}
+```
+
+### 2. File Operations via SFTP
+
+For file operations, use SFTP:
+
+```go
+// Get SFTP configuration
+conf, err := instance.GetSftpConfig("root")
+if err != nil {
+    return fmt.Errorf("failed to get SFTP config: %w", err)
+}
+
+// Create SFTP client
+client, err := sshexec.NewSftp(conf)
+if err != nil {
+    return fmt.Errorf("failed to create SFTP client: %w", err)
+}
+defer client.Close()
+
+// Read file
+var buf bytes.Buffer
+err = client.ReadFile(&sshexec.FileReader{
+    SourcePath:  "/etc/aerospike/aerospike.conf",
+    Destination: &buf,
+})
+
+// Write file
+err = client.WriteFile(true, &sshexec.FileWriter{
+    DestPath:    "/opt/script.sh",
+    Source:      strings.NewReader(scriptContent),
+    Permissions: 0755,
+})
+```
+
+### 3. Parallel Operations
+
+Use the `parallelize` package for concurrent operations:
+
+```go
+import "github.com/aerospike/aerolab/pkg/utils/parallelize"
+
+parallelize.ForEachLimit(instances.Describe(), c.Threads, func(i *backends.Instance) {
+    // Operation on each instance
+    // Note: Use proper error handling and logging
+})
+```
+
+## Command-Specific Patterns
+
+### 1. Simple Systemctl Commands (Start/Stop/Restart/Status)
+
+For basic systemctl operations, follow this pattern:
+
+```go
+// Execute systemctl command on all instances
+out := cluster.Exec(&backends.ExecInput{
+    ExecDetail: sshexec.ExecDetail{
+        Command:        []string{"systemctl", "start", "aerospike"},
+        Stdin:          nil,
+        Stdout:         nil,
+        Stderr:         nil,
+        SessionTimeout: time.Minute,
+        Env:            []*sshexec.Env{},
+        Terminal:       false,
+    },
+    Username:        "root",
+    ConnectTimeout:  30 * time.Second,
+    ParallelThreads: c.Threads,
+})
+
+var errs error
+for _, o := range out {
+    if o.Output.Err != nil {
+        errs = errors.Join(errs, fmt.Errorf("%s:%d: %s (%s) (%s)", 
+            o.Instance.ClusterName, o.Instance.NodeNo, o.Output.Err, 
+            o.Output.Stdout, o.Output.Stderr))
+    }
+}
+```
+
+### 2. Multi-Step Operations (Cold Start)
+
+For operations requiring multiple steps:
+
+```go
+// Step 1: Clean up IPC resources
+ipcrmOut := cluster.Exec(&backends.ExecInput{
+    ExecDetail: sshexec.ExecDetail{
+        Command:        []string{"ipcrm", "--all"},
+        // ... other fields
+    },
+    Username:        "root",
+    ConnectTimeout:  30 * time.Second,
+    ParallelThreads: c.Threads,
+})
+
+// Check for errors in first step
+for _, o := range ipcrmOut {
+    if o.Output.Err != nil {
+        logger.Warn("Failed to clean IPC resources on %s:%d: %s", 
+            o.Instance.ClusterName, o.Instance.NodeNo, o.Output.Err)
+    }
+}
+
+// Step 2: Start aerospike
+startOut := cluster.Exec(&backends.ExecInput{
+    ExecDetail: sshexec.ExecDetail{
+        Command:        []string{"systemctl", "start", "aerospike"},
+        // ... other fields
+    },
+    Username:        "root",
+    ConnectTimeout:  30 * time.Second,
+    ParallelThreads: c.Threads,
+})
+```
+
+### 3. Complex Operations with File Uploads (IsStable)
+
+For operations requiring script uploads:
+
+```go
+// Create wait script
+waitScript := fmt.Sprintf(`debug=%t
+timeout=%d
+start_time=$(date +%%s)
+while (( timeout == 0 || $(date +%%s) - start_time < timeout )); do
+    RET=$(asinfo -v 'cluster-stable:size=%d;ignore-migrations=%t;namespace=%s' 2>&1)
+    if [ $? -eq 0 ]; then
+        echo "AEROLAB-SUCCESS-CLUSTER-KEY:${RET}"
+        exit 0
+    fi
+    [ "${debug}" == "true" ] && echo "${RET}"
+    sleep 1
+done
+echo ${RET}
+exit 1
+`, c.Verbose, c.WaitTimeout, len(nodes), c.IgnoreMigrations, c.Namespace)
+
+// Upload script via SFTP
+conf, err := instance.GetSftpConfig("root")
+if err != nil {
+    logger.Error("Failed to get SFTP config for node %d: %s", node, err)
+    continue
+}
+client, err := sshexec.NewSftp(conf)
+if err != nil {
+    logger.Error("Failed to create SFTP client for node %d: %s", node, err)
+    continue
+}
+defer client.Close()
+
+err = client.WriteFile(true, &sshexec.FileWriter{
+    DestPath:    "/opt/is-stable.sh",
+    Source:      strings.NewReader(waitScript),
+    Permissions: 0755,
+})
+```
+
+## Configuration File Operations
+
+### 1. Reading and Parsing Configuration Files
+
+```go
+import aeroconf "github.com/rglonek/aerospike-config-file-parser"
+
+// Read config file
+var buf bytes.Buffer
+err = client.ReadFile(&sshexec.FileReader{
+    SourcePath:  "/etc/aerospike/aerospike.conf",
+    Destination: &buf,
+})
+
+// Parse configuration
+s, err := aeroconf.Parse(&buf)
+if err != nil {
+    return fmt.Errorf("failed to parse configuration: %w", err)
+}
+
+// Access namespace
+namespaceKey := "namespace " + c.Namespace
+if s.Type(namespaceKey) != aeroconf.ValueStanza {
+    return fmt.Errorf("namespace %s not found", c.Namespace)
+}
+x := s.Stanza(namespaceKey)
+
+// Set values
+x.SetValue("strong-consistency", "true")
+x.SetValue("replication-factor", "2")
+
+// Write back
+var newBuf bytes.Buffer
+err = s.Write(&newBuf, "", "    ", true)
+if err != nil {
+    return fmt.Errorf("failed to write configuration: %w", err)
+}
+```
+
+### 2. Configuration Validation and Modification
+
+```go
+// Check if parameter exists
+if x.Type("replication-factor") == aeroconf.ValueString {
+    vals, err := x.GetValues("replication-factor")
+    if err != nil {
+        return fmt.Errorf("failed to get replication-factor values: %w", err)
+    }
+    if len(vals) != 1 {
+        return fmt.Errorf("replication-factor parameter error")
+    }
+    rf, err := strconv.Atoi(*vals[0])
+    if err != nil {
+        return fmt.Errorf("replication-factor parameter invalid value: %w", err)
+    }
+    // Adjust if needed
+    if rf > nodeCount {
+        x.SetValue("replication-factor", strconv.Itoa(nodeCount))
+        changes = true
+    }
+}
+```
+
+## Error Handling Patterns
+
+### 1. Standard Error Handling
+
+```go
+var errs error
+for _, o := range outputs {
+    if o.Output.Err != nil {
+        errs = errors.Join(errs, fmt.Errorf("%s:%d: %s (%s) (%s)", 
+            o.Instance.ClusterName, o.Instance.NodeNo, o.Output.Err, 
+            o.Output.Stdout, o.Output.Stderr))
+    }
+}
+if errs != nil {
+    return nil, errs
+}
+```
+
+### 2. Error Aggregation in Parallel Operations
+
+```go
+var hasErr bool
+parallelize.ForEachLimit(instances.Describe(), c.Threads, func(i *backends.Instance) {
+    // Operation that might fail
+    if err != nil {
+        logger.Error("Failed to process node %s: %s", i.Name, err)
+        hasErr = true
+        return
+    }
+})
+if hasErr {
+    return errors.New("some nodes failed to process")
+}
+```
+
+## Logging Patterns
+
+### 1. Standard Logging
+
+```go
+logger.Info("Starting operation on %d nodes", cluster.Count())
+logger.Debug("Processing node %s", instance.Name)
+logger.Warn("Warning: %s", warningMessage)
+logger.Error("Error: %s", errorMessage)
+```
+
+### 2. Progress Reporting
+
+```go
+system.Logger.Info("Running %s", strings.Join(cmd, "."))
+system.Logger.Info("Processed %d instances", instances.Count())
+for _, i := range instances.Describe() {
+    system.Logger.Debug("clusterName=%s nodeNo=%d instanceName=%s instanceID=%s", 
+        i.ClusterName, i.NodeNo, i.Name, i.InstanceID)
+}
+system.Logger.Info("Done")
+```
+
+## Migration from Old Code
+
+### 1. Converting Old Command Structures
+
+**Old Pattern:**
+```go
+type confSCCmd struct {
+    ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+    // ... other fields
+    parallelThreadsCmd
+    Help helpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+```
+
+**New Pattern:**
+```go
+type ConfSCCmd struct {
+    ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated" default:"mydc"`
+    // ... other fields
+    ParallelThreads int             `long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+    Help            HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+```
+
+### 2. Converting Old Backend Operations
+
+**Old Pattern:**
+```go
+// Old way - direct backend calls
+nodes, err := b.NodeListInCluster(c.ClusterName.String())
+out, err := b.RunCommands(c.ClusterName.String(), [][]string{{"cat", c.Path}}, []int{node})
+err = b.CopyFilesToClusterReader(c.ClusterName.String(), []fileListReader{{...}}, []int{node})
+```
+
+**New Pattern:**
+```go
+// New way - using inventory and instances
+instances := inventory.Instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
+output := instance.Exec(&backends.ExecInput{...})
+err = client.WriteFile(true, &sshexec.FileWriter{...})
+```
+
+### 3. Converting Old Parallel Operations
+
+**Old Pattern:**
+```go
+returns := parallelize.MapLimit(nodes, c.ParallelThreads, func(node int) error {
+    // Direct node operations
+})
+```
+
+**New Pattern:**
+```go
+parallelize.ForEachLimit(instances.Describe(), c.Threads, func(i *backends.Instance) {
+    // Instance-based operations
+})
+```
+
+## Best Practices
+
+### 1. Always Use Proper Error Handling
+- Wrap errors with context using `fmt.Errorf`
+- Use `errors.Join` for aggregating multiple errors
+- Log errors with appropriate levels
+
+### 2. Follow Consistent Naming
+- Command structs: `CommandNameCmd`
+- Main functions: `CommandName` (e.g., `StartAerospike`)
+- Use descriptive field names and tags
+
+### 3. Use Appropriate Logging Levels
+- `Info`: General progress information
+- `Debug`: Detailed debugging information
+- `Warn`: Warnings that don't stop execution
+- `Error`: Errors that affect functionality
+
+### 4. Handle Multi-Cluster Operations
+- Always support comma-separated cluster names
+- Recursively call the main function for each cluster
+- Aggregate results properly
+
+### 5. Use SFTP for File Operations
+- Always use SFTP for reading/writing files
+- Properly handle SFTP client lifecycle
+- Use appropriate file permissions
+
+### 6. Follow the Established Pattern
+- Don't create custom help commands
+- Use standard `HelpCmd`
+- Follow the exact Execute method pattern
+- Use consistent parameter naming
+
+## Example: Complete Command Implementation
+
+Here's a complete example of how to implement a new command:
+
+```go
+package cmd
+
+import (
+    "errors"
+    "fmt"
+    "strings"
+    "time"
+
+    "github.com/aerospike/aerolab/pkg/backend/backends"
+    "github.com/aerospike/aerolab/pkg/sshexec"
+    "github.com/rglonek/logger"
+)
+
+type AerospikeExampleCmd struct {
+    ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster names, comma separated" default:"mydc"`
+    Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+    Threads     int             `short:"t" long:"threads" description:"Threads to use" default:"10"`
+    Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+}
+
+func (c *AerospikeExampleCmd) Execute(args []string) error {
+    cmd := []string{"aerospike", "example"}
+    system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
+    if err != nil {
+        return Error(err, system, cmd, c, args)
+    }
+    system.Logger.Info("Running %s", strings.Join(cmd, "."))
+
+    instances, err := c.ExampleOperation(system, system.Backend.GetInventory(), system.Logger, args, "example")
+    if err != nil {
+        return Error(err, system, cmd, c, args)
+    }
+    system.Logger.Info("Completed operation on %d instances", instances.Count())
+    for _, i := range instances.Describe() {
+        system.Logger.Debug("clusterName=%s nodeNo=%d instanceName=%s instanceID=%s", 
+            i.ClusterName, i.NodeNo, i.Name, i.InstanceID)
+    }
+    system.Logger.Info("Done")
+    return Error(nil, system, cmd, c, args)
+}
+
+func (c *AerospikeExampleCmd) ExampleOperation(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string, action string) (backends.InstanceList, error) {
+    // Implementation following the established pattern...
+    return nil, nil
+}
+```
+
+This document provides comprehensive guidance for creating new Aerolab commands while maintaining consistency with established patterns and best practices.

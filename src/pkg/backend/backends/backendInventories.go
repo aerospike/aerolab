@@ -136,6 +136,10 @@ type Cloud interface {
 	DockerPruneNetworks(region string) error
 	// resolve network placement
 	ResolveNetworkPlacement(placement string) (vpc *Network, subnet *Subnet, zone string, err error)
+	// VPC peering
+	AcceptVPCPeering(peeringConnectionID string) error
+	// account information
+	GetAccountID() (string, error)
 }
 
 type Backend interface {
@@ -177,6 +181,10 @@ type Backend interface {
 	GetInstanceTypes(backendType BackendType) (InstanceTypeList, error)
 	// resolve network placement
 	ResolveNetworkPlacement(backendType BackendType, placement string) (vpc *Network, subnet *Subnet, zone string, err error)
+	// VPC peering
+	AcceptVPCPeering(backendType BackendType, peeringConnectionID string) error
+	// account information
+	GetAccountID(backendType BackendType) (string, error)
 }
 
 type backend struct {

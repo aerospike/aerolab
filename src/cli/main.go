@@ -29,6 +29,7 @@ func main() {
 		os.Args = []string{os.Args[0], "inventory", "ansible"}
 		fallthrough
 	default:
+		checkUpgrade()
 		args := os.Args[1:]
 		err := run(args)
 		if err != nil {

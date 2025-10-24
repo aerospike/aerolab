@@ -144,6 +144,19 @@ func Initialize(i *Init, command []string, params interface{}, args ...string) (
 	s.Parser = flags.NewParser(s.Opts, flags.HelpFlag|flags.PassDoubleDash|flags.IniIncludeDefaults|flags.IniIncludeComments|flags.IniCommentDefaults)
 	s.IniParser = flags.NewIniParser(s.Parser)
 
+	// create v8 marker file if it does not exist
+	rootDir, err := AerolabRootDir()
+	if err != nil {
+		return s, err
+	}
+	v8MarkerFile := path.Join(rootDir, "v8")
+	if _, err := os.Stat(v8MarkerFile); os.IsNotExist(err) {
+		err = os.WriteFile(v8MarkerFile, []byte(""), 0644)
+		if err != nil {
+			return s, err
+		}
+	}
+
 	// get the config file name
 	cfgFile, err := ConfigFileName()
 	if err != nil {

@@ -18,10 +18,11 @@ import (
 )
 
 type UpgradeCmd struct {
-	Edge   bool    `long:"edge" description:"Include pre-releases when discovering versions"`
-	DryRun bool    `long:"dry-run" description:"Set to show the upgrade source URL and destination path, do not upgrade"`
-	Force  bool    `long:"force" description:"Force upgrade, even if the available version is the same as, or older than, the currently installed one"`
-	Help   HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	Edge    bool    `long:"edge" description:"Include pre-releases when discovering versions"`
+	DryRun  bool    `long:"dry-run" description:"Set to show the upgrade source URL and destination path, do not upgrade"`
+	Force   bool    `long:"force" description:"Force upgrade, even if the available version is the same as, or older than, the currently installed one"`
+	Version string  `short:"v" long:"version" description:"Version to upgrade to" hidden:"true"`
+	Help    HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *UpgradeCmd) Execute(args []string) error {
@@ -70,9 +71,25 @@ func (c *UpgradeCmd) UpgradeAerolab(log *logger.Logger) error {
 	// Get the latest version
 	log.Info("Checking latest version...")
 
-	install, latestVersionString, latest, err := c.CheckForUpgrade()
-	if err != nil {
-		return err
+	var install bool
+	var latestVersionString string
+	var latest *github.Release
+	var err error
+	if c.Version == "" {
+		install, latestVersionString, latest, err = c.CheckForUpgrade()
+		if err != nil {
+			return err
+		}
+	} else {
+		latestVersionString = c.Version
+		latest, err = aerolab.GetRelease(c.Version)
+		if err != nil {
+			return err
+		}
+		if latest == nil {
+			return fmt.Errorf("version %s not found", c.Version)
+		}
+		install = true
 	}
 
 	// If we don't need to install the latest version, exit
