@@ -54,6 +54,9 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 			return err
 		}
 	}
+	if system.Opts.Config.Backend.Type != "aws" {
+		return fmt.Errorf("cloud databases VPC peering can only be setup with AWS backend")
+	}
 	if logger == nil {
 		logger = system.Logger
 	}

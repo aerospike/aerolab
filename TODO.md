@@ -3,7 +3,6 @@
 ## Next - MVP
 
 PREVIEW-1:
-* make cloud commands only work when with AWS backend
 * testing project so far, building test shell scripts for all commands with gcp, aws, docker, cloud
 * .github workflow and makefiles to build the project into a preview prerelease
 * PRERELEASE
