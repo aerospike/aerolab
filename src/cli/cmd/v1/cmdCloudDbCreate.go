@@ -59,6 +59,9 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 			return err
 		}
 	}
+	if system.Opts.Config.Backend.Type != "aws" {
+		return fmt.Errorf("cloud databases can only be created with AWS backend")
+	}
 	// vpc resolution
 	if c.VPCID == "default" {
 		logger.Info("Resolving default VPC")
