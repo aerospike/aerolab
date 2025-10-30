@@ -42,13 +42,13 @@ PATH: path.to.item or path.to.stanza, e.g. network.heartbeat
 SET-VALUE: for the 'set' command - used to specify value of parameter; leave empty to crete no-value param
 To specify a literal dot in the configuration path, use .. (double-dot)
 EXAMPLES:
-	%s -n mydc create network.heartbeat
-	%s -n mydc set network.heartbeat.mode mesh
-	%s -n mydc set network.heartbeat.mesh-seed-address-port "172.17.0.2 3000" "172.17.0.3 3000"
-	%s -n mydc create service
-	%s -n mydc set service.proto-fd-max 3000
-	%s -n mydc get
-	%s -n mydc get network.service
+	%s conf adjust -n mydc create network.heartbeat
+	%s conf adjust -n mydc set network.heartbeat.mode mesh
+	%s conf adjust -n mydc set network.heartbeat.mesh-seed-address-port "172.17.0.2 3000" "172.17.0.3 3000"
+	%s conf adjust -n mydc create service
+	%s conf adjust -n mydc set service.proto-fd-max 3000
+	%s conf adjust -n mydc get
+	%s conf adjust -n mydc get network.service
 
 `, os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0], os.Args[0])
 	return PrintHelp(true, helpStr)
@@ -56,7 +56,7 @@ EXAMPLES:
 
 func (c *ConfAdjustCmd) Execute(args []string) error {
 	cmd := []string{"conf", "adjust"}
-	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -75,7 +75,7 @@ func (c *ConfAdjustCmd) Execute(args []string) error {
 func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string) error {
 	if system == nil {
 		var err error
-		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"conf", "adjust"}, c, args...)
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"conf", "adjust"}, c)
 		if err != nil {
 			return err
 		}
@@ -84,6 +84,9 @@ func (c *ConfAdjustCmd) Adjust(system *System, inventory *backends.Inventory, lo
 		inventory = system.Backend.GetInventory()
 	}
 	instances := inventory.Instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
+	if instances.Count() == 0 {
+		return fmt.Errorf("cluster %s not found or all instances are stopped", c.ClusterName.String())
+	}
 	if c.Nodes != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {

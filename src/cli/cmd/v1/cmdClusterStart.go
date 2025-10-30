@@ -69,29 +69,28 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 		}
 		return instances, nil
 	}
-	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
-	if cluster == nil {
-		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
-	}
-	if c.Nodes.String() != "" {
-		nodes, err := expandNodeNumbers(c.Nodes.String())
-		if err != nil {
-			return nil, err
-		}
-		cluster = cluster.WithNodeNo(nodes...)
-		if cluster.Count() != len(nodes) {
-			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
-		}
-	}
-	cluster = cluster.WithState(backends.LifeCycleStateStopped)
-	if cluster.Count() == 0 {
-		logger.Info("No nodes to start")
-		return nil, nil
-	}
-	logger.Info("Starting %d nodes", cluster.Count())
-	err := cluster.Start(10 * time.Minute)
+	cluster, err := c.FilterForCluster(inventory, logger)
 	if err != nil {
 		return nil, err
+	}
+	logger.Info("Starting %d nodes", cluster.Count())
+	err = cluster.Start(10 * time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("Refreshing inventory")
+	err = system.Backend.RefreshChangedInventory()
+	if err != nil {
+		return nil, err
+	}
+	inventory = system.Backend.GetInventory()
+	instanceIds := make([]string, 0, cluster.Count())
+	for _, instance := range cluster.Describe() {
+		instanceIds = append(instanceIds, instance.InstanceID)
+	}
+	cluster = inventory.Instances.WithInstanceID(instanceIds...)
+	if cluster.Count() != len(instanceIds) {
+		return nil, fmt.Errorf("some nodes in %s not found after refresh", c.Nodes.String())
 	}
 	var errs error
 	if !c.NoFixMesh {
@@ -100,8 +99,9 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 			ClusterName:     c.ClusterName,
 			Nodes:           c.Nodes,
 			ParallelThreads: c.Threads,
+			ConfigPath:      "/etc/aerospike/aerospike.conf",
 		}
-		if err := fixMesh.FixMesh(system, inventory, logger, args); err != nil {
+		if err := fixMesh.FixMesh(system, inventory, logger.WithPrefix("FixMesh: "), args); err != nil {
 			errs = errors.Join(errs, fmt.Errorf("failed to fix mesh configuration: %w", err))
 		}
 	}
@@ -128,4 +128,26 @@ func (c *ClusterStartCmd) StartCluster(system *System, inventory *backends.Inven
 		}
 	}
 	return cluster.Describe(), errs
+}
+
+func (c *ClusterStartCmd) FilterForCluster(inventory *backends.Inventory, logger *logger.Logger) (backends.Instances, error) {
+	cluster := inventory.Instances.WithClusterName(c.ClusterName.String())
+	if cluster == nil {
+		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
+	}
+	if c.Nodes.String() != "" {
+		nodes, err := expandNodeNumbers(c.Nodes.String())
+		if err != nil {
+			return nil, err
+		}
+		cluster = cluster.WithNodeNo(nodes...)
+		if cluster.Count() != len(nodes) {
+			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
+		}
+	}
+	cluster = cluster.WithState(backends.LifeCycleStateStopped)
+	if cluster.Count() == 0 {
+		return nil, errors.New("no nodes to start found")
+	}
+	return cluster, nil
 }

@@ -35,6 +35,9 @@ is AEROLAB_HOME set:
 */
 
 func checkUpgrade() {
+	if os.Getenv("AEROLAB_TEST") == "1" {
+		return
+	}
 	if os.Getenv("AEROLAB_HOME") == "" {
 		defaultHomeLogic()
 	} else {

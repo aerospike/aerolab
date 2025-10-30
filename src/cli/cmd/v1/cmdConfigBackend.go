@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
@@ -175,6 +176,20 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 				c.TmpDir = flags.Filename(path.Join(ch, ".aerolab.tmp"))
 			}
 		}
+	}
+
+	// handle bools - sticky flags
+	if !slices.Contains(os.Args, "--check-access") {
+		c.CheckAccess = false
+	}
+	if !slices.Contains(os.Args, "--inventory-cache") {
+		c.InventoryCache = false
+	}
+	if !slices.Contains(os.Args, "--aws-nopublic-ip") {
+		c.AWSNoPublicIps = false
+	}
+	if !slices.Contains(os.Args, "--gcp-no-browser") && !slices.Contains(os.Args, "-b") {
+		c.GCPNoBrowser = false
 	}
 
 	// force (re)initialize the backend

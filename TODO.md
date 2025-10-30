@@ -28,6 +28,8 @@ OTHER:
 * aerolab if failed grow/create/apply on capacity, retry automatically
 * test disk caching of inventory (once we have commands so we can actually test it)
 * review all defaults
+* review when and how to retry failures related to work, especially the create commands
+* review v7.8+ fixes and ensure those features are in v8
 
 ## Notes
 

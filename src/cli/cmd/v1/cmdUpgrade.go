@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 
 type UpgradeCmd struct {
 	Edge    bool    `long:"edge" description:"Include pre-releases when discovering versions"`
+	Major   bool    `long:"major" description:"Upgrade to the next major version prerelease if available (v8); WARN: this may break things"`
 	DryRun  bool    `long:"dry-run" description:"Set to show the upgrade source URL and destination path, do not upgrade"`
 	Force   bool    `long:"force" description:"Force upgrade, even if the available version is the same as, or older than, the currently installed one"`
 	Version string  `short:"v" long:"version" description:"Version to upgrade to" hidden:"true"`
@@ -41,10 +43,61 @@ func (c *UpgradeCmd) Execute(args []string) error {
 
 func (c *UpgradeCmd) CheckForUpgrade() (install bool, latestVersionString string, latest *github.Release, err error) {
 	vBranch, vCommit, vEdition, _ := GetAerolabVersion()
-	latest, err = aerolab.GetLatestVersion(!c.Edge)
-	if err != nil {
-		return false, "", nil, err
+
+	// If Edge mode, we need to handle Major flag filtering
+	if c.Edge {
+		// Get all releases to filter prereleases
+		releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
+		if err != nil {
+			return false, "", nil, err
+		}
+
+		// Filter to only prereleases
+		prereleases := releases.WithPrerelease(true)
+
+		// If Major flag is not set, filter out prereleases from different major versions
+		if !c.Major {
+			currentMajor, err := strconv.Atoi(strings.Split(vBranch, ".")[0])
+			if err != nil {
+				return false, "", nil, err
+			}
+
+			// Filter prereleases to only those matching current major version
+			filtered := make(github.Releases, 0)
+			for _, pre := range prereleases {
+				preVersion := strings.TrimPrefix(pre.TagName, "v")
+				preMajor, err := strconv.Atoi(strings.Split(preVersion, ".")[0])
+				if err != nil {
+					continue
+				}
+				if preMajor == currentMajor {
+					filtered = append(filtered, pre)
+				}
+			}
+			prereleases = filtered
+		}
+
+		if len(prereleases) == 0 {
+			// No matching prereleases found, fall back to stable
+			latest, err = aerolab.GetLatestVersion(true)
+			if err != nil {
+				return false, "", nil, err
+			}
+		} else {
+			// Get the latest matching prerelease
+			latest = prereleases.Latest()
+			if latest == nil {
+				return false, "", nil, fmt.Errorf("no prerelease found")
+			}
+		}
+	} else {
+		// Stable mode - get latest stable release
+		latest, err = aerolab.GetLatestVersion(true)
+		if err != nil {
+			return false, "", nil, err
+		}
 	}
+
 	latestVersion := strings.TrimPrefix(latest.TagName, "v")
 	latestCommit := latest.TargetCommitish[0:8]
 	latestVersionString = "v" + latestVersion + "-" + latestCommit

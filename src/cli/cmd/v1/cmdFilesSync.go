@@ -126,13 +126,20 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 	system.Logger.Info("Syncing %s from source cluster %s node %d to destination cluster %s nodes %s", string(c.Path.Path), c.SourceCluster.String(), c.SourceNode, c.DestinationCluster.String(), strings.Join(destNodes, ","))
 
 	// download from source
+	destPath := path.Join(tmpPath, string(c.Path.Path))
+	destDir := path.Dir(destPath)
+	err = os.MkdirAll(destDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create destination directory %s: %v", destDir, err)
+	}
+
 	dl := &FilesDownloadCmd{
 		ClusterName:     c.SourceCluster,
 		Nodes:           TypeNodes(strconv.Itoa(int(c.SourceNode))),
 		ParallelThreads: 1,
 		Files: FilesRestDownloadCmd{
 			Source:      string(c.Path.Path),
-			Destination: flags.Filename(path.Join(tmpPath, string(c.Path.Path))),
+			Destination: flags.Filename(destPath),
 		},
 	}
 	err = dl.Download(system, inventory, args)
@@ -140,7 +147,7 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 		return err
 	}
 
-	system.Logger.Info("Downloaded %s from source cluster %s node %d to %s", string(c.Path.Path), c.SourceCluster.String(), c.SourceNode, tmpPath)
+	system.Logger.Info("Downloaded %s from source cluster %s node %d to %s", string(c.Path.Path), c.SourceCluster.String(), c.SourceNode, destPath)
 
 	// upload to destination
 	up := &FilesUploadCmd{
@@ -148,7 +155,7 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 		Nodes:           TypeNodes(strings.Join(destNodes, ",")),
 		ParallelThreads: c.ParallelThreads,
 		Files: FilesRestUploadCmd{
-			Source:      flags.Filename(path.Join(tmpPath, string(c.Path.Path))),
+			Source:      flags.Filename(destPath),
 			Destination: string(c.Path.Path),
 		},
 	}

@@ -240,7 +240,7 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 	case "text":
 		system.Logger.Info("Networks:")
 		for _, net := range net {
-			detail := net.BackendSpecific.(*bdocker.NetworkDetails)
+			detail := bdocker.GetNetworkDetails(net)
 			fmt.Fprintf(out, "Backend: %s, Name: %s, CIDR: %s, Driver: %s, MTU: %s, NetID: %s\n",
 				net.BackendType, net.Name, net.Cidr, detail.Driver, detail.Options["com.docker.network.driver.mtu"], net.NetworkId)
 		}
@@ -252,7 +252,7 @@ func (c *ListNetworksCmd) ListNetworks(system *System, inventory *backends.Inven
 		header := table.Row{"Backend", "Name", "CIDR", "Driver", "MTU", "NetID"}
 		rows := []table.Row{}
 		for _, net := range net {
-			detail := net.BackendSpecific.(*bdocker.NetworkDetails)
+			detail := bdocker.GetNetworkDetails(net)
 			rows = append(rows, table.Row{net.BackendType, net.Name, net.Cidr, detail.Driver, detail.Options["com.docker.network.driver.mtu"], net.NetworkId})
 		}
 		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)

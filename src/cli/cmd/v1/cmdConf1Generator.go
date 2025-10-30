@@ -28,7 +28,7 @@ func (c *ConfGeneratorCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	defer UpdateDiskCache(system)
-	err = c.CreateConf(system, system.Backend.GetInventory(), system.Logger, args)
+	err = c.CreateConf(system, nil, system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
