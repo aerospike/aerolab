@@ -97,6 +97,33 @@ type InstanceDetail struct {
 	Docker container.Summary `json:"docker" yaml:"docker"`
 }
 
+// getImageDetail safely extracts *ImageDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getImageDetail(img *backends.Image) *ImageDetail {
+	if img.BackendSpecific == nil {
+		img.BackendSpecific = &ImageDetail{}
+		return img.BackendSpecific.(*ImageDetail)
+	}
+	if id, ok := img.BackendSpecific.(*ImageDetail); ok {
+		return id
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := img.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var id ImageDetail
+			if err := json.Unmarshal(jsonBytes, &id); err == nil {
+				img.BackendSpecific = &id
+				return &id
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new ImageDetail
+	img.BackendSpecific = &ImageDetail{}
+	return img.BackendSpecific.(*ImageDetail)
+}
+
 func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.NetworkList, firewallList backends.FirewallList) (backends.InstanceList, error) {
 	log := s.log.WithPrefix("GetInstances: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
@@ -418,6 +445,19 @@ func (s *b) InstancesStart(instances backends.InstanceList, waitDur time.Duratio
 				if err != nil {
 					reterr = errors.Join(reterr, err)
 				}
+				log.Detail("waiting for container %s to be running", id)
+				for {
+					inspected, err := cli.ContainerInspect(context.Background(), id)
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
+					if inspected.State.Running {
+						break
+					}
+					time.Sleep(250 * time.Millisecond)
+				}
+				log.Detail("container %s is running, waiting for ssh-ready", id)
 			}(id)
 			wg.Wait()
 			if reterr != nil {
@@ -788,7 +828,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 	// we need to track who is building the image, so that if another CreateInstances is already building this particular image, we should just wait for it to finish
 	imgName := backendSpecificParams.Image.Name
 	if backendSpecificParams.Image.Public {
-		if backendSpecificParams.Image.BackendSpecific.(*ImageDetail).Docker == nil {
+		imgDetail := getImageDetail(backendSpecificParams.Image)
+		if imgDetail.Docker == nil {
 			s.builderMutex.Lock()
 			if _, ok := s.builders[backendSpecificParams.Image.ZoneName]; !ok {
 				s.builders[backendSpecificParams.Image.ZoneName] = make(map[string]*dockerBuilder)
@@ -796,9 +837,8 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			if builder, ok := s.builders[backendSpecificParams.Image.ZoneName][backendSpecificParams.Image.Name]; ok {
 				builder.wg.Wait()
 				if builder.docker != nil {
-					reassign := backendSpecificParams.Image.BackendSpecific.(*ImageDetail)
+					reassign := getImageDetail(backendSpecificParams.Image)
 					reassign.Docker = builder.docker
-					backendSpecificParams.Image.BackendSpecific = reassign
 					s.builderMutex.Unlock()
 				} else {
 					imgName = ""
@@ -905,7 +945,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 						return fmt.Errorf("failed to read docker build response: %v", err)
 					}
 
-					reassign := backendSpecificParams.Image.BackendSpecific.(*ImageDetail)
+					reassign := getImageDetail(backendSpecificParams.Image)
 					reassign.Docker = &image.Summary{
 						Created:  time.Now().Unix(),
 						ID:       newNameTag,
@@ -913,7 +953,6 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 						ParentID: backendSpecificParams.Image.Name,
 						RepoTags: []string{newNameTag},
 					}
-					backendSpecificParams.Image.BackendSpecific = reassign
 					s.builders[backendSpecificParams.Image.ZoneName][backendSpecificParams.Image.Name].docker = reassign.Docker
 					return nil
 				}()
@@ -922,10 +961,13 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				}
 			}
 		}
-		if len(backendSpecificParams.Image.BackendSpecific.(*ImageDetail).Docker.RepoTags) > 0 {
-			imgName = backendSpecificParams.Image.BackendSpecific.(*ImageDetail).Docker.RepoTags[0]
-		} else {
-			imgName = backendSpecificParams.Image.BackendSpecific.(*ImageDetail).Docker.ID
+		imgDetail = getImageDetail(backendSpecificParams.Image)
+		if imgDetail.Docker != nil {
+			if len(imgDetail.Docker.RepoTags) > 0 {
+				imgName = imgDetail.Docker.RepoTags[0]
+			} else {
+				imgName = imgDetail.Docker.ID
+			}
 		}
 	}
 

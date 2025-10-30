@@ -2,6 +2,7 @@ package bdocker
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"time"
@@ -19,6 +20,33 @@ type NetworkDetails struct {
 	Ingress    bool
 	Options    map[string]string
 	Created    time.Time
+}
+
+// GetNetworkDetails safely extracts *NetworkDetails from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func GetNetworkDetails(net *backends.Network) *NetworkDetails {
+	if net.BackendSpecific == nil {
+		net.BackendSpecific = &NetworkDetails{}
+		return net.BackendSpecific.(*NetworkDetails)
+	}
+	if nd, ok := net.BackendSpecific.(*NetworkDetails); ok {
+		return nd
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := net.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var nd NetworkDetails
+			if err := json.Unmarshal(jsonBytes, &nd); err == nil {
+				net.BackendSpecific = &nd
+				return &nd
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new NetworkDetails
+	net.BackendSpecific = &NetworkDetails{}
+	return net.BackendSpecific.(*NetworkDetails)
 }
 
 func (s *b) GetNetworks() (backends.NetworkList, error) {

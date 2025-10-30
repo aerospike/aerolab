@@ -52,6 +52,9 @@ func (c *ConfFixMeshCmd) FixMesh(system *System, inventory *backends.Inventory, 
 		inventory = system.Backend.GetInventory()
 	}
 	instances := inventory.Instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
+	if instances.Count() == 0 {
+		return fmt.Errorf("cluster %s not found or all instances are stopped", c.ClusterName.String())
+	}
 	if c.Nodes != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {

@@ -110,16 +110,15 @@ func (c *AerospikeUpgradeCmd) UpgradeAerospike(system *System, inventory *backen
 		return nil, nil
 	}
 
-	logger.Info("Upgrading aerospike to version %s on %d nodes", c.AerospikeVersion, cluster.Count())
-
 	// Resolve Aerospike version and get install script
 	version, _, err := c.resolveAerospikeVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve aerospike version: %w", err)
 	}
+	logger.Info("Upgrading aerospike to version %s on %d nodes", version.Name, cluster.Count())
 
 	// Get the install script for the version
-	installScript, err := c.getInstallScript(version, logger)
+	installScript, err := c.getInstallScript(version, cluster.Describe()[0], system, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get install script: %w", err)
 	}
@@ -187,12 +186,23 @@ func (c *AerospikeUpgradeCmd) resolveAerospikeVersion() (*aerospike.Version, str
 		return &versions[0], flavor, nil
 	}
 
-	// Find specific version
+	// Handle partial version matching (e.g., "8.*" or "8.")
 	versionName := c.AerospikeVersion
 	if flavor != "enterprise" {
 		versionName = strings.TrimSuffix(versionName, flavor[:1])
 	}
 
+	if strings.HasSuffix(versionName, "*") || strings.HasSuffix(versionName, ".") {
+		// Use prefix matching for partial versions
+		prefix := strings.TrimSuffix(versionName, "*")
+		matchingVersions := versions.WithNamePrefix(prefix)
+		if len(matchingVersions) == 0 {
+			return nil, "", fmt.Errorf("aerospike version %s not found", c.AerospikeVersion)
+		}
+		return &matchingVersions[0], flavor, nil
+	}
+
+	// Find exact version match
 	for _, version := range versions {
 		if version.Name == versionName {
 			return &version, flavor, nil
@@ -203,22 +213,29 @@ func (c *AerospikeUpgradeCmd) resolveAerospikeVersion() (*aerospike.Version, str
 }
 
 // getInstallScript gets the install script for the specified version.
-func (c *AerospikeUpgradeCmd) getInstallScript(version *aerospike.Version, logger *logger.Logger) ([]byte, error) {
+func (c *AerospikeUpgradeCmd) getInstallScript(version *aerospike.Version, instance *backends.Instance, system *System, logger *logger.Logger) ([]byte, error) {
 	// Get the installer files
 	files, err := aerospike.GetFiles(time.Second*10, *version)
 	if err != nil {
 		return nil, fmt.Errorf("could not get files: %w", err)
 	}
-
 	// Get the install script (download=true, install=true, upgrade=true)
+	arch := aerospike.ArchitectureTypeUnknown
+	switch instance.Architecture {
+	case backends.ArchitectureX8664:
+		arch = aerospike.ArchitectureTypeX86_64
+	case backends.ArchitectureARM64:
+		arch = aerospike.ArchitectureTypeAARCH64
+	}
+	logger.Detail("Architecture: %s, OS Name: %s, OS Version: %s", arch, instance.OperatingSystem.Name, instance.OperatingSystem.Version)
 	installScript, err := files.GetInstallScript(
-		aerospike.ArchitectureTypeX86_64, // Default to x86_64, could be made configurable
-		aerospike.OSName("ubuntu"),       // Default to ubuntu, could be made configurable
-		"latest",                         // Default to latest OS version
-		false,                            // debug
-		true,                             // download
-		true,                             // install
-		true,                             // upgrade
+		arch,
+		aerospike.OSName(instance.OperatingSystem.Name),
+		instance.OperatingSystem.Version,
+		system.logLevel >= 5,
+		true,
+		true,
+		true,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("could not get install script: %w", err)
@@ -282,7 +299,7 @@ func (c *AerospikeUpgradeCmd) upgradeInstance(instance *backends.Instance, upgra
 
 	// Execute the upgrade script
 	var stdout, stderr *os.File
-	var stdin io.ReadCloser = nil
+	var stdin *io.ReadCloser
 	terminal := false
 
 	// If debug level is selected, output to stdout/stderr
@@ -290,18 +307,25 @@ func (c *AerospikeUpgradeCmd) upgradeInstance(instance *backends.Instance, upgra
 		stdout = os.Stdout
 		stderr = os.Stderr
 		terminal = true
-		stdin = io.NopCloser(os.Stdin)
+		stdinp := io.NopCloser(os.Stdin)
+		stdin = &stdinp
 	}
-
+	detail := sshexec.ExecDetail{
+		Command:        []string{"bash", "/tmp/upgrade-aerospike.sh"},
+		Terminal:       terminal,
+		SessionTimeout: 15 * time.Minute,
+	}
+	if stdin != nil {
+		detail.Stdin = *stdin
+	}
+	if stdout != nil {
+		detail.Stdout = stdout
+	}
+	if stderr != nil {
+		detail.Stderr = stderr
+	}
 	output := instance.Exec(&backends.ExecInput{
-		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "/tmp/upgrade-aerospike.sh"},
-			Terminal:       terminal,
-			SessionTimeout: 15 * time.Minute,
-			Stdin:          stdin,
-			Stdout:         stdout,
-			Stderr:         stderr,
-		},
+		ExecDetail:      detail,
 		Username:        "root",
 		ConnectTimeout:  30 * time.Second,
 		ParallelThreads: 1,

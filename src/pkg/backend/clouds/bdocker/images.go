@@ -279,8 +279,9 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 				return
 			}
 			for _, id := range ids {
-				if id.InAccount && id.Public && id.BackendSpecific != nil && id.BackendSpecific.(*ImageDetail).Docker != nil {
-					customId := id.BackendSpecific.(*ImageDetail).Docker.ID
+				imgDetail := getImageDetail(id)
+				if id.InAccount && id.Public && imgDetail.Docker != nil {
+					customId := imgDetail.Docker.ID
 					golog := log.WithPrefix(zone + "::" + customId + ": ")
 					golog.Detail("Deregistering Custom Root Image")
 					s.builderMutex.Lock()

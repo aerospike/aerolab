@@ -23,7 +23,6 @@ import (
 	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
@@ -568,11 +567,27 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			narch := ""
 			switch c.Arch {
 			case "amd64":
-				narch = "amd64/"
+				narch = "amd64"
 			case "arm64":
-				narch = "arm64v8/"
+				narch = "arm64v8"
 			}
-			c.Docker.ImageName = fmt.Sprintf("%s%s:%s", narch, c.OS, c.Version)
+			switch c.OS {
+			case "centos":
+				if narch != "" {
+					c.Docker.ImageName = fmt.Sprintf("quay.io/centos/%s:stream%s", narch, c.Version)
+				} else {
+					c.Docker.ImageName = fmt.Sprintf("quay.io/centos/centos:stream%s", c.Version)
+				}
+			default:
+				if narch != "" {
+					narch = narch + "/"
+				}
+				os := c.OS
+				if c.OS == "rocky" {
+					os = "rockylinux"
+				}
+				c.Docker.ImageName = fmt.Sprintf("%s%s:%s", narch, os, c.Version)
+			}
 		} else {
 			dockerCustomImage = true
 		}
@@ -729,15 +744,11 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		if !dockerCustomImage {
 			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = inventory.Images.WithName(c.Docker.ImageName).Describe()[0]
 		} else {
-			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = &backends.Image{
-				Name:      c.Docker.ImageName,
-				ZoneName:  "default",
-				Public:    false,
-				InAccount: true,
-				BackendSpecific: &bdocker.ImageDetail{
-					Docker: &image.Summary{},
-				},
-			}
+			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = inventory.Images.WithName(c.Docker.ImageName).Describe()[0]
+			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.Name = c.Docker.ImageName
+			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.ZoneName = "default"
+			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.Public = false
+			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.InAccount = true
 		}
 	}
 	awsRegion := c.AWS.NetworkPlacement
@@ -841,20 +852,29 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	system.Logger.Info("Patching hostnames, setting it to clustername-nodeno")
 	parallelize.ForEachLimit(instances.Instances, c.ParallelSSHThreads, func(instance *backends.Instance) {
 		hostname := fmt.Sprintf("%s-%d", strings.ReplaceAll(strings.ToLower(c.ClusterName), "_", "-"), instance.NodeNo)
-		instance.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"hostname", hostname},
-				Stdin:          nil,
-				Stdout:         nil,
-				Stderr:         nil,
-				SessionTimeout: 0,
-				Env:            []*sshexec.Env{},
-				Terminal:       false,
-			},
-			Username:        "root",
-			ConnectTimeout:  15 * time.Second,
-			ParallelThreads: 1,
-		})
+
+		// Skip hostname command for Docker containers as hostname is set at container creation
+		if system.Opts.Config.Backend.Type != "docker" {
+			output := instance.Exec(&backends.ExecInput{
+				ExecDetail: sshexec.ExecDetail{
+					Command:        []string{"hostname", hostname},
+					Stdin:          nil,
+					Stdout:         nil,
+					Stderr:         nil,
+					SessionTimeout: 30 * time.Second,
+					Env:            []*sshexec.Env{},
+					Terminal:       false,
+				},
+				Username:        "root",
+				ConnectTimeout:  15 * time.Second,
+				ParallelThreads: 1,
+			})
+			if output.Output.Err != nil {
+				system.Logger.Warn("Failed to set hostname on node %d: %s: %s: %s", instance.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr))
+			}
+		} else {
+			system.Logger.Debug("Skipping hostname command for Docker container %d (hostname set at creation)", instance.NodeNo)
+		}
 		cfg, err := instance.GetSftpConfig("root")
 		if err != nil {
 			return

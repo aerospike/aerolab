@@ -385,23 +385,32 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		}
 		logger.Info("Uploaded install script to instance %s, running it now", conf.Host)
 		var stdout, stderr *os.File
-		var stdin io.ReadCloser = nil
+		var stdin io.ReadCloser
 		terminal := false
+		env := []*sshexec.Env{}
 		if system.logLevel >= 5 {
 			stdout = os.Stdout
 			stderr = os.Stderr
 			terminal = true
 			stdin = io.NopCloser(os.Stdin)
 		}
+		execDetail := sshexec.ExecDetail{
+			Command:        []string{"bash", "/tmp/install.sh"},
+			Terminal:       terminal,
+			SessionTimeout: 15 * time.Minute,
+			Env:            env,
+		}
+		if stdin != nil {
+			execDetail.Stdin = stdin
+		}
+		if stdout != nil {
+			execDetail.Stdout = stdout
+		}
+		if stderr != nil {
+			execDetail.Stderr = stderr
+		}
 		outputs := inst.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", "/tmp/install.sh"},
-				Terminal:       terminal,
-				SessionTimeout: 15 * time.Minute,
-				Stdin:          stdin,
-				Stdout:         stdout,
-				Stderr:         stderr,
-			},
+			ExecDetail:      execDetail,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,

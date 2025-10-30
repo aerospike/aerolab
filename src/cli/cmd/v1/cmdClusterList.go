@@ -46,7 +46,7 @@ func (c *ClusterListCmd) ListClusters(system *System, inventory *backends.Invent
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	inventory.Instances = inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).WithType("aerospike").Describe()
+	inventory.Instances = inventory.Instances.WithNotState(backends.LifeCycleStateTerminated).WithTags(map[string]string{"aerolab.type": "aerospike"}).Describe()
 	lst := &InstancesListCmd{
 		Output:     c.Output,
 		TableTheme: c.TableTheme,

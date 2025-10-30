@@ -33,12 +33,15 @@ func (c *ClusterAddExporterCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	var stdout, stderr *os.File
-	var stdin io.ReadCloser
+	var stdout, stderr *io.Writer
+	var stdin *io.ReadCloser
 	if system.logLevel >= 5 {
-		stdout = os.Stdout
-		stderr = os.Stderr
-		stdin = io.NopCloser(os.Stdin)
+		var stdoutp io.Writer = os.Stdout
+		stdout = &stdoutp
+		var stderrp io.Writer = os.Stderr
+		stderr = &stderrp
+		var stdinp io.ReadCloser = io.NopCloser(os.Stdin)
+		stdin = &stdinp
 	}
 	_, err = c.AddExporterCluster(system, system.Backend.GetInventory(), args, stdin, stdout, stderr, system.Logger)
 	if err != nil {
@@ -49,7 +52,7 @@ func (c *ClusterAddExporterCmd) Execute(args []string) error {
 
 }
 
-func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) (output []*backends.ExecOutput, err error) {
+func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *backends.Inventory, args []string, stdin *io.ReadCloser, stdout *io.Writer, stderr *io.Writer, logger *logger.Logger) (output []*backends.ExecOutput, err error) {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cluster", "add", "exporter"}, c, args...)
@@ -155,16 +158,23 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 			return
 		}
+		detail := sshexec.ExecDetail{
+			Command:        []string{"bash", "/tmp/install.sh." + now},
+			SessionTimeout: 5 * time.Minute,
+			Env:            []*sshexec.Env{},
+			Terminal:       false,
+		}
+		if stdin != nil {
+			detail.Stdin = *stdin
+		}
+		if stdout != nil {
+			detail.Stdout = *stdout
+		}
+		if stderr != nil {
+			detail.Stderr = *stderr
+		}
 		output := inst.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", "/tmp/install.sh." + now},
-				Stdin:          stdin,
-				Stdout:         stdout,
-				Stderr:         stderr,
-				SessionTimeout: 5 * time.Minute,
-				Env:            []*sshexec.Env{},
-				Terminal:       false,
-			},
+			ExecDetail:      detail,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: c.ParallelThreads,
