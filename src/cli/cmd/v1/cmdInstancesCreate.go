@@ -507,12 +507,28 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		} else {
 			awsCustomImage = true
 		}
+		// determine architecture for filtering
+		narch := itypeArch
+		switch c.Arch {
+		case "amd64":
+			narch = backends.ArchitectureX8664
+		case "arm64":
+			narch = backends.ArchitectureARM64
+		}
 		if strings.HasPrefix(c.AWS.ImageID, "ami-") {
 			if inventory.Images.WithImageID(c.AWS.ImageID).Count() == 0 {
 				return nil, errors.New("aws: image ID " + c.AWS.ImageID + " does not exist")
 			}
-		} else if inventory.Images.WithName(c.AWS.ImageID).Count() == 0 {
-			return nil, errors.New("aws: image Name " + c.AWS.ImageID + " does not exist")
+		} else {
+			// when selecting by name, filter by architecture to ensure we get the correct one
+			img := inventory.Images.WithName(c.AWS.ImageID).WithArchitecture(narch).Describe()
+			if img.Count() == 0 {
+				// check if image exists at all (without architecture filter) for better error message
+				if inventory.Images.WithName(c.AWS.ImageID).Count() == 0 {
+					return nil, errors.New("aws: image Name " + c.AWS.ImageID + " does not exist")
+				}
+				return nil, fmt.Errorf("aws: image Name %s exists but not for architecture %s (required by instance type %s)", c.AWS.ImageID, narch.String(), itype)
+			}
 		}
 		if c.AWS.Expire > 0 && !c.NoInstallExpiry {
 			installExpiry = true
@@ -555,8 +571,22 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		} else {
 			gcpCustomImage = true
 		}
-		if inventory.Images.WithName(c.GCP.ImageName).Count() == 0 {
-			return nil, errors.New("gcp: image " + c.GCP.ImageName + " does not exist")
+		// determine architecture for filtering (same as above)
+		narch := itypeArch
+		switch c.Arch {
+		case "amd64":
+			narch = backends.ArchitectureX8664
+		case "arm64":
+			narch = backends.ArchitectureARM64
+		}
+		// when selecting by name, filter by architecture to ensure we get the correct one
+		img := inventory.Images.WithName(c.GCP.ImageName).WithArchitecture(narch).Describe()
+		if img.Count() == 0 {
+			// check if image exists at all (without architecture filter) for better error message
+			if inventory.Images.WithName(c.GCP.ImageName).Count() == 0 {
+				return nil, errors.New("gcp: image " + c.GCP.ImageName + " does not exist")
+			}
+			return nil, fmt.Errorf("gcp: image %s exists but not for architecture %s (required by instance type %s)", c.GCP.ImageName, narch.String(), itype)
 		}
 		if c.GCP.Expire > 0 && !c.NoInstallExpiry {
 			installExpiry = true
@@ -731,14 +761,40 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		pf.Flush()
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["aws"]; ok {
+		// determine architecture for filtering (same logic as above)
+		narch := itypeArch
+		switch c.Arch {
+		case "amd64":
+			narch = backends.ArchitectureX8664
+		case "arm64":
+			narch = backends.ArchitectureARM64
+		}
 		if strings.HasPrefix(c.AWS.ImageID, "ami-") {
 			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = inventory.Images.WithImageID(c.AWS.ImageID).Describe()[0]
 		} else {
-			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = inventory.Images.WithName(c.AWS.ImageID).Describe()[0]
+			// when selecting by name, filter by architecture to ensure we get the correct one
+			img := inventory.Images.WithName(c.AWS.ImageID).WithArchitecture(narch).Describe()
+			if img.Count() == 0 {
+				return nil, errors.New("aws: image Name " + c.AWS.ImageID + " not found with architecture " + narch.String())
+			}
+			createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams).Image = img[0]
 		}
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["gcp"]; ok {
-		createInstancesInput.BackendSpecificParams["gcp"].(*bgcp.CreateInstanceParams).Image = inventory.Images.WithName(c.GCP.ImageName).Describe()[0]
+		// determine architecture for filtering (same logic as above)
+		narch := itypeArch
+		switch c.Arch {
+		case "amd64":
+			narch = backends.ArchitectureX8664
+		case "arm64":
+			narch = backends.ArchitectureARM64
+		}
+		// when selecting by name, filter by architecture to ensure we get the correct one
+		img := inventory.Images.WithName(c.GCP.ImageName).WithArchitecture(narch).Describe()
+		if img.Count() == 0 {
+			return nil, errors.New("gcp: image " + c.GCP.ImageName + " not found with architecture " + narch.String())
+		}
+		createInstancesInput.BackendSpecificParams["gcp"].(*bgcp.CreateInstanceParams).Image = img[0]
 	}
 	if _, ok := createInstancesInput.BackendSpecificParams["docker"]; ok {
 		if !dockerCustomImage {

@@ -234,6 +234,13 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 
 	// build the structs for instances create and images create, instances stop and instances destroy commands (optionally vacuum too)
 	instName := strings.ToLower(shortuuid.New())
+	// determine instance type based on architecture
+	awsInstanceType := "t3.medium"
+	gcpInstanceType := "e2-standard-2"
+	if c.Arch == "arm64" {
+		awsInstanceType = "t4g.medium"
+		gcpInstanceType = "t2a-standard-2"
+	}
 	instancesCreate := &InstancesCreateCmd{
 		ClusterName:        instName,
 		Count:              1,
@@ -252,7 +259,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			ImageID:            "",
 			Expire:             20 * time.Minute,
 			NetworkPlacement:   system.Opts.Config.Backend.Region,
-			InstanceType:       "t3.medium",
+			InstanceType:       awsInstanceType,
 			Disks:              []string{"type=gp2,size=20"},
 			Firewalls:          []string{},
 			SpotInstance:       false,
@@ -264,7 +271,7 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			ImageName:          "",
 			Expire:             20 * time.Minute,
 			Zone:               system.Opts.Config.Backend.Region + "-a",
-			InstanceType:       "e2-standard-2",
+			InstanceType:       gcpInstanceType,
 			Disks:              []string{"type=pd-ssd,size=20"},
 			Firewalls:          []string{},
 			SpotInstance:       false,

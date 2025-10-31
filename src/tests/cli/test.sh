@@ -23,6 +23,8 @@ function runtest {
         $AL config backend -t $backend $invcache_flag
     elif [ "$backend" == "aws" ]; then
         $AL config backend -t $backend -r us-east-1 -P eks $invcache_flag
+    elif [ "$backend" == "gcp" ]; then
+        $AL config backend -t $backend -r us-central1 -o aerolab-test-project-1 $invcache_flag
     fi
     $AL config defaults -k '*.FeaturesFilePath' -v /Users/rglonek/aerolab/features/
     $AL config defaults -k '*.FeaturesFilePath' |grep rglonek
@@ -58,6 +60,18 @@ function runtest {
         $AL config aws expiry-list
         $AL config aws expiry-run-frequency -f 20
         $AL config aws expiry-list
+    elif [ "$backend" == "gcp" ]; then
+        $AL config gcp list-firewall-rules
+        $AL config gcp create-firewall-rules -n bob-test-fw -p 3000-3005
+        $AL config gcp lock-firewall-rules -n bob-test-fw
+        $AL config gcp list-firewall-rules
+        $AL config gcp delete-firewall-rules -n bob-test-fw
+        $AL config gcp list-firewall-rules
+        $AL config gcp expiry-remove || true
+        $AL config gcp expiry-install
+        $AL config gcp expiry-list
+        $AL config gcp expiry-run-frequency -f 20
+        $AL config gcp expiry-list
     fi
 
     # showcommands commands
@@ -87,22 +101,22 @@ function runtest {
 
     # cluster create from template
     echo "🔧 Running cluster create from template"
-    $AL cluster create -c 2 -d ubuntu -i 24.04 -v '7.*' -I t3a.xlarge --aws-disk type=gp2,size=20 --aws-disk type=gp2,size=30,count=3 --aws-expire=8h
+    $AL cluster create -c 2 -d ubuntu -i 24.04 -v '7.*' -I t3a.xlarge --aws-disk type=gp2,size=20 --aws-disk type=gp2,size=30,count=3 --aws-expire=8h --instance e2-standard-4 --gcp-disk type=pd-ssd,size=20 --gcp-disk type=pd-ssd,size=30,count=3 --gcp-expire=8h
 
     echo "🔧 Running config aws expiry-remove"
     $AL config aws expiry-remove
 
     # cluster grow - non-existing template
     echo "🔧 Running cluster grow - non-existing template"
-    $AL cluster grow -c 2 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-disk type=gp2,size=20 --aws-disk type=gp2,size=30,count=3 --aws-expire=8h
+    $AL cluster grow -c 2 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-disk type=gp2,size=20 --aws-disk type=gp2,size=30,count=3 --aws-expire=8h --instance e2-standard-4 --gcp-disk type=pd-ssd,size=20 --gcp-disk type=pd-ssd,size=30,count=3 --gcp-expire=8h
 
     # cluster apply - grow
     echo "🔧 Running cluster apply - grow"
-    $AL cluster apply -c 5 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-disk type=gp2,size=20 --aws-disk type=gp2,size=30,count=3 --aws-expire=8h
+    $AL cluster apply -c 5 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-disk type=gp2,size=20 --aws-disk type=gp2,size=30,count=3 --aws-expire=8h --instance e2-standard-4 --gcp-disk type=pd-ssd,size=20 --gcp-disk type=pd-ssd,size=30,count=3 --gcp-expire=8h
 
     # cluster apply - shrink
     echo "🔧 Running cluster apply - shrink"
-    $AL cluster apply -c 4 -d ubuntu -i 24.04 -v '8.*' --force -I t3a.xlarge --aws-disk type=gp2,size=20 --aws-disk type=gp2,size=30,count=3 --aws-expire=8h
+    $AL cluster apply -c 4 -d ubuntu -i 24.04 -v '8.*' --force -I t3a.xlarge --aws-disk type=gp2,size=20 --aws-disk type=gp2,size=30,count=3 --aws-expire=8h --instance e2-standard-4 --gcp-disk type=pd-ssd,size=20 --gcp-disk type=pd-ssd,size=30,count=3 --gcp-expire=8h
 
     # cluster list
     echo "🔧 Running cluster list"
@@ -223,7 +237,7 @@ function runtest {
     $AL inventory genders
     $AL inventory hostfile
 
-    if [ "$backend" == "aws" ]; then
+    if [ "$backend" != "docker" ]; then
         echo "🔧 Running conf namespace-memory"
         $AL conf namespace-memory -n mydc
 
@@ -231,8 +245,13 @@ function runtest {
         $AL inventory instance-types
 
         #conf aws create-security-groups
-        echo "🔧 Running conf aws create-security-groups"
-        $AL config aws create-security-groups -n bob-test-fw -p 3000-3005
+        if [ "$backend" == "aws" ]; then
+            echo "🔧 Running conf aws create-security-groups"
+            $AL config aws create-security-groups -n bob-test-fw -p 3000-3005
+        elif [ "$backend" == "gcp" ]; then
+            echo "🔧 Running conf gcp create-firewall-rules"
+            $AL config gcp create-firewall-rules -n bob-test-fw -p 3000-3005
+        fi
 
         #add firewall
         echo "🔧 Running add firewall"
@@ -310,6 +329,8 @@ function runostest {
         $AL config backend -t $backend $invcache_flag
     elif [ "$backend" == "aws" ]; then
         $AL config backend -t $backend -r us-east-1 -P eks $invcache_flag
+    elif [ "$backend" == "gcp" ]; then
+        $AL config backend -t $backend -r us-central1 -o aerolab-test-project-1 $invcache_flag
     fi
     $AL config defaults -k '*.FeaturesFilePath' -v /Users/rglonek/aerolab/features/
     $AL config defaults -k '*.FeaturesFilePath' |grep rglonek
@@ -324,32 +345,44 @@ function runostest {
 
     # test all OS and their versions
     echo "🔧 Deploying ubuntu 24.04"
-    $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-expire=8h
+    $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
     $AL cluster destroy -n mydc --force
     echo "🔧 Deploying ubuntu 22.04"
-    $AL cluster create -n mydc -c 1 -d ubuntu -i 22.04 -v '8.*' -I t3a.xlarge --aws-expire=8h
+    $AL cluster create -n mydc -c 1 -d ubuntu -i 22.04 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
     $AL cluster destroy -n mydc --force
     echo "🔧 Deploying ubuntu 20.04"
-    $AL cluster create -n mydc -c 1 -d ubuntu -i 20.04 -v '8.*' -I t3a.xlarge --aws-expire=8h
+    $AL cluster create -n mydc -c 1 -d ubuntu -i 20.04 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
     $AL cluster destroy -n mydc --force
     echo "🔧 Deploying centos 9"
-    $AL cluster create -n mydc -c 1 -d centos -i 9 -v '8.*' -I t3a.xlarge --aws-expire=8h
+    $AL cluster create -n mydc -c 1 -d centos -i 9 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
     $AL cluster destroy -n mydc --force
-    echo "🔧 Deploying centos 8"
-    $AL cluster create -n mydc -c 1 -d centos -i 8 -v '8.*' -I t3a.xlarge --aws-expire=8h
-    $AL cluster destroy -n mydc --force
+    if [ "$backend" == "docker" ]; then
+        echo "🔧 Deploying centos 8"
+        $AL cluster create -n mydc -c 1 -d centos -i 8 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
+        $AL cluster destroy -n mydc --force
+    fi
     echo "🔧 Deploying rocky 9"
-    $AL cluster create -n mydc -c 1 -d rocky -i 9 -v '8.*' -I t3a.xlarge --aws-expire=8h
+    $AL cluster create -n mydc -c 1 -d rocky -i 9 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
     $AL cluster destroy -n mydc --force
     echo "🔧 Deploying rocky 8"
-    $AL cluster create -n mydc -c 1 -d rocky -i 8 -v '8.*' -I t3a.xlarge --aws-expire=8h
+    $AL cluster create -n mydc -c 1 -d rocky -i 8 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
     $AL cluster destroy -n mydc --force
     echo "🔧 Deploying debian 12"
-    $AL cluster create -n mydc -c 1 -d debian -i 12 -v '8.*' -I t3a.xlarge --aws-expire=8h
+    $AL cluster create -n mydc -c 1 -d debian -i 12 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
     $AL cluster destroy -n mydc --force
     echo "🔧 Deploying debian 11"
-    $AL cluster create -n mydc -c 1 -d debian -i 11 -v '8.*' -I t3a.xlarge --aws-expire=8h
+    $AL cluster create -n mydc -c 1 -d debian -i 11 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
     $AL cluster destroy -n mydc --force
+    if [ "$backend" == "aws" ]; then
+        echo "🔧 Deploying amazon 2023"
+        $AL cluster create -n mydc -c 1 -d amazon -i 2023 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
+        $AL cluster destroy -n mydc --force
+    fi
+    if [ "$backend" != "docker" ]; then
+        echo "🔧 Testing ubuntu 24.04 on arm"
+        $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t4g.xlarge --aws-expire=8h --instance t2a.standard-4 --gcp-expire=8h
+        $AL cluster destroy -n mydc --force
+    fi
     echo "🔧 Done testing OS:Version combinations"
 
     # cleanup
@@ -401,7 +434,7 @@ rm -rf test-results
 mkdir -p test-results
 #backends=("docker" "aws" "gcp")
 #invcaches=("false" "true")
-backends=("aws")
+backends=("docker")
 invcaches=("true")
 for backend in "${backends[@]}"; do
     for invcache in "${invcaches[@]}"; do
@@ -417,10 +450,8 @@ for backend in "${backends[@]}"; do
 done
 echo "✅ Done testing all backends and inventory caches"
 
-# TODO still run ostest on aws
-# TODO add gcp
-# TODO test working with one backend and then switching to next and then switching to previous, using all different flags
-# TODO test arm
-# TODO AWS/GCP:
-#   volumes       Volume management (AWS EFS/GCP Volume only)
+# TODO test docker on arm
+# TODO test gcp
+# TODO AWS, GCP: volumes
 # TODO aws test cloud
+# TODO test working with one backend and then switching to next and then switching to previous, using all different flags
