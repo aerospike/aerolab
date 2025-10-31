@@ -74,15 +74,42 @@ func (c *ClusterStopCmd) StopCluster(system *System, inventory *backends.Invento
 		if err != nil {
 			return nil, err
 		}
-		cluster = cluster.WithNodeNo(nodes...)
-		if cluster.Count() != len(nodes) {
+		logger.Debug("Requested nodes to stop: %v", nodes)
+		logger.Debug("Total cluster nodes before filtering: %d", cluster.Count())
+
+		// Debug: show all nodes in cluster
+		allNodeNumbers := []int{}
+		for _, node := range cluster.Describe() {
+			allNodeNumbers = append(allNodeNumbers, node.NodeNo)
+			logger.Debug("Cluster node %d: state=%s", node.NodeNo, node.InstanceState)
+		}
+		logger.Debug("All nodes in cluster: %v", allNodeNumbers)
+
+		// First check if all requested nodes exist in the cluster (regardless of state)
+		allNodes := cluster.WithNodeNo(nodes...).WithState(backends.LifeCycleStateRunning)
+		logger.Debug("Found nodes matching requested numbers: %d", allNodes.Count())
+
+		if allNodes.Count() != len(nodes) {
+			// Debug: show which nodes were actually found
+			foundNodes := []int{}
+			for _, node := range allNodes.Describe() {
+				foundNodes = append(foundNodes, node.NodeNo)
+			}
+			logger.Debug("Found nodes: %v, requested nodes: %v", foundNodes, nodes)
 			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
 		}
-	}
-	cluster = cluster.WithState(backends.LifeCycleStateRunning)
-	if cluster.Count() == 0 {
-		logger.Info("No nodes to stop")
-		return nil, nil
+		// Then filter by state to only stop running nodes
+		cluster = allNodes.WithState(backends.LifeCycleStateRunning)
+		if cluster.Count() == 0 {
+			logger.Info("All requested nodes are already stopped")
+			return nil, nil
+		}
+	} else {
+		cluster = cluster.WithState(backends.LifeCycleStateRunning)
+		if cluster.Count() == 0 {
+			logger.Info("No nodes to stop")
+			return nil, nil
+		}
 	}
 	logger.Info("Stopping %d nodes", cluster.Count())
 	err := cluster.Stop(c.Force, 10*time.Minute)

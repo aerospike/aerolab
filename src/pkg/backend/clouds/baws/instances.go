@@ -19,6 +19,8 @@ import (
 	"sync"
 	"time"
 
+	"encoding/json"
+
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
@@ -34,6 +36,33 @@ import (
 	"github.com/lithammer/shortuuid"
 	"golang.org/x/crypto/ssh"
 )
+
+// getImageDetail safely extracts *ImageDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getImageDetail(img *backends.Image) *ImageDetail {
+	if img.BackendSpecific == nil {
+		img.BackendSpecific = &ImageDetail{}
+		return img.BackendSpecific.(*ImageDetail)
+	}
+	if id, ok := img.BackendSpecific.(*ImageDetail); ok {
+		return id
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := img.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var id ImageDetail
+			if err := json.Unmarshal(jsonBytes, &id); err == nil {
+				img.BackendSpecific = &id
+				return &id
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new ImageDetail
+	img.BackendSpecific = &ImageDetail{}
+	return img.BackendSpecific.(*ImageDetail)
+}
 
 type CreateInstanceParams struct {
 	// the image to use for the instances(nodes)
@@ -1308,7 +1337,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	if len(blockDeviceMappings) > 0 {
 		// modify the first block device mapping to be the root volume
-		blockDeviceMappings[0].DeviceName = aws.String(backendSpecificParams.Image.BackendSpecific.(*ImageDetail).RootDeviceName)
+		blockDeviceMappings[0].DeviceName = aws.String(getImageDetail(backendSpecificParams.Image).RootDeviceName)
 	}
 
 	log.Detail("Block device mappings: %v", blockDeviceMappings)

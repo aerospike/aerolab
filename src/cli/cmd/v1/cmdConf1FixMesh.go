@@ -51,9 +51,26 @@ func (c *ConfFixMeshCmd) FixMesh(system *System, inventory *backends.Inventory, 
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	instances := inventory.Instances.WithState(backends.LifeCycleStateRunning).WithClusterName(c.ClusterName.String())
+
+	// Get all instances in cluster first for debug logging
+	allInstances := inventory.Instances.WithClusterName(c.ClusterName.String())
+	logger.Debug("All instances in cluster %s: %d total", c.ClusterName.String(), allInstances.Count())
+	for _, inst := range allInstances.Describe() {
+		logger.Debug("  Instance: %s (node %d, state: %s, IP: %s)", inst.Name, inst.NodeNo, inst.InstanceState, inst.IP.Private)
+	}
+
+	// Exclude terminated and terminating instances (AWS keeps terminated instances in inventory)
+	instances := inventory.Instances.WithClusterName(c.ClusterName.String()).
+		WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating).
+		WithState(backends.LifeCycleStateRunning)
+
+	logger.Debug("Filtered instances (excluded terminated/terminating, only running): %d", instances.Count())
+	for _, inst := range instances.Describe() {
+		logger.Debug("  Processing instance: %s (node %d, state: %s, IP: %s)", inst.Name, inst.NodeNo, inst.InstanceState, inst.IP.Private)
+	}
+
 	if instances.Count() == 0 {
-		return fmt.Errorf("cluster %s not found or all instances are stopped", c.ClusterName.String())
+		return fmt.Errorf("cluster %s not found or all instances are stopped/terminated", c.ClusterName.String())
 	}
 	if c.Nodes != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
@@ -62,15 +79,25 @@ func (c *ConfFixMeshCmd) FixMesh(system *System, inventory *backends.Inventory, 
 		}
 		instances = instances.WithNodeNo(nodes...)
 		if instances.Count() != len(nodes) {
-			return fmt.Errorf("some nodes not found: %s", c.Nodes.String())
+			foundNodes := []int{}
+			for _, inst := range instances.Describe() {
+				foundNodes = append(foundNodes, inst.NodeNo)
+			}
+			return fmt.Errorf("some nodes not found or not running: %s (requested: %v, found: %v)", c.Nodes.String(), nodes, foundNodes)
 		}
+		logger.Debug("After node filtering, processing %d instances", instances.Count())
 	}
+
 	lanIPs := []string{}
 	for _, i := range instances.Describe() {
 		lanIPs = append(lanIPs, i.IP.Private)
+		logger.Debug("Adding LAN IP for mesh: %s (from instance %s, node %d)", i.IP.Private, i.Name, i.NodeNo)
 	}
+	logger.Debug("Mesh LAN IPs list: %v", lanIPs)
+
 	var hasErr bool
 	parallelize.ForEachLimit(instances.Describe(), c.ParallelThreads, func(i *backends.Instance) {
+		logger.Debug("Attempting to fix mesh for instance %s (node %d, state: %s, IP: %s)", i.Name, i.NodeNo, i.InstanceState, i.IP.Private)
 		conf, err := i.GetSftpConfig("root")
 		if err != nil {
 			logger.Error("Failed to fix mesh for node %s: %s", i.Name, err)

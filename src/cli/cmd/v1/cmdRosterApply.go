@@ -117,6 +117,24 @@ func (c *RosterApplyCmd) ApplyRoster(system *System, inventory *backends.Invento
 		return nil
 	}
 
+	// Filter nodes to only include those that are actually running
+	runningNodeNos := []int{}
+	for _, instance := range cluster.Describe() {
+		runningNodeNos = append(runningNodeNos, instance.NodeNo)
+	}
+	// Update nodes list to only include running nodes
+	filteredRunningNodes := []int{}
+	for _, node := range nodes {
+		if inslice.HasInt(runningNodeNos, node) {
+			filteredRunningNodes = append(filteredRunningNodes, node)
+		}
+	}
+	nodes = filteredRunningNodes
+	if len(nodes) == 0 {
+		logger.Info("No running nodes found to apply roster to")
+		return nil
+	}
+
 	logger.Info("Applying roster to %d nodes", len(nodes))
 
 	newRoster := c.Roster
@@ -178,24 +196,33 @@ func (c *RosterApplyCmd) ApplyRoster(system *System, inventory *backends.Invento
 
 	// Apply roster to all nodes
 	rosterCmd := []string{"asinfo", "-v", "roster-set:namespace=" + c.Namespace + ";nodes=" + newRoster}
-	// Escape semicolon for non-docker backends
-	if system.Opts.Config.Backend.Type != "docker" {
-		rosterCmd = []string{"asinfo", "-v", "roster-set:namespace=" + c.Namespace + "\\;nodes=" + newRoster}
-	}
+	logger.Debug("Roster command: %v", rosterCmd)
 
+	var rosterErr error
 	if c.Threads == 1 || len(nodes) == 1 {
-		c.applyRosterToNodes(cluster.Describe(), nodes, rosterCmd, logger)
+		rosterErr = c.applyRosterToNodes(cluster.Describe(), nodes, rosterCmd, logger)
 	} else {
 		parallel := make(chan int, c.Threads)
 		wait := new(sync.WaitGroup)
+		errChan := make(chan error, len(nodes))
 		for _, node := range nodes {
 			instance := cluster.WithNodeNo(node).Describe()[0]
 			parallel <- 1
 			wait.Add(1)
-			go c.applyRosterToNodeParallel(instance, rosterCmd, parallel, wait, logger)
+			go c.applyRosterToNodeParallel(instance, rosterCmd, parallel, wait, errChan, logger)
 		}
 		wait.Wait()
+		close(errChan)
+		for err := range errChan {
+			if err != nil {
+				rosterErr = errors.Join(rosterErr, err)
+			}
+		}
 	}
+	if rosterErr != nil {
+		return fmt.Errorf("failed to apply roster to some nodes: %w", rosterErr)
+	}
+	logger.Info("Roster applied successfully to all nodes")
 
 	if c.NoRecluster {
 		logger.Info("Done. Roster applied, did not recluster!")
@@ -205,18 +232,33 @@ func (c *RosterApplyCmd) ApplyRoster(system *System, inventory *backends.Invento
 	// Trigger recluster
 	logger.Info("Triggering recluster")
 	reclusterCmd := []string{"asinfo", "-v", "recluster:namespace=" + c.Namespace}
+	logger.Debug("Recluster command: %v", reclusterCmd)
+
+	var reclusterErr error
 	if c.Threads == 1 || len(nodes) == 1 {
-		c.applyReclusterToNodes(cluster.Describe(), nodes, reclusterCmd, logger)
+		reclusterErr = c.applyReclusterToNodes(cluster.Describe(), nodes, reclusterCmd, logger)
 	} else {
 		parallel := make(chan int, c.Threads)
 		wait := new(sync.WaitGroup)
+		errChan := make(chan error, len(nodes))
 		for _, node := range nodes {
 			instance := cluster.WithNodeNo(node).Describe()[0]
 			parallel <- 1
 			wait.Add(1)
-			go c.applyReclusterToNodeParallel(instance, reclusterCmd, parallel, wait, logger)
+			go c.applyReclusterToNodeParallel(instance, reclusterCmd, parallel, wait, errChan, logger)
 		}
 		wait.Wait()
+		close(errChan)
+		for err := range errChan {
+			if err != nil {
+				reclusterErr = errors.Join(reclusterErr, err)
+			}
+		}
+	}
+	if reclusterErr != nil {
+		logger.Warn("Failed to trigger recluster on some nodes: %v", reclusterErr)
+		// Note: We don't return an error here because recluster failures are often non-fatal
+		// and the roster may still have been applied successfully
 	}
 
 	// Show roster if not quiet
@@ -313,24 +355,39 @@ func (c *RosterApplyCmd) findNodesOnInstanceParallel(instance *backends.Instance
 }
 
 // applyRosterToNodes applies roster to multiple nodes.
-func (c *RosterApplyCmd) applyRosterToNodes(cluster backends.InstanceList, nodes []int, rosterCmd []string, logger *logger.Logger) {
+func (c *RosterApplyCmd) applyRosterToNodes(cluster backends.InstanceList, nodes []int, rosterCmd []string, logger *logger.Logger) error {
+	var errs error
 	for _, node := range nodes {
-		instance := cluster.WithNodeNo(node).Describe()[0]
-		c.applyRosterToNode(instance, rosterCmd, logger)
+		nodeInstances := cluster.WithNodeNo(node).Describe()
+		if len(nodeInstances) == 0 {
+			errs = errors.Join(errs, fmt.Errorf("node %d not found", node))
+			continue
+		}
+		instance := nodeInstances[0]
+		err := c.applyRosterToNode(instance, rosterCmd, logger)
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("node %d: %w", node, err))
+		}
 	}
+	return errs
 }
 
 // applyRosterToNodeParallel applies roster to a single node in parallel.
-func (c *RosterApplyCmd) applyRosterToNodeParallel(instance *backends.Instance, rosterCmd []string, parallel chan int, wait *sync.WaitGroup, logger *logger.Logger) {
+func (c *RosterApplyCmd) applyRosterToNodeParallel(instance *backends.Instance, rosterCmd []string, parallel chan int, wait *sync.WaitGroup, errChan chan error, logger *logger.Logger) {
 	defer func() {
 		<-parallel
 		wait.Done()
 	}()
-	c.applyRosterToNode(instance, rosterCmd, logger)
+	err := c.applyRosterToNode(instance, rosterCmd, logger)
+	if err != nil {
+		errChan <- fmt.Errorf("node %d: %w", instance.NodeNo, err)
+	} else {
+		errChan <- nil
+	}
 }
 
 // applyRosterToNode applies roster to a single node.
-func (c *RosterApplyCmd) applyRosterToNode(instance *backends.Instance, rosterCmd []string, logger *logger.Logger) {
+func (c *RosterApplyCmd) applyRosterToNode(instance *backends.Instance, rosterCmd []string, logger *logger.Logger) error {
 	output := instance.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        rosterCmd,
@@ -346,33 +403,60 @@ func (c *RosterApplyCmd) applyRosterToNode(instance *backends.Instance, rosterCm
 		ParallelThreads: 1,
 	})
 
-	if strings.Contains(string(output.Output.Stdout), "ERROR") {
-		logger.Warn("ERROR: %s", string(output.Output.Stdout))
-	}
+	stdout := string(output.Output.Stdout)
+	stderr := string(output.Output.Stderr)
+
 	if output.Output.Err != nil {
-		logger.Warn("WARNING: could not apply roster to %d: %s: %s", instance.NodeNo, output.Output.Err, string(output.Output.Stdout))
+		return fmt.Errorf("exec failed: %w, stdout: %s, stderr: %s", output.Output.Err, stdout, stderr)
 	}
+
+	if strings.Contains(stdout, "ERROR") {
+		return fmt.Errorf("asinfo returned error: %s", stdout)
+	}
+
+	// Check if roster was actually set by looking for success indicators
+	// The roster-set command typically returns "OK" on success
+	if stdout != "" && !strings.Contains(strings.ToUpper(stdout), "OK") && !strings.Contains(stdout, "roster") {
+		logger.Debug("Node %d roster-set output: %s", instance.NodeNo, stdout)
+	}
+
+	return nil
 }
 
 // applyReclusterToNodes applies recluster to multiple nodes.
-func (c *RosterApplyCmd) applyReclusterToNodes(cluster backends.InstanceList, nodes []int, reclusterCmd []string, logger *logger.Logger) {
+func (c *RosterApplyCmd) applyReclusterToNodes(cluster backends.InstanceList, nodes []int, reclusterCmd []string, logger *logger.Logger) error {
+	var errs error
 	for _, node := range nodes {
-		instance := cluster.WithNodeNo(node).Describe()[0]
-		c.applyReclusterToNode(instance, reclusterCmd, logger)
+		nodeInstances := cluster.WithNodeNo(node).Describe()
+		if len(nodeInstances) == 0 {
+			errs = errors.Join(errs, fmt.Errorf("node %d not found", node))
+			continue
+		}
+		instance := nodeInstances[0]
+		err := c.applyReclusterToNode(instance, reclusterCmd, logger)
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("node %d: %w", node, err))
+		}
 	}
+	return errs
 }
 
 // applyReclusterToNodeParallel applies recluster to a single node in parallel.
-func (c *RosterApplyCmd) applyReclusterToNodeParallel(instance *backends.Instance, reclusterCmd []string, parallel chan int, wait *sync.WaitGroup, logger *logger.Logger) {
+func (c *RosterApplyCmd) applyReclusterToNodeParallel(instance *backends.Instance, reclusterCmd []string, parallel chan int, wait *sync.WaitGroup, errChan chan error, logger *logger.Logger) {
 	defer func() {
 		<-parallel
 		wait.Done()
 	}()
-	c.applyReclusterToNode(instance, reclusterCmd, logger)
+	err := c.applyReclusterToNode(instance, reclusterCmd, logger)
+	if err != nil {
+		errChan <- fmt.Errorf("node %d: %w", instance.NodeNo, err)
+	} else {
+		errChan <- nil
+	}
 }
 
 // applyReclusterToNode applies recluster to a single node.
-func (c *RosterApplyCmd) applyReclusterToNode(instance *backends.Instance, reclusterCmd []string, logger *logger.Logger) {
+func (c *RosterApplyCmd) applyReclusterToNode(instance *backends.Instance, reclusterCmd []string, logger *logger.Logger) error {
 	output := instance.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
 			Command:        reclusterCmd,
@@ -388,7 +472,16 @@ func (c *RosterApplyCmd) applyReclusterToNode(instance *backends.Instance, reclu
 		ParallelThreads: 1,
 	})
 
+	stdout := string(output.Output.Stdout)
+	stderr := string(output.Output.Stderr)
+
 	if output.Output.Err != nil {
-		logger.Warn("WARNING: could not send recluster to node %d: %s: %s", instance.NodeNo, output.Output.Err, string(output.Output.Stdout))
+		return fmt.Errorf("exec failed: %w, stdout: %s, stderr: %s", output.Output.Err, stdout, stderr)
 	}
+
+	if strings.Contains(stdout, "ERROR") {
+		return fmt.Errorf("asinfo returned error: %s", stdout)
+	}
+
+	return nil
 }

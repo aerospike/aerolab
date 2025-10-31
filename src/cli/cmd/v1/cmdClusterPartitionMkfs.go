@@ -100,6 +100,8 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
 	}
+	// Filter by Running state first, before checking node numbers
+	cluster = cluster.WithState(backends.LifeCycleStateRunning)
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {
@@ -107,10 +109,9 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 		}
 		cluster = cluster.WithNodeNo(nodes...)
 		if cluster.Count() != len(nodes) {
-			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
+			return nil, fmt.Errorf("some nodes in %s not found (may be terminated)", c.Nodes.String())
 		}
 	}
-	cluster = cluster.WithState(backends.LifeCycleStateRunning)
 	if cluster.Count() == 0 {
 		logger.Info("No nodes to run partition mkfs")
 		return nil, nil
@@ -135,41 +136,75 @@ func (c *ClusterPartitionMkfsCmd) PartitionMkfsCluster(system *System, inventory
 		// calculate what we need to do and build a script into installScript
 		script := makePartCommand()
 		diskCount := 0
-		for _, disk := range plist {
-			diskCount++
-			for _, p := range disk.BlockDevices.Children {
-				if p.MountPoint != "" {
-					script.Add("umount -f " + p.Path + " || echo 'not mounted'")
-					script.Add("set +e")
-					script.Add("RET=0; while [ $RET -eq 0 ]; do mount |egrep '^" + p.Path + "( |\\t)'; RET=$?; sleep 1; done")
-					script.Add("set -e")
-					script.Add("sed -i.bak -e 's~.*" + p.MountPoint + ".*~~g' /etc/fstab || echo 'not mounted'")
-					script.Add("rm -rf " + p.MountPoint)
+		// Build a map of disk to partition info for quick lookup
+		diskMap := make(map[int]*PartitionInformation)
+		for _, parts := range plist {
+			if parts.Partition == 0 {
+				diskMap[parts.Disk] = parts
+				diskCount++
+			}
+		}
+
+		processPartition := func(p *BlockDevice) {
+			if p.MountPoint != "" {
+				script.Add("umount -f " + p.Path + " || echo 'not mounted'")
+				script.Add("set +e")
+				script.Add("RET=0; while [ $RET -eq 0 ]; do mount |egrep '^" + p.Path + "( |\\t)'; RET=$?; sleep 1; done")
+				script.Add("set -e")
+				script.Add("sed -i.bak -e 's~.*" + p.MountPoint + ".*~~g' /etc/fstab || echo 'not mounted'")
+				script.Add("rm -rf " + p.MountPoint)
+			}
+			forceFlag := " -f "
+			if strings.Contains(c.FsType, "ext") {
+				forceFlag = " -F "
+			}
+
+			// Obtain the PARTUUID for the partition
+			script.Add("PARTUUID=$(blkid -s PARTUUID -o value " + p.Path + ")")
+			script.Add("if [ -z \"$PARTUUID\" ]; then")
+			script.Add("    echo 'Failed to get PARTUUID for " + p.Path + "'")
+			script.Add("    exit 1")
+			script.Add("fi")
+
+			script.Add("mkfs -t " + c.FsType + forceFlag + c.MkfsOpts + " " + p.Path)
+
+			mountRoot := strings.TrimRight(c.MountRoot, "/") + "/"
+			mountOpts := c.MountOpts
+			if mountOpts == "" {
+				mountOpts = "defaults"
+			}
+			script.Add("mkdir -p " + mountRoot + `"$PARTUUID"`)
+			script.Add(fmt.Sprintf("echo \"PARTUUID=$PARTUUID %s$PARTUUID %s %s 0 9\" >> /etc/fstab", mountRoot, c.FsType, mountOpts))
+		}
+
+		// Handle FilterPartitions == "0" or "" - use entire disk itself
+		if c.FilterPartitions == "0" || c.FilterPartitions == "" {
+			for _, parts := range plist {
+				if parts.Partition == 0 {
+					// Use the disk itself
+					processPartition(&parts.BlockDevices)
 				}
-				forceFlag := " -f "
-				if strings.Contains(c.FsType, "ext") {
-					forceFlag = " -F "
+			}
+		} else {
+			// Process only the filtered partitions from plist (plist already contains filtered results)
+			// When parts.Partition > 0, parts.BlockDevices already contains the partition device itself
+			for _, parts := range plist {
+				if parts.Partition == 0 {
+					// This is a disk entry, skip it as we only process partitions
+					continue
 				}
-
-				// Obtain the PARTUUID for the partition
-				script.Add("PARTUUID=$(blkid -s PARTUUID -o value " + p.Path + ")")
-				script.Add("if [ -z \"$PARTUUID\" ]; then")
-				script.Add("    echo 'Failed to get PARTUUID for " + p.Path + "'")
-				script.Add("    exit 1")
-				script.Add("fi")
-
-				script.Add("mkfs -t " + c.FsType + forceFlag + c.MkfsOpts + " " + p.Path)
-
-				mountRoot := strings.TrimRight(c.MountRoot, "/") + "/"
-				script.Add("mkdir -p " + mountRoot + `"$PARTUUID"`)
-				script.Add(fmt.Sprintf("echo \"PARTUUID=$PARTUUID %s$PARTUUID %s %s 0 9\" >> /etc/fstab", mountRoot, c.FsType, c.MountOpts))
-				script.Add("mount -a")
+				// parts.BlockDevices already contains the partition BlockDevice when Partition > 0
+				processPartition(&parts.BlockDevices)
 			}
 		}
 		if c.FilterDisks != "ALL" && diskCount < filterDiskCount {
 			hasErr = errors.Join(hasErr, fmt.Errorf("could not find all the required disks on node %d", inst.NodeNo))
 			return
 		}
+		// Mount all partitions after all fstab entries have been added
+		// Use set +e to allow mount -a to fail without stopping the script
+		// (mount -a can return non-zero if other fstab entries fail, even if ours succeed)
+		script.Add("mount -a")
 		installScript := script.String()
 		// execute install script
 		conf, err := inst.GetSftpConfig("root")

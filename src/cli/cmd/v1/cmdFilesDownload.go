@@ -65,20 +65,31 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 	if instances.Count() == 0 {
 		return fmt.Errorf("cluster %s not found", c.ClusterName.String())
 	}
+
+	// Filter by state first to only work with running instances
+	instances = instances.WithState(backends.LifeCycleStateRunning)
+	if instances.Count() == 0 {
+		return fmt.Errorf("no running instances found for cluster %s", c.ClusterName.String())
+	}
+
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {
 			return err
 		}
+		// Check if nodes exist in the running instances
 		new := instances.WithNodeNo(nodes...).Describe()
 		if new.Count() != len(nodes) {
-			return fmt.Errorf("some nodes not found: %s", c.Nodes.String())
+			// Find which nodes are missing
+			foundNodes := []int{}
+			for _, inst := range new {
+				foundNodes = append(foundNodes, inst.NodeNo)
+			}
+			return fmt.Errorf("some nodes not found or not running: %s (requested: %v, found: %v)", c.Nodes.String(), nodes, foundNodes)
 		}
 		instances = new
-	}
-	instances = instances.WithState(backends.LifeCycleStateRunning).Describe()
-	if instances.Count() == 0 {
-		return fmt.Errorf("no running instances found")
+	} else {
+		instances = instances.Describe()
 	}
 
 	system.Logger.Info("Downloading files from %d instances", instances.Count())

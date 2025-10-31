@@ -132,6 +132,8 @@ func (c *ClusterPartitionCreateCmd) PartitionCreateCluster(system *System, inven
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
 	}
+	// Filter by Running state first, before checking node numbers
+	cluster = cluster.WithState(backends.LifeCycleStateRunning)
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {
@@ -139,10 +141,9 @@ func (c *ClusterPartitionCreateCmd) PartitionCreateCluster(system *System, inven
 		}
 		cluster = cluster.WithNodeNo(nodes...)
 		if cluster.Count() != len(nodes) {
-			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
+			return nil, fmt.Errorf("some nodes in %s not found (may be terminated)", c.Nodes.String())
 		}
 	}
-	cluster = cluster.WithState(backends.LifeCycleStateRunning)
 	if cluster.Count() == 0 {
 		logger.Info("No nodes to add partition create")
 		return nil, nil

@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -90,8 +91,8 @@ func (c *AerospikeStatusCmd) StatusAerospike(system *System, inventory *backends
 	// Execute systemctl status aerospike on all instances
 	out := cluster.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"systemctl", "status", "aerospike"},
-			Stdin:          nil,
+			Command:        []string{"systemctl", "status", "aerospike", "--no-pager"},
+			Stdin:          io.NopCloser(os.Stdin),
 			Stdout:         os.Stdout,
 			Stderr:         os.Stderr,
 			SessionTimeout: time.Minute,

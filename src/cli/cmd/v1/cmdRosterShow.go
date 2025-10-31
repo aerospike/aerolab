@@ -108,6 +108,24 @@ func (c *RosterShowCmd) ShowRoster(system *System, inventory *backends.Inventory
 		return nil
 	}
 
+	// Filter nodes to only include those that are actually running
+	runningNodeNos := []int{}
+	for _, instance := range cluster.Describe() {
+		runningNodeNos = append(runningNodeNos, instance.NodeNo)
+	}
+	// Update nodes list to only include running nodes
+	filteredRunningNodes := []int{}
+	for _, node := range nodes {
+		if inslice.HasInt(runningNodeNos, node) {
+			filteredRunningNodes = append(filteredRunningNodes, node)
+		}
+	}
+	nodes = filteredRunningNodes
+	if len(nodes) == 0 {
+		logger.Info("No running nodes found to show roster for")
+		return nil
+	}
+
 	logger.Info("Showing roster for %d nodes", len(nodes))
 
 	if c.Threads == 1 || len(nodes) == 1 {

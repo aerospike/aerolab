@@ -458,7 +458,7 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 			}
 			for _, id := range ids {
 				golog := log.WithPrefix(zone + "::" + id.ImageId + ": ")
-				if id.BackendSpecific.(*ImageDetail).SnapshotID == "" {
+				if getImageDetail(id).SnapshotID == "" {
 					golog.Detail("Snapshot ID is empty for image, retrieving it")
 					img, err := cli.DescribeImages(context.TODO(), &ec2.DescribeImagesInput{
 						ImageIds: []string{id.ImageId},
@@ -471,9 +471,8 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 						reterr = errors.Join(reterr, fmt.Errorf("image %s not found", id.ImageId))
 						return
 					}
-					imgx := id.BackendSpecific.(*ImageDetail)
+					imgx := getImageDetail(id)
 					imgx.SnapshotID = aws.ToString(img.Images[0].BlockDeviceMappings[0].Ebs.SnapshotId)
-					id.BackendSpecific = imgx
 				}
 				golog.Detail("Deregistering Image")
 				_, err = cli.DeregisterImage(context.TODO(), &ec2.DeregisterImageInput{
@@ -485,7 +484,7 @@ func (s *b) ImagesDelete(images backends.ImageList, waitDur time.Duration) error
 				}
 				golog.Detail("Deleting Snapshot")
 				_, err = cli.DeleteSnapshot(context.TODO(), &ec2.DeleteSnapshotInput{
-					SnapshotId: aws.String(id.BackendSpecific.(*ImageDetail).SnapshotID),
+					SnapshotId: aws.String(getImageDetail(id).SnapshotID),
 				})
 				if err != nil {
 					reterr = errors.Join(reterr, err)

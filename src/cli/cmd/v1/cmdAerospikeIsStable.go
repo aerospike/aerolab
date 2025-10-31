@@ -140,7 +140,13 @@ exit 1
 
 		// Check each node
 		for _, node := range nodes {
-			instance := instances.WithNodeNo(node).Describe()[0]
+			nodeInstances := instances.WithNodeNo(node).Describe()
+			if len(nodeInstances) == 0 {
+				logger.Error("Node %d not found in running instances", node)
+				hasErr = true
+				continue
+			}
+			instance := nodeInstances[0]
 
 			var cmd []string
 			if c.Wait {

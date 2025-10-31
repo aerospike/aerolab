@@ -751,6 +751,35 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.InAccount = true
 		}
 	}
+
+	// Copy aerolab.soft.version tag from image to instance tags if it exists (before user tags so they can override)
+	var image *backends.Image
+	switch system.Opts.Config.Backend.Type {
+	case "aws":
+		if awsParams, ok := createInstancesInput.BackendSpecificParams["aws"].(*baws.CreateInstanceParams); ok && awsParams.Image != nil {
+			image = awsParams.Image
+		}
+	case "gcp":
+		if gcpParams, ok := createInstancesInput.BackendSpecificParams["gcp"].(*bgcp.CreateInstanceParams); ok && gcpParams.Image != nil {
+			image = gcpParams.Image
+		}
+	case "docker":
+		if dockerParams, ok := createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams); ok && dockerParams.Image != nil {
+			image = dockerParams.Image
+		}
+	}
+	if image != nil && image.Tags != nil {
+		if softVersion, ok := image.Tags["aerolab.soft.version"]; ok && softVersion != "" {
+			// Only set if not already set by user
+			if _, exists := tags["aerolab.soft.version"]; !exists {
+				tags["aerolab.soft.version"] = softVersion
+				system.Logger.Debug("Inherited aerolab.soft.version tag from image: %s", softVersion)
+			}
+		}
+	}
+	// Update the tags in createInstancesInput since we modified the tags map
+	createInstancesInput.Tags = tags
+
 	awsRegion := c.AWS.NetworkPlacement
 	var err error
 	if system.Opts.Config.Backend.Type == "aws" {
