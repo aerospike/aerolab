@@ -98,7 +98,7 @@ func (c *AerospikeUpgradeCmd) UpgradeAerospike(system *System, inventory *backen
 		if err != nil {
 			return nil, err
 		}
-		cluster = cluster.WithNodeNo(nodes...)
+		cluster = cluster.WithNodeNo(nodes...).WithState(backends.LifeCycleStateRunning)
 		if cluster.Count() != len(nodes) {
 			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
 		}

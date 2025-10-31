@@ -77,15 +77,42 @@ func (c *ClusterDestroyCmd) DestroyCluster(system *System, inventory *backends.I
 		if err != nil {
 			return nil, err
 		}
-		cluster = cluster.WithNodeNo(nodes...)
-		if cluster.Count() != len(nodes) {
+		logger.Debug("Requested nodes to destroy: %v", nodes)
+		logger.Debug("Total cluster nodes before filtering: %d", cluster.Count())
+
+		// First check if all requested nodes exist in the cluster (regardless of state)
+		allNodes := cluster.WithNodeNo(nodes...).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating)
+		logger.Debug("Found nodes matching requested numbers: %d", allNodes.Count())
+
+		// Debug: show all nodes in cluster with their states
+		for _, node := range cluster.Describe() {
+			logger.Debug("Cluster node %d: state=%s", node.NodeNo, node.InstanceState)
+		}
+
+		if allNodes.Count() != len(nodes) {
+			// Debug: show which nodes exist
+			existingNodes := []int{}
+			for _, node := range allNodes.Describe() {
+				existingNodes = append(existingNodes, node.NodeNo)
+			}
+			logger.Debug("Existing nodes in cluster: %v", existingNodes)
 			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
 		}
-	}
-	cluster = cluster.WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating)
-	if cluster.Count() == 0 {
-		logger.Info("No nodes to destroy")
-		return nil, nil
+
+		// Then filter by state
+		cluster = allNodes.WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating)
+		logger.Debug("Nodes after state filtering: %d", cluster.Count())
+
+		if cluster.Count() == 0 {
+			logger.Info("All requested nodes are already terminated or terminating")
+			return nil, nil
+		}
+	} else {
+		cluster = cluster.WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating)
+		if cluster.Count() == 0 {
+			logger.Info("No nodes to destroy")
+			return nil, nil
+		}
 	}
 	if !c.Force {
 		if IsInteractive() {

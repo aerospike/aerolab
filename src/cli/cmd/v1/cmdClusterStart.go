@@ -140,7 +140,7 @@ func (c *ClusterStartCmd) FilterForCluster(inventory *backends.Inventory, logger
 		if err != nil {
 			return nil, err
 		}
-		cluster = cluster.WithNodeNo(nodes...)
+		cluster = cluster.WithNodeNo(nodes...).WithState(backends.LifeCycleStateStopped)
 		if cluster.Count() != len(nodes) {
 			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
 		}

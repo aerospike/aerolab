@@ -247,13 +247,25 @@ func (c *ClusterApplyCmd) shrinkCluster(system *System, inventory *backends.Inve
 		nodes = append(nodes, node.NodeNo)
 	}
 	sort.Ints(nodes)
+
+	// Debug logging
+	logger.Debug("Current cluster nodes: %v", nodes)
+	logger.Debug("Shrinking by %d nodes", shrinkCount)
+
+	if len(nodes) < shrinkCount {
+		return nil, fmt.Errorf("cannot shrink by %d nodes: cluster only has %d nodes", shrinkCount, len(nodes))
+	}
+
 	nodes = nodes[len(nodes)-shrinkCount:]
+	logger.Debug("Nodes to destroy: %v", nodes)
 
 	// Convert to string for the destroy command
 	nodesStr := []string{}
 	for _, node := range nodes {
 		nodesStr = append(nodesStr, strconv.Itoa(node))
 	}
+
+	logger.Debug("Nodes to destroy string: %s", strings.Join(nodesStr, ","))
 
 	destroyCmd := &ClusterDestroyCmd{
 		ClusterName: c.ClusterName,

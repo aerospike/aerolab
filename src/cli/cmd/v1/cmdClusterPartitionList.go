@@ -54,6 +54,7 @@ func (c *ClusterPartitionListCmd) Execute(args []string) error {
 }
 
 func (c *ClusterPartitionListCmd) PartitionListCluster(system *System, inventory *backends.Inventory, args []string, logger *logger.Logger) error {
+	logger.Info("Listing partitions on %s", c.ClusterName.String())
 	output, err := c.PartitionListClusterDo(system, inventory, args, logger)
 	if err != nil {
 		return err
@@ -162,6 +163,8 @@ func (c *ClusterPartitionListCmd) PartitionListClusterDo(system *System, invento
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
 	}
+	// Filter by Running state first, before checking node numbers
+	cluster = cluster.WithState(backends.LifeCycleStateRunning)
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {
@@ -169,15 +172,13 @@ func (c *ClusterPartitionListCmd) PartitionListClusterDo(system *System, invento
 		}
 		cluster = cluster.WithNodeNo(nodes...)
 		if cluster.Count() != len(nodes) {
-			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
+			return nil, fmt.Errorf("some nodes in %s not found (may be terminated)", c.Nodes.String())
 		}
 	}
-	cluster = cluster.WithState(backends.LifeCycleStateRunning)
 	if cluster.Count() == 0 {
-		logger.Info("No nodes to add partition create")
+		logger.Info("No nodes to list partitions on")
 		return nil, nil
 	}
-	logger.Info("Adding partition create to %d nodes", cluster.Count())
 	var hasErr error
 	outlock := &sync.Mutex{}
 	parallelize.ForEachLimit(cluster.Describe(), c.ParallelThreads, func(inst *backends.Instance) {

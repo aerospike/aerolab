@@ -8,6 +8,7 @@ PREVIEW-1:
 * PRERELEASE
 
 CODE:
+* review all comands to ensure only the ones that need to are invalidating the inventory caches
 * xdr - manage xdr configuration on running instances
 * tls - manage tls certificates on running instances
 * client - wrapper around instances command + templates + their own software installation and configuration

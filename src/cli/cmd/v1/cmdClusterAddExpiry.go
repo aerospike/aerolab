@@ -6,14 +6,12 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )
 
 type ClusterAddExpiryCmd struct {
 	ClusterName TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes       TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	CustomConf  flags.Filename  `short:"o" long:"custom-conf" description:"To deploy a custom ape.toml configuration file, specify it's path here"`
 	ExpireIn    time.Duration   `short:"e" long:"expiry" description:"Expiry in duration from now" default:"30h"`
 	Help        HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -26,6 +24,7 @@ func (c *ClusterAddExpiryCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.AddExpiryCluster(system, system.Backend.GetInventory(), args, system.Logger)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -80,5 +79,9 @@ func (c *ClusterAddExpiryCmd) AddExpiryCluster(system *System, inventory *backen
 		return nil
 	}
 	logger.Info("Adding expiry to %d nodes", cluster.Count())
-	return cluster.ChangeExpiry(time.Now().Add(c.ExpireIn))
+	err = cluster.ChangeExpiry(time.Now().Add(c.ExpireIn))
+	if err != nil {
+		return err
+	}
+	return nil
 }

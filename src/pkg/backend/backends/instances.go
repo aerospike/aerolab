@@ -1,6 +1,7 @@
 package backends
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -177,6 +178,28 @@ type Instance struct {
 	Description      string            `yaml:"description" json:"description"`       // from description or tags if no description field
 	CustomDNS        *InstanceDNS      `yaml:"customDNS" json:"customDNS"`
 	BackendSpecific  interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
+}
+
+// UnmarshalJSON implements custom JSON unmarshaling for Instance to handle AttachedVolumes
+func (i *Instance) UnmarshalJSON(data []byte) error {
+	// Create a temporary struct with AttachedVolumes as VolumeList for unmarshaling
+	type Alias Instance
+	aux := &struct {
+		AttachedVolumes VolumeList `json:"attachedVolumes"`
+		*Alias
+	}{
+		Alias: (*Alias)(i),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// Copy the unmarshaled data back to the original struct
+	*i = Instance(*aux.Alias)
+	i.AttachedVolumes = aux.AttachedVolumes
+
+	return nil
 }
 
 type OS struct {

@@ -97,15 +97,6 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 		}
 		filterDiskCount = len(disksFilter)
 	}
-	filterPartitionCount := 0
-	var partitionsFilter []int
-	if c.FilterDisks != "ALL" {
-		partitionsFilter, err = c.FilterPartitions.Expand()
-		if err != nil {
-			return nil, err
-		}
-		filterPartitionCount = len(partitionsFilter)
-	}
 	if strings.Contains(c.ClusterName.String(), ",") {
 		clusters := strings.Split(c.ClusterName.String(), ",")
 		var output []*backends.ExecOutput
@@ -123,6 +114,8 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 	if cluster == nil {
 		return nil, fmt.Errorf("cluster %s not found", c.ClusterName.String())
 	}
+	// Filter by Running state first, before checking node numbers
+	cluster = cluster.WithState(backends.LifeCycleStateRunning)
 	if c.Nodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.Nodes.String())
 		if err != nil {
@@ -130,15 +123,14 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 		}
 		cluster = cluster.WithNodeNo(nodes...)
 		if cluster.Count() != len(nodes) {
-			return nil, fmt.Errorf("some nodes in %s not found", c.Nodes.String())
+			return nil, fmt.Errorf("some nodes in %s not found (may be terminated)", c.Nodes.String())
 		}
 	}
-	cluster = cluster.WithState(backends.LifeCycleStateRunning)
 	if cluster.Count() == 0 {
-		logger.Info("No nodes to add partition conf")
+		logger.Info("No nodes to configure partitions on")
 		return nil, nil
 	}
-	logger.Info("Adding partition conf to %d nodes", cluster.Count())
+	logger.Info("Configuring partitions on %d nodes", cluster.Count())
 	var hasErr error
 	parallelize.ForEachLimit(cluster.Describe(), c.ParallelThreads, func(inst *backends.Instance) {
 		nver := inst.Tags["aerolab.soft.version"]
@@ -150,11 +142,12 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 		}
 		// run partitionList on node
 		plistCmd := &ClusterPartitionListCmd{
-			ClusterName:     TypeClusterName(inst.ClusterName),
-			Nodes:           TypeNodes(strconv.Itoa(inst.NodeNo)),
-			FilterDisks:     c.FilterDisks,
-			FilterType:      c.FilterType,
-			ParallelThreads: c.ParallelThreads,
+			ClusterName:      TypeClusterName(inst.ClusterName),
+			Nodes:            TypeNodes(strconv.Itoa(inst.NodeNo)),
+			FilterDisks:      c.FilterDisks,
+			FilterPartitions: c.FilterPartitions,
+			FilterType:       c.FilterType,
+			ParallelThreads:  c.ParallelThreads,
 		}
 		plist, err := plistCmd.PartitionListClusterDo(system, inventory, args, logger)
 		if err != nil {
@@ -237,26 +230,53 @@ func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory
 		// Validate disk and partition counts, gather devices for configuration
 		diskCount := 0
 		var useDevices []BlockDevice
+		// Build a map of disk to partition info for quick lookup
+		diskMap := make(map[int]*PartitionInformation)
 		for _, parts := range plist {
-			if parts.Partition != 0 {
-				continue
-			}
-			diskCount++
-			if c.FilterPartitions != "ALL" && c.FilterPartitions != "0" && len(parts.BlockDevices.Children) < filterPartitionCount {
-				hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, fmt.Errorf("could not find all the required partitions on disk %d on node %d", parts.Disk, inst.NodeNo)))
-				return
-			}
-			for parti, part := range parts.BlockDevices.Children {
-				if part.MountPoint != "" && (c.ConfDest != "pi-flash" && c.ConfDest != "si-flash" && c.ConfDest != "allflash") {
-					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, fmt.Errorf("partition %d on disk %d on node %d has a filesystem, cannot use for device storage", parti, parts.Disk, inst.NodeNo)))
-					return
-				} else if part.MountPoint == "" && (c.ConfDest == "pi-flash" || c.ConfDest == "si-flash" || c.ConfDest == "allflash") {
-					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, fmt.Errorf("partition %d on disk %d on node %d does not have a filesystem, cannot use for all-flash storage", parti, parts.Disk, inst.NodeNo)))
-					return
-				}
-				useDevices = append(useDevices, *part)
+			if parts.Partition == 0 {
+				diskMap[parts.Disk] = parts
+				diskCount++
 			}
 		}
+		// Handle FilterPartitions == "0" or "" - use entire disk itself
+		if c.FilterPartitions == "0" || c.FilterPartitions == "" {
+			for _, parts := range plist {
+				if parts.Partition == 0 {
+					// Use the disk itself
+					diskDevice := parts.BlockDevices
+					// Validate disk properties
+					if diskDevice.MountPoint != "" && (c.ConfDest != "pi-flash" && c.ConfDest != "si-flash" && c.ConfDest != "allflash") {
+						hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, fmt.Errorf("disk %d on node %d has a filesystem, cannot use for device storage", parts.Disk, inst.NodeNo)))
+						return
+					} else if diskDevice.MountPoint == "" && (c.ConfDest == "pi-flash" || c.ConfDest == "si-flash" || c.ConfDest == "allflash") {
+						hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, fmt.Errorf("disk %d on node %d does not have a filesystem, cannot use for all-flash storage", parts.Disk, inst.NodeNo)))
+						return
+					}
+					useDevices = append(useDevices, diskDevice)
+				}
+			}
+		} else {
+			// Collect filtered partitions from plist (plist already contains filtered results)
+			// When parts.Partition > 0, parts.BlockDevices already contains the partition device itself
+			for _, parts := range plist {
+				if parts.Partition == 0 {
+					// This is a disk entry, skip it as we only process partitions
+					continue
+				}
+				// parts.BlockDevices already contains the partition BlockDevice when Partition > 0
+				partitionDevice := parts.BlockDevices
+				// Validate partition properties
+				if partitionDevice.MountPoint != "" && (c.ConfDest != "pi-flash" && c.ConfDest != "si-flash" && c.ConfDest != "allflash") {
+					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, fmt.Errorf("partition %d on disk %d on node %d has a filesystem, cannot use for device storage", parts.Partition, parts.Disk, inst.NodeNo)))
+					return
+				} else if partitionDevice.MountPoint == "" && (c.ConfDest == "pi-flash" || c.ConfDest == "si-flash" || c.ConfDest == "allflash") {
+					hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, fmt.Errorf("partition %d on disk %d on node %d does not have a filesystem, cannot use for all-flash storage", parts.Partition, parts.Disk, inst.NodeNo)))
+					return
+				}
+				useDevices = append(useDevices, partitionDevice)
+			}
+		}
+		// Validate disk count
 		if c.FilterDisks != "ALL" && diskCount < filterDiskCount {
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, fmt.Errorf("could not find all the required disks on node %d", inst.NodeNo)))
 			return

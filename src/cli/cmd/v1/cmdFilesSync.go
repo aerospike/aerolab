@@ -85,20 +85,31 @@ func (c *FilesSyncCmd) Sync(system *System, inventory *backends.Inventory, args 
 	if dest.Count() == 0 {
 		return fmt.Errorf("cluster %s not found", c.DestinationCluster.String())
 	}
+
+	// Filter by state first to only work with running instances
+	dest = dest.WithState(backends.LifeCycleStateRunning)
+	if dest.Count() == 0 {
+		return fmt.Errorf("no running destination instances found for cluster %s", c.DestinationCluster.String())
+	}
+
 	if c.DestinationNodes.String() != "" {
 		nodes, err := expandNodeNumbers(c.DestinationNodes.String())
 		if err != nil {
 			return err
 		}
+		// Check if nodes exist in the running instances
 		new := dest.WithNodeNo(nodes...).Describe()
 		if new.Count() != len(nodes) {
-			return fmt.Errorf("some destination nodes not found: %s", c.DestinationNodes.String())
+			// Find which nodes are missing
+			foundNodes := []int{}
+			for _, inst := range new {
+				foundNodes = append(foundNodes, inst.NodeNo)
+			}
+			return fmt.Errorf("some destination nodes not found or not running: %s (requested: %v, found: %v)", c.DestinationNodes.String(), nodes, foundNodes)
 		}
 		dest = new
-	}
-	dest = dest.WithState(backends.LifeCycleStateRunning).Describe()
-	if dest.Count() == 0 {
-		return fmt.Errorf("no running destination instances found")
+	} else {
+		dest = dest.Describe()
 	}
 
 	// get new list of nodes we are processing - for filtering
