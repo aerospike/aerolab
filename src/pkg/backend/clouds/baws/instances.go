@@ -1154,6 +1154,20 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		return nil, fmt.Errorf("image not found")
 	}
 
+	// validate that the AMI architecture matches the instance type architecture
+	instanceTypeInfo, err := s.GetInstanceType(zone, backendSpecificParams.InstanceType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get instance type information: %w", err)
+	}
+	if len(instanceTypeInfo.Arch) == 0 {
+		return nil, fmt.Errorf("instance type %s does not have architecture information", backendSpecificParams.InstanceType)
+	}
+	instanceTypeArch := instanceTypeInfo.Arch[0]
+	imageArch := backendSpecificParams.Image.Architecture
+	if instanceTypeArch != imageArch {
+		return nil, fmt.Errorf("architecture mismatch: instance type %s requires architecture %s, but AMI %s has architecture %s. Specify an instance type and an AMI that have matching architectures", backendSpecificParams.InstanceType, instanceTypeArch, backendSpecificParams.Image.ImageId, imageArch)
+	}
+
 	// if cluster with given ClusterName already exists in s.instances, find last node number, so we know where to count up for the instances we will be creating
 	lastNodeNo := 0
 	clusterUUID := uuid.New().String()
