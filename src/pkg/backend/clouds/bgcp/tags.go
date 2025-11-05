@@ -140,9 +140,6 @@ func sanitize(s string, withUUID bool) string {
 			continue
 		}
 	}
-	if ret[0] <= 'a' && ret[0] >= 'z' {
-		ret = "a" + ret
-	}
 	for strings.Contains(ret, "--") {
 		ret = strings.ReplaceAll(ret, "--", "-")
 	}
@@ -152,7 +149,32 @@ func sanitize(s string, withUUID bool) string {
 		if len(ret) > maxRetSize {
 			ret = ret[:maxRetSize]
 		}
+		// Trim trailing hyphens before appending UUID to avoid double hyphens
+		ret = strings.TrimRight(ret, "-")
+		// If ret is empty after truncation, ensure we have a prefix to avoid UUID starting with digit
+		if len(ret) == 0 {
+			ret = "i"
+		}
 		ret = ret + "-" + short
+	}
+	// GCP requires names to start with a lowercase letter: [a-z]
+	// Also ensure it doesn't start with a hyphen
+	ret = strings.TrimLeft(ret, "-")
+	if len(ret) == 0 || ret[0] < 'a' || ret[0] > 'z' {
+		ret = "a" + ret
+	}
+	// GCP requires names to end with [a-z0-9] (lowercase letter or number)
+	// Remove trailing hyphens
+	ret = strings.TrimRight(ret, "-")
+	if len(ret) == 0 {
+		ret = "a"
+	}
+	// Final check: ensure it ends with [a-z0-9]
+	if len(ret) > 0 {
+		lastChar := ret[len(ret)-1]
+		if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= '0' && lastChar <= '9')) {
+			ret = ret + "a"
+		}
 	}
 	return ret
 }

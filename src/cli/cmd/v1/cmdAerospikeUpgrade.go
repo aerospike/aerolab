@@ -2,15 +2,18 @@ package cmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
+	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/rglonek/logger"
 )
 
@@ -137,13 +140,16 @@ func (c *AerospikeUpgradeCmd) UpgradeAerospike(system *System, inventory *backen
 
 	// Process each instance
 	var hasErr error
-	for _, instance := range cluster.Describe() {
+	var errMutex sync.Mutex
+	parallelize.ForEachLimit(cluster.Describe(), c.Threads, func(instance *backends.Instance) {
 		err := c.upgradeInstance(instance, upgradeScript, system, logger)
 		if err != nil {
-			hasErr = fmt.Errorf("%s:%d: %w", instance.ClusterName, instance.NodeNo, err)
+			errMutex.Lock()
+			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %w", instance.ClusterName, instance.NodeNo, err))
+			errMutex.Unlock()
 			logger.Error("Failed to upgrade instance %s:%d: %s", instance.ClusterName, instance.NodeNo, err)
 		}
-	}
+	})
 
 	return cluster.Describe(), hasErr
 }

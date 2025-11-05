@@ -81,6 +81,9 @@ func (c *VolumesAttachCmd) AttachVolumes(system *System, inventory *backends.Inv
 	}
 	for _, volume := range volumes {
 		if volume.VolumeType == backends.VolumeTypeSharedDisk {
+			if c.SharedVolumeMountTargetDirectory == "" {
+				return fmt.Errorf("shared-target is required for shared volumes")
+			}
 			system.Logger.Info("Attaching a shared volume, this may take a while...")
 			break
 		}

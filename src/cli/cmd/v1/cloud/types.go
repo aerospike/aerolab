@@ -110,10 +110,10 @@ type DatabaseFull struct {
 
 // Infrastructure Types
 type Infrastructure struct {
-	Provider               string                  `json:"provider"`
+	Provider               *string                 `json:"provider,omitempty"`
 	InstanceType           string                  `json:"instanceType"`
-	Region                 string                  `json:"region"`
-	AvailabilityZoneCount  int                     `json:"availabilityZoneCount"`
+	Region                 *string                 `json:"region,omitempty"`
+	AvailabilityZoneCount  *int                    `json:"availabilityZoneCount,omitempty"`
 	ZoneIds                []string                `json:"zoneIds,omitempty"`
 	CIDRBlock              string                  `json:"cidrBlock,omitempty"`
 	NetworkID              string                  `json:"networkId,omitempty"`
@@ -128,7 +128,7 @@ type NetworkAttachedStorage struct {
 // Aerospike Cloud Types
 type AerospikeCloudShared struct {
 	ClusterSize int    `json:"clusterSize"`
-	DataStorage string `json:"dataStorage"`
+	DataStorage string `json:"dataStorage,omitempty"`
 }
 
 type AerospikeCloudMemory struct {
@@ -148,10 +148,15 @@ type AerospikeCloudNetworkStorage struct {
 
 // Aerospike Server Types
 type AerospikeServer struct {
-	Service *AerospikeService `json:"service,omitempty"`
-	Network *AerospikeNetwork `json:"network,omitempty"`
-	Logging *AerospikeLogging `json:"logging,omitempty"`
-	XDR     *AerospikeXDR     `json:"xdr,omitempty"`
+	Service    *AerospikeService    `json:"service,omitempty"`
+	Network    *AerospikeNetwork    `json:"network,omitempty"`
+	Logging    *AerospikeLogging    `json:"logging,omitempty"`
+	XDR        *AerospikeXDR        `json:"xdr,omitempty"`
+	Namespaces []AerospikeNamespace `json:"namespaces"`
+}
+
+type AerospikeNamespace struct {
+	Name string `json:"name"`
 }
 
 type AerospikeService struct {
@@ -220,18 +225,24 @@ type DatabaseCredentialsCollection struct {
 }
 
 type CreateDatabaseCredentialsRequest struct {
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	Privileges string `json:"privileges"`
+	Name     string   `json:"name"`
+	Password string   `json:"password"`
+	Roles    []string `json:"roles"`
 }
 
 // VPC Peering Types
 type VPCPeering struct {
-	ID        string `json:"id"`
-	VpcID     string `json:"vpcId"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	ID                  string `json:"id"`
+	VpcID               string `json:"vpcId"`
+	Status              string `json:"status"`
+	CreatedAt           string `json:"createdAt"`
+	UpdatedAt           string `json:"updatedAt"`
+	PrivateHostedZoneId string `json:"privateHostedZoneId,omitempty"`
+	PeeringId           string `json:"peeringId,omitempty"`
+	CIDRBlock           string `json:"cidrBlock,omitempty"`
+	Region              string `json:"region,omitempty"`
+	AccountID           string `json:"accountId,omitempty"`
+	IsSecureConnection  bool   `json:"isSecureConnection,omitempty"`
 }
 
 type VPCPeeringCollection struct {

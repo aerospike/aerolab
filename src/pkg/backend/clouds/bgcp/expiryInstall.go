@@ -24,6 +24,33 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
+// getExpirySystemDetail safely extracts *ExpirySystemDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getExpirySystemDetail(expirySystem *backends.ExpirySystem) *ExpirySystemDetail {
+	if expirySystem.BackendSpecific == nil {
+		expirySystem.BackendSpecific = &ExpirySystemDetail{}
+		return expirySystem.BackendSpecific.(*ExpirySystemDetail)
+	}
+	if esd, ok := expirySystem.BackendSpecific.(*ExpirySystemDetail); ok {
+		return esd
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := expirySystem.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var esd ExpirySystemDetail
+			if err := json.Unmarshal(jsonBytes, &esd); err == nil {
+				expirySystem.BackendSpecific = &esd
+				return &esd
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new ExpirySystemDetail
+	expirySystem.BackendSpecific = &ExpirySystemDetail{}
+	return expirySystem.BackendSpecific.(*ExpirySystemDetail)
+}
+
 // force true means remove previous expiry systems and install new ones
 // force false means install only if previous installation was failed or version is different
 // onUpdateKeepOriginalSettings true means keep original settings on update, and only apply specified settings on reinstall
@@ -120,12 +147,13 @@ func (s *b) ExpiryInstall(intervalMinutes int, logLevel int, expireEksctl bool, 
 								return err
 							}
 						}
-						newLogLevel, err = strconv.Atoi(expirySystem.BackendSpecific.(*ExpirySystemDetail).Function.ServiceConfig.EnvironmentVariables["AEROLAB_LOG_LEVEL"])
+						esd := getExpirySystemDetail(expirySystem)
+						newLogLevel, err = strconv.Atoi(esd.Function.ServiceConfig.EnvironmentVariables["AEROLAB_LOG_LEVEL"])
 						if err != nil {
 							return err
 						}
-						newCleanupDNS = expirySystem.BackendSpecific.(*ExpirySystemDetail).Function.ServiceConfig.EnvironmentVariables["AEROLAB_CLEANUP_DNS"] == "true"
-						genToken = expirySystem.BackendSpecific.(*ExpirySystemDetail).DescriptionField.ExpiryToken
+						newCleanupDNS = esd.Function.ServiceConfig.EnvironmentVariables["AEROLAB_CLEANUP_DNS"] == "true"
+						genToken = esd.DescriptionField.ExpiryToken
 					}
 				}
 			}

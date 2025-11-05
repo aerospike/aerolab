@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
@@ -13,16 +14,12 @@ import (
 )
 
 type CloudDatabasesUpdateCmd struct {
-	DatabaseID            string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
-	Name                  string  `short:"n" long:"name" description:"Name of the database"`
-	InstanceType          string  `short:"i" long:"instance-type" description:"Instance type"`
-	Region                string  `short:"r" long:"region" description:"Region"`
-	AvailabilityZoneCount int     `long:"availability-zone-count" description:"Number of availability zones (1-3)"`
-	ClusterSize           int     `long:"cluster-size" description:"Number of nodes in cluster"`
-	DataStorage           string  `long:"data-storage" description:"Data storage type (memory, local-disk, network-storage)"`
-	DataResiliency        string  `long:"data-resiliency" description:"Data resiliency (local-disk, network-storage)"`
-	DataPlaneVersion      string  `long:"data-plane-version" description:"Data plane version"`
-	Help                  HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	DatabaseID   string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
+	Name         string  `short:"n" long:"name" description:"Name of the database"`
+	InstanceType string  `short:"i" long:"instance-type" description:"Instance type (vertical scaling)"`
+	ClusterSize  int     `long:"cluster-size" description:"Number of nodes in cluster (horizontal scaling)"`
+	Wait         bool    `long:"wait" description:"Wait for database update to complete"`
+	Help         HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *CloudDatabasesUpdateCmd) Execute(args []string) error {
@@ -68,77 +65,186 @@ func (c *CloudDatabasesUpdateCmd) UpdateCloudDb(system *System, inventory *backe
 		return err
 	}
 
-	// Build update request
-	request := cloud.UpdateDatabaseRequest{
-		Name:             c.Name,
-		DataPlaneVersion: c.DataPlaneVersion,
+	// Build update request - only include fields that are provided
+	request := cloud.UpdateDatabaseRequest{}
+
+	if c.Name != "" {
+		request.Name = c.Name
 	}
 
-	// Build infrastructure if any infrastructure parameters are provided
-	if c.InstanceType != "" || c.Region != "" || c.AvailabilityZoneCount > 0 {
+	// Build infrastructure if instanceType is provided
+	// Note: Only instanceType can be updated (provider, region, availabilityZoneCount are read-only)
+	if c.InstanceType != "" {
 		infrastructure := cloud.Infrastructure{
-			Provider:              "aws", // Default to AWS for now
-			InstanceType:          c.InstanceType,
-			Region:                c.Region,
-			AvailabilityZoneCount: c.AvailabilityZoneCount,
+			InstanceType: c.InstanceType,
 		}
 		request.Infrastructure = &infrastructure
-		logger.Info("Updating infrastructure: provider=aws, instanceType=%s, region=%s, availabilityZoneCount=%d",
-			c.InstanceType, c.Region, c.AvailabilityZoneCount)
+		logger.Info("Updating infrastructure: instanceType=%s", c.InstanceType)
 	}
 
-	// Build aerospike cloud if any aerospike cloud parameters are provided
-	if c.ClusterSize > 0 || c.DataStorage != "" {
-		var aerospikeCloud interface{}
-		switch c.DataStorage {
-		case "memory":
-			aerospikeCloud = cloud.AerospikeCloudMemory{
-				AerospikeCloudShared: cloud.AerospikeCloudShared{
-					ClusterSize: c.ClusterSize,
-					DataStorage: c.DataStorage,
-				},
-				DataResiliency: c.DataResiliency,
-			}
-		case "local-disk":
-			aerospikeCloud = cloud.AerospikeCloudLocalDisk{
-				AerospikeCloudShared: cloud.AerospikeCloudShared{
-					ClusterSize: c.ClusterSize,
-					DataStorage: c.DataStorage,
-				},
-				DataResiliency: c.DataResiliency,
-			}
-		case "network-storage":
-			aerospikeCloud = cloud.AerospikeCloudNetworkStorage{
-				AerospikeCloudShared: cloud.AerospikeCloudShared{
-					ClusterSize: c.ClusterSize,
-					DataStorage: c.DataStorage,
-				},
-				DataResiliency: c.DataResiliency,
-			}
-		default:
-			if c.DataStorage != "" {
-				return fmt.Errorf("invalid data storage type: %s", c.DataStorage)
-			}
+	// Build aerospikeCloud if clusterSize is provided
+	// Note: All AerospikeCloud types share AerospikeCloudShared which contains ClusterSize
+	if c.ClusterSize > 0 {
+		// Use AerospikeCloudMemory as the simplest structure - the API should handle partial updates
+		aerospikeCloud := cloud.AerospikeCloudMemory{
+			AerospikeCloudShared: cloud.AerospikeCloudShared{
+				ClusterSize: c.ClusterSize,
+			},
 		}
 		request.AerospikeCloud = aerospikeCloud
-		logger.Info("Updating aerospike cloud: clusterSize=%d, dataStorage=%s, dataResiliency=%s",
-			c.ClusterSize, c.DataStorage, c.DataResiliency)
+		logger.Info("Updating aerospikeCloud: clusterSize=%d", c.ClusterSize)
+	}
+
+	// Validate that at least one field is being updated
+	if request.Name == "" && request.Infrastructure == nil && request.AerospikeCloud == nil {
+		return fmt.Errorf("at least one update parameter must be provided")
 	}
 
 	var result interface{}
 
+	// Pretty print the request for debugging
+	requestJson, err := json.MarshalIndent(request, "", "  ")
+	if err != nil {
+		logger.Error("failed to marshal request for logging purposes: %s", err.Error())
+	} else {
+		logger.Debug("Update request:\n%s", string(requestJson))
+	}
 	path := fmt.Sprintf("/databases/%s", c.DatabaseID)
 	err = client.Patch(path, request, &result)
 	if err != nil {
 		return err
 	}
 
-	logger.Info("Database updated successfully")
-	// json-dump result in logger.Debug for debugging purposes
-	resultJson, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		logger.Error("failed to marshal database update result for logging purposes: %s", err.Error())
+	logger.Info("Database update successfully queued")
+
+	// Extract database ID from result
+	resultMap, ok := result.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected response type: %T", result)
 	}
-	logger.Debug("Database update result:\n%s", string(resultJson))
+
+	databaseID, ok := resultMap["id"].(string)
+	if !ok {
+		return fmt.Errorf("id field not found or invalid in response")
+	}
+
+	// Wait for update to complete if --wait is specified
+	if c.Wait {
+		logger.Info("Waiting for database update to complete...")
+		dbResult, err := c.waitForDatabaseUpdateComplete(client, databaseID, logger)
+		// Print the database result regardless of success or error
+		if dbResult != nil {
+			resultJson, err := json.MarshalIndent(dbResult, "", "  ")
+			if err != nil {
+				logger.Error("failed to marshal database result for logging purposes: %s", err.Error())
+			} else {
+				logger.Info("Database update result:\n%s", string(resultJson))
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("failed to wait for database update: %w", err)
+		}
+		logger.Info("Database update completed")
+	} else {
+		// json-dump result in logger.Debug for debugging purposes
+		resultJson, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			logger.Error("failed to marshal database update result for logging purposes: %s", err.Error())
+		}
+		logger.Info("Database update result:\n%s", string(resultJson))
+	}
+
 	return nil
+}
+
+// waitForDatabaseUpdateComplete waits for the database update to complete
+// It polls the database list until status != "updating"
+// Returns the database result map and an error (if any)
+func (c *CloudDatabasesUpdateCmd) waitForDatabaseUpdateComplete(client *cloud.Client, databaseID string, logger *logger.Logger) (map[string]interface{}, error) {
+	timeout := time.Hour
+	interval := 10 * time.Second
+
+	// Wait 10 seconds before the first check
+	logger.Debug("Waiting 10 seconds before first check...")
+	time.Sleep(10 * time.Second)
+
+	startTime := time.Now()
+	var lastDatabaseResult map[string]interface{}
+
+	for {
+		if time.Since(startTime) > timeout {
+			if lastDatabaseResult != nil {
+				return lastDatabaseResult, fmt.Errorf("timeout waiting for database update after %v", timeout)
+			}
+			return nil, fmt.Errorf("timeout waiting for database update after %v", timeout)
+		}
+
+		var result interface{}
+		path := "/databases"
+		err := client.Get(path, &result)
+		if err != nil {
+			if lastDatabaseResult != nil {
+				return lastDatabaseResult, fmt.Errorf("failed to get database list: %w", err)
+			}
+			return nil, fmt.Errorf("failed to get database list: %w", err)
+		}
+
+		resultMap, ok := result.(map[string]interface{})
+		if !ok {
+			if lastDatabaseResult != nil {
+				return lastDatabaseResult, fmt.Errorf("unexpected response type: %T", result)
+			}
+			return nil, fmt.Errorf("unexpected response type: %T", result)
+		}
+
+		databases, ok := resultMap["databases"].([]interface{})
+		if !ok {
+			if lastDatabaseResult != nil {
+				return lastDatabaseResult, fmt.Errorf("databases field not found or invalid in response")
+			}
+			return nil, fmt.Errorf("databases field not found or invalid in response")
+		}
+
+		// Look for the database with the matching ID
+		found := false
+		for _, db := range databases {
+			dbMap, ok := db.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			id, ok := dbMap["id"].(string)
+			if !ok || id != databaseID {
+				continue
+			}
+
+			// Found the database, check its status
+			found = true
+			lastDatabaseResult = dbMap // Store the last result
+
+			status, ok := dbMap["status"].(string)
+			if !ok {
+				return lastDatabaseResult, fmt.Errorf("status field not found or invalid in response")
+			}
+
+			logger.Info("Database status: %s", status)
+
+			if status != "updating" {
+				logger.Info("Database update complete, status: %s", status)
+				return lastDatabaseResult, nil
+			}
+
+			logger.Info("Database still updating, waiting %v...", interval)
+			time.Sleep(interval)
+			break
+		}
+
+		// Database not found in list
+		if !found {
+			if lastDatabaseResult != nil {
+				return lastDatabaseResult, fmt.Errorf("database %s not found in list", databaseID)
+			}
+			return nil, fmt.Errorf("database %s not found in list", databaseID)
+		}
+	}
 }

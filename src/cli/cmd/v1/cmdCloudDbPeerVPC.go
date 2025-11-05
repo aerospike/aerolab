@@ -15,12 +15,14 @@ import (
 )
 
 type CloudDatabasesPeerVPCCmd struct {
-	DatabaseID   string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
-	VPCID        string  `long:"vpc-id" description:"VPC ID to peer the database to" default:"default"`
-	Region       string  `short:"r" long:"region" description:"Region" required:"true"`
-	InitiateOnly bool    `long:"initiate-only" description:"Only initiate peering, do not accept"`
-	AcceptOnly   bool    `long:"accept-only" description:"Only accept existing peering, do not initiate"`
-	Help         HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	DatabaseID    string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
+	VPCID         string  `long:"vpc-id" description:"VPC ID to peer the database to" default:"default"`
+	Region        string  `short:"r" long:"region" description:"Region" required:"true"`
+	InitiateOnly  bool    `long:"initiate-only" description:"Only initiate peering, do not accept"`
+	AcceptOnly    bool    `long:"accept-only" description:"Only accept existing peering, do not initiate"`
+	RouteOnly     bool    `long:"route-only" description:"Only create route in VPC route table"`
+	AssociateOnly bool    `long:"associate-only" description:"Only associate VPC with hosted zone"`
+	Help          HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *CloudDatabasesPeerVPCCmd) Execute(args []string) error {
@@ -80,6 +82,16 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 		}
 	}
 
+	// Handle route-only mode
+	if c.RouteOnly {
+		return c.createRouteOnly(system, logger)
+	}
+
+	// Handle associate-only mode
+	if c.AssociateOnly {
+		return c.associateHostedZoneOnly(system, logger)
+	}
+
 	// Get VPC details
 	var cidr string
 	var accountId string
@@ -123,6 +135,8 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 		}
 	}
 
+	var peeringConnectionID string
+
 	// Initiate peering if it doesn't exist and not accept-only
 	if !peeringExists && !c.AcceptOnly {
 		logger.Info("Initiating VPC peering for database=%s, vpcId=%s, cidr=%s, accountId=%s, region=%s, isSecureConnection=%t",
@@ -133,6 +147,7 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 			return fmt.Errorf("failed to initiate VPC peering: %w", err)
 		}
 		logger.Info("VPC peering initiated, reqId: %s", reqId)
+		peeringConnectionID = reqId
 
 		// Accept peering if not initiate-only
 		if !c.InitiateOnly {
@@ -155,10 +170,28 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 			return fmt.Errorf("failed to accept existing VPC peering: %w", err)
 		}
 		logger.Info("VPC peering accepted, reqId: %s", existingPeeringId)
+		peeringConnectionID = existingPeeringId
 	} else if peeringExists && c.AcceptOnly {
 		logger.Info("VPC peering already exists: %s", existingPeeringId)
+		peeringConnectionID = existingPeeringId
 	} else if !peeringExists && c.InitiateOnly {
 		logger.Info("VPC peering initiated but not accepted (initiate-only mode)")
+		// Don't set peeringConnectionID - we can't create routes or associate until peering is accepted
+	}
+
+	// Create route and associate hosted zone if peering was accepted (not initiate-only)
+	if !c.InitiateOnly && !c.AcceptOnly && peeringConnectionID != "" {
+		// Create route
+		err = c.createRoute(system, logger, peeringConnectionID)
+		if err != nil {
+			return err
+		}
+
+		// Associate hosted zone
+		err = c.associateHostedZone(system, logger)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -266,4 +299,143 @@ func (c *CloudDatabasesPeerVPCCmd) retry(fn func() error, dbId string) error {
 			continue
 		}
 	}
+}
+
+// createRouteOnly only creates the route in the VPC route table
+func (c *CloudDatabasesPeerVPCCmd) createRouteOnly(system *System, logger *logger.Logger) error {
+	// Get existing peerings to find the peering connection ID
+	existingPeerings, err := c.getExistingPeerings(c.DatabaseID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing VPC peerings: %w", err)
+	}
+
+	// Find peering for this VPC
+	var peeringConnectionID string
+	for _, peering := range existingPeerings {
+		if peering["vpcId"] == c.VPCID {
+			peeringConnectionID = peering["peeringId"].(string)
+			break
+		}
+	}
+
+	if peeringConnectionID == "" {
+		return fmt.Errorf("no existing VPC peering found for VPC %s", c.VPCID)
+	}
+
+	return c.createRoute(system, logger, peeringConnectionID)
+}
+
+// associateHostedZoneOnly only associates the VPC with the hosted zone
+func (c *CloudDatabasesPeerVPCCmd) associateHostedZoneOnly(system *System, logger *logger.Logger) error {
+	return c.associateHostedZone(system, logger)
+}
+
+// createRoute creates a route in the VPC route table
+func (c *CloudDatabasesPeerVPCCmd) createRoute(system *System, logger *logger.Logger, peeringConnectionID string) error {
+	client, err := cloud.NewClient()
+	if err != nil {
+		return err
+	}
+
+	// Get the database to extract CIDR block
+	logger.Info("Getting database information to extract CIDR block...")
+	var dbResult interface{}
+	dbPath := fmt.Sprintf("/databases/%s", c.DatabaseID)
+	err = client.Get(dbPath, &dbResult)
+	if err != nil {
+		return fmt.Errorf("failed to get database information: %w", err)
+	}
+
+	// Extract CIDR block from infrastructure
+	dbMap, ok := dbResult.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected database response type: %T", dbResult)
+	}
+
+	infrastructure, ok := dbMap["infrastructure"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("infrastructure field not found or invalid in database response")
+	}
+
+	cidrBlock, ok := infrastructure["cidrBlock"].(string)
+	if !ok || cidrBlock == "" {
+		return fmt.Errorf("cidrBlock field not found or invalid in infrastructure")
+	}
+
+	logger.Info("Found CIDR block: %s", cidrBlock)
+
+	// Create route in the VPC
+	logger.Info("Creating route in VPC %s for CIDR block %s via peering connection %s", c.VPCID, cidrBlock, peeringConnectionID)
+	err = c.retry(func() error {
+		return system.Backend.CreateRoute(backends.BackendTypeAWS, c.VPCID, peeringConnectionID, cidrBlock)
+	}, c.DatabaseID)
+	if err != nil {
+		return fmt.Errorf("failed to create route: %w", err)
+	}
+	logger.Info("Route created successfully")
+	return nil
+}
+
+// associateHostedZone associates the VPC with the hosted zone
+func (c *CloudDatabasesPeerVPCCmd) associateHostedZone(system *System, logger *logger.Logger) error {
+	client, err := cloud.NewClient()
+	if err != nil {
+		return err
+	}
+
+	// Get VPC peerings list to extract hosted zone ID
+	logger.Info("Getting VPC peerings list to extract hosted zone ID...")
+	var peeringsResult interface{}
+	peeringsPath := fmt.Sprintf("/databases/%s/vpc-peerings", c.DatabaseID)
+	err = client.Get(peeringsPath, &peeringsResult)
+	if err != nil {
+		return fmt.Errorf("failed to get VPC peerings list: %w", err)
+	}
+
+	peeringsMap, ok := peeringsResult.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unexpected VPC peerings response type: %T", peeringsResult)
+	}
+
+	peerings, ok := peeringsMap["vpcPeerings"].([]interface{})
+	if !ok {
+		return fmt.Errorf("vpcPeerings field not found or invalid in response")
+	}
+
+	// Find the peering that matches our VPC ID
+	var hostedZoneID string
+	for _, peering := range peerings {
+		peeringMap, ok := peering.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		peeringVpcID, ok := peeringMap["vpcId"].(string)
+		if !ok || peeringVpcID != c.VPCID {
+			continue
+		}
+
+		// Found our peering, extract hosted zone ID
+		if privateHostedZoneId, ok := peeringMap["privateHostedZoneId"].(string); ok && privateHostedZoneId != "" {
+			hostedZoneID = privateHostedZoneId
+			logger.Info("Found hosted zone ID: %s", hostedZoneID)
+			break
+		}
+	}
+
+	if hostedZoneID == "" {
+		logger.Warn("Hosted zone ID not found in VPC peerings, skipping VPC-hosted zone association")
+		return nil
+	}
+
+	// Associate VPC with hosted zone
+	logger.Info("Associating VPC %s with hosted zone %s in region %s", c.VPCID, hostedZoneID, c.Region)
+	err = c.retry(func() error {
+		return system.Backend.AssociateVPCWithHostedZone(backends.BackendTypeAWS, hostedZoneID, c.VPCID, c.Region)
+	}, c.DatabaseID)
+	if err != nil {
+		return fmt.Errorf("failed to associate VPC with hosted zone: %w", err)
+	}
+	logger.Info("VPC-hosted zone association completed successfully")
+	return nil
 }

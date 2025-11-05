@@ -31,7 +31,8 @@ if [ $? -eq 0 ]; then
         # rpm
         type -t git >/dev/null 2>&1 || yum -y install git
         set -e
-        tag=$(install_efs_get_tag)
+        #tag=$(install_efs_get_tag)
+        tag=v2.3.3 # TODO: until we add all the huge dependencies to build v2.4.0
         set +e
         rpm -q amazon-efs-utils-${tag:1}
         if [ $? -ne 0 ]; then
@@ -63,7 +64,8 @@ else
         set +e
     fi
     set -e
-    tag=$(install_efs_get_tag)
+    #tag=$(install_efs_get_tag)
+    tag=v2.3.3 # TODO: until we add all the huge dependencies to build v2.4.0
     set +e
     INST=0
     V=$(dpkg-query -W -f='${Version}\n' amazon-efs-utils)
@@ -83,6 +85,6 @@ else
         apt-get -y install ./build/amazon-efs-utils*deb
     fi
 fi
-if [ "$1" = "fips" ]; then
+if [ "$1" == "fips" ]; then
     sed -i "s/fips_mode_enabled = false/fips_mode_enabled = true/" /etc/amazon/efs/efs-utils.conf
 fi

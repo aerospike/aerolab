@@ -46,12 +46,16 @@ func (c *ClusterPartitionConfCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	var stdout, stderr *os.File
-	var stdin io.ReadCloser
+	var stdout, stderr *io.Writer
+	var stdoutp, stderrp io.Writer
+	var stdin *io.ReadCloser
 	if system.logLevel >= 5 {
-		stdout = os.Stdout
-		stderr = os.Stderr
-		stdin = io.NopCloser(os.Stdin)
+		stdoutp = os.Stdout
+		stdout = &stdoutp
+		stderrp = os.Stderr
+		stderr = &stderrp
+		stdinp := io.NopCloser(os.Stdin)
+		stdin = &stdinp
 	}
 	_, err = c.PartitionConfCluster(system, system.Backend.GetInventory(), args, stdin, stdout, stderr, system.Logger)
 	if err != nil {
@@ -62,7 +66,7 @@ func (c *ClusterPartitionConfCmd) Execute(args []string) error {
 
 }
 
-func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) (output []*backends.ExecOutput, err error) {
+func (c *ClusterPartitionConfCmd) PartitionConfCluster(system *System, inventory *backends.Inventory, args []string, stdin *io.ReadCloser, stdout *io.Writer, stderr *io.Writer, logger *logger.Logger) (output []*backends.ExecOutput, err error) {
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cluster", "partition", "conf"}, c, args...)
@@ -503,16 +507,14 @@ func assignFlashIndexDevice(namespace *aeroconf.Stanza, indexType string, device
 		}
 		// Need to get the device size from the node directly
 	} else {
+		detail := sshexec.ExecDetail{
+			Command:        []string{"blockdev", "--getsize64", device.Path},
+			SessionTimeout: 0,
+			Env:            []*sshexec.Env{},
+			Terminal:       true,
+		}
 		eout := inst.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"blockdev", "--getsize64", device.Path},
-				Stdin:          nil,
-				Stdout:         nil,
-				Stderr:         nil,
-				SessionTimeout: 0,
-				Env:            []*sshexec.Env{},
-				Terminal:       true,
-			},
+			ExecDetail:      detail,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: 1,

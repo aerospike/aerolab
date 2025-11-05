@@ -2,6 +2,7 @@ package bgcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -36,6 +37,33 @@ type CreateVolumeParams struct {
 type VolumeDetail struct {
 	LabelFingerprint string   `json:"labelFingerprint" yaml:"labelFingerprint"`
 	AttachedTo       []string `json:"attachedTo" yaml:"attachedTo"`
+}
+
+// getVolumeDetail safely extracts *VolumeDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getVolumeDetail(vol *backends.Volume) *VolumeDetail {
+	if vol.BackendSpecific == nil {
+		vol.BackendSpecific = &VolumeDetail{}
+		return vol.BackendSpecific.(*VolumeDetail)
+	}
+	if vd, ok := vol.BackendSpecific.(*VolumeDetail); ok {
+		return vd
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := vol.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var vd VolumeDetail
+			if err := json.Unmarshal(jsonBytes, &vd); err == nil {
+				vol.BackendSpecific = &vd
+				return &vd
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new VolumeDetail
+	vol.BackendSpecific = &VolumeDetail{}
+	return vol.BackendSpecific.(*VolumeDetail)
 }
 
 func (s *b) GetVolumes() (backends.VolumeList, error) {
@@ -207,12 +235,13 @@ func (s *b) VolumesAddTags(volumes backends.VolumeList, tags map[string]string, 
 				}
 				labels := encodeToLabels(data)
 				labels["usedby"] = "aerolab"
+				vd := getVolumeDetail(vol)
 				_, err = client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
 					Project:  s.credentials.Project,
 					Zone:     zone,
 					Resource: vol.Name,
 					ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
-						LabelFingerprint: proto.String(vol.BackendSpecific.(*VolumeDetail).LabelFingerprint),
+						LabelFingerprint: proto.String(vd.LabelFingerprint),
 						Labels:           labels,
 					},
 				})
@@ -273,12 +302,13 @@ func (s *b) VolumesRemoveTags(volumes backends.VolumeList, tagKeys []string, wai
 				}
 				labels := encodeToLabels(data)
 				labels["usedby"] = "aerolab"
+				vd := getVolumeDetail(vol)
 				_, err = client.SetLabels(ctx, &computepb.SetLabelsDiskRequest{
 					Project:  s.credentials.Project,
 					Zone:     zone,
 					Resource: vol.Name,
 					ZoneSetLabelsRequestResource: &computepb.ZoneSetLabelsRequest{
-						LabelFingerprint: proto.String(vol.BackendSpecific.(*VolumeDetail).LabelFingerprint),
+						LabelFingerprint: proto.String(vd.LabelFingerprint),
 						Labels:           labels,
 					},
 				})
@@ -557,7 +587,8 @@ func (s *b) DetachVolumes(volumes backends.VolumeList, instance *backends.Instan
 			var ops []*compute.Operation
 			for _, id := range ids {
 				volName := ""
-				vols := instance.BackendSpecific.(*InstanceDetail).Volumes
+				idetail := getInstanceDetail(instance)
+				vols := idetail.Volumes
 				for _, vol := range vols {
 					if vol.VolumeID == id.FileSystemId || getValueFromURL(vol.VolumeID) == id.FileSystemId {
 						volName = vol.Device

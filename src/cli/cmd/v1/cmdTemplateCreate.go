@@ -234,6 +234,11 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 
 	// build the structs for instances create and images create, instances stop and instances destroy commands (optionally vacuum too)
 	instName := strings.ToLower(shortuuid.New())
+	// Sanitize the instance name for GCP backend to ensure it meets GCP naming requirements
+	// (must start with [a-z], end with [a-z0-9], only contain lowercase letters, numbers, and hyphens)
+	if system.Opts.Config.Backend.Type == "gcp" {
+		instName = sanitizeGCPName(instName)
+	}
 	// determine instance type based on architecture
 	awsInstanceType := "t3.medium"
 	gcpInstanceType := "e2-standard-2"
@@ -442,6 +447,11 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	}
 
 	logger.Info("Creating image")
+	// Use the actual instance name from the created instance (in case backend sanitized it further)
+	if len(inst.Describe()) > 0 {
+		actualInstName := inst.Describe()[0].Name
+		imagesCreate.InstanceName = actualInstName
+	}
 	inst.Describe()[0].AttachedVolumes = backends.VolumeList{}
 	newInst := append(inventory.Instances.Describe(), inst.Describe()...)
 	inventory.Instances = newInst
@@ -457,4 +467,47 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	}
 	c.NoVacuum = true
 	return image.Name, nil
+}
+
+// sanitizeGCPName sanitizes an instance name to meet GCP naming requirements.
+// GCP requires: must start with [a-z], end with [a-z0-9], only contain lowercase letters, numbers, and hyphens.
+// This matches the sanitize logic in bgcp/tags.go but adapted for CLI use.
+func sanitizeGCPName(s string) string {
+	ret := ""
+	for _, c := range s {
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' {
+			ret += string(c)
+			continue
+		}
+		if c >= 'A' && c <= 'Z' {
+			ret += strings.ToLower(string(c))
+			continue
+		}
+		if c == ' ' || c == '.' || c == '_' {
+			ret += "-"
+			continue
+		}
+	}
+	for strings.Contains(ret, "--") {
+		ret = strings.ReplaceAll(ret, "--", "-")
+	}
+	// Trim leading hyphens
+	ret = strings.TrimLeft(ret, "-")
+	// GCP requires names to start with [a-z]
+	if len(ret) == 0 || ret[0] < 'a' || ret[0] > 'z' {
+		ret = "a" + ret
+	}
+	// GCP requires names to end with [a-z0-9]
+	ret = strings.TrimRight(ret, "-")
+	if len(ret) == 0 {
+		ret = "a"
+	}
+	// Final check: ensure it ends with [a-z0-9]
+	if len(ret) > 0 {
+		lastChar := ret[len(ret)-1]
+		if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= '0' && lastChar <= '9')) {
+			ret = ret + "a"
+		}
+	}
+	return ret
 }

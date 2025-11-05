@@ -3,6 +3,7 @@ package baws
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -46,6 +47,33 @@ type VolumeDetail struct {
 	NumberOfMountTargets int    `yaml:"numberOfMountTargets" json:"numberOfMountTargets"`
 	PerformanceMode      string `yaml:"performanceMode" json:"performanceMode"`
 	ThroughputMode       string `yaml:"throughputMode" json:"throughputMode"`
+}
+
+// getVolumeDetail safely extracts *VolumeDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getVolumeDetail(vol *backends.Volume) *VolumeDetail {
+	if vol.BackendSpecific == nil {
+		vol.BackendSpecific = &VolumeDetail{}
+		return vol.BackendSpecific.(*VolumeDetail)
+	}
+	if vd, ok := vol.BackendSpecific.(*VolumeDetail); ok {
+		return vd
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := vol.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var vd VolumeDetail
+			if err := json.Unmarshal(jsonBytes, &vd); err == nil {
+				vol.BackendSpecific = &vd
+				return &vd
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new VolumeDetail
+	vol.BackendSpecific = &VolumeDetail{}
+	return vol.BackendSpecific.(*VolumeDetail)
 }
 
 func (s *b) GetVolumes() (backends.VolumeList, error) {
@@ -481,10 +509,30 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 			}
 			for _, id := range ids {
 				// delete mount targets and get security group names
-				switch detail := id.BackendSpecific.(type) {
-				case *VolumeDetail:
-					if detail != nil && detail.NumberOfMountTargets > 0 {
-						log.Detail("zone=%s shared: deleting mount targets for %s", zone, id.FileSystemId)
+				detail := getVolumeDetail(id)
+				if detail != nil && detail.NumberOfMountTargets > 0 {
+					log.Detail("zone=%s shared: deleting mount targets for %s", zone, id.FileSystemId)
+					mts, err := cli.DescribeMountTargets(context.TODO(), &efs.DescribeMountTargetsInput{
+						FileSystemId: aws.String(id.FileSystemId),
+						MaxItems:     aws.Int32(100),
+					})
+					if err != nil {
+						reterr = errors.Join(reterr, err)
+						return
+					}
+					for _, mt := range mts.MountTargets {
+						_, err := cli.DeleteMountTarget(context.TODO(), &efs.DeleteMountTargetInput{
+							MountTargetId: mt.MountTargetId,
+						})
+						if err != nil {
+							reterr = errors.Join(reterr, err)
+							return
+						}
+					}
+					log.Detail("zone=%s shared: waiting for mount targets to be deleted for %s", zone, id.FileSystemId)
+					waitTimer := time.Now()
+					for {
+						time.Sleep(1 * time.Second)
 						mts, err := cli.DescribeMountTargets(context.TODO(), &efs.DescribeMountTargetsInput{
 							FileSystemId: aws.String(id.FileSystemId),
 							MaxItems:     aws.Int32(100),
@@ -493,34 +541,12 @@ func (s *b) DeleteVolumes(volumes backends.VolumeList, fw backends.FirewallList,
 							reterr = errors.Join(reterr, err)
 							return
 						}
-						for _, mt := range mts.MountTargets {
-							_, err := cli.DeleteMountTarget(context.TODO(), &efs.DeleteMountTargetInput{
-								MountTargetId: mt.MountTargetId,
-							})
-							if err != nil {
-								reterr = errors.Join(reterr, err)
-								return
-							}
+						if len(mts.MountTargets) == 0 {
+							break
 						}
-						log.Detail("zone=%s shared: waiting for mount targets to be deleted for %s", zone, id.FileSystemId)
-						waitTimer := time.Now()
-						for {
-							time.Sleep(1 * time.Second)
-							mts, err := cli.DescribeMountTargets(context.TODO(), &efs.DescribeMountTargetsInput{
-								FileSystemId: aws.String(id.FileSystemId),
-								MaxItems:     aws.Int32(100),
-							})
-							if err != nil {
-								reterr = errors.Join(reterr, err)
-								return
-							}
-							if len(mts.MountTargets) == 0 {
-								break
-							}
-							if time.Since(waitTimer) > waitDur {
-								reterr = errors.Join(reterr, fmt.Errorf("timeout waiting for mount targets to be deleted"))
-								return
-							}
+						if time.Since(waitTimer) > waitDur {
+							reterr = errors.Join(reterr, fmt.Errorf("timeout waiting for mount targets to be deleted"))
+							return
 						}
 					}
 				}
@@ -671,7 +697,8 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	defer s.invalidateCacheFunc(backends.CacheInvalidateVolume)
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
 	d := &deviceName{}
-	for _, dv := range instance.BackendSpecific.(*InstanceDetail).Volumes {
+	instanceDetail := getInstanceDetail(instance)
+	for _, dv := range instanceDetail.Volumes {
 		d.names = append(d.names, dv.Device)
 	}
 	attached := make(map[string]backends.VolumeList)
@@ -753,7 +780,10 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 			for _, id := range ids {
 				log.Detail("zone=%s attach volume %s to instance %s", zone, id.FileSystemId, instance.InstanceID)
 				mountTargetExists := false
-				if id.BackendSpecific.(*VolumeDetail).NumberOfMountTargets > 0 {
+				var mountTargetIP string
+				var mountTargetID string
+				volumeDetail := getVolumeDetail(id)
+				if volumeDetail.NumberOfMountTargets > 0 {
 					// see if we can find a working mount target
 					paginator := efs.NewDescribeMountTargetsPaginator(cli, &efs.DescribeMountTargetsInput{
 						FileSystemId: aws.String(id.FileSystemId),
@@ -768,13 +798,19 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 						for _, mt := range mts.MountTargets {
 							if aws.ToString(mt.SubnetId) == instance.SubnetID {
 								mountTargetExists = true
+								mountTargetID = aws.ToString(mt.MountTargetId)
+								// Get the IP address from the mount target
+								if mt.IpAddress != nil {
+									mountTargetIP = aws.ToString(mt.IpAddress)
+								}
 								break PAGINATOR
 							}
 						}
 					}
 				}
 				// resolve default firewall that instances use in the given VPC
-				defaultFwName := TAG_FIREWALL_NAME_PREFIX + s.project + "_" + instance.BackendSpecific.(*InstanceDetail).NetworkID
+				instanceDetail := getInstanceDetail(instance)
+				defaultFwName := TAG_FIREWALL_NAME_PREFIX + s.project + "_" + instanceDetail.NetworkID
 				fw := s.firewalls.WithName(defaultFwName).Describe()
 				if len(fw) == 0 {
 					reterr = errors.Join(reterr, fmt.Errorf("default security group for volume-network(vpc) %s not found", defaultFwName))
@@ -786,19 +822,109 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 				}
 				secGroupId := fw[0].FirewallID
 				if !mountTargetExists {
+					// Wait for filesystem to be in Available state before creating mount target
+					log.Detail("zone=%s checking filesystem %s lifecycle state before creating mount target", zone, id.FileSystemId)
+					fsWaitStart := time.Now()
+					for {
+						fsOut, err := cli.DescribeFileSystems(context.TODO(), &efs.DescribeFileSystemsInput{
+							FileSystemId: aws.String(id.FileSystemId),
+						})
+						if err != nil {
+							reterr = errors.Join(reterr, fmt.Errorf("failed to describe filesystem %s: %w", id.FileSystemId, err))
+							return
+						}
+						if len(fsOut.FileSystems) == 0 {
+							reterr = errors.Join(reterr, fmt.Errorf("filesystem %s not found", id.FileSystemId))
+							return
+						}
+						lifecycleState := fsOut.FileSystems[0].LifeCycleState
+						if lifecycleState == etypes.LifeCycleStateAvailable {
+							log.Detail("zone=%s filesystem %s is available", zone, id.FileSystemId)
+							break
+						}
+						if lifecycleState == etypes.LifeCycleStateDeleted || lifecycleState == etypes.LifeCycleStateDeleting {
+							reterr = errors.Join(reterr, fmt.Errorf("filesystem %s is in %s state, cannot create mount target", id.FileSystemId, lifecycleState))
+							return
+						}
+						if lifecycleState == etypes.LifeCycleStateError {
+							reterr = errors.Join(reterr, fmt.Errorf("filesystem %s is in error state", id.FileSystemId))
+							return
+						}
+						if time.Since(fsWaitStart) > waitDur {
+							reterr = errors.Join(reterr, fmt.Errorf("timeout waiting for filesystem %s to be available (current state: %s)", id.FileSystemId, lifecycleState))
+							return
+						}
+						log.Detail("zone=%s filesystem %s is in %s state, waiting for Available state", zone, id.FileSystemId, lifecycleState)
+						time.Sleep(5 * time.Second)
+					}
 					// create mount target
-					_, err = cli.CreateMountTarget(context.TODO(), &efs.CreateMountTargetInput{
+					log.Detail("zone=%s creating mount target for filesystem %s", zone, id.FileSystemId)
+					createResult, err := cli.CreateMountTarget(context.TODO(), &efs.CreateMountTargetInput{
 						FileSystemId:   aws.String(id.FileSystemId),
-						SubnetId:       aws.String(instance.BackendSpecific.(*InstanceDetail).SubnetID),
+						SubnetId:       aws.String(instanceDetail.SubnetID),
 						SecurityGroups: []string{secGroupId},
 					})
 					if err != nil {
-						reterr = errors.Join(reterr, err)
+						reterr = errors.Join(reterr, fmt.Errorf("failed to create mount target for filesystem %s: %w", id.FileSystemId, err))
 						return
+					}
+					mountTargetID = aws.ToString(createResult.MountTargetId)
+					if createResult.IpAddress != nil {
+						mountTargetIP = aws.ToString(createResult.IpAddress)
+					}
+					// Wait for mount target to be available
+					log.Detail("zone=%s waiting for mount target %s to be available", zone, mountTargetID)
+					mtWaitStart := time.Now()
+					for {
+						mtOut, err := cli.DescribeMountTargets(context.TODO(), &efs.DescribeMountTargetsInput{
+							MountTargetId: aws.String(mountTargetID),
+						})
+						if err != nil {
+							reterr = errors.Join(reterr, fmt.Errorf("failed to describe mount target %s: %w", mountTargetID, err))
+							return
+						}
+						if len(mtOut.MountTargets) == 0 {
+							reterr = errors.Join(reterr, fmt.Errorf("mount target %s not found", mountTargetID))
+							return
+						}
+						mtState := mtOut.MountTargets[0].LifeCycleState
+						if mtState == etypes.LifeCycleStateAvailable {
+							log.Detail("zone=%s mount target %s is available", zone, mountTargetID)
+							if mtOut.MountTargets[0].IpAddress != nil {
+								mountTargetIP = aws.ToString(mtOut.MountTargets[0].IpAddress)
+							}
+							break
+						}
+						if mtState == etypes.LifeCycleStateDeleted || mtState == etypes.LifeCycleStateDeleting {
+							reterr = errors.Join(reterr, fmt.Errorf("mount target %s is in %s state", mountTargetID, mtState))
+							return
+						}
+						if mtState == etypes.LifeCycleStateError {
+							reterr = errors.Join(reterr, fmt.Errorf("mount target %s is in error state", mountTargetID))
+							return
+						}
+						if time.Since(mtWaitStart) > waitDur {
+							reterr = errors.Join(reterr, fmt.Errorf("timeout waiting for mount target %s to be available (current state: %s)", mountTargetID, mtState))
+							return
+						}
+						log.Detail("zone=%s mount target %s is in %s state, waiting for Available state", zone, mountTargetID, mtState)
+						time.Sleep(5 * time.Second)
+					}
+				}
+				// If we don't have the IP yet (e.g., mount target existed but IP wasn't retrieved), query it
+				if mountTargetIP == "" && mountTargetID != "" {
+					// Query the mount target to get its IP
+					mtOut, err := cli.DescribeMountTargets(context.TODO(), &efs.DescribeMountTargetsInput{
+						MountTargetId: aws.String(mountTargetID),
+					})
+					if err == nil && len(mtOut.MountTargets) > 0 {
+						if mtOut.MountTargets[0].IpAddress != nil {
+							mountTargetIP = aws.ToString(mtOut.MountTargets[0].IpAddress)
+						}
 					}
 				}
 				// check if the security group is assigned to instance; if not, assign it
-				if !slices.Contains(instance.BackendSpecific.(*InstanceDetail).FirewallIDs, secGroupId) {
+				if !slices.Contains(instanceDetail.FirewallIDs, secGroupId) {
 					err = instance.AssignFirewalls(backends.FirewallList{{
 						FirewallID: secGroupId,
 					}})
@@ -848,20 +974,38 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					reterr = errors.Join(reterr, err)
 					return
 				}
-				// RUN scripts: attempts: 15 (150 seconds total), fsid, mount target dir, [on] for iam, [profilename] for iam profile
+				// RUN scripts: attempts: 15 (150 seconds total), mount target IP, filesystem ID, region, mount target dir, [on] for iam, [profilename] for iam profile
 				installparam := ""
 				if sharedMountData.FIPS {
 					installparam = "fips"
 				}
+				// Derive region from zone (zone format is like "us-east-1a", region is "us-east-1")
+				// Only derive if zone ends with a letter (a-z), otherwise use zone as-is
+				region := zone
+				if len(zone) > 0 {
+					lastChar := zone[len(zone)-1]
+					if lastChar >= 'a' && lastChar <= 'z' {
+						region = zone[:len(zone)-1]
+					}
+				}
+				// Use mount target IP if available, otherwise fall back to filesystem ID
+				// If IP is not available, we still need to pass something, but the script will fail gracefully
+				mountTarget := mountTargetIP
+				if mountTarget == "" {
+					log.Detail("Mount target IP not available, using filesystem ID %s as fallback", id.FileSystemId)
+					mountTarget = id.FileSystemId
+				} else {
+					log.Detail("Using mount target IP %s for filesystem ID %s", mountTarget, id.FileSystemId)
+				}
 				execOut := instance.Exec(&backends.ExecInput{
 					ExecDetail: sshexec.ExecDetail{
-						Command:  []string{"/bin/bash", "-c", fmt.Sprintf("bash /opt/aerolab/scripts/efs_install.sh %s && bash /opt/aerolab/scripts/efs_mount.sh 15 %s %s", installparam, id.FileSystemId, sharedMountData.MountTargetDirectory)},
+						Command:  []string{"/bin/bash", "-c", fmt.Sprintf("bash /opt/aerolab/scripts/efs_install.sh %s && bash /opt/aerolab/scripts/efs_mount.sh 15 %s %s %s %s", installparam, mountTarget, id.FileSystemId, region, sharedMountData.MountTargetDirectory)},
 						Terminal: true,
 					},
 					Username: "root",
 				})
 				if execOut.Output.Err != nil {
-					reterr = errors.Join(reterr, fmt.Errorf("=== err ===\n%s\n=== warns ===\n%s\n=== output ===\n%s", err, execOut.Output.Warn, string(execOut.Output.Stdout)))
+					reterr = errors.Join(reterr, fmt.Errorf("=== err ===\n%s\n=== warns ===\n%s\n=== output ===\n%s", execOut.Output.Err, execOut.Output.Warn, string(execOut.Output.Stdout)))
 				}
 			}
 		}(zone, ids)
