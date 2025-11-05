@@ -2,6 +2,7 @@ package bgcp
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,60 @@ type FirewallDetail struct {
 type PortDetail struct {
 	TargetTags        []string `json:"target_tags" yaml:"target_tags"`
 	DestinationRanges []string `json:"destination_ranges" yaml:"destination_ranges"`
+}
+
+// getPortDetail safely extracts *PortDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getPortDetail(port *backends.PortOut) *PortDetail {
+	if port.BackendSpecific == nil {
+		port.BackendSpecific = &PortDetail{}
+		return port.BackendSpecific.(*PortDetail)
+	}
+	if pd, ok := port.BackendSpecific.(*PortDetail); ok {
+		return pd
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := port.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var pd PortDetail
+			if err := json.Unmarshal(jsonBytes, &pd); err == nil {
+				port.BackendSpecific = &pd
+				return &pd
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new PortDetail
+	port.BackendSpecific = &PortDetail{}
+	return port.BackendSpecific.(*PortDetail)
+}
+
+// getFirewallDetail safely extracts *FirewallDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getFirewallDetail(fw *backends.Firewall) *FirewallDetail {
+	if fw.BackendSpecific == nil {
+		fw.BackendSpecific = &FirewallDetail{}
+		return fw.BackendSpecific.(*FirewallDetail)
+	}
+	if fd, ok := fw.BackendSpecific.(*FirewallDetail); ok {
+		return fd
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := fw.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var fd FirewallDetail
+			if err := json.Unmarshal(jsonBytes, &fd); err == nil {
+				fw.BackendSpecific = &fd
+				return &fd
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new FirewallDetail
+	fw.BackendSpecific = &FirewallDetail{}
+	return fw.BackendSpecific.(*FirewallDetail)
 }
 
 func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, error) {
@@ -192,14 +247,15 @@ NEXTPORT:
 				}
 			}
 		}
-		dstCidr = append(dstCidr, port.BackendSpecific.(*PortDetail).DestinationRanges...)
+		pd := getPortDetail(port)
+		dstCidr = append(dstCidr, pd.DestinationRanges...)
 		if port.SourceCidr != "" {
 			srcCidr = append(srcCidr, port.SourceCidr)
 		}
 		if port.SourceId != "" {
 			srcTags = append(srcTags, port.SourceId)
 		}
-		targetTags = append(targetTags, port.BackendSpecific.(*PortDetail).TargetTags...)
+		targetTags = append(targetTags, pd.TargetTags...)
 		prot := port.Protocol
 		if prot == backends.ProtocolAll {
 			prot = "all"
@@ -351,7 +407,8 @@ func (s *b) FirewallsAddTags(fw backends.FirewallList, tags map[string]string, w
 			m[k] = v
 		}
 		desc := encodeToDescriptionField(m)
-		res := fw.BackendSpecific.(*FirewallDetail).Resource
+		fd := getFirewallDetail(fw)
+		res := fd.Resource
 		res.Description = &desc
 		op, err := client.Update(ctx, &computepb.UpdateFirewallRequest{
 			Firewall:         fw.Name,
@@ -405,7 +462,8 @@ func (s *b) FirewallsRemoveTags(fw backends.FirewallList, tagKeys []string, wait
 			delete(m, k)
 		}
 		desc := encodeToDescriptionField(m)
-		res := fw.BackendSpecific.(*FirewallDetail).Resource
+		fd := getFirewallDetail(fw)
+		res := fd.Resource
 		res.Description = &desc
 		op, err := client.Update(ctx, &computepb.UpdateFirewallRequest{
 			Firewall:         fw.Name,

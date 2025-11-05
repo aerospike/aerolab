@@ -34,12 +34,16 @@ func (c *ClusterPartitionCreateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	var stdout, stderr *os.File
-	var stdin io.ReadCloser
+	var stdout, stderr *io.Writer
+	var stdoutp, stderrp io.Writer
+	var stdin *io.ReadCloser
 	if system.logLevel >= 5 {
-		stdout = os.Stdout
-		stderr = os.Stderr
-		stdin = io.NopCloser(os.Stdin)
+		stdoutp = os.Stdout
+		stdout = &stdoutp
+		stderrp = os.Stderr
+		stderr = &stderrp
+		stdinp := io.NopCloser(os.Stdin)
+		stdin = &stdinp
 	}
 	_, err = c.PartitionCreateCluster(system, system.Backend.GetInventory(), args, stdin, stdout, stderr, system.Logger)
 	if err != nil {
@@ -50,7 +54,7 @@ func (c *ClusterPartitionCreateCmd) Execute(args []string) error {
 
 }
 
-func (c *ClusterPartitionCreateCmd) PartitionCreateCluster(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) (output []*backends.ExecOutput, err error) {
+func (c *ClusterPartitionCreateCmd) PartitionCreateCluster(system *System, inventory *backends.Inventory, args []string, stdin *io.ReadCloser, stdout *io.Writer, stderr *io.Writer, logger *logger.Logger) (output []*backends.ExecOutput, err error) {
 	type partition struct {
 		start string
 		end   string
@@ -227,16 +231,23 @@ func (c *ClusterPartitionCreateCmd) PartitionCreateCluster(system *System, inven
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 			return
 		}
+		detail := sshexec.ExecDetail{
+			Command:        []string{"bash", "/tmp/install.sh." + now},
+			SessionTimeout: 5 * time.Minute,
+			Env:            []*sshexec.Env{},
+			Terminal:       false,
+		}
+		if stdin != nil {
+			detail.Stdin = *stdin
+		}
+		if stdout != nil {
+			detail.Stdout = *stdout
+		}
+		if stderr != nil {
+			detail.Stderr = *stderr
+		}
 		output := inst.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", "/tmp/install.sh." + now},
-				Stdin:          stdin,
-				Stdout:         stdout,
-				Stderr:         stderr,
-				SessionTimeout: 5 * time.Minute,
-				Env:            []*sshexec.Env{},
-				Terminal:       false,
-			},
+			ExecDetail:      detail,
 			Username:        "root",
 			ConnectTimeout:  30 * time.Second,
 			ParallelThreads: c.ParallelThreads,

@@ -930,10 +930,16 @@ func (c *WebUIServer) handleExecute(w http.ResponseWriter, r *http.Request) {
 		password, _ := request.Parameters["password"].(string)
 		privileges, _ := request.Parameters["privileges"].(string)
 
-		body := map[string]string{
-			"username":   username,
-			"password":   password,
-			"privileges": privileges,
+		// Convert privileges string to roles array
+		roles := []string{privileges}
+		if privileges == "" {
+			roles = []string{"read-write"} // default
+		}
+
+		body := map[string]interface{}{
+			"name":     username, // username maps to name in the API
+			"password": password,
+			"roles":    roles,
 		}
 		var credential interface{}
 		err = client.Post(fmt.Sprintf("/databases/%s/credentials", dbID), body, &credential)

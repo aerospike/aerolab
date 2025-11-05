@@ -380,7 +380,7 @@ function runostest {
     fi
     if [ "$backend" != "docker" ]; then
         echo "🔧 Testing ubuntu 24.04 on arm"
-        $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t4g.xlarge --aws-expire=8h --instance t2a.standard-4 --gcp-expire=8h
+        $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t4g.xlarge --aws-expire=8h --instance t2a-standard-4 --gcp-expire=8h
         $AL cluster destroy -n mydc --force
     fi
     echo "🔧 Done testing OS:Version combinations"
@@ -392,6 +392,86 @@ function runostest {
     else
         $AL inventory delete-project-resources -f --expiry
     fi
+}
+
+function testvolumes {
+    set -e
+    local backend=$1
+    local invcache=$2
+    local testmode=$3
+    local invcache_flag=""
+    if [ "$invcache" == "true" ]; then
+        invcache_flag="--inventory-cache"
+    fi
+    echo "🔧 Setting up test environment"
+    rm -rf bob
+    AL=./aerolab
+    mkdir bob
+    AEROLAB_HOME=$(pwd)/bob/home
+    export AEROLAB_HOME
+    export AEROLAB_TEST=1
+    export AEROLAB_TELEMETRY_DISABLE=1
+
+    # set backend and defaults for testing
+    echo "🔧 Setting backend and defaults for testing"
+    if [ "$backend" == "docker" ]; then
+        $AL config backend -t $backend $invcache_flag
+    elif [ "$backend" == "aws" ]; then
+        $AL config backend -t $backend -r us-east-1 -P eks $invcache_flag
+    elif [ "$backend" == "gcp" ]; then
+        $AL config backend -t $backend -r us-central1 -o aerolab-test-project-1 $invcache_flag
+    fi
+    $AL config defaults -k '*.FeaturesFilePath' -v /Users/rglonek/aerolab/features/
+    $AL config defaults -k '*.FeaturesFilePath' |grep rglonek
+
+    # version
+    echo "🔧 Checking version"
+    $AL version
+
+    # cleanup
+    echo "🔧 Running cleanup"
+    $AL inventory delete-project-resources -f
+
+    # create test instances (apt and yum)
+    $AL cluster create -n apt -c 1 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
+    $AL cluster create -n yum -c 1 -d rocky -i 9 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
+
+    for cluster in apt yum; do
+        if [ "$testmode" == "attached" ] || [ "$testmode" == "full" ]; then
+            # create attached volume
+            $AL volumes create --name $cluster-vol --volume-type attached --gcp.size 10 --gcp.expire=8h --gcp.zone us-central1-a --gcp.disk-type pd-ssd --aws.size 10 --aws.expire=8h --aws.placement us-east-1 --aws.disk-type gp2
+            # attach volume to instance
+            $AL volumes attach --filter.name $cluster-vol --instance.cluster-name $cluster
+            # grow volume
+            $AL volumes grow --filter.name $cluster-vol --new-size-gb 20
+            # detach volume from instance
+            $AL volumes detach --filter.name $cluster-vol --instance.cluster-name $cluster
+            # add and remove tags from volume
+            $AL volumes add-tags --filter.name $cluster-vol --tag testkey=testvalue
+            $AL volumes remove-tags --filter.name $cluster-vol --tag testkey
+            # delete volume
+            $AL volumes delete --filter.name $cluster-vol --force
+        fi 
+        if [ "$testmode" == "shared" ] || [ "$testmode" == "full" ]; then
+            if [ "$backend" == "aws" ]; then
+                # create shared volume
+                $AL volumes create --name $cluster-vol --volume-type shared --aws.expire=8h --aws.placement us-east-1 --aws.disk-type shared
+                # attach volume to instance
+                $AL volumes attach --filter.name $cluster-vol --instance.cluster-name $cluster --shared-target=/mnt
+                # detach volume from instance
+                $AL volumes detach --filter.name $cluster-vol --instance.cluster-name $cluster
+                # add and remove tags from volume
+                $AL volumes add-tags --filter.name $cluster-vol --tag testkey=testvalue
+                $AL volumes remove-tags --filter.name $cluster-vol --tag testkey
+                # delete volume
+                $AL volumes delete --filter.name $cluster-vol --force
+            fi
+        fi
+    done
+
+    # cleanup
+    echo "🔧 Running cleanup"
+    $AL inventory delete-project-resources -f
 }
 
 function testcloud {
@@ -425,21 +505,85 @@ function testcloud {
     echo "🔧 Running cleanup"
     $AL inventory delete-project-resources -f
 
-    # TODO: test aerospike cloud
+    # cleanup cloud
+    $AL cloud secrets list |jq -r '.secrets[] | select(.description=="aerolab") | .id' |while read line; do
+        $AL cloud secrets delete --secret-id $line
+    done
+    $AL cloud databases list |jq -r '.databases[] | select(.name == "aerolabtest") | .id' |while read line; do
+        $AL cloud databases delete --database-id $line
+    done
+
+    # test instance types, secrets
+    $AL cloud list-instance-types
+    $AL cloud secrets create --name "aerolab" --description "aerolab" --value "aerolab"
+    $AL cloud secrets list |jq -r '.secrets[] | select(.description == "aerolab") |.id' |wc -l |grep -q '1'
+    $AL cloud secrets list |jq -r '.secrets[] | select(.description == "aerolab") |.id' |while read line; do
+        $AL cloud secrets delete --secret-id $line
+    done
+
+    # test create database
+    $AL cloud databases create -n aerolabtest -i m5d.large -r us-east-1 --availability-zone-count=2 --cluster-size=2 --data-storage memory --vpc-id vpc-090bcfc952f522c85
+    DID=$($AL cloud databases list |jq -r '.databases[] | select(.name == "aerolabtest") | .id')
+    if [ -z "$DID" ]; then
+        echo "🔧 Database creation failed"
+        exit 1
+    fi
+
+    # test credentials create 1
+    $AL cloud databases credentials create --database-id $DID --username aerolab1 --password aerolab1 --privileges read-write --wait
+
+    # test credentials create 2
+    $AL cloud databases credentials create --database-id $DID --username aerolab2 --password aerolab2 --privileges read-write --wait
+
+    # test credentials list
+    $AL cloud databases credentials list --database-id $DID
+
+    # test create client (currently create a single-node server in aws)
+    $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
+
+    # test connect to database
+    HOST=$($AL cloud databases list |jq -r '.databases[] |select(.name == "aerolabtest") |.connectionDetails.host')
+    if [ -z "$HOST" ]; then
+        echo "🔧 Database connection details not found"
+        exit 1
+    fi
+    $AL cloud databases list |jq -r '.databases[] |select(.name == "aerolabtest") |.connectionDetails.tlsCertificate' > bob/ca.pem
+    $AL files upload bob/ca.pem /opt/ca.pem
+    $AL attach shell -- aql --tls-enable --tls-name $HOST --tls-cafile /opt/ca.pem -h $HOST:4000 -U aerolab1 -P aerolab1 -c "show namespaces"
+
+    # test destroy test client
+    $AL cluster destroy -n mydc --force
+
+    # test credentials delete 2
+    DEL=$($AL cloud databases credentials list --database-id $DID |jq -r '.credentials[] | select(.name == "aerolab2") | .id')
+    if [ -z "$DEL" ]; then
+        echo "🔧 Credential deletion failed"
+        exit 1
+    fi
+    $AL cloud databases credentials delete --database-id $DID --credentials-id $DEL
+
+    # test credentials list
+    $AL cloud databases credentials list --database-id $DID
+
+    # test update database
+    $AL cloud databases update --database-id $DID --cluster-size 4 -i m5d.xlarge
+
+    # test delete database
+    $AL cloud databases delete --database-id $DID --force --wait
 }
 
 set -e
 [ -f ./aerolab ] || ./build.sh
 rm -rf test-results
 mkdir -p test-results
-#backends=("docker" "aws" "gcp")
-#invcaches=("false" "true")
-backends=("docker")
-invcaches=("true")
+backends=("docker" "aws" "gcp")
+invcaches=("true") # ("false" "true")
+testmode="full" # attached, shared, full
 for backend in "${backends[@]}"; do
     for invcache in "${invcaches[@]}"; do
         echo "🧪 Testing $backend with inventory cache $invcache"
         runtest $backend $invcache > test-results/$backend-$invcache.log 2>&1
+        testvolumes $backend $invcache $testmode > test-results/$backend-$invcache-volumes-$testmode.log 2>&1
     done
     echo "🧪 Testing OS support on $backend"
     runostest $backend false > test-results/$backend-os.log 2>&1
@@ -449,9 +593,3 @@ for backend in "${backends[@]}"; do
     fi
 done
 echo "✅ Done testing all backends and inventory caches"
-
-# TODO test docker on arm
-# TODO test gcp
-# TODO AWS, GCP: volumes
-# TODO aws test cloud
-# TODO test working with one backend and then switching to next and then switching to previous, using all different flags

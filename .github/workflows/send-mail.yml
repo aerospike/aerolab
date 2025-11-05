@@ -1,0 +1,44 @@
+name: "Send release email and slack"
+on:
+  workflow_dispatch:
+      inputs:
+          VERSION:
+              description: "Version for subject (eg 7.2.1)"
+              required: true
+
+jobs:
+    build-and-release:
+        runs-on: macos-13
+        steps:
+          - name: "Git checkout"
+            uses: actions/checkout@v3
+          - name: "Patch release date"
+            run: |
+              RET=0
+              grep '_Release Date: Month Day, Year_' CHANGELOG/${{inputs.VERSION}}.md || RET=1
+              if [ $RET -eq 0 ]
+              then
+                NDATE=$(date "+%B %d, %Y")
+                sed -i.bak "s/_Release Date: Month Day, Year_/_${NDATE}_/g" CHANGELOG/${{inputs.VERSION}}.md
+              fi
+          - name: Send mail
+            uses: dawidd6/action-send-mail@v3
+            with:
+              server_address: smtp.gmail.com
+              server_port: 465
+              secure: true
+              username: ${{secrets.RELEASE_MAIL_USERNAME}}
+              password: ${{secrets.RELEASE_MAIL_PASSWORD}}
+              subject: AeroLab release v${{inputs.VERSION}}
+              to: ${{secrets.RELEASE_MAIL_TO}}
+              from: AeroLab Release Bot <${{secrets.RELEASE_MAIL_FROM}}>
+              reply_to: ${{secrets.RELEASE_MAIL_FROM}}
+              convert_markdown: true
+              html_body: file://CHANGELOG/${{inputs.VERSION}}.md
+              body: file://CHANGELOG/${{inputs.VERSION}}.md
+          - name: "Send slack notification"
+            env:
+                SLACK_CHANNEL: ${{ secrets.RELEASE_SLACK_CHANNEL }}
+                SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+            run: |
+              curl -d "text=https://github.com/aerospike/aerolab/releases/tag/${{inputs.VERSION}}" -d "channel=${SLACK_CHANNEL}" -H "Authorization: Bearer ${SLACK_TOKEN}" -X POST https://slack.com/api/chat.postMessage || exit 0

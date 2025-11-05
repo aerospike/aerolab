@@ -636,8 +636,9 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 
 	// Create the image
 	log.Detail("Creating image")
+	instanceDetail := getInstanceDetail(input.Instance)
 	bdm := types.BlockDeviceMapping{
-		DeviceName: aws.String(input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].Device),
+		DeviceName: aws.String(instanceDetail.Volumes[0].Device),
 		Ebs: &types.EbsBlockDevice{
 			DeleteOnTermination: aws.Bool(true),
 			Encrypted:           aws.Bool(input.Encrypted),
@@ -666,7 +667,7 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	output.Image.ImageId = aws.ToString(resp.ImageId)
 	output.Image.BackendSpecific = &ImageDetail{
 		SnapshotID:     "",
-		RootDeviceName: input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].Device,
+		RootDeviceName: instanceDetail.Volumes[0].Device,
 	}
 
 	// Wait for the image to be created

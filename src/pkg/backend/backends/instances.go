@@ -828,6 +828,18 @@ func (b *backend) AcceptVPCPeering(backendType BackendType, peeringConnectionID 
 	return b.enabledBackends[backendType].AcceptVPCPeering(peeringConnectionID)
 }
 
+func (b *backend) CreateRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
+	return b.enabledBackends[backendType].CreateRoute(vpcID, peeringConnectionID, destinationCidrBlock)
+}
+
+func (b *backend) DeleteRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
+	return b.enabledBackends[backendType].DeleteRoute(vpcID, peeringConnectionID, destinationCidrBlock)
+}
+
+func (b *backend) AssociateVPCWithHostedZone(backendType BackendType, hostedZoneID string, vpcID string, region string) error {
+	return b.enabledBackends[backendType].AssociateVPCWithHostedZone(hostedZoneID, vpcID, region)
+}
+
 func (b *backend) GetAccountID(backendType BackendType) (string, error) {
 	return b.enabledBackends[backendType].GetAccountID()
 }

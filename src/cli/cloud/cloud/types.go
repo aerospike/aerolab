@@ -148,10 +148,15 @@ type AerospikeCloudNetworkStorage struct {
 
 // Aerospike Server Types
 type AerospikeServer struct {
-	Service *AerospikeService `json:"service,omitempty"`
-	Network *AerospikeNetwork `json:"network,omitempty"`
-	Logging *AerospikeLogging `json:"logging,omitempty"`
-	XDR     *AerospikeXDR     `json:"xdr,omitempty"`
+	Service    *AerospikeService    `json:"service,omitempty"`
+	Network    *AerospikeNetwork    `json:"network,omitempty"`
+	Logging    *AerospikeLogging    `json:"logging,omitempty"`
+	XDR        *AerospikeXDR        `json:"xdr,omitempty"`
+	Namespaces []AerospikeNamespace `json:"namespaces"`
+}
+
+type AerospikeNamespace struct {
+	Name string `json:"name"`
 }
 
 type AerospikeService struct {
@@ -220,9 +225,9 @@ type DatabaseCredentialsCollection struct {
 }
 
 type CreateDatabaseCredentialsRequest struct {
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	Privileges string `json:"privileges"`
+	Name     string   `json:"name"`
+	Password string   `json:"password"`
+	Roles    []string `json:"roles"`
 }
 
 // VPC Peering Types

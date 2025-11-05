@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -83,6 +84,33 @@ type InstanceDetail struct {
 type instanceVolume struct {
 	Device   string `yaml:"device" json:"device"`
 	VolumeID string `yaml:"volumeID" json:"volumeID"`
+}
+
+// getInstanceDetail safely extracts *InstanceDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getInstanceDetail(instance *backends.Instance) *InstanceDetail {
+	if instance.BackendSpecific == nil {
+		instance.BackendSpecific = &InstanceDetail{}
+		return instance.BackendSpecific.(*InstanceDetail)
+	}
+	if id, ok := instance.BackendSpecific.(*InstanceDetail); ok {
+		return id
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := instance.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var id InstanceDetail
+			if err := json.Unmarshal(jsonBytes, &id); err == nil {
+				instance.BackendSpecific = &id
+				return &id
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new InstanceDetail
+	instance.BackendSpecific = &InstanceDetail{}
+	return instance.BackendSpecific.(*InstanceDetail)
 }
 
 func getArchitecture(instance *computepb.Instance) backends.Architecture {
@@ -175,6 +203,19 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 		}
 	}
 	creationTime, _ := time.Parse(time.RFC3339, inst.GetCreationTimestamp())
+	publicIP := ""
+	privateIP := ""
+	subnetID := ""
+	networkID := ""
+	if len(inst.GetNetworkInterfaces()) > 0 {
+		netIntf := inst.GetNetworkInterfaces()[0]
+		privateIP = netIntf.GetNetworkIP()
+		subnetID = netIntf.GetSubnetwork()
+		networkID = netIntf.GetNetwork()
+		if len(netIntf.GetAccessConfigs()) > 0 {
+			publicIP = netIntf.GetAccessConfigs()[0].GetNatIP()
+		}
+	}
 	return &backends.Instance{
 		ClusterName:  tags[TAG_CLUSTER_NAME],
 		ClusterUUID:  tags[TAG_CLUSTER_UUID],
@@ -191,12 +232,12 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 		Tags:         tags,
 		Expires:      expires,
 		IP: backends.IP{
-			Public:  inst.GetNetworkInterfaces()[0].GetAccessConfigs()[0].GetNatIP(),
-			Private: inst.GetNetworkInterfaces()[0].GetNetworkIP(),
+			Public:  publicIP,
+			Private: privateIP,
 		},
 		ImageID:      inst.GetDisks()[0].GetSource(),
-		SubnetID:     inst.GetNetworkInterfaces()[0].GetSubnetwork(),
-		NetworkID:    inst.GetNetworkInterfaces()[0].GetNetwork(),
+		SubnetID:     subnetID,
+		NetworkID:    networkID,
 		Architecture: arch,
 		OperatingSystem: backends.OS{
 			Name:    tags[TAG_OS_NAME],
@@ -322,12 +363,13 @@ func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]st
 		}
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
+		id := getInstanceDetail(instance)
 		op, err := client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
 			Zone:     instance.ZoneName,
 			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-				LabelFingerprint: proto.String(instance.BackendSpecific.(*InstanceDetail).LabelFingerprint),
+				LabelFingerprint: proto.String(id.LabelFingerprint),
 				Labels:           labels,
 			},
 		})
@@ -385,12 +427,13 @@ func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []strin
 		}
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
+		id := getInstanceDetail(instance)
 		op, err := client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
 			Instance: instance.InstanceID,
 			Project:  s.credentials.Project,
 			Zone:     instance.ZoneName,
 			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-				LabelFingerprint: proto.String(instance.BackendSpecific.(*InstanceDetail).LabelFingerprint),
+				LabelFingerprint: proto.String(id.LabelFingerprint),
 				Labels:           labels,
 			},
 		})
@@ -807,7 +850,8 @@ func (s *b) InstancesAssignFirewalls(instances backends.InstanceList, fw backend
 	defer client.Close()
 
 	for _, instance := range instances {
-		newTags := instance.BackendSpecific.(*InstanceDetail).FirewallTags
+		id := getInstanceDetail(instance)
+		newTags := id.FirewallTags
 		for _, f := range fw {
 			if !slices.Contains(newTags, f.Name) {
 				newTags = append(newTags, f.Name)
@@ -819,7 +863,7 @@ func (s *b) InstancesAssignFirewalls(instances backends.InstanceList, fw backend
 			Zone:     instance.ZoneName,
 			TagsResource: &computepb.Tags{
 				Items:       newTags,
-				Fingerprint: proto.String(instance.BackendSpecific.(*InstanceDetail).TagFingerprint),
+				Fingerprint: proto.String(id.TagFingerprint),
 			},
 		})
 		if err != nil {
@@ -855,8 +899,9 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 		fwRemoveList = append(fwRemoveList, f.Name)
 	}
 	for _, instance := range instances {
+		id := getInstanceDetail(instance)
 		newTags := []string{}
-		for _, f := range instance.BackendSpecific.(*InstanceDetail).FirewallTags {
+		for _, f := range id.FirewallTags {
 			if !slices.Contains(fwRemoveList, f) {
 				newTags = append(newTags, f)
 			}
@@ -867,7 +912,7 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 			Zone:     instance.ZoneName,
 			TagsResource: &computepb.Tags{
 				Items:       newTags,
-				Fingerprint: proto.String(instance.BackendSpecific.(*InstanceDetail).TagFingerprint),
+				Fingerprint: proto.String(id.TagFingerprint),
 			},
 		})
 		if err != nil {
@@ -1412,8 +1457,13 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		nodeVolumeTags := make(map[string]string)
 		maps.Copy(nodeVolumeTags, gcpTags)
 		nodeVolumeTags[TAG_NODE_NO] = fmt.Sprintf("%d", i+1)
-		name := input.Name
-		if name == "" {
+		var name string
+		if input.Name != "" {
+			// Sanitize user-provided name to ensure it meets GCP requirements
+			// Note: when Name is provided and Nodes > 1, this shouldn't happen due to validation,
+			// but we sanitize anyway for safety
+			name = sanitize(input.Name, false)
+		} else {
 			name = sanitize(fmt.Sprintf("%s-%s-%d", s.project, input.ClusterName, i+1), true)
 		}
 		newNames = append(newNames, name)

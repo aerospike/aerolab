@@ -2,12 +2,10 @@
 
 ## Next - MVP
 
-PREVIEW-1:
-* testing project so far, building test shell scripts for all commands with gcp, aws, docker, cloud
-* .github workflow and makefiles to build the project into a preview prerelease
-* PRERELEASE
-
 CODE:
+* make `cloud databases list` and `cloud databases credentials list` and `cloud secrets list` also return friendly tables instead of json
+* add `cloud databases get tls-cert` and `cloud databases get host` commands to get connection details for the DB
+* add option for `cloud databases wait-for-status` to wait for a specific health.status for a specific DB ID - check every 10 seconds, with optional wait-timeout
 * review all comands to ensure only the ones that need to are invalidating the inventory caches
 * xdr - manage xdr configuration on running instances
 * tls - manage tls certificates on running instances
@@ -18,6 +16,7 @@ CODE:
 * testing
 * documentation
 * PRERELEASE
+* add support for docker amazonlinux:2023
 * agi, web, rest
 * PRERELEASE
 

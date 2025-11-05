@@ -138,6 +138,9 @@ type Cloud interface {
 	ResolveNetworkPlacement(placement string) (vpc *Network, subnet *Subnet, zone string, err error)
 	// VPC peering
 	AcceptVPCPeering(peeringConnectionID string) error
+	CreateRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error
+	DeleteRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error
+	AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region string) error
 	// account information
 	GetAccountID() (string, error)
 }
@@ -183,6 +186,9 @@ type Backend interface {
 	ResolveNetworkPlacement(backendType BackendType, placement string) (vpc *Network, subnet *Subnet, zone string, err error)
 	// VPC peering
 	AcceptVPCPeering(backendType BackendType, peeringConnectionID string) error
+	CreateRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error
+	DeleteRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error
+	AssociateVPCWithHostedZone(backendType BackendType, hostedZoneID string, vpcID string, region string) error
 	// account information
 	GetAccountID(backendType BackendType) (string, error)
 }

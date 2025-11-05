@@ -64,6 +64,33 @@ func getImageDetail(img *backends.Image) *ImageDetail {
 	return img.BackendSpecific.(*ImageDetail)
 }
 
+// getInstanceDetail safely extracts *InstanceDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getInstanceDetail(inst *backends.Instance) *InstanceDetail {
+	if inst.BackendSpecific == nil {
+		inst.BackendSpecific = &InstanceDetail{}
+		return inst.BackendSpecific.(*InstanceDetail)
+	}
+	if id, ok := inst.BackendSpecific.(*InstanceDetail); ok {
+		return id
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := inst.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var id InstanceDetail
+			if err := json.Unmarshal(jsonBytes, &id); err == nil {
+				inst.BackendSpecific = &id
+				return &id
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new InstanceDetail
+	inst.BackendSpecific = &InstanceDetail{}
+	return inst.BackendSpecific.(*InstanceDetail)
+}
+
 type CreateInstanceParams struct {
 	// the image to use for the instances(nodes)
 	Image *backends.Image `yaml:"image" json:"image"`
@@ -399,9 +426,52 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		return nil
 	}
 
+	// Check if we should remove SSH keys by querying AWS directly for remaining instances
+	// We can't rely on s.instances because it may only contain a filtered/subset of instances
+	// (e.g., template.create might only have template instances in its inventory, not all project instances)
 	removeSSHKey := false
-	if s.instances.WithBackendType(backends.BackendTypeAWS).WithNotState(backends.LifeCycleStateTerminating, backends.LifeCycleStateTerminated).Count() == instances.Count() {
+	remainingInstanceCount := 0
+	zones, _ := s.ListEnabledZones()
+	for _, zone := range zones {
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			log.Detail("Failed to get EC2 client for zone %s to check remaining instances: %s", zone, err)
+			continue
+		}
+		listFilters := []types.Filter{
+			{
+				Name:   aws.String("tag-key"),
+				Values: []string{TAG_AEROLAB_VERSION},
+			},
+			{
+				Name:   aws.String("tag:" + TAG_AEROLAB_PROJECT),
+				Values: []string{s.project},
+			},
+			{
+				Name:   aws.String("instance-state-name"),
+				Values: []string{"pending", "running", "stopping", "stopped"},
+			},
+		}
+		paginator := ec2.NewDescribeInstancesPaginator(cli, &ec2.DescribeInstancesInput{
+			Filters: listFilters,
+		})
+		for paginator.HasMorePages() {
+			out, err := paginator.NextPage(context.TODO())
+			if err != nil {
+				log.Detail("Failed to query instances in zone %s: %s", zone, err)
+				break
+			}
+			for _, res := range out.Reservations {
+				remainingInstanceCount += len(res.Instances)
+			}
+		}
+	}
+	// Only remove SSH keys if all remaining instances are being terminated
+	if remainingInstanceCount == instances.Count() {
 		removeSSHKey = true
+		log.Detail("All %d remaining instances in project are being terminated, will remove SSH keys", remainingInstanceCount)
+	} else {
+		log.Detail("Not removing SSH keys: %d instances remaining in project, %d being terminated", remainingInstanceCount, instances.Count())
 	}
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateInstance)
@@ -1452,11 +1522,35 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 
 	// resolve SSHKeyName
 	sshKeyPath := filepath.Join(s.sshKeysDir, s.project)
+	sshKeyPathPub := sshKeyPath + ".pub"
 
-	// if key does not exist in aws, create it
+	// Check if both private and public key files exist
+	privateKeyExists := false
+	publicKeyExists := false
+	if _, err := os.Stat(sshKeyPath); err == nil {
+		privateKeyExists = true
+		log.Detail("SSH private key %s exists", sshKeyPath)
+	} else if !os.IsNotExist(err) {
+		log.Detail("SSH private key %s stat error: %v", sshKeyPath, err)
+	}
+	if _, err := os.Stat(sshKeyPathPub); err == nil {
+		publicKeyExists = true
+		log.Detail("SSH public key %s exists", sshKeyPathPub)
+	} else if !os.IsNotExist(err) {
+		log.Detail("SSH public key %s stat error: %v", sshKeyPathPub, err)
+	}
+
+	// if key does not exist, create it
 	var publicKeyBytes []byte
-	if _, err := os.Stat(sshKeyPath); os.IsNotExist(err) {
-		log.Detail("SSH key %s does not exist, creating it", sshKeyPath)
+	if !privateKeyExists || !publicKeyExists {
+		if privateKeyExists || publicKeyExists {
+			log.Detail("SSH key files exist partially - private: %v, public: %v. Recreating both files.", privateKeyExists, publicKeyExists)
+			// Remove partial files
+			os.Remove(sshKeyPath)
+			os.Remove(sshKeyPathPub)
+		} else {
+			log.Detail("SSH key %s does not exist, creating it", sshKeyPath)
+		}
 		// generate new SSH key pair
 		privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
@@ -1488,14 +1582,51 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			return nil, fmt.Errorf("failed to save private key: %v", err)
 		}
 
-		err = os.WriteFile(sshKeyPath+".pub", publicKeyBytes, 0600)
+		err = os.WriteFile(sshKeyPathPub, publicKeyBytes, 0600)
 		if err != nil {
 			return nil, fmt.Errorf("failed to save public key: %v", err)
 		}
+		log.Detail("SSH key pair created successfully at %s and %s", sshKeyPath, sshKeyPathPub)
 	} else {
-		publicKeyBytes, err = os.ReadFile(sshKeyPath + ".pub")
+		// Both files exist, try to read the public key
+		var err error
+		publicKeyBytes, err = os.ReadFile(sshKeyPathPub)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read public key: %v", err)
+			log.Detail("SSH public key file %s exists but cannot be read: %v. Recreating key pair.", sshKeyPathPub, err)
+			// File exists but can't be read - remove both and recreate
+			os.Remove(sshKeyPath)
+			os.Remove(sshKeyPathPub)
+			// Fall through to create new key
+			privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate private key: %v", err)
+			}
+			publicKey, err := ssh.NewPublicKey(&privateKey.PublicKey)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create public key: %v", err)
+			}
+			publicKeyBytes = ssh.MarshalAuthorizedKey(publicKey)
+			privateKeyBytes := pem.EncodeToMemory(&pem.Block{
+				Type:  "RSA PRIVATE KEY",
+				Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
+			})
+			if _, err := os.Stat(s.sshKeysDir); os.IsNotExist(err) {
+				err = os.MkdirAll(s.sshKeysDir, 0700)
+				if err != nil {
+					return nil, fmt.Errorf("failed to create ssh keys directory: %v", err)
+				}
+			}
+			err = os.WriteFile(sshKeyPath, privateKeyBytes, 0600)
+			if err != nil {
+				return nil, fmt.Errorf("failed to save private key: %v", err)
+			}
+			err = os.WriteFile(sshKeyPathPub, publicKeyBytes, 0600)
+			if err != nil {
+				return nil, fmt.Errorf("failed to save public key: %v", err)
+			}
+			log.Detail("SSH key pair recreated successfully at %s and %s", sshKeyPath, sshKeyPathPub)
+		} else {
+			log.Detail("SSH key pair found and verified at %s and %s", sshKeyPath, sshKeyPathPub)
 		}
 	}
 	publicKeyBytes = bytes.Trim(publicKeyBytes, "\n\r\t ")

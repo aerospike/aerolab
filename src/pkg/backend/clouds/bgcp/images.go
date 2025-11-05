@@ -2,6 +2,7 @@ package bgcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -20,6 +21,33 @@ import (
 
 type ImageDetail struct {
 	LabelFingerprint string `yaml:"labelFingerprint" json:"labelFingerprint"`
+}
+
+// getImageDetail safely extracts *ImageDetail from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getImageDetail(image *backends.Image) *ImageDetail {
+	if image.BackendSpecific == nil {
+		image.BackendSpecific = &ImageDetail{}
+		return image.BackendSpecific.(*ImageDetail)
+	}
+	if id, ok := image.BackendSpecific.(*ImageDetail); ok {
+		return id
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := image.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var id ImageDetail
+			if err := json.Unmarshal(jsonBytes, &id); err == nil {
+				image.BackendSpecific = &id
+				return &id
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new ImageDetail
+	image.BackendSpecific = &ImageDetail{}
+	return image.BackendSpecific.(*ImageDetail)
 }
 
 func (s *b) GetImages() (backends.ImageList, error) {
@@ -314,10 +342,11 @@ func (s *b) ImagesAddTags(images backends.ImageList, tags map[string]string) err
 		}
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
+		id := getImageDetail(image)
 		op, err := client.Patch(ctx, &computepb.PatchImageRequest{
 			Image: image.Name,
 			ImageResource: &computepb.Image{
-				LabelFingerprint: proto.String(image.BackendSpecific.(*ImageDetail).LabelFingerprint),
+				LabelFingerprint: proto.String(id.LabelFingerprint),
 				Labels:           labels,
 			},
 			Project: s.credentials.Project,
@@ -368,10 +397,11 @@ func (s *b) ImagesRemoveTags(images backends.ImageList, tagKeys []string) error 
 		}
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
+		id := getImageDetail(image)
 		op, err := client.Patch(ctx, &computepb.PatchImageRequest{
 			Image: image.Name,
 			ImageResource: &computepb.Image{
-				LabelFingerprint: proto.String(image.BackendSpecific.(*ImageDetail).LabelFingerprint),
+				LabelFingerprint: proto.String(id.LabelFingerprint),
 				Labels:           labels,
 			},
 			Project: s.credentials.Project,
@@ -450,12 +480,13 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 	defer client.Close()
 
 	defer s.invalidateCacheFunc(backends.CacheInvalidateImage)
+	idetail := getInstanceDetail(input.Instance)
 	op, err := client.Insert(ctx, &computepb.InsertImageRequest{
 		Project: s.credentials.Project,
 		ImageResource: &computepb.Image{
 			Labels:     labels,
 			Name:       proto.String(input.Name),
-			SourceDisk: proto.String(input.Instance.BackendSpecific.(*InstanceDetail).Volumes[0].VolumeID),
+			SourceDisk: proto.String(idetail.Volumes[0].VolumeID),
 			DiskSizeGb: proto.Int64(int64(input.SizeGiB * backends.StorageGiB / backends.StorageGB)),
 		},
 	})
@@ -481,7 +512,8 @@ func (s *b) CreateImage(input *backends.CreateImageInput, waitDur time.Duration)
 		}
 		if *image.Name == input.Name {
 			output.Image.ImageId = *image.SelfLink
-			output.Image.BackendSpecific.(*ImageDetail).LabelFingerprint = *image.LabelFingerprint
+			id := getImageDetail(output.Image)
+			id.LabelFingerprint = *image.LabelFingerprint
 			break
 		}
 	}

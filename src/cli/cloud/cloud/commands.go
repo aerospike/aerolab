@@ -599,10 +599,17 @@ func (c *DatabasesCredentialsCreateCmd) Execute(args []string) error {
 		return err
 	}
 
+	// Convert privileges string to roles array
+	// The API expects roles as an array, but we accept privileges as a string for convenience
+	roles := []string{c.Privileges}
+	if c.Privileges == "" {
+		roles = []string{"read-write"} // default
+	}
+
 	request := CreateDatabaseCredentialsRequest{
-		Username:   c.Username,
-		Password:   c.Password,
-		Privileges: c.Privileges,
+		Name:     c.Username, // username maps to name in the API
+		Password: c.Password,
+		Roles:    roles,
 	}
 	var result interface{}
 

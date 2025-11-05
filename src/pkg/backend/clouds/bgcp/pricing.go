@@ -432,6 +432,33 @@ type gcpInstancePricing struct {
 	SpotPerGPUHour       float64
 }
 
+// getGcpInstancePricing safely extracts *gcpInstancePricing from BackendSpecific, initializing it if needed.
+// This handles cases where BackendSpecific might be nil, a map (from JSON/YAML deserialization),
+// or already the correct type.
+func getGcpInstancePricing(t *backends.InstanceType) *gcpInstancePricing {
+	if t.BackendSpecific == nil {
+		t.BackendSpecific = &gcpInstancePricing{}
+		return t.BackendSpecific.(*gcpInstancePricing)
+	}
+	if p, ok := t.BackendSpecific.(*gcpInstancePricing); ok {
+		return p
+	}
+	// If it's a map (from JSON/YAML deserialization), try to convert it
+	if m, ok := t.BackendSpecific.(map[string]interface{}); ok {
+		jsonBytes, err := json.Marshal(m)
+		if err == nil {
+			var p gcpInstancePricing
+			if err := json.Unmarshal(jsonBytes, &p); err == nil {
+				t.BackendSpecific = &p
+				return &p
+			}
+		}
+	}
+	// If conversion failed or it's something else, create a new gcpInstancePricing
+	t.BackendSpecific = &gcpInstancePricing{}
+	return t.BackendSpecific.(*gcpInstancePricing)
+}
+
 // map[instanceTypePrefix]gcpInstancePricing
 func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceTypeList, error) {
 	log := s.log.WithPrefix("getInstancePrices: job=" + shortuuid.New() + " ")
@@ -529,10 +556,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 								for _, t := range out {
 									if strings.HasPrefix(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
-										if t.BackendSpecific == nil {
-											t.BackendSpecific = &gcpInstancePricing{}
-										}
-										pricing := t.BackendSpecific.(*gcpInstancePricing)
+										pricing := getGcpInstancePricing(t)
 										pricing.OnDemandPerGPUHour = pricePerUnitHour
 									}
 								}
@@ -541,10 +565,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 								for _, t := range out {
 									if strings.HasPrefix(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
-										if t.BackendSpecific == nil {
-											t.BackendSpecific = &gcpInstancePricing{}
-										}
-										pricing := t.BackendSpecific.(*gcpInstancePricing)
+										pricing := getGcpInstancePricing(t)
 										pricing.SpotPerGPUHour = pricePerUnitHour
 									}
 								}
@@ -571,10 +592,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 								for _, t := range out {
 									if strings.HasPrefix(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
-										if t.BackendSpecific == nil {
-											t.BackendSpecific = &gcpInstancePricing{}
-										}
-										pricing := t.BackendSpecific.(*gcpInstancePricing)
+										pricing := getGcpInstancePricing(t)
 										pricing.OnDemandPerCPUHour = pricePerUnitHour
 									}
 								}
@@ -583,10 +601,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 								for _, t := range out {
 									if strings.HasPrefix(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
-										if t.BackendSpecific == nil {
-											t.BackendSpecific = &gcpInstancePricing{}
-										}
-										pricing := t.BackendSpecific.(*gcpInstancePricing)
+										pricing := getGcpInstancePricing(t)
 										pricing.SpotPerCPUHour = pricePerUnitHour
 									}
 								}
@@ -613,10 +628,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 								for _, t := range out {
 									if strings.HasPrefix(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
-										if t.BackendSpecific == nil {
-											t.BackendSpecific = &gcpInstancePricing{}
-										}
-										pricing := t.BackendSpecific.(*gcpInstancePricing)
+										pricing := getGcpInstancePricing(t)
 										pricing.OnDemandPerGPUHour = pricePerUnitHour
 									}
 								}
@@ -625,10 +637,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 								for _, t := range out {
 									if strings.HasPrefix(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
-										if t.BackendSpecific == nil {
-											t.BackendSpecific = &gcpInstancePricing{}
-										}
-										pricing := t.BackendSpecific.(*gcpInstancePricing)
+										pricing := getGcpInstancePricing(t)
 										pricing.SpotPerGPUHour = pricePerUnitHour
 									}
 								}
@@ -666,7 +675,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
 									}
-									pricing := t.BackendSpecific.(*gcpInstancePricing)
+									pricing := getGcpInstancePricing(t)
 									pricing.OnDemandPerCPUHour = pricePerCoreHour
 									pricing.OnDemandPerRamGBHour = pricePerRamGBHour
 								}
@@ -680,7 +689,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
 									}
-									pricing := t.BackendSpecific.(*gcpInstancePricing)
+									pricing := getGcpInstancePricing(t)
 									pricing.SpotPerCPUHour = pricePerCoreHour
 									pricing.SpotPerRamGBHour = pricePerRamGBHour
 								}
@@ -714,7 +723,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
 									}
-									pricing := t.BackendSpecific.(*gcpInstancePricing)
+									pricing := getGcpInstancePricing(t)
 									pricing.OnDemandPerCPUHour = pricePerCoreHour
 									pricing.OnDemandPerRamGBHour = pricePerRamGBHour
 								}
@@ -728,7 +737,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
 									}
-									pricing := t.BackendSpecific.(*gcpInstancePricing)
+									pricing := getGcpInstancePricing(t)
 									pricing.SpotPerCPUHour = pricePerCoreHour
 									pricing.SpotPerRamGBHour = pricePerRamGBHour
 								}
@@ -772,7 +781,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
 									}
-									pricing := t.BackendSpecific.(*gcpInstancePricing)
+									pricing := getGcpInstancePricing(t)
 									pricing.OnDemandPerCPUHour = pricePerCoreHour
 								}
 							}
@@ -784,7 +793,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
 									}
-									pricing := t.BackendSpecific.(*gcpInstancePricing)
+									pricing := getGcpInstancePricing(t)
 									pricing.SpotPerCPUHour = pricePerCoreHour
 								}
 							}
@@ -814,7 +823,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
 									}
-									pricing := t.BackendSpecific.(*gcpInstancePricing)
+									pricing := getGcpInstancePricing(t)
 									pricing.OnDemandPerRamGBHour = pricePerRamGBHour
 								}
 							}
@@ -826,7 +835,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
 									}
-									pricing := t.BackendSpecific.(*gcpInstancePricing)
+									pricing := getGcpInstancePricing(t)
 									pricing.SpotPerRamGBHour = pricePerRamGBHour
 								}
 							}
@@ -849,7 +858,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 		if t.BackendSpecific == nil {
 			continue
 		}
-		pricing := t.BackendSpecific.(*gcpInstancePricing)
+		pricing := getGcpInstancePricing(t)
 		t.PricePerHour.OnDemand = pricing.OnDemandPerCPUHour*float64(t.CPUs) + pricing.OnDemandPerRamGBHour*t.MemoryGiB + pricing.OnDemandPerGPUHour*float64(t.GPUs)
 		t.PricePerHour.Spot = pricing.SpotPerCPUHour*float64(t.CPUs) + pricing.SpotPerRamGBHour*t.MemoryGiB + pricing.SpotPerGPUHour*float64(t.GPUs)
 	}
