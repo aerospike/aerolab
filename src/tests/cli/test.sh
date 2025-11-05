@@ -539,7 +539,7 @@ function testcloud {
     $AL cloud databases credentials list --database-id $DID
 
     # test create client (currently create a single-node server in aws)
-    $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h
+    $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h -s n
 
     # test connect to database
     HOST=$($AL cloud databases list |jq -r '.databases[] |select(.name == "aerolabtest") |.connectionDetails.host')
