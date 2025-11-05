@@ -28,6 +28,8 @@ type CloudDatabasesCmd struct {
 	Delete      CloudDatabasesDeleteCmd      `command:"delete" subcommands-optional:"true" description:"Delete an aerospike database and VPC peering" webicon:"fas fa-trash"`
 	Update      CloudDatabasesUpdateCmd      `command:"update" subcommands-optional:"true" description:"Update an aerospike database" webicon:"fas fa-pencil"`
 	PeerVPC     CloudDatabasesPeerVPCCmd     `command:"peer-vpc" subcommands-optional:"true" description:"Initiate and accept VPC peering for a database" webicon:"fas fa-network-wired"`
+	Get         CloudDatabasesGetCmd         `command:"get" subcommands-optional:"true" description:"Get database connection details" webicon:"fas fa-info"`
+	Wait        CloudDatabasesWaitCmd        `command:"wait" subcommands-optional:"true" description:"Wait for database health.status" webicon:"fas fa-hourglass"`
 	Credentials CloudDatabasesCredentialsCmd `command:"credentials" subcommands-optional:"true" description:"Database credentials operations" webicon:"fas fa-key"`
 	Help        HelpCmd                      `command:"help" subcommands-optional:"true" description:"Print help"`
 }

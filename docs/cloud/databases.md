@@ -150,11 +150,19 @@ DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb
 
 **Get connection host:**
 ```bash
+# Using get command (recommended)
+HOST=$(aerolab cloud databases get host -n mydb)
+
+# Or using list and jq
 HOST=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.host')
 ```
 
 **Get TLS certificate:**
 ```bash
+# Using get command (recommended)
+CERT=$(aerolab cloud databases get tls-cert -n mydb)
+
+# Or using list and jq
 CERT=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.tlsCertificate')
 ```
 
@@ -266,6 +274,189 @@ aerolab cloud databases peer-vpc \
 
 **Note**: VPC peering is typically done automatically during database creation. Use this command if you need to peer additional VPCs.
 
+## Cloud Databases Wait
+
+Wait for a database to reach a specific health.status.
+
+### Basic Usage
+
+```bash
+aerolab cloud databases wait -i <database-id> --status running
+```
+
+### Options
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `-i, --database-id` | Database ID | Yes |
+| `-s, --status` | Wait for health.status to match any of these values (can be specified multiple times) | No (if --status-ne provided) |
+| `--status-ne` | Wait for health.status to NOT match any of these values (can be specified multiple times) | No (if --status provided) |
+| `--wait-timeout` | Timeout in seconds (0 = no timeout) | No (default: 600) |
+
+### Examples
+
+**Wait for database to be running:**
+```bash
+aerolab cloud databases wait -i <database-id> --status running
+```
+
+**Wait for database to be running or updating:**
+```bash
+aerolab cloud databases wait -i <database-id> --status running --status updating
+```
+
+**Wait for database to NOT be provisioning:**
+```bash
+aerolab cloud databases wait -i <database-id> --status-ne provisioning
+```
+
+**Wait for database to NOT be provisioning or creating:**
+```bash
+aerolab cloud databases wait -i <database-id> --status-ne provisioning --status-ne creating
+```
+
+**Wait with custom timeout:**
+```bash
+aerolab cloud databases wait -i <database-id> --status running --wait-timeout 300
+```
+
+**Wait indefinitely (no timeout):**
+```bash
+aerolab cloud databases wait -i <database-id> --status running --wait-timeout 0
+```
+
+### How It Works
+
+- Checks the database health.status every 10 seconds
+- If `--status` is specified: waits until health.status matches ANY of the specified values
+- If `--status-ne` is specified: waits until health.status does NOT match ANY of the specified values (i.e., doesn't match any excluded status)
+- If both are specified: both conditions must be met (status matches one of `--status` values AND does not match any of `--status-ne` values)
+- Returns success when the condition(s) are met, or timeout if the timeout is reached
+- At least one of `--status` or `--status-ne` must be provided
+
+### Common Workflows
+
+**Wait for database to be ready after creation:**
+```bash
+# Create database
+aerolab cloud databases create -n mydb ...
+
+# Get database ID
+DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+
+# Wait for database to be running
+aerolab cloud databases wait -i $DID --status running
+```
+
+**Wait for database to finish updating:**
+```bash
+# Update database
+aerolab cloud databases update --database-id $DID --cluster-size 4
+
+# Wait for database to NOT be updating
+aerolab cloud databases wait -i $DID --status-ne updating
+```
+
+**Wait for database with both conditions:**
+```bash
+# Wait for database to be running AND not be updating
+aerolab cloud databases wait -i $DID --status running --status-ne updating
+```
+
+**Wait for database to be ready (not provisioning or creating):**
+```bash
+# Wait for database to NOT be in provisioning or creating state
+aerolab cloud databases wait -i $DID --status-ne provisioning --status-ne creating
+```
+
+## Cloud Databases Get
+
+Get database connection details.
+
+### Get Host
+
+Get the database hostname.
+
+#### Basic Usage
+
+```bash
+aerolab cloud databases get host -n mydb
+```
+
+Or by database ID:
+
+```bash
+aerolab cloud databases get host -i <database-id>
+```
+
+#### Options
+
+| Option | Description | Required |
+|--------|-------------|----------|
+| `-n, --name` | Database name | No (if ID provided) |
+| `-i, --database-id` | Database ID | No (if name provided) |
+
+#### Examples
+
+**Get host by name:**
+```bash
+aerolab cloud databases get host -n mydb
+```
+
+**Get host by ID:**
+```bash
+aerolab cloud databases get host -i <database-id>
+```
+
+**Use in scripts:**
+```bash
+HOST=$(aerolab cloud databases get host -n mydb)
+echo "Connecting to $HOST"
+```
+
+### Get TLS Certificate
+
+Get the database TLS certificate.
+
+#### Basic Usage
+
+```bash
+aerolab cloud databases get tls-cert -n mydb
+```
+
+Or by database ID:
+
+```bash
+aerolab cloud databases get tls-cert -i <database-id>
+```
+
+#### Options
+
+Same as `get host`.
+
+#### Examples
+
+**Get TLS certificate by name:**
+```bash
+aerolab cloud databases get tls-cert -n mydb
+```
+
+**Get TLS certificate by ID:**
+```bash
+aerolab cloud databases get tls-cert -i <database-id>
+```
+
+**Save certificate to file:**
+```bash
+aerolab cloud databases get tls-cert -n mydb > ca.pem
+```
+
+**Use in scripts:**
+```bash
+CERT=$(aerolab cloud databases get tls-cert -n mydb)
+echo "$CERT" > ca.pem
+```
+
 ## Cloud Databases Credentials
 
 Manage database credentials. See [Credentials Management](credentials.md) for detailed documentation.
@@ -320,8 +511,8 @@ aerolab cloud databases credentials create \
   --wait
 
 # 4. Get connection details
-HOST=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.host')
-CERT=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.tlsCertificate')
+HOST=$(aerolab cloud databases get host -n mydb)
+CERT=$(aerolab cloud databases get tls-cert -n mydb)
 
 # 5. Save and upload certificate
 echo "$CERT" > ca.pem

@@ -60,18 +60,25 @@ aerolab cloud databases credentials create \
   --wait
 ```
 
-### 5. Connect to Database
+### 5. Get Connection Details
 
 ```bash
-# Get connection details
-aerolab cloud databases list | jq '.databases[] | select(.name == "mydb") | .connectionDetails'
+# Get host and TLS certificate
+HOST=$(aerolab cloud databases get host -n mydb)
+CERT=$(aerolab cloud databases get tls-cert -n mydb)
+
+# Save certificate
+echo "$CERT" > ca.pem
+
+# Upload certificate
+aerolab files upload ca.pem /opt/ca.pem
 
 # Connect using aql
 aerolab attach aql -- \
   --tls-enable \
-  --tls-name <hostname> \
+  --tls-name $HOST \
   --tls-cafile /opt/ca.pem \
-  -h <hostname>:4000 \
+  -h $HOST:4000 \
   -U myuser \
   -P mypassword \
   -c "show namespaces"
@@ -110,8 +117,8 @@ aerolab cloud databases credentials create \
   --wait
 
 # 4. Get connection details
-HOST=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.host')
-CERT=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.tlsCertificate')
+HOST=$(aerolab cloud databases get host -n mydb)
+CERT=$(aerolab cloud databases get tls-cert -n mydb)
 
 # 5. Save certificate
 echo "$CERT" > ca.pem
