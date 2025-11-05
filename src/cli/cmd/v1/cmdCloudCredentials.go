@@ -14,13 +14,13 @@ type CloudDatabasesCredentialsListCmd struct {
 }
 
 func (c *CloudDatabasesCredentialsListCmd) Execute(args []string) error {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
 
 	var result interface{}
-	path := fmt.Sprintf("/databases/%s/credentials", c.DatabaseID)
+	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.DatabaseID)
 
 	err = client.Get(path, &result)
 	if err != nil {
@@ -47,7 +47,7 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 	}
 	logger := system.Logger
 
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -66,7 +66,7 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 	}
 	var result interface{}
 
-	path := fmt.Sprintf("/databases/%s/credentials", c.DatabaseID)
+	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.DatabaseID)
 	err = client.Post(path, request, &result)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -116,7 +116,7 @@ func (c *CloudDatabasesCredentialsCreateCmd) waitForCredentialsActive(client *cl
 		}
 
 		var result interface{}
-		path := fmt.Sprintf("/databases/%s/credentials", databaseID)
+		path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, databaseID)
 		err := client.Get(path, &result)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get credentials list: %w", err)
@@ -173,12 +173,12 @@ type CloudDatabasesCredentialsDeleteCmd struct {
 }
 
 func (c *CloudDatabasesCredentialsDeleteCmd) Execute(args []string) error {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
 
-	path := fmt.Sprintf("/databases/%s/credentials/%s", c.DatabaseID, c.CredentialsID)
+	path := fmt.Sprintf("%s/%s/credentials/%s", cloudDbPath, c.DatabaseID, c.CredentialsID)
 	err = client.Delete(path)
 	if err != nil {
 		return err

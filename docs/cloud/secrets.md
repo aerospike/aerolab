@@ -42,7 +42,7 @@ SECRET_ID=$(aerolab cloud secrets list | jq -r '.secrets[] | select(.description
 
 ### Output
 
-The command outputs JSON with secret information including:
+The command outputs JSON (no need to specify `-o json` as it's the only output format). The output includes secret information:
 - Secret ID
 - Name
 - Description

@@ -31,13 +31,13 @@ func (c *CloudDatabasesGetHostCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
 
 	var result interface{}
-	err = client.Get("/databases", &result)
+	err = client.Get(cloudDbPath, &result)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -65,13 +65,13 @@ func (c *CloudDatabasesGetTlsCertCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
 
 	var result interface{}
-	err = client.Get("/databases", &result)
+	err = client.Get(cloudDbPath, &result)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}

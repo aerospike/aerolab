@@ -27,7 +27,7 @@ func (c *CloudDatabasesDeleteCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -59,7 +59,7 @@ func (c *CloudDatabasesDeleteCmd) Execute(args []string) error {
 		}
 	}
 
-	path := fmt.Sprintf("/databases/%s", c.DatabaseID)
+	path := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
 	err = client.Delete(path)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -82,7 +82,7 @@ func (c *CloudDatabasesDeleteCmd) deleteRouteIfExists(system *System, client *cl
 	// Get database information to extract CIDR block and region
 	logger.Info("Getting database information to extract route details...")
 	var dbResult interface{}
-	dbPath := fmt.Sprintf("/databases/%s", c.DatabaseID)
+	dbPath := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
 	err := client.Get(dbPath, &dbResult)
 	if err != nil {
 		return fmt.Errorf("failed to get database information: %w", err)
@@ -117,7 +117,7 @@ func (c *CloudDatabasesDeleteCmd) deleteRouteIfExists(system *System, client *cl
 	// Get VPC peerings to find peering connection ID and VPC ID
 	logger.Info("Getting VPC peerings to find peering connection details...")
 	var peeringsResult interface{}
-	peeringsPath := fmt.Sprintf("/databases/%s/vpc-peerings", c.DatabaseID)
+	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.DatabaseID)
 	err = client.Get(peeringsPath, &peeringsResult)
 	if err != nil {
 		logger.Debug("Failed to get VPC peerings list: %s, skipping route deletion", err.Error())
@@ -203,7 +203,7 @@ func (c *CloudDatabasesDeleteCmd) waitForDatabaseDecommissioned(client *cloud.Cl
 
 		var result interface{}
 		// Call list endpoint without status_ne filter to include decommissioned databases
-		path := "/databases"
+		path := cloudDbPath
 		err := client.Get(path, &result)
 		if err != nil {
 			return fmt.Errorf("failed to get database list: %w", err)

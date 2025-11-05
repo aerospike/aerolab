@@ -3,7 +3,6 @@
 ## Next - MVP
 
 CODE:
-* make `cloud databases list` and `cloud databases credentials list` and `cloud secrets list` also return friendly tables instead of json
 * review all comands to ensure only the ones that need to are invalidating the inventory caches
 * xdr - manage xdr configuration on running instances
 * tls - manage tls certificates on running instances
