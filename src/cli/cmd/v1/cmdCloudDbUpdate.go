@@ -60,7 +60,7 @@ func (c *CloudDatabasesUpdateCmd) UpdateCloudDb(system *System, inventory *backe
 	logger.Info("Updating cloud database: %s", c.DatabaseID)
 
 	// create cloud client
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (c *CloudDatabasesUpdateCmd) UpdateCloudDb(system *System, inventory *backe
 	} else {
 		logger.Debug("Update request:\n%s", string(requestJson))
 	}
-	path := fmt.Sprintf("/databases/%s", c.DatabaseID)
+	path := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
 	err = client.Patch(path, request, &result)
 	if err != nil {
 		return err
@@ -180,7 +180,7 @@ func (c *CloudDatabasesUpdateCmd) waitForDatabaseUpdateComplete(client *cloud.Cl
 		}
 
 		var result interface{}
-		path := "/databases"
+		path := cloudDbPath
 		err := client.Get(path, &result)
 		if err != nil {
 			if lastDatabaseResult != nil {

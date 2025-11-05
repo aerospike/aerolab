@@ -31,6 +31,11 @@ Aerospike Cloud commands allow you to:
 aerolab cloud list-instance-types
 ```
 
+**Note**: The command supports multiple output formats (table, json, json-indent, jq, etc.). When using `jq` for parsing, use `-o json`:
+```bash
+aerolab cloud list-instance-types -o json | jq '.'
+```
+
 ### 2. Create a Database
 
 ```bash
@@ -106,7 +111,7 @@ aerolab cloud databases create -n mydb \
   --vpc-id vpc-xxxxxxxxx
 
 # 2. Get database ID
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 
 # 3. Create credentials
 aerolab cloud databases credentials create \

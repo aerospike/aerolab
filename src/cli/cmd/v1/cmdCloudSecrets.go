@@ -11,7 +11,7 @@ type CloudSecretsListCmd struct {
 }
 
 func (c *CloudSecretsListCmd) Execute(args []string) error {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ type CloudSecretsCreateCmd struct {
 }
 
 func (c *CloudSecretsCreateCmd) Execute(args []string) error {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ type CloudSecretsDeleteCmd struct {
 }
 
 func (c *CloudSecretsDeleteCmd) Execute(args []string) error {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}

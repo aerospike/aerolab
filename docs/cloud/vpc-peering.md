@@ -52,7 +52,7 @@ aerolab cloud databases peer-vpc \
 ### Find Database ID
 
 ```bash
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 ```
 
 ### Peer VPC
@@ -83,8 +83,8 @@ Once VPC peering is established, you can connect to the database from resources 
 
 ```bash
 # Get connection details
-HOST=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.host')
-CERT=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.tlsCertificate')
+HOST=$(aerolab cloud databases get host -n mydb)
+CERT=$(aerolab cloud databases get tls-cert -n mydb)
 
 # Save certificate
 echo "$CERT" > ca.pem
@@ -135,7 +135,7 @@ If peering is not working:
 
 3. Verify peering status:
    ```bash
-   aerolab cloud databases list | jq '.databases[] | select(.name == "mydb") | .vpc'
+   aerolab cloud databases list -o json | jq '.databases[] | select(.name == "mydb") | .vpc'
    ```
 
 ## Tips

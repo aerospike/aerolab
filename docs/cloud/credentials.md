@@ -45,7 +45,7 @@ CRED_ID=$(aerolab cloud databases credentials list --database-id <database-id> |
 
 ### Output
 
-The command outputs JSON with credential information including:
+The command outputs JSON (no need to specify `-o json` as it's the only output format). The output includes credential information:
 - Credential ID
 - Username
 - Privileges (read-write, read-only, etc.)
@@ -160,7 +160,7 @@ aerolab cloud databases credentials delete \
 
 ```bash
 # 1. Get database ID
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 
 # 2. Create credentials
 aerolab cloud databases credentials create \
@@ -193,7 +193,7 @@ aerolab attach aql -- \
 
 ```bash
 # Get database ID
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 
 # Create read-write user
 aerolab cloud databases credentials create \
@@ -219,7 +219,7 @@ aerolab cloud databases credentials list --database-id $DID
 
 ```bash
 # Get database ID
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 
 # Get credential ID
 CRED_ID=$(aerolab cloud databases credentials list --database-id $DID | \

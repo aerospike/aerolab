@@ -108,7 +108,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 	logger.Info("Creating cloud database: %s", c.Name)
 
 	// create cloud DB
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
@@ -172,7 +172,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 	}
 	var result interface{}
 
-	err = client.Post("/databases", request, &result)
+	err = client.Post(cloudDbPath, request, &result)
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		// Get the database to extract CIDR block
 		logger.Info("Getting database information to extract CIDR block...")
 		var dbResult interface{}
-		dbPath := fmt.Sprintf("/databases/%s", dbId)
+		dbPath := fmt.Sprintf("%s/%s", cloudDbPath, dbId)
 		err = client.Get(dbPath, &dbResult)
 		if err != nil {
 			return fmt.Errorf("failed to get database information: %w", err)
@@ -247,7 +247,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		// Get VPC peerings list to extract hosted zone ID
 		logger.Info("Getting VPC peerings list to extract hosted zone ID...")
 		var peeringsResult interface{}
-		peeringsPath := fmt.Sprintf("/databases/%s/vpc-peerings", dbId)
+		peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, dbId)
 		err = client.Get(peeringsPath, &peeringsResult)
 		if err != nil {
 			return fmt.Errorf("failed to get VPC peerings list: %w", err)
@@ -312,7 +312,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 }
 
 func (c *CloudDatabasesCreateCmd) initiateVPCPeering(system *System, inventory *backends.Inventory, dbId string, cidr string, accountId string, region string, logger *logger.Logger) (string, error) {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return "", err
 	}
@@ -326,7 +326,7 @@ func (c *CloudDatabasesCreateCmd) initiateVPCPeering(system *System, inventory *
 	}
 	var result interface{}
 
-	path := fmt.Sprintf("/databases/%s/vpc-peerings", dbId)
+	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, dbId)
 	err = client.Post(path, request, &result)
 	if err != nil {
 		return "", err
@@ -355,7 +355,7 @@ func (c *CloudDatabasesCreateCmd) waitForDatabaseProvisioning(client *cloud.Clie
 		}
 
 		var result interface{}
-		path := fmt.Sprintf("/databases/%s", dbId)
+		path := fmt.Sprintf("%s/%s", cloudDbPath, dbId)
 		err := client.Get(path, &result)
 		if err != nil {
 			return fmt.Errorf("failed to get database status: %w", err)
@@ -401,7 +401,7 @@ func (c *CloudDatabasesCreateCmd) waitForVPCPeeringInitiated(client *cloud.Clien
 		}
 
 		var result interface{}
-		path := fmt.Sprintf("/databases/%s/vpc-peerings", dbId)
+		path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, dbId)
 		err := client.Get(path, &result)
 		if err != nil {
 			return "", fmt.Errorf("failed to get VPC peerings list: %w", err)

@@ -119,9 +119,19 @@ List all Aerospike Cloud databases.
 aerolab cloud databases list
 ```
 
+### Output Formats
+
+The command supports multiple output formats:
+- **table** (default) - Formatted table view
+- **json** - JSON output (use with `jq` for parsing)
+- **json-indent** - Indented JSON output
+- **jq** - Pass output through `jq` for filtering
+- **text** - Plain text format
+- **csv, tsv, html, markdown** - Additional formats
+
 ### Output
 
-The command outputs JSON with database information including:
+When using JSON output (with `-o json` or `-o json-indent`), the command outputs JSON with database information including:
 - Database ID
 - Database name
 - Instance type
@@ -140,30 +150,22 @@ aerolab cloud databases list
 
 **List and filter by name:**
 ```bash
-aerolab cloud databases list | jq '.databases[] | select(.name == "mydb")'
+aerolab cloud databases list -o json | jq '.databases[] | select(.name == "mydb")'
 ```
 
 **Get database ID:**
 ```bash
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 ```
 
 **Get connection host:**
 ```bash
-# Using get command (recommended)
 HOST=$(aerolab cloud databases get host -n mydb)
-
-# Or using list and jq
-HOST=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.host')
 ```
 
 **Get TLS certificate:**
 ```bash
-# Using get command (recommended)
 CERT=$(aerolab cloud databases get tls-cert -n mydb)
-
-# Or using list and jq
-CERT=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .connectionDetails.tlsCertificate')
 ```
 
 ## Cloud Databases Update
@@ -240,7 +242,7 @@ aerolab cloud databases delete \
 
 **Delete database by name:**
 ```bash
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 aerolab cloud databases delete --database-id $DID --force --wait
 ```
 
@@ -342,7 +344,7 @@ aerolab cloud databases wait -i <database-id> --status running --wait-timeout 0
 aerolab cloud databases create -n mydb ...
 
 # Get database ID
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 
 # Wait for database to be running
 aerolab cloud databases wait -i $DID --status running
@@ -500,7 +502,7 @@ aerolab cloud databases create -n mydb \
   --vpc-id default
 
 # 2. Get database ID
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 
 # 3. Create credentials
 aerolab cloud databases credentials create \
@@ -533,7 +535,7 @@ aerolab attach aql -- \
 
 ```bash
 # 1. Get database ID
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 
 # 2. Update cluster size
 aerolab cloud databases update \
@@ -542,14 +544,14 @@ aerolab cloud databases update \
   -i m5d.xlarge
 
 # 3. Wait for update to complete (check status)
-aerolab cloud databases list | jq '.databases[] | select(.name == "mydb")'
+aerolab cloud databases list -o json | jq '.databases[] | select(.name == "mydb")'
 ```
 
 ### Delete Database
 
 ```bash
 # 1. Get database ID
-DID=$(aerolab cloud databases list | jq -r '.databases[] | select(.name == "mydb") | .id')
+DID=$(aerolab cloud databases list -o json | jq -r '.databases[] | select(.name == "mydb") | .id')
 
 # 2. Delete database
 aerolab cloud databases delete \

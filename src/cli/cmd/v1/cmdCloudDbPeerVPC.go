@@ -198,13 +198,13 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 }
 
 func (c *CloudDatabasesPeerVPCCmd) getExistingPeerings(databaseID string) ([]map[string]interface{}, error) {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return nil, err
 	}
 
 	var result interface{}
-	path := fmt.Sprintf("/databases/%s/vpc-peerings", databaseID)
+	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, databaseID)
 	err = client.Get(path, &result)
 	if err != nil {
 		return nil, err
@@ -233,7 +233,7 @@ func (c *CloudDatabasesPeerVPCCmd) getExistingPeerings(databaseID string) ([]map
 }
 
 func (c *CloudDatabasesPeerVPCCmd) initiateVPCPeering(databaseID string, cidr string, accountId string) (string, error) {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return "", err
 	}
@@ -247,7 +247,7 @@ func (c *CloudDatabasesPeerVPCCmd) initiateVPCPeering(databaseID string, cidr st
 	}
 	var result interface{}
 
-	path := fmt.Sprintf("/databases/%s/vpc-peerings", databaseID)
+	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, databaseID)
 	err = client.Post(path, request, &result)
 	if err != nil {
 		return "", err
@@ -332,7 +332,7 @@ func (c *CloudDatabasesPeerVPCCmd) associateHostedZoneOnly(system *System, logge
 
 // createRoute creates a route in the VPC route table
 func (c *CloudDatabasesPeerVPCCmd) createRoute(system *System, logger *logger.Logger, peeringConnectionID string) error {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
@@ -340,7 +340,7 @@ func (c *CloudDatabasesPeerVPCCmd) createRoute(system *System, logger *logger.Lo
 	// Get the database to extract CIDR block
 	logger.Info("Getting database information to extract CIDR block...")
 	var dbResult interface{}
-	dbPath := fmt.Sprintf("/databases/%s", c.DatabaseID)
+	dbPath := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
 	err = client.Get(dbPath, &dbResult)
 	if err != nil {
 		return fmt.Errorf("failed to get database information: %w", err)
@@ -378,7 +378,7 @@ func (c *CloudDatabasesPeerVPCCmd) createRoute(system *System, logger *logger.Lo
 
 // associateHostedZone associates the VPC with the hosted zone
 func (c *CloudDatabasesPeerVPCCmd) associateHostedZone(system *System, logger *logger.Logger) error {
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
@@ -386,7 +386,7 @@ func (c *CloudDatabasesPeerVPCCmd) associateHostedZone(system *System, logger *l
 	// Get VPC peerings list to extract hosted zone ID
 	logger.Info("Getting VPC peerings list to extract hosted zone ID...")
 	var peeringsResult interface{}
-	peeringsPath := fmt.Sprintf("/databases/%s/vpc-peerings", c.DatabaseID)
+	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.DatabaseID)
 	err = client.Get(peeringsPath, &peeringsResult)
 	if err != nil {
 		return fmt.Errorf("failed to get VPC peerings list: %w", err)

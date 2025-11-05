@@ -509,7 +509,7 @@ function testcloud {
     $AL cloud secrets list |jq -r '.secrets[] | select(.description=="aerolab") | .id' |while read line; do
         $AL cloud secrets delete --secret-id $line
     done
-    $AL cloud databases list |jq -r '.databases[] | select(.name == "aerolabtest") | .id' |while read line; do
+    $AL cloud databases list -o json |jq -r '.databases[] | select(.name == "aerolabtest") | .id' |while read line; do
         $AL cloud databases delete --database-id $line
     done
 
@@ -523,7 +523,7 @@ function testcloud {
 
     # test create database
     $AL cloud databases create -n aerolabtest -i m5d.large -r us-east-1 --availability-zone-count=2 --cluster-size=2 --data-storage memory --vpc-id vpc-090bcfc952f522c85
-    DID=$($AL cloud databases list |jq -r '.databases[] | select(.name == "aerolabtest") | .id')
+    DID=$($AL cloud databases list -o json |jq -r '.databases[] | select(.name == "aerolabtest") | .id')
     if [ -z "$DID" ]; then
         echo "🔧 Database creation failed"
         exit 1
@@ -542,12 +542,12 @@ function testcloud {
     $AL cluster create -n mydc -c 1 -d ubuntu -i 24.04 -v '8.*' -I t3a.xlarge --aws-expire=8h --instance e2-standard-4 --gcp-expire=8h -s n
 
     # test connect to database
-    HOST=$($AL cloud databases list |jq -r '.databases[] |select(.name == "aerolabtest") |.connectionDetails.host')
+    HOST=$($AL cloud databases list -o json |jq -r '.databases[] |select(.name == "aerolabtest") |.connectionDetails.host')
     if [ -z "$HOST" ]; then
         echo "🔧 Database connection details not found"
         exit 1
     fi
-    $AL cloud databases list |jq -r '.databases[] |select(.name == "aerolabtest") |.connectionDetails.tlsCertificate' > bob/ca.pem
+    $AL cloud databases list -o json |jq -r '.databases[] |select(.name == "aerolabtest") |.connectionDetails.tlsCertificate' > bob/ca.pem
     $AL files upload bob/ca.pem /opt/ca.pem
     $AL attach shell -- aql --tls-enable --tls-name $HOST --tls-cafile /opt/ca.pem -h $HOST:4000 -U aerolab1 -P aerolab1 -c "show namespaces"
 

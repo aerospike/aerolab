@@ -28,7 +28,7 @@ func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
 		return Error(fmt.Errorf("at least one --status or --status-ne must be provided"), system, cmd, c, args)
 	}
 
-	client, err := cloud.NewClient()
+	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -53,7 +53,7 @@ func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
 
 		// Get database by ID
 		var result interface{}
-		path := fmt.Sprintf("/databases/%s", c.DatabaseID)
+		path := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
 		err := client.Get(path, &result)
 		if err != nil {
 			system.Logger.Debug("Failed to get database: %s, waiting %v...", err, interval)

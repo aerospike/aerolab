@@ -28,7 +28,7 @@ type TokenResponse struct {
 	ExpiresIn   int    `json:"expires_in"`
 }
 
-func NewClient() (*Client, error) {
+func NewClient(version string) (*Client, error) {
 	apiKey := os.Getenv("AEROSPIKE_CLOUD_KEY")
 	apiSecret := os.Getenv("AEROSPIKE_CLOUD_SECRET")
 
@@ -38,7 +38,7 @@ func NewClient() (*Client, error) {
 
 	client := &Client{
 		httpClient: resty.New(),
-		baseURL:    "https://api.aerospike.cloud/v2",
+		baseURL:    "https://api.aerospike.cloud/" + version,
 		apiKey:     apiKey,
 		apiSecret:  apiSecret,
 	}
