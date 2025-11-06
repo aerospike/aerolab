@@ -1,24 +1,7 @@
 package cmd
 
-import (
-	"log"
-	"os"
-)
-
 var cloudVersion = "v2"
 var cloudDbPath = "/databases"
-
-func init() {
-	version := os.Getenv("AEROSPIKE_CLOUD_VERSION")
-	if version != "" {
-		cloudVersion = version
-	}
-	if cloudVersion == "v1" {
-		cloudDbPath = "/database/clusters"
-	} else if cloudVersion != "v2" {
-		log.Fatalf("invalid cloud version: %s", cloudVersion)
-	}
-}
 
 type CloudCmd struct {
 	ListInstanceTypes CloudListInstanceTypesCmd `command:"list-instance-types" subcommands-optional:"true" description:"List instance types" webicon:"fas fa-list"`
