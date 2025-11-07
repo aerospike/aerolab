@@ -14,7 +14,7 @@ import (
 
 type ConfGeneratorCmd struct {
 	Path         flags.Filename `short:"f" long:"filename" description:"file name to read/write/generate" default:"aerospike.conf"`
-	Pre7         bool           `short:"6" long:"pre-7" description:"set to to generator for pre-version-7 aerospike"`
+	ConfVersion  string         `short:"v" long:"conf-version" description:"version of the aerospike configuration file to generate; options: 6 (pre-7), 7 (7.x-8.0), 8.1 (8.1+)" default:"8.1"`
 	EnableColors bool           `short:"c" long:"colors" description:"set to operate in color mode"`
 	Help         HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -52,16 +52,20 @@ func (c *ConfGeneratorCmd) CreateConf(system *System, inventory *backends.Invent
 		var ignoreMe string
 		fmt.Scanln(&ignoreMe)
 	}
-	if c.Pre7 {
+	switch c.ConfVersion {
+	case "6":
 		e := &confeditor.Editor{
 			Path:   string(c.Path),
 			Colors: c.EnableColors,
 		}
 		return e.Run()
+	case "7", "8.1":
+		e := &confeditor7.Editor{
+			Path:   string(c.Path),
+			Colors: c.EnableColors,
+		}
+		return e.Run(c.ConfVersion)
+	default:
+		return fmt.Errorf("invalid conf version: %s, supported versions: 6 (pre-7), 7 (7.x-8.0), 8.1 (8.1+)", c.ConfVersion)
 	}
-	e := &confeditor7.Editor{
-		Path:   string(c.Path),
-		Colors: c.EnableColors,
-	}
-	return e.Run()
 }

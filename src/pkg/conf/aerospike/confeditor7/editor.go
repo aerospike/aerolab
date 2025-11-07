@@ -316,18 +316,19 @@ func fillMenuItems() {
 }
 
 type Editor struct {
-	Path       string
-	Colors     bool
-	loaded     bool
-	View       string
-	g          *gocui.Gui
-	ynQuestion string
-	action     int
-	showyn     bool
-	isUiInit   bool
-	uiLoc      int
-	confView   *gocui.View
-	uiView     *gocui.View
+	Path             string
+	Colors           bool
+	loaded           bool
+	View             string
+	g                *gocui.Gui
+	ynQuestion       string
+	action           int
+	showyn           bool
+	isUiInit         bool
+	uiLoc            int
+	confView         *gocui.View
+	uiView           *gocui.View
+	aerospikeVersion string
 }
 
 const (
@@ -336,7 +337,8 @@ const (
 	actionSaveQuit = 3
 )
 
-func (e *Editor) Run() error {
+func (e *Editor) Run(aerospikeVersion string) error {
+	e.aerospikeVersion = aerospikeVersion
 	g, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
 		return err
@@ -401,14 +403,14 @@ func (e *Editor) viewConfFile(g *gocui.Gui) error {
 		e.confView = v
 		v.Editable = true
 		v.Wrap = true
-		v.Editor = gocui.DefaultEditor
+		v.Editor = gocui.EditorFunc(e.confEditor)
 		if e.Colors {
 			v.BgColor = gocui.ColorGreen
 		}
 		v.Title = "<aerospike.conf>"
 		if !e.loaded {
 			if _, err := os.Stat(e.Path); err != nil {
-				fmt.Fprint(v, loadDefaultAerospikeConfig())
+				fmt.Fprint(v, loadDefaultAerospikeConfig(e.aerospikeVersion))
 			} else {
 				c, err := os.ReadFile(e.Path)
 				if err != nil {
@@ -562,7 +564,17 @@ func (e *Editor) saveFile() error {
 	return errors.New("GUI error - view not found")
 }
 
-func loadDefaultAerospikeConfig() string {
+func loadDefaultAerospikeConfig(version string) string {
+	switch version {
+	case "7":
+		return loadDefaultAerospikeConfigV7()
+	case "8.1":
+		return loadDefaultAerospikeConfigV81()
+	}
+	return ""
+}
+
+func loadDefaultAerospikeConfigV7() string {
 	return `service {
     proto-fd-max 15000
 }
@@ -588,6 +600,46 @@ network {
     }
     info {
         port 3003
+    }
+}
+namespace test {
+    default-ttl 0
+    replication-factor 1
+    storage-engine memory {
+        data-size 4G
+	}
+}
+`
+}
+
+func loadDefaultAerospikeConfigV81() string {
+	return `service {
+    proto-fd-max 15000
+}
+logging {
+    console {
+        context any info
+    }
+}
+network {
+    service {
+        address any
+        port 3000
+    }
+    heartbeat {
+        interval 150
+        mode multicast
+        multicast-group 239.1.99.222
+        port 9918
+        timeout 10
+    }
+    fabric {
+        port 3001
+    }
+    admin {
+        port 3003
+        address any
+        disable-localhost false
     }
 }
 namespace test {
@@ -892,16 +944,57 @@ func selectMenuItems(items []menuItem, aeroConfig aeroconf.Stanza) ([]menuItem, 
 	return items, retErr
 }
 
+func (e *Editor) confEditor(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
+	// Handle Page Up/Down for the conf view
+	switch {
+	case key == gocui.KeyPgdn:
+		_, maxY := v.Size()
+		bufLines := len(v.BufferLines())
+		// Move cursor down by visible page height, but stop at the last line
+		for i := 0; i < maxY-1; i++ {
+			_, cy := v.Cursor()
+			_, oy := v.Origin()
+			// The actual line in the buffer is cursor + origin
+			actualLine := cy + oy
+			if actualLine+2 >= bufLines {
+				break
+			}
+			v.MoveCursor(0, 1, true)
+		}
+		return
+	case key == gocui.KeyPgup:
+		_, maxY := v.Size()
+		// Move cursor up by visible page height
+		for i := 0; i < maxY-1; i++ {
+			v.MoveCursor(0, -1, true)
+		}
+		return
+	default:
+		// For all other keys, use the default editor
+		gocui.DefaultEditor.Edit(v, key, ch, mod)
+	}
+}
+
 func (e *Editor) ui(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
 
 	switch {
 	case key == gocui.KeyPgdn:
-		for e.uiLoc+2 < len(v.BufferLines()) {
+		_, maxY := v.Size()
+		// Move cursor down by visible page height, but stop at the last line
+		for i := 0; i < maxY-1; i++ {
+			if e.uiLoc+2 >= len(v.BufferLines()) {
+				break
+			}
 			e.uiLoc++
 			v.MoveCursor(0, 1, true)
 		}
 	case key == gocui.KeyPgup:
-		for e.uiLoc > 0 {
+		_, maxY := v.Size()
+		// Move cursor up by visible page height
+		for i := 0; i < maxY-1; i++ {
+			if e.uiLoc <= 0 {
+				break
+			}
 			e.uiLoc--
 			v.MoveCursor(0, -1, true)
 		}
