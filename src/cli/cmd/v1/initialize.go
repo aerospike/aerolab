@@ -328,10 +328,10 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 	}
 	aver, _, _, _ := GetAerolabVersion()
 	var gcpSecrets *clouds.LoginGCPSecrets
-	if i.Backend.GCPClientID != "" && i.Backend.GCPClientSecret != "" {
+	if i.Backend.GCPClientID != "" {
 		gcpSecrets = &clouds.LoginGCPSecrets{
 			ClientID:     i.Backend.GCPClientID,
-			ClientSecret: i.Backend.GCPClientSecret,
+			ClientSecret: i.Backend.GCPClientSecret, // Can be empty for PKCE flow
 		}
 	}
 	project := os.Getenv("AEROLAB_PROJECT")

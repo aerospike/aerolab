@@ -25,10 +25,10 @@ type ConfigBackendCmd struct {
 	AWSNoPublicIps bool   `long:"aws-nopublic-ip" description:"AWS: if set, aerolab will not request public IPs, and will operate on private IPs only"`
 
 	Project         string `short:"o" long:"project" description:"GCP: specify a GCP project to use" default:""`
-	GCPAuthMethod   string `short:"m" long:"gcp-auth-method" description:"GCP: specify the authentication method to use (any|login|service-account)" default:"any" webchoice:"any,login,service-account"`
-	GCPNoBrowser    bool   `short:"b" long:"gcp-no-browser" description:"GCP: if set, aerolab will not open a browser to authenticate with GCP when using login method"`
-	GCPClientID     string `short:"i" long:"gcp-client-id" description:"GCP: specify a GCP client ID to use"`
-	GCPClientSecret string `short:"s" long:"gcp-client-secret" description:"GCP: specify a GCP client secret to use"`
+	GCPAuthMethod   string `short:"m" long:"gcp-auth-method" description:"GCP: specify the authentication method to use (any|login|service-account)" default:"service-account" webchoice:"any,login,service-account" hidden:"true"`
+	GCPNoBrowser    bool   `short:"b" long:"gcp-no-browser" description:"GCP: if set, aerolab will not open a browser to authenticate with GCP when using login method" hidden:"true"`
+	GCPClientID     string `short:"i" long:"gcp-client-id" description:"GCP: specify a GCP client ID to use" hidden:"true"`
+	GCPClientSecret string `short:"s" long:"gcp-client-secret" description:"GCP: specify a GCP client secret to use" hidden:"true"`
 
 	Arch        string         `short:"a" long:"docker-arch" description:"DOCKER: set to either amd64 or arm64 to force a particular architecture on docker; requires multiarch support"`
 	TmpDir      flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory, when using aerolab in WSL2" default:"" webtype:"text"`

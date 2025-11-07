@@ -86,37 +86,35 @@ aerolab config backend -t aws -r us-east-1 --aws-nopublic-ip
 
 ### GCP Backend
 
+**Prerequisites:** Before configuring the GCP backend, authenticate using Application Default Credentials:
+
+```bash
+gcloud auth application-default login
+```
+
 ```bash
 aerolab config backend -t gcp -r us-central1 -o project-id
 ```
 
 **GCP Options:**
 - `-o, --project` - GCP project ID (required)
-- `-m, --gcp-auth-method` - Auth method: `any`, `login`, or `service-account`
-- `-b, --gcp-no-browser` - Don't open browser for authentication
-- `-i, --gcp-client-id` - Custom OAuth client ID
-- `-s, --gcp-client-secret` - Custom OAuth client secret
 
 **Examples:**
 ```bash
-# Basic GCP configuration (will open browser for auth)
+# Authenticate first (required)
+gcloud auth application-default login
+
+# Basic GCP configuration
 aerolab config backend -t gcp -r us-central1 -o my-project-id
 
 # With inventory cache
 aerolab config backend -t gcp -r us-central1 -o my-project-id --inventory-cache
 
-# Service account authentication
-export GOOGLE_APPLICATION_CREDENTIALS=/path/to/key.json
-aerolab config backend -t gcp -r us-central1 -o my-project-id \
-  --gcp-auth-method service-account
-
-# No browser
-aerolab config backend -t gcp -r us-central1 -o my-project-id \
-  --gcp-no-browser
-
 # Multiple regions
 aerolab config backend -t gcp -r us-central1,us-east1 -o my-project-id
 ```
+
+**Note:** Aerolab uses Application Default Credentials for authentication. Ensure you've run `gcloud auth application-default login` before configuring the backend. If you encounter authentication errors, see the [troubleshooting section](getting-started/gcp.md#authentication-issues) in the GCP getting started guide.
 
 ### Verify Configuration
 

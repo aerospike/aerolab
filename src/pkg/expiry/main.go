@@ -162,10 +162,10 @@ func (p *params) getCredentials(cloud backends.BackendType) *clouds.Credentials 
 			log.Fatalf("GCP project is required")
 		}
 		var secrets *clouds.LoginGCPSecrets
-		if p.GCPClientID != "" && p.GCPClientSecret != "" {
+		if p.GCPClientID != "" {
 			secrets = &clouds.LoginGCPSecrets{
 				ClientID:     p.GCPClientID,
-				ClientSecret: p.GCPClientSecret,
+				ClientSecret: p.GCPClientSecret, // Can be empty for PKCE flow
 			}
 		}
 		return &clouds.Credentials{

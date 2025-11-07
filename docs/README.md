@@ -25,7 +25,7 @@ Choose your backend and follow the appropriate getting started guide:
 
 - **[Docker Backend](getting-started/docker.md)** - Quick start with Docker, Docker Desktop, Podman, or Podman Desktop
 - **[AWS Backend](getting-started/aws.md)** - Set up with AWS credentials and EC2
-- **[GCP Backend](getting-started/gcp.md)** - Set up with Google Cloud Platform (browser-based authentication)
+- **[GCP Backend](getting-started/gcp.md)** - Set up with Google Cloud Platform (Application Default Credentials)
 
 ## Command Categories
 
@@ -167,7 +167,10 @@ aerolab aerospike start
 ### GCP Backend
 
 ```bash
-# Configure GCP backend (will open browser for authentication)
+# Authenticate with GCP first (required)
+gcloud auth application-default login
+
+# Configure GCP backend
 aerolab config backend -t gcp -r us-central1 -o your-project-id
 
 # Create a 2-node cluster with expiry

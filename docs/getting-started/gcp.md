@@ -8,19 +8,42 @@ The GCP backend allows you to create and manage Aerospike clusters on Google Clo
 
 1. **GCP Account** - You need an active Google Cloud Platform account
 2. **GCP Project** - Create or select a GCP project
-3. **Authentication** - Aerolab supports browser-based authentication (recommended) or service account authentication
+3. **Google Cloud CLI** - Install and configure the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install)
+4. **Authentication** - Aerolab uses Application Default Credentials (ADC) via the gcloud CLI
 
-### Authentication Methods
+### Authentication Setup
 
-Aerolab supports three authentication methods:
+Aerolab requires service account authentication using Application Default Credentials. You must authenticate using the gcloud CLI before using Aerolab:
 
-1. **Browser-based authentication (Recommended)** - Opens a browser for OAuth login
-2. **Service account** - Use a service account JSON key file
-3. **Auto-detect** - Tries service account first, falls back to browser
+```bash
+gcloud auth application-default login
+```
+
+This command will:
+- Open your browser for authentication
+- Store credentials locally for use by Aerolab
+- Allow Aerolab to authenticate with GCP services
+
+**Note**: If you see an authentication error, ensure you've run `gcloud auth application-default login` first. See the [troubleshooting section](#authentication-issues) for more details.
 
 ## Initial Setup
 
-### 1. Configure GCP Backend
+### 1. Authenticate with GCP
+
+Before configuring Aerolab, authenticate with Google Cloud using Application Default Credentials:
+
+```bash
+gcloud auth application-default login
+```
+
+This will open your browser for authentication. After completing the authentication flow, your credentials will be stored locally and used by Aerolab.
+
+**Note**: You may need to specify a project when authenticating:
+```bash
+gcloud auth application-default login --project=your-project-id
+```
+
+### 2. Configure GCP Backend
 
 Configure Aerolab to use the GCP backend:
 
@@ -32,51 +55,9 @@ This will:
 - Set GCP as the default backend
 - Set the default region to `us-central1`
 - Set the project ID to `your-project-id`
-- Prompt for browser-based authentication if needed
+- Use Application Default Credentials for authentication
 
 **Note**: Replace `your-project-id` with your actual GCP project ID.
-
-### Authentication Options
-
-#### Browser-Based Authentication (Default)
-
-Aerolab will automatically open your browser for authentication:
-
-```bash
-aerolab config backend -t gcp -r us-central1 -o your-project-id
-```
-
-If you want to disable browser opening:
-
-```bash
-aerolab config backend -t gcp -r us-central1 -o your-project-id --gcp-no-browser
-```
-
-#### Service Account Authentication
-
-If you have a service account JSON key file:
-
-1. Create a service account and download the key:
-   ```bash
-   # Set environment variable
-   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
-   ```
-
-2. Configure Aerolab:
-   ```bash
-   aerolab config backend -t gcp -r us-central1 -o your-project-id \
-     --gcp-auth-method service-account
-   ```
-
-#### Custom Client ID/Secret
-
-If you have custom OAuth credentials:
-
-```bash
-aerolab config backend -t gcp -r us-central1 -o your-project-id \
-  --gcp-client-id your-client-id \
-  --gcp-client-secret your-client-secret
-```
 
 ### Optional: Enable Inventory Cache
 
@@ -109,8 +90,7 @@ You should see:
 Config.Backend.Type = gcp
 Config.Backend.Project = your-project-id
 Config.Backend.Region = us-central1
-Config.Backend.GCPAuthMethod = any
-Config.Backend.GCPNoBrowser = false
+Config.Backend.GCPAuthMethod = service-account
 Config.Backend.SshKeyPath = ${HOME}/.config/aerolab
 ```
 
@@ -478,13 +458,16 @@ aerolab inventory delete-project-resources -f --expiry
 ### Complete Workflow Example
 
 ```bash
-# 1. Configure backend
+# 1. Authenticate with GCP
+gcloud auth application-default login
+
+# 2. Configure backend
 aerolab config backend -t gcp -r us-central1 -o your-project-id
 
-# 2. Create firewall rule
+# 3. Create firewall rule
 aerolab config gcp create-firewall-rules -n aerolab-fw -p 3000-3005
 
-# 3. Create cluster
+# 4. Create cluster
 aerolab cluster create -c 3 -d ubuntu -i 24.04 -v '8.*' \
   --instance e2-standard-4 \
   --gcp-disk type=pd-ssd,size=20 \
@@ -492,22 +475,22 @@ aerolab cluster create -c 3 -d ubuntu -i 24.04 -v '8.*' \
   --firewall aerolab-fw \
   --gcp-expire=8h
 
-# 4. Start cluster
+# 5. Start cluster
 aerolab cluster start
 
-# 5. Start Aerospike
+# 6. Start Aerospike
 aerolab aerospike start
 
-# 6. Wait for stability
+# 7. Wait for stability
 aerolab aerospike is-stable -w
 
-# 7. Check status
+# 8. Check status
 aerolab aerospike status
 
-# 8. Use the cluster
+# 9. Use the cluster
 aerolab attach aql -n mydc -- -c "show namespaces"
 
-# 9. Clean up
+# 10. Clean up
 aerolab cluster destroy -n mydc --force
 ```
 
@@ -517,12 +500,24 @@ aerolab cluster destroy -n mydc --force
 
 If you see authentication errors:
 
-1. **Browser-based auth**: Ensure the browser opens and you complete the OAuth flow
-2. **Service account**: Verify the service account key file path:
+1. **Application Default Credentials not found**: Ensure you've run `gcloud auth application-default login`:
    ```bash
-   echo $GOOGLE_APPLICATION_CREDENTIALS
+   gcloud auth application-default login
    ```
-3. **Check permissions**: Ensure your service account or user has Compute Engine permissions
+   If you see the error "could not authenticate using application credentials", follow the instructions at: https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment
+
+2. **Check authentication status**: Verify your gcloud authentication:
+   ```bash
+   gcloud auth list
+   gcloud config get-value project
+   ```
+
+3. **Re-authenticate if needed**: If credentials have expired, run:
+   ```bash
+   gcloud auth application-default login
+   ```
+
+4. **Check permissions**: Ensure your user account has Compute Engine permissions in the GCP project
 
 ### Project Issues
 

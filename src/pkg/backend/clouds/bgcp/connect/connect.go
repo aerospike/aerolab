@@ -62,12 +62,8 @@ func getDefaultClient(log *logger.Logger) (*http.Client, error) {
 // browser is a flag to enable opening the browser for the OAuth flow.
 // secrets is the client ID and client secret for the Google Cloud Platform; if not provided, embedded secrets are used.
 func getOAuth2Client(log *logger.Logger, tokenCacheFilePath string, browser bool, secrets *clouds.LoginGCPSecrets) (*http.Client, error) {
-	if secrets == nil {
-		var err error
-		secrets, err = getSecrets()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get secrets: %v", err)
-		}
+	if secrets == nil || secrets.ClientID == "" {
+		return nil, fmt.Errorf("client ID is required")
 	}
 	config := &oauth2.Config{
 		ClientID:     secrets.ClientID,
