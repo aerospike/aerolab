@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-//go:generate bash -c "git rev-parse --short HEAD > embed_commit.txt"
+//go:generate bash -c "git rev-parse --short=7 HEAD > embed_commit.txt"
 //go:generate bash version.sh
 //go:generate bash -c "echo '-unofficial' > embed_tail.txt"
 //go:generate bash -c "cp embed_commit.txt ../../../../web/dev/version.cfg"

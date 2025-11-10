@@ -99,7 +99,28 @@ func (c *UpgradeCmd) CheckForUpgrade() (install bool, latestVersionString string
 	}
 
 	latestVersion := strings.TrimPrefix(latest.TagName, "v")
-	latestCommit := latest.TargetCommitish[0:8]
+
+	// Extract base version without commit hash for comparison
+	// For tags like "8.0.0-4816232", extract just "8.0.0"
+	latestVersionBase := latestVersion
+	if idx := strings.Index(latestVersion, "-"); idx > 0 {
+		// Check if what follows the dash looks like a commit hash (7+ hex digits)
+		suffix := latestVersion[idx+1:]
+		isCommitHash := len(suffix) >= 7
+		if isCommitHash {
+			for _, r := range suffix {
+				if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+					isCommitHash = false
+					break
+				}
+			}
+		}
+		if isCommitHash {
+			latestVersionBase = latestVersion[:idx]
+		}
+	}
+
+	latestCommit := latest.TargetCommitish[0:7]
 	latestVersionString = "v" + latestVersion + "-" + latestCommit
 	if latest.Prerelease {
 		latestVersionString = "v" + latestVersion + "-prerelease"
@@ -108,11 +129,11 @@ func (c *UpgradeCmd) CheckForUpgrade() (install bool, latestVersionString string
 	// Determine if we need to install the latest version
 	install = false
 	if c.Edge {
-		if c.Force || vEdition == "-unofficial" || versions.Compare(latestVersion, vBranch) > 0 || (versions.Compare(latestVersion, vBranch) == 0 && latestCommit != vCommit) {
+		if c.Force || vEdition == "-unofficial" || versions.Compare(latestVersionBase, vBranch) > 0 || (versions.Compare(latestVersionBase, vBranch) == 0 && latestCommit != vCommit) {
 			install = true
 		}
 	} else {
-		if c.Force || vEdition == "-unofficial" || vEdition == "-prerelease" || versions.Compare(latestVersion, vBranch) > 0 {
+		if c.Force || vEdition == "-unofficial" || vEdition == "-prerelease" || versions.Compare(latestVersionBase, vBranch) > 0 {
 			install = true
 		}
 	}
