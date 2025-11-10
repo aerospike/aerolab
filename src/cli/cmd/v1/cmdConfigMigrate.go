@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -76,5 +77,65 @@ func MigrateAerolabConfig(oldDir string, newDir string) error {
 			return fmt.Errorf("failed to write new conf.ts file: %w", err)
 		}
 	}
+
+	// Fix docker backend region if needed
+	err := fixDockerBackendRegion(newConf)
+	if err != nil {
+		return fmt.Errorf("failed to fix docker backend region: %w", err)
+	}
+
+	return nil
+}
+
+// fixDockerBackendRegion checks if backend type is docker and resets region to empty
+func fixDockerBackendRegion(confFile string) error {
+	// Check if config file exists
+	if _, err := os.Stat(confFile); os.IsNotExist(err) {
+		return nil // No config file, nothing to fix
+	}
+
+	// Get the path to self
+	selfPath, err := GetSelfPath()
+	if err != nil {
+		return fmt.Errorf("failed to get self path: %w", err)
+	}
+
+	// Check backend type using config defaults
+	cmd := exec.Command(selfPath, "config", "defaults", "-k", "Config.Backend.Type")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to check backend type: %w: %s", err, string(output))
+	}
+
+	// Parse output: "Config.Backend.Type = docker"
+	outputStr := strings.TrimSpace(string(output))
+	if !strings.Contains(outputStr, "= docker") {
+		return nil // Not docker, nothing to fix
+	}
+
+	// Check if region is set
+	cmd = exec.Command(selfPath, "config", "defaults", "-k", "Config.Backend.Region")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to check backend region: %w: %s", err, string(output))
+	}
+
+	// Parse output: "Config.Backend.Region = someregion" or "Config.Backend.Region = "
+	outputStr = strings.TrimSpace(string(output))
+	parts := strings.SplitN(outputStr, " = ", 2)
+	if len(parts) != 2 {
+		return nil // Can't parse, skip
+	}
+	region := strings.TrimSpace(parts[1])
+
+	// If region is not empty, reset it by calling config backend
+	if region != "" {
+		cmd = exec.Command(selfPath, "config", "backend", "-t", "docker")
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to reset backend region: %w: %s", err, string(output))
+		}
+	}
+
 	return nil
 }

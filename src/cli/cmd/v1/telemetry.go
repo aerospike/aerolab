@@ -228,6 +228,7 @@ func getDefaults(system *System) []telemetryDefault {
 	out := []telemetryDefault{}
 	// add changed default values to the item
 	ret := make(chan ConfigValueCmd, 1)
+	originalOnlyChanged := system.Opts.Config.Defaults.OnlyChanged
 	system.Opts.Config.Defaults.OnlyChanged = true
 	keyField := reflect.ValueOf(system.Opts).Elem()
 	go system.Opts.Config.Defaults.getValues(keyField, "", ret, "", system.Opts.Config.Defaults.OnlyChanged)
@@ -241,6 +242,7 @@ func getDefaults(system *System) []telemetryDefault {
 		}
 		out = append(out, telemetryDefault(val))
 	}
+	system.Opts.Config.Defaults.OnlyChanged = originalOnlyChanged
 	return out
 }
 

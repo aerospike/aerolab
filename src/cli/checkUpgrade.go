@@ -64,24 +64,44 @@ func defaultHomeLogic() {
 	if _, err := os.Stat(newHome); err == nil {
 		newHomeExists = true
 	}
+
+	// Check if we're running as aerolab8 (user wants to use v8)
+	isAerolab8 := isRunningAsAerolab8()
+
 	if oldHomeExists {
 		if newHomeExists {
 			return
 		} else {
-			if hasOldGot79Marker(oldHome) {
+			// Old home exists, new home doesn't
+			if hasOldGot79Marker(oldHome) || isAerolab8 {
+				// User intentionally wants v8, migrate config
 				if err := cmd.MigrateAerolabConfig(oldHome, newHome); err != nil {
 					log.Printf("Could not migrate AeroLab configuration: %s", err)
 					os.Exit(1)
 				}
 				return
 			} else {
-				rollbackTo79(newHome) // remember to mkdir new home as part of rollback, print info about downgrade
-				os.Exit(1)
+				// Accidental upgrade, perform rollback
+				if rollbackTo79(newHome) {
+					os.Exit(1)
+				}
+				return
 			}
 		}
 	} else {
-		rollbackTo79(newHome) // remember to mkdir new home as part of rollback, print info about downgrade
-		os.Exit(1)
+		// No old home exists
+		if isAerolab8 {
+			// Running as aerolab8 intentionally, just initialize new home
+			os.MkdirAll(newHome, 0700)
+			os.WriteFile(path.Join(newHome, "v8"), []byte(""), 0644)
+			return
+		} else {
+			// Accidental install, perform rollback
+			if rollbackTo79(newHome) {
+				os.Exit(1)
+			}
+			return
+		}
 	}
 }
 
@@ -125,16 +145,49 @@ func hasOldGot79Marker(home string) bool {
 	return false
 }
 
-func rollbackTo79(home string) {
-	// rename self to aerolab8, preserving the path and extension
+func isRunningAsAerolab8() bool {
+	cur, err := cmd.GetSelfPath()
+	if err != nil {
+		return false
+	}
+	ext := path.Ext(cur)
+	baseName := strings.TrimSuffix(path.Base(cur), ext)
+	return baseName == "aerolab8"
+}
+
+func rollbackTo79(home string) bool {
+	// if we're already running as aerolab8, skip the downgrade
+	if isRunningAsAerolab8() {
+		log.Println("Running as aerolab8, skipping downgrade process")
+		os.MkdirAll(home, 0700)
+		os.WriteFile(path.Join(home, "v8"), []byte(""), 0644)
+		return false
+	}
+
+	// get current binary path
 	cur, err := cmd.GetSelfPath()
 	if err != nil {
 		log.Printf("Could not determine path of self: %s", err)
 		os.Exit(1)
 	}
+
 	ext := path.Ext(cur)
-	os.Rename(cur, strings.TrimSuffix(cur, ext)+"8"+ext)
-	// using cmd, run the upgrade command with the latest 7
+
+	destPath := strings.TrimSuffix(cur, ext) + "8" + ext
+
+	// copy the file instead of renaming so upgrade can still find the original
+	source, err := os.ReadFile(cur)
+	if err != nil {
+		log.Printf("Could not read current binary: %s", err)
+		os.Exit(1)
+	}
+	err = os.WriteFile(destPath, source, 0755)
+	if err != nil {
+		log.Printf("Could not write aerolab8 binary: %s", err)
+		os.Exit(1)
+	}
+
+	// using cmd, run the upgrade command with the latest 7 (this will replace the current binary)
 	upgrade := cmd.UpgradeCmd{Version: "7.", Edge: true, Force: true}
 	err = upgrade.UpgradeAerolab(logger.NewLogger())
 	if err != nil {
@@ -144,8 +197,8 @@ func rollbackTo79(home string) {
 	os.MkdirAll(home, 0700)
 	os.WriteFile(path.Join(home, "v8"), []byte(""), 0644)
 	log.Println("WARNING: AeroLab v8 has been installed, though it is still in development. The following actions are being performed:")
-	log.Println("1. Renaming self to `aerolab8`")
-	log.Println("2. Installing the latest AeroLab v7 available")
+	log.Println("1. Copying self to `aerolab8`")
+	log.Println("2. Installing the latest AeroLab v7 available (replaces current binary)")
 	log.Println("Note that this fix is a one-off action and you will need to perform the `--major` flag next time you run `aerolab upgrade` to upgrade to AeroLab v8.")
-	os.Exit(1)
+	return true
 }

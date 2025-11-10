@@ -13,10 +13,10 @@ import (
 )
 
 type ConfigDefaultsCmd struct {
-	Key         string         `short:"k" long:"key" description:"Key to modify or show, character '*' expansion is supported" default:""`
-	OnlyChanged bool           `short:"o" long:"only-changed" description:"Set to only display values different from application default"`
-	Value       flags.Filename `short:"v" long:"value" description:"Value to set" default:""`
-	Reset       bool           `short:"r" long:"reset" description:"Reset to default value. Use instead of --value"`
+	Key         string         `short:"k" long:"key" description:"Key to modify or show, character '*' expansion is supported" default:"" no-default:"true"`
+	OnlyChanged bool           `short:"o" long:"only-changed" description:"Set to only display values different from application default" no-default:"true"`
+	Value       flags.Filename `short:"v" long:"value" description:"Value to set" default:"" no-default:"true"`
+	Reset       bool           `short:"r" long:"reset" description:"Reset to default value. Use instead of --value" no-default:"true"`
 	Help        HelpCmd        `command:"help" subcommands-optional:"true" description:"Print help"`
 	saveFile    bool
 }
@@ -125,6 +125,10 @@ func (c *ConfigDefaultsCmd) configDefaults(system *System, args []string) error 
 	system.Opts.Config.Defaults.Reset = false
 	c.Reset = false
 
+	onlyChanged := c.OnlyChanged
+	system.Opts.Config.Defaults.OnlyChanged = false
+	c.OnlyChanged = false
+
 	keyField := reflect.ValueOf(system.Opts).Elem()
 	var tags reflect.StructTag
 	for i, key := range keys {
@@ -141,7 +145,7 @@ func (c *ConfigDefaultsCmd) configDefaults(system *System, args []string) error 
 
 	// display values if called for
 	if value == "" && !reset {
-		c.displayValues(keyField, strings.Join(keys, "."), tags)
+		c.displayValues(keyField, strings.Join(keys, "."), tags, onlyChanged)
 		return nil
 	}
 
@@ -256,7 +260,7 @@ func (c *ConfigDefaultsCmd) configDefaults(system *System, args []string) error 
 	}
 	c.saveFile = true
 	fmt.Print("OK: ")
-	c.displayValues(keyField, strings.Join(keys, "."), "")
+	c.displayValues(keyField, strings.Join(keys, "."), "", onlyChanged)
 	return nil
 }
 
@@ -265,9 +269,9 @@ type ConfigValueCmd struct {
 	Value string
 }
 
-func (c *ConfigDefaultsCmd) displayValues(keyField reflect.Value, start string, tags reflect.StructTag) {
+func (c *ConfigDefaultsCmd) displayValues(keyField reflect.Value, start string, tags reflect.StructTag, onlyChanged bool) {
 	ret := make(chan ConfigValueCmd, 1)
-	go c.getValues(keyField, start, ret, tags, c.OnlyChanged)
+	go c.getValues(keyField, start, ret, tags, onlyChanged)
 	for {
 		val, ok := <-ret
 		if !ok {
