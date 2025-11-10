@@ -57,13 +57,14 @@ func (c *InventoryAnsibleCmd) InventoryAnsible(system *System, cmd []string, arg
 	})
 
 	type ansibleHost struct {
-		Cluster    string `json:"aerolab_cluster"`
-		Node       string `json:"aerolab_node"`
-		Host       string `json:"ansible_host"`
-		User       string `json:"ansible_user"`
-		InstanceId string `json:"instance_id"`
-		NodeName   string `json:"node_name"`
-		SSHKey     string `json:"ansible_ssh_private_key_file"`
+		Cluster    string            `json:"aerolab_cluster"`
+		Node       string            `json:"aerolab_node"`
+		Host       string            `json:"ansible_host"`
+		User       string            `json:"ansible_user"`
+		InstanceId string            `json:"instance_id"`
+		NodeName   string            `json:"node_name"`
+		SSHKey     string            `json:"ansible_ssh_private_key_file"`
+		Tags       map[string]string `json:"tags"`
 	}
 	ansible := make(map[string]interface{})
 	ansible["_meta"] = make(map[string]interface{})
@@ -84,6 +85,7 @@ func (c *InventoryAnsibleCmd) InventoryAnsible(system *System, cmd []string, arg
 			InstanceId: inst.InstanceID,
 			NodeName:   inst.ClusterName + "-" + strconv.Itoa(inst.NodeNo),
 			SSHKey:     sshKeyPath,
+			Tags:       inst.Tags,
 		}
 		// add instance to type lists
 		ntype := inst.Tags["aerolab.type"]
