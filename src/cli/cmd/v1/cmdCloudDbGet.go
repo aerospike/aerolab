@@ -37,7 +37,8 @@ func (c *CloudDatabasesGetHostCmd) Execute(args []string) error {
 	}
 
 	var result interface{}
-	err = client.Get(cloudDbPath, &result)
+	path := cloudDbPath + "?status_ne=decommissioned"
+	err = client.Get(path, &result)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -71,7 +72,8 @@ func (c *CloudDatabasesGetTlsCertCmd) Execute(args []string) error {
 	}
 
 	var result interface{}
-	err = client.Get(cloudDbPath, &result)
+	path := cloudDbPath + "?status_ne=decommissioned"
+	err = client.Get(path, &result)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -113,7 +115,6 @@ func extractConnectionField(result interface{}, databaseID, databaseName, field 
 		if !ok {
 			continue
 		}
-
 		// Check by ID
 		if databaseID != "" {
 			if id, ok := dbMap["id"].(string); ok && id == databaseID {
