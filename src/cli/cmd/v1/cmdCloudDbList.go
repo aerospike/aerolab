@@ -77,21 +77,33 @@ func (c *CloudDatabasesListCmd) Execute(args []string) error {
 		return err
 	}
 
-	var result DatabaseResponse
 	path := cloudDbPath
 	if c.StatusNe != "" {
 		path += "?status_ne=" + c.StatusNe
 	}
 
-	err = client.Get(path, &result)
+	// Get raw JSON response
+	var rawResult map[string]interface{}
+	err = client.Get(path, &rawResult)
 	if err != nil {
 		return err
 	}
 
-	return c.formatOutput(result.Databases, os.Stdout)
+	// Convert raw result to DatabaseResponse
+	var result DatabaseResponse
+	jsonBytes, err := json.Marshal(rawResult)
+	if err != nil {
+		return fmt.Errorf("failed to marshal raw result: %w", err)
+	}
+	err = json.Unmarshal(jsonBytes, &result)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal to DatabaseResponse: %w", err)
+	}
+
+	return c.formatOutput(result.Databases, rawResult, os.Stdout)
 }
 
-func (c *CloudDatabasesListCmd) formatOutput(databases []Database, out io.Writer) error {
+func (c *CloudDatabasesListCmd) formatOutput(databases []Database, rawResult map[string]interface{}, out io.Writer) error {
 	var err error
 	var page *pager.Pager
 
@@ -124,7 +136,7 @@ func (c *CloudDatabasesListCmd) formatOutput(databases []Database, out io.Writer
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(databases)
+			enc.Encode(rawResult)
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -132,11 +144,11 @@ func (c *CloudDatabasesListCmd) formatOutput(databases []Database, out io.Writer
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(databases)
+		json.NewEncoder(out).Encode(rawResult)
 	case "json-indent":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(databases)
+		enc.Encode(rawResult)
 	case "text":
 		fmt.Fprintln(out, "Databases:")
 		for _, db := range databases {
