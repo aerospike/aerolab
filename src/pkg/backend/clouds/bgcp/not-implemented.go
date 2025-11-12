@@ -1,15 +1,31 @@
 package bgcp
 
-import "errors"
+import "github.com/aerospike/aerolab/pkg/backend/backends"
 
 func (s *b) DockerCreateNetwork(region string, name string, driver string, subnet string, mtu string) error {
-	return errors.New("not implemented")
+	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "DockerCreateNetwork")
 }
 
 func (s *b) DockerDeleteNetwork(region string, name string) error {
-	return errors.New("not implemented")
+	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "DockerDeleteNetwork")
 }
 
 func (s *b) DockerPruneNetworks(region string) error {
-	return errors.New("not implemented")
+	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "DockerPruneNetworks")
+}
+
+func (s *b) AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region string) error {
+	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "AssociateVPCWithHostedZone")
+}
+
+func (s *b) DeleteRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
+	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "DeleteRoute")
+}
+
+func (s *b) CreateRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
+	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "CreateRoute")
+}
+
+func (s *b) AcceptVPCPeering(peeringConnectionID string) error {
+	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "AcceptVPCPeering")
 }
