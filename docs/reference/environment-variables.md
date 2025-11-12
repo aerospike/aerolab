@@ -13,6 +13,7 @@ Aerolab supports several environment variables for configuration and behavior co
 | `AEROLAB_TELEMETRY_DISABLE` | true | If set to a non-empty value, telemetry will be disabled |
 | `AEROLAB_CONFIG_FILE` | FILEPATH | If set, aerolab will read the given defaults config file instead of `$AEROLAB_HOME/conf` |
 | `AEROLAB_NONINTERACTIVE` | true | If set to a non-empty value, aerolab will not ask for confirmation or choices at any point |
+| `AEROLAB_NOERROR_ON_NOT_IMPLEMENTED` | true | If set to a non-empty value, aerolab will not return an error when a called function is not implemented in a particular backend |
 
 ## AEROLAB_HOME
 

@@ -686,6 +686,7 @@ func (s *b) InstancesRemoveFirewalls(instances backends.InstanceList, fw backend
 	return errors.New("not implemented")
 }
 
+// on docker, the cost is always 0
 func (s *b) CreateInstancesGetPrice(input *backends.CreateInstanceInput) (costPPH, costGB float64, err error) {
 	return 0, 0, nil
 }
@@ -1397,6 +1398,7 @@ func (s *b) getExposedPorts(firewalls []string) (nat.PortSet, nat.PortMap, []int
 	return exposedPorts, portBindings, portList, nil
 }
 
+// this should always return nil
 func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, subnet *backends.Subnet, zone string, err error) {
 	return nil, nil, "", nil
 }
