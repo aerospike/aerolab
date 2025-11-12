@@ -67,6 +67,18 @@ func decodeFromDescriptionField(description string) (map[string]string, error) {
 }
 
 func encodeToLabels(m map[string]string) map[string]string {
+	// tags to also encode as native labels (after sanitizing the character set of the values)
+	nativeLabels := map[string]string{
+		"usedby":            "aerolab",
+		TAG_AEROLAB_PROJECT: "aerolab-project",
+		TAG_AEROLAB_OWNER:   "aerolab-owner",
+		TAG_NAME:            "aerolab-name",
+		TAG_CLUSTER_NAME:    "aerolab-cluster-name",
+		TAG_NODE_NO:         "aerolab-node-no",
+		TAG_CLUSTER_UUID:    "aerolab-cluster-uuid",
+		TAG_AEROLAB_EXPIRES: "aerolab-expires",
+		TAG_AEROLAB_VERSION: "aerolab-version",
+	}
 	ret := make(map[string]string)
 	json, err := json.Marshal(m)
 	if err != nil {
@@ -80,6 +92,14 @@ func encodeToLabels(m map[string]string) map[string]string {
 			end = len(encoded)
 		}
 		ret[fmt.Sprintf("aerolab-metadata-%d", i)] = encoded[i:end]
+	}
+	for k, v := range nativeLabels {
+		if len(ret) >= 64 {
+			break
+		}
+		if _, ok := m[k]; ok {
+			ret[v] = sanitize(m[k], false)
+		}
 	}
 	return ret
 }
@@ -124,6 +144,29 @@ func decodeFromLabels(labels map[string]string) (map[string]string, error) {
 	return m, nil
 }
 
+// sanitize converts a string to comply with GCP resource naming requirements.
+// GCP requires resource names to:
+//   - Contain only lowercase letters (a-z), numbers (0-9), and hyphens (-)
+//   - Start with a lowercase letter [a-z]
+//   - End with a lowercase letter or number [a-z0-9]
+//   - Not contain consecutive hyphens
+//   - Be at most 63 characters long
+//
+// Parameters:
+//   - s: The input string to sanitize. Can contain any characters including uppercase letters,
+//     spaces, dots, underscores, and special characters. All invalid characters will be removed
+//     or converted to valid ones.
+//   - withUUID: When true, appends a short UUID to the sanitized string to ensure uniqueness.
+//     The UUID is separated by a hyphen and the total length is kept within 63 characters.
+//     When false, simply returns the sanitized version of the input string.
+//
+// Returns:
+//   - A sanitized string that complies with all GCP naming requirements.
+//
+// Examples:
+//   - sanitize("My_Cluster.Name", false) -> "my-cluster-name"
+//   - sanitize("Test123", true) -> "test123-abc123xyz" (with UUID appended)
+//   - sanitize("___CAPS___", false) -> "a-caps-a" (starts and ends properly)
 func sanitize(s string, withUUID bool) string {
 	ret := ""
 	for _, c := range s {
@@ -175,6 +218,11 @@ func sanitize(s string, withUUID bool) string {
 		if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= '0' && lastChar <= '9')) {
 			ret = ret + "a"
 		}
+	}
+	// Final length check: ensure the string doesn't exceed 63 characters
+	if len(ret) > 63 {
+		ret = ret[:63]
+		ret = strings.TrimRight(ret, "-")
 	}
 	return ret
 }
