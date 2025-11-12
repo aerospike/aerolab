@@ -23,7 +23,6 @@ func (c *TemplateListCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
 	err = c.ListTemplate(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)

@@ -62,7 +62,6 @@ func (c *ConfAdjustCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
 	err = c.Adjust(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
