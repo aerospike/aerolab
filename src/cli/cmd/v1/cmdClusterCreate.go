@@ -81,7 +81,6 @@ type ClusterCreateCmdGcp struct {
 	PublicIP            bool            `long:"external-ip" description:"if set, will install systemd script which will set access-address to internal IP and alternate-access-address to allow public IP connections"`
 	Zone                guiZone         `long:"zone" description:"zone name to deploy to" webrequired:"true" webchoice:"method::List"`
 	NoBestPractices     bool            `long:"ignore-best-practices" description:"set to stop best practices from being executed in setup" simplemode:"false"`
-	Tags                []string        `long:"tag" description:"apply custom tags to instances; this parameter can be specified multiple times"`
 	Labels              []string        `long:"label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	FirewallName        []string        `long:"firewall" description:"Name to use for an extra firewall, can be specified multiple times" simplemode:"false"`
 	SpotInstance        bool            `long:"gcp-spot-instance" description:"set to request a spot instance in place of on-demand"`
@@ -386,7 +385,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			logger.Warn("To enable public IP access address, run: aerolab cluster add public-ip -n %s", c.ClusterName.String())
 		}
 	} else if system.Opts.Config.Backend.Type == "gcp" {
-		tags = c.Gcp.Tags
+		tags = c.Gcp.Labels
 		terminateOnStop = c.Gcp.TerminateOnPoweroff
 		if !c.Gcp.PublicIP {
 			logger.Warn("Public IP access address is not enabled for this cluster, you will be unable to connect to the instances from outside GCP.")
