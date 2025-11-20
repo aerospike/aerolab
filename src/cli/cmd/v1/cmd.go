@@ -10,14 +10,15 @@ type Commands struct {
 	Cloud     CloudCmd     `command:"cloud" subcommands-optional:"true" description:"Aerospike Cloud" webicon:"fa-brands fa-warehouse"`
 	Cluster   ClusterCmd   `command:"cluster" subcommands-optional:"true" description:"Create and manage Aerospike clusters and nodes" webicon:"fas fa-database"`
 	Aerospike AerospikeCmd `command:"aerospike" subcommands-optional:"true" description:"Aerospike daemon controls" webicon:"fas fa-a"`
-	//Client       clientCmd       `command:"client" subcommands-optional:"true" description:"Create and manage Client machine groups" webicon:"fas fa-tv"`
+	Client    ClientCmd    `command:"client" subcommands-optional:"true" description:"Create and manage Client machine groups" webicon:"fas fa-tv"`
 	Inventory InventoryCmd `command:"inventory" subcommands-optional:"true" description:"List or operate on all clusters, clients and images" webicon:"fas fa-warehouse"`
 	Instances InstancesCmd `command:"instances" subcommands-optional:"true" description:"Create and manage instance clusters (cluster/client create use this)" webicon:"fas fa-server"`
 	Attach    AttachCmd    `command:"attach" subcommands-optional:"true" description:"Attach to a node and run a command" webicon:"fas fa-plug" simplemode:"false"`
-	//Net          netCmd          `command:"net" subcommands-optional:"true" description:"Firewall and latency simulation" webicon:"fas fa-network-wired"`
-	Conf ConfCmd `command:"conf" subcommands-optional:"true" description:"Manage Aerospike configuration on running nodes" webicon:"fas fa-wrench"`
-	//Tls          tlsCmd          `command:"tls" subcommands-optional:"true" description:"Create or copy TLS certificates" webicon:"fas fa-lock"`
-	//Data         dataCmd         `command:"data" subcommands-optional:"true" description:"Insert/delete Aerospike data" webicon:"fas fa-folder-open"`
+	Net       NetCmd       `command:"net" subcommands-optional:"true" description:"Firewall and latency simulation" webicon:"fas fa-network-wired"`
+	Conf      ConfCmd      `command:"conf" subcommands-optional:"true" description:"Manage Aerospike configuration on running nodes" webicon:"fas fa-wrench"`
+	Tls       TlsCmd       `command:"tls" subcommands-optional:"true" description:"Create or copy TLS certificates" webicon:"fas fa-lock"`
+	Data      DataCmd      `command:"data" subcommands-optional:"true" description:"Insert/delete Aerospike data" webicon:"fas fa-folder-open"`
+	Xdr       XdrCmd       `command:"xdr" subcommands-optional:"true" description:"Manage clusters' xdr configuration" webicon:"fas fa-object-group"`
 	Images    ImagesCmd    `command:"images" subcommands-optional:"true" description:"Manage or delete images" webicon:"fas fa-file-image"`
 	Template  TemplateCmd  `command:"template" subcommands-optional:"true" description:"Manage or delete aerospike server templates" webicon:"fas fa-file-image"`
 	Installer InstallerCmd `command:"installer" subcommands-optional:"true" description:"List or download Aerospike installer versions" webicon:"fas fa-plus"`

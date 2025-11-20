@@ -1,0 +1,176 @@
+package cmd
+
+import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/aerospike/aerospike-client-go/v8"
+	"github.com/rglonek/logger"
+)
+
+func (c *DataDeleteCmd) delete8(args []string, log *logger.Logger) error {
+	_ = args
+
+	ipPort := strings.Split(c.SeedNode, ":")
+	if len(ipPort) != 2 {
+		return fmt.Errorf("failed to process SeedNode, must be IP:PORT: %s", c.SeedNode)
+	}
+
+	port, err := strconv.Atoi(ipPort[1])
+	if err != nil {
+		return fmt.Errorf("error processing SeedNodePort: %s: %w", ipPort[1], err)
+	}
+
+	var client *aerospike.Client
+	if c.User == "" && c.TlsCaCert == "" && c.TlsClientCert == "" {
+		client, err = aerospike.NewClient(ipPort[0], port)
+	} else {
+		policy := aerospike.NewClientPolicy()
+		if c.User != "" {
+			policy.User = c.User
+			policy.Password = c.Pass
+			if c.AuthExternal {
+				policy.AuthMode = aerospike.AuthModeExternal
+			} else {
+				policy.AuthMode = aerospike.AuthModeInternal
+			}
+		}
+
+		tlsconfig := &tls.Config{}
+		if c.TlsCaCert != "" {
+			cacertpool := x509.NewCertPool()
+			ncertfile, err := os.ReadFile(c.TlsCaCert)
+			if err != nil {
+				return fmt.Errorf("could not read ca cert: %w", err)
+			}
+			cacertpool.AppendCertsFromPEM(ncertfile)
+			tlsconfig.RootCAs = cacertpool
+		}
+		if c.TlsClientCert != "" {
+			clientcertpool := x509.NewCertPool()
+			ncertfile, err := os.ReadFile(c.TlsClientCert)
+			if err != nil {
+				return fmt.Errorf("could not read client cert: %w", err)
+			}
+			clientcertpool.AppendCertsFromPEM(ncertfile)
+			tlsconfig.ClientCAs = clientcertpool
+		}
+		if c.TlsClientCert != "" || c.TlsCaCert != "" {
+			tlsconfig.ServerName = c.TlsServerName
+			policy.TlsConfig = tlsconfig
+		}
+		client, err = aerospike.NewClientWithPolicy(policy, ipPort[0], port)
+	}
+	if err != nil {
+		return fmt.Errorf("error connecting to Aerospike: %w", err)
+	}
+
+	client.WarmUp(100)
+
+	total := c.PkEndNumber - c.PkStartNumber + 1
+	deleted := 0
+	var wg chan int
+	if c.UseMultiThreaded > 0 {
+		wg = make(chan int, c.UseMultiThreaded)
+	}
+
+	startTime := time.Now()
+	esc := "                   \r"
+
+	// Progress reporter
+	done := make(chan bool)
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case <-time.After(time.Second):
+				if deleted == total {
+					return
+				}
+				nsec := int(time.Since(startTime).Seconds())
+				var ttkn int
+				if nsec == 0 {
+					ttkn = 0
+				} else {
+					ttkn = deleted / nsec
+				}
+				fmt.Printf("Total records: %d , Deleted: %d , Subthreads running: %d , Records per second: %d"+esc, total, deleted, len(wg), ttkn)
+			}
+		}
+	}()
+
+	wp := aerospike.NewWritePolicy(0, aerospike.TTLServerDefault)
+	wp.TotalTimeout = time.Second * 5
+	wp.SocketTimeout = 0
+	wp.MaxRetries = 2
+	wp.DurableDelete = c.Durable
+
+	for i := c.PkStartNumber; i <= c.PkEndNumber; i++ {
+		if c.UseMultiThreaded == 0 {
+			err = c.delete8do(i, client, wp, log)
+			if err != nil {
+				done <- true
+				return fmt.Errorf("delete error: %w", err)
+			}
+		} else {
+			wg <- 1
+			go func(i int, client *aerospike.Client) {
+				err = c.delete8do(i, client, wp, log)
+				if err != nil {
+					log.Warn("Delete error while multithreading: %s", err)
+				}
+				<-wg
+			}(i, client)
+		}
+
+		deleted = deleted + 1
+	}
+
+	for len(wg) > 0 {
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	done <- true
+	runTime := time.Since(startTime)
+	client.Close()
+
+	if int(runTime.Seconds()) > 0 {
+		fmt.Printf("Total records: %d , Deleted: %d                                                                \nTime taken: %s , Records per second: %d\n",
+			total, deleted, runTime.String(), total/int(runTime.Seconds()))
+	} else {
+		fmt.Printf("Total records: %d , Deleted: %d                                                                \nTime taken: %s , Records per second: %d\n",
+			total, deleted, runTime.String(), total)
+	}
+
+	return nil
+}
+
+func (c *DataDeleteCmd) delete8do(i int, client *aerospike.Client, wp *aerospike.WritePolicy, log *logger.Logger) error {
+	pk := fmt.Sprintf("%s%d", c.PkPrefix, i)
+	key, err := aerospike.NewKey(c.Namespace, c.Set, pk)
+	if err != nil {
+		return fmt.Errorf("aerospike.NewKey error: %w", err)
+	}
+
+	_, erra := client.Delete(wp, key)
+	for erra != nil {
+		if strings.Contains(fmt.Sprint(erra), "i/o timeout") || strings.Contains(fmt.Sprint(erra), "command execution timed out on client") {
+			time.Sleep(100 * time.Millisecond)
+			_, erra = client.Delete(wp, key)
+			if erra != nil {
+				log.Warn("Client.Delete error, giving up: %s", erra)
+			}
+		} else {
+			log.Warn("Client.Delete error, giving up: %s", erra)
+			return nil
+		}
+	}
+
+	return nil
+}
