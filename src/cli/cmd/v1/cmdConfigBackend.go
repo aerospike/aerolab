@@ -65,10 +65,10 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 
 	// check if we are setting the backend type
 	for _, i := range os.Args {
-		if inslice.HasString([]string{"-t", "--type"}, i) {
+		if inslice.HasString([]string{"-t", "--type"}, i) || strings.HasPrefix(i, "--type=") {
 			c.typeSet = "yes"
 		}
-		if inslice.HasString([]string{"-r", "--region"}, i) {
+		if inslice.HasString([]string{"-r", "--region"}, i) || strings.HasPrefix(i, "--region=") {
 			c.regionSet = "yes"
 		}
 	}
