@@ -51,6 +51,15 @@ func (c *TemplateCreateCmd) Execute(args []string) error {
 }
 
 func resolveAerospikeServerVersion(aerospikeVersion string) (version *aerospike.Version, flavor string, err error) {
+	// Normalize version string: handle both "-enterprise"/"-community"/"-federal" and "c"/"f" suffixes
+	if strings.HasSuffix(aerospikeVersion, "-community") {
+		aerospikeVersion = strings.TrimSuffix(aerospikeVersion, "-community") + "c"
+	} else if strings.HasSuffix(aerospikeVersion, "-federal") {
+		aerospikeVersion = strings.TrimSuffix(aerospikeVersion, "-federal") + "f"
+	} else if strings.HasSuffix(aerospikeVersion, "-enterprise") {
+		aerospikeVersion = strings.TrimSuffix(aerospikeVersion, "-enterprise")
+	}
+	
 	// find and resolve aerospike version
 	products, err := aerospike.GetProducts(time.Second * 10)
 	if err != nil {
@@ -295,6 +304,18 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 			MaxRestartRetries:  0,
 			ShmSize:            0,
 			AdvancedConfigPath: "",
+		},
+		Vagrant: InstancesCreateCmdVagrant{
+		Box:               "ubuntu/jammy64",
+		BoxVersion:        "",
+		CPUs:              2,
+		Memory:            2048,
+		DiskSize:          0,
+		NetworkType:       "",
+		NetworkIP:         "",
+		SyncedFolders:     []string{},
+		PortForwards:      []string{},
+		SkipSSHReadyCheck: false,
 		},
 		NoInstallExpiry: false,
 		DryRun:          false,

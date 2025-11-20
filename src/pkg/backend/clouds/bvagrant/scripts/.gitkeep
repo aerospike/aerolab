@@ -1,0 +1,3 @@
+# This directory contains embedded scripts for Vagrant VM provisioning
+# Currently empty as scripts are generated inline in the code
+

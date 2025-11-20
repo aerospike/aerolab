@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,8 +20,11 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/clouds/baws"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bdocker"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp"
+	"github.com/aerospike/aerolab/pkg/backend/clouds/bvagrant"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/choice"
+	"github.com/aerospike/aerolab/pkg/utils/installers"
+	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/strslice"
@@ -31,27 +35,28 @@ import (
 )
 
 type InstancesCreateCmd struct {
-	ClusterName        string                   `short:"n" long:"cluster-name" description:"Name of the cluster to create" default:"mydc"`
-	Count              int                      `short:"c" long:"count" description:"Number of instances to create" default:"1"`
-	Name               string                   `short:"N" long:"name" description:"Name of the instance to create (since count instances only)"`
-	Owner              string                   `short:"o" long:"owner" description:"Owner of the instances"`
-	Type               string                   `short:"e" long:"type" description:"Type of the instances (aerospike, client, etc.), will create aerolab.type tag" default:"none"`
-	Tags               []string                 `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
-	Description        string                   `short:"d" long:"description" description:"Description of the instances"`
-	TerminateOnStop    bool                     `short:"T" long:"terminate-on-stop" description:"Terminate the instances when they are stopped"`
-	ParallelSSHThreads int                      `short:"p" long:"parallel-ssh-threads" description:"Number of parallel SSH threads to use for the instances" default:"10"`
-	SSHKeyName         string                   `short:"k" long:"ssh-key-name" description:"Name of a custom SSH key to use for the instances"`
-	OS                 string                   `long:"os" description:"OS to use for the instances" default:"ubuntu"`
-	Version            string                   `long:"version" description:"Version of the OS to use for the instances" default:"24.04"`
-	Arch               string                   `long:"arch" description:"Architecture override to use for the instances (amd64, arm64)"`
-	ImageType          string                   `long:"image-type" description:"Image software type to search for"`
-	ImageVersion       string                   `long:"image-version" description:"Version of the image software to search for"`
-	AWS                InstancesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
-	GCP                InstancesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
-	Docker             InstancesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
-	NoInstallExpiry    bool                     `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
-	DryRun             bool                     `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
-	Help               HelpCmd                  `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName        string                    `short:"n" long:"cluster-name" description:"Name of the cluster to create" default:"mydc"`
+	Count              int                       `short:"c" long:"count" description:"Number of instances to create" default:"1"`
+	Name               string                    `short:"N" long:"name" description:"Name of the instance to create (since count instances only)"`
+	Owner              string                    `short:"o" long:"owner" description:"Owner of the instances"`
+	Type               string                    `short:"e" long:"type" description:"Type of the instances (aerospike, client, etc.), will create aerolab.type tag" default:"none"`
+	Tags               []string                  `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
+	Description        string                    `short:"d" long:"description" description:"Description of the instances"`
+	TerminateOnStop    bool                      `short:"T" long:"terminate-on-stop" description:"Terminate the instances when they are stopped"`
+	ParallelSSHThreads int                       `short:"p" long:"parallel-ssh-threads" description:"Number of parallel SSH threads to use for the instances" default:"10"`
+	SSHKeyName         string                    `short:"k" long:"ssh-key-name" description:"Name of a custom SSH key to use for the instances"`
+	OS                 string                    `long:"os" description:"OS to use for the instances" default:"ubuntu"`
+	Version            string                    `long:"version" description:"Version of the OS to use for the instances" default:"24.04"`
+	Arch               string                    `long:"arch" description:"Architecture override to use for the instances (amd64, arm64)"`
+	ImageType          string                    `long:"image-type" description:"Image software type to search for"`
+	ImageVersion       string                    `long:"image-version" description:"Version of the image software to search for"`
+	AWS                InstancesCreateCmdAws     `group:"AWS" description:"backend-aws" namespace:"aws"`
+	GCP                InstancesCreateCmdGcp     `group:"GCP" description:"backend-gcp" namespace:"gcp"`
+	Docker             InstancesCreateCmdDocker  `group:"Docker" description:"backend-docker" namespace:"docker"`
+	Vagrant            InstancesCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant" namespace:"vagrant"`
+	NoInstallExpiry    bool                      `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
+	DryRun             bool                      `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
+	Help               HelpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type InstanceDNS struct {
@@ -110,6 +115,19 @@ type InstancesCreateCmdDocker struct {
 	MaxRestartRetries  int            `long:"max-restart-retries" description:"Maximum number of restart attempts"`
 	ShmSize            int64          `long:"shm-size" description:"Size of /dev/shm in bytes"`
 	AdvancedConfigPath flags.Filename `long:"advanced-config" description:"Path to JSON file containing advanced Docker container configuration"`
+}
+
+type InstancesCreateCmdVagrant struct {
+	Box               string   `long:"box" description:"Vagrant box name to use (e.g. ubuntu/jammy64, generic/ubuntu2204)" default:"ubuntu/jammy64"`
+	BoxVersion        string   `long:"box-version" description:"Vagrant box version (empty = latest)" default:""`
+	CPUs              int      `long:"cpus" description:"Number of CPU cores per VM" default:"2"`
+	Memory            int      `long:"memory" description:"Memory in MB per VM" default:"2048"`
+	DiskSize          int      `long:"disk-size" description:"Disk size in GB (provider-dependent, may not be supported)" default:"0"`
+	NetworkType       string   `long:"network-type" description:"Network type: private_network or public_network (requires network-ip to be set)" default:""`
+	NetworkIP         string   `long:"network-ip" description:"Base network IP for private_network (will increment for each node)" default:""`
+	SyncedFolders     []string `long:"synced-folder" description:"Synced folders in format: hostPath:guestPath; can be specified multiple times"`
+	PortForwards      []string `long:"port-forward" description:"Port forwards in format: guestPort:hostPort; can be specified multiple times"`
+	SkipSSHReadyCheck bool     `long:"skip-ssh-check" description:"Skip SSH connectivity check after VM creation"`
 }
 
 type InstancesGrowCmd struct {
@@ -354,7 +372,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		itype = c.GCP.InstanceType
 	}
 
-	if system.Opts.Config.Backend.Type != "docker" {
+	if system.Opts.Config.Backend.Type != "docker" && system.Opts.Config.Backend.Type != "vagrant" {
 		if itype == "" {
 			if IsInteractive() {
 				var itypeList []string
@@ -687,6 +705,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		imageName = c.GCP.ImageName
 	case "docker":
 		imageName = c.Docker.ImageName
+	case "vagrant":
+		// Vagrant uses box names directly
+		imageName = c.Vagrant.Box
 	}
 	var expire time.Time
 	if system.Opts.Config.Backend.Type == "aws" {
@@ -695,6 +716,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	if system.Opts.Config.Backend.Type == "gcp" {
 		expire = time.Now().Add(c.GCP.Expire)
 	}
+	// Vagrant doesn't have automatic expiry by default
 	awsCustomImageID := ""
 	if awsCustomImage {
 		awsCustomImageID = c.AWS.ImageID
@@ -745,6 +767,18 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				CustomImageID:      gcpCustomImageID,
 			},
 			"docker": dockerParams,
+			"vagrant": &bvagrant.CreateInstanceParams{
+				Box:               c.Vagrant.Box,
+				BoxVersion:        c.Vagrant.BoxVersion,
+				CPUs:              c.Vagrant.CPUs,
+				Memory:            c.Vagrant.Memory,
+				DiskSize:          c.Vagrant.DiskSize,
+				NetworkType:       c.Vagrant.NetworkType,
+				NetworkIP:         c.Vagrant.NetworkIP,
+				SyncedFolders:     parseSyncedFolders(c.Vagrant.SyncedFolders),
+				PortForwards:      parsePortForwards(c.Vagrant.PortForwards),
+				SkipSshReadyCheck: c.Vagrant.SkipSSHReadyCheck,
+			},
 		},
 	}
 	for k := range createInstancesInput.BackendSpecificParams {
@@ -933,6 +967,178 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	if err != nil {
 		return nil, err
 	}
+
+	// For Vagrant with type=aerospike, we need to install Aerospike since base boxes don't have it
+	if system.Opts.Config.Backend.Type == "vagrant" && c.Type == "aerospike" {
+		system.Logger.Info("Installing Aerospike on Vagrant VMs (base boxes don't have it pre-installed)")
+
+		// Determine the Aerospike version to install from the image version if available
+		aerospikeVersion := "latest"
+		if c.ImageVersion != "" {
+			aerospikeVersion = c.ImageVersion
+		}
+
+		// Get the Aerospike version to install
+		version, flavor, err := resolveAerospikeServerVersion(aerospikeVersion)
+		if err != nil {
+			return nil, fmt.Errorf("could not resolve Aerospike version for Vagrant install: %w", err)
+		}
+
+		// Get the files for this version
+		files, err := aerospike.GetFiles(time.Second*10, *version)
+		if err != nil {
+			return nil, fmt.Errorf("could not get Aerospike files for Vagrant install: %w", err)
+		}
+
+		// Determine OS and architecture
+		archType := aerospike.ArchitectureTypeX86_64
+		if c.Arch == "arm64" || strings.Contains(strings.ToLower(c.Vagrant.Box), "arm64") || strings.Contains(strings.ToLower(c.Vagrant.Box), "aarch64") {
+			archType = aerospike.ArchitectureTypeAARCH64
+		}
+		
+		// For Vagrant, get OS info from the created instance metadata (parsed from box name)
+		// rather than from CLI parameters which may not match the actual box OS
+		osName := aerospike.OSName(instances.Instances[0].OperatingSystem.Name)
+		if osName == "rocky" {
+			osName = "centos"
+		}
+		osVersion := instances.Instances[0].OperatingSystem.Version
+
+		// Get the install script
+		var installScript []byte
+		if osVersion != "latest" {
+			installScript, err = files.GetInstallScript(archType, osName, osVersion, system.logLevel >= 5, true, true, false)
+			if err != nil {
+				return nil, fmt.Errorf("could not get install script for Vagrant: %w", err)
+			}
+		} else {
+			var versionList []string
+			switch osName {
+			case "ubuntu":
+				versionList = []string{"24.04", "22.04", "20.04", "18.04"}
+			case "centos":
+				versionList = []string{"9", "8", "7"}
+			case "rocky":
+				versionList = []string{"9", "8"}
+			case "debian":
+				versionList = []string{"13", "12", "11", "10", "9", "8"}
+			case "amazon":
+				versionList = []string{"2023", "2"}
+			default:
+				return nil, fmt.Errorf("unsupported distro for Vagrant: %s", osName)
+			}
+			for _, ver := range versionList {
+				installScript, err = files.GetInstallScript(archType, osName, ver, system.logLevel >= 5, true, true, false)
+				if err == nil {
+					osVersion = ver
+					break
+				}
+			}
+			if installScript == nil {
+				return nil, fmt.Errorf("could not get install script: could not find a matching OS Version and Architecture for Aerospike %s %s", flavor, version.Name)
+			}
+		}
+
+		// Add basic tools to the install script (same as template creation)
+		installScript, err = installers.GetInstallScript(installers.Software{
+			Debug: system.logLevel >= 5,
+			Optional: installers.Installs{
+				Dependencies: []installers.Dependency{
+					{Command: "curl", Package: "curl"},
+					{Command: "jq", Package: "jq"},
+					{Command: "unzip", Package: "unzip"},
+					{Command: "zip", Package: "zip"},
+					{Command: "wget", Package: "wget"},
+					{Command: "git", Package: "git"},
+					{Command: "vim", Package: "vim"},
+					{Command: "nano", Package: "nano"},
+					{Command: "less", Package: "less"},
+					{Command: "lnav", Package: "lnav"},
+					{Command: "iptables", Package: "iptables"},
+					{Command: "tcpdump", Package: "tcpdump"},
+					{Command: "telnet", Package: "telnet"},
+					{Command: "mpstat", Package: "sysstat"},
+					{Command: "dig", Package: "dnsutils"},   // apt
+					{Command: "dig", Package: "bind-utils"}, // yum
+					{Command: "strings", Package: "binutils"},
+					{Command: "which", Package: "which"},
+					{Command: "ip", Package: "iproute2"},       // apt
+					{Command: "ip", Package: "iproute"},        // yum
+					{Command: "ip", Package: "iproute-tc"},     // yum
+					{Command: "python3", Package: "python3"},   // apt and some yum
+					{Command: "python3", Package: "python"},    // yum
+					{Command: "nc", Package: "netcat"},         // apt
+					{Command: "nc", Package: "nc"},             // yum
+					{Command: "ping", Package: "iputils-ping"}, // apt
+					{Command: "ping", Package: "iputils"},      // yum
+					{Command: "ldapsearch", Package: "ldap-utils"},
+					{Command: "netstat", Package: "net-tools"},
+					{Command: "lsb_release", Package: "lsb-release"},     // apt
+					{Command: "lsb_release", Package: "redhat-lsb-core"}, // yum
+					{Command: "lsb_release", Package: "redhat-lsb"},      // yum
+					{Command: "ps", Package: "procps"},                   // apt
+					{Command: "ps", Package: "procps-ng"},                // yum
+				},
+				Packages: []string{"python3-setuptools", "python3-distutils", "libcurl4", "libcurl4-openssl-dev", "libldap-common", "libcurl-openssl-devel", "initscripts"},
+			},
+		}, installScript)
+		if err != nil {
+			return nil, fmt.Errorf("could not add basic tools to install script: %w", err)
+		}
+
+		// Upload and run install script on each new instance
+		var installErrs []error
+		parallelize.ForEachLimit(instances.Instances, c.ParallelSSHThreads, func(inst *backends.Instance) {
+			sftp, err := inst.GetSftpConfig("root")
+			if err != nil {
+				installErrs = append(installErrs, fmt.Errorf("%s: failed to get SFTP config: %w", inst.Name, err))
+				return
+			}
+
+			cli, err := sshexec.NewSftp(sftp)
+			if err != nil {
+				installErrs = append(installErrs, fmt.Errorf("%s: failed to create SFTP client: %w", inst.Name, err))
+				return
+			}
+			defer cli.Close()
+
+			err = cli.WriteFile(true, &sshexec.FileWriter{
+				DestPath:    "/tmp/install-aerospike.sh",
+				Source:      bytes.NewReader(installScript),
+				Permissions: 0755,
+			})
+			if err != nil {
+				installErrs = append(installErrs, fmt.Errorf("%s: failed to upload install script: %w", inst.Name, err))
+				return
+			}
+
+			system.Logger.Info("Installing Aerospike on %s (this may take a few minutes)", inst.Name)
+			output := inst.Exec(&backends.ExecInput{
+				ExecDetail: sshexec.ExecDetail{
+					Command:        []string{"bash", "/tmp/install-aerospike.sh"},
+					Stdin:          nil,
+					Stdout:         nil,
+					Stderr:         nil,
+					SessionTimeout: 15 * time.Minute,
+					Env:            []*sshexec.Env{},
+					Terminal:       false,
+				},
+				Username:        "root",
+				ConnectTimeout:  30 * time.Second,
+				ParallelThreads: 1,
+			})
+			if output.Output.Err != nil {
+				installErrs = append(installErrs, fmt.Errorf("%s: Aerospike installation failed: %w", inst.Name, output.Output.Err))
+				return
+			}
+			system.Logger.Info("Aerospike installed successfully on %s", inst.Name)
+		})
+
+		if len(installErrs) > 0 {
+			return nil, errors.Join(installErrs...)
+		}
+	}
+
 	// patch the hostname, per instance, setting it to clustername-nodeno
 	system.Logger.Info("Patching hostnames, setting it to clustername-nodeno")
 	parallelize.ForEachLimit(instances.Instances, c.ParallelSSHThreads, func(instance *backends.Instance) {
@@ -996,4 +1202,32 @@ func (w *prefixWriter) Flush() {
 		w.logger.Info("%s%s", w.prefix, line)
 	}
 	w.buf = []byte{}
+}
+
+// parseSyncedFolders parses CLI format "hostPath:guestPath" into a map
+func parseSyncedFolders(folders []string) map[string]string {
+	result := make(map[string]string)
+	for _, folder := range folders {
+		parts := strings.SplitN(folder, ":", 2)
+		if len(parts) == 2 {
+			result[parts[0]] = parts[1]
+		}
+	}
+	return result
+}
+
+// parsePortForwards parses CLI format "guestPort:hostPort" into a map
+func parsePortForwards(forwards []string) map[int]int {
+	result := make(map[int]int)
+	for _, forward := range forwards {
+		parts := strings.SplitN(forward, ":", 2)
+		if len(parts) == 2 {
+			guest, err1 := strconv.Atoi(parts[0])
+			host, err2 := strconv.Atoi(parts[1])
+			if err1 == nil && err2 == nil {
+				result[guest] = host
+			}
+		}
+	}
+	return result
 }

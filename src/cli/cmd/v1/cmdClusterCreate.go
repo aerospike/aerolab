@@ -34,24 +34,25 @@ type ClusterCreateCmd struct {
 	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file" simplemode:"false"`
 	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file" simplemode:"false"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
-	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
-	NoSetDNS              bool                   `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
-	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
-	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
-	ParallelThreads       int                    `short:"P" long:"parallel-threads" description:"number of threads to use for parallel operations" default:"10" simplemode:"false"`
-	NoVacuumOnFail        bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
-	Owner                 string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
-	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
-	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
-	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
-	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
-	gcpMeta               map[string]string      // TODO: extra tags to apply to the instance being created in gcp
-	useAgiFirewall        bool                   // TODO: use special firewall dedicated to AGI (allow ports 443 and 80 from anywhere)
-	volExtraTags          map[string]string      // TODO: extra tags to apply to the volume being created
-	spotFallback          bool                   // TODO: if doing a spot instance and it fails, try again with on-demand
-	efsDelOnError         bool                   // if creating an extra volume, and if instance creation fails, delete the new volume
-	Help                  HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
+	AutoStartAerospike    TypeYesNo               `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
+	NoOverrideClusterName bool                    `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
+	NoSetDNS              bool                    `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
+	ScriptEarly           flags.Filename          `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
+	ScriptLate            flags.Filename          `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
+	ParallelThreads       int                     `short:"P" long:"parallel-threads" description:"number of threads to use for parallel operations" default:"10" simplemode:"false"`
+	NoVacuumOnFail        bool                    `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
+	Owner                 string                  `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
+	PriceOnly             bool                    `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
+	Aws                   ClusterCreateCmdAws     `group:"AWS" description:"backend-aws"`
+	Gcp                   ClusterCreateCmdGcp     `group:"GCP" description:"backend-gcp"`
+	Docker                ClusterCreateCmdDocker  `group:"Docker" description:"backend-docker"`
+	Vagrant               ClusterCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant"`
+	gcpMeta               map[string]string       // TODO: extra tags to apply to the instance being created in gcp
+	useAgiFirewall        bool                    // TODO: use special firewall dedicated to AGI (allow ports 443 and 80 from anywhere)
+	volExtraTags          map[string]string       // TODO: extra tags to apply to the volume being created
+	spotFallback          bool                    // TODO: if doing a spot instance and it fails, try again with on-demand
+	efsDelOnError         bool                    // if creating an extra volume, and if instance creation fails, delete the new volume
+	Help                  HelpCmd                 `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type ClusterCreateCmdAws struct {
@@ -111,6 +112,19 @@ type ClusterCreateCmdDocker struct {
 	ClientType              string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
 	Labels                  []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 	clientCustomDockerImage string   // TODO: what is this?
+}
+
+type ClusterCreateCmdVagrant struct {
+	Box               string   `long:"box" description:"Vagrant box name to use (e.g. ubuntu/jammy64, generic/ubuntu2204)" default:"ubuntu/jammy64"`
+	BoxVersion        string   `long:"box-version" description:"Vagrant box version (empty = latest)" default:""`
+	CPUs              int      `long:"cpus" description:"Number of CPU cores per VM" default:"2"`
+	Memory            int      `long:"memory" description:"Memory in MB per VM" default:"2048"`
+	DiskSize          int      `long:"disk-size" description:"Disk size in GB (provider-dependent, may not be supported)" default:"0"`
+	NetworkType       string   `long:"network-type" description:"Network type: private_network or public_network (requires network-ip to be set)" default:""`
+	NetworkIP         string   `long:"network-ip" description:"Base network IP for private_network (will increment for each node)" default:""`
+	SyncedFolders     []string `long:"synced-folder" description:"Synced folders in format: hostPath:guestPath; can be specified multiple times" simplemode:"false"`
+	PortForwards      []string `long:"port-forward" description:"Port forwards in format: guestPort:hostPort; can be specified multiple times" simplemode:"false"`
+	SkipSSHReadyCheck bool     `long:"skip-ssh-check" description:"Skip SSH connectivity check after VM creation" simplemode:"false"`
 }
 
 type ClusterGrowCmd struct {
@@ -293,6 +307,13 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				break
 			}
 		}
+	case "vagrant":
+		// For Vagrant, default to amd64 unless specified in box name
+		arch.FromString("amd64")
+		// Check if box name contains arm64 indicators
+		if strings.Contains(strings.ToLower(c.Vagrant.Box), "arm64") || strings.Contains(strings.ToLower(c.Vagrant.Box), "aarch64") {
+			arch.FromString("arm64")
+		}
 	}
 	if arch.String() == "" {
 		return nil, errors.New("architecture not found for instance type " + c.Aws.InstanceType.String() + " or " + c.Gcp.InstanceType.String())
@@ -333,44 +354,51 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		c.DistroVersion = TypeDistroVersion(versionList[0])
 	}
 
-	templates := inventory.Images.WithOSName(c.DistroName.String()).WithOSVersion(c.DistroVersion.String()).WithArchitecture(arch).WithTags(
-		map[string]string{
-			"aerolab.soft.version": av,
-			"aerolab.image.type":   "aerospike",
-		},
-	)
-	if templates.Count() == 0 {
-		tpl := &TemplateCreateCmd{
-			Distro:           c.DistroName.String(),
-			DistroVersion:    c.DistroVersion.String(),
-			Arch:             arch.String(),
-			AerospikeVersion: c.AerospikeVersion.String(),
-			Owner:            c.Owner,
-			DisablePublicIP:  system.Opts.Config.Backend.Type == "aws" && system.Opts.Config.Backend.AWSNoPublicIps,
-			Timeout:          10,
-			NoVacuum:         c.NoVacuumOnFail,
-			DryRun:           c.PriceOnly,
-		}
-		_, err := tpl.CreateTemplate(system, inventory, logger.WithPrefix("[template.create] "), nil)
-		if err != nil {
-			return nil, err
-		}
-		logger.Info("Refreshing inventory")
-		err = system.Backend.RefreshChangedInventory()
-		if err != nil {
-			return nil, err
-		}
-		inventory = system.Backend.GetInventory()
+	// For Vagrant, skip template creation and use base boxes directly
+	// Aerospike will be installed during instance creation
+	if system.Opts.Config.Backend.Type == "vagrant" {
+		templateName = c.Vagrant.Box
+		logger.Info("Aerospike Version: %s, Flavor: %s, Vagrant Box: %s", c.AerospikeVersion, flavor, c.Vagrant.Box)
+	} else {
 		templates := inventory.Images.WithOSName(c.DistroName.String()).WithOSVersion(c.DistroVersion.String()).WithArchitecture(arch).WithTags(
 			map[string]string{
 				"aerolab.soft.version": av,
 				"aerolab.image.type":   "aerospike",
 			},
 		)
-		templateName = templates.Describe()[0].Name
-	} else {
-		templateName = templates.Describe()[0].Name
-		logger.Info("Aerospike Version: %s, Flavor: %s, Distro: %s, OS Version: %s, Arch: %s", c.AerospikeVersion, flavor, c.DistroName.String(), c.DistroVersion.String(), arch.String())
+		if templates.Count() == 0 {
+			tpl := &TemplateCreateCmd{
+				Distro:           c.DistroName.String(),
+				DistroVersion:    c.DistroVersion.String(),
+				Arch:             arch.String(),
+				AerospikeVersion: c.AerospikeVersion.String(),
+				Owner:            c.Owner,
+				DisablePublicIP:  system.Opts.Config.Backend.Type == "aws" && system.Opts.Config.Backend.AWSNoPublicIps,
+				Timeout:          10,
+				NoVacuum:         c.NoVacuumOnFail,
+				DryRun:           c.PriceOnly,
+			}
+			_, err := tpl.CreateTemplate(system, inventory, logger.WithPrefix("[template.create] "), nil)
+			if err != nil {
+				return nil, err
+			}
+			logger.Info("Refreshing inventory")
+			err = system.Backend.RefreshChangedInventory()
+			if err != nil {
+				return nil, err
+			}
+			inventory = system.Backend.GetInventory()
+			templates := inventory.Images.WithOSName(c.DistroName.String()).WithOSVersion(c.DistroVersion.String()).WithArchitecture(arch).WithTags(
+				map[string]string{
+					"aerolab.soft.version": av,
+					"aerolab.image.type":   "aerospike",
+				},
+			)
+			templateName = templates.Describe()[0].Name
+		} else {
+			templateName = templates.Describe()[0].Name
+			logger.Info("Aerospike Version: %s, Flavor: %s, Distro: %s, OS Version: %s, Arch: %s", c.AerospikeVersion, flavor, c.DistroName.String(), c.DistroVersion.String(), arch.String())
+		}
 	}
 
 	// run instances create
@@ -446,6 +474,18 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			MaxRestartRetries:  0,
 			ShmSize:            0,
 			AdvancedConfigPath: "",
+		},
+		Vagrant: InstancesCreateCmdVagrant{
+			Box:               c.Vagrant.Box,
+			BoxVersion:        c.Vagrant.BoxVersion,
+			CPUs:              c.Vagrant.CPUs,
+			Memory:            c.Vagrant.Memory,
+			DiskSize:          c.Vagrant.DiskSize,
+			NetworkType:       c.Vagrant.NetworkType,
+			NetworkIP:         c.Vagrant.NetworkIP,
+			SyncedFolders:     c.Vagrant.SyncedFolders,
+			PortForwards:      c.Vagrant.PortForwards,
+			SkipSSHReadyCheck: c.Vagrant.SkipSSHReadyCheck,
 		},
 		NoInstallExpiry: false,
 		DryRun:          false,
@@ -618,6 +658,10 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	for _, i := range instances {
 		intIps = append(intIps, i.IP.Private)
 	}
+
+	// For Vagrant with new instances, Aerospike was already installed by InstancesCreate
+	// No need to install it again here - just continue with configuration
+
 	var errs []error
 	parallelize.ForEachLimit(instances, c.ParallelThreads, func(i instanceList) {
 		// connect

@@ -15,8 +15,8 @@ type XdrCreateClustersCmd struct {
 	XdrVersion              TypeXDRVersion  `short:"V" long:"xdr-version" description:"Specify aerospike xdr configuration version (4|5|auto)" default:"auto" webchoice:"auto,5,4"`
 	XdrRestart              TypeYesNo       `short:"T" long:"restart-source" description:"Restart source nodes after connecting (y/n)" default:"y" webchoice:"y,n"`
 	XdrNamespaces           string          `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect" default:"test"`
-	CustomDestinationPort   int             `short:"P" long:"destination-port" description:"Optionally specify a custom destination port for the xdr connection"`
-	IsConnector             bool            `short:"c" long:"connector" description:"Set to indicate that the destination is a client connector, not a cluster"`
+	CustomDestinationPort   int             `long:"destination-port" description:"Optionally specify a custom destination port for the xdr connection"`
+	IsConnector             bool            `long:"connector" description:"Set to indicate that the destination is a client connector, not a cluster"`
 }
 
 func (c *XdrCreateClustersCmd) Execute(args []string) error {

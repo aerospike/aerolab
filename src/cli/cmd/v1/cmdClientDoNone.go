@@ -12,8 +12,8 @@ import (
 
 type ClientCreateNoneCmd struct {
 	InstancesCreateCmd
-	ClientName    TypeClientName `short:"n" long:"group-name" description:"Client group name" default:"client"`
-	ClientCount   int            `short:"c" long:"count" description:"Number of clients" default:"1"`
+	ClientName    TypeClientName `long:"group-name" description:"Client group name" default:"client"`
+	ClientCount   int            `long:"client-count" description:"Number of clients" default:"1"`
 	NoSetHostname bool           `short:"H" long:"no-set-hostname" description:"By default, hostname of each machine will be set, use this to prevent hostname change"`
 	NoSetDNS      bool           `long:"no-set-dns" description:"Set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
 	StartScript   flags.Filename `short:"X" long:"start-script" description:"Optionally specify a script to be installed which will run when the client machine starts"`
@@ -22,14 +22,14 @@ type ClientCreateNoneCmd struct {
 
 func (c *ClientCreateNoneCmd) Execute(args []string) error {
 	isGrow := len(os.Args) >= 3 && os.Args[1] == "client" && os.Args[2] == "grow"
-	
+
 	var cmd []string
 	if isGrow {
 		cmd = []string{"client", "grow", "none"}
 	} else {
 		cmd = []string{"client", "create", "none"}
 	}
-	
+
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -94,7 +94,7 @@ func (c *ClientCreateNoneCmd) createNoneClient(system *System, inventory *backen
 	if isGrow {
 		action = "grow"
 	}
-	
+
 	instances, err := c.InstancesCreateCmd.CreateInstances(system, inventory, args, action)
 	if err != nil {
 		return fmt.Errorf("failed to create client instances: %w", err)
@@ -103,4 +103,3 @@ func (c *ClientCreateNoneCmd) createNoneClient(system *System, inventory *backen
 	logger.Info("Created %d client instances", len(instances))
 	return nil
 }
-

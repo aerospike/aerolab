@@ -3,9 +3,10 @@ package clouds
 import "time"
 
 type Credentials struct {
-	AWS    AWS    `yaml:"aws" json:"aws"`
-	GCP    GCP    `yaml:"gcp" json:"gcp"`
-	DOCKER DOCKER `yaml:"docker" json:"docker"`
+	AWS     AWS     `yaml:"aws" json:"aws"`
+	GCP     GCP     `yaml:"gcp" json:"gcp"`
+	DOCKER  DOCKER  `yaml:"docker" json:"docker"`
+	VAGRANT VAGRANT `yaml:"vagrant" json:"vagrant"`
 }
 
 type DOCKER struct {
@@ -66,4 +67,13 @@ type LoginGCPConfig struct {
 type LoginGCPSecrets struct {
 	ClientID     string `json:"client_id" yaml:"client_id"`
 	ClientSecret string `json:"client_secret" yaml:"client_secret"`
+}
+
+type VAGRANT struct {
+	Provider string                   `yaml:"provider" json:"provider"` // virtualbox, vmware_desktop, libvirt, hyperv, parallels, etc
+	Regions  map[string]VagrantRegion `yaml:"regions" json:"regions"`   // map[regionName]definition-of-region
+}
+
+type VagrantRegion struct {
+	WorkDir string `yaml:"workDir" json:"workDir"` // directory where Vagrantfiles will be stored
 }

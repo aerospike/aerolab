@@ -16,7 +16,7 @@ import (
 )
 
 type ConfigBackendCmd struct {
-	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:"" webchoice:"aws,gcp,docker"`
+	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp|vagrant" default:"" webchoice:"aws,gcp,docker,vagrant"`
 	SshKeyPath     flags.Filename `short:"p" long:"key-path" description:"Specify a custom path to store SSH keys in, default: ${HOME}/.config/aerolab" webtype:"text"`
 	Region         string         `short:"r" long:"region" description:"Specify a list of regions to enable, comma-separated" default:""`
 	InventoryCache bool           `short:"c" long:"inventory-cache" description:"Enable local inventory cache - use only if not sharing the GCP/AWS project/account with other users"`
@@ -33,6 +33,8 @@ type ConfigBackendCmd struct {
 	Arch        string         `short:"a" long:"docker-arch" description:"DOCKER: set to either amd64 or arm64 to force a particular architecture on docker; requires multiarch support"`
 	TmpDir      flags.Filename `short:"d" long:"temp-dir" description:"use a non-default temporary directory, when using aerolab in WSL2" default:"" webtype:"text"`
 	CheckAccess bool           `long:"check-access" description:"check access to the backend"`
+
+	VagrantProvider string `long:"vagrant-provider" description:"VAGRANT: specify the Vagrant provider to use (virtualbox, vmware_desktop, libvirt, hyperv, parallels)" default:"virtualbox" webchoice:"virtualbox,vmware_desktop,libvirt,hyperv,parallels"`
 
 	Help      HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 	typeSet   string
@@ -102,6 +104,10 @@ func (c *ConfigBackendCmd) Execute(args []string) error {
 	if c.Type == "docker" && c.Arch != "" {
 		fmt.Printf("Config.Backend.Arch = %s\n", c.Arch)
 	}
+	if c.Type == "vagrant" {
+		fmt.Printf("Config.Backend.VagrantProvider = %s\n", c.VagrantProvider)
+		fmt.Printf("Config.Backend.Region = %s\n", c.Region)
+	}
 	fmt.Printf("Config.Backend.TmpDir = %s\n", c.TmpDir)
 
 	// check access to the backend
@@ -133,6 +139,10 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	}
 	if c.Type == "docker" {
 		c.Region = ""
+	} else if c.Type == "vagrant" {
+		if c.regionSet == "" {
+			c.Region = "default"
+		}
 	} else if c.regionSet == "" {
 		return errors.New("ERROR: Region is required for AWS and GCP backends")
 	}
@@ -140,7 +150,7 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	if c.Type == "gcp" && c.Project == "" {
 		return errors.New("ERROR: When using GCP backend, project name must be defined. Use: aerolab config backend -t gcp -o project-name-here")
 	}
-	if c.Type == "aws" || c.Type == "gcp" || c.Type == "docker" {
+	if c.Type == "aws" || c.Type == "gcp" || c.Type == "docker" || c.Type == "vagrant" {
 		if c.SshKeyPath != "" {
 			if strings.Contains(string(c.SshKeyPath), "${HOME}") {
 				ch, err := os.UserHomeDir()
@@ -157,7 +167,7 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 			}
 		}
 	} else if c.Type != "none" {
-		return errors.New("backend types supported: docker, aws, gcp")
+		return errors.New("backend types supported: docker, aws, gcp, vagrant")
 	}
 	if c.TmpDir == "" {
 		out, err := exec.Command("uname", "-r").CombinedOutput()

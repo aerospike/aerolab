@@ -16,22 +16,23 @@ import (
 )
 
 type InstancesApplyCmd struct {
-	ClusterName        string                   `short:"n" long:"cluster-name" description:"Name of the cluster to apply the state to" default:"mydc"`
-	Count              int                      `short:"c" long:"count" description:"Desired number of instances to have in the cluster" default:"1"`
-	Owner              string                   `short:"o" long:"owner" description:"Owner of the instances"`
-	Tags               []string                 `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
-	Description        string                   `short:"d" long:"description" description:"Description of the instances"`
-	TerminateOnStop    bool                     `short:"T" long:"terminate-on-stop" description:"Terminate the instances when they are stopped"`
-	ParallelSSHThreads int                      `short:"p" long:"parallel-ssh-threads" description:"Number of parallel SSH threads to use for the instances" default:"10"`
-	SSHKeyName         string                   `short:"k" long:"ssh-key-name" description:"Name of a custom SSH key to use for the instances"`
-	Hooks              InstancesApplyCmdHooks   `group:"Hooks" description:"hooks" namespace:"hooks"`
-	AWS                InstancesCreateCmdAws    `group:"AWS" description:"backend-aws" namespace:"aws"`
-	GCP                InstancesCreateCmdGcp    `group:"GCP" description:"backend-gcp" namespace:"gcp"`
-	Docker             InstancesCreateCmdDocker `group:"Docker" description:"backend-docker" namespace:"docker"`
-	NoInstallExpiry    bool                     `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
-	Force              bool                     `long:"force" description:"Do not ask for confirmation when destroying instances"`
-	DryRun             bool                     `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
-	Help               InstancesApplyCmdHelp    `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName        string                    `short:"n" long:"cluster-name" description:"Name of the cluster to apply the state to" default:"mydc"`
+	Count              int                       `short:"c" long:"count" description:"Desired number of instances to have in the cluster" default:"1"`
+	Owner              string                    `short:"o" long:"owner" description:"Owner of the instances"`
+	Tags               []string                  `short:"t" long:"tag" description:"Tags to add to the instances, format: k=v"`
+	Description        string                    `short:"d" long:"description" description:"Description of the instances"`
+	TerminateOnStop    bool                      `short:"T" long:"terminate-on-stop" description:"Terminate the instances when they are stopped"`
+	ParallelSSHThreads int                       `short:"p" long:"parallel-ssh-threads" description:"Number of parallel SSH threads to use for the instances" default:"10"`
+	SSHKeyName         string                    `short:"k" long:"ssh-key-name" description:"Name of a custom SSH key to use for the instances"`
+	Hooks              InstancesApplyCmdHooks    `group:"Hooks" description:"hooks" namespace:"hooks"`
+	AWS                InstancesCreateCmdAws     `group:"AWS" description:"backend-aws" namespace:"aws"`
+	GCP                InstancesCreateCmdGcp     `group:"GCP" description:"backend-gcp" namespace:"gcp"`
+	Docker             InstancesCreateCmdDocker  `group:"Docker" description:"backend-docker" namespace:"docker"`
+	Vagrant            InstancesCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant" namespace:"vagrant"`
+	NoInstallExpiry    bool                      `long:"no-install-expiry" description:"Do not install the expiry system, even if instance expiry is set"`
+	Force              bool                      `long:"force" description:"Do not ask for confirmation when destroying instances"`
+	DryRun             bool                      `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
+	Help               InstancesApplyCmdHelp     `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 type InstancesApplyCmdHelp struct {
@@ -145,6 +146,7 @@ func (c *InstancesApplyCmd) create(system *System, inventory *backends.Inventory
 		AWS:                c.AWS,
 		GCP:                c.GCP,
 		Docker:             c.Docker,
+		Vagrant:            c.Vagrant,
 		NoInstallExpiry:    c.NoInstallExpiry,
 		DryRun:             c.DryRun,
 	}
@@ -233,6 +235,7 @@ func (c *InstancesApplyCmd) grow(system *System, inventory *backends.Inventory, 
 		AWS:                c.AWS,
 		GCP:                c.GCP,
 		Docker:             c.Docker,
+		Vagrant:            c.Vagrant,
 		NoInstallExpiry:    c.NoInstallExpiry,
 		DryRun:             c.DryRun,
 	}

@@ -23,21 +23,22 @@ type ClusterApplyCmd struct {
 	MulticastAddress        string          `short:"a" long:"mcast-address" description:"Multicast address to change to in config file" simplemode:"false"`
 	MulticastPort           string          `short:"p" long:"mcast-port" description:"Multicast port to change to in config file" simplemode:"false"`
 	aerospikeVersionSelectorCmd
-	AutoStartAerospike    TypeYesNo              `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
-	NoOverrideClusterName bool                   `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
-	NoSetDNS              bool                   `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
-	ScriptEarly           flags.Filename         `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
-	ScriptLate            flags.Filename         `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
-	ParallelThreads       int                    `short:"P" long:"parallel-threads" description:"number of threads to use for parallel operations" default:"10" simplemode:"false"`
-	NoVacuumOnFail        bool                   `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
-	Owner                 string                 `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
-	PriceOnly             bool                   `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
-	Force                 bool                   `short:"F" long:"force" description:"Force destroy when shrinking"`
-	DryRun                bool                   `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
-	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
-	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
-	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
-	Help                  HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
+	AutoStartAerospike    TypeYesNo               `short:"s" long:"start" description:"Auto-start aerospike after creation of cluster (y/n)" default:"y" webchoice:"y,n"`
+	NoOverrideClusterName bool                    `short:"O" long:"no-override-cluster-name" description:"Aerolab sets cluster-name by default, use this parameter to not set cluster-name" simplemode:"false"`
+	NoSetDNS              bool                    `long:"no-set-dns" description:"set to prevent aerolab from updating resolved to use 1.1.1.1/8.8.8.8 DNS"`
+	ScriptEarly           flags.Filename          `short:"X" long:"early-script" description:"optionally specify a script to be installed which will run before every aerospike start" simplemode:"false"`
+	ScriptLate            flags.Filename          `short:"Z" long:"late-script" description:"optionally specify a script to be installed which will run after every aerospike stop" simplemode:"false"`
+	ParallelThreads       int                     `short:"P" long:"parallel-threads" description:"number of threads to use for parallel operations" default:"10" simplemode:"false"`
+	NoVacuumOnFail        bool                    `long:"no-vacuum" description:"if set, will not remove the template instance/container should it fail installation" simplemode:"false"`
+	Owner                 string                  `long:"owner" description:"AWS/GCP only: create owner tag with this value" simplemode:"false"`
+	PriceOnly             bool                    `long:"price" description:"Only display price of ownership; do not actually create the cluster" simplemode:"false"`
+	Force                 bool                    `short:"F" long:"force" description:"Force destroy when shrinking"`
+	DryRun                bool                    `long:"dry-run" description:"Dry run, print what would be done but don't do it"`
+	Aws                   ClusterCreateCmdAws     `group:"AWS" description:"backend-aws"`
+	Gcp                   ClusterCreateCmdGcp     `group:"GCP" description:"backend-gcp"`
+	Docker                ClusterCreateCmdDocker  `group:"Docker" description:"backend-docker"`
+	Vagrant               ClusterCreateCmdVagrant `group:"Vagrant" description:"backend-vagrant"`
+	Help                  HelpCmd                 `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *ClusterApplyCmd) Execute(args []string) error {

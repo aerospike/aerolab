@@ -17,7 +17,7 @@ import (
 type XdrConnectCmd struct {
 	SourceClusterName       TypeClusterName `short:"S" long:"source" description:"Source Cluster name" default:"mydc"`
 	DestinationClusterNames TypeClusterName `short:"D" long:"destinations" description:"Destination Cluster names, comma separated" default:"destdc"`
-	IsConnector             bool            `short:"c" long:"connector" description:"Set to indicate that the destination is a client connector, not a cluster"`
+	IsConnector             bool            `long:"connector" description:"Set to indicate that the destination is a client connector, not a cluster"`
 	Version                 TypeXDRVersion  `short:"V" long:"xdr-version" description:"Specify aerospike xdr configuration version (4|5|auto)" default:"auto" webchoice:"auto,5,4"`
 	Restart                 TypeYesNo       `short:"T" long:"restart-source" description:"Restart source nodes after connecting (y/n)" default:"y" webchoice:"y,n"`
 	Namespaces              string          `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect" default:"test"`

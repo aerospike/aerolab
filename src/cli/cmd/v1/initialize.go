@@ -367,6 +367,10 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 			DOCKER: clouds.DOCKER{
 				EnableDefaultFromEnv: true,
 			},
+			VAGRANT: clouds.VAGRANT{
+				Provider: s.Opts.Config.Backend.VagrantProvider,
+				Regions:  map[string]clouds.VagrantRegion{},
+			},
 		},
 		LogLevel:         s.logLevel,
 		LogMillisecond:   i.Backend.LogMillisecond,
