@@ -512,6 +512,6 @@ fi
 		log.Printf("CLUSTER EXPIRES: %s (in: %s); to extend, use: aerolab client configure expiry", extra.expiresTime.Format(time.RFC850), time.Until(extra.expiresTime).Truncate(time.Second).String())
 	}
 	log.Println("Done")
-	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new design will be explored during AeroLab's version 7's lifecycle and the current client creation methods will be removed in AeroLab 8.0")
+	log.Println("WARN: Deprecation notice: the way clients are created and deployed is changing. A new way will be published in AeroLab 8 and the current client creation methods will be removed in AeroLab 9")
 	return nodeListNew, nil
 }
