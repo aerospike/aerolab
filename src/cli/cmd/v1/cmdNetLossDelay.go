@@ -10,6 +10,7 @@ import (
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/installers/easytc"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/rglonek/logger"
 )
@@ -131,9 +132,22 @@ func (c *NetLossDelayCmd) lossDelay(system *System, inventory *backends.Inventor
 		execInstances = sourceInstances
 	}
 
+	// Check and install easytc on all nodes first
+	logger.Info("Checking and installing easytc on %d nodes", execInstances.Count())
+	var hasErr error
+	parallelize.ForEachLimit(execInstances.Describe(), c.Threads, func(inst *backends.Instance) {
+		err := c.checkAndInstallEasytc(inst, logger)
+		if err != nil {
+			logger.Error("Node %s:%d failed to install easytc: %s", inst.ClusterName, inst.NodeNo, err)
+			hasErr = errors.New("some nodes failed to install easytc")
+		}
+	})
+	if hasErr != nil {
+		return hasErr
+	}
+
 	// Execute on nodes in parallel
 	logger.Info("Executing easytc on %d nodes", execInstances.Count())
-	var hasErr error
 	parallelize.ForEachLimit(execInstances.Describe(), c.Threads, func(inst *backends.Instance) {
 		err := c.execEasytc(inst, script, ipMap, logger)
 		if err != nil {
@@ -143,6 +157,72 @@ func (c *NetLossDelayCmd) lossDelay(system *System, inventory *backends.Inventor
 	})
 
 	return hasErr
+}
+
+func (c *NetLossDelayCmd) checkAndInstallEasytc(inst *backends.Instance, logger *logger.Logger) error {
+	// Check if easytc is already installed
+	checkOutput := inst.Exec(&backends.ExecInput{
+		ExecDetail: sshexec.ExecDetail{
+			Command:        []string{"which", "easytc"},
+			SessionTimeout: 10 * time.Second,
+		},
+		Username:        "root",
+		ConnectTimeout:  30 * time.Second,
+		ParallelThreads: 1,
+	})
+
+	// If easytc exists, no need to install
+	if checkOutput.Output.Err == nil && strings.TrimSpace(string(checkOutput.Output.Stdout)) != "" {
+		logger.Debug("easytc already installed on %s:%d", inst.ClusterName, inst.NodeNo)
+		return nil
+	}
+
+	logger.Info("Installing easytc on %s:%d", inst.ClusterName, inst.NodeNo)
+
+	// Get installation script
+	installScript, err := easytc.GetLinuxInstallScript(nil, nil, false)
+	if err != nil {
+		return fmt.Errorf("failed to get easytc install script: %w", err)
+	}
+
+	// Upload script via SFTP
+	conf, err := inst.GetSftpConfig("root")
+	if err != nil {
+		return fmt.Errorf("failed to get SFTP config: %w", err)
+	}
+
+	client, err := sshexec.NewSftp(conf)
+	if err != nil {
+		return fmt.Errorf("failed to create SFTP client: %w", err)
+	}
+	defer client.Close()
+
+	err = client.WriteFile(true, &sshexec.FileWriter{
+		DestPath:    "/tmp/install-easytc.sh",
+		Source:      strings.NewReader(string(installScript)),
+		Permissions: 0755,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to upload install script: %w", err)
+	}
+
+	// Execute installation script
+	installOutput := inst.Exec(&backends.ExecInput{
+		ExecDetail: sshexec.ExecDetail{
+			Command:        []string{"/bin/bash", "/tmp/install-easytc.sh"},
+			SessionTimeout: 5 * time.Minute,
+		},
+		Username:        "root",
+		ConnectTimeout:  30 * time.Second,
+		ParallelThreads: 1,
+	})
+
+	if installOutput.Output.Err != nil {
+		return fmt.Errorf("failed to install easytc: %s: %s: %s", installOutput.Output.Err, string(installOutput.Output.Stdout), string(installOutput.Output.Stderr))
+	}
+
+	logger.Debug("Successfully installed easytc on %s:%d", inst.ClusterName, inst.NodeNo)
+	return nil
 }
 
 func (c *NetLossDelayCmd) buildEasytcScript(sourceInstances, destInstances backends.InstanceList, ipMap map[string]string, logger *logger.Logger) string {
@@ -268,7 +348,7 @@ func (c *NetLossDelayCmd) execEasytc(inst *backends.Instance, script string, ipM
 	})
 
 	if output.Output.Err != nil {
-		return fmt.Errorf("(%s:%d) %s: %s", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout))
+		return fmt.Errorf("(%s:%d) %s: %s: %s", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr))
 	}
 
 	// Process and display output

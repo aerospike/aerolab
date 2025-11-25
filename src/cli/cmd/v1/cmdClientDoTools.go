@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -33,6 +32,7 @@ func (c *ClientCreateToolsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.createToolsClient(system, system.Backend.GetInventory(), system.Logger, args, isGrow)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -43,6 +43,16 @@ func (c *ClientCreateToolsCmd) Execute(args []string) error {
 }
 
 func (c *ClientCreateToolsCmd) createToolsClient(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string, isGrow bool) error {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"client", "create", "tools"}, c)
+		if err != nil {
+			return err
+		}
+	}
+	if inventory == nil {
+		inventory = system.Backend.GetInventory()
+	}
 	// Override type
 	if c.TypeOverride == "" {
 		c.TypeOverride = "tools"
@@ -50,7 +60,7 @@ func (c *ClientCreateToolsCmd) createToolsClient(system *System, inventory *back
 
 	// Create base client first
 	baseCmd := &ClientCreateBaseCmd{ClientCreateNoneCmd: c.ClientCreateNoneCmd}
-	err := baseCmd.createBaseClient(system, inventory, logger, args, isGrow)
+	clients, err := baseCmd.createBaseClient(system, inventory, logger, args, isGrow)
 	if err != nil {
 		return err
 	}
@@ -58,18 +68,7 @@ func (c *ClientCreateToolsCmd) createToolsClient(system *System, inventory *back
 	// Install aerospike tools
 	logger.Info("Installing Aerospike tools version %s", c.ToolsVersion)
 
-	// Get created instances
-	clients := system.Backend.GetInventory().Instances.
-		WithTags(map[string]string{"aerolab.old.type": "client"}).
-		WithClusterName(c.ClientName.String()).
-		WithState(backends.LifeCycleStateRunning)
-
-	if clients.Count() == 0 {
-		return fmt.Errorf("no running client instances found after creation")
-	}
-
-	clientList := clients.Describe()
-	for _, client := range clientList {
+	for _, client := range clients.Describe() {
 		// Determine architecture
 		var arch aerospike.ArchitectureType
 		if client.Architecture == backends.ArchitectureARM64 {
@@ -119,10 +118,10 @@ func (c *ClientCreateToolsCmd) createToolsClient(system *System, inventory *back
 			arch,
 			aerospike.OSName(client.OperatingSystem.Name),
 			client.OperatingSystem.Version,
-			true,  // debug
-			true,  // download
-			true,  // install
-			false, // upgrade
+			system.logLevel >= 5, // debug
+			true,                 // download
+			true,                 // install
+			true,                 // upgrade
 		)
 		if err != nil {
 			logger.Warn("Failed to get tools installer for %s:%d: %s", client.ClusterName, client.NodeNo, err)

@@ -51,7 +51,7 @@ type DataInsertCmd struct {
 
 func (c *DataInsertCmd) Execute(args []string) error {
 	cmd := []string{"data", "insert"}
-	system, err := Initialize(&Init{InitBackend: !c.RunDirect, UpgradeCheck: true}, cmd, c, args...)
+	system, err := Initialize(&Init{InitBackend: !c.RunDirect, UpgradeCheck: !c.RunDirect}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -187,6 +187,7 @@ func (c *DataInsertCmd) unpack(system *System, inventory *backends.Inventory, lo
 		if err != nil {
 			return fmt.Errorf("failed to get aerolab install script: %w", err)
 		}
+		installScript = append(installScript, []byte("\naerolab config backend -t none\n")...)
 
 		// Upload install script
 		conf, err := inst.GetSftpConfig("root")

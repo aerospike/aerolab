@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+rm -rf CA
 AEROLAB_HOME=$(pwd)/bob/home
 export AEROLAB_HOME
 export AEROLAB_TEST=1
