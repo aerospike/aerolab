@@ -3,24 +3,26 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
+	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/rglonek/logger"
 )
 
 type NetListCmd struct {
-	Json       bool     `short:"j" long:"json" description:"set to display output in json format"`
-	PrettyJson bool     `short:"p" long:"pretty" description:"set to indent json and pretty-print"`
-	SortBy     []string `short:"s" long:"sort" description:"sort-by fields, must match column names exactly" default:"Source:asc,Destination:asc,Port:asc"`
-	Output     string   `short:"o" long:"output" description:"Output format: table|json|json-indent|csv|tsv|html|markdown" default:"table"`
-	TableTheme string   `short:"T" long:"table-theme" description:"Table theme: default|frame|box" default:"default"`
+	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
+	TableTheme string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
+	SortBy     []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum" default:"Source:asc,Destination:asc,Port:asc"`
+	Pager      bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
 	Help       HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -117,13 +119,30 @@ func (c *NetListCmd) listRules(system *System, inventory *backends.Inventory, lo
 		}
 	}
 
-	// Handle JSON output
-	if c.Json || c.PrettyJson || c.Output == "json" || c.Output == "json-indent" {
-		return c.outputJSON(rules, os.Stdout)
+	// Setup pager if requested
+	out := io.Writer(os.Stdout)
+	var page *pager.Pager
+	if c.Pager {
+		var err error
+		page, err = pager.New(out)
+		if err != nil {
+			return err
+		}
+		err = page.Start()
+		if err != nil {
+			return err
+		}
+		defer page.Close()
+		out = page
+	}
+
+	// Handle output based on format
+	if c.Output == "json" || c.Output == "json-indent" || c.Output == "jq" {
+		return c.outputJSON(rules, out, page)
 	}
 
 	// Handle table output
-	return c.outputTable(rules, os.Stdout)
+	return c.outputTable(rules, out)
 }
 
 func (c *NetListCmd) parseIptablesOutput(output string, ruleNode *backends.Instance, ipMap map[string]*backends.Instance, chain string, logger *logger.Logger) []*netRule {
@@ -141,34 +160,57 @@ func (c *NetListCmd) parseIptablesOutput(output string, ruleNode *backends.Insta
 		}
 
 		fields := strings.Fields(line)
-		if len(fields) < 12 {
+		if len(fields) < 8 {
 			continue
 		}
 
-		var srcIP, dstIP, port string
+		var srcIP, dstIP, port, behaviour string
 		var srcNode, dstNode *backends.Instance
 		ruleOn := ""
 
+		// Parse iptables output format:
+		// pkts bytes target prot opt in out source destination [extra options]
+		// Find source and destination by looking for IP addresses
+		srcIP = ""
+		dstIP = ""
+		behaviourStartIdx := -1
+
+		for i, field := range fields {
+			// Look for source IP (format: IP/mask or IP)
+			if i >= 6 && c.isIPAddress(field) && srcIP == "" {
+				srcIP = strings.Split(field, "/")[0]
+			} else if i >= 7 && c.isIPAddress(field) && srcIP != "" && dstIP == "" {
+				dstIP = strings.Split(field, "/")[0]
+			}
+
+			// Look for port specification (dpt:PORT or spt:PORT)
+			if strings.HasPrefix(field, "dpt:") || strings.HasPrefix(field, "spt:") {
+				port = c.extractPort(field)
+			}
+
+			// Look for reject-with or other behaviour indicators
+			if field == "reject-with" || field == "limit:" || field == "burst" {
+				behaviourStartIdx = i
+				break
+			}
+		}
+
+		// Extract behaviour
+		if behaviourStartIdx > 0 && behaviourStartIdx < len(fields) {
+			behaviour = strings.Join(fields[behaviourStartIdx:], " ")
+		}
+
 		if chain == "INPUT" {
 			// For INPUT chain, source IP is the blocker
-			srcIP = c.getField(fields, 8)
-			// dstIP = ruleNode.IP.Private -- this value is not used
 			srcNode = ipMap[srcIP]
 			dstNode = ruleNode
 			ruleOn = "Destination"
-			port = c.extractPort(c.getField(fields, 11))
 		} else {
 			// For OUTPUT chain, destination IP is the blocked
-			// srcIP = ruleNode.IP.Private -- this value is not used
-			dstIP = c.getField(fields, 9)
 			srcNode = ruleNode
 			dstNode = ipMap[dstIP]
 			ruleOn = "Source"
-			port = c.extractPort(c.getField(fields, 11))
 		}
-
-		// Extract behaviour (remaining fields)
-		behaviour := strings.Join(fields[12:], " ")
 
 		rule := &netRule{
 			Port:          port,
@@ -200,6 +242,35 @@ func (c *NetListCmd) parseIptablesOutput(output string, ruleNode *backends.Insta
 	return rules
 }
 
+func (c *NetListCmd) isIPAddress(s string) bool {
+	// Remove CIDR notation if present
+	ip := strings.Split(s, "/")[0]
+
+	// Check if it looks like an IP address (simple check)
+	parts := strings.Split(ip, ".")
+	if len(parts) != 4 {
+		return false
+	}
+
+	for _, part := range parts {
+		if part == "" {
+			return false
+		}
+		// Check if it's a valid number 0-255
+		num := 0
+		for _, c := range part {
+			if c < '0' || c > '9' {
+				return false
+			}
+			num = num*10 + int(c-'0')
+			if num > 255 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (c *NetListCmd) getField(fields []string, index int) string {
 	if index < len(fields) {
 		return fields[index]
@@ -215,18 +286,40 @@ func (c *NetListCmd) extractPort(portField string) string {
 	return portField
 }
 
-func (c *NetListCmd) outputJSON(rules []*netRule, out *os.File) error {
+func (c *NetListCmd) outputJSON(rules []*netRule, out io.Writer, page *pager.Pager) error {
 	// Sort rules
 	c.sortRules(rules)
 
-	j := json.NewEncoder(out)
-	if c.PrettyJson || c.Output == "json-indent" {
+	switch c.Output {
+	case "jq":
+		params := []string{}
+		if page != nil && page.HasColors() {
+			params = append(params, "-C")
+		}
+		cmd := exec.Command("jq", params...)
+		cmd.Stdout = out
+		cmd.Stderr = out
+		w, err := cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		defer w.Close()
+		enc := json.NewEncoder(w)
+		go func() {
+			enc.Encode(rules)
+			w.Close()
+		}()
+		return cmd.Run()
+	case "json-indent":
+		j := json.NewEncoder(out)
 		j.SetIndent("", "  ")
+		return j.Encode(rules)
+	default: // json
+		return json.NewEncoder(out).Encode(rules)
 	}
-	return j.Encode(rules)
 }
 
-func (c *NetListCmd) outputTable(rules []*netRule, out *os.File) error {
+func (c *NetListCmd) outputTable(rules []*netRule, out io.Writer) error {
 	// Sort rules
 	c.sortRules(rules)
 
@@ -262,6 +355,9 @@ func (c *NetListCmd) outputTable(rules []*netRule, out *os.File) error {
 }
 
 func (c *NetListCmd) sortRules(rules []*netRule) {
+	if len(c.SortBy) == 1 && strings.Contains(c.SortBy[0], ",") {
+		c.SortBy = strings.Split(c.SortBy[0], ",")
+	}
 	sort.Slice(rules, func(i, j int) bool {
 		for _, sortItem := range c.SortBy {
 			parts := strings.Split(sortItem, ":")

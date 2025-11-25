@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -18,21 +19,22 @@ type ClientCreateBaseCmd struct {
 
 func (c *ClientCreateBaseCmd) Execute(args []string) error {
 	isGrow := len(os.Args) >= 3 && os.Args[1] == "client" && os.Args[2] == "grow"
-	
+
 	var cmd []string
 	if isGrow {
 		cmd = []string{"client", "grow", "base"}
 	} else {
 		cmd = []string{"client", "create", "base"}
 	}
-	
+
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	err = c.createBaseClient(system, system.Backend.GetInventory(), system.Logger, args, isGrow)
+	defer UpdateDiskCache(system)
+	_, err = c.createBaseClient(system, system.Backend.GetInventory(), system.Logger, args, isGrow)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -41,30 +43,29 @@ func (c *ClientCreateBaseCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *ClientCreateBaseCmd) createBaseClient(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string, isGrow bool) error {
+func (c *ClientCreateBaseCmd) createBaseClient(system *System, inventory *backends.Inventory, logger *logger.Logger, args []string, isGrow bool) (backends.InstanceList, error) {
+	if system == nil {
+		var err error
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"client", "create", "base"}, c)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if inventory == nil {
+		inventory = system.Backend.GetInventory()
+	}
 	// Override type
 	if c.TypeOverride == "" {
 		c.TypeOverride = "base"
 	}
 
 	// Create base client
-	err := c.createNoneClient(system, inventory, logger, args, isGrow)
+	clients, err := c.createNoneClient(system, inventory, logger, args, isGrow)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Install base tools
 	logger.Info("Installing base tools on client instances")
-	
-	// Get created instances
-	clients := system.Backend.GetInventory().Instances.
-		WithTags(map[string]string{"aerolab.old.type": "client"}).
-		WithClusterName(c.ClientName.String()).
-		WithState(backends.LifeCycleStateRunning)
-
-	if clients.Count() == 0 {
-		return fmt.Errorf("no running client instances found after creation")
-	}
 
 	// Install basic dependencies
 	installScript, err := installers.GetInstallScript(installers.Software{
@@ -82,7 +83,7 @@ func (c *ClientCreateBaseCmd) createBaseClient(system *System, inventory *backen
 		},
 	}, nil)
 	if err != nil {
-		return fmt.Errorf("failed to generate install script: %w", err)
+		return nil, fmt.Errorf("failed to generate install script: %w", err)
 	}
 
 	// Upload and run install script on each client
@@ -110,21 +111,39 @@ func (c *ClientCreateBaseCmd) createBaseClient(system *System, inventory *backen
 			continue
 		}
 
+		// If debug level is selected, output to stdout/stderr and enable terminal mode
+		var stdout, stderr *os.File
+		var stdin io.ReadCloser
+		terminal := false
+		if system.logLevel >= 5 {
+			stdout = os.Stdout
+			stderr = os.Stderr
+			stdin = io.NopCloser(os.Stdin)
+			terminal = true
+		}
+		execDetail := sshexec.ExecDetail{
+			Command:        []string{"bash", "/tmp/install-base.sh"},
+			SessionTimeout: 30 * time.Minute,
+			Terminal:       terminal,
+		}
+		if system.logLevel >= 5 {
+			execDetail.Stdin = stdin
+			execDetail.Stdout = stdout
+			execDetail.Stderr = stderr
+		}
 		// Execute install script
 		output := client.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", "/tmp/install-base.sh"},
-				SessionTimeout: 10 * time.Minute,
-			},
+			ExecDetail:     execDetail,
 			Username:       "root",
 			ConnectTimeout: 30 * time.Second,
 		})
 
 		if output.Output.Err != nil {
 			logger.Warn("Failed to run install script on %s:%d: %s", client.ClusterName, client.NodeNo, output.Output.Err)
+			logger.Warn("stdout: %s", output.Output.Stdout)
+			logger.Warn("stderr: %s", output.Output.Stderr)
 		}
 	}
 
-	return nil
+	return clients, nil
 }
-

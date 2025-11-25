@@ -16,7 +16,6 @@ type XdrCreateClustersCmd struct {
 	XdrRestart              TypeYesNo       `short:"T" long:"restart-source" description:"Restart source nodes after connecting (y/n)" default:"y" webchoice:"y,n"`
 	XdrNamespaces           string          `short:"M" long:"namespaces" description:"Comma-separated list of namespaces to connect" default:"test"`
 	CustomDestinationPort   int             `short:"P" long:"destination-port" description:"Optionally specify a custom destination port for the xdr connection"`
-	IsConnector             bool            `short:"c" long:"connector" description:"Set to indicate that the destination is a client connector, not a cluster"`
 }
 
 func (c *XdrCreateClustersCmd) Execute(args []string) error {
@@ -27,6 +26,7 @@ func (c *XdrCreateClustersCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.createClusters(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -84,12 +84,20 @@ func (c *XdrCreateClustersCmd) createClusters(system *System, inventory *backend
 	c.ClusterName = srcClusterName
 	c.NodeCount = srcNodeCount
 
+	// Refresh inventory cache before connecting to ensure we have the latest instance states
+	logger.Info("Refreshing inventory cache")
+	err = system.Backend.RefreshChangedInventory()
+	if err != nil {
+		return fmt.Errorf("failed to refresh inventory: %w", err)
+	}
+	inventory = system.Backend.GetInventory()
+
 	// Now connect clusters via XDR
 	logger.Info("Connecting clusters via XDR")
 	xdrConnect := &XdrConnectCmd{
 		SourceClusterName:       srcClusterName,
 		DestinationClusterNames: c.DestinationClusterNames,
-		IsConnector:             c.IsConnector,
+		IsConnector:             false, // we are creating clusters, not connectors
 		Version:                 c.XdrVersion,
 		Restart:                 c.XdrRestart,
 		Namespaces:              c.XdrNamespaces,
@@ -97,8 +105,6 @@ func (c *XdrCreateClustersCmd) createClusters(system *System, inventory *backend
 		ParallelThreads:         c.ParallelThreads,
 	}
 
-	// Refresh inventory one more time before connecting
-	inventory = system.Backend.GetInventory()
 	err = xdrConnect.connect(system, inventory, logger, args)
 	if err != nil {
 		return fmt.Errorf("failed to connect clusters via XDR: %w", err)

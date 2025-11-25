@@ -143,20 +143,11 @@ func (c *XdrConnectCmd) configureXdrOnNode(inst *backends.Instance, destIpList m
 	// Determine XDR version
 	xdrVersion := c.Version.String()
 	if xdrVersion == "auto" {
-		// Check aerospike version
-		output := inst.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"cat", "/opt/aerolab.aerospike.version"},
-				SessionTimeout: 10 * time.Second,
-			},
-			Username:        "root",
-			ConnectTimeout:  30 * time.Second,
-			ParallelThreads: 1,
-		})
-		if output.Output.Err != nil {
-			return fmt.Errorf("failed to detect aerospike version: %w", output.Output.Err)
+		// Check aerospike version from instance tags
+		version, ok := inst.Tags["aerolab.soft.version"]
+		if !ok || version == "" {
+			return fmt.Errorf("failed to detect aerospike version: aerolab.soft.version tag not found")
 		}
-		version := strings.TrimSpace(string(output.Output.Stdout))
 		if strings.HasPrefix(version, "4.") || strings.HasPrefix(version, "3.") {
 			xdrVersion = "4"
 		} else {

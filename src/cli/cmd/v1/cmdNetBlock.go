@@ -185,8 +185,8 @@ func (c *NetBlockCmd) blockUnblock(system *System, inventory *backends.Inventory
 			})
 
 			if output.Output.Err != nil {
-				logger.Error("ERROR running iptables on cluster %s node %d: %s: %s",
-					instance.ClusterName, instance.NodeNo, output.Output.Err, string(output.Output.Stdout))
+				logger.Error("ERROR running iptables on cluster %s node %d: %s: %s: %s",
+					instance.ClusterName, instance.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr))
 				lock.Lock()
 				isErr = true
 				lock.Unlock()

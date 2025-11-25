@@ -46,6 +46,7 @@ func (c *ClientStartCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.startClients(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -86,7 +87,7 @@ func (c *ClientStartCmd) startClients(system *System, inventory *backends.Invent
 	parallelize.ForEachLimit(clients, c.ParallelThreads, func(inst *backends.Instance) {
 		// Upload autoloader script
 		autoloader := "[ ! -d /opt/autoload ] && exit 0; RET=0; for f in $(ls /opt/autoload |sort -n); do /bin/bash /opt/autoload/${f}; CRET=$?; if [ ${CRET} -ne 0 ]; then RET=${CRET}; fi; done; exit ${RET}"
-		
+
 		conf, err := inst.GetSftpConfig("root")
 		if err != nil {
 			logger.Error("Failed to get SFTP config for %s:%d: %s", inst.ClusterName, inst.NodeNo, err)
@@ -155,6 +156,7 @@ func (c *ClientStopCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.stopClients(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -193,6 +195,7 @@ func (c *ClientDestroyCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
+	defer UpdateDiskCache(system)
 	err = c.destroyClients(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -256,7 +259,7 @@ func (c *ClientDestroyCmd) destroyClients(system *System, inventory *backends.In
 
 	// Destroy instances
 	logger.Info("Destroying %d client instances", len(clients))
-	
+
 	if c.Parallel {
 		// Parallel destruction
 		var hasErr error
@@ -271,7 +274,7 @@ func (c *ClientDestroyCmd) destroyClients(system *System, inventory *backends.In
 			go func(client *backends.Instance) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				
+
 				err := backends.InstanceList{client}.Terminate(10 * time.Minute)
 				if err != nil {
 					mu.Lock()
@@ -281,7 +284,7 @@ func (c *ClientDestroyCmd) destroyClients(system *System, inventory *backends.In
 			}(client)
 		}
 		wg.Wait()
-		
+
 		if hasErr != nil {
 			return hasErr
 		}
@@ -338,4 +341,3 @@ func getClientInstancesHelper(inventory *backends.Inventory, clientName string, 
 
 	return clients.Describe(), nil
 }
-

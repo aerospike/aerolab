@@ -9,7 +9,7 @@ function runtest {
         invcache_flag="--inventory-cache"
     fi
     echo "🔧 Setting up test environment"
-    rm -rf bob
+    rm -rf bob CA
     AL=./aerolab
     mkdir bob
     AEROLAB_HOME=$(pwd)/bob/home
@@ -315,7 +315,7 @@ function runostest {
         invcache_flag="--inventory-cache"
     fi
     echo "🔧 Setting up test environment"
-    rm -rf bob
+    rm -rf bob CA
     AL=./aerolab
     mkdir bob
     AEROLAB_HOME=$(pwd)/bob/home
@@ -404,7 +404,7 @@ function testvolumes {
         invcache_flag="--inventory-cache"
     fi
     echo "🔧 Setting up test environment"
-    rm -rf bob
+    rm -rf bob CA
     AL=./aerolab
     mkdir bob
     AEROLAB_HOME=$(pwd)/bob/home
@@ -483,7 +483,7 @@ function testcloud {
         invcache_flag="--inventory-cache"
     fi
     echo "🔧 Setting up test environment"
-    rm -rf bob
+    rm -rf bob CA
     AL=./aerolab
     mkdir bob
     AEROLAB_HOME=$(pwd)/bob/home
