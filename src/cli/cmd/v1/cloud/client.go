@@ -16,6 +16,7 @@ import (
 type Client struct {
 	httpClient  *resty.Client
 	baseURL     string
+	authURL     string
 	apiKey      string
 	apiSecret   string
 	accessToken string
@@ -29,6 +30,10 @@ type TokenResponse struct {
 }
 
 func NewClient(version string) (*Client, error) {
+	return newClient(version, os.Getenv("AEROSPIKE_CLOUD_ENV") == "dev")
+}
+
+func newClient(version string, isDev bool) (*Client, error) {
 	apiKey := os.Getenv("AEROSPIKE_CLOUD_KEY")
 	apiSecret := os.Getenv("AEROSPIKE_CLOUD_SECRET")
 
@@ -36,9 +41,15 @@ func NewClient(version string) (*Client, error) {
 		return nil, fmt.Errorf("AEROSPIKE_CLOUD_KEY and AEROSPIKE_CLOUD_SECRET environment variables must be set")
 	}
 
+	devString := ""
+	if isDev {
+		devString = "-dev"
+	}
+
 	client := &Client{
 		httpClient: resty.New(),
-		baseURL:    "https://api.aerospike.cloud/" + version,
+		baseURL:    fmt.Sprintf("https://api%s.aerospike.cloud/%s", devString, version),
+		authURL:    fmt.Sprintf("https://auth.control%s.aerospike.cloud/oauth/token", devString),
 		apiKey:     apiKey,
 		apiSecret:  apiSecret,
 	}
@@ -58,14 +69,12 @@ func NewClient(version string) (*Client, error) {
 
 // authenticate gets an OAuth2 access token using client credentials flow
 func (c *Client) authenticate() error {
-	tokenURL := "https://auth.control.aerospike.cloud/oauth/token"
-
 	data := url.Values{}
 	data.Set("grant_type", "client_credentials")
 	data.Set("client_id", c.apiKey)
 	data.Set("client_secret", c.apiSecret)
 
-	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("POST", c.authURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return fmt.Errorf("failed to create token request: %w", err)
 	}
