@@ -47,6 +47,9 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 		{Key: "AEROLAB_TELEMETRY_DISABLE", Value: os.Getenv("AEROLAB_TELEMETRY_DISABLE"), Description: "If set to a non-empty value, telemetry will be disabled"},
 		{Key: "AEROLAB_CONFIG_FILE", Value: os.Getenv("AEROLAB_CONFIG_FILE"), Description: "If set, aerolab will read the given defaults config file instead of $AEROLAB_HOME/conf"},
 		{Key: "AEROLAB_NONINTERACTIVE", Value: os.Getenv("AEROLAB_NONINTERACTIVE"), Description: "If set to a non-empty value, aerolab will not ask for confirmation or choices at any point"},
+		{Key: "AEROSPIKE_CLOUD_ENV", Value: os.Getenv("AEROSPIKE_CLOUD_ENV"), Description: "Set to `dev` to use development environment for Aerospike Cloud API endpoints"},
+		{Key: "AEROSPIKE_CLOUD_KEY", Value: os.Getenv("AEROSPIKE_CLOUD_KEY"), Description: "Set the API key for Aerospike Cloud API"},
+		{Key: "AEROSPIKE_CLOUD_SECRET", Value: os.Getenv("AEROSPIKE_CLOUD_SECRET"), Description: "Set the API secret for Aerospike Cloud API"},
 	}
 
 	if c.Pager && page == nil {
