@@ -217,66 +217,67 @@ func (s *b) CreateRoute(vpcID string, peeringConnectionID string, destinationCid
 		return fmt.Errorf("no route tables found for VPC %s", vpcID)
 	}
 
-	// Create route in each route table (or just the main one if it's explicitly marked)
-	var routeTableIds []string
+	// Find the route table to use - prefer main route table, otherwise use first one
+	var targetRouteTableId string
+	var mainRouteTableId string
+	var firstRouteTableId string
+
 	for _, rt := range routeTablesResult.RouteTables {
-		// Prefer main route table, but create in all if multiple exist
 		routeTableId := aws.ToString(rt.RouteTableId)
-		isMain := false
+
+		// Track the first route table we see
+		if firstRouteTableId == "" {
+			firstRouteTableId = routeTableId
+		}
+
+		// Check if this is the main route table
 		if rt.Associations != nil {
 			for _, assoc := range rt.Associations {
 				if assoc.Main != nil && *assoc.Main {
-					// This is the main route table, prioritize it
-					isMain = true
+					mainRouteTableId = routeTableId
 					log.Detail("Found main route table: %s", routeTableId)
 					break
 				}
 			}
 		}
-		// Add route tables to the list, prioritizing main route table
-		found := false
-		for _, id := range routeTableIds {
-			if id == routeTableId {
-				found = true
-				break
-			}
-		}
-		if !found {
-			if isMain {
-				routeTableIds = append([]string{routeTableId}, routeTableIds...)
-			} else {
-				routeTableIds = append(routeTableIds, routeTableId)
-			}
+
+		// If we found the main route table, no need to continue searching
+		if mainRouteTableId != "" {
+			break
 		}
 	}
 
-	if len(routeTableIds) == 0 {
+	// Determine which route table to use
+	if mainRouteTableId != "" {
+		targetRouteTableId = mainRouteTableId
+		log.Detail("Using main route table: %s", targetRouteTableId)
+	} else if firstRouteTableId != "" {
+		targetRouteTableId = firstRouteTableId
+		log.Detail("No main route table found, using first available: %s", targetRouteTableId)
+	} else {
 		return fmt.Errorf("no valid route tables found for VPC %s", vpcID)
 	}
 
-	// Create route in each route table
-	for _, routeTableId := range routeTableIds {
-		createRouteInput := &ec2.CreateRouteInput{
-			RouteTableId:           aws.String(routeTableId),
-			DestinationCidrBlock:   aws.String(destinationCidrBlock),
-			VpcPeeringConnectionId: aws.String(peeringConnectionID),
-		}
-
-		_, err := ec2Cli.CreateRoute(context.TODO(), createRouteInput)
-		if err != nil {
-			// Check if route already exists (this is okay)
-			// AWS returns error code "RouteAlreadyExists" when route already exists
-			errStr := strings.ToLower(err.Error())
-			if strings.Contains(errStr, "routealreadyexists") || strings.Contains(errStr, "route already exists") {
-				log.Detail("Route already exists in route table %s, continuing", routeTableId)
-				continue
-			}
-			return fmt.Errorf("failed to create route in route table %s: %w", routeTableId, err)
-		}
-		log.Detail("Successfully created route in route table %s: %s -> %s", routeTableId, destinationCidrBlock, peeringConnectionID)
+	// Create route in the selected route table
+	createRouteInput := &ec2.CreateRouteInput{
+		RouteTableId:           aws.String(targetRouteTableId),
+		DestinationCidrBlock:   aws.String(destinationCidrBlock),
+		VpcPeeringConnectionId: aws.String(peeringConnectionID),
 	}
 
-	log.Detail("Successfully created routes for VPC %s", vpcID)
+	_, err = ec2Cli.CreateRoute(context.TODO(), createRouteInput)
+	if err != nil {
+		// Check if route already exists (this is okay)
+		// AWS returns error code "RouteAlreadyExists" when route already exists
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "routealreadyexists") || strings.Contains(errStr, "route already exists") {
+			log.Detail("Route already exists in route table %s", targetRouteTableId)
+			return nil
+		}
+		return fmt.Errorf("failed to create route in route table %s: %w", targetRouteTableId, err)
+	}
+	log.Detail("Successfully created route in route table %s: %s -> %s", targetRouteTableId, destinationCidrBlock, peeringConnectionID)
+
 	return nil
 }
 
