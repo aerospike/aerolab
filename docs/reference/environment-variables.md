@@ -14,6 +14,9 @@ Aerolab supports several environment variables for configuration and behavior co
 | `AEROLAB_CONFIG_FILE` | FILEPATH | If set, aerolab will read the given defaults config file instead of `$AEROLAB_HOME/conf` |
 | `AEROLAB_NONINTERACTIVE` | true | If set to a non-empty value, aerolab will not ask for confirmation or choices at any point |
 | `AEROLAB_NOERROR_ON_NOT_IMPLEMENTED` | true | If set to a non-empty value, aerolab will not return an error when a called function is not implemented in a particular backend |
+| `AEROSPIKE_CLOUD_ENV` | dev | Set to `dev` to use development environment for Aerospike Cloud API endpoints |
+| `AEROSPIKE_CLOUD_KEY` | API_KEY | Set the API key for Aerospike Cloud API |
+| `AEROSPIKE_CLOUD_SECRET` | API_SECRET | Set the API secret for Aerospike Cloud API |
 
 ## AEROLAB_HOME
 
@@ -155,6 +158,44 @@ aerolab cluster destroy -n mydc --force
 - Automated scripts and CI/CD pipelines
 - Prevent accidental confirmations
 - Batch operations
+
+## AEROLAB_NOERROR_ON_NOT_IMPLEMENTED
+
+Disable errors when functions are not implemented in a backend.
+
+### Example
+
+```bash
+export AEROLAB_NOERROR_ON_NOT_IMPLEMENTED=true
+aerolab cluster list
+```
+
+### Use Cases
+
+- Graceful degradation when using backends with incomplete implementations
+- Testing compatibility across multiple backends
+- Allowing commands to continue despite unsupported operations
+
+## AEROSPIKE_CLOUD_ENV
+
+Set the environment for Aerospike Cloud API endpoints.
+
+### Values
+
+- `dev` - Use development environment endpoints
+
+### Example
+
+```bash
+export AEROSPIKE_CLOUD_ENV=dev
+aerolab cloud credentials list
+```
+
+### Use Cases
+
+- Testing against Aerospike Cloud development environment
+- Internal development and testing
+- QA and validation workflows
 
 ## Common Usage Patterns
 
