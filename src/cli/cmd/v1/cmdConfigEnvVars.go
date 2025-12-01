@@ -39,17 +39,24 @@ func (c *ConfigEnvVarsCmd) PrintEnvVars(system *System, out io.Writer, page *pag
 		Value       string
 		Description string
 	}
+	getEnvValue := func(key string) string {
+		val := os.Getenv(key)
+		if val == "" {
+			return ":NOT SET:"
+		}
+		return val
+	}
 	envVars := []envVar{
-		{Key: "AEROLAB_HOME", Value: os.Getenv("AEROLAB_HOME"), Description: "If set, will override the default ~/.config/aerolab home directory"},
-		{Key: "AEROLAB_LOG_LEVEL", Value: os.Getenv("AEROLAB_LOG_LEVEL"), Description: "0=NONE,1=CRITICAL,2=ERROR,3=WARN,4=INFO,5=DEBUG,6=DETAIL"},
-		{Key: "AEROLAB_PROJECT", Value: os.Getenv("AEROLAB_PROJECT"), Description: "Aerolab v8 has a notion of projects; setting this will make it work on resources other than in the 'default' aerolab project"},
-		{Key: "AEROLAB_DISABLE_UPGRADE_CHECK", Value: os.Getenv("AEROLAB_DISABLE_UPGRADE_CHECK"), Description: "If set to a non-empty value, aerolab will not check if upgrades are available"},
-		{Key: "AEROLAB_TELEMETRY_DISABLE", Value: os.Getenv("AEROLAB_TELEMETRY_DISABLE"), Description: "If set to a non-empty value, telemetry will be disabled"},
-		{Key: "AEROLAB_CONFIG_FILE", Value: os.Getenv("AEROLAB_CONFIG_FILE"), Description: "If set, aerolab will read the given defaults config file instead of $AEROLAB_HOME/conf"},
-		{Key: "AEROLAB_NONINTERACTIVE", Value: os.Getenv("AEROLAB_NONINTERACTIVE"), Description: "If set to a non-empty value, aerolab will not ask for confirmation or choices at any point"},
-		{Key: "AEROSPIKE_CLOUD_ENV", Value: os.Getenv("AEROSPIKE_CLOUD_ENV"), Description: "Set to `dev` to use development environment for Aerospike Cloud API endpoints"},
-		{Key: "AEROSPIKE_CLOUD_KEY", Value: os.Getenv("AEROSPIKE_CLOUD_KEY"), Description: "Set the API key for Aerospike Cloud API"},
-		{Key: "AEROSPIKE_CLOUD_SECRET", Value: os.Getenv("AEROSPIKE_CLOUD_SECRET"), Description: "Set the API secret for Aerospike Cloud API"},
+		{Key: "AEROLAB_HOME", Value: getEnvValue("AEROLAB_HOME"), Description: "If set, will override the default ~/.config/aerolab home directory"},
+		{Key: "AEROLAB_LOG_LEVEL", Value: getEnvValue("AEROLAB_LOG_LEVEL"), Description: "0=NONE,1=CRITICAL,2=ERROR,3=WARN,4=INFO,5=DEBUG,6=DETAIL"},
+		{Key: "AEROLAB_PROJECT", Value: getEnvValue("AEROLAB_PROJECT"), Description: "Aerolab v8 has a notion of projects; setting this will make it work on resources other than in the 'default' aerolab project"},
+		{Key: "AEROLAB_DISABLE_UPGRADE_CHECK", Value: getEnvValue("AEROLAB_DISABLE_UPGRADE_CHECK"), Description: "If set to a non-empty value, aerolab will not check if upgrades are available"},
+		{Key: "AEROLAB_TELEMETRY_DISABLE", Value: getEnvValue("AEROLAB_TELEMETRY_DISABLE"), Description: "If set to a non-empty value, telemetry will be disabled"},
+		{Key: "AEROLAB_CONFIG_FILE", Value: getEnvValue("AEROLAB_CONFIG_FILE"), Description: "If set, aerolab will read the given defaults config file instead of $AEROLAB_HOME/conf"},
+		{Key: "AEROLAB_NONINTERACTIVE", Value: getEnvValue("AEROLAB_NONINTERACTIVE"), Description: "If set to a non-empty value, aerolab will not ask for confirmation or choices at any point"},
+		{Key: "AEROSPIKE_CLOUD_ENV", Value: getEnvValue("AEROSPIKE_CLOUD_ENV"), Description: "Set to `dev` to use development environment for Aerospike Cloud API endpoints"},
+		{Key: "AEROSPIKE_CLOUD_KEY", Value: getEnvValue("AEROSPIKE_CLOUD_KEY"), Description: "Set the API key for Aerospike Cloud API"},
+		{Key: "AEROSPIKE_CLOUD_SECRET", Value: getEnvValue("AEROSPIKE_CLOUD_SECRET"), Description: "Set the API secret for Aerospike Cloud API"},
 	}
 
 	if c.Pager && page == nil {
