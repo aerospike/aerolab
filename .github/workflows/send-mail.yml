@@ -10,8 +10,13 @@ jobs:
     build-and-release:
         runs-on: macos-13
         steps:
+          - name: Harden the runner (Audit all outbound calls)
+            uses: step-security/harden-runner@df199fb7be9f65074067a9eb93f12bb4c5547cf2 # v2.13.3
+            with:
+              egress-policy: audit
+
           - name: "Git checkout"
-            uses: actions/checkout@v3
+            uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
           - name: "Patch release date"
             run: |
               RET=0
@@ -22,7 +27,7 @@ jobs:
                 sed -i.bak "s/_Release Date: Month Day, Year_/_${NDATE}_/g" CHANGELOG/${{inputs.VERSION}}.md
               fi
           - name: Send mail
-            uses: dawidd6/action-send-mail@v3
+            uses: step-security/action-send-mail@7238bab69680f644f9eab409cec92179d1d2f0ce # v6.0.1
             with:
               server_address: smtp.gmail.com
               server_port: 465
