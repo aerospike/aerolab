@@ -97,7 +97,7 @@ if ! command -v init-docker-systemd >/dev/null 2>&1; then
     fi
     FN=systemd-$ARCH
     set -e
-    DLURL=$(curl -s https://api.github.com/repos/rglonek/docker-systemd/releases/latest | jq -r ".assets[] | select(.name == \"$FN\") | .browser_download_url")
+    DLURL=$(curl -s https://api.github.com/repos/aerospike-community/docker-systemd/releases/latest | jq -r ".assets[] | select(.name == \"$FN\") | .browser_download_url")
     set +e
     if [ -z "$DLURL" ]; then
         echo "Failed to get docker-systemd download URL"

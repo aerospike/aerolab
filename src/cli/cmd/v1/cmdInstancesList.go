@@ -218,7 +218,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 			if !instance.Expires.IsZero() && instance.Expires.Before(time.Now()) {
 				expiresIn = "expired"
 			}
-			fmt.Fprintf(out, "Backend: %s, Zone: %s, Owner: %s, Cluster: %s, Node: %d, Name: %s, PublicIP: %s, PrivateIP: %s, State: %s, Cost: %0.2f, Expires: %s, Firewalls: %s, Instance: %s, Type: %s, Version: %s, OS: %s, Arch: %s, ClusterUUID: %s, CreationTime: %s, Spot: %t, NetworkID: %s, SubnetID: %s, Tags: %s, Description: %s\n",
+			fmt.Fprintf(out, "Backend: %s, Zone: %s, Owner: %s, Cluster: %s, Node: %d, Name: %s, PublicIP: %s, PrivateIP: %s, AccessURL: %s, State: %s, Cost: %0.2f, Expires: %s, Firewalls: %s, Instance: %s, Type: %s, Version: %s, OS: %s, Arch: %s, ClusterUUID: %s, CreationTime: %s, Spot: %t, NetworkID: %s, SubnetID: %s, Tags: %s, Description: %s\n",
 				instance.BackendType,
 				instance.ZoneName,
 				instance.Owner,
@@ -227,6 +227,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 				instance.Name,
 				instance.IP.Public,
 				instance.IP.Private,
+				instance.AccessURL,
 				instance.InstanceState.String(),
 				instance.EstimatedCostUSD.AccruedCost(),
 				expiresIn,
@@ -250,9 +251,9 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Backend:asc", "Zone:asc", "Owner:asc", "Cluster:asc", "Node:ascnum", "Name:asc"}
 		}
-		header := table.Row{"Backend", "Zone", "Owner", "Cluster", "Node", "Name", "PublicIP", "PrivateIP", "State", "Cost", "Expires", "Firewalls", "Instance", "Type", "Version", "OS", "Arch", "ClusterUUID", "CreationTime", "Spot", "NetworkID", "SubnetID", "Tags", "Description"}
+		header := table.Row{"Backend", "Zone", "Owner", "Cluster", "Node", "Name", "PublicIP", "PrivateIP", "AccessURL", "State", "Cost", "Expires", "Firewalls", "Instance", "Type", "Version", "OS", "Arch", "ClusterUUID", "CreationTime", "Spot", "NetworkID", "SubnetID", "Tags", "Description"}
 		if system.Opts.Config.Backend.Type == "docker" {
-			header = table.Row{"Backend", "Zone", "Owner", "Cluster", "Node", "Name", "PrivateIP", "State", "Firewalls", "Type", "Version", "OS", "Arch", "ClusterUUID", "CreationTime", "NetworkID", "SubnetID", "Tags", "Description"}
+			header = table.Row{"Backend", "Zone", "Owner", "Cluster", "Node", "Name", "PrivateIP", "AccessURL", "State", "Firewalls", "Type", "Version", "OS", "Arch", "ClusterUUID", "CreationTime", "NetworkID", "SubnetID", "Tags", "Description"}
 		}
 		rows := []table.Row{}
 		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)
@@ -283,6 +284,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 					instance.NodeNo,
 					instance.Name,
 					instance.IP.Private,
+					instance.AccessURL,
 					instance.InstanceState.String(),
 					strings.Join(instance.Firewalls, "\n"),
 					instance.Tags["aerolab.type"],
@@ -306,6 +308,7 @@ func (c *InstancesListCmd) ListInstances(system *System, inventory *backends.Inv
 					instance.Name,
 					instance.IP.Public,
 					instance.IP.Private,
+					instance.AccessURL,
 					instance.InstanceState.String(),
 					fmt.Sprintf("%0.2f", instance.EstimatedCostUSD.AccruedCost()),
 					expiresIn,

@@ -110,6 +110,9 @@ type InstancesCreateCmdDocker struct {
 	MaxRestartRetries  int            `long:"max-restart-retries" description:"Maximum number of restart attempts"`
 	ShmSize            int64          `long:"shm-size" description:"Size of /dev/shm in bytes"`
 	AdvancedConfigPath flags.Filename `long:"advanced-config" description:"Path to JSON file containing advanced Docker container configuration"`
+	RegistryUser       string         `long:"registry-user" description:"Username for docker registry authentication when pulling custom images"`
+	RegistryPass       string         `long:"registry-pass" description:"Password for docker registry authentication when pulling custom images" webtype:"password"`
+	RegistryURL        string         `long:"registry-url" description:"Registry URL (e.g., docker.io, ghcr.io); if empty, uses default registry"`
 }
 
 type InstancesGrowCmd struct {
@@ -200,6 +203,8 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 					if err != nil {
 						return nil, err
 					}
+					// Refresh inventory after destroy so node numbering starts fresh
+					inventory = system.Backend.GetInventory()
 				case "Pick a new name":
 					fmt.Printf("Enter a new name for the instance: ")
 					reader := bufio.NewReader(os.Stdin)
@@ -246,6 +251,8 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 					if err != nil {
 						return nil, err
 					}
+					// Refresh inventory after destroy so node numbering starts fresh
+					inventory = system.Backend.GetInventory()
 				case "Grow":
 					system.Logger.Info("Growing cluster %s with new instances", c.ClusterName)
 					action = "grow"
@@ -366,7 +373,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				lenghts := []int{0, 0, 0, 0, 0, 0, 0, 0}
 				for _, it := range instanceTypes {
 					region := it.Region
-					if strings.Count(region, "-") == 2 {
+					// GCP stores zones (us-central1-a) in Region field, need to convert to region (us-central1)
+					// AWS stores regions directly (us-east-1), should not be modified
+					if system.Opts.Config.Backend.Type == "gcp" && strings.Count(region, "-") == 2 {
 						region = region[:strings.LastIndex(region, "-")]
 					}
 					if region != system.Opts.Config.Backend.Region {
@@ -404,8 +413,20 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				format := fmt.Sprintf("%%-%ds (Arch=%%%ds CPUs=%%-%dd RAM_GiB=%%-%d.2f GPUs=%%-%dd NVMe=%%-%dd NVMeTotalSizeGiB=%%-%dd OnDemandPricePerHour=%%-%d.4f)", lenghts[0], lenghts[1], lenghts[2], lenghts[3], lenghts[4], lenghts[5], lenghts[6], lenghts[7])
 				foundTypes := []string{}
 				sort.Slice(instanceTypes, func(i, j int) bool {
-					n1 := strings.Split(strings.Join(strings.Split(instanceTypes[i].Name, "-")[0:2], "-"), ".")[0]
-					n2 := strings.Split(strings.Join(strings.Split(instanceTypes[j].Name, "-")[0:2], "-"), ".")[0]
+					// safely extract instance type prefix for sorting
+					// handles both AWS format (m5.large) and GCP format (n2d-standard-2)
+					extractPrefix := func(name string) string {
+						parts := strings.Split(name, "-")
+						var prefix string
+						if len(parts) >= 2 {
+							prefix = strings.Join(parts[0:2], "-")
+						} else {
+							prefix = parts[0]
+						}
+						return strings.Split(prefix, ".")[0]
+					}
+					n1 := extractPrefix(instanceTypes[i].Name)
+					n2 := extractPrefix(instanceTypes[j].Name)
 					if n1 < n2 {
 						return true
 					}
@@ -428,7 +449,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				})
 				for _, it := range instanceTypes {
 					region := it.Region
-					if strings.Count(region, "-") == 2 {
+					// GCP stores zones (us-central1-a) in Region field, need to convert to region (us-central1)
+					// AWS stores regions directly (us-east-1), should not be modified
+					if system.Opts.Config.Backend.Type == "gcp" && strings.Count(region, "-") == 2 {
 						region = region[:strings.LastIndex(region, "-")]
 					}
 					if region != system.Opts.Config.Backend.Region {
@@ -622,11 +645,16 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			dockerCustomImage = true
 		}
 		if dockerCustomImage {
-			if inventory.Images.WithName(c.Docker.ImageName).Count() == 0 {
-				return nil, errors.New("docker: image " + c.Docker.ImageName + " does not exist")
-			}
-			if inventory.Images.WithName(c.Docker.ImageName).Describe()[0].Tags["aerolab.is.official"] == "true" {
-				dockerImageFromOfficial = true
+			imageExists := inventory.Images.WithName(c.Docker.ImageName).Count() > 0
+			// If image doesn't exist locally, check if we can pull it (registry auth provided or public image)
+			if !imageExists {
+				// If registry credentials are provided, we'll pull the image later
+				// Otherwise, the backend will attempt to pull it using local docker credentials
+				system.Logger.Debug("Docker image %s not found locally, will attempt to pull", c.Docker.ImageName)
+			} else {
+				if inventory.Images.WithName(c.Docker.ImageName).Describe()[0].Tags["aerolab.is.official"] == "true" {
+					dockerImageFromOfficial = true
+				}
 			}
 		}
 	}
@@ -644,6 +672,10 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		tags["aerolab.custom.image"] = "true"
 	}
 	tags["aerolab.type"] = c.Type
+	// Add telemetry tag if telemetry is enabled
+	if enabled, telemetryUUID := IsTelemetryEnabled(system); enabled {
+		tags["aerolab.telemetry"] = telemetryUUID
+	}
 	dockerParams := &bdocker.CreateInstanceParams{
 		Image:             nil,
 		NetworkPlacement:  c.Docker.NetworkName,
@@ -667,6 +699,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		MaskedPaths:       strslice.StrSlice{},
 		ReadonlyPaths:     strslice.StrSlice{},
 		SkipSshReadyCheck: !dockerImageFromOfficial,
+		RegistryUser:      c.Docker.RegistryUser,
+		RegistryPass:      c.Docker.RegistryPass,
+		RegistryURL:       c.Docker.RegistryURL,
 	}
 	if c.Docker.AdvancedConfigPath != "" {
 		f, err := os.Open(string(c.Docker.AdvancedConfigPath))
@@ -800,11 +835,27 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		if !dockerCustomImage {
 			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = inventory.Images.WithName(c.Docker.ImageName).Describe()[0]
 		} else {
-			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = inventory.Images.WithName(c.Docker.ImageName).Describe()[0]
-			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.Name = c.Docker.ImageName
-			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.ZoneName = "default"
-			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.Public = false
-			createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.InAccount = true
+			// Check if image exists locally
+			existingImages := inventory.Images.WithName(c.Docker.ImageName).Describe()
+			if len(existingImages) > 0 {
+				createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = existingImages[0]
+				createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.Name = c.Docker.ImageName
+				createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.ZoneName = "default"
+				createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.Public = false
+				createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image.InAccount = true
+			} else {
+				// Image doesn't exist locally - create a placeholder for the backend to pull
+				createInstancesInput.BackendSpecificParams["docker"].(*bdocker.CreateInstanceParams).Image = &backends.Image{
+					Name:        c.Docker.ImageName,
+					ImageId:     c.Docker.ImageName,
+					ZoneName:    "default",
+					ZoneID:      "default",
+					Public:      false,
+					InAccount:   false, // Indicates image needs to be pulled
+					BackendType: backends.BackendTypeDocker,
+					Tags:        map[string]string{},
+				}
+			}
 		}
 	}
 
@@ -905,6 +956,9 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		return nil, nil
 	}
 	if installExpiry {
+		// Check for v7 expiry system and warn user
+		warnIfV7ExpiryInstalled(system.Backend, backends.BackendType(system.Opts.Config.Backend.Type), system.Logger)
+
 		wg := new(sync.WaitGroup)
 		wg.Add(1)
 		defer wg.Wait()

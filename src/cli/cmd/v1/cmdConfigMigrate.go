@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,11 +9,12 @@ import (
 	"strings"
 )
 
-// TODO: FUTURE: ADD OPTION TO MIGRATE RESOURCES TOO (VMs, etc) TOGETHER WITH SSH KEYS
 type ConfigMigrateCmd struct {
-	OldDir string  `short:"o" long:"old-dir" description:"Old AeroLab directory to migrate from"`
-	NewDir string  `short:"n" long:"new-dir" description:"New AeroLab directory to migrate to"`
-	Help   HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	OldDir           string  `short:"o" long:"old-dir" description:"Old AeroLab directory to migrate from"`
+	NewDir           string  `short:"n" long:"new-dir" description:"New AeroLab directory to migrate to"`
+	MigrateInventory bool    `short:"i" long:"migrate-inventory" description:"Migrate the inventory to the new AeroLab directory"`
+	Force            bool    `short:"f" long:"force" description:"Do not ask for confirmation"`
+	Help             HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *ConfigMigrateCmd) Execute(args []string) error {
@@ -37,13 +39,41 @@ func (c *ConfigMigrateCmd) Execute(args []string) error {
 		}
 		c.OldDir = oldDir
 	}
-	err = MigrateAerolabConfig(c.OldDir, c.NewDir)
+	err = c.MigrateAerolabConfig(system, c.OldDir, c.NewDir)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
 
 	system.Logger.Info("Done")
 	return Error(nil, system, cmd, c, args)
+}
+
+func (c *ConfigMigrateCmd) MigrateAerolabConfig(system *System, oldDir string, newDir string) error {
+	if !c.MigrateInventory && !c.Force && IsInteractive() && system.Opts.Config.Backend.Type != "docker" {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print("Do you want to migrate the inventory to the new AeroLab directory? (y/n): ")
+		yesno, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read input: %w", err)
+		}
+		yesno = strings.TrimSpace(strings.ToLower(yesno))
+		c.MigrateInventory = yesno == "y" || yesno == "yes"
+	}
+	if system.Opts.Config.Backend.Type == "docker" && c.MigrateInventory {
+		return fmt.Errorf("not supported: cannot migrate inventory for docker backend")
+	}
+	err := MigrateAerolabConfig(oldDir, newDir)
+	if err != nil {
+		return err
+	}
+	if c.MigrateInventory {
+		migrateCmd := InventoryMigrateCmd{}
+		err = migrateCmd.InventoryMigrate(system, []string{"inventory", "migrate"}, []string{}, system.Backend.GetInventory())
+		if err != nil {
+			return fmt.Errorf("failed to migrate inventory in backend %s: %w", system.Opts.Config.Backend.Type, err)
+		}
+	}
+	return nil
 }
 
 func MigrateAerolabConfig(oldDir string, newDir string) error {

@@ -104,6 +104,10 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 		}
 		tags[parts[0]] = parts[1]
 	}
+	// Add telemetry tag if telemetry is enabled
+	if enabled, telemetryUUID := IsTelemetryEnabled(system); enabled {
+		tags["aerolab.telemetry"] = telemetryUUID
+	}
 	var expire time.Time
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
@@ -186,6 +190,9 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 		installExpiry = c.GCP.Expire > 0 && !c.NoInstallExpiry
 	}
 	if installExpiry {
+		// Check for v7 expiry system and warn user
+		warnIfV7ExpiryInstalled(system.Backend, backends.BackendType(system.Opts.Config.Backend.Type), system.Logger)
+
 		wg := new(sync.WaitGroup)
 		wg.Add(1)
 		defer wg.Wait()

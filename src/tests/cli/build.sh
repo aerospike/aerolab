@@ -1,7 +1,13 @@
 #!/bin/bash
 
 set -e
-echo "Building aerolab..."
+if [ "$1" = "all" ]; then
+  echo "$(date) Running go generate..."
+  pushd ../../cli/
+  go generate ./...
+  popd
+fi
+echo "$(date) Building aerolab..."
 rm -rf ./aerolab
 go build -o ./aerolab ../../cli/.
-echo "Aerolab built successfully"
+echo "$(date) Aerolab built successfully"

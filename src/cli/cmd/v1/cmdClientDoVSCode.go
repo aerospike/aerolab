@@ -36,6 +36,7 @@ func (c *ClientCreateVSCodeCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	// Auto-expose port 8080 for Docker backend if not already exposed
+	// Use +8080:8080 to auto-increment host port if 8080 is already in use
 	if system.Opts.Config.Backend.Type == "docker" {
 		hasPort8080 := false
 		for _, port := range c.Docker.ExposePorts {
@@ -45,8 +46,8 @@ func (c *ClientCreateVSCodeCmd) Execute(args []string) error {
 			}
 		}
 		if !hasPort8080 {
-			system.Logger.Info("Auto-exposing port 8080 for VSCode access")
-			c.Docker.ExposePorts = append([]string{"8080:8080"}, c.Docker.ExposePorts...)
+			system.Logger.Info("Auto-exposing port 8080 for VSCode access (auto-increment if port in use)")
+			c.Docker.ExposePorts = append([]string{"+8080:8080"}, c.Docker.ExposePorts...)
 		}
 	}
 

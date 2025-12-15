@@ -17,14 +17,17 @@ import (
 
 type CloudDatabasesCreateCmd struct {
 	Name                  string  `short:"n" long:"name" description:"Name of the database"`
-	InstanceType          string  `short:"i" long:"instance-type" description:"Instance type" required:"true"`
-	Region                string  `short:"r" long:"region" description:"Region" required:"true"`
+	InstanceType          string  `short:"i" long:"instance-type" description:"Instance type"`
+	Region                string  `short:"r" long:"region" description:"Region"`
 	AvailabilityZoneCount int     `long:"availability-zone-count" description:"Number of availability zones (1-3)" default:"2"`
-	ClusterSize           int     `long:"cluster-size" description:"Number of nodes in cluster" required:"true"`
-	DataStorage           string  `long:"data-storage" description:"Data storage type (memory, local-disk, network-storage)" required:"true"`
+	ClusterSize           int     `long:"cluster-size" description:"Number of nodes in cluster"`
+	DataStorage           string  `long:"data-storage" description:"Data storage type (memory, local-disk, network-storage)"`
 	DataResiliency        string  `long:"data-resiliency" description:"Data resiliency (local-disk, network-storage)"`
 	DataPlaneVersion      string  `long:"data-plane-version" description:"Data plane version" default:"latest"`
 	VPCID                 string  `long:"vpc-id" description:"VPC ID to peer the database to" default:"default"`
+	CloudCIDR             string  `long:"cloud-cidr" description:"CIDR block for the cloud database infrastructure. If 'default', the cloud will auto-assign (starting from 10.130.0.0/19). If VPC-ID is specified, aerolab will check for collisions and find the next available CIDR if default is used." default:"default"`
+	ForceRouteCreation    bool    `long:"force-route-creation" description:"Force route creation even if it already exists"`
+	DryRun                bool    `long:"dry-run" description:"Perform checks and print what would be done without actually creating anything"`
 	Help                  HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -53,6 +56,21 @@ func (c *CloudDatabasesCreateCmd) Execute(args []string) error {
 }
 
 func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
+	if c.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if c.InstanceType == "" {
+		return fmt.Errorf("instance type is required")
+	}
+	if c.Region == "" {
+		return fmt.Errorf("region is required")
+	}
+	if c.ClusterSize == 0 {
+		return fmt.Errorf("cluster size is required")
+	}
+	if c.DataStorage == "" {
+		return fmt.Errorf("data storage is required")
+	}
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cloud", "db", "create"}, c, args...)
@@ -81,6 +99,8 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 	}
 	var cidr string
 	var accountId string
+	var cloudCIDR string
+	var vpcRegion string
 	var err error
 	if c.VPCID != "" {
 		logger.Info("Getting VPC details for VPC-ID: %s", c.VPCID)
@@ -90,11 +110,18 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		for _, network := range inventory.Networks.Describe() {
 			if network.NetworkId == c.VPCID {
 				cidr = network.Cidr
+				vpcRegion = network.ZoneName
 				break
 			}
 		}
 		if cidr == "" {
 			return fmt.Errorf("VPC %s not found", c.VPCID)
+		}
+		if vpcRegion == "" {
+			logger.Warn("Could not determine VPC region from zone name, using database region: %s", c.Region)
+			vpcRegion = c.Region
+		} else {
+			logger.Info("VPC region: %s", vpcRegion)
 		}
 		accountId, err = system.Backend.GetAccountID(backends.BackendTypeAWS)
 		if err != nil {
@@ -103,14 +130,56 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		if accountId == "" {
 			return fmt.Errorf("account ID not found")
 		}
+
+		// Check/resolve cloud CIDR before creating the database
+		if c.CloudCIDR != "" && c.CloudCIDR != "default" {
+			// User specified a custom CIDR - validate it's not in use
+			logger.Info("Validating requested cloud CIDR: %s", c.CloudCIDR)
+			foundCIDR, isRequested, err := system.Backend.FindAvailableCloudCIDR(backends.BackendTypeAWS, c.VPCID, c.CloudCIDR)
+			if err != nil {
+				return fmt.Errorf("requested cloud CIDR %s validation failed: %w", c.CloudCIDR, err)
+			}
+			if !isRequested {
+				return fmt.Errorf("requested cloud CIDR %s is not available (found alternative: %s)", c.CloudCIDR, foundCIDR)
+			}
+			cloudCIDR = foundCIDR
+			logger.Info("Cloud CIDR %s is available", cloudCIDR)
+		} else {
+			// Default CIDR - find an available one
+			logger.Info("Finding available cloud CIDR for VPC %s", c.VPCID)
+			foundCIDR, isDefault, err := system.Backend.FindAvailableCloudCIDR(backends.BackendTypeAWS, c.VPCID, "")
+			if err != nil {
+				return fmt.Errorf("failed to find available cloud CIDR: %w", err)
+			}
+			cloudCIDR = foundCIDR
+			if isDefault {
+				logger.Info("Using default cloud CIDR: %s", cloudCIDR)
+			} else {
+				logger.Info("Default CIDR was in use, using next available: %s", cloudCIDR)
+			}
+		}
 	}
 
-	logger.Info("Creating cloud database: %s", c.Name)
+	if !c.DryRun {
+		logger.Info("Creating cloud database: %s", c.Name)
+	} else {
+		logger.Info("Dry-Run: collecting information, name=%s", c.Name)
+	}
 
 	// create cloud DB
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
+	}
+
+	// Check if a database with the same name already exists
+	logger.Info("Checking for existing database with name: %s", c.Name)
+	existingDb, err := c.getDatabaseByName(client, c.Name)
+	if err != nil {
+		return fmt.Errorf("failed to check for existing database: %w", err)
+	}
+	if existingDb != nil {
+		return fmt.Errorf("database with name '%s' already exists (id: %s, status: %s)", c.Name, existingDb.ID, existingDb.Status)
 	}
 
 	// Build infrastructure
@@ -122,6 +191,10 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		InstanceType:          c.InstanceType,
 		Region:                &region,
 		AvailabilityZoneCount: &availabilityZoneCount,
+	}
+	// Set CIDR block if we have a VPC-ID specified and resolved a CIDR
+	if c.VPCID != "" && cloudCIDR != "" {
+		infrastructure.CIDRBlock = cloudCIDR
 	}
 
 	// Build aerospike cloud configuration
@@ -170,6 +243,64 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		AerospikeCloud:   aerospikeCloud,
 		AerospikeServer:  aerospikeServer,
 	}
+
+	// Handle dry-run mode
+	if c.DryRun {
+		logger.Info("=== DRY RUN MODE ===")
+		logger.Info("")
+
+		// Print discovered CIDR for VPC peering
+		if c.VPCID != "" {
+			logger.Info("Discovered the following CIDR for VPC Peering:")
+			logger.Info("  VPC ID: %s", c.VPCID)
+			logger.Info("  VPC Region: %s", vpcRegion)
+			logger.Info("  VPC CIDR: %s", cidr)
+			logger.Info("  Cloud Database CIDR: %s", cloudCIDR)
+			logger.Info("  AWS Account ID: %s", accountId)
+			logger.Info("")
+		}
+
+		// Print database creation request
+		requestJson, err := json.MarshalIndent(request, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal request for dry-run: %w", err)
+		}
+		logger.Info("Would create database with following data:")
+		logger.Info("%s", string(requestJson))
+		logger.Info("")
+
+		// Print VPC peering details
+		if c.VPCID != "" {
+			peeringRequest := cloud.CreateVPCPeeringRequest{
+				VpcID:              c.VPCID,
+				CIDRBlock:          cidr,
+				AccountID:          accountId,
+				Region:             vpcRegion,
+				IsSecureConnection: true,
+			}
+			peeringJson, err := json.MarshalIndent(peeringRequest, "", "  ")
+			if err != nil {
+				return fmt.Errorf("failed to marshal peering request for dry-run: %w", err)
+			}
+			logger.Info("Would peer VPCs with following request:")
+			logger.Info("%s", string(peeringJson))
+			logger.Info("")
+
+			logger.Info("Would perform the following additional steps:")
+			logger.Info("  1. Wait for database provisioning")
+			logger.Info("  2. Initiate VPC peering request to Aerospike Cloud")
+			logger.Info("  3. Accept VPC peering connection in AWS")
+			logger.Info("  4. Create route in VPC %s for cloud CIDR %s", c.VPCID, cloudCIDR)
+			logger.Info("  5. Associate VPC with private hosted zone for DNS resolution")
+		} else {
+			logger.Info("Would wait for database provisioning (no VPC peering configured)")
+		}
+
+		logger.Info("")
+		logger.Info("=== END DRY RUN ===")
+		return nil
+	}
+
 	var result interface{}
 
 	err = client.Post(cloudDbPath, request, &result)
@@ -179,6 +310,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 	dbId := result.(map[string]interface{})["id"].(string)
 
 	logger.Info("Database create queued: %s", dbId)
+	fmt.Printf("db-id=%s\n", dbId)
 	// json-dump result in logger.Debug for debugging purposes
 	resultJson, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
@@ -188,11 +320,11 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 
 	// initiate VPC peering
 	if c.VPCID != "" {
-		logger.Info("Initiating VPC peering for database=%s, vpcId=%s, cidr=%s, accountId=%s, region=%s, isSecureConnection=%t", dbId, c.VPCID, cidr, accountId, c.Region, true)
+		logger.Info("Initiating VPC peering for database=%s, vpcId=%s, cidr=%s, accountId=%s, vpcRegion=%s, isSecureConnection=%t", dbId, c.VPCID, cidr, accountId, vpcRegion, true)
 		logger.Info("This process may take up to an hour, as the database is being created and then the VPC peering will be initialized...")
 		var reqId string
 		err = c.retry(logger, func() error {
-			reqId, err = c.initiateVPCPeering(system, inventory, dbId, cidr, accountId, c.Region, logger)
+			reqId, err = c.initiateVPCPeering(system, inventory, dbId, cidr, accountId, vpcRegion, logger)
 			return err
 		}, dbId)
 		if err != nil {
@@ -237,7 +369,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		// Create route in the VPC
 		logger.Info("Creating route in VPC %s for CIDR block %s via peering connection %s", c.VPCID, cidrBlock, reqId)
 		err = c.retry(logger, func() error {
-			return system.Backend.CreateRoute(backends.BackendTypeAWS, c.VPCID, reqId, cidrBlock)
+			return system.Backend.CreateRoute(backends.BackendTypeAWS, c.VPCID, reqId, cidrBlock, c.ForceRouteCreation)
 		}, dbId)
 		if err != nil {
 			return fmt.Errorf("failed to create route: %w", err)
@@ -288,9 +420,9 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 			logger.Warn("Hosted zone ID not found in VPC peerings, skipping VPC-hosted zone association")
 		} else {
 			// Associate VPC with hosted zone
-			logger.Info("Associating VPC %s with hosted zone %s in region %s", c.VPCID, hostedZoneID, c.Region)
+			logger.Info("Associating VPC %s with hosted zone %s in region %s", c.VPCID, hostedZoneID, vpcRegion)
 			err = c.retry(logger, func() error {
-				return system.Backend.AssociateVPCWithHostedZone(backends.BackendTypeAWS, hostedZoneID, c.VPCID, c.Region)
+				return system.Backend.AssociateVPCWithHostedZone(backends.BackendTypeAWS, hostedZoneID, c.VPCID, vpcRegion)
 			}, dbId)
 			if err != nil {
 				return fmt.Errorf("failed to associate VPC with hosted zone: %w", err)
@@ -321,7 +453,7 @@ func (c *CloudDatabasesCreateCmd) initiateVPCPeering(system *System, inventory *
 		VpcID:              c.VPCID,
 		CIDRBlock:          cidr,
 		AccountID:          accountId,
-		Region:             c.Region,
+		Region:             region,
 		IsSecureConnection: true,
 	}
 	var result interface{}
@@ -496,4 +628,53 @@ func (c *CloudDatabasesCreateCmd) retry(logger *logger.Logger, fn func() error, 
 			continue
 		}
 	}
+}
+
+// existingDatabase holds basic info about an existing database
+type existingDatabase struct {
+	ID     string
+	Name   string
+	Status string
+}
+
+// getDatabaseByName checks if a database with the given name already exists
+// Returns nil if no database with that name exists
+func (c *CloudDatabasesCreateCmd) getDatabaseByName(client *cloud.Client, name string) (*existingDatabase, error) {
+	var result map[string]interface{}
+	// Exclude decommissioned databases from the check
+	path := cloudDbPath + "?status_ne=decommissioned"
+	err := client.Get(path, &result)
+	if err != nil {
+		return nil, err
+	}
+
+	databases, ok := result["databases"].([]interface{})
+	if !ok {
+		// No databases found
+		return nil, nil
+	}
+
+	for _, db := range databases {
+		dbMap, ok := db.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		dbName, _ := dbMap["name"].(string)
+		if dbName == name {
+			dbID, _ := dbMap["id"].(string)
+			// Get status from health.status
+			var status string
+			if health, ok := dbMap["health"].(map[string]interface{}); ok {
+				status, _ = health["status"].(string)
+			}
+			return &existingDatabase{
+				ID:     dbID,
+				Name:   dbName,
+				Status: status,
+			}, nil
+		}
+	}
+
+	return nil, nil
 }

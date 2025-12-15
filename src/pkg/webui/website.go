@@ -10,29 +10,10 @@ import (
 	"path/filepath"
 )
 
-// Website contains the embedded website archive (www.tgz) that includes all static
-// web assets for the Aerolab web interface. This is embedded at compile time.
-//
 //go:embed www.tgz
 var Website []byte
 
-// InstallWebsite extracts and installs the embedded website files to the specified destination directory.
-// The function extracts a gzipped tar archive containing all web assets and creates the necessary
-// directory structure. It handles both directories and regular files, preserving file permissions.
-//
-// Parameters:
-//   - dst: The destination directory where the website files will be extracted
-//   - website: The gzipped tar archive bytes containing the website files
-//
-// Returns:
-//   - error: nil on success, or an error if extraction fails
-//
-// Usage:
-//
-//	err := webui.InstallWebsite("/var/www/aerolab", webui.Website)
-//	if err != nil {
-//	    log.Fatal("Failed to install website:", err)
-//	}
+// Install will install the website in dst/www
 func InstallWebsite(dst string, website []byte) error {
 	br := bytes.NewReader(website)
 	r, err := gzip.NewReader(br)

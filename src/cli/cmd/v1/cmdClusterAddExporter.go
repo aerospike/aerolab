@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -11,18 +12,20 @@ import (
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/installers/aerospike"
+	"github.com/aerospike/aerolab/pkg/utils/installers/nodeexporter"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
 	"github.com/rglonek/go-flags"
 	"github.com/rglonek/logger"
 )
 
 type ClusterAddExporterCmd struct {
-	ClusterName     TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
-	Nodes           TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
-	CustomConf      flags.Filename  `short:"o" long:"custom-conf" description:"To deploy a custom ape.toml configuration file, specify it's path here"`
-	ExporterVersion string          `short:"v" long:"exporter-version" description:"Exporter version to install" default:"latest"`
-	ParallelThreads int             `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
-	Help            HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterName         TypeClusterName `short:"n" long:"name" description:"Cluster name" default:"mydc"`
+	Nodes               TypeNodes       `short:"l" long:"nodes" description:"Nodes list, comma separated. Empty=ALL" default:""`
+	CustomConf          flags.Filename  `short:"o" long:"custom-conf" description:"To deploy a custom ape.toml configuration file, specify it's path here"`
+	ExporterVersion     string          `short:"v" long:"exporter-version" description:"Exporter version to install" default:"latest"`
+	NodeExporterVersion string          `long:"node-exporter-version" description:"Node exporter version to install (e.g., 1.5.0)" default:"latest"`
+	ParallelThreads     int             `short:"p" long:"parallel-threads" description:"Number of parallel threads to use for the execution" default:"10"`
+	Help                HelpCmd         `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *ClusterAddExporterCmd) Execute(args []string) error {
@@ -137,6 +140,10 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
 			return
 		}
+		installScript = append(installScript, []byte(`
+			systemctl enable aerospike-prometheus-exporter
+			systemctl start aerospike-prometheus-exporter
+		`)...)
 		conf, err := inst.GetSftpConfig("root")
 		if err != nil {
 			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
@@ -206,5 +213,78 @@ func (c *ClusterAddExporterCmd) AddExporterCluster(system *System, inventory *ba
 	if hasErr != nil {
 		return nil, hasErr
 	}
+
+	// Install node_exporter
+	logger.Info("Installing node_exporter on %d nodes", cluster.Count())
+	var nodeExporterVersion *string
+	if c.NodeExporterVersion != "latest" {
+		nodeExporterVersion = &c.NodeExporterVersion
+	}
+
+	nodeExporterScript, err := nodeexporter.GetLinuxInstallScript(nodeExporterVersion, nil, true, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get node_exporter installer: %w", err)
+	}
+
+	parallelize.ForEachLimit(cluster.Describe(), c.ParallelThreads, func(inst *backends.Instance) {
+		logger.Debug("Installing node_exporter on %s:%d", inst.ClusterName, inst.NodeNo)
+
+		conf, err := inst.GetSftpConfig("root")
+		if err != nil {
+			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
+			return
+		}
+		client, err := sshexec.NewSftp(conf)
+		if err != nil {
+			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
+			return
+		}
+		defer client.Close()
+
+		now := time.Now().Format("20060102150405")
+		err = client.WriteFile(true, &sshexec.FileWriter{
+			DestPath:    "/tmp/install-node-exporter.sh." + now,
+			Source:      bytes.NewReader(nodeExporterScript),
+			Permissions: 0755,
+		})
+		if err != nil {
+			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s", inst.ClusterName, inst.NodeNo, err))
+			return
+		}
+
+		detail := sshexec.ExecDetail{
+			Command:        []string{"bash", "/tmp/install-node-exporter.sh." + now},
+			SessionTimeout: 5 * time.Minute,
+			Env:            []*sshexec.Env{},
+			Terminal:       false,
+		}
+		if stdin != nil {
+			detail.Stdin = *stdin
+		}
+		if stdout != nil {
+			detail.Stdout = *stdout
+		}
+		if stderr != nil {
+			detail.Stderr = *stderr
+		}
+
+		output := inst.Exec(&backends.ExecInput{
+			ExecDetail:      detail,
+			Username:        "root",
+			ConnectTimeout:  30 * time.Second,
+			ParallelThreads: c.ParallelThreads,
+		})
+		if output.Output.Err != nil {
+			hasErr = errors.Join(hasErr, fmt.Errorf("%s:%d: %s (%s) (%s)", inst.ClusterName, inst.NodeNo, output.Output.Err, string(output.Output.Stdout), string(output.Output.Stderr)))
+			return
+		}
+		logger.Debug("Successfully installed node_exporter on %s:%d", inst.ClusterName, inst.NodeNo)
+	})
+
+	if hasErr != nil {
+		return nil, hasErr
+	}
+
+	logger.Info("NOTE: Remember to install the AMS stack client to monitor the cluster, using `aerolab client create ams` command")
 	return nil, nil
 }

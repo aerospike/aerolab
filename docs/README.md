@@ -27,6 +27,10 @@ Choose your backend and follow the appropriate getting started guide:
 - **[AWS Backend](getting-started/aws.md)** - Set up with AWS credentials and EC2
 - **[GCP Backend](getting-started/gcp.md)** - Set up with Google Cloud Platform (Application Default Credentials)
 
+### Upgrading from v7
+
+If you're upgrading from AeroLab v7.x, see the **[Migration Guide](migration-guide.md)** for instructions on migrating your configuration and cloud resources.
+
 ## Command Categories
 
 ### Core Commands
@@ -55,6 +59,11 @@ Choose your backend and follow the appropriate getting started guide:
   - Start, stop, restart instances
   - Tag management and firewall assignment
 
+- **[Client Management](commands/client.md)** - Create and manage client machines
+  - Create client machines (none, base, tools, ams, vscode, graph, eksctl)
+  - Configure clients (AMS, firewall, tools)
+  - Start, stop, destroy, share clients
+
 ### Operational Commands
 
 - **[Attach Commands](commands/attach.md)** - Connect to nodes and run commands
@@ -77,6 +86,16 @@ Choose your backend and follow the appropriate getting started guide:
   - Show logs
   - Download logs to local directory
 
+- **[Data Management](commands/data.md)** - Insert and delete test data
+  - Insert test data with flexible patterns
+  - Delete test data
+  - Multi-threaded operations
+
+- **[Network Simulation](commands/net.md)** - Test network conditions
+  - Block/unblock network ports
+  - Simulate packet loss, latency, bandwidth limits
+  - Test split-brain and network failures
+
 ### Resource Management
 
 - **[Templates](commands/templates.md)** - Manage Aerospike server templates
@@ -98,6 +117,16 @@ Choose your backend and follow the appropriate getting started guide:
 
 ### Advanced Features
 
+- **[XDR Management](commands/xdr.md)** - Cross-datacenter replication
+  - Connect clusters via XDR
+  - Create XDR-connected clusters
+  - Configure XDR v4 and v5
+
+- **[TLS Certificate Management](commands/tls.md)** - Secure clusters with TLS
+  - Generate TLS certificates
+  - Copy certificates between clusters
+  - CA and certificate management
+
 - **[Roster Management](commands/roster.md)** - Strong consistency roster operations
   - Apply rosters
   - Show roster status
@@ -112,14 +141,6 @@ Choose your backend and follow the appropriate getting started guide:
 ## Reference
 
 - **[Environment Variables](reference/environment-variables.md)** - All available environment variables
-
-## Additional Documentation
-
-- **[Files Operations](commands/files.md)** - Upload, download, and sync files
-- **[Logs Management](commands/logs.md)** - View and download logs
-- **[Inventory Management](commands/inventory.md)** - View and manage all resources
-- **[Attach Commands](commands/attach.md)** - Connect to nodes and run commands
-- **[Configuration Management](commands/conf.md)** - Manage Aerospike configuration files
 
 ## Quick Start Example
 
@@ -197,6 +218,36 @@ aerolab aerospike start
 5. Wait for cluster stability
 6. Apply configuration changes
 7. Verify cluster operation
+
+### Setting Up Monitoring (AMS)
+
+1. Create Aerospike cluster(s)
+2. Add Prometheus exporter to clusters
+3. Create AMS client with Grafana and Prometheus
+4. Configure AMS to monitor clusters
+5. Access Grafana dashboard for metrics
+
+### Configuring XDR Between Clusters
+
+1. Create source and destination clusters
+2. Use `xdr connect` to configure replication
+3. Verify XDR status with asadm
+4. Monitor XDR lag in Grafana
+
+### Securing Clusters with TLS
+
+1. Generate TLS certificates for cluster
+2. Restart Aerospike to enable TLS
+3. Copy certificates to client machines
+4. Connect clients using TLS parameters
+
+### Testing Network Resilience
+
+1. Create test clusters
+2. Use `net loss-delay` to simulate latency/packet loss
+3. Monitor cluster behavior
+4. Use `net block` to test split-brain scenarios
+5. Reset network conditions after testing
 
 ### Managing Multiple Clusters
 

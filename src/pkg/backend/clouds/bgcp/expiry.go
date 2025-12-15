@@ -405,3 +405,68 @@ func cronToInterval(cron string) (int, error) {
 		return 0, errors.New("unsupported cron pattern")
 	}
 }
+
+// ExpiryV7Check checks if the v7 expiry system is still installed.
+// Returns true if v7 expiry system is detected, along with a list of regions where it was found.
+// V7 used Cloud Function and Scheduler named "aerolab-expiries" (with 's'), whereas v8 uses "aerolab-expiry".
+func (s *b) ExpiryV7Check() (bool, []string, error) {
+	log := s.log.WithPrefix("ExpiryV7Check: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+	ctx := context.Background()
+
+	cli, err := connect.GetCredentials(s.credentials, log.WithPrefix("AUTH: "))
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to get credentials: %w", err)
+	}
+
+	foundRegions := []string{}
+	enabledRegions, err := s.ListEnabledZones()
+	if err != nil {
+		return false, nil, fmt.Errorf("failed to list enabled zones: %w", err)
+	}
+
+	for _, region := range enabledRegions {
+		// Check for v7 Cloud Function "aerolab-expiries" (with 's')
+		v7FunctionFound := false
+		funcClient, err := functions.NewFunctionClient(ctx, option.WithCredentials(cli))
+		if err != nil {
+			log.Detail("Failed to create function client for region %s: %s", region, err)
+			continue
+		}
+		v7FunctionName := fmt.Sprintf("projects/%s/locations/%s/functions/aerolab-expiries", s.credentials.Project, region)
+		_, err = funcClient.GetFunction(ctx, &functionspb.GetFunctionRequest{
+			Name: v7FunctionName,
+		})
+		funcClient.Close()
+		if err == nil {
+			log.Detail("Found v7 Cloud Function 'aerolab-expiries' in region %s", region)
+			v7FunctionFound = true
+		}
+
+		// Check for v7 Cloud Scheduler Job "aerolab-expiries" (with 's')
+		v7SchedulerFound := false
+		schedClient, err := scheduler.NewCloudSchedulerClient(ctx, option.WithCredentials(cli))
+		if err != nil {
+			log.Detail("Failed to create scheduler client for region %s: %s", region, err)
+			continue
+		}
+		v7JobName := fmt.Sprintf("projects/%s/locations/%s/jobs/aerolab-expiries", s.credentials.Project, region)
+		_, err = schedClient.GetJob(ctx, &schedulerpb.GetJobRequest{
+			Name: v7JobName,
+		})
+		schedClient.Close()
+		if err == nil {
+			log.Detail("Found v7 Cloud Scheduler 'aerolab-expiries' in region %s", region)
+			v7SchedulerFound = true
+		}
+
+		if v7FunctionFound || v7SchedulerFound {
+			if !slices.Contains(foundRegions, region) {
+				foundRegions = append(foundRegions, region)
+			}
+		}
+	}
+
+	return len(foundRegions) > 0, foundRegions, nil
+}

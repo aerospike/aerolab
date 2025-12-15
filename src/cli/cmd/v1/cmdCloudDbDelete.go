@@ -14,7 +14,7 @@ import (
 
 type CloudDatabasesDeleteCmd struct {
 	Help       HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	DatabaseID string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
+	DatabaseID string  `short:"d" long:"database-id" description:"Database ID"`
 	Wait       bool    `short:"w" long:"wait" description:"Wait until database status is decommissioned"`
 	Force      bool    `short:"f" long:"force" description:"Skip confirmation prompt"`
 }
@@ -25,21 +25,10 @@ func (c *CloudDatabasesDeleteCmd) Execute(args []string) error {
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+	if c.DatabaseID == "" {
+		return fmt.Errorf("database ID is required")
+	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
-
-	client, err := cloud.NewClient(cloudVersion)
-	if err != nil {
-		return Error(err, system, cmd, c, args)
-	}
-
-	// Delete route before deleting database (only for AWS backend)
-	if system.Opts.Config.Backend.Type == "aws" {
-		err = c.deleteRouteIfExists(system, client, system.Logger)
-		if err != nil {
-			system.Logger.Warn("Failed to delete route before database deletion: %s", err.Error())
-			// Continue with database deletion even if route deletion fails
-		}
-	}
 
 	// Ask for confirmation if interactive and not forced
 	if IsInteractive() && !c.Force {
@@ -56,6 +45,20 @@ func (c *CloudDatabasesDeleteCmd) Execute(args []string) error {
 		switch choice {
 		case "No":
 			return Error(errors.New("aborted"), system, cmd, c, args)
+		}
+	}
+
+	client, err := cloud.NewClient(cloudVersion)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
+
+	// Delete route before deleting database (only for AWS backend)
+	if system.Opts.Config.Backend.Type == "aws" {
+		err = c.deleteRouteIfExists(system, client, system.Logger)
+		if err != nil {
+			system.Logger.Warn("Failed to delete route before database deletion: %s", err.Error())
+			// Continue with database deletion even if route deletion fails
 		}
 	}
 

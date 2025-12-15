@@ -199,3 +199,10 @@ func (b *backend) Close() error {
 	b.closed = true
 	return nil
 }
+
+func (b *backend) MigrateV7Resources(backendType BackendType, input *MigrateV7Input) (*MigrationResult, error) {
+	if _, ok := cloudList[backendType]; !ok {
+		return nil, fmt.Errorf("backend type %s not found", backendType)
+	}
+	return cloudList[backendType].MigrateV7Resources(input)
+}

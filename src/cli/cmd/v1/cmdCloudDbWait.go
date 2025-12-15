@@ -10,7 +10,7 @@ import (
 )
 
 type CloudDatabasesWaitCmd struct {
-	DatabaseID  string   `short:"i" long:"database-id" description:"Database ID" required:"true"`
+	DatabaseID  string   `short:"i" long:"database-id" description:"Database ID"`
 	Status      []string `short:"s" long:"status" description:"Wait for health.status to match any of these values (can be specified multiple times)"`
 	StatusNe    []string `long:"status-ne" description:"Wait for health.status to NOT match any of these values (can be specified multiple times)"`
 	WaitTimeout int      `long:"wait-timeout" description:"Timeout in seconds (0 = no timeout)" default:"3600"`
@@ -22,6 +22,9 @@ func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
 	system, err := Initialize(&Init{InitBackend: false, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
+	}
+	if c.DatabaseID == "" {
+		return fmt.Errorf("database ID is required")
 	}
 	// Validate that at least one status option is provided
 	if len(c.Status) == 0 && len(c.StatusNe) == 0 {

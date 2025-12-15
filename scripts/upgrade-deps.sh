@@ -1,18 +1,29 @@
 #!/bin/bash
-set -e
+
+set -ex
+
+# update main app
 pushd ../src
-pushd pkg/backend
-go get -u
+go get -u ./...
 go mod tidy
 popd
-pushd pkg/expiry
-go get -u
+
+# not doing this since expiry uses the main go.mod (should it really?)
+#pushd ../src/pkg/expiry
+#go get -u ./...
+#go mod tidy
+#popd
+
+# update gcp expiry app since it's a separate module
+pushd ../src/pkg/expiry/gcp
+go get -u ./...
 go mod tidy
 popd
-pushd pkg/expiry/gcp
-go get -u
-go mod tidy
-popd
+
+# update expiry version as we have updated the main app
 bash new-expiry-version.sh
+
+# regenerate the main app dependencies
+pushd ../src/cli
 go generate ./...
 popd
