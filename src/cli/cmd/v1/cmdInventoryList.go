@@ -161,7 +161,33 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 }
 
 func (c *InventoryListCmd) getInventory(system *System, withExpiries bool) map[string]interface{} {
-	inv := system.Backend.GetInventory().ToMap()
+	inventory := system.Backend.GetInventory()
+
+	// Filter instances - exclude terminated instances (same as table output)
+	instances := inventory.Instances.WithNotState(backends.LifeCycleStateTerminated)
+	if c.Owner != "" {
+		instances = instances.WithOwner(c.Owner)
+	}
+
+	// Filter images - only custom images (same as table output)
+	images := inventory.Images.WithInAccount(true)
+	if c.Owner != "" {
+		images = images.WithOwner(c.Owner)
+	}
+
+	// Filter volumes by owner if specified (same as table output)
+	volumes := inventory.Volumes
+	if c.Owner != "" {
+		volumes = volumes.WithOwner(c.Owner)
+	}
+
+	inv := map[string]interface{}{
+		"networks":  inventory.Networks.Describe(),
+		"firewalls": inventory.Firewalls.Describe(),
+		"volumes":   volumes.Describe(),
+		"instances": instances.Describe(),
+		"images":    images.Describe(),
+	}
 	if withExpiries {
 		expiries, err := system.Backend.ExpiryList()
 		if err != nil {

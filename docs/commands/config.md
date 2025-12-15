@@ -7,6 +7,7 @@ Configuration commands allow you to configure Aerolab backends, defaults, and ba
 - `config backend` - Configure backend (Docker, AWS, GCP)
 - `config defaults` - Set default configuration values
 - `config env-vars` - Show environment variables
+- `config migrate` - Migrate configuration from v7 to v8
 - `config docker` - Docker-specific configuration
 - `config aws` - AWS-specific configuration
 - `config gcp` - GCP-specific configuration
@@ -177,6 +178,118 @@ aerolab config env-vars
 ```
 
 Lists all environment variables and their current values.
+
+## Config Migrate
+
+Migrate AeroLab configuration from v7 to v8. This command copies configuration files from the old v7 directory to the new v8 directory structure.
+
+### Basic Usage
+
+```bash
+aerolab config migrate
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `-o, --old-dir` | Old AeroLab directory to migrate from (default: `~/.aerolab`) |
+| `-n, --new-dir` | New AeroLab directory to migrate to (default: `~/.config/aerolab`) |
+| `-i, --migrate-inventory` | Also migrate cloud resource inventory tags |
+| `-f, --force` | Skip confirmation prompts |
+
+### What Gets Migrated
+
+**Configuration files:**
+- `conf` - Main configuration file
+- `conf.ts` - Timestamp configuration file
+
+**Automatic fixes:**
+- Docker backend region is cleared if it was incorrectly set (Docker doesn't use regions)
+
+**Optional inventory migration:**
+- When `-i` flag is used, calls `inventory migrate` for the current backend
+- This updates cloud resource tags to v8 format
+
+### Examples
+
+**Basic migration with default paths:**
+```bash
+aerolab config migrate
+```
+
+**Migration with custom paths:**
+```bash
+aerolab config migrate -o /path/to/old/.aerolab -n /path/to/new/.config/aerolab
+```
+
+**Migration without prompts:**
+```bash
+aerolab config migrate -f
+```
+
+**Migration with inventory:**
+```bash
+aerolab config migrate -i
+```
+
+**Complete migration (config + inventory, no prompts):**
+```bash
+aerolab config migrate -f -i
+```
+
+### Directory Structure
+
+| Version | Default Path |
+|---------|--------------|
+| AeroLab 7.x | `~/.aerolab` |
+| AeroLab 8.x | `~/.config/aerolab` |
+
+The v8 directory can be overridden using the `AEROLAB_HOME` environment variable.
+
+### Interactive Mode
+
+When running interactively (without `-f` flag), the command will prompt:
+
+```
+Do you want to migrate the inventory to the new AeroLab directory? (y/n):
+```
+
+**Note:** Inventory migration is only available for AWS and GCP backends. Docker inventory cannot be migrated (and doesn't need to be).
+
+### Safety Features
+
+- **Idempotent:** Safe to run multiple times
+- **Non-destructive:** Original files in old directory are preserved
+- **Validation:** Checks backend type before inventory migration
+
+### Common Workflows
+
+**Single backend (AWS or GCP):**
+```bash
+# Migrate config and inventory together
+aerolab config migrate -i
+```
+
+**Multiple backends:**
+```bash
+# 1. Migrate config only
+aerolab config migrate -f
+
+# 2. Migrate AWS inventory
+aerolab config backend -t aws -r us-east-1
+aerolab inventory migrate
+
+# 3. Migrate GCP inventory
+aerolab config backend -t gcp -r us-central1 -o my-project
+aerolab inventory migrate
+```
+
+**Docker users:**
+```bash
+# Docker only needs config migration
+aerolab config migrate -f
+```
 
 ## Config Docker
 
@@ -375,6 +488,23 @@ aerolab config gcp expiry-remove
 
 ## Common Workflows
 
+### Migrating from v7 to v8
+
+```bash
+# Option 1: Migrate everything at once (single backend)
+aerolab config migrate -i
+
+# Option 2: Migrate config first, then inventory per-backend
+aerolab config migrate -f
+aerolab config backend -t aws -r us-east-1
+aerolab inventory migrate
+aerolab config backend -t gcp -r us-central1 -o my-project
+aerolab inventory migrate
+
+# Option 3: Docker users (no inventory migration needed)
+aerolab config migrate -f
+```
+
 ### Initial Setup
 
 ```bash
@@ -427,4 +557,5 @@ aerolab config gcp expiry-run-frequency -f 20
 3. **Expiry Automation**: Use expiry automation to automatically clean up resources
 4. **Security Groups/Firewalls**: Create these before creating clusters for easier management
 5. **Defaults**: Set defaults for commonly used values to save time
+6. **Migration**: When upgrading from v7, use `config migrate` first, then `inventory migrate` for each backend
 

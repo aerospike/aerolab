@@ -243,11 +243,15 @@ func (s *b) GetInstanceTypes() (backends.InstanceTypeList, error) {
 		if err != nil {
 			return nil, err
 		}
-		// store in cache
-		log.Detail("Storing in cache")
-		err = s.putInstanceTypesToCache(prices)
-		if err != nil {
-			return nil, err
+		// store in cache only if we got results (avoid caching empty results)
+		if len(prices) > 0 {
+			log.Detail("Storing in cache")
+			err = s.putInstanceTypesToCache(prices)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			log.Detail("Not caching empty instance types list")
 		}
 	}
 

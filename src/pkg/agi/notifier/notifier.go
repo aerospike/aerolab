@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/pkg/utils/slack"
-
 	"github.com/google/uuid"
 )
 

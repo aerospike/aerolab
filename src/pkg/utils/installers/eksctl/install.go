@@ -11,6 +11,7 @@ import (
 //go:embed scripts
 var scripts embed.FS
 
+// GetInstallScript returns the eksctl and kubectl installation script.
 func GetInstallScript() ([]byte, error) {
 	s := installers.Software{
 		Debug: true,
@@ -25,6 +26,11 @@ func GetInstallScript() ([]byte, error) {
 		return nil, err
 	}
 	return installers.GetInstallScript(s, installScript)
+}
+
+// GetBootstrapScript returns the bootstrap script that configures AWS CLI, kubectl, and credentials.
+func GetBootstrapScript() ([]byte, error) {
+	return processTemplate("scripts/bootstrap.sh.tpl", map[string]any{})
 }
 
 func processTemplate(scriptFile string, data map[string]any) ([]byte, error) {

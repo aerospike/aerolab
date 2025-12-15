@@ -748,3 +748,72 @@ func (s *b) VolumesChangeExpiry(volumes backends.VolumeList, expiry time.Time) e
 	defer log.Detail("End")
 	return volumes.AddTags(map[string]string{TAG_EXPIRES: expiry.Format(time.RFC3339)}, 0)
 }
+
+// ExpiryV7Check checks if the v7 expiry system is still installed.
+// Returns true if v7 expiry system is detected, along with a list of regions where it was found.
+func (s *b) ExpiryV7Check() (bool, []string, error) {
+	log := s.log.WithPrefix("ExpiryV7Check: job=" + shortuuid.New() + " ")
+	log.Detail("Start")
+	defer log.Detail("End")
+
+	var reterr error
+	foundRegions := []string{}
+	foundLock := new(sync.Mutex)
+	wg := new(sync.WaitGroup)
+	wg.Add(len(s.regions))
+
+	for _, zone := range s.regions {
+		go func(zone string) {
+			defer wg.Done()
+			log := log.WithPrefix("zone=" + zone + " ")
+			log.Detail("Checking for v7 expiry system")
+
+			// Check for v7 Lambda function "aerolab-expiries" (without zone suffix)
+			lclient, err := getLambdaClient(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
+
+			_, err = lclient.GetFunction(context.TODO(), &lambda.GetFunctionInput{
+				FunctionName: aws.String("aerolab-expiries"),
+			})
+			if err == nil {
+				// v7 Lambda function found
+				log.Detail("Found v7 Lambda function 'aerolab-expiries'")
+				foundLock.Lock()
+				if !slices.Contains(foundRegions, zone) {
+					foundRegions = append(foundRegions, zone)
+				}
+				foundLock.Unlock()
+				return
+			}
+
+			// Check for v7 EventBridge Scheduler "aerolab-expiries" (without zone suffix)
+			sclient, err := getSchedulerClient(s.credentials, &zone)
+			if err != nil {
+				reterr = errors.Join(reterr, err)
+				return
+			}
+
+			_, err = sclient.GetSchedule(context.TODO(), &scheduler.GetScheduleInput{
+				Name: aws.String("aerolab-expiries"),
+			})
+			if err == nil {
+				// v7 Scheduler found
+				log.Detail("Found v7 EventBridge Scheduler 'aerolab-expiries'")
+				foundLock.Lock()
+				if !slices.Contains(foundRegions, zone) {
+					foundRegions = append(foundRegions, zone)
+				}
+				foundLock.Unlock()
+			}
+		}(zone)
+	}
+	wg.Wait()
+
+	if reterr != nil {
+		return len(foundRegions) > 0, foundRegions, reterr
+	}
+	return len(foundRegions) > 0, foundRegions, nil
+}

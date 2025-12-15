@@ -3,6 +3,7 @@ package baws
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"sync"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/lithammer/shortuuid"
+	"github.com/rglonek/logger"
 )
 
 func (s *b) GetFirewalls(networks backends.NetworkList) (backends.FirewallList, error) {
@@ -277,6 +279,7 @@ func (s *b) FirewallsDelete(fw backends.FirewallList, waitDur time.Duration) err
 		fwIds[firewall.ZoneID] = append(fwIds[firewall.ZoneID], firewall.FirewallID)
 	}
 	wg := new(sync.WaitGroup)
+	errl := new(sync.Mutex)
 	var errs error
 	for zone, ids := range fwIds {
 		wg.Add(1)
@@ -284,28 +287,138 @@ func (s *b) FirewallsDelete(fw backends.FirewallList, waitDur time.Duration) err
 			defer wg.Done()
 			log.Detail("zone=%s start", zone)
 			defer log.Detail("zone=%s end", zone)
-			err := func() error {
-				cli, err := getEc2Client(s.credentials, &zone)
-				if err != nil {
-					return err
-				}
-				for _, id := range ids {
-					_, err = cli.DeleteSecurityGroup(context.TODO(), &ec2.DeleteSecurityGroupInput{
-						GroupId: aws.String(id),
-					})
-					if err != nil {
-						return err
-					}
-				}
-				return nil
-			}()
+			err := s.deleteSecurityGroupsInRegion(log, zone, ids)
 			if err != nil {
+				errl.Lock()
 				errs = errors.Join(errs, err)
+				errl.Unlock()
 			}
 		}(zone, ids)
 	}
 	wg.Wait()
 	return errs
+}
+
+// deleteSecurityGroupsInRegion deletes security groups after first removing any rules that reference them
+func (s *b) deleteSecurityGroupsInRegion(log *logger.Logger, region string, sgIds []string) error {
+	cli, err := getEc2Client(s.credentials, &region)
+	if err != nil {
+		return err
+	}
+
+	// Build a set of SG IDs we want to delete for quick lookup
+	toDelete := make(map[string]bool)
+	for _, id := range sgIds {
+		toDelete[id] = true
+	}
+
+	// First, remove rules from ALL security groups that reference the SGs we want to delete
+	// This includes rules in SGs we're deleting (self-references) and rules in other SGs
+	log.Detail("region=%s: removing rules that reference target security groups", region)
+	err = s.removeReferencingRules(cli, log, region, toDelete)
+	if err != nil {
+		return fmt.Errorf("failed to remove referencing rules: %w", err)
+	}
+
+	// Now delete the security groups
+	log.Detail("region=%s: deleting %d security groups", region, len(sgIds))
+	for _, id := range sgIds {
+		log.Detail("region=%s: deleting security group %s", region, id)
+		_, err = cli.DeleteSecurityGroup(context.TODO(), &ec2.DeleteSecurityGroupInput{
+			GroupId: aws.String(id),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to delete security group %s: %w", id, err)
+		}
+	}
+	return nil
+}
+
+// removeReferencingRules finds and removes all rules in any security group that reference the target SG IDs
+func (s *b) removeReferencingRules(cli *ec2.Client, log *logger.Logger, region string, targetSgIds map[string]bool) error {
+	// List all security groups in the region
+	paginator := ec2.NewDescribeSecurityGroupsPaginator(cli, &ec2.DescribeSecurityGroupsInput{})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(context.TODO())
+		if err != nil {
+			return fmt.Errorf("failed to describe security groups: %w", err)
+		}
+
+		for _, sg := range page.SecurityGroups {
+			sgId := aws.ToString(sg.GroupId)
+
+			// Find ingress rules that reference target SGs
+			var ingressToRevoke []types.IpPermission
+			for _, rule := range sg.IpPermissions {
+				var referencingPairs []types.UserIdGroupPair
+				for _, pair := range rule.UserIdGroupPairs {
+					refSgId := aws.ToString(pair.GroupId)
+					if targetSgIds[refSgId] {
+						referencingPairs = append(referencingPairs, pair)
+					}
+				}
+				if len(referencingPairs) > 0 {
+					// Create a copy of the rule with only the referencing pairs
+					ruleCopy := types.IpPermission{
+						FromPort:         rule.FromPort,
+						ToPort:           rule.ToPort,
+						IpProtocol:       rule.IpProtocol,
+						UserIdGroupPairs: referencingPairs,
+					}
+					ingressToRevoke = append(ingressToRevoke, ruleCopy)
+				}
+			}
+
+			// Find egress rules that reference target SGs
+			var egressToRevoke []types.IpPermission
+			for _, rule := range sg.IpPermissionsEgress {
+				var referencingPairs []types.UserIdGroupPair
+				for _, pair := range rule.UserIdGroupPairs {
+					refSgId := aws.ToString(pair.GroupId)
+					if targetSgIds[refSgId] {
+						referencingPairs = append(referencingPairs, pair)
+					}
+				}
+				if len(referencingPairs) > 0 {
+					// Create a copy of the rule with only the referencing pairs
+					ruleCopy := types.IpPermission{
+						FromPort:         rule.FromPort,
+						ToPort:           rule.ToPort,
+						IpProtocol:       rule.IpProtocol,
+						UserIdGroupPairs: referencingPairs,
+					}
+					egressToRevoke = append(egressToRevoke, ruleCopy)
+				}
+			}
+
+			// Revoke ingress rules
+			if len(ingressToRevoke) > 0 {
+				log.Detail("region=%s: removing %d ingress rules from %s that reference target SGs", region, len(ingressToRevoke), sgId)
+				_, err := cli.RevokeSecurityGroupIngress(context.TODO(), &ec2.RevokeSecurityGroupIngressInput{
+					GroupId:       aws.String(sgId),
+					IpPermissions: ingressToRevoke,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to revoke ingress rules from %s: %w", sgId, err)
+				}
+			}
+
+			// Revoke egress rules
+			if len(egressToRevoke) > 0 {
+				log.Detail("region=%s: removing %d egress rules from %s that reference target SGs", region, len(egressToRevoke), sgId)
+				_, err := cli.RevokeSecurityGroupEgress(context.TODO(), &ec2.RevokeSecurityGroupEgressInput{
+					GroupId:       aws.String(sgId),
+					IpPermissions: egressToRevoke,
+				})
+				if err != nil {
+					return fmt.Errorf("failed to revoke egress rules from %s: %w", sgId, err)
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *b) FirewallsAddTags(fw backends.FirewallList, tags map[string]string, waitDur time.Duration) error {

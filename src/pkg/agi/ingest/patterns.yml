@@ -223,6 +223,7 @@ defs:
             search: "index-usage: used-bytes"
             export:
                 - "{(?P<Namespace>[^}]+)} index-usage: used-bytes (?P<idxUsedBytes>\\d+)"
+                - "{(?P<Namespace>[^}]+)} index-usage: used-bytes (?P<idxUsedBytes>\\d+) used-pct (?P<idxUsedPct>\\d+) alloc-bytes (?P<idxAllocBytes>\\d+) alloc-pct (?P<idxAllocPct>\\d+)"
         -
             setName: "nsUsageData" #v7
             search: "data-usage: used-bytes"

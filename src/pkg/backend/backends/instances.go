@@ -177,6 +177,7 @@ type Instance struct {
 	Expires          time.Time         `yaml:"expires" json:"expires"`               // from tags
 	Description      string            `yaml:"description" json:"description"`       // from description or tags if no description field
 	CustomDNS        *InstanceDNS      `yaml:"customDNS" json:"customDNS"`
+	AccessURL        string            `yaml:"accessURL" json:"accessURL"`             // computed access URL for web-accessible clients (vscode, ams, graph, etc)
 	BackendSpecific  interface{}       `yaml:"backendSpecific" json:"backendSpecific"` // each backend can use this for their own specific needs not relating to the overall Volume definition, like mountatarget IDs, FileSystemArn, etc
 }
 
@@ -828,8 +829,8 @@ func (b *backend) AcceptVPCPeering(backendType BackendType, peeringConnectionID 
 	return b.enabledBackends[backendType].AcceptVPCPeering(peeringConnectionID)
 }
 
-func (b *backend) CreateRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
-	return b.enabledBackends[backendType].CreateRoute(vpcID, peeringConnectionID, destinationCidrBlock)
+func (b *backend) CreateRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string, force bool) error {
+	return b.enabledBackends[backendType].CreateRoute(vpcID, peeringConnectionID, destinationCidrBlock, force)
 }
 
 func (b *backend) DeleteRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
@@ -838,6 +839,14 @@ func (b *backend) DeleteRoute(backendType BackendType, vpcID string, peeringConn
 
 func (b *backend) AssociateVPCWithHostedZone(backendType BackendType, hostedZoneID string, vpcID string, region string) error {
 	return b.enabledBackends[backendType].AssociateVPCWithHostedZone(hostedZoneID, vpcID, region)
+}
+
+func (b *backend) GetVPCRouteCIDRs(backendType BackendType, vpcID string) ([]string, error) {
+	return b.enabledBackends[backendType].GetVPCRouteCIDRs(vpcID)
+}
+
+func (b *backend) FindAvailableCloudCIDR(backendType BackendType, vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error) {
+	return b.enabledBackends[backendType].FindAvailableCloudCIDR(vpcID, requestedCIDR)
 }
 
 func (b *backend) GetAccountID(backendType BackendType) (string, error) {

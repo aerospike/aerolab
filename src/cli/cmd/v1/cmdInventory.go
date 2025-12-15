@@ -17,6 +17,7 @@ type InventoryCmd struct {
 	InstanceTypes          InventoryInstanceTypesCmd          `command:"instance-types" subcommands-optional:"true" description:"Lookup GCP|AWS available instance types" webicon:"fas fa-table-list"`
 	Expire                 InventoryExpireCmd                 `command:"expire" subcommands-optional:"true" description:"Expire resources in the current aerolab project" webicon:"fas fa-trash"`
 	DeleteProjectResources InventoryDeleteProjectResourcesCmd `command:"delete-project-resources" subcommands-optional:"true" description:"Delete all resources in the current aerolab project" webicon:"fas fa-trash"`
+	InventoryMigrate       InventoryMigrateCmd                `command:"migrate" subcommands-optional:"true" description:"Migrate the inventory to the new AeroLab directory" webicon:"fas fa-arrow-right-to-city"`
 	Help                   HelpCmd                            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

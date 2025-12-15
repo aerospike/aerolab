@@ -46,6 +46,8 @@ aerolab cloud databases create -n mydb \
 | `--data-resiliency` | Data resiliency: `local-disk` or `network-storage` | No |
 | `--data-plane-version` | Data plane version (default: `latest`) | No |
 | `--vpc-id` | VPC ID to peer with (default: `default`) | No |
+| `--cloud-cidr` | CIDR block for cloud database infrastructure. If `default`, auto-assigns starting from 10.128.0.0/19. When VPC-ID is specified, aerolab checks for collisions and finds the next available CIDR. | No (default: `default`) |
+| `--force-route-creation` | Force route creation even if a route with the same destination CIDR already exists | No |
 
 ### Examples
 
@@ -105,9 +107,36 @@ aerolab cloud databases create -n mydb \
   --vpc-id default
 ```
 
+**Create with custom CIDR block:**
+```bash
+aerolab cloud databases create -n mydb \
+  -i m5d.large \
+  -r us-east-1 \
+  --availability-zone-count=2 \
+  --cluster-size=2 \
+  --data-storage memory \
+  --vpc-id vpc-xxxxxxxxx \
+  --cloud-cidr 10.200.0.0/19
+```
+
 ### VPC ID Resolution
 
 If `--vpc-id` is set to `default`, Aerolab will automatically resolve the default VPC in your AWS account.
+
+### CIDR Block Resolution
+
+When creating a database with a VPC-ID, Aerolab performs automatic CIDR collision detection:
+
+1. **Default behavior** (`--cloud-cidr default`): 
+   - Checks if the default CIDR (10.128.0.0/19) is available in your VPC route tables
+   - If available, uses the default CIDR
+   - If already in use, automatically finds the next available CIDR (10.129.0.0/19, 10.130.0.0/19, etc.)
+
+2. **Custom CIDR** (`--cloud-cidr 10.x.x.x/19`):
+   - Validates that the specified CIDR is not already in use
+   - If the CIDR conflicts with existing routes, fails with an error before creating the database
+
+This ensures VPC peering routes don't conflict with existing routes in your VPC.
 
 ## Cloud Databases List
 
@@ -255,26 +284,95 @@ Peer VPC with a database.
 ### Basic Usage
 
 ```bash
-aerolab cloud databases peer-vpc --database-id <database-id> --vpc-id vpc-xxxxxxxxx
+aerolab cloud databases peer-vpc -d <database-id> -r us-east-1 --vpc-id vpc-xxxxxxxxx
 ```
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `--database-id` | Database ID (required) |
-| `--vpc-id` | VPC ID to peer with (required) |
+| Option | Description | Required |
+|--------|-------------|----------|
+| `-d, --database-id` | Database ID | Yes |
+| `-r, --region` | AWS region | Yes |
+| `--vpc-id` | VPC ID to peer with (default: `default`) | No |
+| `--stage-initiate` | Execute only the initiate stage (request VPC peering from cloud) | No |
+| `--stage-accept` | Execute only the accept stage (accept the VPC peering request) | No |
+| `--stage-route` | Execute only the route stage (create route in VPC route table) | No |
+| `--stage-associate-dns` | Execute only the DNS association stage (associate VPC with hosted zone) | No |
+| `--force-route-creation` | Force route creation even if a route with the same destination CIDR already exists | No |
+
+### Stage Execution Behavior
+
+- **No stages specified**: All stages are executed in order (initiate → accept → route → associate-dns). Already completed stages are automatically skipped.
+- **Specific stages specified**: Only the specified stages are executed.
+- **Stage failure**: If a stage fails, further stages are aborted.
 
 ### Examples
 
-**Peer VPC with database:**
+**Peer VPC with database (all stages):**
 ```bash
 aerolab cloud databases peer-vpc \
-  --database-id <database-id> \
+  -d <database-id> \
+  -r us-east-1 \
   --vpc-id vpc-xxxxxxxxx
 ```
 
-**Note**: VPC peering is typically done automatically during database creation. Use this command if you need to peer additional VPCs.
+**Execute only the initiate stage:**
+```bash
+aerolab cloud databases peer-vpc \
+  -d <database-id> \
+  -r us-east-1 \
+  --vpc-id vpc-xxxxxxxxx \
+  --stage-initiate
+```
+
+**Execute only the accept stage:**
+```bash
+aerolab cloud databases peer-vpc \
+  -d <database-id> \
+  -r us-east-1 \
+  --vpc-id vpc-xxxxxxxxx \
+  --stage-accept
+```
+
+**Execute only the route stage:**
+```bash
+aerolab cloud databases peer-vpc \
+  -d <database-id> \
+  -r us-east-1 \
+  --vpc-id vpc-xxxxxxxxx \
+  --stage-route
+```
+
+**Execute only the DNS association stage:**
+```bash
+aerolab cloud databases peer-vpc \
+  -d <database-id> \
+  -r us-east-1 \
+  --vpc-id vpc-xxxxxxxxx \
+  --stage-associate-dns
+```
+
+**Force route creation (replace existing conflicting route):**
+```bash
+aerolab cloud databases peer-vpc \
+  -d <database-id> \
+  -r us-east-1 \
+  --vpc-id vpc-xxxxxxxxx \
+  --stage-route \
+  --force-route-creation
+```
+
+**Execute multiple specific stages:**
+```bash
+aerolab cloud databases peer-vpc \
+  -d <database-id> \
+  -r us-east-1 \
+  --vpc-id vpc-xxxxxxxxx \
+  --stage-accept \
+  --stage-route
+```
+
+**Note**: VPC peering is typically done automatically during database creation. Use this command if you need to peer additional VPCs or re-run specific steps of the peering process.
 
 ## Cloud Databases Wait
 
@@ -568,4 +666,8 @@ aerolab cloud databases delete \
 4. **Credentials**: Create credentials before connecting to the database
 5. **Updates**: Database updates may cause downtime. Plan accordingly
 6. **Deletion**: Database deletion is permanent. Ensure you have backups if needed
+7. **Route Conflicts**: If a route already exists for the database CIDR, use `--force-route-creation` to replace it (use with caution)
+8. **CIDR Collisions**: When using `--vpc-id`, aerolab automatically checks for CIDR collisions and finds the next available CIDR if the default (10.128.0.0/19) is already in use
+9. **Custom CIDR**: Use `--cloud-cidr` to specify a custom CIDR block for the cloud database infrastructure
+10. **Partial Peering**: Use `--stage-*` flags to run specific stages of the VPC peering process
 

@@ -77,3 +77,9 @@ func (b *backend) ExpiryChangeConfiguration(backendType BackendType, logLevel in
 	}
 	return b.enabledBackends[backendType].ExpiryChangeConfiguration(logLevel, expireEksctl, cleanupDNS, zones...)
 }
+
+// ExpiryV7Check checks if the v7 expiry system is still installed for the given backend type.
+// Returns true if v7 expiry system is detected, along with a list of regions where it was found.
+func (b *backend) ExpiryV7Check(backendType BackendType) (bool, []string, error) {
+	return b.enabledBackends[backendType].ExpiryV7Check()
+}

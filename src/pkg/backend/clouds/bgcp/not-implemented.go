@@ -22,10 +22,18 @@ func (s *b) DeleteRoute(vpcID string, peeringConnectionID string, destinationCid
 	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "DeleteRoute")
 }
 
-func (s *b) CreateRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error {
+func (s *b) CreateRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string, force bool) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "CreateRoute")
 }
 
 func (s *b) AcceptVPCPeering(peeringConnectionID string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeGCP, "AcceptVPCPeering")
+}
+
+func (s *b) GetVPCRouteCIDRs(vpcID string) ([]string, error) {
+	return nil, backends.ReturnNotImplemented(backends.BackendTypeGCP, "GetVPCRouteCIDRs")
+}
+
+func (s *b) FindAvailableCloudCIDR(vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error) {
+	return "", false, backends.ReturnNotImplemented(backends.BackendTypeGCP, "FindAvailableCloudCIDR")
 }

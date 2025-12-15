@@ -167,6 +167,11 @@ func (s *b) VolumesChangeExpiry(volumes backends.VolumeList, expiry time.Time) e
 	return nil
 }
 
+// ExpiryV7Check always returns false for Docker as there was no v7 expiry system for Docker.
+func (s *b) ExpiryV7Check() (bool, []string, error) {
+	return false, nil, nil
+}
+
 // TODO: for docker, the expiry system will also keep updated expiry information as a file either in the container or on the volume itself as /opt/aerolab/expires.json
 // TODO: updates instances.go GetInstances() to read the expiry information from the file
 // TODO: updates volumes.go GetVolumes() to read the expiry information from the file

@@ -78,6 +78,7 @@ type Cloud interface {
 	ExpiryChangeConfiguration(logLevel int, expireEksctl bool, cleanupDNS bool, zones ...string) error
 	ExpiryList() ([]*ExpirySystem, error)
 	ExpiryChangeFrequency(intervalMinutes int, zones ...string) error
+	ExpiryV7Check() (found bool, regions []string, err error) // checks if v7 expiry system is still installed
 	VolumesChangeExpiry(volumes VolumeList, expiry time.Time) error
 	InstancesChangeExpiry(instances InstanceList, expiry time.Time) error
 	// pricing
@@ -138,11 +139,15 @@ type Cloud interface {
 	ResolveNetworkPlacement(placement string) (vpc *Network, subnet *Subnet, zone string, err error)
 	// VPC peering
 	AcceptVPCPeering(peeringConnectionID string) error
-	CreateRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error
+	CreateRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string, force bool) error
 	DeleteRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error
 	AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region string) error
+	GetVPCRouteCIDRs(vpcID string) ([]string, error)
+	FindAvailableCloudCIDR(vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error)
 	// account information
 	GetAccountID() (string, error)
+	// migration
+	MigrateV7Resources(input *MigrateV7Input) (*MigrationResult, error)
 }
 
 type Backend interface {
@@ -173,6 +178,7 @@ type Backend interface {
 	ExpiryChangeFrequency(backendType BackendType, intervalMinutes int, zones ...string) error
 	ExpiryList() (*ExpiryList, error)
 	ExpiryChangeConfiguration(backendType BackendType, logLevel int, expireEksctl bool, cleanupDNS bool, zones ...string) error
+	ExpiryV7Check(backendType BackendType) (found bool, regions []string, err error) // checks if v7 expiry system is still installed
 	// close the backend object
 	Close() error
 	// special docker-only commands
@@ -186,11 +192,15 @@ type Backend interface {
 	ResolveNetworkPlacement(backendType BackendType, placement string) (vpc *Network, subnet *Subnet, zone string, err error)
 	// VPC peering
 	AcceptVPCPeering(backendType BackendType, peeringConnectionID string) error
-	CreateRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error
+	CreateRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string, force bool) error
 	DeleteRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error
 	AssociateVPCWithHostedZone(backendType BackendType, hostedZoneID string, vpcID string, region string) error
+	GetVPCRouteCIDRs(backendType BackendType, vpcID string) ([]string, error)
+	FindAvailableCloudCIDR(backendType BackendType, vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error)
 	// account information
 	GetAccountID(backendType BackendType) (string, error)
+	// migration
+	MigrateV7Resources(backendType BackendType, input *MigrateV7Input) (*MigrationResult, error)
 }
 
 type backend struct {

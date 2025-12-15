@@ -134,6 +134,14 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 		log.Detail("Error decoding labels: %s", err)
 		return nil
 	}
+	// Ensure tags map exists and merge in native labels that are stored directly
+	if tags == nil {
+		tags = make(map[string]string)
+	}
+	// Add LABEL_V7_MIGRATED from native labels if present
+	if v, ok := inst.Labels[LABEL_V7_MIGRATED]; ok {
+		tags[LABEL_V7_MIGRATED] = v
+	}
 	expires, _ := time.Parse(time.RFC3339, tags[TAG_AEROLAB_EXPIRES])
 	state := backends.LifeCycleStateUnknown
 	instanceStatus := inst.GetStatus()
@@ -216,6 +224,10 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 			publicIP = netIntf.GetAccessConfigs()[0].GetNatIP()
 		}
 	}
+
+	// Compute access URL for web-accessible clients
+	accessURL := computeCloudAccessURL(tags["aerolab.client.type"], publicIP, privateIP)
+
 	return &backends.Instance{
 		ClusterName:  tags[TAG_CLUSTER_NAME],
 		ClusterUUID:  tags[TAG_CLUSTER_UUID],
@@ -257,6 +269,7 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 			AttachedVolumes: avols,
 		},
 		CustomDNS: customDns,
+		AccessURL: accessURL,
 		BackendSpecific: &InstanceDetail{
 			Volumes:          volslist,
 			FirewallIDs:      firewalls,
@@ -267,6 +280,46 @@ func (s *b) getInstanceDetails(log *logger.Logger, inst *computepb.Instance, vol
 			TagFingerprint:   inst.GetTags().GetFingerprint(),
 		},
 	}
+}
+
+// computeCloudAccessURL computes the access URL for a cloud client instance based on its type and IP.
+// For AWS/GCP, it returns http://{ip}:{port} where ip is public if available, otherwise private.
+//
+// Parameters:
+//   - clientType: the value of the aerolab.client.type tag (e.g., "vscode", "ams", "graph")
+//   - publicIP: the public IP address of the instance
+//   - privateIP: the private IP address of the instance
+//
+// Returns:
+//   - string: the computed access URL, or empty string if not applicable
+func computeCloudAccessURL(clientType string, publicIP string, privateIP string) string {
+	if clientType == "" {
+		return ""
+	}
+
+	// Map client types to their default ports
+	var port int
+	switch clientType {
+	case "vscode":
+		port = 8080
+	case "ams":
+		port = 3000 // Grafana
+	case "graph":
+		port = 9090 // Prometheus metrics
+	default:
+		return ""
+	}
+
+	// Use public IP if available, otherwise private IP
+	ip := publicIP
+	if ip == "" {
+		ip = privateIP
+	}
+	if ip == "" {
+		return ""
+	}
+
+	return fmt.Sprintf("http://%s:%d", ip, port)
 }
 
 func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.NetworkList, firewallList backends.FirewallList) (backends.InstanceList, error) {
@@ -719,7 +772,17 @@ func (s *b) InstancesExec(instances backends.InstanceList, e *backends.ExecInput
 			outl.Unlock()
 			return
 		}
-		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, s.project))
+		// Determine SSH key path - check for migrated v7 instance first
+		keyPath := path.Join(s.sshKeysDir, s.project)
+		if i.Tags[LABEL_V7_MIGRATED] == "true" {
+			oldKeyPath := s.getOldSSHKeyPath(i)
+			if oldKeyPath != "" {
+				if _, err := os.Stat(oldKeyPath); err == nil {
+					keyPath = oldKeyPath
+				}
+			}
+		}
+		nKey, err := os.ReadFile(keyPath)
 		if err != nil {
 			outl.Lock()
 			out = append(out, &backends.ExecOutput{
@@ -797,7 +860,18 @@ func (s *b) InstancesGetSSHKeyPath(instances backends.InstanceList) []string {
 	log.Detail("Start")
 	defer log.Detail("End")
 	out := []string{}
-	for range instances {
+	for _, inst := range instances {
+		// Check if this is a migrated v7 instance
+		if inst.Tags[LABEL_V7_MIGRATED] == "true" {
+			oldKeyPath := s.getOldSSHKeyPath(inst)
+			if oldKeyPath != "" {
+				if _, err := os.Stat(oldKeyPath); err == nil {
+					out = append(out, oldKeyPath)
+					continue
+				}
+			}
+		}
+		// Default to project key
 		out = append(out, path.Join(s.sshKeysDir, s.project))
 	}
 	return out
@@ -812,7 +886,17 @@ func (s *b) InstancesGetSftpConfig(instances backends.InstanceList, username str
 		if i.InstanceState != backends.LifeCycleStateRunning {
 			return nil, errors.New("instance not running")
 		}
-		nKey, err := os.ReadFile(path.Join(s.sshKeysDir, s.project))
+		// Determine SSH key path - check for migrated v7 instance first
+		keyPath := path.Join(s.sshKeysDir, s.project)
+		if i.Tags[LABEL_V7_MIGRATED] == "true" {
+			oldKeyPath := s.getOldSSHKeyPath(i)
+			if oldKeyPath != "" {
+				if _, err := os.Stat(oldKeyPath); err == nil {
+					keyPath = oldKeyPath
+				}
+			}
+		}
+		nKey, err := os.ReadFile(keyPath)
 		if err != nil {
 			return nil, errors.New("required key not found")
 		}

@@ -61,6 +61,15 @@ func imageNaming(distroName string, distroVersion string, arch string) (templNam
 				return "quay.io/centos/centos:stream" + distroVersion
 			}
 		}
+	case "amazon":
+		switch arch {
+		case "amd64":
+			return "amd64/amazonlinux:" + distroVersion
+		case "arm64":
+			return "arm64v8/amazonlinux:" + distroVersion
+		default:
+			return "amazonlinux:" + distroVersion
+		}
 	case "ubuntu", "debian":
 		switch arch {
 		case "amd64":

@@ -62,6 +62,7 @@ func (c *ClientCreateAMSCmd) Execute(args []string) error {
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	// Auto-expose port 3000 for Docker backend if not already exposed
+	// Use +3000:3000 to auto-increment host port if 3000 is already in use
 	if system.Opts.Config.Backend.Type == "docker" {
 		hasPort3000 := false
 		for _, port := range c.Docker.ExposePorts {
@@ -71,8 +72,8 @@ func (c *ClientCreateAMSCmd) Execute(args []string) error {
 			}
 		}
 		if !hasPort3000 {
-			system.Logger.Info("Auto-exposing port 3000 for Grafana access")
-			c.Docker.ExposePorts = append([]string{"3000:3000"}, c.Docker.ExposePorts...)
+			system.Logger.Info("Auto-exposing port 3000 for Grafana access (auto-increment if port in use)")
+			c.Docker.ExposePorts = append([]string{"+3000:3000"}, c.Docker.ExposePorts...)
 		}
 	}
 
@@ -296,7 +297,7 @@ func (c *ClientCreateAMSCmd) installAMS(system *System, client *backends.Instanc
 	logger.Info("Starting services on %s:%d", client.ClusterName, client.NodeNo)
 	output = client.Exec(&backends.ExecInput{
 		ExecDetail: sshexec.ExecDetail{
-			Command:        []string{"bash", "-c", "systemctl daemon-reload; service prometheus restart; service grafana-server restart; sleep 3; pidof grafana && nohup /usr/bin/loki -config.file=/etc/loki/loki.yaml -log-config-reverse-order > /var/log/loki.log 2>&1 &"},
+			Command:        []string{"bash", "-c", "systemctl daemon-reload; systemctl restart prometheus; systemctl restart grafana-server; sleep 3; systemctl restart loki"},
 			SessionTimeout: 2 * time.Minute,
 		},
 		Username:       "root",
@@ -361,12 +362,15 @@ func (c *ClientCreateAMSCmd) buildCompleteInstallScript(client *backends.Instanc
 
 	// Part 6: Setup autostart scripts
 	script.WriteString("# ===== Setting up autostart scripts =====\n")
-	script.WriteString(`mkdir -p /opt/autoload
-echo 'service prometheus start' > /opt/autoload/01-prometheus
-echo 'service grafana-server start' > /opt/autoload/02-grafana
-echo 'nohup /usr/bin/loki -config.file=/etc/loki/loki.yaml -log-config-reverse-order > /var/log/loki.log 2>&1 &' > /opt/autoload/03-loki
-chmod 755 /opt/autoload/*
-`)
+	/*script.WriteString(`mkdir -p /opt/autoload
+	echo 'service prometheus start' > /opt/autoload/01-prometheus
+	echo 'service grafana-server start' > /opt/autoload/02-grafana
+	echo 'service loki start' > /opt/autoload/03-loki
+	chmod 755 /opt/autoload/*
+	`)*/
+	script.WriteString("systemctl enable loki\n")
+	script.WriteString("systemctl enable grafana-server\n")
+	script.WriteString("systemctl enable prometheus\n")
 	script.WriteString("echo 'Autostart scripts created'\n\n")
 
 	script.WriteString("echo 'AMS installation complete!'\n")
@@ -417,6 +421,19 @@ func (c *ClientCreateAMSCmd) buildGrafanaConfig() string {
 	return `# Configure Grafana
 chmod 664 /etc/grafana/grafana.ini
 sed -i.bak -E 's/^\[paths\]$/[paths]\nprovisioning = \/etc\/grafana\/provisioning/g' /etc/grafana/grafana.ini
+
+# Create systemd override to run Grafana as root (avoids permission issues)
+mkdir -p /etc/systemd/system/grafana-server.service.d
+cat <<'GRAFANAOVERRIDE' > /etc/systemd/system/grafana-server.service.d/override.conf
+[Service]
+User=root
+Group=root
+GRAFANAOVERRIDE
+
+# Ensure Grafana directories exist and have proper permissions
+mkdir -p /var/lib/grafana /var/log/grafana /run/grafana
+chown -R root:root /var/lib/grafana /var/log/grafana /run/grafana /etc/grafana
+chmod 755 /var/lib/grafana /var/log/grafana /run/grafana
 
 # Install plugins
 grafana-cli plugins install camptocamp-prometheus-alertmanager-datasource
@@ -475,6 +492,29 @@ schema_config:
 analytics:
   reporting_enabled: false
 LOKIEOF
+
+# Create Loki systemd service
+cat <<'LOKISVCEOF' > /usr/lib/systemd/system/loki.service
+[Unit]
+Description=Loki Log Aggregation System
+After=network.target grafana-server.service
+Wants=grafana-server.service
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/loki -config.file=/etc/loki/loki.yaml -log-config-reverse-order
+Restart=always
+RestartSec=5
+WorkingDirectory=/data-logs/loki
+StandardOutput=append:/var/log/loki.log
+StandardError=append:/var/log/loki.log
+
+[Install]
+WantedBy=multi-user.target
+LOKISVCEOF
+
+systemctl daemon-reload
 `, arch, arch, arch, arch, arch, arch)
 }
 

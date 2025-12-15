@@ -10,10 +10,13 @@ import (
 
 type CloudDatabasesCredentialsListCmd struct {
 	Help       HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	DatabaseID string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
+	DatabaseID string  `short:"d" long:"database-id" description:"Database ID"`
 }
 
 func (c *CloudDatabasesCredentialsListCmd) Execute(args []string) error {
+	if c.DatabaseID == "" {
+		return fmt.Errorf("database ID is required")
+	}
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
@@ -21,7 +24,6 @@ func (c *CloudDatabasesCredentialsListCmd) Execute(args []string) error {
 
 	var result interface{}
 	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.DatabaseID)
-
 	err = client.Get(path, &result)
 	if err != nil {
 		return err
@@ -32,9 +34,9 @@ func (c *CloudDatabasesCredentialsListCmd) Execute(args []string) error {
 
 type CloudDatabasesCredentialsCreateCmd struct {
 	Help       HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	DatabaseID string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
-	Username   string  `short:"u" long:"username" description:"Username" required:"true"`
-	Password   string  `short:"p" long:"password" description:"Password" required:"true"`
+	DatabaseID string  `short:"d" long:"database-id" description:"Database ID"`
+	Username   string  `short:"u" long:"username" description:"Username"`
+	Password   string  `short:"p" long:"password" description:"Password"`
 	Privileges string  `short:"r" long:"privileges" description:"Privileges (read, write, read-write)" default:"read-write"`
 	Wait       bool    `long:"wait" description:"Wait for credentials to become active"`
 }
@@ -46,7 +48,15 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 	logger := system.Logger
-
+	if c.DatabaseID == "" {
+		return fmt.Errorf("database ID is required")
+	}
+	if c.Username == "" {
+		return fmt.Errorf("username is required")
+	}
+	if c.Password == "" {
+		return fmt.Errorf("password is required")
+	}
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -168,11 +178,17 @@ func (c *CloudDatabasesCredentialsCreateCmd) waitForCredentialsActive(client *cl
 
 type CloudDatabasesCredentialsDeleteCmd struct {
 	Help          HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	DatabaseID    string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
-	CredentialsID string  `short:"c" long:"credentials-id" description:"Credentials ID" required:"true"`
+	DatabaseID    string  `short:"d" long:"database-id" description:"Database ID"`
+	CredentialsID string  `short:"c" long:"credentials-id" description:"Credentials ID"`
 }
 
 func (c *CloudDatabasesCredentialsDeleteCmd) Execute(args []string) error {
+	if c.DatabaseID == "" {
+		return fmt.Errorf("database ID is required")
+	}
+	if c.CredentialsID == "" {
+		return fmt.Errorf("credentials ID is required")
+	}
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err

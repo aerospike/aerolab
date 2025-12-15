@@ -14,7 +14,7 @@ import (
 )
 
 type CloudDatabasesUpdateCmd struct {
-	DatabaseID   string  `short:"d" long:"database-id" description:"Database ID" required:"true"`
+	DatabaseID   string  `short:"d" long:"database-id" description:"Database ID"`
 	Name         string  `short:"n" long:"name" description:"Name of the database"`
 	InstanceType string  `short:"i" long:"instance-type" description:"Instance type (vertical scaling)"`
 	ClusterSize  int     `long:"cluster-size" description:"Number of nodes in cluster (horizontal scaling)"`
@@ -46,6 +46,9 @@ func (c *CloudDatabasesUpdateCmd) Execute(args []string) error {
 }
 
 func (c *CloudDatabasesUpdateCmd) UpdateCloudDb(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
+	if c.DatabaseID == "" {
+		return fmt.Errorf("database ID is required")
+	}
 	if system == nil {
 		var err error
 		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cloud", "db", "update"}, c, args...)

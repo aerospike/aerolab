@@ -42,6 +42,56 @@ const (
 	TAG_AEROLAB_DESCRIPTION   = "aerolab-d"
 )
 
+// V7 migration-related constants
+const (
+	// LABEL_V7_MIGRATED marks an instance as migrated from v7
+	LABEL_V7_MIGRATED = "aerolab-v7-migrated"
+	// TAG_SOFT_TYPE identifies the software type (encoded in metadata)
+	TAG_SOFT_TYPE = "aerolab.type"
+	// TAG_SOFT_VERSION identifies the software version (encoded in metadata)
+	TAG_SOFT_VERSION = "aerolab.soft.version"
+	// TAG_TELEMETRY is the v8 telemetry label
+	TAG_TELEMETRY = "aerolab-telemetry"
+	// TAG_CLIENT_TYPE is the v8 client type label
+	TAG_CLIENT_TYPE = "aerolab-client-type"
+	// TAG_IMAGE_TYPE identifies the image type (e.g., "aerospike")
+	TAG_IMAGE_TYPE = "aerolab.image.type"
+)
+
+// V7 label names for discovery (GCP uses lowercase with underscores)
+const (
+	V7_LABEL_USED_BY             = "used_by"
+	V7_LABEL_SERVER_MARKER       = "aerolab4"
+	V7_LABEL_CLIENT_MARKER       = "aerolab4client"
+	V7_LABEL_VOLUME_MARKER       = "aerolab7"
+	V7_LABEL_CLUSTER_NAME        = "aerolab4cluster_name"
+	V7_LABEL_NODE_NUMBER         = "aerolab4node_number"
+	V7_LABEL_OPERATING_SYSTEM    = "aerolab4operating_system"
+	V7_LABEL_OPERATING_SYS_VER   = "aerolab4operating_system_version"
+	V7_LABEL_AEROSPIKE_VERSION   = "aerolab4aerospike_version"
+	V7_LABEL_ARCH                = "arch"
+	V7_LABEL_EXPIRES             = "aerolab4expires"
+	V7_LABEL_OWNER               = "owner"
+	V7_LABEL_COST_PPH            = "aerolab_cost_ph"
+	V7_LABEL_COST_SO_FAR         = "aerolab_cost_sofar"
+	V7_LABEL_COST_START_TIME     = "aerolab_cost_starttime"
+	V7_LABEL_TELEMETRY           = "telemetry"
+	V7_LABEL_IS_SPOT             = "isspot"
+	V7_LABEL_CLIENT_NAME         = "aerolab4client_name"
+	V7_LABEL_CLIENT_NODE_NUMBER  = "aerolab4client_node_number"
+	V7_LABEL_CLIENT_OS           = "aerolab4client_operating_system"
+	V7_LABEL_CLIENT_OS_VER       = "aerolab4client_operating_system_version"
+	V7_LABEL_CLIENT_AS_VER       = "aerolab4client_aerospike_version"
+	V7_LABEL_CLIENT_TYPE         = "aerolab4client_type"
+	V7_LABEL_VOLUME_USED_BY      = "usedby"
+	V7_LABEL_VOLUME_LAST_USED    = "lastused"
+	V7_LABEL_VOLUME_EXPIRE_DUR   = "expireduration"
+	V7_LABEL_VOLUME_OWNER        = "aerolab7owner"
+	V7_LABEL_AGI_INSTANCE        = "agiinstance"
+	V7_LABEL_AGI_NODIM           = "aginodim"
+	V7_LABEL_TERM_ON_POW         = "termonpow"
+)
+
 // volumes uses labels
 // firewalls uses description
 // network doesn't do custom metadata as we do not have network creation and management at this time

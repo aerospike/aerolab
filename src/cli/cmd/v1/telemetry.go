@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -20,7 +21,8 @@ import (
 	"github.com/rglonek/logger"
 )
 
-var telemetryVersion = "6" // remember to modify this when changing the telemetry system; remember to update the telemetry structs in cloud function if needed
+//go:embed telemetryVersion.txt
+var telemetryVersion string
 
 type telemetryItem struct {
 	CmdLine         []string           // actual os.Args[1:]
@@ -65,6 +67,11 @@ func TelemetrySend(logger *logger.Logger) {
 	err = os.MkdirAll(telemetryDir, 0700)
 	if err != nil {
 		logger.Detail("Failed to create telemetry dir: %s", err)
+		return
+	}
+
+	// if in completion mode, skip telemetry send
+	if os.Getenv("GO_FLAGS_COMPLETION") == "1" {
 		return
 	}
 
@@ -114,18 +121,27 @@ func TelemetryEvent(command []string, params interface{}, args []string, system 
 		errString = &d
 	}
 
-	id := uuid.New().String()
-	logger := system.Logger.WithPrefix("TELEMETRY-EVENT " + id + ": ")
 	// basics
 	rootDir, err := AerolabRootDir()
 	if err != nil {
-		logger.Detail("Failed to get root dir: %s", err)
 		return
 	}
 	telemetryDir := path.Join(rootDir, "telemetry")
 	err = os.MkdirAll(telemetryDir, 0700)
 	if err != nil {
-		logger.Detail("Failed to create telemetry dir: %s", err)
+		return
+	}
+
+	// get or create persistent user UUID
+	userUUID, err := getTelemetryUUID(telemetryDir)
+	if err != nil {
+		return
+	}
+
+	logger := system.Logger.WithPrefix("TELEMETRY-EVENT " + userUUID + ": ")
+
+	// if in completion mode, skip telemetry send
+	if os.Getenv("GO_FLAGS_COMPLETION") == "1" {
 		return
 	}
 
@@ -193,7 +209,7 @@ func TelemetryEvent(command []string, params interface{}, args []string, system 
 		Command:         command,
 		Args:            args,
 		Params:          params,
-		UUID:            id,
+		UUID:            userUUID,
 		StartTime:       system.InitTime.UnixMicro(),
 		EndTime:         time.Now().UnixMicro(),
 		Defaults:        getDefaults(system),
@@ -251,7 +267,7 @@ func telemetryShipFile(file string) error {
 	if err != nil {
 		return err
 	}
-	url := "https://us-central1-aerospike-gaia.cloudfunctions.net/aerolab-telemetrics"
+	url := "https://aerolab-telemetry-595313549904.us-central1.run.app"
 	ret, err := http.Post(url, "application/json", bytes.NewReader(contents))
 	if err != nil {
 		return err
@@ -260,6 +276,29 @@ func telemetryShipFile(file string) error {
 		return fmt.Errorf("returned ret code: %d:%s", ret.StatusCode, ret.Status)
 	}
 	return nil
+}
+
+// getTelemetryUUID returns the persistent user UUID for telemetry.
+// If the UUID file doesn't exist, it creates a new UUID and writes it to the file.
+// If the file exists, it reads and returns the existing UUID.
+func getTelemetryUUID(telemetryDir string) (string, error) {
+	var uuidBytes []byte
+	uuidFile := path.Join(telemetryDir, "uuid")
+	if _, err := os.Stat(uuidFile); err != nil {
+		// file doesn't exist, create new UUID
+		uuidBytes = []byte(uuid.New().String())
+		if err := os.WriteFile(uuidFile, uuidBytes, 0600); err != nil {
+			return "", err
+		}
+	} else {
+		// file exists, read it
+		var err error
+		uuidBytes, err = os.ReadFile(uuidFile)
+		if err != nil {
+			return "", err
+		}
+	}
+	return strings.TrimSpace(string(uuidBytes)), nil
 }
 
 func telemetryFeatureKeyFileCheck(system *System, logger *logger.Logger) bool {
@@ -307,4 +346,62 @@ func telemetryFeatureKeyFileCheck(system *System, logger *logger.Logger) bool {
 		logger.Detail("Telemetry is disabled by feature key file, skipping telemetry event")
 	}
 	return enableTelemetry
+}
+
+// IsTelemetryEnabled checks if telemetry is enabled based on the system configuration.
+// This function can be called by other commands (e.g., instances create, volumes create)
+// to determine if the aerolab.telemetry tag should be added to created resources.
+//
+// Parameters:
+//   - system: The system object containing configuration and logger
+//
+// Returns:
+//   - bool: true if telemetry is enabled, false otherwise
+//   - string: the persistent user UUID for telemetry, empty if telemetry is disabled
+func IsTelemetryEnabled(system *System) (bool, string) {
+	if os.Getenv("GO_FLAGS_COMPLETION") == "1" {
+		return false, ""
+	}
+	if system == nil || system.Logger == nil {
+		return false, ""
+	}
+	logger := system.Logger.WithPrefix("TELEMETRY-CHECK: ")
+
+	// check if telemetry is disabled via environment variable
+	if os.Getenv("AEROLAB_TELEMETRY_DISABLE") != "" {
+		logger.Detail("Telemetry is disabled via AEROLAB_TELEMETRY_DISABLE environment variable")
+		return false, ""
+	}
+
+	// check if telemetry is disabled via file
+	telemetryDir, err := AerolabRootDir()
+	if err != nil {
+		logger.Detail("Failed to get telemetry dir: %s", err)
+		return false, ""
+	}
+	telemetryDir = path.Join(telemetryDir, "telemetry")
+	if _, err := os.Stat(path.Join(telemetryDir, "disable")); err == nil {
+		logger.Detail("Telemetry is disabled via disable file")
+		return false, ""
+	}
+
+	// check feature key file for Aerospike internal users
+	if !telemetryFeatureKeyFileCheck(system, logger) {
+		return false, ""
+	}
+
+	// ensure telemetry directory exists
+	if err := os.MkdirAll(telemetryDir, 0700); err != nil {
+		logger.Detail("Failed to create telemetry dir: %s", err)
+		return false, ""
+	}
+
+	// get or create persistent user UUID
+	userUUID, err := getTelemetryUUID(telemetryDir)
+	if err != nil {
+		logger.Detail("Failed to get telemetry UUID: %s", err)
+		return false, ""
+	}
+
+	return true, userUUID
 }

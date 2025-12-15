@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -34,6 +35,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/api/types/strslice"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
@@ -91,6 +93,10 @@ type CreateInstanceParams struct {
 	MaskedPaths       strslice.StrSlice   `yaml:"maskedPaths" json:"maskedPaths"`
 	ReadonlyPaths     strslice.StrSlice   `yaml:"readonlyPaths" json:"readonlyPaths"`
 	SkipSshReadyCheck bool                `yaml:"skipSshReadyCheck" json:"skipSshReadyCheck"` // if set, will not test for ssh readiness
+	// optional: registry authentication for pulling private images
+	RegistryUser string `yaml:"registryUser" json:"registryUser"` // username for docker registry authentication
+	RegistryPass string `yaml:"registryPass" json:"registryPass"` // password for docker registry authentication
+	RegistryURL  string `yaml:"registryUrl" json:"registryUrl"`   // registry URL (e.g., docker.io, ghcr.io); if empty, uses default registry
 }
 
 type InstanceDetail struct {
@@ -221,6 +227,9 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 					// fw format: host={hostIP:hostPORT},container={containerPORT} ; example: host=0.0.0.0:8080,container=80
 					fw = append(fw, fmt.Sprintf("host=%s:%d,container=%d", port.IP, port.PublicPort, port.PrivatePort))
 				}
+				// Compute AccessURL based on client type and port mappings
+				accessURL := computeAccessURL(container.Labels["aerolab.client.type"], container.Ports)
+
 				ilock.Lock()
 				i = append(i, &backends.Instance{
 					ClusterName: container.Labels[TAG_CLUSTER_NAME],
@@ -254,6 +263,7 @@ func (s *b) GetInstances(volumes backends.VolumeList, networkList backends.Netwo
 					Expires:          expires,
 					Description:      container.Labels[TAG_DESCRIPTION],
 					CustomDNS:        nil,
+					AccessURL:        accessURL,
 					BackendSpecific: &InstanceDetail{
 						Docker: container,
 					},
@@ -291,6 +301,10 @@ func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []strin
 }
 
 func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Duration) error {
+	stopErr := s.InstancesStop(instances.WithState(backends.LifeCycleStateRunning).Describe(), true, 0)
+	if stopErr != nil {
+		return stopErr
+	}
 	log := s.log.WithPrefix("InstancesTerminate: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
@@ -972,6 +986,54 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		}
 	}
 
+	// Pull custom image with authentication if credentials are provided
+	if !backendSpecificParams.Image.Public && backendSpecificParams.RegistryUser != "" && backendSpecificParams.RegistryPass != "" {
+		log.Detail("Pulling image %s with registry authentication", imgName)
+		pullOpts := image.PullOptions{}
+
+		// Create auth config
+		authConfig := registry.AuthConfig{
+			Username:      backendSpecificParams.RegistryUser,
+			Password:      backendSpecificParams.RegistryPass,
+			ServerAddress: backendSpecificParams.RegistryURL,
+		}
+		encodedAuth, err := encodeAuthToBase64(authConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode registry auth: %w", err)
+		}
+		pullOpts.RegistryAuth = encodedAuth
+
+		// Pull the image
+		reader, err := cli.ImagePull(context.Background(), imgName, pullOpts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to pull image %s: %w", imgName, err)
+		}
+		defer reader.Close()
+
+		// Read the output to ensure pull completes
+		_, err = io.Copy(io.Discard, reader)
+		if err != nil {
+			return nil, fmt.Errorf("failed to pull image %s: %w", imgName, err)
+		}
+		log.Detail("Successfully pulled image %s", imgName)
+	} else if !backendSpecificParams.Image.Public {
+		// For custom images without auth, try to pull (will use local docker credentials if configured)
+		log.Detail("Pulling image %s (using local docker credentials if configured)", imgName)
+		reader, err := cli.ImagePull(context.Background(), imgName, image.PullOptions{})
+		if err != nil {
+			// If pull fails, check if image exists locally
+			_, inspectErr := cli.ImageInspect(context.Background(), imgName)
+			if inspectErr != nil {
+				return nil, fmt.Errorf("failed to pull image %s and image not found locally: %w", imgName, err)
+			}
+			log.Detail("Image %s not pulled but exists locally", imgName)
+		} else {
+			defer reader.Close()
+			_, _ = io.Copy(io.Discard, reader)
+			log.Detail("Successfully pulled image %s", imgName)
+		}
+	}
+
 	// Create instances
 	log.Detail("Creating %d instances", input.Nodes)
 	// create instances
@@ -993,8 +1055,13 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			if len(vsplit) != 2 {
 				return nil, fmt.Errorf("invalid disk format: %s", volume)
 			}
+			// Determine mount type: use bind mount for absolute paths, volume for named volumes
+			mountType := mount.TypeVolume
+			if strings.HasPrefix(vsplit[0], "/") {
+				mountType = mount.TypeBind
+			}
 			mounts = append(mounts, mount.Mount{
-				Type:   mount.TypeVolume,
+				Type:   mountType,
 				Source: vsplit[0],
 				Target: vsplit[1],
 			})
@@ -1024,32 +1091,37 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			}
 			rp.MaximumRetryCount = backendSpecificParams.MaxRestartRetries
 		}
-		runResult, err := cli.ContainerCreate(context.Background(), &container.Config{
-			Hostname:     name,
-			Domainname:   "aerolab.local",
-			User:         "root",
-			AttachStdin:  false,
-			AttachStdout: false,
-			AttachStderr: false,
-			ExposedPorts: exposedPorts,
-			Tty:          true,
-			OpenStdin:    false, // systemd should not need stdin
-			StdinOnce:    false,
-			Env: []string{
-				"SSH_PUBLIC_KEY=" + string(publicKeyBytes),
-			},
+		// For custom images (not public/official aerolab images), preserve image defaults
+		containerConfig := &container.Config{
+			Hostname:        name,
+			Domainname:      "aerolab.local",
+			AttachStdin:     false,
+			AttachStdout:    false,
+			AttachStderr:    false,
+			ExposedPorts:    exposedPorts,
+			Tty:             true,
+			OpenStdin:       false,
+			StdinOnce:       false,
 			Cmd:             backendSpecificParams.Cmd,
 			ArgsEscaped:     false,
 			Image:           imgName,
-			Volumes:         nil, // anonymous volumes, do not use
-			WorkingDir:      "/root",
-			Entrypoint:      nil, // can be used to override entrypoint
+			Volumes:         nil,
 			NetworkDisabled: false,
 			Labels:          nodeTags,
 			StopSignal:      "SIGTERM",
 			StopTimeout:     backendSpecificParams.StopTimeout,
-			Shell:           nil, // default is fine
-		}, &container.HostConfig{
+			Shell:           nil,
+			// Always pass SSH key for aerolab to be able to connect
+			Env: []string{"SSH_PUBLIC_KEY=" + string(publicKeyBytes)},
+		}
+
+		// Only set aerolab-specific defaults for official images, preserve defaults for custom images
+		if backendSpecificParams.Image.Public {
+			containerConfig.User = "root"
+			containerConfig.WorkingDir = "/root"
+		}
+
+		runResult, err := cli.ContainerCreate(context.Background(), containerConfig, &container.HostConfig{
 			NetworkMode:     container.NetworkMode(networkName),
 			PortBindings:    portBindings,
 			RestartPolicy:   rp,
@@ -1485,4 +1557,50 @@ func ExecWithCLI(
 			}
 		}
 	}
+}
+
+// encodeAuthToBase64 encodes docker auth config to base64 for use with ImagePull
+func encodeAuthToBase64(authConfig registry.AuthConfig) (string, error) {
+	authJSON, err := json.Marshal(authConfig)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(authJSON), nil
+}
+
+// computeAccessURL computes the access URL for a client instance based on its type and port mappings.
+// For Docker, it returns http://localhost:{hostPort} where hostPort is mapped to the client's service port.
+//
+// Parameters:
+//   - clientType: the value of the aerolab.client.type tag (e.g., "vscode", "ams", "graph")
+//   - ports: the Docker port mappings from the container
+//
+// Returns:
+//   - string: the computed access URL, or empty string if not applicable
+func computeAccessURL(clientType string, ports []types.Port) string {
+	if clientType == "" {
+		return ""
+	}
+
+	// Map client types to their default container ports
+	var containerPort uint16
+	switch clientType {
+	case "vscode":
+		containerPort = 8080
+	case "ams":
+		containerPort = 3000 // Grafana
+	case "graph":
+		containerPort = 9090 // Prometheus metrics
+	default:
+		return ""
+	}
+
+	// Find the host port mapped to the container port
+	for _, port := range ports {
+		if port.PrivatePort == containerPort && port.PublicPort > 0 {
+			return fmt.Sprintf("http://localhost:%d", port.PublicPort)
+		}
+	}
+
+	return ""
 }
