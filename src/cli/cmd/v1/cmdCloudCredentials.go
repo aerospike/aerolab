@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
@@ -47,6 +48,16 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
+	system.Logger.Info("Running %s", strings.Join(cmd, "."))
+	err = c.CreateCloudCredentials(system)
+	if err != nil {
+		return Error(err, system, cmd, c, args)
+	}
+	system.Logger.Info("Done")
+	return Error(nil, system, cmd, c, args)
+}
+
+func (c *CloudDatabasesCredentialsCreateCmd) CreateCloudCredentials(system *System) error {
 	logger := system.Logger
 	if c.DatabaseID == "" {
 		return fmt.Errorf("database ID is required")
@@ -59,7 +70,7 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 	}
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
-		return Error(err, system, cmd, c, args)
+		return err
 	}
 
 	// Convert privileges string to roles array
@@ -79,7 +90,7 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.DatabaseID)
 	err = client.Post(path, request, &result)
 	if err != nil {
-		return Error(err, system, cmd, c, args)
+		return err
 	}
 
 	// If --wait is specified, wait for credentials to become active
@@ -87,18 +98,18 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 		// Extract the ID from the response
 		resultMap, ok := result.(map[string]interface{})
 		if !ok {
-			return Error(fmt.Errorf("unexpected response type: %T", result), system, cmd, c, args)
+			return fmt.Errorf("unexpected response type: %T", result)
 		}
 
 		credentialID, ok := resultMap["id"].(string)
 		if !ok || credentialID == "" {
-			return Error(fmt.Errorf("id not found in credentials creation response"), system, cmd, c, args)
+			return fmt.Errorf("id not found in credentials creation response")
 		}
 
 		logger.Info("Waiting for credentials to become active (id: %s)...", credentialID)
 		waitResult, err := c.waitForCredentialsActive(client, c.DatabaseID, credentialID, logger)
 		if err != nil {
-			return Error(fmt.Errorf("failed to wait for credentials to become active: %w", err), system, cmd, c, args)
+			return fmt.Errorf("failed to wait for credentials to become active: %w", err)
 		}
 		logger.Info("Credentials are now active")
 		// Use the wait result instead of the creation result
@@ -107,10 +118,10 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 
 	err = client.PrettyPrint(result)
 	if err != nil {
-		return Error(err, system, cmd, c, args)
+		return err
 	}
 
-	return Error(nil, system, cmd, c, args)
+	return nil
 }
 
 // waitForCredentialsActive polls the credentials list until the credential with the given ID has status "active"

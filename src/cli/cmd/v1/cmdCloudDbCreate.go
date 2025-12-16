@@ -28,6 +28,7 @@ type CloudDatabasesCreateCmd struct {
 	CloudCIDR             string  `long:"cloud-cidr" description:"CIDR block for the cloud database infrastructure. If 'default', the cloud will auto-assign (starting from 10.130.0.0/19). If VPC-ID is specified, aerolab will check for collisions and find the next available CIDR if default is used." default:"default"`
 	ForceRouteCreation    bool    `long:"force-route-creation" description:"Force route creation even if it already exists"`
 	DryRun                bool    `long:"dry-run" description:"Perform checks and print what would be done without actually creating anything"`
+	Credentials           string  `long:"credentials" description:"Create database credentials in format USER:PASSWORD. If not specified, credentials must be created manually."`
 	Help                  HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -70,6 +71,13 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 	}
 	if c.DataStorage == "" {
 		return fmt.Errorf("data storage is required")
+	}
+	if c.Credentials != "" {
+		// Parse USER:PASSWORD format
+		parts := strings.SplitN(c.Credentials, ":", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf("invalid credentials format, expected USER:PASSWORD")
+		}
 	}
 	if system == nil {
 		var err error
@@ -440,6 +448,34 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		logger.Info("Database provisioned successfully")
 		logger.Warn("VPC-ID was not specified. To be able to connect to the database, you will need to peer the VPC to the database using the 'cloud db peer-vpc' command.")
 	}
+
+	// Handle credentials creation at the very end
+	if c.Credentials != "" {
+		// Parse USER:PASSWORD format
+		parts := strings.SplitN(c.Credentials, ":", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf("invalid credentials format, expected USER:PASSWORD")
+		}
+		username := parts[0]
+		password := parts[1]
+
+		logger.Info("Creating database credentials for user: %s", username)
+		credCmd := &CloudDatabasesCredentialsCreateCmd{
+			DatabaseID: dbId,
+			Username:   username,
+			Password:   password,
+			Privileges: "read-write",
+			Wait:       true,
+		}
+		err = credCmd.CreateCloudCredentials(system)
+		if err != nil {
+			return fmt.Errorf("failed to create database credentials: %w", err)
+		}
+		logger.Info("Database credentials created successfully")
+	} else {
+		logger.Warn("No credentials specified. To create credentials, run: aerolab cloud databases credentials create -d %s -u USERNAME -p PASSWORD --wait", dbId)
+	}
+
 	return nil
 }
 
