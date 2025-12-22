@@ -8,24 +8,24 @@ import (
 	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 )
 
-type CloudDatabasesGetCmd struct {
-	Host    CloudDatabasesGetHostCmd    `command:"host" subcommands-optional:"true" description:"Get database host" webicon:"fas fa-network-wired"`
-	TlsCert CloudDatabasesGetTlsCertCmd `command:"tls-cert" subcommands-optional:"true" description:"Get database TLS certificate" webicon:"fas fa-lock"`
-	Help    HelpCmd                     `command:"help" subcommands-optional:"true" description:"Print help"`
+type CloudClustersGetCmd struct {
+	Host    CloudClustersGetHostCmd    `command:"host" subcommands-optional:"true" description:"Get cluster host" webicon:"fas fa-network-wired"`
+	TlsCert CloudClustersGetTlsCertCmd `command:"tls-cert" subcommands-optional:"true" description:"Get cluster TLS certificate" webicon:"fas fa-lock"`
+	Help    HelpCmd                    `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *CloudDatabasesGetCmd) Execute(args []string) error {
+func (c *CloudClustersGetCmd) Execute(args []string) error {
 	return c.Help.Execute(args)
 }
 
-type CloudDatabasesGetHostCmd struct {
-	DatabaseID   string  `short:"i" long:"database-id" description:"Database ID"`
-	DatabaseName string  `short:"n" long:"name" description:"Database name"`
-	Help         HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+type CloudClustersGetHostCmd struct {
+	ClusterID   string  `short:"c" long:"cluster-id" description:"Cluster ID"`
+	ClusterName string  `short:"n" long:"name" description:"Cluster name"`
+	Help        HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *CloudDatabasesGetHostCmd) Execute(args []string) error {
-	cmd := []string{"cloud", "databases", "get", "host"}
+func (c *CloudClustersGetHostCmd) Execute(args []string) error {
+	cmd := []string{"cloud", "clusters", "get", "host"}
 	system, err := Initialize(&Init{InitBackend: false, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -43,8 +43,8 @@ func (c *CloudDatabasesGetHostCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	// Parse the JSON response to find the database and extract host
-	host, err := extractConnectionField(result, c.DatabaseID, c.DatabaseName, "host")
+	// Parse the JSON response to find the cluster and extract host
+	host, err := extractConnectionField(result, c.ClusterID, c.ClusterName, "host")
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -53,14 +53,14 @@ func (c *CloudDatabasesGetHostCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-type CloudDatabasesGetTlsCertCmd struct {
-	DatabaseID   string  `short:"i" long:"database-id" description:"Database ID"`
-	DatabaseName string  `short:"n" long:"name" description:"Database name"`
-	Help         HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+type CloudClustersGetTlsCertCmd struct {
+	ClusterID   string  `short:"c" long:"cluster-id" description:"Cluster ID"`
+	ClusterName string  `short:"n" long:"name" description:"Cluster name"`
+	Help        HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *CloudDatabasesGetTlsCertCmd) Execute(args []string) error {
-	cmd := []string{"cloud", "databases", "get", "tls-cert"}
+func (c *CloudClustersGetTlsCertCmd) Execute(args []string) error {
+	cmd := []string{"cloud", "clusters", "get", "tls-cert"}
 	system, err := Initialize(&Init{InitBackend: false, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -78,8 +78,8 @@ func (c *CloudDatabasesGetTlsCertCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	// Parse the JSON response to find the database and extract tlsCertificate
-	cert, err := extractConnectionField(result, c.DatabaseID, c.DatabaseName, "tlsCertificate")
+	// Parse the JSON response to find the cluster and extract tlsCertificate
+	cert, err := extractConnectionField(result, c.ClusterID, c.ClusterName, "tlsCertificate")
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -88,8 +88,8 @@ func (c *CloudDatabasesGetTlsCertCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-// extractConnectionField extracts a field from connectionDetails in the database list response
-func extractConnectionField(result interface{}, databaseID, databaseName, field string) (string, error) {
+// extractConnectionField extracts a field from connectionDetails in the cluster list response
+func extractConnectionField(result interface{}, clusterID, clusterName, field string) (string, error) {
 	// Convert result to JSON bytes and unmarshal to map
 	resultBytes, err := json.Marshal(result)
 	if err != nil {
@@ -102,48 +102,48 @@ func extractConnectionField(result interface{}, databaseID, databaseName, field 
 		return "", fmt.Errorf("failed to unmarshal result: %w", err)
 	}
 
-	// Get databases array
-	databases, ok := resultMap["databases"].([]interface{})
+	// Get clusters array
+	clusters, ok := resultMap["clusters"].([]interface{})
 	if !ok {
-		return "", fmt.Errorf("databases field not found or not an array")
+		return "", fmt.Errorf("clusters field not found or not an array")
 	}
 
-	// Find the database by ID or name
-	var foundDatabase map[string]interface{}
-	for _, db := range databases {
+	// Find the cluster by ID or name
+	var foundCluster map[string]interface{}
+	for _, db := range clusters {
 		dbMap, ok := db.(map[string]interface{})
 		if !ok {
 			continue
 		}
 		// Check by ID
-		if databaseID != "" {
-			if id, ok := dbMap["id"].(string); ok && id == databaseID {
-				foundDatabase = dbMap
+		if clusterID != "" {
+			if id, ok := dbMap["id"].(string); ok && id == clusterID {
+				foundCluster = dbMap
 				break
 			}
 		}
 
 		// Check by name
-		if databaseName != "" {
-			if name, ok := dbMap["name"].(string); ok && name == databaseName {
-				foundDatabase = dbMap
+		if clusterName != "" {
+			if name, ok := dbMap["name"].(string); ok && name == clusterName {
+				foundCluster = dbMap
 				break
 			}
 		}
 	}
 
-	if foundDatabase == nil {
-		if databaseID != "" {
-			return "", fmt.Errorf("database with ID %s not found", databaseID)
+	if foundCluster == nil {
+		if clusterID != "" {
+			return "", fmt.Errorf("cluster with ID %s not found", clusterID)
 		}
-		if databaseName != "" {
-			return "", fmt.Errorf("database with name %s not found", databaseName)
+		if clusterName != "" {
+			return "", fmt.Errorf("cluster with name %s not found", clusterName)
 		}
-		return "", fmt.Errorf("database ID or name must be provided")
+		return "", fmt.Errorf("cluster ID or name must be provided")
 	}
 
 	// Get connectionDetails
-	connectionDetails, ok := foundDatabase["connectionDetails"].(map[string]interface{})
+	connectionDetails, ok := foundCluster["connectionDetails"].(map[string]interface{})
 	if !ok {
 		return "", fmt.Errorf("connectionDetails not found or not an object")
 	}

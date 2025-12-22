@@ -15,20 +15,27 @@ import (
 	"github.com/rglonek/logger"
 )
 
-type CloudDatabasesPeerVPCCmd struct {
-	DatabaseID         string  `short:"d" long:"database-id" description:"Database ID"`
-	VPCID              string  `long:"vpc-id" description:"VPC ID to peer the database to" default:"default"`
+type CloudClustersPeerVPCCmd struct {
+	ClusterID          string  `short:"c" long:"cluster-id" description:"Cluster ID"`
 	Region             string  `short:"r" long:"region" description:"VPC region (auto-detected from VPC if not specified)"`
-	StageInitiate      bool    `long:"stage-initiate" description:"Execute the initiate stage (request VPC peering from cloud). If no stages are specified, all stages are executed."`
-	StageAccept        bool    `long:"stage-accept" description:"Execute the accept stage (accept the VPC peering request). If no stages are specified, all stages are executed."`
-	StageRoute         bool    `long:"stage-route" description:"Execute the route stage (create route in VPC route table). If no stages are specified, all stages are executed."`
-	StageAssociateDNS  bool    `long:"stage-associate-dns" description:"Execute the DNS association stage (associate VPC with hosted zone). If no stages are specified, all stages are executed."`
-	ForceRouteCreation bool    `long:"force-route-creation" description:"Force route creation even if it already exists"`
+	VPCID              string  `short:"v" long:"vpc-id" description:"VPC ID to peer the cluster to" default:"default"`
+	StageInitiate      bool    `short:"1" long:"stage-initiate" description:"Execute the initiate stage (request VPC peering from cloud). If no stages are specified, all stages are executed."`
+	StageAccept        bool    `short:"2" long:"stage-accept" description:"Execute the accept stage (accept the VPC peering request). If no stages are specified, all stages are executed."`
+	StageRoute         bool    `short:"3" long:"stage-route" description:"Execute the route stage (create route in VPC route table). If no stages are specified, all stages are executed."`
+	StageAssociateDNS  bool    `short:"4" long:"stage-associate-dns" description:"Execute the DNS association stage (associate VPC with hosted zone). If no stages are specified, all stages are executed."`
+	ForceRouteCreation bool    `short:"f" long:"force-route-creation" description:"Force route creation even if it already exists"`
 	Help               HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+
+	// Internal fields for programmatic use (not CLI flags)
+	// These allow callers like db create to pass pre-resolved values
+	PreResolvedVPCCIDR   string // VPC CIDR if already known
+	PreResolvedAccountID string // AWS account ID if already known
+	PreResolvedVPCRegion string // VPC region if already known
+	CleanupOnError       func() // Cleanup function to call on error (e.g., blackhole route cleanup)
 }
 
-func (c *CloudDatabasesPeerVPCCmd) Execute(args []string) error {
-	cmd := []string{"cloud", "db", "peer-vpc"}
+func (c *CloudClustersPeerVPCCmd) Execute(args []string) error {
+	cmd := []string{"cloud", "clusters", "peer-vpc"}
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -50,25 +57,25 @@ func (c *CloudDatabasesPeerVPCCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
-	if c.DatabaseID == "" {
-		return fmt.Errorf("database ID is required")
+func (c *CloudClustersPeerVPCCmd) PeerVPC(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
+	if c.ClusterID == "" {
+		return fmt.Errorf("cluster ID is required")
 	}
 	if system == nil {
 		var err error
-		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cloud", "db", "peer-vpc"}, c, args...)
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cloud", "clusters", "peer-vpc"}, c, args...)
 		if err != nil {
 			return err
 		}
 	}
 	if system.Opts.Config.Backend.Type != "aws" {
-		return fmt.Errorf("cloud databases VPC peering can only be setup with AWS backend")
+		return fmt.Errorf("cloud clusters VPC peering can only be setup with AWS backend")
 	}
 	if logger == nil {
 		logger = system.Logger
 	}
 
-	logger.Info("Setting up VPC peering for database: %s", c.DatabaseID)
+	logger.Info("Setting up VPC peering for cluster: %s", c.ClusterID)
 
 	// Determine if we should run all stages or only specific ones
 	runAllStages := !c.StageInitiate && !c.StageAccept && !c.StageRoute && !c.StageAssociateDNS
@@ -109,45 +116,61 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 	}
 
 	// Get VPC details (needed for most stages)
+	// Use pre-resolved values if provided (from db create), otherwise fetch from inventory
 	var cidr string
 	var accountId string
 	var vpcRegion string
 	var err error
-	logger.Info("Getting VPC details for VPC-ID: %s", c.VPCID)
-	if inventory == nil {
-		inventory = system.Backend.GetInventory()
-	}
-	for _, network := range inventory.Networks.Describe() {
-		if network.NetworkId == c.VPCID {
-			cidr = network.Cidr
-			vpcRegion = network.ZoneName
-			break
-		}
-	}
-	if cidr == "" {
-		return fmt.Errorf("VPC %s not found", c.VPCID)
-	}
-	if vpcRegion == "" {
-		if c.Region != "" {
-			logger.Warn("Could not determine VPC region from zone name, using provided region: %s", c.Region)
-			vpcRegion = c.Region
-		} else {
-			return fmt.Errorf("could not determine VPC region and no --region flag provided")
-		}
+
+	if c.PreResolvedVPCCIDR != "" && c.PreResolvedAccountID != "" && c.PreResolvedVPCRegion != "" {
+		// Use pre-resolved values from caller (e.g., db create)
+		cidr = c.PreResolvedVPCCIDR
+		accountId = c.PreResolvedAccountID
+		vpcRegion = c.PreResolvedVPCRegion
+		logger.Info("Using pre-resolved VPC details: cidr=%s, accountId=%s, region=%s", cidr, accountId, vpcRegion)
 	} else {
-		logger.Info("VPC region: %s", vpcRegion)
-	}
-	accountId, err = system.Backend.GetAccountID(backends.BackendTypeAWS)
-	if err != nil {
-		return err
-	}
-	if accountId == "" {
-		return fmt.Errorf("account ID not found")
+		// Fetch VPC details from inventory
+		logger.Info("Getting VPC details for VPC-ID: %s", c.VPCID)
+		if inventory == nil {
+			inventory = system.Backend.GetInventory()
+		}
+		for _, network := range inventory.Networks.Describe() {
+			if network.NetworkId == c.VPCID {
+				cidr = network.Cidr
+				vpcRegion = network.ZoneName
+				break
+			}
+		}
+		if cidr == "" {
+			c.callCleanup()
+			return fmt.Errorf("VPC %s not found", c.VPCID)
+		}
+		if vpcRegion == "" {
+			if c.Region != "" {
+				logger.Warn("Could not determine VPC region from zone name, using provided region: %s", c.Region)
+				vpcRegion = c.Region
+			} else {
+				c.callCleanup()
+				return fmt.Errorf("could not determine VPC region and no --region flag provided")
+			}
+		} else {
+			logger.Info("VPC region: %s", vpcRegion)
+		}
+		accountId, err = system.Backend.GetAccountID(backends.BackendTypeAWS)
+		if err != nil {
+			c.callCleanup()
+			return err
+		}
+		if accountId == "" {
+			c.callCleanup()
+			return fmt.Errorf("account ID not found")
+		}
 	}
 
 	// Check existing VPC peerings to determine current state
-	existingPeerings, err := c.getExistingPeerings(c.DatabaseID)
+	existingPeerings, err := c.getExistingPeerings(c.ClusterID)
 	if err != nil {
+		c.callCleanup()
 		return fmt.Errorf("failed to get existing VPC peerings: %w", err)
 	}
 
@@ -178,11 +201,12 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 		if existingPeering != nil {
 			logger.Info("Stage INITIATE: Skipping - VPC peering already exists (peeringId: %s)", peeringConnectionID)
 		} else {
-			logger.Info("Stage INITIATE: Initiating VPC peering for database=%s, vpcId=%s, cidr=%s, accountId=%s, vpcRegion=%s",
-				c.DatabaseID, c.VPCID, cidr, accountId, vpcRegion)
+			logger.Info("Stage INITIATE: Initiating VPC peering for cluster=%s, vpcId=%s, cidr=%s, accountId=%s, vpcRegion=%s",
+				c.ClusterID, c.VPCID, cidr, accountId, vpcRegion)
 
-			reqId, err := c.initiateVPCPeering(c.DatabaseID, cidr, accountId, vpcRegion, logger)
+			reqId, err := c.initiateVPCPeering(c.ClusterID, cidr, accountId, vpcRegion, logger)
 			if err != nil {
+				c.callCleanup()
 				return fmt.Errorf("stage INITIATE failed: %w", err)
 			}
 			logger.Info("Stage INITIATE: Completed - VPC peering initiated, peeringId: %s", reqId)
@@ -195,6 +219,7 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 	if runAllStages || c.StageAccept {
 		if peeringConnectionID == "" {
 			if c.StageAccept {
+				c.callCleanup()
 				return fmt.Errorf("stage ACCEPT failed: no existing VPC peering found for VPC %s", c.VPCID)
 			}
 			logger.Info("Stage ACCEPT: Skipping - no peering connection ID available")
@@ -204,12 +229,13 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 			logger.Info("Stage ACCEPT: Accepting VPC peering: %s", peeringConnectionID)
 			err = c.retry(func() error {
 				return system.Backend.AcceptVPCPeering(backends.BackendTypeAWS, peeringConnectionID)
-			}, c.DatabaseID)
+			}, c.ClusterID)
 			if err != nil {
 				// Check if already accepted
 				if strings.Contains(err.Error(), "already active") {
 					logger.Info("Stage ACCEPT: VPC peering is already active")
 				} else {
+					c.callCleanup()
 					return fmt.Errorf("stage ACCEPT failed: %w", err)
 				}
 			} else {
@@ -233,6 +259,7 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 					}
 				}
 				if peeringConnectionID == "" {
+					c.callCleanup()
 					return fmt.Errorf("stage ROUTE failed: no existing VPC peering found for VPC %s", c.VPCID)
 				}
 			} else {
@@ -244,8 +271,12 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 			logger.Info("Stage ROUTE: Creating route in VPC route table")
 			err = c.createRoute(system, logger, peeringConnectionID)
 			if err != nil {
+				c.callCleanup()
 				return fmt.Errorf("stage ROUTE failed: %w", err)
 			}
+			// Route created successfully - if cleanup was provided, the blackhole has been replaced
+			// Clear the cleanup function so it won't be called on subsequent errors
+			c.CleanupOnError = nil
 			logger.Info("Stage ROUTE: Completed")
 		}
 	}
@@ -263,14 +294,14 @@ func (c *CloudDatabasesPeerVPCCmd) PeerVPC(system *System, inventory *backends.I
 	return nil
 }
 
-func (c *CloudDatabasesPeerVPCCmd) getExistingPeerings(databaseID string) ([]map[string]interface{}, error) {
+func (c *CloudClustersPeerVPCCmd) getExistingPeerings(clusterID string) ([]map[string]interface{}, error) {
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return nil, err
 	}
 
 	var result interface{}
-	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, databaseID)
+	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, clusterID)
 	err = client.Get(path, &result)
 	if err != nil {
 		return nil, err
@@ -298,7 +329,7 @@ func (c *CloudDatabasesPeerVPCCmd) getExistingPeerings(databaseID string) ([]map
 	return existingPeerings, nil
 }
 
-func (c *CloudDatabasesPeerVPCCmd) initiateVPCPeering(databaseID string, cidr string, accountId string, vpcRegion string, log *logger.Logger) (string, error) {
+func (c *CloudClustersPeerVPCCmd) initiateVPCPeering(clusterID string, cidr string, accountId string, vpcRegion string, log *logger.Logger) (string, error) {
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return "", err
@@ -313,7 +344,7 @@ func (c *CloudDatabasesPeerVPCCmd) initiateVPCPeering(databaseID string, cidr st
 	}
 	var result interface{}
 
-	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, databaseID)
+	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, clusterID)
 	err = client.Post(path, request, &result)
 	if err != nil {
 		return "", err
@@ -328,7 +359,7 @@ func (c *CloudDatabasesPeerVPCCmd) initiateVPCPeering(databaseID string, cidr st
 
 	// Wait for the peering to be initiated so that we can get the peeringId from it
 	// The post response doesn't include the peeringId, it's all async
-	peeringId, err := c.waitForVPCPeeringInitiated(client, databaseID, c.VPCID, log)
+	peeringId, err := c.waitForVPCPeeringInitiated(client, clusterID, c.VPCID, log)
 	if err != nil {
 		return "", fmt.Errorf("failed to wait for VPC peering initiation: %w", err)
 	}
@@ -338,7 +369,7 @@ func (c *CloudDatabasesPeerVPCCmd) initiateVPCPeering(databaseID string, cidr st
 
 // waitForVPCPeeringInitiated waits for the VPC peering to be initiated
 // It polls the VPC peerings list until status != "initiating-request" and peeringId != ""
-func (c *CloudDatabasesPeerVPCCmd) waitForVPCPeeringInitiated(client *cloud.Client, dbId string, vpcId string, log *logger.Logger) (string, error) {
+func (c *CloudClustersPeerVPCCmd) waitForVPCPeeringInitiated(client *cloud.Client, clusterID string, vpcId string, log *logger.Logger) (string, error) {
 	timeout := time.Hour
 	interval := 10 * time.Second
 	startTime := time.Now()
@@ -349,7 +380,7 @@ func (c *CloudDatabasesPeerVPCCmd) waitForVPCPeeringInitiated(client *cloud.Clie
 		}
 
 		var result interface{}
-		path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, dbId)
+		path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, clusterID)
 		err := client.Get(path, &result)
 		if err != nil {
 			return "", fmt.Errorf("failed to get VPC peerings list: %w", err)
@@ -409,17 +440,19 @@ func (c *CloudDatabasesPeerVPCCmd) waitForVPCPeeringInitiated(client *cloud.Clie
 	}
 }
 
-func (c *CloudDatabasesPeerVPCCmd) retry(fn func() error, dbId string) error {
+func (c *CloudClustersPeerVPCCmd) retry(fn func() error, clusterID string) error {
 	for {
 		err := fn()
 		if err == nil {
 			return nil
 		}
 		if !IsInteractive() {
+			// Don't call cleanup here - let the caller handle it
+			// since they know whether this is before or after route creation
 			return err
 		}
 		logger.Error("%s", err.Error())
-		opts, quitting, quittingErr := choice.Choice("Retry VPC Peering, Quit, or Rollback Database?", choice.Items{
+		opts, quitting, quittingErr := choice.Choice("Retry VPC Peering, Quit, or Rollback Cluster?", choice.Items{
 			choice.Item("Retry"),
 			choice.Item("Quit"),
 			choice.Item("Rollback"),
@@ -431,12 +464,13 @@ func (c *CloudDatabasesPeerVPCCmd) retry(fn func() error, dbId string) error {
 			return errors.New("user chose to quit")
 		}
 		if opts == "Rollback" {
-			delDb := &CloudDatabasesDeleteCmd{
-				DatabaseID: dbId,
+			c.callCleanup()
+			delCluster := &CloudClustersDeleteCmd{
+				ClusterID: clusterID,
 			}
-			rollbackErr := delDb.Execute(nil)
+			rollbackErr := delCluster.Execute(nil)
 			if rollbackErr != nil {
-				return fmt.Errorf("failed to rollback database: %s", rollbackErr.Error())
+				return fmt.Errorf("failed to rollback cluster: %s", rollbackErr.Error())
 			}
 			return err
 		}
@@ -447,30 +481,30 @@ func (c *CloudDatabasesPeerVPCCmd) retry(fn func() error, dbId string) error {
 }
 
 // createRoute creates a route in the VPC route table
-func (c *CloudDatabasesPeerVPCCmd) createRoute(system *System, logger *logger.Logger, peeringConnectionID string) error {
+func (c *CloudClustersPeerVPCCmd) createRoute(system *System, logger *logger.Logger, peeringConnectionID string) error {
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
 	}
 
-	// Get the database to extract CIDR block
-	logger.Info("Getting database information to extract CIDR block...")
-	var dbResult interface{}
-	dbPath := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
-	err = client.Get(dbPath, &dbResult)
+	// Get the cluster to extract CIDR block
+	logger.Info("Getting cluster information to extract CIDR block...")
+	var clusterResult interface{}
+	clusterPath := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
+	err = client.Get(clusterPath, &clusterResult)
 	if err != nil {
-		return fmt.Errorf("failed to get database information: %w", err)
+		return fmt.Errorf("failed to get cluster information: %w", err)
 	}
 
 	// Extract CIDR block from infrastructure
-	dbMap, ok := dbResult.(map[string]interface{})
+	clusterMap, ok := clusterResult.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected database response type: %T", dbResult)
+		return fmt.Errorf("unexpected cluster response type: %T", clusterResult)
 	}
 
-	infrastructure, ok := dbMap["infrastructure"].(map[string]interface{})
+	infrastructure, ok := clusterMap["infrastructure"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("infrastructure field not found or invalid in database response")
+		return fmt.Errorf("infrastructure field not found or invalid in cluster response")
 	}
 
 	cidrBlock, ok := infrastructure["cidrBlock"].(string)
@@ -484,7 +518,7 @@ func (c *CloudDatabasesPeerVPCCmd) createRoute(system *System, logger *logger.Lo
 	logger.Info("Creating route in VPC %s for CIDR block %s via peering connection %s", c.VPCID, cidrBlock, peeringConnectionID)
 	err = c.retry(func() error {
 		return system.Backend.CreateRoute(backends.BackendTypeAWS, c.VPCID, peeringConnectionID, cidrBlock, c.ForceRouteCreation)
-	}, c.DatabaseID)
+	}, c.ClusterID)
 	if err != nil {
 		return fmt.Errorf("failed to create route: %w", err)
 	}
@@ -493,7 +527,7 @@ func (c *CloudDatabasesPeerVPCCmd) createRoute(system *System, logger *logger.Lo
 }
 
 // associateHostedZone associates the VPC with the hosted zone
-func (c *CloudDatabasesPeerVPCCmd) associateHostedZone(system *System, logger *logger.Logger, vpcRegion string) error {
+func (c *CloudClustersPeerVPCCmd) associateHostedZone(system *System, logger *logger.Logger, vpcRegion string) error {
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
@@ -502,7 +536,7 @@ func (c *CloudDatabasesPeerVPCCmd) associateHostedZone(system *System, logger *l
 	// Get VPC peerings list to extract hosted zone ID
 	logger.Info("Getting VPC peerings list to extract hosted zone ID...")
 	var peeringsResult interface{}
-	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.DatabaseID)
+	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.ClusterID)
 	err = client.Get(peeringsPath, &peeringsResult)
 	if err != nil {
 		return fmt.Errorf("failed to get VPC peerings list: %w", err)
@@ -548,10 +582,17 @@ func (c *CloudDatabasesPeerVPCCmd) associateHostedZone(system *System, logger *l
 	logger.Info("Associating VPC %s with hosted zone %s in region %s", c.VPCID, hostedZoneID, vpcRegion)
 	err = c.retry(func() error {
 		return system.Backend.AssociateVPCWithHostedZone(backends.BackendTypeAWS, hostedZoneID, c.VPCID, vpcRegion)
-	}, c.DatabaseID)
+	}, c.ClusterID)
 	if err != nil {
 		return fmt.Errorf("failed to associate VPC with hosted zone: %w", err)
 	}
 	logger.Info("VPC-hosted zone association completed successfully")
 	return nil
+}
+
+// callCleanup calls the cleanup function if one was provided
+func (c *CloudClustersPeerVPCCmd) callCleanup() {
+	if c.CleanupOnError != nil {
+		c.CleanupOnError()
+	}
 }

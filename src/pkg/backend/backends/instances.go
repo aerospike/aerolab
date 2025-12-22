@@ -837,6 +837,14 @@ func (b *backend) DeleteRoute(backendType BackendType, vpcID string, peeringConn
 	return b.enabledBackends[backendType].DeleteRoute(vpcID, peeringConnectionID, destinationCidrBlock)
 }
 
+func (b *backend) CreateBlackholeRoute(backendType BackendType, vpcID string, destinationCidrBlock string) error {
+	return b.enabledBackends[backendType].CreateBlackholeRoute(vpcID, destinationCidrBlock)
+}
+
+func (b *backend) DeleteBlackholeRoute(backendType BackendType, vpcID string, destinationCidrBlock string) error {
+	return b.enabledBackends[backendType].DeleteBlackholeRoute(vpcID, destinationCidrBlock)
+}
+
 func (b *backend) AssociateVPCWithHostedZone(backendType BackendType, hostedZoneID string, vpcID string, region string) error {
 	return b.enabledBackends[backendType].AssociateVPCWithHostedZone(hostedZoneID, vpcID, region)
 }

@@ -14,6 +14,14 @@ func (s *b) CreateRoute(vpcID string, peeringConnectionID string, destinationCid
 	return backends.ReturnNotImplemented(backends.BackendTypeDocker, "CreateRoute")
 }
 
+func (s *b) CreateBlackholeRoute(vpcID string, destinationCidrBlock string) error {
+	return backends.ReturnNotImplemented(backends.BackendTypeDocker, "CreateBlackholeRoute")
+}
+
+func (s *b) DeleteBlackholeRoute(vpcID string, destinationCidrBlock string) error {
+	return backends.ReturnNotImplemented(backends.BackendTypeDocker, "DeleteBlackholeRoute")
+}
+
 func (s *b) AcceptVPCPeering(peeringConnectionID string) error {
 	return backends.ReturnNotImplemented(backends.BackendTypeDocker, "AcceptVPCPeering")
 }

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,29 +10,28 @@ import (
 
 	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/rglonek/logger"
 )
 
-type CloudDatabasesCreateCmd struct {
-	Name                  string  `short:"n" long:"name" description:"Name of the database"`
+type CloudClustersCreateCmd struct {
+	Name                  string  `short:"n" long:"name" description:"Name of the cluster"`
 	InstanceType          string  `short:"i" long:"instance-type" description:"Instance type"`
 	Region                string  `short:"r" long:"region" description:"Region"`
-	AvailabilityZoneCount int     `long:"availability-zone-count" description:"Number of availability zones (1-3)" default:"2"`
-	ClusterSize           int     `long:"cluster-size" description:"Number of nodes in cluster"`
-	DataStorage           string  `long:"data-storage" description:"Data storage type (memory, local-disk, network-storage)"`
+	AvailabilityZoneCount int     `short:"a" long:"availability-zone-count" description:"Number of availability zones (1-3)" default:"2"`
+	ClusterSize           int     `short:"s" long:"cluster-size" description:"Number of nodes in cluster"`
+	DataStorage           string  `short:"d" long:"data-storage" description:"Data storage type (memory, local-disk, network-storage)"`
+	Credentials           string  `short:"C" long:"credentials" description:"Create cluster credentials in format USER:PASSWORD. If not specified, credentials must be created manually."`
+	VPCID                 string  `short:"v" long:"vpc-id" description:"VPC ID to peer the cluster to" default:"default"`
+	ForceRouteCreation    bool    `short:"f" long:"force-route-creation" description:"Force route creation even if it already exists"`
 	DataResiliency        string  `long:"data-resiliency" description:"Data resiliency (local-disk, network-storage)"`
 	DataPlaneVersion      string  `long:"data-plane-version" description:"Data plane version" default:"latest"`
-	VPCID                 string  `long:"vpc-id" description:"VPC ID to peer the database to" default:"default"`
-	CloudCIDR             string  `long:"cloud-cidr" description:"CIDR block for the cloud database infrastructure. If 'default', the cloud will auto-assign (starting from 10.130.0.0/19). If VPC-ID is specified, aerolab will check for collisions and find the next available CIDR if default is used." default:"default"`
-	ForceRouteCreation    bool    `long:"force-route-creation" description:"Force route creation even if it already exists"`
+	CloudCIDR             string  `long:"cloud-cidr" description:"CIDR block for the cloud cluster infrastructure. If 'default', the cloud will auto-assign (starting from 10.130.0.0/19). If VPC-ID is specified, aerolab will check for collisions and find the next available CIDR if default is used." default:"default"`
 	DryRun                bool    `long:"dry-run" description:"Perform checks and print what would be done without actually creating anything"`
-	Credentials           string  `long:"credentials" description:"Create database credentials in format USER:PASSWORD. If not specified, credentials must be created manually."`
 	Help                  HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *CloudDatabasesCreateCmd) Execute(args []string) error {
-	cmd := []string{"cloud", "db", "create"}
+func (c *CloudClustersCreateCmd) Execute(args []string) error {
+	cmd := []string{"cloud", "clusters", "create"}
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -56,7 +54,7 @@ func (c *CloudDatabasesCreateCmd) Execute(args []string) error {
 
 }
 
-func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
+func (c *CloudClustersCreateCmd) CreateCloudDb(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
 	if c.Name == "" {
 		return fmt.Errorf("name is required")
 	}
@@ -78,16 +76,19 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 			return fmt.Errorf("invalid credentials format, expected USER:PASSWORD")
 		}
+		if len(parts[1]) < 8 {
+			return fmt.Errorf("password must be at least 8 characters long")
+		}
 	}
 	if system == nil {
 		var err error
-		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cloud", "db", "create"}, c, args...)
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cloud", "clusters", "create"}, c, args...)
 		if err != nil {
 			return err
 		}
 	}
 	if system.Opts.Config.Backend.Type != "aws" {
-		return fmt.Errorf("cloud databases can only be created with AWS backend")
+		return fmt.Errorf("cloud clusters can only be created with AWS backend")
 	}
 	// vpc resolution
 	if c.VPCID == "default" {
@@ -126,7 +127,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 			return fmt.Errorf("VPC %s not found", c.VPCID)
 		}
 		if vpcRegion == "" {
-			logger.Warn("Could not determine VPC region from zone name, using database region: %s", c.Region)
+			logger.Warn("Could not determine VPC region from zone name, using cluster region: %s", c.Region)
 			vpcRegion = c.Region
 		} else {
 			logger.Info("VPC region: %s", vpcRegion)
@@ -139,7 +140,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 			return fmt.Errorf("account ID not found")
 		}
 
-		// Check/resolve cloud CIDR before creating the database
+		// Check/resolve cloud CIDR before creating the cluster
 		if c.CloudCIDR != "" && c.CloudCIDR != "default" {
 			// User specified a custom CIDR - validate it's not in use
 			logger.Info("Validating requested cloud CIDR: %s", c.CloudCIDR)
@@ -169,25 +170,55 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 	}
 
 	if !c.DryRun {
-		logger.Info("Creating cloud database: %s", c.Name)
+		logger.Info("Creating cloud cluster: %s", c.Name)
 	} else {
 		logger.Info("Dry-Run: collecting information, name=%s", c.Name)
+	}
+
+	// Lock CIDR by creating blackhole route (before cluster creation to prevent race conditions)
+	// This ensures that if two users run create at the same time, only one will get this CIDR
+	var blackholeCreated bool
+	if !c.DryRun && c.VPCID != "" && cloudCIDR != "" {
+		logger.Info("Locking CIDR %s with blackhole route to prevent race conditions", cloudCIDR)
+		err = system.Backend.CreateBlackholeRoute(backends.BackendTypeAWS, c.VPCID, cloudCIDR)
+		if err != nil {
+			return fmt.Errorf("failed to lock CIDR with blackhole route: %w", err)
+		}
+		blackholeCreated = true
+		logger.Info("CIDR %s locked successfully", cloudCIDR)
+	}
+
+	// Helper function to cleanup blackhole route on failure
+	cleanupBlackhole := func() {
+		if blackholeCreated {
+			logger.Info("Cleaning up blackhole route for CIDR %s", cloudCIDR)
+			cleanupErr := system.Backend.DeleteBlackholeRoute(backends.BackendTypeAWS, c.VPCID, cloudCIDR)
+			if cleanupErr != nil {
+				logger.Warn("Failed to cleanup blackhole route: %s", cleanupErr)
+			} else {
+				logger.Info("Blackhole route cleaned up successfully")
+			}
+			blackholeCreated = false
+		}
 	}
 
 	// create cloud DB
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
+		cleanupBlackhole()
 		return err
 	}
 
-	// Check if a database with the same name already exists
-	logger.Info("Checking for existing database with name: %s", c.Name)
-	existingDb, err := c.getDatabaseByName(client, c.Name)
+	// Check if a cluster with the same name already exists
+	logger.Info("Checking for existing cluster with name: %s", c.Name)
+	existingDb, err := c.getClusterByName(client, c.Name)
 	if err != nil {
-		return fmt.Errorf("failed to check for existing database: %w", err)
+		cleanupBlackhole()
+		return fmt.Errorf("failed to check for existing cluster: %w", err)
 	}
 	if existingDb != nil {
-		return fmt.Errorf("database with name '%s' already exists (id: %s, status: %s)", c.Name, existingDb.ID, existingDb.Status)
+		cleanupBlackhole()
+		return fmt.Errorf("cluster with name '%s' already exists (id: %s, status: %s)", c.Name, existingDb.ID, existingDb.Status)
 	}
 
 	// Build infrastructure
@@ -244,7 +275,7 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		},
 	}
 
-	request := cloud.CreateDatabaseRequest{
+	request := cloud.CreateClusterRequest{
 		Name:             c.Name,
 		DataPlaneVersion: c.DataPlaneVersion,
 		Infrastructure:   infrastructure,
@@ -263,45 +294,54 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 			logger.Info("  VPC ID: %s", c.VPCID)
 			logger.Info("  VPC Region: %s", vpcRegion)
 			logger.Info("  VPC CIDR: %s", cidr)
-			logger.Info("  Cloud Database CIDR: %s", cloudCIDR)
+			logger.Info("  Cloud Cluster CIDR: %s", cloudCIDR)
 			logger.Info("  AWS Account ID: %s", accountId)
 			logger.Info("")
 		}
 
-		// Print database creation request
+		// Print cluster creation request
 		requestJson, err := json.MarshalIndent(request, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal request for dry-run: %w", err)
 		}
-		logger.Info("Would create database with following data:")
+		logger.Info("Would create cluster with following data:")
 		logger.Info("%s", string(requestJson))
 		logger.Info("")
 
 		// Print VPC peering details
 		if c.VPCID != "" {
-			peeringRequest := cloud.CreateVPCPeeringRequest{
-				VpcID:              c.VPCID,
-				CIDRBlock:          cidr,
-				AccountID:          accountId,
-				Region:             vpcRegion,
-				IsSecureConnection: true,
-			}
-			peeringJson, err := json.MarshalIndent(peeringRequest, "", "  ")
-			if err != nil {
-				return fmt.Errorf("failed to marshal peering request for dry-run: %w", err)
-			}
-			logger.Info("Would peer VPCs with following request:")
-			logger.Info("%s", string(peeringJson))
+			logger.Info("Would perform the following steps:")
+			logger.Info("  1. Create blackhole route in VPC %s for cloud CIDR %s (to lock CIDR and prevent race conditions)", c.VPCID, cloudCIDR)
+			logger.Info("  2. Create cluster in Aerospike Cloud")
+			logger.Info("  3. Delegate VPC peering to 'cloud clusters peer-vpc' with:")
+			logger.Info("       cluster-id=<new-cluster-id>")
+			logger.Info("       vpc-id=%s", c.VPCID)
+			logger.Info("       force-route-creation=%t", c.ForceRouteCreation)
+			logger.Info("       (pre-resolved: vpc-cidr=%s, account-id=%s, vpc-region=%s)", cidr, accountId, vpcRegion)
+			logger.Info("     The peer-vpc command will:")
+			logger.Info("       a. Initiate VPC peering request to Aerospike Cloud")
+			logger.Info("       b. Accept VPC peering connection in AWS")
+			logger.Info("       c. Replace blackhole route with peering route")
+			logger.Info("       d. Associate VPC with private hosted zone for DNS resolution")
 			logger.Info("")
-
-			logger.Info("Would perform the following additional steps:")
-			logger.Info("  1. Wait for database provisioning")
-			logger.Info("  2. Initiate VPC peering request to Aerospike Cloud")
-			logger.Info("  3. Accept VPC peering connection in AWS")
-			logger.Info("  4. Create route in VPC %s for cloud CIDR %s", c.VPCID, cloudCIDR)
-			logger.Info("  5. Associate VPC with private hosted zone for DNS resolution")
+			logger.Info("Note: If any step fails, the blackhole route will be automatically cleaned up.")
 		} else {
-			logger.Info("Would wait for database provisioning (no VPC peering configured)")
+			logger.Info("Would wait for cluster provisioning (no VPC peering configured)")
+		}
+
+		// Print credentials creation info
+		logger.Info("")
+		if c.Credentials != "" {
+			parts := strings.SplitN(c.Credentials, ":", 2)
+			if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+				logger.Info("Would create cluster credentials:")
+				logger.Info("  Username: %s", parts[0])
+				logger.Info("  Password: [provided]")
+				logger.Info("  Roles: read-write")
+			}
+		} else {
+			logger.Info("No credentials specified (--credentials flag not provided)")
+			logger.Info("Credentials will need to be created manually after cluster creation")
 		}
 
 		logger.Info("")
@@ -313,140 +353,52 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 
 	err = client.Post(cloudDbPath, request, &result)
 	if err != nil {
+		cleanupBlackhole()
 		return err
 	}
 	dbId := result.(map[string]interface{})["id"].(string)
 
-	logger.Info("Database create queued: %s", dbId)
+	logger.Info("Cluster create queued: %s", dbId)
 	fmt.Printf("db-id=%s\n", dbId)
 	// json-dump result in logger.Debug for debugging purposes
 	resultJson, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		logger.Error("failed to marshal database creation result for logging purposes: %s", err.Error())
+		logger.Error("failed to marshal cluster creation result for logging purposes: %s", err.Error())
 	}
-	logger.Debug("Database creation result:\n%s", string(resultJson))
+	logger.Debug("Cluster creation result:\n%s", string(resultJson))
 
-	// initiate VPC peering
+	// Setup VPC peering if VPC-ID was specified
 	if c.VPCID != "" {
-		logger.Info("Initiating VPC peering for database=%s, vpcId=%s, cidr=%s, accountId=%s, vpcRegion=%s, isSecureConnection=%t", dbId, c.VPCID, cidr, accountId, vpcRegion, true)
-		logger.Info("This process may take up to an hour, as the database is being created and then the VPC peering will be initialized...")
-		var reqId string
-		err = c.retry(logger, func() error {
-			reqId, err = c.initiateVPCPeering(system, inventory, dbId, cidr, accountId, vpcRegion, logger)
-			return err
-		}, dbId)
+		logger.Info("Setting up VPC peering for cluster=%s, vpcId=%s", dbId, c.VPCID)
+		logger.Info("This process may take up to an hour, as the cluster is being created and then the VPC peering will be initialized...")
+
+		// Delegate to PeerVPC command with pre-resolved values
+		peerCmd := &CloudClustersPeerVPCCmd{
+			ClusterID:            dbId,
+			VPCID:                c.VPCID,
+			ForceRouteCreation:   c.ForceRouteCreation,
+			PreResolvedVPCCIDR:   cidr,
+			PreResolvedAccountID: accountId,
+			PreResolvedVPCRegion: vpcRegion,
+			CleanupOnError:       cleanupBlackhole,
+		}
+		err = peerCmd.PeerVPC(system, inventory, args, stdin, stdout, stderr, logger)
 		if err != nil {
-			return fmt.Errorf("failed to initiate VPC peering: %w", err)
+			return fmt.Errorf("failed to setup VPC peering: %w", err)
 		}
-		logger.Info("Accepting VPC peering for reqId: %s", reqId)
-		err = c.retry(logger, func() error {
-			return system.Backend.AcceptVPCPeering(backends.BackendTypeAWS, reqId)
-		}, dbId)
-		if err != nil {
-			return fmt.Errorf("failed to accept VPC peering: %w", err)
-		}
-		logger.Info("VPC peering accepted, reqId: %s", reqId)
-
-		// Get the database to extract CIDR block
-		logger.Info("Getting database information to extract CIDR block...")
-		var dbResult interface{}
-		dbPath := fmt.Sprintf("%s/%s", cloudDbPath, dbId)
-		err = client.Get(dbPath, &dbResult)
-		if err != nil {
-			return fmt.Errorf("failed to get database information: %w", err)
-		}
-
-		// Extract CIDR block from infrastructure
-		dbMap, ok := dbResult.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("unexpected database response type: %T", dbResult)
-		}
-
-		infrastructure, ok := dbMap["infrastructure"].(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("infrastructure field not found or invalid in database response")
-		}
-
-		cidrBlock, ok := infrastructure["cidrBlock"].(string)
-		if !ok || cidrBlock == "" {
-			return fmt.Errorf("cidrBlock field not found or invalid in infrastructure")
-		}
-
-		logger.Info("Found CIDR block: %s", cidrBlock)
-
-		// Create route in the VPC
-		logger.Info("Creating route in VPC %s for CIDR block %s via peering connection %s", c.VPCID, cidrBlock, reqId)
-		err = c.retry(logger, func() error {
-			return system.Backend.CreateRoute(backends.BackendTypeAWS, c.VPCID, reqId, cidrBlock, c.ForceRouteCreation)
-		}, dbId)
-		if err != nil {
-			return fmt.Errorf("failed to create route: %w", err)
-		}
-		logger.Info("Route created successfully")
-
-		// Get VPC peerings list to extract hosted zone ID
-		logger.Info("Getting VPC peerings list to extract hosted zone ID...")
-		var peeringsResult interface{}
-		peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, dbId)
-		err = client.Get(peeringsPath, &peeringsResult)
-		if err != nil {
-			return fmt.Errorf("failed to get VPC peerings list: %w", err)
-		}
-
-		peeringsMap, ok := peeringsResult.(map[string]interface{})
-		if !ok {
-			return fmt.Errorf("unexpected VPC peerings response type: %T", peeringsResult)
-		}
-
-		peerings, ok := peeringsMap["vpcPeerings"].([]interface{})
-		if !ok {
-			return fmt.Errorf("vpcPeerings field not found or invalid in response")
-		}
-
-		// Find the peering that matches our VPC ID
-		var hostedZoneID string
-		for _, peering := range peerings {
-			peeringMap, ok := peering.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			peeringVpcID, ok := peeringMap["vpcId"].(string)
-			if !ok || peeringVpcID != c.VPCID {
-				continue
-			}
-
-			// Found our peering, extract hosted zone ID
-			if privateHostedZoneId, ok := peeringMap["privateHostedZoneId"].(string); ok && privateHostedZoneId != "" {
-				hostedZoneID = privateHostedZoneId
-				logger.Info("Found hosted zone ID: %s", hostedZoneID)
-				break
-			}
-		}
-
-		if hostedZoneID == "" {
-			logger.Warn("Hosted zone ID not found in VPC peerings, skipping VPC-hosted zone association")
-		} else {
-			// Associate VPC with hosted zone
-			logger.Info("Associating VPC %s with hosted zone %s in region %s", c.VPCID, hostedZoneID, vpcRegion)
-			err = c.retry(logger, func() error {
-				return system.Backend.AssociateVPCWithHostedZone(backends.BackendTypeAWS, hostedZoneID, c.VPCID, vpcRegion)
-			}, dbId)
-			if err != nil {
-				return fmt.Errorf("failed to associate VPC with hosted zone: %w", err)
-			}
-			logger.Info("VPC-hosted zone association completed successfully")
-		}
+		// VPC peering completed successfully - blackhole has been replaced with real route
+		blackholeCreated = false
+		logger.Info("VPC peering setup completed successfully")
 	} else {
-		// Wait for the database to be provisioned
-		logger.Info("Waiting for database to be provisioned.")
+		// Wait for the cluster to be provisioned
+		logger.Info("Waiting for cluster to be provisioned.")
 		logger.Info("This process may take up to an hour...")
-		err = c.waitForDatabaseProvisioning(client, dbId, logger)
+		err = c.waitForClusterProvisioning(client, dbId, logger)
 		if err != nil {
-			return fmt.Errorf("failed to wait for database provisioning: %w", err)
+			return fmt.Errorf("failed to wait for cluster provisioning: %w", err)
 		}
-		logger.Info("Database provisioned successfully")
-		logger.Warn("VPC-ID was not specified. To be able to connect to the database, you will need to peer the VPC to the database using the 'cloud db peer-vpc' command.")
+		logger.Info("Cluster provisioned successfully")
+		logger.Warn("VPC-ID was not specified. To be able to connect to the cluster, you will need to peer the VPC to the cluster using the 'cloud clusters peer-vpc' command.")
 	}
 
 	// Handle credentials creation at the very end
@@ -459,74 +411,43 @@ func (c *CloudDatabasesCreateCmd) CreateCloudDb(system *System, inventory *backe
 		username := parts[0]
 		password := parts[1]
 
-		logger.Info("Creating database credentials for user: %s", username)
-		credCmd := &CloudDatabasesCredentialsCreateCmd{
-			DatabaseID: dbId,
-			Username:   username,
-			Password:   password,
-			Privileges: "read-write",
-			Wait:       true,
+		logger.Info("Creating cluster credentials for user: %s", username)
+		credCmd := &CloudClustersCredentialsCreateCmd{
+			ClusterID: dbId,
+			Username:  username,
+			Password:  password,
+			Roles:     []string{"read-write"},
+			Wait:      true,
 		}
 		err = credCmd.CreateCloudCredentials(system)
 		if err != nil {
-			return fmt.Errorf("failed to create database credentials: %w", err)
+			return fmt.Errorf("failed to create cluster credentials: %w", err)
 		}
-		logger.Info("Database credentials created successfully")
+		logger.Info("Cluster credentials created successfully")
 	} else {
-		logger.Warn("No credentials specified. To create credentials, run: aerolab cloud databases credentials create -d %s -u USERNAME -p PASSWORD --wait", dbId)
+		logger.Warn("No credentials specified. To create credentials, run: aerolab cloud clusters credentials create -c %s -u USERNAME -p PASSWORD --wait", dbId)
 	}
 
 	return nil
 }
 
-func (c *CloudDatabasesCreateCmd) initiateVPCPeering(system *System, inventory *backends.Inventory, dbId string, cidr string, accountId string, region string, logger *logger.Logger) (string, error) {
-	client, err := cloud.NewClient(cloudVersion)
-	if err != nil {
-		return "", err
-	}
-
-	request := cloud.CreateVPCPeeringRequest{
-		VpcID:              c.VPCID,
-		CIDRBlock:          cidr,
-		AccountID:          accountId,
-		Region:             region,
-		IsSecureConnection: true,
-	}
-	var result interface{}
-
-	path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, dbId)
-	err = client.Post(path, request, &result)
-	if err != nil {
-		return "", err
-	}
-
-	// Wait for the peering to be initiated so that we can get the peeringId from it
-	// The post response doesn't include the peeringId, it's all async
-	peeringId, err := c.waitForVPCPeeringInitiated(client, dbId, c.VPCID, logger)
-	if err != nil {
-		return "", fmt.Errorf("failed to wait for VPC peering initiation: %w", err)
-	}
-
-	return peeringId, nil
-}
-
-// waitForDatabaseProvisioning waits for the database to finish provisioning
-// It polls the database status until health.status != "provisioning"
-func (c *CloudDatabasesCreateCmd) waitForDatabaseProvisioning(client *cloud.Client, dbId string, logger *logger.Logger) error {
+// waitForClusterProvisioning waits for the cluster to finish provisioning
+// It polls the cluster status until health.status != "provisioning"
+func (c *CloudClustersCreateCmd) waitForClusterProvisioning(client *cloud.Client, dbId string, logger *logger.Logger) error {
 	timeout := time.Hour
 	interval := 10 * time.Second
 	startTime := time.Now()
 
 	for {
 		if time.Since(startTime) > timeout {
-			return fmt.Errorf("timeout waiting for database provisioning after %v", timeout)
+			return fmt.Errorf("timeout waiting for cluster provisioning after %v", timeout)
 		}
 
 		var result interface{}
 		path := fmt.Sprintf("%s/%s", cloudDbPath, dbId)
 		err := client.Get(path, &result)
 		if err != nil {
-			return fmt.Errorf("failed to get database status: %w", err)
+			return fmt.Errorf("failed to get cluster status: %w", err)
 		}
 
 		resultMap, ok := result.(map[string]interface{})
@@ -544,153 +465,43 @@ func (c *CloudDatabasesCreateCmd) waitForDatabaseProvisioning(client *cloud.Clie
 			return fmt.Errorf("health.status field not found or invalid in response")
 		}
 
-		logger.Debug("Database status: %s", status)
+		logger.Debug("Cluster status: %s", status)
 
 		if status != "provisioning" {
-			logger.Info("Database provisioning complete, status: %s", status)
+			logger.Info("Cluster provisioning complete, status: %s", status)
 			return nil
 		}
 
-		logger.Debug("Database still provisioning, waiting %v...", interval)
+		logger.Debug("Cluster still provisioning, waiting %v...", interval)
 		time.Sleep(interval)
 	}
 }
 
-// waitForVPCPeeringInitiated waits for the VPC peering to be initiated
-// It polls the VPC peerings list until status != "initiating-request" and peeringId != ""
-func (c *CloudDatabasesCreateCmd) waitForVPCPeeringInitiated(client *cloud.Client, dbId string, vpcId string, logger *logger.Logger) (string, error) {
-	timeout := time.Hour
-	interval := 10 * time.Second
-	startTime := time.Now()
-
-	for {
-		if time.Since(startTime) > timeout {
-			return "", fmt.Errorf("timeout waiting for VPC peering initiation after %v", timeout)
-		}
-
-		var result interface{}
-		path := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, dbId)
-		err := client.Get(path, &result)
-		if err != nil {
-			return "", fmt.Errorf("failed to get VPC peerings list: %w", err)
-		}
-
-		resultMap, ok := result.(map[string]interface{})
-		if !ok {
-			return "", fmt.Errorf("unexpected response type from peerings list: %T", result)
-		}
-
-		peerings, ok := resultMap["vpcPeerings"].([]interface{})
-		if !ok {
-			// Try alternative field name
-			peerings, ok = resultMap["vpc_peerings"].([]interface{})
-		}
-		if !ok {
-			logger.Debug("No peerings found yet, waiting %v...", interval)
-			time.Sleep(interval)
-			continue
-		}
-
-		// Find the peering that matches our VPC ID
-		for _, peering := range peerings {
-			peeringMap, ok := peering.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			// Check if this peering matches our VPC ID
-			peeringVpcID, ok := peeringMap["vpcId"].(string)
-			if !ok {
-				// Try alternative field name
-				peeringVpcID, _ = peeringMap["vpc_id"].(string)
-			}
-
-			if peeringVpcID == vpcId {
-				// Found our peering, check status and peeringId
-				status, _ := peeringMap["status"].(string)
-				peeringId, _ := peeringMap["peeringId"].(string)
-
-				logger.Debug("VPC peering status: %s, peeringId: %s", status, peeringId)
-
-				if status != "initiating-request" && peeringId != "" {
-					logger.Info("VPC peering initiated, peeringId: %s, status: %s", peeringId, status)
-					return peeringId, nil
-				}
-
-				logger.Debug("VPC peering still initiating, waiting %v...", interval)
-				time.Sleep(interval)
-				break
-			}
-		}
-
-		// Peering not found yet, wait and retry
-		logger.Debug("VPC peering not found in list yet, waiting %v...", interval)
-		time.Sleep(interval)
-	}
-}
-
-func (c *CloudDatabasesCreateCmd) retry(logger *logger.Logger, fn func() error, dbId string) error {
-	for {
-		err := fn()
-		if err == nil {
-			return nil
-		}
-		if !IsInteractive() {
-			return err
-		}
-		logger.Error("%s", err.Error())
-		opts, quitting, quittingErr := choice.Choice("Retry Peering, Quit, or Rollback Database Creation?", choice.Items{
-			choice.Item("Retry"),
-			choice.Item("Quit"),
-			choice.Item("Rollback"),
-		})
-		if quittingErr != nil {
-			return fmt.Errorf("failed to get user choice: %s", quittingErr.Error())
-		}
-		if quitting || opts == "Quit" {
-			return errors.New("user chose to quit")
-		}
-		if opts == "Rollback" {
-			delDb := &CloudDatabasesDeleteCmd{
-				DatabaseID: dbId,
-			}
-			rollbackErr := delDb.Execute(nil)
-			if rollbackErr != nil {
-				return fmt.Errorf("failed to rollback database creation: %s", rollbackErr.Error())
-			}
-			return err
-		}
-		if opts == "Retry" {
-			continue
-		}
-	}
-}
-
-// existingDatabase holds basic info about an existing database
-type existingDatabase struct {
+// existingCluster holds basic info about an existing cluster
+type existingCluster struct {
 	ID     string
 	Name   string
 	Status string
 }
 
-// getDatabaseByName checks if a database with the given name already exists
-// Returns nil if no database with that name exists
-func (c *CloudDatabasesCreateCmd) getDatabaseByName(client *cloud.Client, name string) (*existingDatabase, error) {
+// getClusterByName checks if a cluster with the given name already exists
+// Returns nil if no cluster with that name exists
+func (c *CloudClustersCreateCmd) getClusterByName(client *cloud.Client, name string) (*existingCluster, error) {
 	var result map[string]interface{}
-	// Exclude decommissioned databases from the check
+	// Exclude decommissioned clusters from the check
 	path := cloudDbPath + "?status_ne=decommissioned"
 	err := client.Get(path, &result)
 	if err != nil {
 		return nil, err
 	}
 
-	databases, ok := result["databases"].([]interface{})
+	clusters, ok := result["clusters"].([]interface{})
 	if !ok {
-		// No databases found
+		// No clusters found
 		return nil, nil
 	}
 
-	for _, db := range databases {
+	for _, db := range clusters {
 		dbMap, ok := db.(map[string]interface{})
 		if !ok {
 			continue
@@ -704,7 +515,7 @@ func (c *CloudDatabasesCreateCmd) getDatabaseByName(client *cloud.Client, name s
 			if health, ok := dbMap["health"].(map[string]interface{}); ok {
 				status, _ = health["status"].(string)
 			}
-			return &existingDatabase{
+			return &existingCluster{
 				ID:     dbID,
 				Name:   dbName,
 				Status: status,

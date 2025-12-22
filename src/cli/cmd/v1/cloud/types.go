@@ -71,41 +71,62 @@ type CreateSecretRequest struct {
 	Value       string `json:"value"`
 }
 
-// Database Types
-type DatabaseStatus string
+// Cluster Types (formerly Database Types)
+type ClusterStatus string
 
 const (
-	DatabaseStatusCreating        DatabaseStatus = "creating"
-	DatabaseStatusRunning         DatabaseStatus = "running"
-	DatabaseStatusStopping        DatabaseStatus = "stopping"
-	DatabaseStatusStopped         DatabaseStatus = "stopped"
-	DatabaseStatusStarting        DatabaseStatus = "starting"
-	DatabaseStatusUpdating        DatabaseStatus = "updating"
-	DatabaseStatusDeleting        DatabaseStatus = "deleting"
-	DatabaseStatusDeleted         DatabaseStatus = "deleted"
-	DatabaseStatusFailed          DatabaseStatus = "failed"
-	DatabaseStatusDecommissioned  DatabaseStatus = "decommissioned"
-	DatabaseStatusDecommissioning DatabaseStatus = "decommissioning"
+	ClusterStatusNotAvailable    ClusterStatus = "not-available"
+	ClusterStatusProvisioning    ClusterStatus = "provisioning"
+	ClusterStatusActive          ClusterStatus = "active"
+	ClusterStatusUpdating        ClusterStatus = "updating"
+	ClusterStatusDecommissioning ClusterStatus = "decommissioning"
+	ClusterStatusDecommissioned  ClusterStatus = "decommissioned"
+	ClusterStatusPausing         ClusterStatus = "pausing"
+	ClusterStatusPaused          ClusterStatus = "paused"
+	ClusterStatusResuming        ClusterStatus = "resuming"
+	ClusterStatusActionRequired  ClusterStatus = "action-required"
+	ClusterStatusConfigError     ClusterStatus = "config-error"
+	ClusterStatusUsageExceeded   ClusterStatus = "usage-exceeded"
+	ClusterStatusMultiple        ClusterStatus = "multiple"
+	ClusterStatusUnknown         ClusterStatus = "unknown"
 )
 
-type Database struct {
+// ClusterState represents the state of the cluster
+type ClusterState string
+
+const (
+	ClusterStateOnline      ClusterState = "ONLINE"
+	ClusterStateOffline     ClusterState = "OFFLINE"
+	ClusterStateUnspecified ClusterState = "UNSPECIFIED"
+)
+
+// Cluster represents a cluster in the Aerospike Cloud
+type Cluster struct {
 	ID            string         `json:"id"`
 	Name          string         `json:"name"`
-	Status        DatabaseStatus `json:"status"`
 	CloudProvider string         `json:"cloudProvider"`
 	Region        string         `json:"region"`
 	CreatedAt     string         `json:"createdAt"`
 	UpdatedAt     string         `json:"updatedAt"`
+	Health        *ClusterHealth `json:"health,omitempty"`
 }
 
-type DatabaseCollection struct {
-	Databases []Database `json:"databases"`
-	Total     int        `json:"total"`
+// ClusterHealth contains health information for a cluster
+type ClusterHealth struct {
+	State  ClusterState  `json:"state"`
+	Status ClusterStatus `json:"status"`
 }
 
-type DatabaseFull struct {
-	Database
-	// Add additional fields as needed based on the full database schema
+// ClusterCollection represents the response from listing clusters
+type ClusterCollection struct {
+	Clusters []Cluster `json:"clusters"`
+	Count    int       `json:"count"`
+}
+
+// ClusterFull represents a full cluster response with additional details
+type ClusterFull struct {
+	Cluster
+	// Add additional fields as needed based on the full cluster schema
 }
 
 // Infrastructure Types
@@ -194,8 +215,8 @@ type AerospikeXDR struct {
 	// Define based on the actual schema
 }
 
-// Complete Database Create Request
-type CreateDatabaseRequest struct {
+// CreateClusterRequest is the request body for creating a cluster
+type CreateClusterRequest struct {
 	Name             string           `json:"name"`
 	DataPlaneVersion string           `json:"dataPlaneVersion,omitempty"`
 	Infrastructure   Infrastructure   `json:"infrastructure"`
@@ -203,7 +224,8 @@ type CreateDatabaseRequest struct {
 	AerospikeServer  *AerospikeServer `json:"aerospikeServer,omitempty"`
 }
 
-type UpdateDatabaseRequest struct {
+// UpdateClusterRequest is the request body for updating a cluster
+type UpdateClusterRequest struct {
 	Name             string           `json:"name,omitempty"`
 	DataPlaneVersion string           `json:"dataPlaneVersion,omitempty"`
 	Infrastructure   *Infrastructure  `json:"infrastructure,omitempty"`
@@ -211,20 +233,23 @@ type UpdateDatabaseRequest struct {
 	AerospikeServer  *AerospikeServer `json:"aerospikeServer,omitempty"`
 }
 
-// Database Credentials Types
-type DatabaseCredentials struct {
-	ID         string `json:"id"`
-	Username   string `json:"username"`
-	Password   string `json:"password,omitempty"`
-	Privileges string `json:"privileges"`
+// Cluster Credentials Types
+type ClusterCredentials struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Status    string   `json:"status,omitempty"`
+	Roles     []string `json:"roles,omitempty"`
+	CreatedAt string   `json:"createdAt,omitempty"`
 }
 
-type DatabaseCredentialsCollection struct {
-	Credentials []DatabaseCredentials `json:"credentials"`
-	Total       int                   `json:"total"`
+// ClusterCredentialsCollection represents the response from listing cluster credentials
+type ClusterCredentialsCollection struct {
+	Credentials []ClusterCredentials `json:"credentials"`
+	Count       int                  `json:"count"`
 }
 
-type CreateDatabaseCredentialsRequest struct {
+// CreateClusterCredentialsRequest is the request body for creating cluster credentials
+type CreateClusterCredentialsRequest struct {
 	Name     string   `json:"name"`
 	Password string   `json:"password"`
 	Roles    []string `json:"roles"`

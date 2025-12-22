@@ -78,7 +78,7 @@ func (c *CloudListInstanceTypesCmd) Execute(args []string) error {
 	}
 
 	var result CloudProvidersResponse
-	path := "/cloud-providers"
+	path := "/database/cloud-providers"
 
 	err = client.Get(path, &result)
 	if err != nil {
