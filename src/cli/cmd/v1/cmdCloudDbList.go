@@ -15,23 +15,23 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 )
 
-type CloudDatabasesListCmd struct {
+type CloudClustersListCmd struct {
 	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
 	TableTheme string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
 	SortBy     []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
 	Pager      bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
-	StatusNe   string   `long:"status-ne" description:"Filter databases to exclude specified statuses (comma-separated)" default:"decommissioned"`
+	StatusNe   string   `short:"n" long:"status-ne" description:"Filter clusters to exclude specified statuses (comma-separated)" default:"decommissioned"`
 	Help       HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-// DatabaseResponse represents the API response structure
-type DatabaseResponse struct {
-	Count     int        `json:"count"`
-	Databases []Database `json:"databases"`
+// ClusterResponse represents the API response structure
+type ClusterResponse struct {
+	Count    int       `json:"count"`
+	Clusters []Cluster `json:"clusters"`
 }
 
-// Database represents a single database entry
-type Database struct {
+// Cluster represents a single cluster entry
+type Cluster struct {
 	ID                string            `json:"id"`
 	Name              string            `json:"name"`
 	AerospikeCloud    AerospikeCloud    `json:"aerospikeCloud"`
@@ -71,7 +71,7 @@ type Infrastructure struct {
 	Region                string `json:"region"`
 }
 
-func (c *CloudDatabasesListCmd) Execute(args []string) error {
+func (c *CloudClustersListCmd) Execute(args []string) error {
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
 		return err
@@ -89,21 +89,21 @@ func (c *CloudDatabasesListCmd) Execute(args []string) error {
 		return err
 	}
 
-	// Convert raw result to DatabaseResponse
-	var result DatabaseResponse
+	// Convert raw result to ClusterResponse
+	var result ClusterResponse
 	jsonBytes, err := json.Marshal(rawResult)
 	if err != nil {
 		return fmt.Errorf("failed to marshal raw result: %w", err)
 	}
 	err = json.Unmarshal(jsonBytes, &result)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal to DatabaseResponse: %w", err)
+		return fmt.Errorf("failed to unmarshal to ClusterResponse: %w", err)
 	}
 
-	return c.formatOutput(result.Databases, rawResult, os.Stdout)
+	return c.formatOutput(result.Clusters, rawResult, os.Stdout)
 }
 
-func (c *CloudDatabasesListCmd) formatOutput(databases []Database, rawResult map[string]interface{}, out io.Writer) error {
+func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[string]interface{}, out io.Writer) error {
 	var err error
 	var page *pager.Pager
 
@@ -150,8 +150,8 @@ func (c *CloudDatabasesListCmd) formatOutput(databases []Database, rawResult map
 		enc.SetIndent("", "  ")
 		enc.Encode(rawResult)
 	case "text":
-		fmt.Fprintln(out, "Databases:")
-		for _, db := range databases {
+		fmt.Fprintln(out, "Clusters:")
+		for _, db := range clusters {
 			namespaceNames := c.getNamespaceNames(db.AerospikeServer.Namespaces)
 			createTime := c.formatTime(db.CreatedAt)
 			updateTime := c.formatTime(db.UpdatedAt)
@@ -168,7 +168,7 @@ func (c *CloudDatabasesListCmd) formatOutput(databases []Database, rawResult map
 		}
 		header := table.Row{"ID", "Name", "AZCount", "ClusterSize", "State", "Status", "DataStorage", "NamespaceNames", "InstanceType", "Region", "Host", "CreateTime", "UpdateTime"}
 		rows := []table.Row{}
-		for _, db := range databases {
+		for _, db := range clusters {
 			namespaceNames := c.getNamespaceNames(db.AerospikeServer.Namespaces)
 			createTime := c.formatTime(db.CreatedAt)
 			updateTime := c.formatTime(db.UpdatedAt)
@@ -196,14 +196,14 @@ func (c *CloudDatabasesListCmd) formatOutput(databases []Database, rawResult map
 				return err
 			}
 		}
-		title := printer.String("DATABASES")
+		title := printer.String("CLUSTERS")
 		fmt.Fprintln(out, t.RenderTable(title, header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil
 }
 
-func (c *CloudDatabasesListCmd) getNamespaceNames(namespaces []Namespace) string {
+func (c *CloudClustersListCmd) getNamespaceNames(namespaces []Namespace) string {
 	if len(namespaces) == 0 {
 		return ""
 	}
@@ -214,7 +214,7 @@ func (c *CloudDatabasesListCmd) getNamespaceNames(namespaces []Namespace) string
 	return strings.Join(names, ",")
 }
 
-func (c *CloudDatabasesListCmd) formatTime(timeStr string) string {
+func (c *CloudClustersListCmd) formatTime(timeStr string) string {
 	if timeStr == "" {
 		return ""
 	}

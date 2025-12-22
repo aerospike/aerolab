@@ -14,6 +14,26 @@ import (
 	"github.com/lithammer/shortuuid"
 )
 
+// isCloudCIDR checks if a CIDR block looks like an Aerospike Cloud database CIDR.
+// Cloud database CIDRs typically follow the pattern 10.x.0.0/19 (starting from 10.128.0.0/19).
+// This is used to identify placeholder routes that were created to reserve a CIDR.
+func isCloudCIDR(cidr string) bool {
+	// Cloud CIDRs are /19 blocks in the 10.x.0.0 range, typically starting from 10.128.0.0/19
+	if !strings.HasSuffix(cidr, "/19") {
+		return false
+	}
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return false
+	}
+	ip := ipNet.IP.To4()
+	if ip == nil {
+		return false
+	}
+	// Check if it's in the 10.x.0.0 range (first octet is 10, third and fourth octets are 0)
+	return ip[0] == 10 && ip[2] == 0 && ip[3] == 0
+}
+
 // AcceptVPCPeering accepts a VPC peering connection request.
 // This method accepts a VPC peering connection that is in the "pending-acceptance" state.
 // The caller must be the owner of the accepter VPC to perform this action.
@@ -299,16 +319,23 @@ func (s *b) CreateRoute(vpcID string, peeringConnectionID string, destinationCid
 		}
 
 		// Route exists but points to a different target
-		// Allow replacement if the route is a blackhole (State == "blackhole") or if force is true
+		// Allow replacement if:
+		// - The route is a blackhole (State == "blackhole")
+		// - The route is a placeholder (IGW target for cloud CIDRs like 10.*/19)
+		// - force is true
 		isBlackhole := existingRoute.State == types.RouteStateBlackhole
-		if !force && !isBlackhole {
+		isPlaceholder := strings.HasPrefix(existingGatewayId, "igw-") && isCloudCIDR(destinationCidrBlock)
+
+		if !force && !isBlackhole && !isPlaceholder {
 			return fmt.Errorf("route for %s already exists in route table %s but points to a different target (existing peering: %s, gateway: %s, nat: %s, instance: %s, interface: %s, transit: %s); use force=true to replace it",
 				destinationCidrBlock, targetRouteTableId, existingPeeringId, existingGatewayId, existingNatGatewayId, existingInstanceId, existingNetworkInterfaceId, existingTransitGatewayId)
 		}
 
-		// Force is true or route is blackhole, delete the existing route first
+		// Force is true, route is blackhole, or route is placeholder - delete the existing route first
 		if isBlackhole {
 			log.Detail("Route is blackhole, deleting existing route for %s in route table %s", destinationCidrBlock, targetRouteTableId)
+		} else if isPlaceholder {
+			log.Detail("Route is placeholder (IGW target for cloud CIDR), deleting existing route for %s in route table %s", destinationCidrBlock, targetRouteTableId)
 		} else {
 			log.Detail("Force=true, deleting existing route for %s in route table %s", destinationCidrBlock, targetRouteTableId)
 		}
@@ -481,6 +508,331 @@ func (s *b) DeleteRoute(vpcID string, peeringConnectionID string, destinationCid
 		log.Detail("Successfully deleted routes from %d route table(s) for VPC %s", deletedCount, vpcID)
 	} else {
 		log.Detail("No matching routes found to delete for VPC %s", vpcID)
+	}
+	return nil
+}
+
+// CreateBlackholeRoute creates a placeholder route in the route table(s) for the specified VPC.
+// Since AWS doesn't support creating true blackhole routes via API, this function creates
+// a placeholder route using the Internet Gateway (from the 0.0.0.0/0 route) as the target.
+// This reserves the CIDR block and prevents race conditions during cluster creation.
+// The placeholder route will be automatically replaced when CreateRoute is called with
+// a VPC peering connection for the same CIDR.
+//
+// Parameters:
+//   - vpcID: The ID of the VPC (e.g., "vpc-1234567890abcdef0")
+//   - destinationCidrBlock: The destination CIDR block to reserve (e.g., "10.130.0.0/19")
+//
+// Returns:
+//   - error: nil on success, or an error describing what failed
+//
+// Usage:
+//
+//	err := backend.CreateBlackholeRoute("vpc-1234567890abcdef0", "10.130.0.0/19")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+func (s *b) CreateBlackholeRoute(vpcID string, destinationCidrBlock string) error {
+	log := s.log.WithPrefix("CreateBlackholeRoute: job=" + shortuuid.New() + " ")
+	log.Detail("Start (vpcID=%s, cidr=%s)", vpcID, destinationCidrBlock)
+	defer log.Detail("End")
+
+	if vpcID == "" {
+		return fmt.Errorf("VPC ID cannot be empty")
+	}
+	if destinationCidrBlock == "" {
+		return fmt.Errorf("destination CIDR block cannot be empty")
+	}
+
+	// Get enabled zones to find which region the VPC is in
+	zones, err := s.ListEnabledZones()
+	if err != nil {
+		return fmt.Errorf("failed to get enabled zones: %w", err)
+	}
+	if len(zones) == 0 {
+		return fmt.Errorf("no enabled zones found")
+	}
+
+	// Try to find the VPC in each zone to determine which region to use
+	var ec2Cli *ec2.Client
+	for _, zone := range zones {
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			log.Detail("Failed to get EC2 client for zone %s: %s", zone, err)
+			continue
+		}
+
+		// Check if VPC exists in this zone
+		describeInput := &ec2.DescribeVpcsInput{
+			VpcIds: []string{vpcID},
+		}
+
+		describeResult, err := cli.DescribeVpcs(context.TODO(), describeInput)
+		if err != nil {
+			log.Detail("VPC %s not found in zone %s: %s", vpcID, zone, err)
+			continue
+		}
+
+		if len(describeResult.Vpcs) > 0 {
+			ec2Cli = cli
+			log.Detail("Found VPC %s in zone %s", vpcID, zone)
+			break
+		}
+	}
+
+	if ec2Cli == nil {
+		return fmt.Errorf("VPC %s not found in any enabled zone", vpcID)
+	}
+
+	// Get route tables associated with the VPC
+	describeRouteTablesInput := &ec2.DescribeRouteTablesInput{
+		Filters: []types.Filter{
+			{
+				Name:   aws.String("vpc-id"),
+				Values: []string{vpcID},
+			},
+		},
+	}
+
+	routeTablesResult, err := ec2Cli.DescribeRouteTables(context.TODO(), describeRouteTablesInput)
+	if err != nil {
+		return fmt.Errorf("failed to describe route tables for VPC %s: %w", vpcID, err)
+	}
+
+	if len(routeTablesResult.RouteTables) == 0 {
+		return fmt.Errorf("no route tables found for VPC %s", vpcID)
+	}
+
+	// Find the route table to use - prefer main route table, otherwise use first one
+	var targetRouteTable *types.RouteTable
+	var mainRouteTable *types.RouteTable
+	var firstRouteTable *types.RouteTable
+
+	for i := range routeTablesResult.RouteTables {
+		rt := &routeTablesResult.RouteTables[i]
+		log.Detail("Enum: vpcId=%s routeTableId=%s", aws.ToString(rt.VpcId), aws.ToString(rt.RouteTableId))
+
+		// Track the first route table we see
+		if firstRouteTable == nil {
+			firstRouteTable = rt
+		}
+
+		// Check if this is the main route table
+		if rt.Associations != nil {
+			for _, assoc := range rt.Associations {
+				if assoc.Main != nil && *assoc.Main {
+					mainRouteTable = rt
+					log.Detail("Found main route table: %s", aws.ToString(rt.RouteTableId))
+					break
+				}
+			}
+		}
+
+		// If we found the main route table, no need to continue searching
+		if mainRouteTable != nil {
+			break
+		}
+	}
+
+	// Determine which route table to use
+	if mainRouteTable != nil {
+		targetRouteTable = mainRouteTable
+		log.Detail("Using main route table: %s", aws.ToString(targetRouteTable.RouteTableId))
+	} else if firstRouteTable != nil {
+		targetRouteTable = firstRouteTable
+		log.Detail("No main route table found, using first available: %s", aws.ToString(targetRouteTable.RouteTableId))
+	} else {
+		return fmt.Errorf("no valid route tables found for VPC %s", vpcID)
+	}
+
+	targetRouteTableId := aws.ToString(targetRouteTable.RouteTableId)
+
+	// Check if a route with the same destination CIDR block already exists
+	if targetRouteTable.Routes != nil {
+		for i := range targetRouteTable.Routes {
+			route := &targetRouteTable.Routes[i]
+			routeDest := aws.ToString(route.DestinationCidrBlock)
+			if routeDest == destinationCidrBlock {
+				return fmt.Errorf("route for %s already exists in route table %s", destinationCidrBlock, targetRouteTableId)
+			}
+		}
+	}
+
+	// Find the Internet Gateway ID from the 0.0.0.0/0 route
+	// We use this IGW as a placeholder target since AWS doesn't support creating true blackhole routes via API
+	var internetGatewayId string
+	if targetRouteTable.Routes != nil {
+		for i := range targetRouteTable.Routes {
+			route := &targetRouteTable.Routes[i]
+			routeDest := aws.ToString(route.DestinationCidrBlock)
+			if routeDest == "0.0.0.0/0" {
+				gatewayId := aws.ToString(route.GatewayId)
+				if strings.HasPrefix(gatewayId, "igw-") {
+					internetGatewayId = gatewayId
+					log.Detail("Found Internet Gateway from 0.0.0.0/0 route: %s", internetGatewayId)
+					break
+				}
+			}
+		}
+	}
+
+	if internetGatewayId == "" {
+		return fmt.Errorf("no Internet Gateway found in route table %s (no 0.0.0.0/0 route with igw- target)", targetRouteTableId)
+	}
+
+	// Create placeholder route using the Internet Gateway
+	// This reserves the CIDR in the route table and will be replaced with the actual peering route later
+	createRouteInput := &ec2.CreateRouteInput{
+		RouteTableId:         aws.String(targetRouteTableId),
+		DestinationCidrBlock: aws.String(destinationCidrBlock),
+		GatewayId:            aws.String(internetGatewayId),
+	}
+
+	_, err = ec2Cli.CreateRoute(context.TODO(), createRouteInput)
+	if err != nil {
+		return fmt.Errorf("failed to create placeholder route in route table %s: %w", targetRouteTableId, err)
+	}
+	log.Detail("Successfully created placeholder route in route table %s: %s -> %s (IGW placeholder)", targetRouteTableId, destinationCidrBlock, internetGatewayId)
+
+	return nil
+}
+
+// DeleteBlackholeRoute deletes a placeholder/blackhole route from the route table(s) for the specified VPC.
+// This method deletes the route matching the destination CIDR block regardless of its target.
+// It's used to clean up reserved CIDRs when cluster creation fails.
+//
+// Parameters:
+//   - vpcID: The ID of the VPC (e.g., "vpc-1234567890abcdef0")
+//   - destinationCidrBlock: The destination CIDR block (e.g., "10.130.0.0/19")
+//
+// Returns:
+//   - error: nil on success, or an error describing what failed. If the route doesn't exist,
+//     this is treated as success (no-op).
+//
+// Usage:
+//
+//	err := backend.DeleteBlackholeRoute("vpc-1234567890abcdef0", "10.130.0.0/19")
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+func (s *b) DeleteBlackholeRoute(vpcID string, destinationCidrBlock string) error {
+	log := s.log.WithPrefix("DeleteBlackholeRoute: job=" + shortuuid.New() + " ")
+	log.Detail("Start (vpcID=%s, cidr=%s)", vpcID, destinationCidrBlock)
+	defer log.Detail("End")
+
+	if vpcID == "" {
+		return fmt.Errorf("VPC ID cannot be empty")
+	}
+	if destinationCidrBlock == "" {
+		return fmt.Errorf("destination CIDR block cannot be empty")
+	}
+
+	// Get enabled zones to find which region the VPC is in
+	zones, err := s.ListEnabledZones()
+	if err != nil {
+		return fmt.Errorf("failed to get enabled zones: %w", err)
+	}
+	if len(zones) == 0 {
+		return fmt.Errorf("no enabled zones found")
+	}
+
+	// Try to find the VPC in each zone to determine which region to use
+	var ec2Cli *ec2.Client
+	for _, zone := range zones {
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			log.Detail("Failed to get EC2 client for zone %s: %s", zone, err)
+			continue
+		}
+
+		// Check if VPC exists in this zone
+		describeInput := &ec2.DescribeVpcsInput{
+			VpcIds: []string{vpcID},
+		}
+
+		describeResult, err := cli.DescribeVpcs(context.TODO(), describeInput)
+		if err != nil {
+			log.Detail("VPC %s not found in zone %s: %s", vpcID, zone, err)
+			continue
+		}
+
+		if len(describeResult.Vpcs) > 0 {
+			ec2Cli = cli
+			log.Detail("Found VPC %s in zone %s", vpcID, zone)
+			break
+		}
+	}
+
+	if ec2Cli == nil {
+		return fmt.Errorf("VPC %s not found in any enabled zone", vpcID)
+	}
+
+	// Get route tables associated with the VPC
+	describeRouteTablesInput := &ec2.DescribeRouteTablesInput{
+		Filters: []types.Filter{
+			{
+				Name:   aws.String("vpc-id"),
+				Values: []string{vpcID},
+			},
+		},
+	}
+
+	routeTablesResult, err := ec2Cli.DescribeRouteTables(context.TODO(), describeRouteTablesInput)
+	if err != nil {
+		return fmt.Errorf("failed to describe route tables for VPC %s: %w", vpcID, err)
+	}
+
+	if len(routeTablesResult.RouteTables) == 0 {
+		log.Detail("No route tables found for VPC %s, nothing to delete", vpcID)
+		return nil
+	}
+
+	// Delete route from each route table that has a matching route (by CIDR only, regardless of target)
+	var deletedCount int
+	for _, rt := range routeTablesResult.RouteTables {
+		routeTableId := aws.ToString(rt.RouteTableId)
+
+		// Check if this route table has a route matching our CIDR
+		routeFound := false
+		if rt.Routes != nil {
+			for _, route := range rt.Routes {
+				routeDest := aws.ToString(route.DestinationCidrBlock)
+				if routeDest == destinationCidrBlock {
+					routeFound = true
+					break
+				}
+			}
+		}
+
+		if !routeFound {
+			log.Detail("Route not found in route table %s, skipping", routeTableId)
+			continue
+		}
+
+		// Delete the route
+		deleteRouteInput := &ec2.DeleteRouteInput{
+			RouteTableId:         aws.String(routeTableId),
+			DestinationCidrBlock: aws.String(destinationCidrBlock),
+		}
+
+		_, err := ec2Cli.DeleteRoute(context.TODO(), deleteRouteInput)
+		if err != nil {
+			// Check if route doesn't exist (this is okay - might have been deleted already)
+			errStr := strings.ToLower(err.Error())
+			if strings.Contains(errStr, "does not exist") || strings.Contains(errStr, "not found") {
+				log.Detail("Route already deleted from route table %s, continuing", routeTableId)
+				continue
+			}
+			return fmt.Errorf("failed to delete route from route table %s: %w", routeTableId, err)
+		}
+		log.Detail("Successfully deleted placeholder route from route table %s: %s", routeTableId, destinationCidrBlock)
+		deletedCount++
+	}
+
+	if deletedCount > 0 {
+		log.Detail("Successfully deleted placeholder routes from %d route table(s) for VPC %s", deletedCount, vpcID)
+	} else {
+		log.Detail("No matching placeholder routes found to delete for VPC %s", vpcID)
 	}
 	return nil
 }

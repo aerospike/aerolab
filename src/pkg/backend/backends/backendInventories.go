@@ -141,6 +141,8 @@ type Cloud interface {
 	AcceptVPCPeering(peeringConnectionID string) error
 	CreateRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string, force bool) error
 	DeleteRoute(vpcID string, peeringConnectionID string, destinationCidrBlock string) error
+	CreateBlackholeRoute(vpcID string, destinationCidrBlock string) error
+	DeleteBlackholeRoute(vpcID string, destinationCidrBlock string) error
 	AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region string) error
 	GetVPCRouteCIDRs(vpcID string) ([]string, error)
 	FindAvailableCloudCIDR(vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error)
@@ -194,6 +196,8 @@ type Backend interface {
 	AcceptVPCPeering(backendType BackendType, peeringConnectionID string) error
 	CreateRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string, force bool) error
 	DeleteRoute(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) error
+	CreateBlackholeRoute(backendType BackendType, vpcID string, destinationCidrBlock string) error
+	DeleteBlackholeRoute(backendType BackendType, vpcID string, destinationCidrBlock string) error
 	AssociateVPCWithHostedZone(backendType BackendType, hostedZoneID string, vpcID string, region string) error
 	GetVPCRouteCIDRs(backendType BackendType, vpcID string) ([]string, error)
 	FindAvailableCloudCIDR(backendType BackendType, vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error)

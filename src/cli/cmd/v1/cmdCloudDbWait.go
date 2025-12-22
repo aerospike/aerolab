@@ -9,22 +9,22 @@ import (
 	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
 )
 
-type CloudDatabasesWaitCmd struct {
-	DatabaseID  string   `short:"i" long:"database-id" description:"Database ID"`
+type CloudClustersWaitCmd struct {
+	ClusterID   string   `short:"c" long:"cluster-id" description:"Cluster ID"`
 	Status      []string `short:"s" long:"status" description:"Wait for health.status to match any of these values (can be specified multiple times)"`
-	StatusNe    []string `long:"status-ne" description:"Wait for health.status to NOT match any of these values (can be specified multiple times)"`
-	WaitTimeout int      `long:"wait-timeout" description:"Timeout in seconds (0 = no timeout)" default:"3600"`
+	StatusNe    []string `short:"n" long:"status-ne" description:"Wait for health.status to NOT match any of these values (can be specified multiple times)"`
+	WaitTimeout int      `short:"t" long:"wait-timeout" description:"Timeout in seconds (0 = no timeout)" default:"3600"`
 	Help        HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
-	cmd := []string{"cloud", "databases", "wait"}
+func (c *CloudClustersWaitCmd) Execute(args []string) error {
+	cmd := []string{"cloud", "clusters", "wait"}
 	system, err := Initialize(&Init{InitBackend: false, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
-	if c.DatabaseID == "" {
-		return fmt.Errorf("database ID is required")
+	if c.ClusterID == "" {
+		return fmt.Errorf("cluster ID is required")
 	}
 	// Validate that at least one status option is provided
 	if len(c.Status) == 0 && len(c.StatusNe) == 0 {
@@ -40,7 +40,7 @@ func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
 	interval := 10 * time.Second
 	startTime := time.Now()
 
-	system.Logger.Info("Waiting for database %s health.status...", c.DatabaseID)
+	system.Logger.Info("Waiting for cluster %s health.status...", c.ClusterID)
 	if len(c.Status) > 0 {
 		system.Logger.Info("Waiting for status to match any of: %s", strings.Join(c.Status, ", "))
 	}
@@ -51,15 +51,15 @@ func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
 	for {
 		// Check timeout
 		if c.WaitTimeout > 0 && time.Since(startTime) > timeout {
-			return Error(fmt.Errorf("timeout waiting for database status after %v", timeout), system, cmd, c, args)
+			return Error(fmt.Errorf("timeout waiting for cluster status after %v", timeout), system, cmd, c, args)
 		}
 
-		// Get database by ID
+		// Get cluster by ID
 		var result interface{}
-		path := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
+		path := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
 		err := client.Get(path, &result)
 		if err != nil {
-			system.Logger.Debug("Failed to get database: %s, waiting %v...", err, interval)
+			system.Logger.Debug("Failed to get cluster: %s, waiting %v...", err, interval)
 			time.Sleep(interval)
 			continue
 		}
@@ -67,23 +67,23 @@ func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
 		// Parse the result to get health.status
 		resultBytes, err := json.Marshal(result)
 		if err != nil {
-			system.Logger.Debug("Failed to marshal result: %s, waiting %v...", err, interval)
+			system.Logger.Debug("Failed to marshal cluster result: %s, waiting %v...", err, interval)
 			time.Sleep(interval)
 			continue
 		}
 
-		var dbMap map[string]interface{}
-		err = json.Unmarshal(resultBytes, &dbMap)
+		var clusterMap map[string]interface{}
+		err = json.Unmarshal(resultBytes, &clusterMap)
 		if err != nil {
-			system.Logger.Debug("Failed to unmarshal result: %s, waiting %v...", err, interval)
+			system.Logger.Debug("Failed to unmarshal cluster result: %s, waiting %v...", err, interval)
 			time.Sleep(interval)
 			continue
 		}
 
 		// Get health.status
-		healthStatus, err := getHealthStatus(dbMap)
+		healthStatus, err := getHealthStatus(clusterMap)
 		if err != nil {
-			system.Logger.Debug("Failed to get health.status: %s, waiting %v...", err, interval)
+			system.Logger.Debug("Failed to get cluster health.status: %s, waiting %v...", err, interval)
 			time.Sleep(interval)
 			continue
 		}
@@ -130,11 +130,11 @@ func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
 		// Both conditions must be met (if both are specified)
 		if statusMatches && statusNeMatches {
 			if len(c.Status) > 0 && len(c.StatusNe) > 0 {
-				system.Logger.Info("Database health.status is now %s (matched --status and does not match --status-ne)", healthStatus)
+				system.Logger.Info("Cluster health.status is now %s (matched --status and does not match --status-ne)", healthStatus)
 			} else if len(c.Status) > 0 {
-				system.Logger.Info("Database health.status is now %s (matched --status)", healthStatus)
+				system.Logger.Info("Cluster health.status is now %s (matched --status)", healthStatus)
 			} else {
-				system.Logger.Info("Database health.status is now %s (does not match --status-ne)", healthStatus)
+				system.Logger.Info("Cluster health.status is now %s (does not match --status-ne)", healthStatus)
 			}
 			return Error(nil, system, cmd, c, args)
 		}
@@ -145,10 +145,10 @@ func (c *CloudDatabasesWaitCmd) Execute(args []string) error {
 	}
 }
 
-// getHealthStatus extracts health.status from the database response
-func getHealthStatus(dbMap map[string]interface{}) (string, error) {
+// getHealthStatus extracts health.status from the cluster response
+func getHealthStatus(clusterMap map[string]interface{}) (string, error) {
 	// Try health.status first
-	health, ok := dbMap["health"].(map[string]interface{})
+	health, ok := clusterMap["health"].(map[string]interface{})
 	if ok {
 		healthStatusVal, exists := health["status"]
 		if exists && healthStatusVal != nil {
@@ -160,10 +160,10 @@ func getHealthStatus(dbMap map[string]interface{}) (string, error) {
 	}
 
 	// Fallback to top-level status if health.status is not available
-	status, ok := dbMap["status"].(string)
+	status, ok := clusterMap["status"].(string)
 	if ok && status != "" {
 		return status, nil
 	}
 
-	return "", fmt.Errorf("health.status or status not found in database response")
+	return "", fmt.Errorf("health.status or status not found in cluster response")
 }

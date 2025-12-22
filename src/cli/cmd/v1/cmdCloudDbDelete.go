@@ -12,27 +12,27 @@ import (
 	"github.com/rglonek/logger"
 )
 
-type CloudDatabasesDeleteCmd struct {
-	Help       HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	DatabaseID string  `short:"d" long:"database-id" description:"Database ID"`
-	Wait       bool    `short:"w" long:"wait" description:"Wait until database status is decommissioned"`
-	Force      bool    `short:"f" long:"force" description:"Skip confirmation prompt"`
+type CloudClustersDeleteCmd struct {
+	Help      HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterID string  `short:"c" long:"cluster-id" description:"Cluster ID"`
+	Wait      bool    `short:"w" long:"wait" description:"Wait until cluster status is decommissioned"`
+	Force     bool    `short:"f" long:"force" description:"Skip confirmation prompt"`
 }
 
-func (c *CloudDatabasesDeleteCmd) Execute(args []string) error {
-	cmd := []string{"cloud", "db", "delete"}
+func (c *CloudClustersDeleteCmd) Execute(args []string) error {
+	cmd := []string{"cloud", "clusters", "delete"}
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
-	if c.DatabaseID == "" {
-		return fmt.Errorf("database ID is required")
+	if c.ClusterID == "" {
+		return fmt.Errorf("cluster ID is required")
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
 	// Ask for confirmation if interactive and not forced
 	if IsInteractive() && !c.Force {
-		choice, quitting, err := choice.Choice(fmt.Sprintf("Are you sure you want to delete database %s?", c.DatabaseID), choice.Items{
+		choice, quitting, err := choice.Choice(fmt.Sprintf("Are you sure you want to delete cluster %s?", c.ClusterID), choice.Items{
 			choice.Item("Yes"),
 			choice.Item("No"),
 		})
@@ -53,23 +53,23 @@ func (c *CloudDatabasesDeleteCmd) Execute(args []string) error {
 		return Error(err, system, cmd, c, args)
 	}
 
-	// Delete route before deleting database (only for AWS backend)
+	// Delete route before deleting cluster (only for AWS backend)
 	if system.Opts.Config.Backend.Type == "aws" {
 		err = c.deleteRouteIfExists(system, client, system.Logger)
 		if err != nil {
-			system.Logger.Warn("Failed to delete route before database deletion: %s", err.Error())
-			// Continue with database deletion even if route deletion fails
+			system.Logger.Warn("Failed to delete route before cluster deletion: %s", err.Error())
+			// Continue with cluster deletion even if route deletion fails
 		}
 	}
 
-	path := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
+	path := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
 	err = client.Delete(path)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
 
 	if c.Wait {
-		err = c.waitForDatabaseDecommissioned(client, c.DatabaseID)
+		err = c.waitForClusterDecommissioned(client, c.ClusterID)
 		if err != nil {
 			return Error(err, system, cmd, c, args)
 		}
@@ -80,26 +80,26 @@ func (c *CloudDatabasesDeleteCmd) Execute(args []string) error {
 }
 
 // deleteRouteIfExists deletes the route table entry if it exists.
-// This should be called before deleting the database to clean up the route.
-func (c *CloudDatabasesDeleteCmd) deleteRouteIfExists(system *System, client *cloud.Client, logger *logger.Logger) error {
-	// Get database information to extract CIDR block and region
-	logger.Info("Getting database information to extract route details...")
-	var dbResult interface{}
-	dbPath := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
-	err := client.Get(dbPath, &dbResult)
+// This should be called before deleting the cluster to clean up the route.
+func (c *CloudClustersDeleteCmd) deleteRouteIfExists(system *System, client *cloud.Client, logger *logger.Logger) error {
+	// Get cluster information to extract CIDR block and region
+	logger.Info("Getting cluster information to extract route details...")
+	var clusterResult interface{}
+	clusterPath := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
+	err := client.Get(clusterPath, &clusterResult)
 	if err != nil {
-		return fmt.Errorf("failed to get database information: %w", err)
+		return fmt.Errorf("failed to get cluster information: %w", err)
 	}
 
-	dbMap, ok := dbResult.(map[string]interface{})
+	clusterMap, ok := clusterResult.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected database response type: %T", dbResult)
+		return fmt.Errorf("unexpected cluster response type: %T", clusterResult)
 	}
 
 	// Extract CIDR block from infrastructure
-	infrastructure, ok := dbMap["infrastructure"].(map[string]interface{})
+	infrastructure, ok := clusterMap["infrastructure"].(map[string]interface{})
 	if !ok {
-		logger.Debug("Infrastructure field not found in database response, skipping route deletion")
+		logger.Debug("Infrastructure field not found in cluster response, skipping route deletion")
 		return nil
 	}
 
@@ -120,7 +120,7 @@ func (c *CloudDatabasesDeleteCmd) deleteRouteIfExists(system *System, client *cl
 	// Get VPC peerings to find peering connection ID and VPC ID
 	logger.Info("Getting VPC peerings to find peering connection details...")
 	var peeringsResult interface{}
-	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.DatabaseID)
+	peeringsPath := fmt.Sprintf("%s/%s/vpc-peerings", cloudDbPath, c.ClusterID)
 	err = client.Get(peeringsPath, &peeringsResult)
 	if err != nil {
 		logger.Debug("Failed to get VPC peerings list: %s, skipping route deletion", err.Error())
@@ -190,26 +190,26 @@ func (c *CloudDatabasesDeleteCmd) deleteRouteIfExists(system *System, client *cl
 	return nil
 }
 
-// waitForDatabaseDecommissioned polls the database list at 10 second intervals
-// until the database status is decommissioned
-func (c *CloudDatabasesDeleteCmd) waitForDatabaseDecommissioned(client *cloud.Client, databaseID string) error {
+// waitForClusterDecommissioned polls the cluster list at 10 second intervals
+// until the cluster status is decommissioned
+func (c *CloudClustersDeleteCmd) waitForClusterDecommissioned(client *cloud.Client, clusterID string) error {
 	timeout := time.Hour
 	interval := 10 * time.Second
 	startTime := time.Now()
 
-	fmt.Printf("Waiting for database %s to be decommissioned...\n", databaseID)
+	fmt.Printf("Waiting for cluster %s to be decommissioned...\n", clusterID)
 
 	for {
 		if time.Since(startTime) > timeout {
-			return fmt.Errorf("timeout waiting for database decommissioning after %v", timeout)
+			return fmt.Errorf("timeout waiting for cluster decommissioning after %v", timeout)
 		}
 
 		var result interface{}
-		// Call list endpoint without status_ne filter to include decommissioned databases
+		// Call list endpoint without status_ne filter to include decommissioned clusters
 		path := cloudDbPath
 		err := client.Get(path, &result)
 		if err != nil {
-			return fmt.Errorf("failed to get database list: %w", err)
+			return fmt.Errorf("failed to get cluster list: %w", err)
 		}
 
 		resultMap, ok := result.(map[string]interface{})
@@ -217,25 +217,25 @@ func (c *CloudDatabasesDeleteCmd) waitForDatabaseDecommissioned(client *cloud.Cl
 			return fmt.Errorf("unexpected response type: %T", result)
 		}
 
-		databases, ok := resultMap["databases"].([]interface{})
+		clusters, ok := resultMap["clusters"].([]interface{})
 		if !ok {
-			return fmt.Errorf("databases field not found or invalid in response")
+			return fmt.Errorf("clusters field not found or invalid in cluster response")
 		}
 
-		// Look for the database with the matching ID
+		// Look for the cluster with the matching ID
 		found := false
-		for _, db := range databases {
+		for _, db := range clusters {
 			dbMap, ok := db.(map[string]interface{})
 			if !ok {
 				continue
 			}
 
 			id, ok := dbMap["id"].(string)
-			if !ok || id != databaseID {
+			if !ok || id != clusterID {
 				continue
 			}
 
-			// Found the database, check its status
+			// Found the cluster, check its status
 			found = true
 
 			// Check status - try top-level status first, then health.status
@@ -261,26 +261,26 @@ func (c *CloudDatabasesDeleteCmd) waitForDatabaseDecommissioned(client *cloud.Cl
 
 			// If still not found, treat as decommissioned
 			if !statusOK || status == "" {
-				fmt.Printf("Database status field not found or null, assuming decommissioned\n")
-				fmt.Printf("Database decommissioned successfully\n")
+				fmt.Printf("Cluster status field not found or null, assuming decommissioned\n")
+				fmt.Printf("Cluster decommissioned successfully\n")
 				return nil
 			}
 
-			fmt.Printf("Database status: %s\n", status)
+			fmt.Printf("Cluster status: %s\n", status)
 
 			if status == "decommissioned" {
-				fmt.Printf("Database decommissioned successfully\n")
+				fmt.Printf("Cluster decommissioned successfully\n")
 				return nil
 			}
 
-			fmt.Printf("Database still %s, waiting %v...\n", status, interval)
+			fmt.Printf("Cluster still %s, waiting %v...\n", status, interval)
 			time.Sleep(interval)
 			break
 		}
 
-		// Database not found in list - assume it's already deleted/decommissioned
+		// Cluster not found in list - assume it's already deleted/decommissioned
 		if !found {
-			fmt.Printf("Database not found in list, assuming it's already decommissioned\n")
+			fmt.Printf("Cluster not found in list, assuming it's already decommissioned\n")
 			return nil
 		}
 	}

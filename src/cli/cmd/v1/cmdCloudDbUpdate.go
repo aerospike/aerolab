@@ -13,17 +13,17 @@ import (
 	"github.com/rglonek/logger"
 )
 
-type CloudDatabasesUpdateCmd struct {
-	DatabaseID   string  `short:"d" long:"database-id" description:"Database ID"`
-	Name         string  `short:"n" long:"name" description:"Name of the database"`
+type CloudClustersUpdateCmd struct {
+	ClusterID    string  `short:"c" long:"cluster-id" description:"Cluster ID"`
+	Name         string  `short:"n" long:"name" description:"Name of the cluster"`
 	InstanceType string  `short:"i" long:"instance-type" description:"Instance type (vertical scaling)"`
-	ClusterSize  int     `long:"cluster-size" description:"Number of nodes in cluster (horizontal scaling)"`
-	Wait         bool    `long:"wait" description:"Wait for database update to complete"`
+	ClusterSize  int     `short:"s" long:"cluster-size" description:"Number of nodes in cluster (horizontal scaling)"`
+	Wait         bool    `short:"w" long:"wait" description:"Wait for cluster update to complete"`
 	Help         HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *CloudDatabasesUpdateCmd) Execute(args []string) error {
-	cmd := []string{"cloud", "db", "update"}
+func (c *CloudClustersUpdateCmd) Execute(args []string) error {
+	cmd := []string{"cloud", "clusters", "update"}
 	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -37,7 +37,7 @@ func (c *CloudDatabasesUpdateCmd) Execute(args []string) error {
 		stderr = os.Stderr
 		stdin = io.NopCloser(os.Stdin)
 	}
-	err = c.UpdateCloudDb(system, system.Backend.GetInventory(), args, stdin, stdout, stderr, system.Logger)
+	err = c.UpdateCloudCluster(system, system.Backend.GetInventory(), args, stdin, stdout, stderr, system.Logger)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
 	}
@@ -45,13 +45,13 @@ func (c *CloudDatabasesUpdateCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *CloudDatabasesUpdateCmd) UpdateCloudDb(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
-	if c.DatabaseID == "" {
-		return fmt.Errorf("database ID is required")
+func (c *CloudClustersUpdateCmd) UpdateCloudCluster(system *System, inventory *backends.Inventory, args []string, stdin io.ReadCloser, stdout io.Writer, stderr io.Writer, logger *logger.Logger) error {
+	if c.ClusterID == "" {
+		return fmt.Errorf("cluster ID is required")
 	}
 	if system == nil {
 		var err error
-		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cloud", "db", "update"}, c, args...)
+		system, err = Initialize(&Init{InitBackend: true, ExistingInventory: inventory}, []string{"cloud", "clusters", "update"}, c, args...)
 		if err != nil {
 			return err
 		}
@@ -60,7 +60,7 @@ func (c *CloudDatabasesUpdateCmd) UpdateCloudDb(system *System, inventory *backe
 		logger = system.Logger
 	}
 
-	logger.Info("Updating cloud database: %s", c.DatabaseID)
+	logger.Info("Updating cloud cluster: %s", c.ClusterID)
 
 	// create cloud client
 	client, err := cloud.NewClient(cloudVersion)
@@ -69,7 +69,7 @@ func (c *CloudDatabasesUpdateCmd) UpdateCloudDb(system *System, inventory *backe
 	}
 
 	// Build update request - only include fields that are provided
-	request := cloud.UpdateDatabaseRequest{}
+	request := cloud.UpdateClusterRequest{}
 
 	if c.Name != "" {
 		request.Name = c.Name
@@ -112,58 +112,58 @@ func (c *CloudDatabasesUpdateCmd) UpdateCloudDb(system *System, inventory *backe
 	} else {
 		logger.Debug("Update request:\n%s", string(requestJson))
 	}
-	path := fmt.Sprintf("%s/%s", cloudDbPath, c.DatabaseID)
+	path := fmt.Sprintf("%s/%s", cloudDbPath, c.ClusterID)
 	err = client.Patch(path, request, &result)
 	if err != nil {
 		return err
 	}
 
-	logger.Info("Database update successfully queued")
+	logger.Info("Cluster update successfully queued")
 
-	// Extract database ID from result
+	// Extract cluster ID from result
 	resultMap, ok := result.(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("unexpected response type: %T", result)
+		return fmt.Errorf("unexpected cluster response type: %T", result)
 	}
 
-	databaseID, ok := resultMap["id"].(string)
+	clusterID, ok := resultMap["id"].(string)
 	if !ok {
-		return fmt.Errorf("id field not found or invalid in response")
+		return fmt.Errorf("id field not found or invalid in cluster response")
 	}
 
 	// Wait for update to complete if --wait is specified
 	if c.Wait {
-		logger.Info("Waiting for database update to complete...")
-		dbResult, err := c.waitForDatabaseUpdateComplete(client, databaseID, logger)
-		// Print the database result regardless of success or error
-		if dbResult != nil {
-			resultJson, err := json.MarshalIndent(dbResult, "", "  ")
+		logger.Info("Waiting for cluster update to complete...")
+		clusterResult, err := c.waitForClusterUpdateComplete(client, clusterID, logger)
+		// Print the cluster result regardless of success or error
+		if clusterResult != nil {
+			resultJson, err := json.MarshalIndent(clusterResult, "", "  ")
 			if err != nil {
-				logger.Error("failed to marshal database result for logging purposes: %s", err.Error())
+				logger.Error("failed to marshal cluster result for logging purposes: %s", err.Error())
 			} else {
-				logger.Info("Database update result:\n%s", string(resultJson))
+				logger.Info("Cluster update result:\n%s", string(resultJson))
 			}
 		}
 		if err != nil {
-			return fmt.Errorf("failed to wait for database update: %w", err)
+			return fmt.Errorf("failed to wait for cluster update: %w", err)
 		}
-		logger.Info("Database update completed")
+		logger.Info("Cluster update completed")
 	} else {
 		// json-dump result in logger.Debug for debugging purposes
 		resultJson, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			logger.Error("failed to marshal database update result for logging purposes: %s", err.Error())
+			logger.Error("failed to marshal cluster update result for logging purposes: %s", err.Error())
 		}
-		logger.Info("Database update result:\n%s", string(resultJson))
+		logger.Info("Cluster update result:\n%s", string(resultJson))
 	}
 
 	return nil
 }
 
-// waitForDatabaseUpdateComplete waits for the database update to complete
-// It polls the database list until status != "updating"
-// Returns the database result map and an error (if any)
-func (c *CloudDatabasesUpdateCmd) waitForDatabaseUpdateComplete(client *cloud.Client, databaseID string, logger *logger.Logger) (map[string]interface{}, error) {
+// waitForClusterUpdateComplete waits for the cluster update to complete
+// It polls the cluster list until status != "updating"
+// Returns the cluster result map and an error (if any)
+func (c *CloudClustersUpdateCmd) waitForClusterUpdateComplete(client *cloud.Client, clusterID string, logger *logger.Logger) (map[string]interface{}, error) {
 	timeout := time.Hour
 	interval := 10 * time.Second
 
@@ -172,82 +172,82 @@ func (c *CloudDatabasesUpdateCmd) waitForDatabaseUpdateComplete(client *cloud.Cl
 	time.Sleep(10 * time.Second)
 
 	startTime := time.Now()
-	var lastDatabaseResult map[string]interface{}
+	var lastClusterResult map[string]interface{}
 
 	for {
 		if time.Since(startTime) > timeout {
-			if lastDatabaseResult != nil {
-				return lastDatabaseResult, fmt.Errorf("timeout waiting for database update after %v", timeout)
+			if lastClusterResult != nil {
+				return lastClusterResult, fmt.Errorf("timeout waiting for cluster update after %v", timeout)
 			}
-			return nil, fmt.Errorf("timeout waiting for database update after %v", timeout)
+			return nil, fmt.Errorf("timeout waiting for cluster update after %v", timeout)
 		}
 
 		var result interface{}
 		path := cloudDbPath
 		err := client.Get(path, &result)
 		if err != nil {
-			if lastDatabaseResult != nil {
-				return lastDatabaseResult, fmt.Errorf("failed to get database list: %w", err)
+			if lastClusterResult != nil {
+				return lastClusterResult, fmt.Errorf("failed to get cluster list: %w", err)
 			}
-			return nil, fmt.Errorf("failed to get database list: %w", err)
+			return nil, fmt.Errorf("failed to get cluster list: %w", err)
 		}
 
 		resultMap, ok := result.(map[string]interface{})
 		if !ok {
-			if lastDatabaseResult != nil {
-				return lastDatabaseResult, fmt.Errorf("unexpected response type: %T", result)
+			if lastClusterResult != nil {
+				return lastClusterResult, fmt.Errorf("unexpected response type: %T", result)
 			}
 			return nil, fmt.Errorf("unexpected response type: %T", result)
 		}
 
-		databases, ok := resultMap["databases"].([]interface{})
+		clusters, ok := resultMap["clusters"].([]interface{})
 		if !ok {
-			if lastDatabaseResult != nil {
-				return lastDatabaseResult, fmt.Errorf("databases field not found or invalid in response")
+			if lastClusterResult != nil {
+				return lastClusterResult, fmt.Errorf("clusters field not found or invalid in response")
 			}
-			return nil, fmt.Errorf("databases field not found or invalid in response")
+			return nil, fmt.Errorf("clusters field not found or invalid in response")
 		}
 
-		// Look for the database with the matching ID
+		// Look for the cluster with the matching ID
 		found := false
-		for _, db := range databases {
+		for _, db := range clusters {
 			dbMap, ok := db.(map[string]interface{})
 			if !ok {
 				continue
 			}
 
 			id, ok := dbMap["id"].(string)
-			if !ok || id != databaseID {
+			if !ok || id != clusterID {
 				continue
 			}
 
-			// Found the database, check its status
+			// Found the cluster, check its status
 			found = true
-			lastDatabaseResult = dbMap // Store the last result
+			lastClusterResult = dbMap // Store the last result
 
 			status, ok := dbMap["status"].(string)
 			if !ok {
-				return lastDatabaseResult, fmt.Errorf("status field not found or invalid in response")
+				return lastClusterResult, fmt.Errorf("status field not found or invalid in response")
 			}
 
-			logger.Info("Database status: %s", status)
+			logger.Info("Cluster status: %s", status)
 
 			if status != "updating" {
-				logger.Info("Database update complete, status: %s", status)
-				return lastDatabaseResult, nil
+				logger.Info("Cluster update complete, status: %s", status)
+				return lastClusterResult, nil
 			}
 
-			logger.Info("Database still updating, waiting %v...", interval)
+			logger.Info("Cluster still updating, waiting %v...", interval)
 			time.Sleep(interval)
 			break
 		}
 
-		// Database not found in list
+		// Cluster not found in list
 		if !found {
-			if lastDatabaseResult != nil {
-				return lastDatabaseResult, fmt.Errorf("database %s not found in list", databaseID)
+			if lastClusterResult != nil {
+				return lastClusterResult, fmt.Errorf("cluster %s not found in list", clusterID)
 			}
-			return nil, fmt.Errorf("database %s not found in list", databaseID)
+			return nil, fmt.Errorf("cluster %s not found in list", clusterID)
 		}
 	}
 }

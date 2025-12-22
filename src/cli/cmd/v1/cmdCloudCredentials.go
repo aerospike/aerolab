@@ -9,14 +9,14 @@ import (
 	"github.com/rglonek/logger"
 )
 
-type CloudDatabasesCredentialsListCmd struct {
-	Help       HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	DatabaseID string  `short:"d" long:"database-id" description:"Database ID"`
+type CloudClustersCredentialsListCmd struct {
+	Help      HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterID string  `short:"c" long:"cluster-id" description:"Cluster ID"`
 }
 
-func (c *CloudDatabasesCredentialsListCmd) Execute(args []string) error {
-	if c.DatabaseID == "" {
-		return fmt.Errorf("database ID is required")
+func (c *CloudClustersCredentialsListCmd) Execute(args []string) error {
+	if c.ClusterID == "" {
+		return fmt.Errorf("cluster ID is required")
 	}
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
@@ -24,7 +24,7 @@ func (c *CloudDatabasesCredentialsListCmd) Execute(args []string) error {
 	}
 
 	var result interface{}
-	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.DatabaseID)
+	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.ClusterID)
 	err = client.Get(path, &result)
 	if err != nil {
 		return err
@@ -33,17 +33,17 @@ func (c *CloudDatabasesCredentialsListCmd) Execute(args []string) error {
 	return client.PrettyPrint(result)
 }
 
-type CloudDatabasesCredentialsCreateCmd struct {
-	Help       HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	DatabaseID string  `short:"d" long:"database-id" description:"Database ID"`
-	Username   string  `short:"u" long:"username" description:"Username"`
-	Password   string  `short:"p" long:"password" description:"Password"`
-	Privileges string  `short:"r" long:"privileges" description:"Privileges (read, write, read-write)" default:"read-write"`
-	Wait       bool    `long:"wait" description:"Wait for credentials to become active"`
+type CloudClustersCredentialsCreateCmd struct {
+	Help      HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	ClusterID string   `short:"c" long:"cluster-id" description:"Cluster ID"`
+	Username  string   `short:"u" long:"username" description:"Username"`
+	Password  string   `short:"p" long:"password" description:"Password"`
+	Roles     []string `short:"r" long:"roles" description:"Roles (read, write, read-write)" default:"read-write"`
+	Wait      bool     `short:"w" long:"wait" description:"Wait for credentials to become active"`
 }
 
-func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
-	cmd := []string{"cloud", "db", "credentials", "create"}
+func (c *CloudClustersCredentialsCreateCmd) Execute(args []string) error {
+	cmd := []string{"cloud", "clusters", "credentials", "create"}
 	system, err := Initialize(&Init{InitBackend: false, UpgradeCheck: true}, cmd, c, args...)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -57,16 +57,19 @@ func (c *CloudDatabasesCredentialsCreateCmd) Execute(args []string) error {
 	return Error(nil, system, cmd, c, args)
 }
 
-func (c *CloudDatabasesCredentialsCreateCmd) CreateCloudCredentials(system *System) error {
+func (c *CloudClustersCredentialsCreateCmd) CreateCloudCredentials(system *System) error {
 	logger := system.Logger
-	if c.DatabaseID == "" {
-		return fmt.Errorf("database ID is required")
+	if c.ClusterID == "" {
+		return fmt.Errorf("cluster ID is required")
 	}
 	if c.Username == "" {
 		return fmt.Errorf("username is required")
 	}
 	if c.Password == "" {
 		return fmt.Errorf("password is required")
+	}
+	if len(c.Password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters long")
 	}
 	client, err := cloud.NewClient(cloudVersion)
 	if err != nil {
@@ -75,19 +78,18 @@ func (c *CloudDatabasesCredentialsCreateCmd) CreateCloudCredentials(system *Syst
 
 	// Convert privileges string to roles array
 	// The API expects roles as an array, but we accept privileges as a string for convenience
-	roles := []string{c.Privileges}
-	if c.Privileges == "" {
+	roles := c.Roles
+	if len(roles) == 0 {
 		roles = []string{"read-write"} // default
 	}
-
-	request := cloud.CreateDatabaseCredentialsRequest{
-		Name:     c.Username, // username maps to name in the API
+	request := cloud.CreateClusterCredentialsRequest{
+		Name:     c.Username,
 		Password: c.Password,
 		Roles:    roles,
 	}
 	var result interface{}
 
-	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.DatabaseID)
+	path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, c.ClusterID)
 	err = client.Post(path, request, &result)
 	if err != nil {
 		return err
@@ -107,7 +109,7 @@ func (c *CloudDatabasesCredentialsCreateCmd) CreateCloudCredentials(system *Syst
 		}
 
 		logger.Info("Waiting for credentials to become active (id: %s)...", credentialID)
-		waitResult, err := c.waitForCredentialsActive(client, c.DatabaseID, credentialID, logger)
+		waitResult, err := c.waitForCredentialsActive(client, c.ClusterID, credentialID, logger)
 		if err != nil {
 			return fmt.Errorf("failed to wait for credentials to become active: %w", err)
 		}
@@ -126,7 +128,7 @@ func (c *CloudDatabasesCredentialsCreateCmd) CreateCloudCredentials(system *Syst
 
 // waitForCredentialsActive polls the credentials list until the credential with the given ID has status "active"
 // Returns the credential object when it becomes active
-func (c *CloudDatabasesCredentialsCreateCmd) waitForCredentialsActive(client *cloud.Client, databaseID string, credentialID string, logger *logger.Logger) (map[string]interface{}, error) {
+func (c *CloudClustersCredentialsCreateCmd) waitForCredentialsActive(client *cloud.Client, clusterID string, credentialID string, logger *logger.Logger) (map[string]interface{}, error) {
 	timeout := 10 * time.Minute
 	interval := 5 * time.Second
 	startTime := time.Now()
@@ -137,7 +139,7 @@ func (c *CloudDatabasesCredentialsCreateCmd) waitForCredentialsActive(client *cl
 		}
 
 		var result interface{}
-		path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, databaseID)
+		path := fmt.Sprintf("%s/%s/credentials", cloudDbPath, clusterID)
 		err := client.Get(path, &result)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get credentials list: %w", err)
@@ -187,15 +189,15 @@ func (c *CloudDatabasesCredentialsCreateCmd) waitForCredentialsActive(client *cl
 	}
 }
 
-type CloudDatabasesCredentialsDeleteCmd struct {
+type CloudClustersCredentialsDeleteCmd struct {
 	Help          HelpCmd `command:"help" subcommands-optional:"true" description:"Print help"`
-	DatabaseID    string  `short:"d" long:"database-id" description:"Database ID"`
-	CredentialsID string  `short:"c" long:"credentials-id" description:"Credentials ID"`
+	ClusterID     string  `short:"c" long:"cluster-id" description:"Cluster ID"`
+	CredentialsID string  `short:"C" long:"credentials-id" description:"Credentials ID"`
 }
 
-func (c *CloudDatabasesCredentialsDeleteCmd) Execute(args []string) error {
-	if c.DatabaseID == "" {
-		return fmt.Errorf("database ID is required")
+func (c *CloudClustersCredentialsDeleteCmd) Execute(args []string) error {
+	if c.ClusterID == "" {
+		return fmt.Errorf("cluster ID is required")
 	}
 	if c.CredentialsID == "" {
 		return fmt.Errorf("credentials ID is required")
@@ -205,12 +207,12 @@ func (c *CloudDatabasesCredentialsDeleteCmd) Execute(args []string) error {
 		return err
 	}
 
-	path := fmt.Sprintf("%s/%s/credentials/%s", cloudDbPath, c.DatabaseID, c.CredentialsID)
+	path := fmt.Sprintf("%s/%s/credentials/%s", cloudDbPath, c.ClusterID, c.CredentialsID)
 	err = client.Delete(path)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Database credentials deleted successfully")
+	fmt.Println("Cluster credentials deleted successfully")
 	return nil
 }

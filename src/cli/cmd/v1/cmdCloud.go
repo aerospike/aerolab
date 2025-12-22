@@ -1,12 +1,12 @@
 package cmd
 
-var cloudVersion = "v2"
-var cloudDbPath = "/databases"
+var cloudVersion = "v1"
+var cloudDbPath = "/database/clusters"
 
 type CloudCmd struct {
 	ListInstanceTypes CloudListInstanceTypesCmd `command:"list-instance-types" subcommands-optional:"true" description:"List instance types" webicon:"fas fa-list"`
 	Secrets           CloudSecretsCmd           `command:"secrets" subcommands-optional:"true" description:"Secrets operations" webicon:"fas fa-key"`
-	Databases         CloudDatabasesCmd         `command:"databases" subcommands-optional:"true" description:"Databases operations" webicon:"fas fa-database"`
+	Clusters          CloudClustersCmd          `command:"clusters" subcommands-optional:"true" description:"Clusters operations" webicon:"fas fa-database"`
 	Help              HelpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -25,29 +25,29 @@ func (c *CloudSecretsCmd) Execute(args []string) error {
 	return c.Help.Execute(args)
 }
 
-type CloudDatabasesCmd struct {
-	List        CloudDatabasesListCmd        `command:"list" subcommands-optional:"true" description:"List aerospike databases" webicon:"fas fa-list"`
-	Create      CloudDatabasesCreateCmd      `command:"create" subcommands-optional:"true" description:"Create an aerospike database and VPC peering" webicon:"fas fa-plus"`
-	Delete      CloudDatabasesDeleteCmd      `command:"delete" subcommands-optional:"true" description:"Delete an aerospike database and VPC peering" webicon:"fas fa-trash"`
-	Update      CloudDatabasesUpdateCmd      `command:"update" subcommands-optional:"true" description:"Update an aerospike database" webicon:"fas fa-pencil"`
-	PeerVPC     CloudDatabasesPeerVPCCmd     `command:"peer-vpc" subcommands-optional:"true" description:"Initiate and accept VPC peering for a database" webicon:"fas fa-network-wired"`
-	Get         CloudDatabasesGetCmd         `command:"get" subcommands-optional:"true" description:"Get database connection details" webicon:"fas fa-info"`
-	Wait        CloudDatabasesWaitCmd        `command:"wait" subcommands-optional:"true" description:"Wait for database health.status" webicon:"fas fa-hourglass"`
-	Credentials CloudDatabasesCredentialsCmd `command:"credentials" subcommands-optional:"true" description:"Database credentials operations" webicon:"fas fa-key"`
-	Help        HelpCmd                      `command:"help" subcommands-optional:"true" description:"Print help"`
+type CloudClustersCmd struct {
+	List        CloudClustersListCmd        `command:"list" subcommands-optional:"true" description:"List aerospike clusters" webicon:"fas fa-list"`
+	Create      CloudClustersCreateCmd      `command:"create" subcommands-optional:"true" description:"Create an aerospike cluster and VPC peering" webicon:"fas fa-plus"`
+	Delete      CloudClustersDeleteCmd      `command:"delete" subcommands-optional:"true" description:"Delete an aerospike cluster and VPC peering" webicon:"fas fa-trash"`
+	Update      CloudClustersUpdateCmd      `command:"update" subcommands-optional:"true" description:"Update an aerospike cluster" webicon:"fas fa-pencil"`
+	PeerVPC     CloudClustersPeerVPCCmd     `command:"peer-vpc" subcommands-optional:"true" description:"Initiate and accept VPC peering for a cluster" webicon:"fas fa-network-wired"`
+	Get         CloudClustersGetCmd         `command:"get" subcommands-optional:"true" description:"Get cluster connection details" webicon:"fas fa-info"`
+	Wait        CloudClustersWaitCmd        `command:"wait" subcommands-optional:"true" description:"Wait for cluster health.status" webicon:"fas fa-hourglass"`
+	Credentials CloudClustersCredentialsCmd `command:"credentials" subcommands-optional:"true" description:"Cluster credentials operations" webicon:"fas fa-key"`
+	Help        HelpCmd                     `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *CloudDatabasesCmd) Execute(args []string) error {
+func (c *CloudClustersCmd) Execute(args []string) error {
 	return c.Help.Execute(args)
 }
 
-type CloudDatabasesCredentialsCmd struct {
-	List   CloudDatabasesCredentialsListCmd   `command:"list" subcommands-optional:"true" description:"List database credentials" webicon:"fas fa-list"`
-	Create CloudDatabasesCredentialsCreateCmd `command:"create" subcommands-optional:"true" description:"Create database credential" webicon:"fas fa-plus"`
-	Delete CloudDatabasesCredentialsDeleteCmd `command:"delete" subcommands-optional:"true" description:"Delete database credential" webicon:"fas fa-trash"`
-	Help   HelpCmd                            `command:"help" subcommands-optional:"true" description:"Print help"`
+type CloudClustersCredentialsCmd struct {
+	List   CloudClustersCredentialsListCmd   `command:"list" subcommands-optional:"true" description:"List cluster credentials" webicon:"fas fa-list"`
+	Create CloudClustersCredentialsCreateCmd `command:"create" subcommands-optional:"true" description:"Create cluster credential" webicon:"fas fa-plus"`
+	Delete CloudClustersCredentialsDeleteCmd `command:"delete" subcommands-optional:"true" description:"Delete cluster credential" webicon:"fas fa-trash"`
+	Help   HelpCmd                           `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
-func (c *CloudDatabasesCredentialsCmd) Execute(args []string) error {
+func (c *CloudClustersCredentialsCmd) Execute(args []string) error {
 	return c.Help.Execute(args)
 }
