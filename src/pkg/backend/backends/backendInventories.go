@@ -146,6 +146,8 @@ type Cloud interface {
 	AssociateVPCWithHostedZone(hostedZoneID string, vpcID string, region string) error
 	GetVPCRouteCIDRs(vpcID string) ([]string, error)
 	FindAvailableCloudCIDR(vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error)
+	CheckRouteExists(vpcID string, peeringConnectionID string, destinationCidrBlock string) (bool, error)
+	CheckVPCHostedZoneAssociation(hostedZoneID string, vpcID string) (bool, error)
 	// account information
 	GetAccountID() (string, error)
 	// migration
@@ -201,6 +203,8 @@ type Backend interface {
 	AssociateVPCWithHostedZone(backendType BackendType, hostedZoneID string, vpcID string, region string) error
 	GetVPCRouteCIDRs(backendType BackendType, vpcID string) ([]string, error)
 	FindAvailableCloudCIDR(backendType BackendType, vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error)
+	CheckRouteExists(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) (bool, error)
+	CheckVPCHostedZoneAssociation(backendType BackendType, hostedZoneID string, vpcID string) (bool, error)
 	// account information
 	GetAccountID(backendType BackendType) (string, error)
 	// migration

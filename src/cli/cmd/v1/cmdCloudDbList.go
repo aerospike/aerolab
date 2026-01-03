@@ -10,18 +10,21 @@ import (
 	"time"
 
 	"github.com/aerospike/aerolab/cli/cmd/v1/cloud"
+	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/utils/pager"
 	"github.com/aerospike/aerolab/pkg/utils/printer"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/rglonek/logger"
 )
 
 type CloudClustersListCmd struct {
-	Output     string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
-	TableTheme string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
-	SortBy     []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
-	Pager      bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
-	StatusNe   string   `short:"n" long:"status-ne" description:"Filter clusters to exclude specified statuses (comma-separated)" default:"decommissioned"`
-	Help       HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Output        string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
+	TableTheme    string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
+	SortBy        []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
+	Pager         bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
+	StatusNe      string   `short:"n" long:"status-ne" description:"Filter clusters to exclude specified statuses (comma-separated)" default:"decommissioned"`
+	WithVPCStatus bool     `short:"v" long:"with-vpc-status" description:"Include VPC peering status for each cluster (requires AWS backend)"`
+	Help          HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 // ClusterResponse represents the API response structure
@@ -41,6 +44,12 @@ type Cluster struct {
 	Infrastructure    Infrastructure    `json:"infrastructure"`
 	CreatedAt         string            `json:"createdAt"`
 	UpdatedAt         string            `json:"updatedAt"`
+}
+
+// ClusterWithVPCStatus extends Cluster with VPC peering status
+type ClusterWithVPCStatus struct {
+	Cluster
+	VPCPeering *VPCPeeringStatusResponse `json:"vpcPeering,omitempty"`
 }
 
 type AerospikeCloud struct {
@@ -72,9 +81,46 @@ type Infrastructure struct {
 }
 
 func (c *CloudClustersListCmd) Execute(args []string) error {
-	client, err := cloud.NewClient(cloudVersion)
+	var system *System
+	var err error
+
+	// Only initialize system if we need VPC status
+	if c.WithVPCStatus {
+		cmd := []string{"cloud", "clusters", "list"}
+		system, err = Initialize(&Init{InitBackend: true, UpgradeCheck: true}, cmd, c, args...)
+		if err != nil {
+			return Error(err, system, cmd, c, args)
+		}
+		if system.Opts.Config.Backend.Type != "aws" {
+			return Error(fmt.Errorf("--with-vpc-status requires AWS backend"), system, cmd, c, args)
+		}
+	}
+
+	clusters, rawResult, err := c.GetClusters()
 	if err != nil {
 		return err
+	}
+
+	// Get VPC peering status if requested
+	var vpcStatuses map[string]*VPCPeeringStatusResponse
+	if c.WithVPCStatus && system != nil {
+		vpcStatuses = c.getVPCPeeringStatuses(system, system.Backend.GetInventory(), system.Logger, clusters)
+	}
+
+	return c.formatOutput(clusters, rawResult, vpcStatuses, os.Stdout)
+}
+
+// GetClusters retrieves the list of Aerospike Cloud clusters without formatting.
+// This method can be called by other commands that need access to the cluster data.
+//
+// Returns:
+//   - []Cluster: The list of clusters
+//   - map[string]interface{}: The raw JSON response for JSON output formats
+//   - error: nil on success, or an error describing what failed
+func (c *CloudClustersListCmd) GetClusters() ([]Cluster, map[string]interface{}, error) {
+	client, err := cloud.NewClient(cloudVersion)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	path := cloudDbPath
@@ -86,24 +132,61 @@ func (c *CloudClustersListCmd) Execute(args []string) error {
 	var rawResult map[string]interface{}
 	err = client.Get(path, &rawResult)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	// Convert raw result to ClusterResponse
 	var result ClusterResponse
 	jsonBytes, err := json.Marshal(rawResult)
 	if err != nil {
-		return fmt.Errorf("failed to marshal raw result: %w", err)
+		return nil, nil, fmt.Errorf("failed to marshal raw result: %w", err)
 	}
 	err = json.Unmarshal(jsonBytes, &result)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal to ClusterResponse: %w", err)
+		return nil, nil, fmt.Errorf("failed to unmarshal to ClusterResponse: %w", err)
 	}
 
-	return c.formatOutput(result.Clusters, rawResult, os.Stdout)
+	return result.Clusters, rawResult, nil
 }
 
-func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[string]interface{}, out io.Writer) error {
+// ListClusters retrieves and formats Aerospike Cloud clusters for table/text output.
+// This method can be called by other commands (like inventory list) to include cloud clusters.
+//
+// Parameters:
+//   - out: The io.Writer to write the output to
+//   - page: Optional pager for color support detection
+//
+// Returns:
+//   - error: nil on success, or an error describing what failed
+func (c *CloudClustersListCmd) ListClusters(out io.Writer, page *pager.Pager) error {
+	clusters, rawResult, err := c.GetClusters()
+	if err != nil {
+		return err
+	}
+
+	return c.formatOutput(clusters, rawResult, nil, out)
+}
+
+// getVPCPeeringStatuses retrieves VPC peering status for all clusters
+func (c *CloudClustersListCmd) getVPCPeeringStatuses(system *System, inventory *backends.Inventory, log *logger.Logger, clusters []Cluster) map[string]*VPCPeeringStatusResponse {
+	statuses := make(map[string]*VPCPeeringStatusResponse)
+
+	for _, cluster := range clusters {
+		statusCmd := &CloudClustersVPCPeeringStatusCmd{
+			ClusterID: cluster.ID,
+		}
+		status, err := statusCmd.GetVPCPeeringStatus(system, inventory, log)
+		if err != nil {
+			log.Warn("Failed to get VPC peering status for cluster %s: %s", cluster.ID, err)
+			continue
+		}
+		statuses[cluster.ID] = status
+	}
+
+	return statuses
+}
+
+func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[string]interface{}, vpcStatuses map[string]*VPCPeeringStatusResponse, out io.Writer) error {
 	var err error
 	var page *pager.Pager
 
@@ -136,7 +219,8 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 		defer w.Close()
 		enc := json.NewEncoder(w)
 		go func() {
-			enc.Encode(rawResult)
+			outputData := c.buildJSONOutput(clusters, rawResult, vpcStatuses)
+			enc.Encode(outputData)
 			w.Close()
 		}()
 		err = cmd.Run()
@@ -144,22 +228,30 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 			return err
 		}
 	case "json":
-		json.NewEncoder(out).Encode(rawResult)
+		outputData := c.buildJSONOutput(clusters, rawResult, vpcStatuses)
+		json.NewEncoder(out).Encode(outputData)
 	case "json-indent":
+		outputData := c.buildJSONOutput(clusters, rawResult, vpcStatuses)
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
-		enc.Encode(rawResult)
+		enc.Encode(outputData)
 	case "text":
-		fmt.Fprintln(out, "Clusters:")
+		fmt.Fprintln(out, "Aerospike Cloud Clusters:")
 		for _, db := range clusters {
 			namespaceNames := c.getNamespaceNames(db.AerospikeServer.Namespaces)
 			createTime := c.formatTime(db.CreatedAt)
 			updateTime := c.formatTime(db.UpdatedAt)
-			fmt.Fprintf(out, "ID: %s, Name: %s, AZCount: %d, ClusterSize: %d, State: %s, Status: %s, DataStorage: %s, NamespaceNames: %s, InstanceType: %s, Region: %s, Host: %s, CreateTime: %s, UpdateTime: %s\n",
+			vpcStatus := ""
+			if vpcStatuses != nil {
+				if status, ok := vpcStatuses[db.ID]; ok {
+					vpcStatus = ", VPCPeering: " + GetVPCPeeringStatusSummary(status)
+				}
+			}
+			fmt.Fprintf(out, "ID: %s, Name: %s, AZCount: %d, ClusterSize: %d, State: %s, Status: %s, DataStorage: %s, NamespaceNames: %s, InstanceType: %s, Region: %s, Host: %s, CreateTime: %s, UpdateTime: %s%s\n",
 				db.ID, db.Name, db.Infrastructure.AvailabilityZoneCount, db.AerospikeCloud.ClusterSize,
 				db.Health.State, db.Health.Status, db.AerospikeCloud.DataStorage, namespaceNames,
 				db.Infrastructure.InstanceType, db.Infrastructure.Region, db.ConnectionDetails.Host,
-				createTime, updateTime)
+				createTime, updateTime, vpcStatus)
 		}
 		fmt.Fprintln(out, "")
 	default:
@@ -167,12 +259,15 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 			c.SortBy = []string{"Name:asc", "Region:asc", "State:asc"}
 		}
 		header := table.Row{"ID", "Name", "AZCount", "ClusterSize", "State", "Status", "DataStorage", "NamespaceNames", "InstanceType", "Region", "Host", "CreateTime", "UpdateTime"}
+		if vpcStatuses != nil {
+			header = append(header, "VPCPeering")
+		}
 		rows := []table.Row{}
 		for _, db := range clusters {
 			namespaceNames := c.getNamespaceNames(db.AerospikeServer.Namespaces)
 			createTime := c.formatTime(db.CreatedAt)
 			updateTime := c.formatTime(db.UpdatedAt)
-			rows = append(rows, table.Row{
+			row := table.Row{
 				db.ID,
 				db.Name,
 				db.Infrastructure.AvailabilityZoneCount,
@@ -186,7 +281,15 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 				db.ConnectionDetails.Host,
 				createTime,
 				updateTime,
-			})
+			}
+			if vpcStatuses != nil {
+				if status, ok := vpcStatuses[db.ID]; ok {
+					row = append(row, GetVPCPeeringStatusSummary(status))
+				} else {
+					row = append(row, "-")
+				}
+			}
+			rows = append(rows, row)
 		}
 		t, err := printer.GetTableWriter(c.Output, c.TableTheme, c.SortBy, !page.HasColors(), page != nil)
 		if err != nil {
@@ -196,11 +299,34 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 				return err
 			}
 		}
-		title := printer.String("CLUSTERS")
+		title := printer.String("AEROSPIKE CLOUD CLUSTERS")
 		fmt.Fprintln(out, t.RenderTable(title, header, rows))
 		fmt.Fprintln(out, "")
 	}
 	return nil
+}
+
+// buildJSONOutput builds the JSON output with optional VPC peering status
+func (c *CloudClustersListCmd) buildJSONOutput(clusters []Cluster, rawResult map[string]interface{}, vpcStatuses map[string]*VPCPeeringStatusResponse) interface{} {
+	if vpcStatuses == nil {
+		return rawResult
+	}
+
+	// Build extended cluster list with VPC status
+	extendedClusters := make([]ClusterWithVPCStatus, len(clusters))
+	for i, cluster := range clusters {
+		extendedClusters[i] = ClusterWithVPCStatus{
+			Cluster: cluster,
+		}
+		if status, ok := vpcStatuses[cluster.ID]; ok {
+			extendedClusters[i].VPCPeering = status
+		}
+	}
+
+	return map[string]interface{}{
+		"count":    len(extendedClusters),
+		"clusters": extendedClusters,
+	}
 }
 
 func (c *CloudClustersListCmd) getNamespaceNames(namespaces []Namespace) string {

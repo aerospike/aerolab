@@ -45,3 +45,11 @@ func (s *b) GetVPCRouteCIDRs(vpcID string) ([]string, error) {
 func (s *b) FindAvailableCloudCIDR(vpcID string, requestedCIDR string) (cidr string, isRequested bool, err error) {
 	return "", false, backends.ReturnNotImplemented(backends.BackendTypeGCP, "FindAvailableCloudCIDR")
 }
+
+func (s *b) CheckRouteExists(vpcID string, peeringConnectionID string, destinationCidrBlock string) (bool, error) {
+	return false, backends.ReturnNotImplemented(backends.BackendTypeGCP, "CheckRouteExists")
+}
+
+func (s *b) CheckVPCHostedZoneAssociation(hostedZoneID string, vpcID string) (bool, error) {
+	return false, backends.ReturnNotImplemented(backends.BackendTypeGCP, "CheckVPCHostedZoneAssociation")
+}
