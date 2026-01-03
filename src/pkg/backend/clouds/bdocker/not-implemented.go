@@ -41,3 +41,11 @@ func (s *b) GetAccountID() (string, error) {
 func (s *b) MigrateV7Resources(input *backends.MigrateV7Input) (*backends.MigrationResult, error) {
 	return nil, backends.ReturnNotImplemented(backends.BackendTypeDocker, "MigrateV7Resources")
 }
+
+func (s *b) CheckRouteExists(vpcID string, peeringConnectionID string, destinationCidrBlock string) (bool, error) {
+	return false, backends.ReturnNotImplemented(backends.BackendTypeDocker, "CheckRouteExists")
+}
+
+func (s *b) CheckVPCHostedZoneAssociation(hostedZoneID string, vpcID string) (bool, error) {
+	return false, backends.ReturnNotImplemented(backends.BackendTypeDocker, "CheckVPCHostedZoneAssociation")
+}

@@ -1270,6 +1270,147 @@ func (s *b) FindAvailableCloudCIDR(vpcID string, requestedCIDR string) (cidr str
 	return "", false, fmt.Errorf("no available CIDR block found in range 10.130.0.0/19 - 10.255.0.0/19 for VPC %s", vpcID)
 }
 
+// CheckRouteExists checks if a route exists in the VPC route table pointing to the peering connection.
+//
+// Parameters:
+//   - vpcID: The ID of the VPC (e.g., "vpc-1234567890abcdef0")
+//   - peeringConnectionID: The ID of the VPC peering connection (e.g., "pcx-1234567890abcdef0")
+//   - destinationCidrBlock: The destination CIDR block (e.g., "10.128.0.0/19")
+//
+// Returns:
+//   - bool: true if the route exists, false otherwise
+//   - error: nil on success, or an error describing what failed
+func (s *b) CheckRouteExists(vpcID string, peeringConnectionID string, destinationCidrBlock string) (bool, error) {
+	log := s.log.WithPrefix("CheckRouteExists: job=" + shortuuid.New() + " ")
+	log.Detail("Start (vpcID=%s, peeringConnectionID=%s, cidr=%s)", vpcID, peeringConnectionID, destinationCidrBlock)
+	defer log.Detail("End")
+
+	if vpcID == "" || peeringConnectionID == "" || destinationCidrBlock == "" {
+		return false, fmt.Errorf("vpcID, peeringConnectionID, and destinationCidrBlock are required")
+	}
+
+	// Get enabled zones to find which region the VPC is in
+	zones, err := s.ListEnabledZones()
+	if err != nil {
+		return false, fmt.Errorf("failed to get enabled zones: %w", err)
+	}
+	if len(zones) == 0 {
+		return false, fmt.Errorf("no enabled zones found")
+	}
+
+	// Try to find the VPC in each zone
+	var ec2Cli *ec2.Client
+	for _, zone := range zones {
+		cli, err := getEc2Client(s.credentials, &zone)
+		if err != nil {
+			continue
+		}
+		describeInput := &ec2.DescribeVpcsInput{
+			VpcIds: []string{vpcID},
+		}
+		describeResult, err := cli.DescribeVpcs(context.TODO(), describeInput)
+		if err != nil {
+			continue
+		}
+		if len(describeResult.Vpcs) > 0 {
+			ec2Cli = cli
+			break
+		}
+	}
+
+	if ec2Cli == nil {
+		return false, fmt.Errorf("VPC %s not found in any enabled zone", vpcID)
+	}
+
+	// Get route tables associated with the VPC
+	describeRouteTablesInput := &ec2.DescribeRouteTablesInput{
+		Filters: []types.Filter{
+			{
+				Name:   aws.String("vpc-id"),
+				Values: []string{vpcID},
+			},
+		},
+	}
+
+	routeTablesResult, err := ec2Cli.DescribeRouteTables(context.TODO(), describeRouteTablesInput)
+	if err != nil {
+		return false, fmt.Errorf("failed to describe route tables for VPC %s: %w", vpcID, err)
+	}
+
+	// Check all route tables for a matching route
+	for _, rt := range routeTablesResult.RouteTables {
+		if rt.Routes != nil {
+			for _, route := range rt.Routes {
+				routeDest := aws.ToString(route.DestinationCidrBlock)
+				routePeering := aws.ToString(route.VpcPeeringConnectionId)
+				if routeDest == destinationCidrBlock && routePeering == peeringConnectionID {
+					log.Detail("Found matching route in route table %s", aws.ToString(rt.RouteTableId))
+					return true, nil
+				}
+			}
+		}
+	}
+
+	log.Detail("No matching route found")
+	return false, nil
+}
+
+// CheckVPCHostedZoneAssociation checks if a VPC is associated with a hosted zone.
+//
+// Parameters:
+//   - hostedZoneID: The ID of the hosted zone (e.g., "Z04089311NGVVH0FO3QGG")
+//   - vpcID: The ID of the VPC (e.g., "vpc-1234567890abcdef0")
+//
+// Returns:
+//   - bool: true if the VPC is associated with the hosted zone, false otherwise
+//   - error: nil on success, or an error describing what failed
+func (s *b) CheckVPCHostedZoneAssociation(hostedZoneID string, vpcID string) (bool, error) {
+	log := s.log.WithPrefix("CheckVPCHostedZoneAssociation: job=" + shortuuid.New() + " ")
+	log.Detail("Start (hostedZoneID=%s, vpcID=%s)", hostedZoneID, vpcID)
+	defer log.Detail("End")
+
+	if hostedZoneID == "" || vpcID == "" {
+		return false, fmt.Errorf("hostedZoneID and vpcID are required")
+	}
+
+	// Get enabled zones
+	zones, err := s.ListEnabledZones()
+	if err != nil {
+		return false, fmt.Errorf("failed to get enabled zones: %w", err)
+	}
+	if len(zones) == 0 {
+		return false, fmt.Errorf("no enabled zones found")
+	}
+
+	// Use the first zone to get the Route53 client
+	zone := zones[0]
+	cli, err := getRoute53Client(s.credentials, &zone)
+	if err != nil {
+		return false, fmt.Errorf("failed to get Route53 client: %w", err)
+	}
+
+	// Get hosted zone details
+	getInput := &route53.GetHostedZoneInput{
+		Id: aws.String(hostedZoneID),
+	}
+
+	result, err := cli.GetHostedZone(context.TODO(), getInput)
+	if err != nil {
+		return false, fmt.Errorf("failed to get hosted zone %s: %w", hostedZoneID, err)
+	}
+
+	// Check if VPC is in the list of associated VPCs
+	for _, vpc := range result.VPCs {
+		if aws.ToString(vpc.VPCId) == vpcID {
+			log.Detail("VPC %s is associated with hosted zone %s", vpcID, hostedZoneID)
+			return true, nil
+		}
+	}
+
+	log.Detail("VPC %s is not associated with hosted zone %s", vpcID, hostedZoneID)
+	return false, nil
+}
+
 // cidrsOverlap checks if two CIDR blocks overlap
 // It excludes 0.0.0.0/0 (default route) from overlap checks since it's a routing rule, not an actual CIDR allocation
 func cidrsOverlap(cidr1, cidr2 string) bool {

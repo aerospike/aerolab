@@ -13,13 +13,14 @@ import (
 )
 
 type InventoryListCmd struct {
-	Output       string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
-	TableTheme   string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
-	SortBy       []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
-	Owner        string   `short:"u" long:"owner" description:"Filter by owner"`
-	WithExpiries bool     `short:"e" long:"with-expiries" description:"Include expiries"`
-	Pager        bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
-	Help         HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
+	Output             string   `short:"o" long:"output" description:"Output format (text, table, json, json-indent, jq, csv, tsv, html, markdown)" default:"table"`
+	TableTheme         string   `short:"t" long:"table-theme" description:"Table theme (default, frame, box)" default:"default"`
+	SortBy             []string `short:"s" long:"sort-by" description:"Can be specified multiple times. Sort by format: FIELDNAME:asc|dsc|ascnum|dscnum"`
+	Owner              string   `short:"u" long:"owner" description:"Filter by owner"`
+	WithExpiries       bool     `short:"e" long:"with-expiries" description:"Include expiries"`
+	WithAerospikeCloud bool     `short:"c" long:"with-aerospike-cloud" description:"Include Aerospike Cloud clusters (slower operation)"`
+	Pager              bool     `short:"p" long:"pager" description:"Use a pager to display the output"`
+	Help               HelpCmd  `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *InventoryListCmd) Execute(args []string) error {
@@ -65,7 +66,7 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 
 	switch c.Output {
 	case "jq":
-		inv := c.getInventory(system, c.WithExpiries)
+		inv := c.getInventory(system, c.WithExpiries, c.WithAerospikeCloud)
 		params := []string{}
 		if page != nil && page.HasColors() {
 			params = append(params, "-C")
@@ -88,10 +89,10 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 			return err
 		}
 	case "json":
-		inv := c.getInventory(system, c.WithExpiries)
+		inv := c.getInventory(system, c.WithExpiries, c.WithAerospikeCloud)
 		json.NewEncoder(out).Encode(inv)
 	case "json-indent":
-		inv := c.getInventory(system, c.WithExpiries)
+		inv := c.getInventory(system, c.WithExpiries, c.WithAerospikeCloud)
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		enc.Encode(inv)
@@ -156,11 +157,23 @@ func (c *InventoryListCmd) InventoryList(system *System, cmd []string, args []st
 		if err != nil {
 			return err
 		}
+		if c.WithAerospikeCloud {
+			cloudCmd := &CloudClustersListCmd{
+				Output:     c.Output,
+				TableTheme: c.TableTheme,
+				SortBy:     c.SortBy,
+				StatusNe:   "decommissioned",
+			}
+			err = cloudCmd.ListClusters(out, page)
+			if err != nil {
+				system.Logger.Warn("Error listing Aerospike Cloud clusters: %s", err)
+			}
+		}
 	}
 	return nil
 }
 
-func (c *InventoryListCmd) getInventory(system *System, withExpiries bool) map[string]interface{} {
+func (c *InventoryListCmd) getInventory(system *System, withExpiries bool, withAerospikeCloud bool) map[string]interface{} {
 	inventory := system.Backend.GetInventory()
 
 	// Filter instances - exclude terminated instances (same as table output)
@@ -194,6 +207,19 @@ func (c *InventoryListCmd) getInventory(system *System, withExpiries bool) map[s
 			system.Logger.Error("Error getting expiry systems: %s", err)
 		}
 		inv["expiries"] = expiries
+	}
+	if withAerospikeCloud {
+		cloudCmd := &CloudClustersListCmd{
+			StatusNe: "decommissioned",
+		}
+		clusters, _, err := cloudCmd.GetClusters()
+		if err != nil {
+			system.Logger.Error("Error getting Aerospike Cloud clusters: %s", err)
+		} else {
+			inv["aerospikeCloud"] = map[string]interface{}{
+				"clusters": clusters,
+			}
+		}
 	}
 	return inv
 }

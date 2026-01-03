@@ -531,42 +531,61 @@ func (c *InventoryMigrateCmd) InventoryMigrate(system *System, cmd []string, arg
 		AerolabVersion: aerolabVersion,
 	}
 
-	// If not dry-run and not --yes, first do discovery pass and prompt for confirmation
+	// Always do a discovery pass first to check for collisions
+	discoveryInput := &backends.MigrateV7Input{
+		Project:        projectName,
+		DryRun:         true, // Discovery only
+		Force:          c.Force,
+		SSHKeyInfo:     sshKeyInfo,
+		AerolabVersion: aerolabVersion,
+	}
+
+	discovery, err := system.Backend.MigrateV7Resources(backendType, discoveryInput)
+	if err != nil {
+		return fmt.Errorf("failed to discover v7 resources: %w", err)
+	}
+
+	totalResources := len(discovery.DryRunInstances) +
+		len(discovery.DryRunVolumes) +
+		len(discovery.DryRunImages) +
+		len(discovery.DryRunFirewalls)
+
+	if totalResources == 0 {
+		system.Logger.Info("No v7 resources found to migrate.")
+		return nil
+	}
+
+	// Check for collisions with existing v8 resources
+	collisions := c.checkForCollisions(system, discovery, inventory, backendType)
+	if len(collisions) > 0 {
+		system.Logger.Error("=== COLLISION DETECTED ===")
+		system.Logger.Error("Cannot migrate: the following v7 resources would collide with existing v8 resources:")
+		system.Logger.Error("")
+		for _, collision := range collisions {
+			system.Logger.Error("  %s", collision)
+		}
+		system.Logger.Error("")
+		system.Logger.Error("Please resolve these collisions before migrating.")
+		system.Logger.Error("Options:")
+		system.Logger.Error("  1. Terminate the conflicting v8 resources")
+		system.Logger.Error("  2. Terminate the conflicting v7 resources")
+		system.Logger.Error("  3. Rename one of the conflicting clusters")
+		return fmt.Errorf("migration aborted: %d collision(s) detected", len(collisions))
+	}
+
+	// Show summary
+	serverCount := 0
+	clientCount := 0
+	for _, inst := range discovery.DryRunInstances {
+		if inst.IsClient {
+			clientCount++
+		} else {
+			serverCount++
+		}
+	}
+
+	// If not dry-run and not --yes, prompt for confirmation
 	if !c.DryRun && !c.Yes && IsInteractive() {
-		discoveryInput := &backends.MigrateV7Input{
-			Project:        projectName,
-			DryRun:         true, // Discovery only
-			Force:          c.Force,
-			SSHKeyInfo:     sshKeyInfo,
-			AerolabVersion: aerolabVersion,
-		}
-
-		discovery, err := system.Backend.MigrateV7Resources(backendType, discoveryInput)
-		if err != nil {
-			return fmt.Errorf("failed to discover v7 resources: %w", err)
-		}
-
-		totalResources := len(discovery.DryRunInstances) +
-			len(discovery.DryRunVolumes) +
-			len(discovery.DryRunImages) +
-			len(discovery.DryRunFirewalls)
-
-		if totalResources == 0 {
-			system.Logger.Info("No v7 resources found to migrate.")
-			return nil
-		}
-
-		// Show summary
-		serverCount := 0
-		clientCount := 0
-		for _, inst := range discovery.DryRunInstances {
-			if inst.IsClient {
-				clientCount++
-			} else {
-				serverCount++
-			}
-		}
-
 		system.Logger.Info("Found v7 resources to migrate:")
 		system.Logger.Info("  Instances: %d (%d servers, %d clients)", len(discovery.DryRunInstances), serverCount, clientCount)
 		system.Logger.Info("  Volumes: %d", len(discovery.DryRunVolumes))
@@ -589,6 +608,14 @@ func (c *InventoryMigrateCmd) InventoryMigrate(system *System, cmd []string, arg
 		}
 	}
 
+	// For dry-run mode, just print the discovery results
+	if c.DryRun {
+		c.printDryRunResults(system, discovery)
+		c.printExpiryDryRun(system, backendType, discovery)
+		system.Logger.Info("Run without --dry-run to apply these changes.")
+		return nil
+	}
+
 	// Run the migration
 	result, err := system.Backend.MigrateV7Resources(backendType, input)
 	if err != nil {
@@ -596,17 +623,10 @@ func (c *InventoryMigrateCmd) InventoryMigrate(system *System, cmd []string, arg
 	}
 
 	// Print results
-	if c.DryRun {
-		c.printDryRunResults(system, result)
-		// Print expiry system info for dry-run
-		c.printExpiryDryRun(system, backendType, result)
-		system.Logger.Info("Run without --dry-run to apply these changes.")
-	} else {
-		c.printMigrationResults(system, result)
+	c.printMigrationResults(system, result)
 
-		// Install expiry system if any migrated resources have expiry set
-		c.installExpiryIfNeeded(system, backendType, result)
-	}
+	// Install expiry system if any migrated resources have expiry set
+	c.installExpiryIfNeeded(system, backendType, result)
 
 	// Check for errors
 	if len(result.Errors) > 0 {
@@ -655,6 +675,97 @@ func (c *InventoryMigrateCmd) resolveSSHKeyPath() (*backends.SSHKeyPathInfo, err
 	}
 
 	return info, nil
+}
+
+// checkForCollisions checks if any v7 resources would collide with existing v8 resources.
+// Returns a list of collision descriptions, or empty slice if no collisions found.
+func (c *InventoryMigrateCmd) checkForCollisions(system *System, discovery *backends.MigrationResult, inventory *backends.Inventory, backendType backends.BackendType) []string {
+	var collisions []string
+
+	if inventory == nil {
+		return collisions
+	}
+
+	// Build lookup maps for existing v8 resources
+	// Key for instances: "clusterName:nodeNo:zone" (zone normalized to region for comparison)
+	existingInstances := make(map[string]*backends.Instance)
+	for _, inst := range inventory.Instances.Describe() {
+		// Only check instances of the same backend type
+		if inst.BackendType != backendType {
+			continue
+		}
+		// Normalize zone to region for comparison
+		zone := c.zoneToRegion(inst.ZoneName, backendType)
+		key := fmt.Sprintf("%s:%d:%s", inst.ClusterName, inst.NodeNo, zone)
+		existingInstances[key] = inst
+	}
+
+	// Key for images: "imageName" (parsed from v7 name pattern)
+	existingImages := make(map[string]*backends.Image)
+	for _, img := range inventory.Images.Describe() {
+		if img.BackendType != backendType {
+			continue
+		}
+		existingImages[img.Name] = img
+	}
+
+	// Key for volumes: "volumeName:zone"
+	existingVolumes := make(map[string]*backends.Volume)
+	for _, vol := range inventory.Volumes.Describe() {
+		if vol.BackendType != backendType {
+			continue
+		}
+		zone := c.zoneToRegion(vol.ZoneName, backendType)
+		key := fmt.Sprintf("%s:%s", vol.Name, zone)
+		existingVolumes[key] = vol
+	}
+
+	// Check instance collisions
+	for _, v7Inst := range discovery.DryRunInstances {
+		zone := c.zoneToRegion(v7Inst.Zone, backendType)
+		key := fmt.Sprintf("%s:%d:%s", v7Inst.ClusterName, v7Inst.NodeNo, zone)
+		if existing, ok := existingInstances[key]; ok {
+			instType := "server"
+			if v7Inst.IsClient {
+				instType = "client"
+			}
+			collisions = append(collisions, fmt.Sprintf(
+				"INSTANCE: v7 %s '%s' (cluster=%s, node=%d, zone=%s) collides with existing v8 instance '%s' (ID=%s)",
+				instType, v7Inst.Name, v7Inst.ClusterName, v7Inst.NodeNo, v7Inst.Zone,
+				existing.Name, existing.InstanceID,
+			))
+		}
+	}
+
+	// Check image collisions - for images, we check by the parsed attributes
+	// since v7 and v8 may have different naming conventions
+	for _, v7Img := range discovery.DryRunImages {
+		// Check if an image with the same name exists
+		if existing, ok := existingImages[v7Img.Name]; ok {
+			collisions = append(collisions, fmt.Sprintf(
+				"IMAGE: v7 image '%s' collides with existing v8 image '%s' (ID=%s)",
+				v7Img.Name, existing.Name, existing.ImageId,
+			))
+		}
+	}
+
+	// Check standalone volume collisions (attached volumes inherit instance identity)
+	for _, v7Vol := range discovery.DryRunVolumes {
+		// Skip attached volumes - they're tied to instance identity
+		if v7Vol.AttachedToInstance != "" {
+			continue
+		}
+		zone := c.zoneToRegion(v7Vol.Zone, backendType)
+		key := fmt.Sprintf("%s:%s", v7Vol.Name, zone)
+		if existing, ok := existingVolumes[key]; ok {
+			collisions = append(collisions, fmt.Sprintf(
+				"VOLUME: v7 volume '%s' (zone=%s) collides with existing v8 volume '%s' (ID=%s)",
+				v7Vol.Name, v7Vol.Zone, existing.Name, existing.FileSystemId,
+			))
+		}
+	}
+
+	return collisions
 }
 
 // printDryRunResults prints detailed dry-run output

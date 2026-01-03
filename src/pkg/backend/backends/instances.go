@@ -857,6 +857,14 @@ func (b *backend) FindAvailableCloudCIDR(backendType BackendType, vpcID string, 
 	return b.enabledBackends[backendType].FindAvailableCloudCIDR(vpcID, requestedCIDR)
 }
 
+func (b *backend) CheckRouteExists(backendType BackendType, vpcID string, peeringConnectionID string, destinationCidrBlock string) (bool, error) {
+	return b.enabledBackends[backendType].CheckRouteExists(vpcID, peeringConnectionID, destinationCidrBlock)
+}
+
+func (b *backend) CheckVPCHostedZoneAssociation(backendType BackendType, hostedZoneID string, vpcID string) (bool, error) {
+	return b.enabledBackends[backendType].CheckVPCHostedZoneAssociation(hostedZoneID, vpcID)
+}
+
 func (b *backend) GetAccountID(backendType BackendType) (string, error) {
 	return b.enabledBackends[backendType].GetAccountID()
 }

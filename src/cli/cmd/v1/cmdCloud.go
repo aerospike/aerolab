@@ -26,15 +26,16 @@ func (c *CloudSecretsCmd) Execute(args []string) error {
 }
 
 type CloudClustersCmd struct {
-	List        CloudClustersListCmd        `command:"list" subcommands-optional:"true" description:"List aerospike clusters" webicon:"fas fa-list"`
-	Create      CloudClustersCreateCmd      `command:"create" subcommands-optional:"true" description:"Create an aerospike cluster and VPC peering" webicon:"fas fa-plus"`
-	Delete      CloudClustersDeleteCmd      `command:"delete" subcommands-optional:"true" description:"Delete an aerospike cluster and VPC peering" webicon:"fas fa-trash"`
-	Update      CloudClustersUpdateCmd      `command:"update" subcommands-optional:"true" description:"Update an aerospike cluster" webicon:"fas fa-pencil"`
-	PeerVPC     CloudClustersPeerVPCCmd     `command:"peer-vpc" subcommands-optional:"true" description:"Initiate and accept VPC peering for a cluster" webicon:"fas fa-network-wired"`
-	Get         CloudClustersGetCmd         `command:"get" subcommands-optional:"true" description:"Get cluster connection details" webicon:"fas fa-info"`
-	Wait        CloudClustersWaitCmd        `command:"wait" subcommands-optional:"true" description:"Wait for cluster health.status" webicon:"fas fa-hourglass"`
-	Credentials CloudClustersCredentialsCmd `command:"credentials" subcommands-optional:"true" description:"Cluster credentials operations" webicon:"fas fa-key"`
-	Help        HelpCmd                     `command:"help" subcommands-optional:"true" description:"Print help"`
+	List             CloudClustersListCmd             `command:"list" subcommands-optional:"true" description:"List aerospike clusters" webicon:"fas fa-list"`
+	Create           CloudClustersCreateCmd           `command:"create" subcommands-optional:"true" description:"Create an aerospike cluster and VPC peering" webicon:"fas fa-plus"`
+	Delete           CloudClustersDeleteCmd           `command:"delete" subcommands-optional:"true" description:"Delete an aerospike cluster and VPC peering" webicon:"fas fa-trash"`
+	Update           CloudClustersUpdateCmd           `command:"update" subcommands-optional:"true" description:"Update an aerospike cluster" webicon:"fas fa-pencil"`
+	PeerVPC          CloudClustersPeerVPCCmd          `command:"peer-vpc" subcommands-optional:"true" description:"Initiate and accept VPC peering for a cluster" webicon:"fas fa-network-wired"`
+	VPCPeeringStatus CloudClustersVPCPeeringStatusCmd `command:"vpc-peering-status" subcommands-optional:"true" description:"Get VPC peering status for a cluster" webicon:"fas fa-info-circle"`
+	Get              CloudClustersGetCmd              `command:"get" subcommands-optional:"true" description:"Get cluster connection details" webicon:"fas fa-info"`
+	Wait             CloudClustersWaitCmd             `command:"wait" subcommands-optional:"true" description:"Wait for cluster health.status" webicon:"fas fa-hourglass"`
+	Credentials      CloudClustersCredentialsCmd      `command:"credentials" subcommands-optional:"true" description:"Cluster credentials operations" webicon:"fas fa-key"`
+	Help             HelpCmd                          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
 func (c *CloudClustersCmd) Execute(args []string) error {
