@@ -69,7 +69,7 @@ type configDefaultsCmd struct {
 func (c *configBackendCmd) Execute(args []string) error {
 	if earlyProcessV2(args, false) {
 		for _, i := range os.Args {
-			if inslice.HasString([]string{"-t", "--type"}, i) {
+			if inslice.HasString([]string{"-t", "--type"}, i) || strings.HasPrefix(i, "--type=") {
 				c.typeSet = "yes"
 			}
 		}

@@ -65,7 +65,7 @@ func (c *inventoryAnsibleCmd) run() error {
 		},
 	}
 
-	processCluster := func(clusterName, groupName, project, nodeNo, privateIP, instanceId, sshKeyPath string) {
+	processCluster := func(clusterName, groupName, project, nodeNo, privateIP, instanceId, sshKeyPath string, awsTags, gcpLabels, dockerLabels map[string]string) {
 		inv.Meta.Hostvars[privateIP] = HostVars{
 			"ansible_host":    privateIP,
 			"instance_id":     instanceId,
@@ -80,6 +80,23 @@ func (c *inventoryAnsibleCmd) run() error {
 
 		if sshKeyPath != "" {
 			inv.Meta.Hostvars[privateIP]["ansible_ssh_private_key_file"] = sshKeyPath
+		}
+
+		// Merge all tags/labels into hostvars
+		if awsTags != nil {
+			for key, value := range awsTags {
+				inv.Meta.Hostvars[privateIP][key] = value
+			}
+		}
+		if gcpLabels != nil {
+			for key, value := range gcpLabels {
+				inv.Meta.Hostvars[privateIP][key] = value
+			}
+		}
+		if dockerLabels != nil {
+			for key, value := range dockerLabels {
+				inv.Meta.Hostvars[privateIP][key] = value
+			}
 		}
 
 		if _, exists := inv.Groups[groupName]; !exists {
@@ -104,7 +121,7 @@ func (c *inventoryAnsibleCmd) run() error {
 			groupName = "agi"
 		}
 
-		processCluster(cluster.ClusterName, groupName, project, cluster.NodeNo, cluster.PrivateIp, cluster.InstanceId, cluster.SSHKeyPath)
+		processCluster(cluster.ClusterName, groupName, project, cluster.NodeNo, cluster.PrivateIp, cluster.InstanceId, cluster.SSHKeyPath, cluster.AwsTags, cluster.GcpLabels, cluster.DockerLabels)
 	}
 
 	for _, cluster := range inventory.Clients {
@@ -116,7 +133,7 @@ func (c *inventoryAnsibleCmd) run() error {
 			}
 		}
 
-		processCluster(cluster.ClientName, cluster.ClientType, project, cluster.NodeNo, cluster.PrivateIp, cluster.InstanceId, cluster.SSHKeyPath)
+		processCluster(cluster.ClientName, cluster.ClientType, project, cluster.NodeNo, cluster.PrivateIp, cluster.InstanceId, cluster.SSHKeyPath, cluster.AwsTags, cluster.GcpLabels, cluster.DockerLabels)
 	}
 
 	inventoryJson, err := json.MarshalIndent(inv, "", "  ")
