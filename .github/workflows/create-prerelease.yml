@@ -28,7 +28,7 @@ jobs:
                 egress-policy: audit
 
             - name: "Git checkout"
-              uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
             - name: "Install Golang"
               run: |
                 set -e
@@ -108,7 +108,7 @@ jobs:
                 egress-policy: audit
 
             - name: "Git checkout"
-              uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
             - name: "Install Golang"
               run: |
                 set -e
@@ -147,7 +147,7 @@ jobs:
                 egress-policy: audit
 
             - name: "Git checkout"
-              uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
             - name: "Install golang"
               run: |
                 wget https://go.dev/dl/go1.23.4.darwin-amd64.pkg
@@ -214,7 +214,7 @@ jobs:
                 egress-policy: audit
 
             - name: "Git checkout"
-              uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
             - name: "Download linux artifacts"
               uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
               with:
@@ -306,7 +306,7 @@ jobs:
                 egress-policy: audit
 
             - name: "Git checkout"
-              uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+              uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
             - name: "Delete previous pre-release"
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
