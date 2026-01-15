@@ -256,6 +256,10 @@ func (c *configDefaultsCmd) Execute(args []string) error {
 		if ok {
 			tags = fieldType.Tag
 		}
+		if tags.Get("hidden") == "true" {
+			fmt.Printf("Key not found: %s. If using *, try enclosing key name in single quotes ''\n", strings.Join(keys[0:i+1], "."))
+			return nil
+		}
 		keyField = keyField.FieldByName(key)
 		if !keyField.IsValid() {
 			fmt.Printf("Key not found: %s. If using *, try enclosing key name in single quotes ''\n", strings.Join(keys[0:i+1], "."))
@@ -448,6 +452,9 @@ func (c *configDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 			fieldName := keyField.Type().Field(i).Name
 			fieldTag := keyField.Type().Field(i).Tag
 			if fieldTag.Get("no-default") == "true" {
+				continue
+			}
+			if fieldTag.Get("hidden") == "true" {
 				continue
 			}
 			if len(fieldName) > 0 && fieldName[0] >= 97 && fieldName[0] <= 122 {
