@@ -26,6 +26,7 @@ type ClientCreateEksCtlCmd struct {
 	EksAwsSecretKey       string         `short:"s" long:"eks-aws-secretkey" description:"AWS Secret Key to use for auth when performing eksctl tasks and expiries"`
 	EksAwsInstanceProfile string         `short:"x" long:"eks-aws-profile" description:"AWS instance profile to use instead of KEYID/SecretKey for authentication"`
 	FeaturesFilePath      flags.Filename `short:"f" long:"eks-asd-features" description:"Aerospike Features File to copy to the EKSCTL client machine; destination: /root/features.conf"`
+	AerolabBinary         flags.Filename `long:"aerolab-binary" description:"Path to local aerolab binary to install (required if running unofficial build)"`
 }
 
 func (c *ClientCreateEksCtlCmd) Execute(args []string) error {
@@ -71,7 +72,7 @@ func (c *ClientCreateEksCtlCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.createEksCtlClient(system, system.Backend.GetInventory(), system.Logger, args, isGrow)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -135,9 +136,31 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 		return fmt.Errorf("failed to get bootstrap script: %w", err)
 	}
 
-	aerolabScript, err := aerolab.GetLinuxInstallScript(nil, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get aerolab installer: %w", err)
+	// Check if running unofficial build
+	_, _, edition, currentAerolabVersion := GetAerolabVersion()
+	isUnofficial := strings.Contains(edition, "unofficial")
+	useLocalBinary := c.AerolabBinary != ""
+
+	if isUnofficial && !useLocalBinary {
+		return fmt.Errorf("running unofficial aerolab build (%s); --aerolab-binary flag is required to specify the path to a Linux aerolab binary", currentAerolabVersion)
+	}
+
+	// Get aerolab installer script (only if not using local binary)
+	var aerolabScript []byte
+	if !useLocalBinary {
+		aerolabScript, err = aerolab.GetLinuxInstallScript(currentAerolabVersion, nil, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get aerolab installer: %w", err)
+		}
+	}
+
+	// Read local binary if specified
+	var localBinaryData []byte
+	if useLocalBinary {
+		localBinaryData, err = os.ReadFile(string(c.AerolabBinary))
+		if err != nil {
+			return fmt.Errorf("failed to read local aerolab binary: %w", err)
+		}
 	}
 
 	// Get EKS YAML templates
@@ -219,27 +242,40 @@ func (c *ClientCreateEksCtlCmd) createEksCtlClient(system *System, inventory *ba
 		}
 
 		// 4. Upload and install aerolab
-		logger.Debug("Uploading aerolab installer to %s:%d", client.ClusterName, client.NodeNo)
-		err = sftpClient.WriteFile(true, &sshexec.FileWriter{
-			DestPath:    "/tmp/install-aerolab.sh",
-			Source:      bytes.NewReader(aerolabScript),
-			Permissions: 0755,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to upload aerolab installer: %w", err)
-		}
+		if useLocalBinary {
+			// Upload local binary directly
+			logger.Debug("Uploading local aerolab binary to %s:%d", client.ClusterName, client.NodeNo)
+			err = sftpClient.WriteFile(true, &sshexec.FileWriter{
+				DestPath:    "/usr/local/bin/aerolab",
+				Source:      bytes.NewReader(localBinaryData),
+				Permissions: 0755,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to upload aerolab binary: %w", err)
+			}
+		} else {
+			logger.Debug("Uploading aerolab installer to %s:%d", client.ClusterName, client.NodeNo)
+			err = sftpClient.WriteFile(true, &sshexec.FileWriter{
+				DestPath:    "/tmp/install-aerolab.sh",
+				Source:      bytes.NewReader(aerolabScript),
+				Permissions: 0755,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to upload aerolab installer: %w", err)
+			}
 
-		logger.Debug("Installing aerolab on %s:%d", client.ClusterName, client.NodeNo)
-		output = client.Exec(&backends.ExecInput{
-			ExecDetail: sshexec.ExecDetail{
-				Command:        []string{"bash", "/tmp/install-aerolab.sh"},
-				SessionTimeout: 15 * time.Minute,
-			},
-			Username:       "root",
-			ConnectTimeout: 30 * time.Second,
-		})
-		if output.Output.Err != nil {
-			return fmt.Errorf("failed to install aerolab: %w", output.Output.Err)
+			logger.Debug("Installing aerolab on %s:%d", client.ClusterName, client.NodeNo)
+			output = client.Exec(&backends.ExecInput{
+				ExecDetail: sshexec.ExecDetail{
+					Command:        []string{"bash", "/tmp/install-aerolab.sh"},
+					SessionTimeout: 15 * time.Minute,
+				},
+				Username:       "root",
+				ConnectTimeout: 30 * time.Second,
+			})
+			if output.Output.Err != nil {
+				return fmt.Errorf("failed to install aerolab: %w", output.Output.Err)
+			}
 		}
 
 		// 5. Create eksexpiry symlink

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rglonek/logger"
+	"log"
 	"github.com/rglonek/sbs"
 )
 
@@ -29,15 +29,15 @@ type variableResponse struct {
 }
 
 func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
-	logger.Info("QUERY START (type:variable) (remote:%s)", r.RemoteAddr)
-	defer logger.Info("QUERY END (type:variable) (remote:%s)", r.RemoteAddr)
+	log.Printf("INFO: QUERY START (type:variable) (remote:%s)", r.RemoteAddr)
+	defer log.Printf("INFO: QUERY END (type:variable) (remote:%s)", r.RemoteAddr)
 	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		responseError(w, http.StatusBadRequest, "Failed to read body (remote:%s) (error:%s)", r.RemoteAddr, err)
 		return
 	}
-	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
+	log.Printf("DETAIL: (remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
 	query := new(variableQuery)
 	err = json.Unmarshal(body, query)
 	if err != nil {
@@ -78,7 +78,7 @@ func (p *Plugin) handleVariable(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := p.cache.metadata[target]; !ok {
 		p.cache.lock.RUnlock()
-		logger.Warn("Query target %s does not exist (remote:%s)", target, r.RemoteAddr)
+		log.Printf("WARN: Query target %s does not exist (remote:%s)", target, r.RemoteAddr)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("[]"))
 		return

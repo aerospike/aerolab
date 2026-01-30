@@ -21,7 +21,7 @@ func (c *InstancesRestartCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, _, err = c.RestartInstances(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)

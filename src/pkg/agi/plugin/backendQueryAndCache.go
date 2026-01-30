@@ -8,32 +8,32 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
-	"github.com/rglonek/logger"
+	"log"
 	"github.com/rglonek/sbs"
 )
 
 func (p *Plugin) queryAndCache() {
 	for {
-		logger.Debug("Starting cache refresh")
-		logger.Detail("Cache: set list")
+		log.Printf("DEBUG: Starting cache refresh")
+		log.Printf("DETAIL: Cache: set list")
 		err := p.cacheSetList()
 		if err != nil {
-			logger.Warn("Could not get set list: %s", err)
+			log.Printf("WARN: Could not get set list: %s", err)
 		}
-		logger.Detail("Cache: bin list")
+		log.Printf("DETAIL: Cache: bin list")
 		err = p.cacheBinListOld()
 		if err != nil {
 			err2 := p.cacheBinList()
 			if err2 != nil {
-				logger.Warn("Could not get bin list: %s; %s", err, err2)
+				log.Printf("WARN: Could not get bin list: %s; %s", err, err2)
 			}
 		}
-		logger.Detail("Cache: metadata list")
+		log.Printf("DETAIL: Cache: metadata list")
 		err = p.cacheMetadataList()
 		if err != nil {
-			logger.Warn("Could not get metadata list: %s", err)
+			log.Printf("WARN: Could not get metadata list: %s", err)
 		}
-		logger.Debug("Finished cache refresh, sleeping %v", p.config.CacheRefreshInterval)
+		log.Printf("DEBUG: Finished cache refresh, sleeping %v", p.config.CacheRefreshInterval)
 		time.Sleep(p.config.CacheRefreshInterval)
 	}
 }
@@ -133,7 +133,7 @@ func (p *Plugin) cacheMetadataList() error {
 			metaItem := &metaEntries{}
 			nerr := json.Unmarshal(sbs.StringToByteSlice(v.(string)), &metaItem)
 			if nerr != nil {
-				logger.Warn("Failed to unmarshal existing label data for %s: %s", k, nerr)
+				log.Printf("WARN: Failed to unmarshal existing label data for %s: %s", k, nerr)
 			}
 			meta[k] = metaItem
 		}

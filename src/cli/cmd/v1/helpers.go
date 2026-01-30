@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/mattn/go-isatty"
 )
 
@@ -155,13 +156,41 @@ func AskForFloat(prompt string) (float64, error) {
 	return strconv.ParseFloat(strings.TrimSpace(s), 64)
 }
 
-func UpdateDiskCache(system *System) {
-	if !system.Opts.Config.Backend.InventoryCache {
+func updateDiskCacheDo(system *System) {
+	if system == nil || !system.Opts.Config.Backend.InventoryCache {
 		return
 	}
 	system.Logger.Info("Updating disk cache")
 	err := system.Backend.RefreshChangedInventory()
 	if err != nil {
 		system.Logger.Error("Failed to update disk cache: %s", err)
+	}
+}
+
+// UpdateDiskCacheNow updates the disk cache immediately without registering a shutdown hook.
+// Use this for non-deferred calls where you want to update the cache right away.
+func UpdateDiskCacheNow(system *System) {
+	updateDiskCacheDo(system)
+}
+
+// UpdateDiskCache registers a disk cache update to run on both normal exit (via defer)
+// and on Ctrl+C interrupt (via shutdown handler). It returns a function that should be deferred.
+//
+// Usage:
+//
+//	defer UpdateDiskCache(system)()
+//
+// This ensures disk cache is updated whether the command completes normally or is interrupted.
+func UpdateDiskCache(system *System) func() {
+	if system == nil || !system.Opts.Config.Backend.InventoryCache {
+		return func() {}
+	}
+	shutdown.AddLateCleanupJob("disk-cache-update", func(isSignal bool) {
+		updateDiskCacheDo(system)
+	})
+	return func() {
+		// Remove the cleanup job to prevent double execution on normal exit
+		shutdown.DeleteLateCleanupJob("disk-cache-update")
+		updateDiskCacheDo(system)
 	}
 }

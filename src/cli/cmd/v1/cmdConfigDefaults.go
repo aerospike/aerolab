@@ -358,6 +358,8 @@ func (c *ConfigDefaultsCmd) getValuesNext(keyField reflect.Value, start string, 
 				ret <- ConfigValueCmd{start, tagDefault}
 			}
 		}
+	case reflect.Func:
+		// Function fields don't have meaningful default values, skip them
 	default:
 		fmt.Printf("Invalid function type: %v: %v\n", keyField.Type().Kind(), start)
 	}

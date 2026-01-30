@@ -24,7 +24,7 @@ func (c *ClusterAddExpiryCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.AddExpiryCluster(system, system.Backend.GetInventory(), args, system.Logger)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -78,8 +78,13 @@ func (c *ClusterAddExpiryCmd) AddExpiryCluster(system *System, inventory *backen
 		logger.Info("No nodes to add expiry")
 		return nil
 	}
-	logger.Info("Adding expiry to %d nodes", cluster.Count())
-	err = cluster.ChangeExpiry(time.Now().Add(c.ExpireIn))
+	if c.ExpireIn == 0 {
+		logger.Info("Removing expiry from %d nodes", cluster.Count())
+		err = cluster.ChangeExpiry(time.Time{})
+	} else {
+		logger.Info("Adding expiry to %d nodes", cluster.Count())
+		err = cluster.ChangeExpiry(time.Now().Add(c.ExpireIn))
+	}
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/pkg/sftp"
-	"github.com/rglonek/logger"
+	"log"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -50,10 +50,10 @@ func (i *Ingest) Download() error {
 		i.progress.Unlock()
 	}()
 	errs := new(safeError)
-	logger.Debug("Downloader start")
+	log.Printf("DEBUG: Downloader start")
 	wg := new(sync.WaitGroup)
 	if i.config.Downloader.S3Source != nil && i.config.Downloader.S3Source.Enabled {
-		logger.Debug("DOWNLOAD: pulling from S3 source")
+		log.Printf("DEBUG: DOWNLOAD: pulling from S3 source")
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -70,7 +70,7 @@ func (i *Ingest) Download() error {
 		}
 	}
 	if i.config.Downloader.SftpSource != nil && i.config.Downloader.SftpSource.Enabled {
-		logger.Debug("DOWNLOAD: pulling from sftp source")
+		log.Printf("DEBUG: DOWNLOAD: pulling from sftp source")
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -87,12 +87,12 @@ func (i *Ingest) Download() error {
 	i.progress.Lock()
 	i.progress.Downloader.Finished = true
 	i.progress.Unlock()
-	logger.Debug("Downloader exit")
+	log.Printf("DEBUG: Downloader exit")
 	return nil
 }
 
 func (i *Ingest) DownloadS3() error {
-	logger.Debug("Connecting to s3")
+	log.Printf("DEBUG: Connecting to s3")
 	var cfgParams []func(*config.LoadOptions) error
 	if i.config.Downloader.S3Source.Region != "" {
 		cfgParams = append(cfgParams, config.WithRegion(i.config.Downloader.S3Source.Region))
@@ -112,7 +112,7 @@ func (i *Ingest) DownloadS3() error {
 	} else {
 		client = s3.NewFromConfig(cfg)
 	}
-	logger.Debug("S3 Connected, enumerating objects in bucket")
+	log.Printf("DEBUG: S3 Connected, enumerating objects in bucket")
 	var prefix *string
 	if i.config.Downloader.S3Source.PathPrefix != "" {
 		prefix = aws.String(i.config.Downloader.S3Source.PathPrefix)
@@ -165,10 +165,10 @@ func (i *Ingest) DownloadS3() error {
 	i.progress.RUnlock()
 
 	for okey, ofile := range fileList {
-		logger.Detail("S3 to-download: %s (size:%d lastModified:%v)", okey, ofile.Size, ofile.LastModified)
+		log.Printf("DETAIL: S3 to-download: %s (size:%d lastModified:%v)", okey, ofile.Size, ofile.LastModified)
 	}
 
-	logger.Debug("S3 Enumeration complete, saving results")
+	log.Printf("DEBUG: S3 Enumeration complete, saving results")
 	i.progress.Lock()
 	i.progress.Downloader.changed = true
 	for k, v := range fileList {
@@ -176,7 +176,7 @@ func (i *Ingest) DownloadS3() error {
 	}
 	i.progress.Unlock()
 
-	logger.Debug("S3 Beginning download")
+	log.Printf("DEBUG: S3 Beginning download")
 	wg := new(sync.WaitGroup)
 	threads := make(chan bool, i.config.Downloader.S3Source.Threads)
 	wg.Add(len(fileList))
@@ -192,7 +192,7 @@ func (i *Ingest) DownloadS3() error {
 		}(f)
 	}
 	wg.Wait()
-	logger.Debug("S3Source download complete")
+	log.Printf("DEBUG: S3Source download complete")
 	return nil
 }
 
@@ -207,7 +207,7 @@ func (i *Ingest) downloadS3File(client *s3.Client, f string) error {
 		Key:    aws.String(f),
 	})
 	if err != nil {
-		logger.Warn("S3 Failed to init download of file %s: %s", f, err)
+		log.Printf("WARN: S3 Failed to init download of file %s: %s", f, err)
 		i.progress.Lock()
 		i.progress.Downloader.changed = true
 		i.progress.Downloader.S3Files[f].Error = err.Error()
@@ -217,7 +217,7 @@ func (i *Ingest) downloadS3File(client *s3.Client, f string) error {
 	fd, _ := path.Split(f)
 	err = os.MkdirAll(path.Join(i.config.Directories.DirtyTmp, "s3source", fd), 0755)
 	if err != nil {
-		logger.Warn("S3 Failed to create directory %s for file %s: %s", fd, f, err)
+		log.Printf("WARN: S3 Failed to create directory %s for file %s: %s", fd, f, err)
 		i.progress.Lock()
 		i.progress.Downloader.changed = true
 		i.progress.Downloader.S3Files[f].Error = err.Error()
@@ -227,7 +227,7 @@ func (i *Ingest) downloadS3File(client *s3.Client, f string) error {
 	}
 	dst, err := os.Create(path.Join(i.config.Directories.DirtyTmp, "s3source", f))
 	if err != nil {
-		logger.Warn("S3 Failed to create file %s: %s", f, err)
+		log.Printf("WARN: S3 Failed to create file %s: %s", f, err)
 		i.progress.Lock()
 		i.progress.Downloader.changed = true
 		i.progress.Downloader.S3Files[f].Error = err.Error()
@@ -239,7 +239,7 @@ func (i *Ingest) downloadS3File(client *s3.Client, f string) error {
 	dst.Close()
 	out.Body.Close()
 	if err != nil {
-		logger.Warn("S3 Failed to download file %s: %s", f, err)
+		log.Printf("WARN: S3 Failed to download file %s: %s", f, err)
 		i.progress.Lock()
 		i.progress.Downloader.changed = true
 		i.progress.Downloader.S3Files[f].Error = err.Error()
@@ -323,10 +323,10 @@ func (i *Ingest) DownloadAsftp() error {
 	i.progress.RUnlock()
 
 	for okey, ofile := range fileList {
-		logger.Detail("sftp to-download: %s (size:%d lastModified:%v)", okey, ofile.Size, ofile.LastModified)
+		log.Printf("DETAIL: sftp to-download: %s (size:%d lastModified:%v)", okey, ofile.Size, ofile.LastModified)
 	}
 
-	logger.Debug("sftp Enumeration complete, saving results")
+	log.Printf("DEBUG: sftp Enumeration complete, saving results")
 	i.progress.Lock()
 	i.progress.Downloader.changed = true
 	for k, v := range fileList {
@@ -334,15 +334,15 @@ func (i *Ingest) DownloadAsftp() error {
 	}
 	i.progress.Unlock()
 
-	logger.Debug("sftp Beginning download")
+	log.Printf("DEBUG: sftp Beginning download")
 	wg := new(sync.WaitGroup)
 	threads := make(chan bool, i.config.Downloader.SftpSource.Threads)
 	wg.Add(len(fileList))
 	for f := range fileList {
-		logger.Detail("sftp Downloading %s", f)
+		log.Printf("DETAIL: sftp Downloading %s", f)
 		threads <- true
 		go func(f string) {
-			logger.Detail("sftp Thread secured, proceeding to download %s", f)
+			log.Printf("DETAIL: sftp Thread secured, proceeding to download %s", f)
 			i.progress.Lock()
 			i.progress.Downloader.changed = true
 			i.progress.Downloader.SftpFiles[f].StartTime = time.Now().UTC().Format("2006-01-02 15:04:05") + " UTC"
@@ -352,7 +352,7 @@ func (i *Ingest) DownloadAsftp() error {
 				err = sftpDownload(sclient, f, path.Join(i.config.Directories.DirtyTmp, "sftpsource"))
 			}
 			if err != nil {
-				logger.Warn("%s (%s)", err, f)
+				log.Printf("WARN: %s (%s)", err, f)
 				i.progress.Lock()
 				i.progress.Downloader.changed = true
 				i.progress.Downloader.SftpFiles[f].Error = err.Error()
@@ -370,35 +370,35 @@ func (i *Ingest) DownloadAsftp() error {
 	}
 	wg.Wait()
 
-	logger.Debug("SftpSource Download Complete")
+	log.Printf("DEBUG: SftpSource Download Complete")
 	return nil
 }
 
 func sftpDownload(sclient *sftp.Client, f string, dstDir string) error {
-	logger.Detail("sftp open %s", f)
+	log.Printf("DETAIL: sftp open %s", f)
 	src, err := sclient.Open(f)
 	if err != nil {
 		return fmt.Errorf("sftp could not open remote file: %s", err)
 	}
 	defer src.Close()
 	fd, _ := path.Split(f)
-	logger.Detail("sftp mkdir for %s", f)
+	log.Printf("DETAIL: sftp mkdir for %s", f)
 	err = os.MkdirAll(path.Join(dstDir, fd), 0755)
 	if err != nil {
 		return fmt.Errorf("sftp failed to create directory: %s", err)
 	}
-	logger.Detail("sftp create local for %s", f)
+	log.Printf("DETAIL: sftp create local for %s", f)
 	dst, err := os.Create(path.Join(dstDir, f))
 	if err != nil {
 		return fmt.Errorf("sftp Failed to create file: %s", err)
 	}
 	defer dst.Close()
-	logger.Detail("sftp start copy for %s", f)
+	log.Printf("DETAIL: sftp start copy for %s", f)
 	_, err = src.WriteTo(dst)
 	if err != nil {
 		return fmt.Errorf("sftp failed to download file: %s", err)
 	}
-	logger.Detail("sftp end copy for %s", f)
+	log.Printf("DETAIL: sftp end copy for %s", f)
 	return nil
 }
 

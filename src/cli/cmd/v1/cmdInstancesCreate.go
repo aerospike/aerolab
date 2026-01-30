@@ -96,19 +96,23 @@ type InstancesCreateCmdGcp struct {
 	SpotInstance       bool          `long:"spot" description:"Create spot instances"`
 	IAMInstanceProfile string        `long:"instance-profile" description:"IAM instance profile to use for the instances"`
 	MinCPUPlatform     string        `long:"min-cpu-platform" description:"Minimum CPU platform to use for the instances"`
+	OnHostMaintenance  string        `long:"on-host-maintenance" description:"On-host maintenance policy: MIGRATE or TERMINATE; defaults to MIGRATE (or TERMINATE for spot)"`
 	CustomDNS          InstanceDNS   `group:"Automated Custom GCP DNS" namespace:"dns" description:"backend-gcp"`
 }
 
 type InstancesCreateCmdDocker struct {
 	ImageName          string         `long:"image" description:"Custom image name to use for the instances; ignores OS, Version, Arch"`
 	NetworkName        string         `long:"network" description:"Name of the network to use for the instances; default: default"` // convert to ",VALUE" for docker
-	Disks              []string       `long:"disk" description:"Format: {volumeName}:{mountTargetDirectory}; example: volume1:/mnt/data; used for mounting volumes to containers at startup"`
+	Disks              []string       `long:"disk" description:"Format: {volumeName|/hostPath}:{mountTargetDirectory}[:ro|:rw]; example: volume1:/mnt/data or /host/path:/container/path:ro; used for mounting volumes or bind mounts to containers"`
 	ExposePorts        []string       `long:"expose" description:"Format: [+]{hostPort}:{containerPort} or host={hostIP:hostPORT},container={containerPORT},incr or [+]{hostIP:hostPORT},{containerPORT}\n; example: 8080:80 or +8080:80 or host=0.0.0.0:8080,container=80,incr\n; + or incr maps to next available port"`
 	StopTimeout        *int           `long:"stop-timeout" description:"Container default stop timeout in seconds before force-stop"`
 	Privileged         bool           `long:"privileged" description:"Give extended privileges to container"`
 	RestartPolicy      string         `long:"restart" description:"Container restart policy: Always, None, OnFailure, UnlessStopped"`
 	MaxRestartRetries  int            `long:"max-restart-retries" description:"Maximum number of restart attempts"`
 	ShmSize            int64          `long:"shm-size" description:"Size of /dev/shm in bytes"`
+	CpuLimit           string         `long:"cpu-limit" description:"CPU limit (e.g., 1, 0.5, 2)"`
+	RamLimit           string         `long:"ram-limit" description:"RAM limit (e.g., 500m, 1g, 2g)"`
+	SwapLimit          string         `long:"swap-limit" description:"Total memory limit (RAM+swap) (e.g., 1g); if equal to ram-limit, swap is disabled"`
 	AdvancedConfigPath flags.Filename `long:"advanced-config" description:"Path to JSON file containing advanced Docker container configuration"`
 	RegistryUser       string         `long:"registry-user" description:"Username for docker registry authentication when pulling custom images"`
 	RegistryPass       string         `long:"registry-pass" description:"Password for docker registry authentication when pulling custom images" webtype:"password"`
@@ -127,7 +131,7 @@ func (c *InstancesGrowCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.CreateInstances(system, system.Backend.GetInventory(), args, "grow")
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -145,7 +149,7 @@ func (c *InstancesCreateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.CreateInstances(system, system.Backend.GetInventory(), args, "create")
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -331,7 +335,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		}
 		for _, disk := range c.Docker.Disks {
 			if !strings.Contains(disk, ":") {
-				return nil, errors.New("disk must be in the format {volumeName}:{mountTargetDirectory}; example: volume1:/mnt/data")
+				return nil, errors.New("disk must be in the format {volumeName|/hostPath}:{mountTargetDirectory}[:ro|:rw]; example: volume1:/mnt/data or /host/path:/container/path:ro")
 			}
 		}
 		for _, expose := range c.Docker.ExposePorts {
@@ -516,9 +520,13 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			case "arm64":
 				narch = backends.ArchitectureARM64
 			}
-			img := inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).Describe()
+			var img backends.ImageList
 			if c.ImageType != "" {
-				img = img.WithTags(map[string]string{"aerolab.image.type": c.ImageType}).Describe()
+				// When ImageType is specified, search within aerolab-created images
+				img = inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).WithInAccount(true).WithTags(map[string]string{"aerolab.image.type": c.ImageType}).Describe()
+			} else {
+				// When no ImageType, use only public images to avoid picking up aerolab templates
+				img = inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).WithInAccount(false).Describe()
 			}
 			if c.ImageVersion != "" {
 				img = img.WithTags(map[string]string{"aerolab.soft.version": c.ImageVersion}).Describe()
@@ -580,9 +588,13 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 			case "arm64":
 				narch = backends.ArchitectureARM64
 			}
-			img := inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).Describe()
+			var img backends.ImageList
 			if c.ImageType != "" {
-				img = img.WithTags(map[string]string{"aerolab.image.type": c.ImageType}).Describe()
+				// When ImageType is specified, search within aerolab-created images
+				img = inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).WithInAccount(true).WithTags(map[string]string{"aerolab.image.type": c.ImageType}).Describe()
+			} else {
+				// When no ImageType, use only public images to avoid picking up aerolab templates
+				img = inventory.Images.WithOSName(c.OS).WithOSVersion(c.Version).WithArchitecture(narch).WithInAccount(false).Describe()
 			}
 			if c.ImageVersion != "" {
 				img = img.WithTags(map[string]string{"aerolab.soft.version": c.ImageVersion}).Describe()
@@ -676,6 +688,21 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 	if enabled, telemetryUUID := IsTelemetryEnabled(system); enabled {
 		tags["aerolab.telemetry"] = telemetryUUID
 	}
+	// Parse Docker resource limits
+	var cpuNano, ramBytes, swapBytes int64
+	var parseErr error
+	cpuNano, parseErr = parseCpuString(c.Docker.CpuLimit)
+	if parseErr != nil {
+		return nil, fmt.Errorf("invalid --docker-cpu-limit: %w", parseErr)
+	}
+	ramBytes, parseErr = parseMemoryString(c.Docker.RamLimit)
+	if parseErr != nil {
+		return nil, fmt.Errorf("invalid --docker-ram-limit: %w", parseErr)
+	}
+	swapBytes, parseErr = parseMemoryString(c.Docker.SwapLimit)
+	if parseErr != nil {
+		return nil, fmt.Errorf("invalid --docker-swap-limit: %w", parseErr)
+	}
 	dockerParams := &bdocker.CreateInstanceParams{
 		Image:             nil,
 		NetworkPlacement:  c.Docker.NetworkName,
@@ -695,7 +722,11 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		MaxRestartRetries: c.Docker.MaxRestartRetries,
 		ShmSize:           c.Docker.ShmSize,
 		Sysctls:           map[string]string{},
-		Resources:         container.Resources{},
+		Resources: container.Resources{
+			NanoCPUs:   cpuNano,
+			Memory:     ramBytes,
+			MemorySwap: swapBytes,
+		},
 		MaskedPaths:       strslice.StrSlice{},
 		ReadonlyPaths:     strslice.StrSlice{},
 		SkipSshReadyCheck: !dockerImageFromOfficial,
@@ -724,10 +755,10 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 		imageName = c.Docker.ImageName
 	}
 	var expire time.Time
-	if system.Opts.Config.Backend.Type == "aws" {
+	if system.Opts.Config.Backend.Type == "aws" && c.AWS.Expire > 0 {
 		expire = time.Now().Add(c.AWS.Expire)
 	}
-	if system.Opts.Config.Backend.Type == "gcp" {
+	if system.Opts.Config.Backend.Type == "gcp" && c.GCP.Expire > 0 {
 		expire = time.Now().Add(c.GCP.Expire)
 	}
 	awsCustomImageID := ""
@@ -778,6 +809,7 @@ func (c *InstancesCreateCmd) CreateInstances(system *System, inventory *backends
 				CustomDNS:          c.GCP.CustomDNS.makeInstanceDNS(),
 				MinCpuPlatform:     c.GCP.MinCPUPlatform,
 				CustomImageID:      gcpCustomImageID,
+				OnHostMaintenance:  c.GCP.OnHostMaintenance,
 			},
 			"docker": dockerParams,
 		},
@@ -1050,4 +1082,52 @@ func (w *prefixWriter) Flush() {
 		w.logger.Info("%s%s", w.prefix, line)
 	}
 	w.buf = []byte{}
+}
+
+// parseMemoryString converts a memory string (e.g., "500m", "1g", "2048") to bytes.
+// Supports suffixes: k/K (KiB), m/M (MiB), g/G (GiB), or plain bytes.
+func parseMemoryString(s string) (int64, error) {
+	if s == "" {
+		return 0, nil
+	}
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return 0, nil
+	}
+
+	var multiplier int64 = 1
+	if strings.HasSuffix(s, "k") {
+		multiplier = 1024
+		s = s[:len(s)-1]
+	} else if strings.HasSuffix(s, "m") {
+		multiplier = 1024 * 1024
+		s = s[:len(s)-1]
+	} else if strings.HasSuffix(s, "g") {
+		multiplier = 1024 * 1024 * 1024
+		s = s[:len(s)-1]
+	}
+
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid memory value: %s", s)
+	}
+	return int64(val * float64(multiplier)), nil
+}
+
+// parseCpuString converts a CPU string (e.g., "1", "0.5", "2.5") to NanoCPUs.
+// 1 CPU = 1e9 NanoCPUs
+func parseCpuString(s string) (int64, error) {
+	if s == "" {
+		return 0, nil
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, nil
+	}
+
+	val, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid CPU value: %s", s)
+	}
+	return int64(val * 1e9), nil
 }

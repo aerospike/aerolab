@@ -317,6 +317,24 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 		return err
 	}
 
+	// isRetryableIAMError checks if the error is due to IAM eventual consistency
+	// which can be retried after a short delay
+	isRetryableIAMError := func(err error) bool {
+		if err == nil {
+			return false
+		}
+		errStr := err.Error()
+		// IAM role not yet assumable by Lambda
+		if strings.Contains(errStr, "InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda") {
+			return true
+		}
+		// IAM role not yet propagated for KMS grants (used for encrypting environment variables)
+		if strings.Contains(errStr, "InvalidParameterValueException: Lambda was unable to configure access to your environment variables because the KMS key is invalid for CreateGrant") {
+			return true
+		}
+		return false
+	}
+
 	log.Detail("Creating lambda function")
 	function, err := lclient.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
 		Code: &ltypes.FunctionCode{
@@ -340,7 +358,7 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 		},
 		Role: lambdaRole.Role.Arn,
 	})
-	if err != nil && strings.Contains(err.Error(), "InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda") {
+	if isRetryableIAMError(err) {
 		retries := 0
 		for {
 			retries++
@@ -368,11 +386,11 @@ func (s *b) expiryInstall(zone string, log *logger.Logger, intervalMinutes int, 
 				},
 				Role: lambdaRole.Role.Arn,
 			})
-			if err != nil && !strings.Contains(err.Error(), "InvalidParameterValueException: The role defined for the function cannot be assumed by Lambda") {
+			if err != nil && !isRetryableIAMError(err) {
 				return err
 			} else if err == nil {
 				break
-			} else if retries > 3 {
+			} else if retries > 5 {
 				return err
 			}
 		}
@@ -739,6 +757,10 @@ func (s *b) InstancesChangeExpiry(instances backends.InstanceList, expiry time.T
 	log := s.log.WithPrefix("InstancesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
+	// If expiry is zero, remove the tag to indicate no expiry
+	if expiry.IsZero() {
+		return instances.RemoveTags([]string{TAG_EXPIRES})
+	}
 	return instances.AddTags(map[string]string{TAG_EXPIRES: expiry.Format(time.RFC3339)})
 }
 
@@ -746,6 +768,10 @@ func (s *b) VolumesChangeExpiry(volumes backends.VolumeList, expiry time.Time) e
 	log := s.log.WithPrefix("VolumesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
+	// If expiry is zero, remove the tag to indicate no expiry
+	if expiry.IsZero() {
+		return volumes.RemoveTags([]string{TAG_EXPIRES}, 0)
+	}
 	return volumes.AddTags(map[string]string{TAG_EXPIRES: expiry.Format(time.RFC3339)}, 0)
 }
 

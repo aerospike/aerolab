@@ -974,10 +974,10 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					reterr = errors.Join(reterr, err)
 					return
 				}
-				// RUN scripts: attempts: 15 (150 seconds total), mount target IP, filesystem ID, region, mount target dir, [on] for iam, [profilename] for iam profile
-				installparam := ""
+				// RUN scripts: attempts: 15 (150 seconds total), mount target IP, filesystem ID, region, mount target dir, [fips], [on] for iam, [profilename] for iam profile
+				fipsparam := ""
 				if sharedMountData.FIPS {
-					installparam = "fips"
+					fipsparam = "fips"
 				}
 				// Derive region from zone (zone format is like "us-east-1a", region is "us-east-1")
 				// Only derive if zone ends with a letter (a-z), otherwise use zone as-is
@@ -997,9 +997,11 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 				} else {
 					log.Detail("Using mount target IP %s for filesystem ID %s", mountTarget, id.FileSystemId)
 				}
+				// efs_install.sh checks if already installed and skips if so
+				execCmd := fmt.Sprintf("bash /opt/aerolab/scripts/efs_install.sh && bash /opt/aerolab/scripts/efs_mount.sh 15 %s %s %s %s %s", mountTarget, id.FileSystemId, region, sharedMountData.MountTargetDirectory, fipsparam)
 				execOut := instance.Exec(&backends.ExecInput{
 					ExecDetail: sshexec.ExecDetail{
-						Command:  []string{"/bin/bash", "-c", fmt.Sprintf("bash /opt/aerolab/scripts/efs_install.sh %s && bash /opt/aerolab/scripts/efs_mount.sh 15 %s %s %s %s", installparam, mountTarget, id.FileSystemId, region, sharedMountData.MountTargetDirectory)},
+						Command:  []string{"/bin/bash", "-c", execCmd},
 						Terminal: true,
 					},
 					Username: "root",
@@ -1197,7 +1199,13 @@ func (s *b) CreateVolumeGetPrice(input *backends.CreateVolumeInput) (costGB floa
 		}
 		price, err := s.GetVolumePrice(region, fmt.Sprintf("SharedDisk_%s", zoneType))
 		if err != nil {
-			return 0, err
+			// Fallback to GeneralPurpose pricing if OneZone pricing not found
+			if zoneType == "OneZone" {
+				price, err = s.GetVolumePrice(region, "SharedDisk_GeneralPurpose")
+			}
+			if err != nil {
+				return 0, err
+			}
 		}
 		costGB = price.PricePerGBHour
 	default:
@@ -1268,7 +1276,10 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		tagsIn[TAG_NAME] = input.Name
 		tagsIn[TAG_OWNER] = input.Owner
 		tagsIn[TAG_DESCRIPTION] = input.Description
-		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
+		// Only add expiry tag if a non-zero expiry time is set
+		if !input.Expires.IsZero() {
+			tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
+		}
 		tagsIn[TAG_AEROLAB_PROJECT] = s.project
 		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
 		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", ppgb)
@@ -1355,7 +1366,10 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		tagsIn[TAG_NAME] = input.Name
 		tagsIn[TAG_OWNER] = input.Owner
 		tagsIn[TAG_DESCRIPTION] = input.Description
-		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
+		// Only add expiry tag if a non-zero expiry time is set
+		if !input.Expires.IsZero() {
+			tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
+		}
 		tagsIn[TAG_AEROLAB_PROJECT] = s.project
 		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
 		tagsIn[TAG_COST_GB] = fmt.Sprintf("%f", ppgb)

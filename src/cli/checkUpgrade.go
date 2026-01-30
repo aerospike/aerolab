@@ -35,7 +35,8 @@ is AEROLAB_HOME set:
 */
 
 func checkUpgrade() {
-	if os.Getenv("AEROLAB_TEST") == "1" {
+	_, nerr := os.Stat("/opt/aerolab-agi-exec")
+	if os.Getenv("AEROLAB_TEST") == "1" || os.Getenv("AEROLAB_SKIP_DOWNGRADE") == "1" || nerr == nil {
 		return
 	}
 	if os.Getenv("AEROLAB_HOME") == "" {

@@ -103,6 +103,13 @@ func (s *b) ListEnabledZones() ([]string, error) {
 	return s.regions, nil
 }
 
+func (s *b) ListAvailableZones() ([]string, error) {
+	if len(s.regions) == 0 {
+		return nil, nil
+	}
+	return s.getAllRegions(s.regions[0])
+}
+
 func (s *b) EnableZones(names ...string) error {
 	if len(names) == 0 {
 		return nil

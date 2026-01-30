@@ -7,6 +7,7 @@ type CloudCmd struct {
 	ListInstanceTypes CloudListInstanceTypesCmd `command:"list-instance-types" subcommands-optional:"true" description:"List instance types" webicon:"fas fa-list"`
 	Secrets           CloudSecretsCmd           `command:"secrets" subcommands-optional:"true" description:"Secrets operations" webicon:"fas fa-key"`
 	Clusters          CloudClustersCmd          `command:"clusters" subcommands-optional:"true" description:"Clusters operations" webicon:"fas fa-database"`
+	GenConfTemplates  CloudGenConfTemplatesCmd  `command:"gen-conf-templates" subcommands-optional:"true" description:"Generate configuration templates from OpenAPI spec" webicon:"fas fa-file-code"`
 	Help              HelpCmd                   `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -35,6 +36,7 @@ type CloudClustersCmd struct {
 	Get              CloudClustersGetCmd              `command:"get" subcommands-optional:"true" description:"Get cluster connection details" webicon:"fas fa-info"`
 	Wait             CloudClustersWaitCmd             `command:"wait" subcommands-optional:"true" description:"Wait for cluster health.status" webicon:"fas fa-hourglass"`
 	Credentials      CloudClustersCredentialsCmd      `command:"credentials" subcommands-optional:"true" description:"Cluster credentials operations" webicon:"fas fa-key"`
+	EnableLogsAccess CloudClustersEnableLogsAccessCmd `command:"enable-logs-access" subcommands-optional:"true" description:"Enable S3 log bucket access for specified IAM roles" webicon:"fas fa-file-alt"`
 	Help             HelpCmd                          `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 

@@ -127,7 +127,7 @@ func (c *LogsGetCmd) GetLogs(system *System, inventory *backends.Inventory, logg
 					break
 				}
 			}
-			if ask {
+			if ask && IsInteractive() {
 				reader := bufio.NewReader(os.Stdin)
 				fmt.Print("Directory exists and existing files will be overwritten, continue download (y/n)? ")
 

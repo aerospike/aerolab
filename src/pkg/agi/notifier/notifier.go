@@ -22,15 +22,15 @@ import (
 
 type HTTPSNotify struct {
 	AGIMonitorUrl        string   `long:"agi-monitor-url" description:"AWS/GCP: AGI Monitor endpoint url to send the notifications to for sizing" yaml:"agiMonitor"`
-	AGIMonitorCertIgnore bool     `long:"agi-monitor-ignore-cert" description:"set to make https calls ignore invalid server certificate"`
+	AGIMonitorCertIgnore bool     `long:"agi-monitor-ignore-cert" description:"set to make https calls ignore invalid server certificate" yaml:"agiMonitorCertIgnore"`
 	Endpoint             string   `long:"notify-web-endpoint" description:"http(s) URL to contact with a notification" yaml:"endpoint"`
 	Headers              []string `long:"notify-web-header" description:"a header to set for notification; for example to use Authorization tokens; format: Name=value" yaml:"headers"`
 	AbortOnFail          bool     `long:"notify-web-abort-on-fail" description:"if set, ingest will be aborted if the notification system receives an error response or no response" yaml:"abortOnFail"`
 	AbortOnCode          []int    `long:"notify-web-abort-code" description:"set to status codes on which to abort the operation" yaml:"abortStatusCodes"`
-	IgnoreInvalidCert    bool     `long:"notify-web-ignore-cert" description:"set to make https calls ignore invalid server certificate"`
-	SlackToken           string   `long:"notify-slack-token" description:"set to enable slack notifications for events"`
-	SlackChannel         string   `long:"notify-slack-channel" description:"set to the channel to notify to"`
-	SlackEvents          string   `long:"notify-slack-events" description:"comma-separated list of events to notify for" default:"INGEST_FINISHED,SERVICE_DOWN,SERVICE_UP,MAX_AGE_REACHED,MAX_INACTIVITY_REACHED,SPOT_INSTANCE_CAPACITY_SHUTDOWN"`
+	IgnoreInvalidCert    bool     `long:"notify-web-ignore-cert" description:"set to make https calls ignore invalid server certificate" yaml:"ignoreInvalidCert"`
+	SlackToken           string   `long:"notify-slack-token" description:"set to enable slack notifications for events" yaml:"slackToken"`
+	SlackChannel         string   `long:"notify-slack-channel" description:"set to the channel to notify to" yaml:"slackChannel"`
+	SlackEvents          string   `long:"notify-slack-events" description:"comma-separated list of events to notify for" default:"INGEST_FINISHED,SERVICE_DOWN,SERVICE_UP,MAX_AGE_REACHED,MAX_INACTIVITY_REACHED,SPOT_INSTANCE_CAPACITY_SHUTDOWN" yaml:"slackEvents"`
 	slackEvents          []string
 	slack                *slack.Slack
 	wg                   *sync.WaitGroup
@@ -313,6 +313,44 @@ func getJsonAuthData(a *AgiMonitorAuth) error {
 	return nil
 }
 
+var awsImdsv2Token string
+var awsImdsv2TokenExpiry time.Time
+
+func getAwsImdsv2Token() (string, error) {
+	if awsImdsv2Token != "" && time.Now().Before(awsImdsv2TokenExpiry) {
+		return awsImdsv2Token, nil
+	}
+	req, err := http.NewRequest(http.MethodPut, "http://169.254.169.254/latest/api/token", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Add("X-aws-ec2-metadata-token-ttl-seconds", "21600")
+	tr := &http.Transport{
+		DisableKeepAlives: true,
+		IdleConnTimeout:   30 * time.Second,
+	}
+	client := &http.Client{
+		Timeout:   5 * time.Second,
+		Transport: tr,
+	}
+	defer client.CloseIdleConnections()
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("failed to get IMDSv2 token: %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	awsImdsv2Token = string(body)
+	awsImdsv2TokenExpiry = time.Now().Add(6 * time.Hour)
+	return awsImdsv2Token, nil
+}
+
 func wget(url string, gcp bool) (data []byte, err error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -320,6 +358,12 @@ func wget(url string, gcp bool) (data []byte, err error) {
 	}
 	if gcp {
 		req.Header.Add("Metadata-Flavor", "Google")
+	} else {
+		// Try IMDSv2 first
+		token, tokenErr := getAwsImdsv2Token()
+		if tokenErr == nil {
+			req.Header.Add("X-aws-ec2-metadata-token", token)
+		}
 	}
 	tr := &http.Transport{
 		DisableKeepAlives: true,

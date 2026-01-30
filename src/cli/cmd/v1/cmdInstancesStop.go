@@ -23,7 +23,7 @@ func (c *InstancesStopCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.StopInstances(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)

@@ -27,7 +27,7 @@ func (c *InstancesDestroyCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 	system.Logger.Info("Backend: %s, Project: %s", system.Opts.Config.Backend.Type, os.Getenv("AEROLAB_PROJECT"))
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.DestroyInstances(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)

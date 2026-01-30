@@ -132,11 +132,24 @@ If you're upgrading from AeroLab v7.x, see the **[Migration Guide](migration-gui
   - Show roster status
   - Roster cheat sheet
 
-- **[Aerospike Cloud](cloud/README.md)** - Manage Aerospike Cloud databases
-  - [Database Management](cloud/databases.md) - Create, update, delete databases
-  - [Credentials Management](cloud/credentials.md) - Manage database credentials
+- **[Aerospike Cloud](cloud/README.md)** - Manage Aerospike Cloud clusters
+  - [Cluster Management](cloud/clusters.md) - Create, update, delete clusters
+  - [Credentials Management](cloud/credentials.md) - Manage cluster credentials
   - [Secrets Management](cloud/secrets.md) - Manage secrets
-  - [VPC Peering](cloud/vpc-peering.md) - Peer VPCs with databases
+  - [VPC Peering](cloud/vpc-peering.md) - Peer VPCs with clusters
+
+### Log Analysis and Visualization
+
+- **[AGI (Aerospike Grafana Integration)](agi/README.md)** - Log analysis and visualization
+  - [Quick Start Guide](agi/quick-start.md) - Get started with AGI
+  - [Configuration Reference](agi/configuration.md) - Detailed command options
+  - [Troubleshooting Guide](agi/troubleshooting.md) - Common issues and solutions
+  - Features:
+    - Ingest logs from local files, SFTP, S3, or clusters
+    - Pre-built Grafana dashboards for log analysis
+    - Collect info bundle analysis
+    - Token-based authentication
+    - Auto-scaling with AGI Monitor (AWS/GCP)
 
 ## Reference
 

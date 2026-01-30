@@ -246,7 +246,10 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 	tagsIn[TAG_NAME] = input.Name
 	tagsIn[TAG_OWNER] = input.Owner
 	tagsIn[TAG_DESCRIPTION] = input.Description
-	tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
+	// Only add expiry tag if a non-zero expiry time is set
+	if !input.Expires.IsZero() {
+		tagsIn[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
+	}
 	tagsIn[TAG_AEROLAB_PROJECT] = s.project
 	tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
 	driver := "local"

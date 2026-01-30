@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"slices"
@@ -14,11 +15,42 @@ import (
 	"time"
 
 	"github.com/lithammer/shortuuid"
-	"github.com/rglonek/logger"
+	"log"
 )
 
+// moveOrCopyFile moves a file from src to dst. If readOnly is true, it copies instead of moving.
+// This is used when the input directory is read-only (e.g., bind mount).
+func moveOrCopyFile(src, dst string, readOnly bool) error {
+	if !readOnly {
+		return os.Rename(src, dst)
+	}
+	// Read-only mode: copy instead of move
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer srcFile.Close()
+
+	srcInfo, err := srcFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat source file: %w", err)
+	}
+
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer dstFile.Close()
+
+	if _, err := io.Copy(dstFile, srcFile); err != nil {
+		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	return nil
+}
+
 func (i *Ingest) PreProcess() error {
-	logger.Debug("PreProcess running")
+	log.Printf("DEBUG: PreProcess running")
 	i.progress.Lock()
 	if i.progress.PreProcessor.Files == nil {
 		i.progress.PreProcessor.Files = make(map[string]*EnumFile)
@@ -39,7 +71,7 @@ func (i *Ingest) PreProcess() error {
 		i.progress.Unlock()
 	}()
 
-	logger.Debug("Enumerating dirty dir")
+	log.Printf("DEBUG: Enumerating dirty dir")
 	files, err := i.enum()
 	if err != nil {
 		return fmt.Errorf("failed to enumerate files: %s", err)
@@ -47,15 +79,15 @@ func (i *Ingest) PreProcess() error {
 
 	// dedup
 	if i.config.Dedup.Enabled {
-		logger.Debug("Deduplicating")
+		log.Printf("DEBUG: Deduplicating")
 		i.deduplicate(files)
-		logger.Debug("Deduplication finished")
+		log.Printf("DEBUG: Deduplication finished")
 	} else {
-		logger.Debug("Deduplication disabled")
+		log.Printf("DEBUG: Deduplication disabled")
 	}
 
 	// process
-	logger.Debug("Pre-processing files")
+	log.Printf("DEBUG: Pre-processing files")
 	err = os.MkdirAll(i.config.Directories.Logs, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %s", i.config.Directories.Logs, err)
@@ -66,18 +98,23 @@ func (i *Ingest) PreProcess() error {
 	if err != nil {
 		return fmt.Errorf("failed to create %s: %s", i.config.Directories.CollectInfo, err)
 	}
+	readOnlyInput := i.config.Directories.ReadOnlyInput
 	for fn, file := range files {
 		if !file.IsCollectInfo && !file.IsText {
-			logger.Detail("pre-process %s is not text/collectinfo", fn)
+			log.Printf("DETAIL: pre-process %s is not text/collectinfo", fn)
 			continue
 		}
 		if len(file.PreProcessDuplicateOf) > 0 {
-			logger.Detail("pre-process %s is a duplicate of %s", fn, file.PreProcessDuplicateOf[0])
+			log.Printf("DETAIL: pre-process %s is a duplicate of %s", fn, file.PreProcessDuplicateOf[0])
 			continue
 		}
 		if file.IsCollectInfo {
-			logger.Detail("pre-process %s is collectinfo, moving", fn)
-			// deal with moving collectinfo
+			action := "moving"
+			if readOnlyInput {
+				action = "copying"
+			}
+			log.Printf("DETAIL: pre-process %s is collectinfo, %s", fn, action)
+			// deal with moving/copying collectinfo
 			i.progress.Lock()
 			i.progress.PreProcessor.CollectInfoUniquePrefixes++
 			prefix := "x" + strconv.Itoa(i.progress.PreProcessor.CollectInfoUniquePrefixes) + "_"
@@ -86,17 +123,19 @@ func (i *Ingest) PreProcess() error {
 			files[fn].PreProcessOutPaths = []string{path.Join(i.config.Directories.CollectInfo, prefix+fx)}
 			i.progress.PreProcessor.Files[fn] = files[fn]
 			i.progress.Unlock()
-			os.Rename(fn, path.Join(i.config.Directories.CollectInfo, prefix+fx))
+			if err := moveOrCopyFile(fn, path.Join(i.config.Directories.CollectInfo, prefix+fx), readOnlyInput); err != nil {
+				log.Printf("WARN: Failed to %s collectinfo file %s: %s", action, fn, err)
+			}
 			continue
 		}
 		// deal with text files (could be aerospike log files)
-		logger.Detail("pre-process %s is a text file, processing", fn)
+		log.Printf("DETAIL: pre-process %s is a text file, processing", fn)
 		wg.Add(1)
 		threads <- true
 		go func(fn string) {
 			err := i.preProcessTextFile(fn, files)
 			if err != nil {
-				logger.Warn("Failed to pre-process text file %s: %s", fn, err)
+				log.Printf("WARN: Failed to pre-process text file %s: %s", fn, err)
 				i.progress.Lock()
 				files[fn].Errors = append(files[fn].Errors, err.Error())
 				i.progress.PreProcessor.Files[fn] = files[fn]
@@ -109,21 +148,25 @@ func (i *Ingest) PreProcess() error {
 	}
 	wg.Wait()
 
-	// move other files
-	logger.Debug("Pre-process moving anything left over to the 'other' directory")
-	dirtyRun := path.Join(i.config.Directories.OtherFiles, strconv.Itoa(int(time.Now().Unix())))
-	err = os.MkdirAll(dirtyRun, 0755)
-	if err != nil {
-		return fmt.Errorf("could not create %s for other files: %s", dirtyRun, err)
-	}
-	others, err := os.ReadDir(i.config.Directories.DirtyTmp)
-	if err != nil {
-		return fmt.Errorf("could not list directory contents %s for other files: %s", i.config.Directories.DirtyTmp, err)
-	}
-	for _, other := range others {
-		err = os.Rename(path.Join(i.config.Directories.DirtyTmp, other.Name()), path.Join(dirtyRun, other.Name()))
+	// move/copy other files (skip in read-only mode as we can't modify the input directory)
+	if readOnlyInput {
+		log.Printf("DEBUG: Pre-process: skipping 'other' files cleanup (read-only input mode)")
+	} else {
+		log.Printf("DEBUG: Pre-process moving anything left over to the 'other' directory")
+		dirtyRun := path.Join(i.config.Directories.OtherFiles, strconv.Itoa(int(time.Now().Unix())))
+		err = os.MkdirAll(dirtyRun, 0755)
 		if err != nil {
-			logger.Error("could not move %s to %s: %s", path.Join(i.config.Directories.DirtyTmp, other.Name()), dirtyRun, err)
+			return fmt.Errorf("could not create %s for other files: %s", dirtyRun, err)
+		}
+		others, err := os.ReadDir(i.config.Directories.DirtyTmp)
+		if err != nil {
+			return fmt.Errorf("could not list directory contents %s for other files: %s", i.config.Directories.DirtyTmp, err)
+		}
+		for _, other := range others {
+			err = os.Rename(path.Join(i.config.Directories.DirtyTmp, other.Name()), path.Join(dirtyRun, other.Name()))
+			if err != nil {
+				log.Printf("ERROR: could not move %s to %s: %s", path.Join(i.config.Directories.DirtyTmp, other.Name()), dirtyRun, err)
+			}
 		}
 	}
 
@@ -133,7 +176,7 @@ func (i *Ingest) PreProcess() error {
 	i.progress.PreProcessor.Files = files
 	i.progress.PreProcessor.Finished = true
 	i.progress.Unlock()
-	logger.Debug("PreProcess finished")
+	log.Printf("DEBUG: PreProcess finished")
 	return nil
 }
 
@@ -147,6 +190,7 @@ func (i *Ingest) preProcessTextFile(fn string, files map[string]*EnumFile) error
 	}
 	outpaths := []string{}
 	var errors error
+	readOnlyInput := i.config.Directories.ReadOnlyInput
 	for _, fna := range fnlist {
 		err = func(fna string) error {
 			clusterName, nodeId, err := i.preProcessGetClusterNode(fna)
@@ -176,7 +220,7 @@ func (i *Ingest) preProcessTextFile(fn string, files map[string]*EnumFile) error
 			if err != nil {
 				return fmt.Errorf("failed to create %s: %s", path.Join(i.config.Directories.Logs, clusterName), err)
 			}
-			err = os.Rename(fna, outpath)
+			err = moveOrCopyFile(fna, outpath, readOnlyInput)
 			if err != nil {
 				return err
 			}
@@ -197,7 +241,8 @@ var errPreProcessNotSpecial = errors.New("STANDARD-LOG")
 
 func (i *Ingest) deduplicate(files map[string]*EnumFile) {
 	filesBySize := make(map[int64][]string)
-	logger.Detail("Dedplicate: sorting files by size")
+	readOnlyInput := i.config.Directories.ReadOnlyInput
+	log.Printf("DETAIL: Dedplicate: sorting files by size")
 	for fn, file := range files {
 		if !file.IsText {
 			// deduplicate only text type files
@@ -209,7 +254,7 @@ func (i *Ingest) deduplicate(files map[string]*EnumFile) {
 			filesBySize[file.Size] = append(filesBySize[file.Size], fn)
 		}
 	}
-	logger.Detail("Dedplicate: sorting files where size is equal by shasum of the first %d bytes", i.config.Dedup.ReadBytes)
+	log.Printf("DETAIL: Dedplicate: sorting files where size is equal by shasum of the first %d bytes", i.config.Dedup.ReadBytes)
 	filesBySha := make(map[[32]byte][]string)
 	for _, bysize := range filesBySize {
 		if len(bysize) < 2 {
@@ -224,7 +269,11 @@ func (i *Ingest) deduplicate(files map[string]*EnumFile) {
 			}
 		}
 	}
-	logger.Detail("Deduplicate: marking and removing duplicates")
+	if readOnlyInput {
+		log.Printf("DETAIL: Deduplicate: marking duplicates (read-only mode, not deleting)")
+	} else {
+		log.Printf("DETAIL: Deduplicate: marking and removing duplicates")
+	}
 	for sha, duplicates := range filesBySha {
 		if sha == [32]byte{} {
 			// could not calculate sha, don't touch this
@@ -234,14 +283,18 @@ func (i *Ingest) deduplicate(files map[string]*EnumFile) {
 			// no duplicates
 			continue
 		}
-		for i, dup := range duplicates {
-			if i == 0 {
+		for idx, dup := range duplicates {
+			if idx == 0 {
 				continue
 			}
 			// mark everything except for first one as a duplicate
 			files[dup].PreProcessDuplicateOf = append(files[dup].PreProcessDuplicateOf, duplicates[0])
-			logger.Detail("DUPLICATE REMOVING %s duplicate of %s", dup, duplicates[0])
-			os.Remove(dup) // delete duplicate files
+			if readOnlyInput {
+				log.Printf("DETAIL: DUPLICATE MARKED %s duplicate of %s (read-only, not deleting)", dup, duplicates[0])
+			} else {
+				log.Printf("DETAIL: DUPLICATE REMOVING %s duplicate of %s", dup, duplicates[0])
+				os.Remove(dup) // delete duplicate files
+			}
 		}
 	}
 }
@@ -249,7 +302,7 @@ func (i *Ingest) deduplicate(files map[string]*EnumFile) {
 func (i *Ingest) genSha256(fpath string, offset int64) [32]byte {
 	f, err := os.Open(fpath)
 	if err != nil {
-		logger.Warn("Could not open file %s for sha256 generation: %s", fpath, err)
+		log.Printf("WARN: Could not open file %s for sha256 generation: %s", fpath, err)
 		return [32]byte{}
 	}
 	defer f.Close()
@@ -257,7 +310,7 @@ func (i *Ingest) genSha256(fpath string, offset int64) [32]byte {
 	b := make([]byte, i.config.Dedup.ReadBytes)
 	_, err = f.Read(b)
 	if err != nil {
-		logger.Warn("Could not read file %s for sha256 generation: %s", fpath, err)
+		log.Printf("WARN: Could not read file %s for sha256 generation: %s", fpath, err)
 		return [32]byte{}
 	}
 	return sha256.Sum256(b)

@@ -16,7 +16,7 @@ import (
 )
 
 type ConfigBackendCmd struct {
-	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp" default:"" webchoice:"aws,gcp,docker"`
+	Type           string         `short:"t" long:"type" description:"Supported backends: aws|docker|gcp|none" default:"" webchoice:"aws,gcp,docker,none"`
 	SshKeyPath     flags.Filename `short:"p" long:"key-path" description:"Specify a custom path to store SSH keys in, default: ${HOME}/.config/aerolab" webtype:"text"`
 	Region         string         `short:"r" long:"region" description:"Specify a list of regions to enable, comma-separated" default:""`
 	InventoryCache bool           `short:"c" long:"inventory-cache" description:"Enable local inventory cache - use only if not sharing the GCP/AWS project/account with other users"`
@@ -131,7 +131,7 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	if c.Type == "gcp" && (c.GCPAuthMethod != "any" && c.GCPAuthMethod != "login" && c.GCPAuthMethod != "service-account") {
 		return errors.New("ERROR: Invalid GCP authentication method: " + c.GCPAuthMethod)
 	}
-	if c.Type == "docker" {
+	if c.Type == "docker" || c.Type == "none" {
 		c.Region = ""
 	} else if c.regionSet == "" {
 		return errors.New("ERROR: Region is required for AWS and GCP backends")
@@ -157,7 +157,7 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 			}
 		}
 	} else if c.Type != "none" {
-		return errors.New("backend types supported: docker, aws, gcp")
+		return errors.New("backend types supported: docker, aws, gcp, none")
 	}
 	if c.TmpDir == "" {
 		out, err := exec.Command("uname", "-r").CombinedOutput()
@@ -193,8 +193,19 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	}
 
 	// force (re)initialize the backend
-	system.Logger.Info("Initializing backend")
 	system.Opts.Config.Backend = *c
+
+	// Skip backend initialization for "none" type
+	if c.Type == "none" {
+		system.Logger.Info("Backend type set to 'none' - no backend will be initialized")
+		err := writeConfigFile(system)
+		if err != nil {
+			log.Printf("ERROR: Could not save file: %s", err)
+		}
+		return nil
+	}
+
+	system.Logger.Info("Initializing backend")
 	system.InitOptions.Backend = &InitBackend{
 		PollInventoryHourly: false,
 		UseCache:            false,
@@ -215,6 +226,6 @@ func (c *ConfigBackendCmd) ExecTypeSet(system *System, args []string) error {
 	if err != nil {
 		log.Printf("ERROR: Could not save file: %s", err)
 	}
-	UpdateDiskCache(system)
+	UpdateDiskCacheNow(system)
 	return nil
 }

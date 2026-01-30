@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"runtime/pprof"
 	"sync"
 
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
-	"github.com/rglonek/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -53,12 +53,11 @@ func Init(config *Config) (*Plugin, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
-	logger.SetLogLevel(logger.LogLevel(config.LogLevel))
 	if config.LogLevel >= 5 {
-		logger.Debug("==== CONFIG ====")
+		log.Printf("DEBUG: ==== CONFIG ====")
 		yaml.NewEncoder(os.Stdout).Encode(config)
 	}
-	logger.Debug("INIT: Connect to backend")
+	log.Printf("DEBUG: INIT: Connect to backend")
 	p := &Plugin{
 		config:   config,
 		requests: make(chan bool, config.MaxConcurrentRequests),
@@ -70,9 +69,9 @@ func Init(config *Config) (*Plugin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to the database: %s", err)
 	}
-	logger.Debug("INIT: Backend connected")
+	log.Printf("DEBUG: INIT: Backend connected")
 	if config.CPUProfilingOutputFile != "" {
-		logger.Debug("INIT: Enabling CPU profiling")
+		log.Printf("DEBUG: INIT: Enabling CPU profiling")
 		var err error
 		p.cpuProfile, err = os.Create(config.CPUProfilingOutputFile)
 		if err != nil {
@@ -91,11 +90,11 @@ func Init(config *Config) (*Plugin, error) {
 
 func (p *Plugin) Close() {
 	if p.pprofRunning {
-		logger.Debug("CLOSE: Stopping CPU profiling")
+		log.Printf("DEBUG: CLOSE: Stopping CPU profiling")
 		pprof.StopCPUProfile()
 	}
 	if p.cpuProfile != nil {
-		logger.Debug("CLOSE: Closing CPU profiling file")
+		log.Printf("DEBUG: CLOSE: Closing CPU profiling file")
 		p.cpuProfile.Close()
 	}
 }

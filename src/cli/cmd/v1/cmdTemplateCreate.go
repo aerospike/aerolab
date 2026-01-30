@@ -40,7 +40,7 @@ func (c *TemplateCreateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.CreateTemplate(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -216,17 +216,55 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	if err != nil {
 		return "", fmt.Errorf("could not get architecture: %s", err)
 	}
-	images := inventory.Images.WithTags(map[string]string{"aerolab.soft.version": c.AerospikeVersion + "-" + flavor}).WithOSName(c.Distro).WithOSVersion(osVersion).WithArchitecture(backendArch)
-	if images.Count() > 0 {
-		return "", fmt.Errorf("template %s-%s-%s-%s already exists", c.AerospikeVersion, flavor, c.Distro, osVersion)
+
+	templateVersionTag := c.AerospikeVersion + "-" + flavor
+
+	// Function to check if template exists and handle duplicates
+	checkTemplateExists := func() (string, bool) {
+		images := inventory.Images.WithTags(map[string]string{"aerolab.soft.version": templateVersionTag}).WithOSName(c.Distro).WithOSVersion(osVersion).WithArchitecture(backendArch)
+		if images.Count() > 0 {
+			// Handle potential duplicates from race condition
+			if images.Count() > 1 {
+				img, err := CleanupDuplicateTemplates(images.Describe(), logger)
+				if err != nil {
+					return "", false
+				}
+				return img.Name, true
+			}
+			return images.Describe()[0].Name, true
+		}
+		return "", false
 	}
 
-	// check if we need to vacuum an existing template creation instance if it exists (dangling instance for image)
-	needToVacuum := false
-	instances := inventory.Instances.WithTags(map[string]string{"aerolab.type": "images.create", "aerolab.tmpl.version": c.AerospikeVersion + "-" + flavor}).WithNotState(backends.LifeCycleStateTerminated).WithOSName(c.Distro).WithOSVersion(osVersion).WithArchitecture(backendArch)
-	if instances.Count() > 0 {
-		needToVacuum = true
+	// Check if template already exists
+	if name, exists := checkTemplateExists(); exists {
+		return "", fmt.Errorf("template %s-%s-%s already exists: %s", templateVersionTag, c.Distro, osVersion, name)
 	}
+
+	// Initialize race handler for template creation
+	raceHandler := newTemplateCreationRaceHandler(system.Opts.Config.Backend.Type, templateVersionTag+"-"+c.Distro+"-"+osVersion+"-"+c.Arch, logger)
+
+	// check if we need to vacuum an existing template creation instance if it exists (dangling instance for image)
+	instances := inventory.Instances.WithTags(map[string]string{"aerolab.type": "images.create", "aerolab.tmpl.version": templateVersionTag}).WithNotState(backends.LifeCycleStateTerminated).WithOSName(c.Distro).WithOSVersion(osVersion).WithArchitecture(backendArch)
+
+	// Handle race condition
+	raceResult, err := raceHandler.CheckForRaceCondition(instances.Describe(), func() (string, bool) {
+		// Refresh inventory to check for new templates
+		system.Backend.ForceRefreshInventory()
+		inventory = system.Backend.GetInventory()
+		return checkTemplateExists()
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to check for race condition: %w", err)
+	}
+
+	// If template was created by another process while we waited, return it
+	if raceResult.TemplateExists {
+		logger.Info("Template created by another process, using: %s", raceResult.TemplateName)
+		return raceResult.TemplateName, nil
+	}
+
+	needToVacuum := raceResult.ShouldVacuum
 
 	if c.Owner == "" {
 		c.Owner = currentOwnerUser
@@ -246,13 +284,24 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		awsInstanceType = "t4g.medium"
 		gcpInstanceType = "t2a-standard-2"
 	}
+
+	// Get race handler tags for coordinating with other processes
+	raceHandlerTags, err := raceHandler.GetInstanceTags()
+	if err != nil {
+		return "", fmt.Errorf("failed to get race handler tags: %w", err)
+	}
+	instanceTags := []string{"aerolab.tmpl.version=" + templateVersionTag}
+	for k, v := range raceHandlerTags {
+		instanceTags = append(instanceTags, fmt.Sprintf("%s=%s", k, v))
+	}
+
 	instancesCreate := &InstancesCreateCmd{
 		ClusterName:        instName,
 		Count:              1,
 		Name:               instName,
 		Owner:              c.Owner,
 		Type:               "images.create",
-		Tags:               []string{"aerolab.tmpl.version=" + c.AerospikeVersion + "-" + flavor},
+		Tags:               instanceTags,
 		Description:        "temporary aerospike server instance used for template creation",
 		TerminateOnStop:    false,
 		ParallelSSHThreads: 1,
@@ -350,6 +399,10 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 	if err != nil {
 		return "", fmt.Errorf("could not create instances: %s", err)
 	}
+
+	// Start heartbeat to signal we're actively working (for AWS/GCP race coordination)
+	stopHeartbeat := raceHandler.StartHeartbeat(inst)
+	defer stopHeartbeat()
 
 	shutdown.AddEarlyCleanupJob("template-create-"+instName, func(isSignal bool) {
 		if !isSignal {
@@ -466,6 +519,24 @@ func (c *TemplateCreateCmd) CreateTemplate(system *System, inventory *backends.I
 		return "", fmt.Errorf("could not destroy temporary instances: %s", err)
 	}
 	c.NoVacuum = true
+
+	// Signal successful completion (clears session file)
+	raceHandler.OnSuccess()
+
+	// Check for and cleanup any duplicate templates that may have been created
+	// due to race conditions (two users starting at exactly the same time)
+	system.Backend.ForceRefreshInventory()
+	inventory = system.Backend.GetInventory()
+	finalImages := inventory.Images.WithTags(map[string]string{"aerolab.soft.version": templateVersionTag}).WithOSName(c.Distro).WithOSVersion(osVersion).WithArchitecture(backendArch)
+	if finalImages.Count() > 1 {
+		finalImage, err := CleanupDuplicateTemplates(finalImages.Describe(), logger)
+		if err != nil {
+			logger.Warn("Failed to cleanup duplicate templates: %s", err)
+		} else {
+			image = finalImage
+		}
+	}
+
 	return image.Name, nil
 }
 

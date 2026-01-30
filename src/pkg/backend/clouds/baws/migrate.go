@@ -578,8 +578,30 @@ func (s *b) discoverOldImages(force bool) ([]backends.OldImage, error) {
 	return images, errs
 }
 
+// isAGIInstance checks if a v7 instance is an AGI instance by looking for AGI-specific tags.
+func isAGIInstance(tags map[string]string) bool {
+	agiIndicators := []string{
+		V7_TAG_AGI_AV,        // aerolab7agiav
+		V7_TAG_AGI_LABEL,     // agiLabel
+		V7_TAG_AGI_INSTANCE,  // agiinstance
+		V7_TAG_AGI_NODIM,     // aginodim
+		V7_TAG_AGI_SRC_LOCAL, // agiSrcLocal
+		V7_TAG_AGI_SRC_SFTP,  // agiSrcSftp
+		V7_TAG_AGI_SRC_S3,    // agiSrcS3
+	}
+	for _, tag := range agiIndicators {
+		if tags[tag] != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // translateServerTags converts v7 server instance tags to v8 format
 func (s *b) translateServerTags(inst backends.OldInstance, project, clusterUUID, aerolabVersion string) map[string]string {
+	// Check if this is an AGI instance
+	isAGI := isAGIInstance(inst.Tags)
+
 	tags := map[string]string{
 		TAG_CLUSTER_NAME:    inst.Tags[V7_TAG_CLUSTER_NAME],
 		TAG_NODE_NO:         inst.Tags[V7_TAG_NODE_NUMBER],
@@ -594,7 +616,20 @@ func (s *b) translateServerTags(inst backends.OldInstance, project, clusterUUID,
 		TAG_AEROLAB_VERSION: aerolabVersion,
 		TAG_CLUSTER_UUID:    clusterUUID,
 		TAG_V7_MIGRATED:     "true",
-		TAG_SOFT_TYPE:       "aerospike", // Server type is always "aerospike"
+	}
+
+	if isAGI {
+		// For AGI instances, set type to "agi" so v8 AGI commands can find them
+		tags[TAG_SOFT_TYPE] = "agi"
+
+		// Preserve AGI-specific tags WITHOUT v7- prefix so v8 can read them
+		s.preserveAGITags(inst.Tags, tags)
+	} else {
+		// Regular server type is "aerospike"
+		tags[TAG_SOFT_TYPE] = "aerospike"
+
+		// Add v7-prefixed tags for preserved values (non-AGI)
+		s.addV7PrefixedTags(inst.Tags, tags, false)
 	}
 
 	// Add software version if present
@@ -607,14 +642,27 @@ func (s *b) translateServerTags(inst backends.OldInstance, project, clusterUUID,
 		tags["v7-arch"] = v
 	}
 
-	// Add v7-prefixed tags for preserved values
-	s.addV7PrefixedTags(inst.Tags, tags)
-
 	return tags
+}
+
+// isAGIMonitor checks if a v7 client instance is an AGI Monitor by looking for monitor-specific tags.
+func isAGIMonitor(tags map[string]string) bool {
+	// V7 AGI Monitor has agimUrl and/or agimZone tags for Route53 configuration
+	// Also check for client type "agimonitor"
+	if tags["agimUrl"] != "" || tags["agimZone"] != "" {
+		return true
+	}
+	if tags[V7_TAG_CLIENT_TYPE] == "agimonitor" {
+		return true
+	}
+	return false
 }
 
 // translateClientTags converts v7 client instance tags to v8 format
 func (s *b) translateClientTags(inst backends.OldInstance, project, clusterUUID, aerolabVersion string) map[string]string {
+	// Check if this is an AGI Monitor instance
+	isMonitor := isAGIMonitor(inst.Tags)
+
 	tags := map[string]string{
 		TAG_CLUSTER_NAME:    inst.Tags[V7_TAG_CLIENT_CLUSTER_NAME],
 		TAG_NODE_NO:         inst.Tags[V7_TAG_CLIENT_NODE_NUMBER],
@@ -646,34 +694,98 @@ func (s *b) translateClientTags(inst backends.OldInstance, project, clusterUUID,
 		tags[TAG_SOFT_VERSION] = v
 	}
 
+	// For AGI Monitor, preserve monitor-specific tags without prefix
+	if isMonitor {
+		s.preserveAGIMonitorTags(inst.Tags, tags)
+	}
+
 	// Add v7-prefixed tags for preserved values
-	s.addV7PrefixedTags(inst.Tags, tags)
+	s.addV7PrefixedTags(inst.Tags, tags, false)
 
 	return tags
 }
 
-// addV7PrefixedTags adds v7- prefix to preserved tags and migrates telemetry
-func (s *b) addV7PrefixedTags(oldTags, newTags map[string]string) {
+// preserveAGIMonitorTags preserves AGI Monitor-specific tags WITHOUT prefix.
+func (s *b) preserveAGIMonitorTags(oldTags, newTags map[string]string) {
+	// AGI Monitor-specific tags to preserve with their ORIGINAL names
+	monitorTagsToPreserve := []string{
+		"agimUrl",  // Route53 domain URL
+		"agimZone", // Route53 zone ID
+	}
+
+	for _, tag := range monitorTagsToPreserve {
+		if v := oldTags[tag]; v != "" {
+			newTags[tag] = v
+		}
+	}
+}
+
+// preserveAGITags preserves AGI-specific tags WITHOUT prefix so v8 AGI commands can read them.
+// This is called for AGI instances during migration.
+func (s *b) preserveAGITags(oldTags, newTags map[string]string) {
+	// Migrate telemetry tag to new v8 format
+	if v := oldTags[V7_TAG_TELEMETRY]; v != "" {
+		newTags[TAG_TELEMETRY] = v
+	}
+
+	// AGI-specific tags to preserve with their ORIGINAL names (no prefix)
+	// These are needed by v8 AGI commands to read configuration
+	agiTagsToPreserve := []string{
+		V7_TAG_AGI_AV,        // aerolab7agiav - Aerospike version for AGI
+		V7_TAG_FEATURES,      // aerolab4features - feature flags
+		V7_TAG_SSL,           // aerolab4ssl - SSL enabled
+		V7_TAG_AGI_LABEL,     // agiLabel - AGI label
+		V7_TAG_AGI_INSTANCE,  // agiinstance - instance type
+		V7_TAG_AGI_NODIM,     // aginodim - NoDIM mode
+		V7_TAG_TERM_ON_POW,   // termonpow - terminate on poweroff
+		V7_TAG_IS_SPOT,       // isspot - spot instance
+		V7_TAG_AGI_SRC_LOCAL, // agiSrcLocal - local source
+		V7_TAG_AGI_SRC_SFTP,  // agiSrcSftp - SFTP source
+		V7_TAG_AGI_SRC_S3,    // agiSrcS3 - S3 source
+		V7_TAG_AGI_DOMAIN,    // agiDomain - Route53 domain
+	}
+
+	for _, tag := range agiTagsToPreserve {
+		if v := oldTags[tag]; v != "" {
+			newTags[tag] = v
+		}
+	}
+
+	// Also preserve v7-spot if present
+	if v := oldTags[V7_TAG_SPOT]; v != "" {
+		newTags["v7-spot"] = v
+	}
+}
+
+// addV7PrefixedTags adds v7- prefix to preserved tags and migrates telemetry.
+// If isAGI is true, AGI-specific tags are handled separately by preserveAGITags.
+func (s *b) addV7PrefixedTags(oldTags, newTags map[string]string, isAGI bool) {
 	// Migrate telemetry tag to new v8 format
 	if v := oldTags[V7_TAG_TELEMETRY]; v != "" {
 		newTags[TAG_TELEMETRY] = v
 	}
 
 	// Map of old tag names to their v7- prefixed versions
+	// Note: AGI-specific tags are only prefixed for non-AGI instances
 	tagsToPrefix := map[string]string{
-		V7_TAG_SPOT:          "v7-spot",
-		V7_TAG_AGI_AV:        "v7-agiav",
-		V7_TAG_FEATURES:      "v7-features",
-		V7_TAG_SSL:           "v7-ssl",
-		V7_TAG_AGI_LABEL:     "v7-agilabel",
-		V7_TAG_AGI_INSTANCE:  "v7-agiinstance",
-		V7_TAG_AGI_NODIM:     "v7-aginodim",
-		V7_TAG_TERM_ON_POW:   "v7-termonpow",
-		V7_TAG_IS_SPOT:       "v7-isspot",
-		V7_TAG_AGI_SRC_LOCAL: "v7-agisrclocal",
-		V7_TAG_AGI_SRC_SFTP:  "v7-agisrcsftp",
-		V7_TAG_AGI_SRC_S3:    "v7-agisrcs3",
-		V7_TAG_AGI_DOMAIN:    "v7-agidomain",
+		V7_TAG_SPOT: "v7-spot",
+	}
+
+	// Only add AGI tags with prefix for non-AGI instances
+	// AGI instances preserve these tags without prefix via preserveAGITags()
+	if !isAGI {
+		tagsToPrefix[V7_TAG_AGI_AV] = "v7-agiav"
+		tagsToPrefix[V7_TAG_FEATURES] = "v7-features"
+		tagsToPrefix[V7_TAG_SSL] = "v7-ssl"
+		tagsToPrefix[V7_TAG_AGI_LABEL] = "v7-agilabel"
+		tagsToPrefix[V7_TAG_AGI_INSTANCE] = "v7-agiinstance"
+		tagsToPrefix[V7_TAG_AGI_NODIM] = "v7-aginodim"
+		tagsToPrefix[V7_TAG_TERM_ON_POW] = "v7-termonpow"
+		tagsToPrefix[V7_TAG_IS_SPOT] = "v7-isspot"
+		tagsToPrefix[V7_TAG_AGI_SRC_LOCAL] = "v7-agisrclocal"
+		tagsToPrefix[V7_TAG_AGI_SRC_SFTP] = "v7-agisrcsftp"
+		tagsToPrefix[V7_TAG_AGI_SRC_S3] = "v7-agisrcs3"
+		tagsToPrefix[V7_TAG_AGI_DOMAIN] = "v7-agidomain"
 	}
 
 	for oldKey, newKey := range tagsToPrefix {
@@ -683,8 +795,27 @@ func (s *b) addV7PrefixedTags(oldTags, newTags map[string]string) {
 	}
 }
 
+// isAGIVolume checks if a v7 volume is associated with AGI by looking for AGI-specific tags.
+func isAGIVolume(tags map[string]string) bool {
+	agiIndicators := []string{
+		V7_TAG_AGI_LABEL,    // agiLabel
+		V7_TAG_AGI_INSTANCE, // agiinstance
+		V7_TAG_AGI_NODIM,    // aginodim
+		V7_TAG_AGI_AV,       // aerolab7agiav
+	}
+	for _, tag := range agiIndicators {
+		if tags[tag] != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // translateVolumeTags converts v7 volume tags to v8 format
 func (s *b) translateVolumeTags(vol backends.OldVolume, project, aerolabVersion string) map[string]string {
+	// Check if this is an AGI-associated volume
+	isAGI := isAGIVolume(vol.Tags)
+
 	tags := map[string]string{
 		TAG_START_TIME:      vol.Tags[V7_TAG_VOLUME_LAST_USED],
 		TAG_OWNER:           vol.Tags[V7_TAG_VOLUME_OWNER],
@@ -698,12 +829,38 @@ func (s *b) translateVolumeTags(vol backends.OldVolume, project, aerolabVersion 
 		tags["v7-expireduration"] = v
 	}
 
-	// Preserve AGI label with v7- prefix
-	if v := vol.Tags[V7_TAG_AGI_LABEL]; v != "" {
-		tags["v7-agilabel"] = v
+	if isAGI {
+		// For AGI volumes, preserve AGI-specific tags WITHOUT prefix
+		// so v8 AGI can recognize and use these volumes
+		s.preserveAGIVolumeTags(vol.Tags, tags)
+	} else {
+		// For non-AGI volumes, preserve AGI label with v7- prefix
+		if v := vol.Tags[V7_TAG_AGI_LABEL]; v != "" {
+			tags["v7-agilabel"] = v
+		}
 	}
 
 	return tags
+}
+
+// preserveAGIVolumeTags preserves AGI-specific volume tags WITHOUT prefix.
+// This allows v8 AGI to recognize and reuse volumes from migrated AGI instances.
+func (s *b) preserveAGIVolumeTags(oldTags, newTags map[string]string) {
+	// AGI volume tags to preserve with their ORIGINAL names
+	agiVolumeTags := []string{
+		V7_TAG_AGI_LABEL,    // agiLabel - AGI label
+		V7_TAG_AGI_INSTANCE, // agiinstance - instance type used
+		V7_TAG_AGI_NODIM,    // aginodim - NoDIM mode
+		V7_TAG_TERM_ON_POW,  // termonpow - terminate on poweroff
+		V7_TAG_IS_SPOT,      // isspot - spot instance
+		V7_TAG_AGI_AV,       // aerolab7agiav - Aerospike version for AGI
+	}
+
+	for _, tag := range agiVolumeTags {
+		if v := oldTags[tag]; v != "" {
+			newTags[tag] = v
+		}
+	}
 }
 
 // translateImageTags converts v7 image to v8 format

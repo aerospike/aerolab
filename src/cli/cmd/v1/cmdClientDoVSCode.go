@@ -51,7 +51,7 @@ func (c *ClientCreateVSCodeCmd) Execute(args []string) error {
 		}
 	}
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.createVSCodeClient(system, system.Backend.GetInventory(), system.Logger, args, isGrow)
 	if err != nil {
 		return Error(err, system, cmd, c, args)

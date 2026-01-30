@@ -292,6 +292,10 @@ func (v VolumeList) WithExpired(expired bool) Volumes {
 	ret := VolumeList{}
 	for _, volume := range v {
 		volume := volume
+		// Zero time means no expiry - skip when looking for expired volumes
+		if expired && volume.Expires.IsZero() {
+			continue
+		}
 		if !expired && volume.Expires.Before(time.Now()) {
 			continue
 		}

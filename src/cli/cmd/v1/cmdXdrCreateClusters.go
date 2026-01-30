@@ -26,7 +26,7 @@ func (c *XdrCreateClustersCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.createClusters(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)

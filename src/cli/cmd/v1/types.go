@@ -9,6 +9,7 @@ import (
 )
 
 type TypeClusterName string
+type TypeAgiClusterName string
 type TypeNodes string              // depends on cluster name, will not autocomplete
 type TypeNodesPlusAllOption string // depends on cluster name, will not autocomplete
 type TypeNode int                  // depends on cluster name, will not autocomplete
@@ -34,6 +35,9 @@ func (t *TypeMachines) String() string {
 	return string(*t)
 }
 func (t *TypeClusterName) String() string {
+	return string(*t)
+}
+func (t *TypeAgiClusterName) String() string {
 	return string(*t)
 }
 func (t *TypeNodes) String() string {
@@ -113,6 +117,23 @@ func (t *TypeClusterName) Complete(match string) []flags.Completion {
 		}
 	}
 	sort.Strings(servers)
+	return nil
+}
+
+func (t *TypeAgiClusterName) Complete(match string) []flags.Completion {
+	system, err := Initialize(&Init{InitBackend: true, UpgradeCheck: true}, []string{"COMPLETION"}, nil)
+	if err != nil {
+		return nil
+	}
+	inv := system.Backend.GetInventory()
+	inst := inv.Instances.WithTags(map[string]string{"aerolab.type": "agi"})
+	agis := []string{}
+	for _, i := range inst.Describe() {
+		if !slices.Contains(agis, i.ClusterName) && strings.Contains(i.ClusterName, match) {
+			agis = append(agis, i.ClusterName)
+		}
+	}
+	sort.Strings(agis)
 	return nil
 }
 

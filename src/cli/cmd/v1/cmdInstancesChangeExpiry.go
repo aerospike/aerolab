@@ -22,7 +22,7 @@ func (c *InstancesChangeExpiryCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.ChangeExpiryInstances(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -49,9 +49,20 @@ func (c *InstancesChangeExpiryCmd) ChangeExpiryInstances(system *System, invento
 		return nil, err
 	}
 
-	newExpiry := time.Now().Add(c.ExpireIn)
+	// If ExpireIn is 0, pass zero time to remove the expiry tag
+	var newExpiry time.Time
+	if c.ExpireIn == 0 {
+		newExpiry = time.Time{}
+	} else {
+		newExpiry = time.Now().Add(c.ExpireIn)
+	}
+
 	if !c.DryRun {
-		system.Logger.Info("Changing expiry for %d instances to %s", len(instances), newExpiry.Format(time.RFC3339))
+		if c.ExpireIn == 0 {
+			system.Logger.Info("Removing expiry for %d instances", len(instances))
+		} else {
+			system.Logger.Info("Changing expiry for %d instances to %s", len(instances), newExpiry.Format(time.RFC3339))
+		}
 		for _, instance := range instances {
 			system.Logger.Debug("Name: %s, cluster: %s, node: %d", instance.Name, instance.ClusterName, instance.NodeNo)
 		}
@@ -62,7 +73,11 @@ func (c *InstancesChangeExpiryCmd) ChangeExpiryInstances(system *System, invento
 		return instances, nil
 	}
 
-	system.Logger.Info("DRY-RUN: Would change expiry for %d instances to %s", len(instances), newExpiry.Format(time.RFC3339))
+	if c.ExpireIn == 0 {
+		system.Logger.Info("DRY-RUN: Would remove expiry for %d instances", len(instances))
+	} else {
+		system.Logger.Info("DRY-RUN: Would change expiry for %d instances to %s", len(instances), newExpiry.Format(time.RFC3339))
+	}
 	for _, instance := range instances {
 		system.Logger.Info("Name: %s, cluster: %s, node: %d", instance.Name, instance.ClusterName, instance.NodeNo)
 	}

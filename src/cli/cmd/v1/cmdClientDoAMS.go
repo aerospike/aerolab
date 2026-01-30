@@ -77,7 +77,7 @@ func (c *ClientCreateAMSCmd) Execute(args []string) error {
 		}
 	}
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.createAMSClient(system, system.Backend.GetInventory(), system.Logger, args, isGrow)
 	if err != nil {
 		return Error(err, system, cmd, c, args)

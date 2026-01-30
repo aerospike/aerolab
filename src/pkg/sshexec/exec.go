@@ -13,7 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aerospike/aerolab/pkg/utils/shutdown"
 	"github.com/google/uuid"
+	"github.com/rglonek/logger"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
@@ -230,6 +232,7 @@ func resize(session *ssh.Session) {
 		}
 		if session != nil {
 			term.MakeRaw(fd)
+			logger.SetRawTerminalMode(true)
 			if err := session.WindowChange(height, width); err != nil {
 				log.Printf("handleWindowResize: failed to set window size: %s", err)
 			}
@@ -256,6 +259,9 @@ func RestoreTerminal() {
 	restore()
 }
 
+// savedTermState stores the original terminal state for signal-based restoration
+var savedTermState *term.State
+
 func init() {
 	// handle restoring of terminal state
 	fileDescriptor := int(os.Stdin.Fd())
@@ -265,14 +271,23 @@ func init() {
 		if err != nil {
 			log.Printf("Could not store terminal state, terminal may become corrupt: %s", err)
 		} else {
+			savedTermState = termState
 			restore = func() {
 				if restoreCount.Add(-1) == 0 {
 					err := term.Restore(int(os.Stdin.Fd()), termState)
 					if err != nil {
 						log.Printf("FAILED to restore terminal state, run 'reset' or 'stty sane': %s", err)
 					}
+					logger.SetRawTerminalMode(false)
 				}
 			}
+			// Register terminal restore with shutdown handler for signal-based cleanup
+			shutdown.AddEarlyCleanupJob("terminal-restore", func(isSignal bool) {
+				if savedTermState != nil {
+					term.Restore(fileDescriptor, savedTermState)
+					logger.SetRawTerminalMode(false)
+				}
+			})
 		}
 	}
 	// init window resizer

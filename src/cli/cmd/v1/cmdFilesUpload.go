@@ -4,11 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/progress"
 	"github.com/rglonek/go-flags"
 )
 
@@ -16,6 +19,7 @@ type FilesUploadCmd struct {
 	ClusterName     TypeClusterName    `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes           TypeNodes          `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
 	ParallelThreads int                `short:"t" long:"threads" description:"Run on this many nodes in parallel" default:"10"`
+	Progress        bool               `short:"p" long:"progress" description:"Show upload progress with TUI display"`
 	Files           FilesRestUploadCmd `positional-args:"true"`
 	Help            HelpCmd            `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -96,13 +100,9 @@ func (c *FilesUploadCmd) Upload(system *System, inventory *backends.Inventory, a
 		return err
 	}
 
-	type upload struct {
-		conf     *sshexec.ClientConf
-		instance *backends.Instance
-	}
-	uploads := make([]upload, len(confs))
+	uploads := make([]uploadItem, len(confs))
 	for i, conf := range confs {
-		uploads[i] = upload{
+		uploads[i] = uploadItem{
 			conf:     conf,
 			instance: instances.Describe()[i],
 		}
@@ -112,8 +112,13 @@ func (c *FilesUploadCmd) Upload(system *System, inventory *backends.Inventory, a
 		return fmt.Errorf("source %s does not exist", c.Files.Source)
 	}
 
+	// Use progress TUI if requested
+	if c.Progress {
+		return c.uploadWithProgress(system, uploads)
+	}
+
 	var hasErr error
-	parallelize.ForEachLimit(uploads, c.ParallelThreads, func(upload upload) {
+	parallelize.ForEachLimit(uploads, c.ParallelThreads, func(upload uploadItem) {
 		conf := upload.conf
 		instance := upload.instance
 		sftp, err := sshexec.NewSftp(conf)
@@ -131,4 +136,75 @@ func (c *FilesUploadCmd) Upload(system *System, inventory *backends.Inventory, a
 		}
 	})
 	return hasErr
+}
+
+type uploadItem struct {
+	conf     *sshexec.ClientConf
+	instance *backends.Instance
+}
+
+func (c *FilesUploadCmd) uploadWithProgress(system *System, uploads []uploadItem) error {
+	// Calculate total size
+	sourcePath := string(c.Files.Source)
+	totalSize, err := calculateLocalSize(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to calculate source size: %v", err)
+	}
+
+	// Multiply by number of nodes for aggregate
+	totalSize *= int64(len(uploads))
+
+	// Create progress tracker
+	tracker := progress.NewTracker()
+	tracker.SetTotalBytes(totalSize)
+
+	title := fmt.Sprintf("Uploading to cluster %s (%d nodes)", c.ClusterName.String(), len(uploads))
+
+	// Run with progress TUI
+	return progress.RunWithProgress(tracker, title, true, func() {
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, c.ParallelThreads)
+
+		for _, u := range uploads {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(upload uploadItem) {
+				defer wg.Done()
+				defer func() { <-sem }()
+
+				// Check for cancellation
+				if tracker.IsCancelled() {
+					return
+				}
+
+				sftp, err := sshexec.NewSftp(upload.conf)
+				if err != nil {
+					tracker.SetError(upload.instance.NodeNo, fmt.Errorf("node %d: failed to create sftp client: %v", upload.instance.NodeNo, err))
+					return
+				}
+				defer sftp.Close()
+
+				err = sftp.UploadWithProgress(sourcePath, c.Files.Destination, tracker, upload.instance.NodeNo)
+				if err != nil && !tracker.IsCancelled() {
+					tracker.SetError(upload.instance.NodeNo, fmt.Errorf("node %d: %v", upload.instance.NodeNo, err))
+				}
+			}(u)
+		}
+
+		wg.Wait()
+	})
+}
+
+func calculateLocalSize(path string) (int64, error) {
+	var total int64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info != nil && !info.IsDir() {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total, err
 }

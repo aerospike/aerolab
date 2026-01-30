@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
-	"github.com/rglonek/logger"
+	"log"
 )
 
 func (i *Plugin) dbConnect() error {
@@ -63,7 +63,7 @@ func (i *Plugin) dbConnect() error {
 	for err != nil {
 		i.db, err = aerospike.NewClientWithPolicy(connectPolicy, i.config.Aerospike.Host, i.config.Aerospike.Port)
 		if err != nil {
-			logger.Debug("Failed to connect: %s", err)
+			log.Printf("DEBUG: Failed to connect: %s", err)
 			retries++
 			nerr = nerr + "\n" + err.Error()
 			if i.config.Aerospike.Retries.Connect > -1 && retries > i.config.Aerospike.Retries.Connect {
@@ -83,7 +83,7 @@ func (i *Plugin) dbConnect() error {
 	i.rp.MaxRetries = i.config.Aerospike.Retries.Write
 	i.ip = aerospike.NewInfoPolicy()
 	i.ip.Timeout = i.config.Aerospike.Timeouts.InfoTimeout
-	logger.Debug("DB: WarmUp")
+	log.Printf("DEBUG: DB: WarmUp")
 	i.db.WarmUp(i.config.Aerospike.ConnectionQueueSize)
 	return nil
 }

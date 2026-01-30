@@ -1,8 +1,9 @@
 #!/bin/bash
 
 ### supported distros: rockylinux:9 rockylinux:8 ubuntu:24.04 ubuntu:22.04 ubuntu:20.04 debian:13 debian:12 debian:11 centos:stream9 centos:stream8 amazonlinux:2023 amazonlinux:2
-### usage: ./efs_install.sh [fips]
-### fips parameter will enable fips mode in efs utils; note: this requires that fips edition of openssh is installed
+### usage: ./efs_install.sh
+### this script installs EFS utils; it will skip installation if EFS is already installed
+### note: FIPS mode is handled by efs_mount.sh
 
 function install_efs_pre() {
     set -e
@@ -19,6 +20,28 @@ function install_efs_clone() {
 function install_efs_get_tag() {
     git ls-remote --tags --sort="v:refname" https://github.com/aws/efs-utils | tail -n 1 | sed 's/.*\///'
 }
+
+# Check if EFS utils is already installed
+function is_efs_installed() {
+    # Check for mount.efs binary which is the key component
+    if [ -x /sbin/mount.efs ] || [ -x /usr/sbin/mount.efs ]; then
+        return 0
+    fi
+    # Also check via package manager
+    type -t yum >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        rpm -q amazon-efs-utils >/dev/null 2>&1 && return 0
+    else
+        dpkg -s amazon-efs-utils >/dev/null 2>&1 && return 0
+    fi
+    return 1
+}
+
+# Check if already installed
+if is_efs_installed; then
+    echo "EFS utils is already installed, skipping installation"
+    exit 0
+fi
 
 type -t yum >/dev/null 2>&1
 if [ $? -eq 0 ]; then
@@ -84,7 +107,4 @@ else
         ./build-deb.sh
         apt-get -y install ./build/amazon-efs-utils*deb
     fi
-fi
-if [ "$1" == "fips" ]; then
-    sed -i "s/fips_mode_enabled = false/fips_mode_enabled = true/" /etc/amazon/efs/efs-utils.conf
 fi

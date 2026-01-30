@@ -46,7 +46,7 @@ func (c *ClientStartCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.startClients(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -156,7 +156,7 @@ func (c *ClientStopCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.stopClients(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -195,7 +195,7 @@ func (c *ClientDestroyCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.destroyClients(system, system.Backend.GetInventory(), system.Logger, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -227,7 +227,7 @@ func (c *ClientDestroyCmd) destroyClients(system *System, inventory *backends.In
 	}
 
 	// Confirm destruction unless forced
-	if !c.Force {
+	if !c.Force && IsInteractive() {
 		for {
 			reader := bufio.NewReader(os.Stdin)
 			fmt.Printf("Are you sure you want to destroy clients [%s] (y/n)? ", strings.Join(clusterList, ", "))

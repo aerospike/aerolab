@@ -7,6 +7,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/aerospike/aerolab/pkg/utils/progress"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
@@ -289,4 +290,241 @@ func (i *Sftp) downloadFile(sourcePath string, destPath string, depth int) error
 		return fmt.Errorf("failed to read file: %v", err)
 	}
 	return nil
+}
+
+// UploadWithProgress uploads files recursively to remote with progress tracking
+func (i *Sftp) UploadWithProgress(sourcePath string, destPath string, tracker *progress.Tracker, nodeNo int) error {
+	return i.uploadWithProgress(sourcePath, destPath, path.Base(sourcePath), 0, tracker, nodeNo)
+}
+
+func (i *Sftp) uploadWithProgress(sourcePath string, destPath string, sourceRoot string, depth int, tracker *progress.Tracker, nodeNo int) error {
+	// Check for cancellation
+	if tracker.IsCancelled() {
+		return fmt.Errorf("upload cancelled")
+	}
+
+	info, err := os.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to get source info: %v", err)
+	}
+
+	// if destPath exists and is a directory, append the source file name to the destPath
+	if depth == 0 {
+		if st, err := i.client.Stat(destPath); err == nil && st.IsDir() {
+			destPath = path.Join(destPath, sourceRoot)
+		}
+	}
+
+	// Check if source is a directory
+	if info.IsDir() {
+		// Create remote directory
+		err = i.client.MkdirAll(destPath)
+		if err != nil {
+			return fmt.Errorf("failed to create remote directory: %v", err)
+		}
+
+		// Iterate through the directory contents
+		entries, err := os.ReadDir(sourcePath)
+		if err != nil {
+			return fmt.Errorf("failed to read source directory: %v", err)
+		}
+
+		for _, entry := range entries {
+			src := path.Join(sourcePath, entry.Name())
+			dst := path.Join(destPath, entry.Name())
+
+			// Recursively call Upload
+			err = i.uploadWithProgress(src, dst, sourceRoot, depth+1, tracker, nodeNo)
+			if err != nil {
+				return fmt.Errorf("failed to upload %s: %v", src, err)
+			}
+		}
+	} else {
+		// Upload a single file
+		err = i.uploadFileWithProgress(sourcePath, destPath, tracker, nodeNo)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Sftp) uploadFileWithProgress(sourcePath string, destPath string, tracker *progress.Tracker, nodeNo int) error {
+	file, err := os.Open(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %v", err)
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat source file: %v", err)
+	}
+
+	fileName := path.Base(sourcePath)
+
+	// Create progress reader
+	pr := tracker.NewProgressReader(file, nodeNo, fileName, info.Size())
+
+	// Create directory if needed
+	dir, _ := path.Split(destPath)
+	if dir != "" {
+		if _, err := i.client.Stat(dir); err != nil && os.IsNotExist(err) {
+			err = i.client.MkdirAll(dir)
+			if err != nil {
+				pr.Complete(err)
+				return err
+			}
+		}
+	}
+
+	// Open remote file
+	fh, err := i.client.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	if err != nil {
+		pr.Complete(err)
+		return err
+	}
+
+	// Copy with progress tracking
+	_, err = fh.ReadFrom(pr)
+	fh.Close()
+
+	pr.Complete(err)
+
+	if err != nil {
+		return fmt.Errorf("failed to write file: %v", err)
+	}
+	return nil
+}
+
+// DownloadWithProgress downloads files recursively from remote with progress tracking
+func (i *Sftp) DownloadWithProgress(sourcePath string, destPath string, tracker *progress.Tracker, nodeNo int) error {
+	return i.downloadWithProgress(sourcePath, destPath, 0, tracker, nodeNo)
+}
+
+func (i *Sftp) downloadWithProgress(sourcePath string, destPath string, depth int, tracker *progress.Tracker, nodeNo int) error {
+	// Check for cancellation
+	if tracker.IsCancelled() {
+		return fmt.Errorf("download cancelled")
+	}
+
+	info, err := i.client.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to get remote source info: %v", err)
+	}
+
+	// Check if source is a directory
+	if info.IsDir() {
+		// Create local directory
+		err = os.MkdirAll(destPath, os.ModePerm)
+		if err != nil {
+			return fmt.Errorf("failed to create local directory: %v", err)
+		}
+
+		// Iterate through the directory contents
+		entries, err := i.client.ReadDir(sourcePath)
+		if err != nil {
+			return fmt.Errorf("failed to read remote directory: %v", err)
+		}
+
+		for _, entry := range entries {
+			src := path.Join(sourcePath, entry.Name())
+			dst := path.Join(destPath, entry.Name())
+
+			// Recursively call Download
+			err = i.downloadWithProgress(src, dst, depth+1, tracker, nodeNo)
+			if err != nil {
+				return fmt.Errorf("failed to download %s: %v", src, err)
+			}
+		}
+	} else {
+		// Download a single file
+		err = i.downloadFileWithProgress(sourcePath, destPath, depth, tracker, nodeNo)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (i *Sftp) downloadFileWithProgress(sourcePath string, destPath string, depth int, tracker *progress.Tracker, nodeNo int) error {
+	if depth == 0 {
+		// Check if destPath is a directory
+		destInfo, err := os.Stat(destPath)
+		if err == nil && destInfo.IsDir() {
+			// Join destPath with filename from sourcePath
+			destPath = path.Join(destPath, path.Base(sourcePath))
+		}
+	}
+
+	// Get remote file info for size
+	info, err := i.client.Stat(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to stat remote file: %v", err)
+	}
+
+	fileName := path.Base(sourcePath)
+
+	// Create local file
+	file, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("failed to create local file: %v", err)
+	}
+	defer file.Close()
+
+	// Create progress writer
+	pw := tracker.NewProgressWriter(file, nodeNo, fileName, info.Size())
+
+	// Open remote file
+	fh, err := i.client.Open(sourcePath)
+	if err != nil {
+		pw.Complete(err)
+		return err
+	}
+	defer fh.Close()
+
+	// Copy with progress tracking
+	_, err = fh.WriteTo(pw)
+
+	pw.Complete(err)
+
+	if err != nil {
+		return fmt.Errorf("failed to read file: %v", err)
+	}
+	return nil
+}
+
+// CalculateRemoteSize calculates the total size of a remote file or directory
+func (i *Sftp) CalculateRemoteSize(remotePath string) (int64, error) {
+	return i.calculateRemoteSize(remotePath)
+}
+
+func (i *Sftp) calculateRemoteSize(remotePath string) (int64, error) {
+	info, err := i.client.Stat(remotePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to stat remote path: %v", err)
+	}
+
+	if !info.IsDir() {
+		return info.Size(), nil
+	}
+
+	var total int64
+	entries, err := i.client.ReadDir(remotePath)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read remote directory: %v", err)
+	}
+
+	for _, entry := range entries {
+		entryPath := path.Join(remotePath, entry.Name())
+		size, err := i.calculateRemoteSize(entryPath)
+		if err != nil {
+			return 0, err
+		}
+		total += size
+	}
+
+	return total, nil
 }

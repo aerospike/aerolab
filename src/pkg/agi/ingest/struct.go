@@ -151,11 +151,12 @@ type Config struct {
 	CollectInfoMaxSize      int64         `yaml:"collectInfoMaxSize" default:"20971520"` // files over 20MiB will be considered not collectinfo
 	CollectInfoSetName      string        `yaml:"collectInfoSetName" default:"collectinfos"`
 	Directories             struct {
-		CollectInfo string `yaml:"collectInfo" default:"ingest/files/collectinfo"`
-		Logs        string `yaml:"logs" default:"ingest/files/logs"`
-		DirtyTmp    string `yaml:"dirtyTemp" default:"ingest/files/input"`
-		NoStatLogs  string `yaml:"noStatOut" default:"ingest/files/logs-cut"`
-		OtherFiles  string `yaml:"otherFiles" default:"ingest/files/other"`
+		CollectInfo   string `yaml:"collectInfo" default:"ingest/files/collectinfo"`
+		Logs          string `yaml:"logs" default:"ingest/files/logs"`
+		DirtyTmp      string `yaml:"dirtyTemp" default:"ingest/files/input"`
+		NoStatLogs    string `yaml:"noStatOut" default:"ingest/files/logs-cut"`
+		OtherFiles    string `yaml:"otherFiles" default:"ingest/files/other"`
+		ReadOnlyInput bool   `yaml:"readOnlyInput" default:"false" envconfig:"LOGINGEST_READONLY_INPUT"` // When true, input directory is read-only (e.g., bind mount); copy files instead of moving, don't delete after unpack
 	} `yaml:"directories"`
 	Downloader struct {
 		ConcurrentSources bool        `yaml:"concurrentSources" default:"true"`
@@ -412,17 +413,25 @@ type IngestStatusStruct struct {
 }
 
 type IngestSteps struct {
-	Init                 bool
-	Download             bool
-	Unpack               bool
-	PreProcess           bool
-	ProcessLogs          bool
-	ProcessCollectInfo   bool
-	CriticalError        string
-	DownloadStartTime    time.Time
-	DownloadEndTime      time.Time
-	ProcessLogsStartTime time.Time
-	ProcessLogsEndTime   time.Time
+	Init                        bool
+	Download                    bool
+	Unpack                      bool
+	PreProcess                  bool
+	ProcessLogs                 bool
+	ProcessCollectInfo          bool
+	CriticalError               string
+	InitStartTime               time.Time
+	InitEndTime                 time.Time
+	DownloadStartTime           time.Time
+	DownloadEndTime             time.Time
+	UnpackStartTime             time.Time
+	UnpackEndTime               time.Time
+	PreProcessStartTime         time.Time
+	PreProcessEndTime           time.Time
+	ProcessLogsStartTime        time.Time
+	ProcessLogsEndTime          time.Time
+	ProcessCollectInfoStartTime time.Time
+	ProcessCollectInfoEndTime   time.Time
 }
 
 type NotifyEvent struct {

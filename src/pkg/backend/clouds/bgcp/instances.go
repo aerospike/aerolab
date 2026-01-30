@@ -69,6 +69,9 @@ type CreateInstanceParams struct {
 	// optional: if specified, and Image==nil, will lookup this image ID and use it (for custom images)
 	// format: projects/<project>/global/images/<image>
 	CustomImageID string `yaml:"customImageID" json:"customImageID"`
+	// optional: the on-host maintenance policy for the instance(node); if not set, will default to MIGRATE (or TERMINATE for spot)
+	// valid values: MIGRATE, TERMINATE
+	OnHostMaintenance string `yaml:"onHostMaintenance" json:"onHostMaintenance"`
 }
 
 type InstanceDetail struct {
@@ -111,6 +114,20 @@ func getInstanceDetail(instance *backends.Instance) *InstanceDetail {
 	// If conversion failed or it's something else, create a new InstanceDetail
 	instance.BackendSpecific = &InstanceDetail{}
 	return instance.BackendSpecific.(*InstanceDetail)
+}
+
+// fetchLabelFingerprint fetches the current label fingerprint for an instance directly from GCP.
+// This is used to handle 412 precondition failed errors when labels have been modified concurrently.
+func fetchLabelFingerprint(ctx context.Context, client *compute.InstancesClient, project, zone, instanceID string) (string, map[string]string, error) {
+	inst, err := client.Get(ctx, &computepb.GetInstanceRequest{
+		Instance: instanceID,
+		Project:  project,
+		Zone:     zone,
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	return inst.GetLabelFingerprint(), inst.GetLabels(), nil
 }
 
 func getArchitecture(instance *computepb.Instance) backends.Architecture {
@@ -417,15 +434,43 @@ func (s *b) InstancesAddTags(instances backends.InstanceList, tags map[string]st
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
 		id := getInstanceDetail(instance)
-		op, err := client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
-			Instance: instance.InstanceID,
-			Project:  s.credentials.Project,
-			Zone:     instance.ZoneName,
-			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-				LabelFingerprint: proto.String(id.LabelFingerprint),
-				Labels:           labels,
-			},
-		})
+		fingerprint := id.LabelFingerprint
+
+		// Retry loop for handling 412 precondition failed errors (stale label fingerprint)
+		const maxRetries = 3
+		var op *compute.Operation
+		for retry := 0; retry < maxRetries; retry++ {
+			op, err = client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+				Instance: instance.InstanceID,
+				Project:  s.credentials.Project,
+				Zone:     instance.ZoneName,
+				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+					LabelFingerprint: proto.String(fingerprint),
+					Labels:           labels,
+				},
+			})
+			if err == nil {
+				break
+			}
+			// Check if it's a 412 precondition failed error (fingerprint mismatch)
+			if strings.Contains(err.Error(), "412") || strings.Contains(err.Error(), "fingerprint") {
+				log.Detail("Label fingerprint mismatch on %s, fetching fresh fingerprint (retry %d/%d)", instance.InstanceID, retry+1, maxRetries)
+				newFingerprint, currentLabels, fetchErr := fetchLabelFingerprint(ctx, client, s.credentials.Project, instance.ZoneName, instance.InstanceID)
+				if fetchErr != nil {
+					log.Detail("Failed to fetch fresh fingerprint: %s", fetchErr)
+					return err // Return original error
+				}
+				fingerprint = newFingerprint
+				// Merge current labels with our new tags to avoid losing any concurrent updates
+				for k, v := range currentLabels {
+					if _, exists := labels[k]; !exists {
+						labels[k] = v
+					}
+				}
+				continue
+			}
+			return err
+		}
 		if err != nil {
 			return err
 		}
@@ -481,15 +526,46 @@ func (s *b) InstancesRemoveTags(instances backends.InstanceList, tagKeys []strin
 		labels := encodeToLabels(newTags)
 		labels["usedby"] = "aerolab"
 		id := getInstanceDetail(instance)
-		op, err := client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
-			Instance: instance.InstanceID,
-			Project:  s.credentials.Project,
-			Zone:     instance.ZoneName,
-			InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
-				LabelFingerprint: proto.String(id.LabelFingerprint),
-				Labels:           labels,
-			},
-		})
+		fingerprint := id.LabelFingerprint
+
+		// Retry loop for handling 412 precondition failed errors (stale label fingerprint)
+		const maxRetries = 3
+		var op *compute.Operation
+		for retry := 0; retry < maxRetries; retry++ {
+			op, err = client.SetLabels(ctx, &computepb.SetLabelsInstanceRequest{
+				Instance: instance.InstanceID,
+				Project:  s.credentials.Project,
+				Zone:     instance.ZoneName,
+				InstancesSetLabelsRequestResource: &computepb.InstancesSetLabelsRequest{
+					LabelFingerprint: proto.String(fingerprint),
+					Labels:           labels,
+				},
+			})
+			if err == nil {
+				break
+			}
+			// Check if it's a 412 precondition failed error (fingerprint mismatch)
+			if strings.Contains(err.Error(), "412") || strings.Contains(err.Error(), "fingerprint") {
+				log.Detail("Label fingerprint mismatch on %s, fetching fresh fingerprint (retry %d/%d)", instance.InstanceID, retry+1, maxRetries)
+				newFingerprint, currentLabels, fetchErr := fetchLabelFingerprint(ctx, client, s.credentials.Project, instance.ZoneName, instance.InstanceID)
+				if fetchErr != nil {
+					log.Detail("Failed to fetch fresh fingerprint: %s", fetchErr)
+					return err // Return original error
+				}
+				fingerprint = newFingerprint
+				// Rebuild labels from fresh data, removing the specified tags
+				labels = make(map[string]string)
+				for k, v := range currentLabels {
+					if slices.Contains(tagKeys, k) {
+						continue
+					}
+					labels[k] = v
+				}
+				labels["usedby"] = "aerolab"
+				continue
+			}
+			return err
+		}
 		if err != nil {
 			return err
 		}
@@ -1091,7 +1167,7 @@ func (s *b) ResolveNetworkPlacement(placement string) (vpc *backends.Network, su
 	return vpc, subnet, zone, nil
 }
 
-func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, zone string, backendSpecificParams *CreateInstanceParams) ([]*computepb.AttachedDisk, error) {
+func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, zone string, backendSpecificParams *CreateInstanceParams, instanceName string) ([]*computepb.AttachedDisk, error) {
 	// parse disks into ec2.CreateInstancesInput so we know the definitions are fine and have a block device mapping done
 	disksList := []*computepb.AttachedDisk{}
 	lastDisk := 'a' - 1
@@ -1197,9 +1273,15 @@ func getDeviceMappings(disks []string, nodeVolumeTagsEncoded map[string]string, 
 			} else {
 				devIface = proto.String(computepb.AttachedDisk_NVME.String())
 			}
+			// Set explicit disk name for boot disk to avoid naming collisions with pre-existing volumes
+			var diskName *string
+			if boot && instanceName != "" {
+				diskName = proto.String(instanceName + "-boot")
+			}
 			disksList = append(disksList, &computepb.AttachedDisk{
 				InitializeParams: &computepb.AttachedDiskInitializeParams{
 					DiskSizeGb:            &size,
+					DiskName:              diskName,
 					SourceImage:           simage,
 					DiskType:              proto.String(diskTypeFull),
 					ProvisionedIops:       piops,
@@ -1410,7 +1492,6 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		TAG_AEROLAB_OWNER:         input.Owner,
 		TAG_CLUSTER_NAME:          input.ClusterName,
 		TAG_AEROLAB_DESCRIPTION:   input.Description,
-		TAG_AEROLAB_EXPIRES:       input.Expires.Format(time.RFC3339),
 		TAG_AEROLAB_PROJECT:       s.project,
 		TAG_AEROLAB_VERSION:       s.aerolabVersion,
 		TAG_OS_NAME:               backendSpecificParams.Image.OSName,
@@ -1421,6 +1502,10 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		TAG_START_TIME:            time.Now().Format(time.RFC3339),
 		TAG_CLUSTER_UUID:          clusterUUID,
 		TAG_DELETE_ON_TERMINATION: strconv.FormatBool(true),
+	}
+	// Only add expiry tag if a non-zero expiry time is set
+	if !input.Expires.IsZero() {
+		gcpTags[TAG_AEROLAB_EXPIRES] = input.Expires.Format(time.RFC3339)
 	}
 	if backendSpecificParams.CustomDNS != nil {
 		gcpTags[TAG_DNS_NAME] = backendSpecificParams.CustomDNS.Name
@@ -1516,6 +1601,10 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		onHostMaintenance = "TERMINATE"
 		gcpTags["isspot"] = "true"
 	}
+	// Override onHostMaintenance if explicitly set
+	if backendSpecificParams.OnHostMaintenance != "" {
+		onHostMaintenance = backendSpecificParams.OnHostMaintenance
+	}
 	var serviceAccounts []*computepb.ServiceAccount
 	if input.TerminateOnStop || backendSpecificParams.IAMInstanceProfile != "" {
 		serviceAccounts = []*computepb.ServiceAccount{
@@ -1559,7 +1648,7 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		nodeVolumeTagsEncoded := encodeToLabels(nodeVolumeTags)
 		nodeVolumeTagsEncoded["usedby"] = "aerolab"
 
-		disksList, err := getDeviceMappings(backendSpecificParams.Disks, nodeVolumeTagsEncoded, zone, backendSpecificParams)
+		disksList, err := getDeviceMappings(backendSpecificParams.Disks, nodeVolumeTagsEncoded, zone, backendSpecificParams, name)
 		if err != nil {
 			return nil, err
 		}
@@ -1594,7 +1683,9 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 				Disks: disksList,
 				NetworkInterfaces: []*computepb.NetworkInterface{
 					{
-						StackType: proto.String("IPV4_ONLY"),
+						Network:    proto.String(vpc.NetworkId),
+						Subnetwork: proto.String(subnet.SubnetId),
+						StackType:  proto.String("IPV4_ONLY"),
 						AccessConfigs: []*computepb.AccessConfig{
 							{
 								Name:        proto.String("External NAT"),

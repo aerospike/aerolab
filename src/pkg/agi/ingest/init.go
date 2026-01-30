@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"regexp"
 	"runtime/pprof"
@@ -13,7 +14,6 @@ import (
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/creasty/defaults"
 	"github.com/rglonek/envconfig"
-	"github.com/rglonek/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -57,20 +57,19 @@ func Init(config *Config) (*Ingest, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
-	logger.SetLogLevel(logger.LogLevel(config.LogLevel))
 	if config.LogLevel >= 5 {
-		logger.Debug("==== CONFIG ====")
+		log.Printf("DEBUG: ==== CONFIG ====")
 		yaml.NewEncoder(os.Stdout).Encode(config)
 	}
 	p := new(patterns)
 	if config.PatternsFile == "" {
-		logger.Debug("INIT: Loading embedded patterns")
+		log.Printf("DEBUG: INIT: Loading embedded patterns")
 		err := yaml.Unmarshal(patternEmbed, p)
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal patterns: %s", err)
 		}
 	} else {
-		logger.Debug("INIT: Loading %s", config.PatternsFile)
+		log.Printf("DEBUG: INIT: Loading %s", config.PatternsFile)
 		f, err := os.Open(config.PatternsFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open specified patterns file: %s", err)
@@ -81,12 +80,12 @@ func Init(config *Config) (*Ingest, error) {
 			return nil, fmt.Errorf("failed to unmarshal patterns: %s", err)
 		}
 	}
-	logger.Debug("INIT: Compiling patterns")
+	log.Printf("DEBUG: INIT: Compiling patterns")
 	err := p.compile()
 	if err != nil {
 		return nil, err
 	}
-	logger.Debug("INIT: Compiling config regexes")
+	log.Printf("DEBUG: INIT: Compiling config regexes")
 	if config.Downloader.S3Source.SearchRegex != "" {
 		regex, err := regexp.Compile(config.Downloader.S3Source.SearchRegex)
 		if err != nil {
@@ -132,12 +131,12 @@ func Init(config *Config) (*Ingest, error) {
 			},
 		},
 	}
-	logger.Debug("INIT: Connect to backend")
+	log.Printf("DEBUG: INIT: Connect to backend")
 	err = i.dbConnect()
 	if err != nil {
 		return nil, fmt.Errorf("could not connect to the database: %s", err)
 	}
-	logger.Debug("INIT: Backend connected")
+	log.Printf("DEBUG: INIT: Backend connected")
 	// load the bin list
 	bkey, err := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "BINLIST")
 	if err != nil {
@@ -145,19 +144,19 @@ func Init(config *Config) (*Ingest, error) {
 	}
 	bbin, err := i.db.Get(nil, bkey, "BINLIST")
 	if err != nil {
-		logger.Debug("INIT: could not get bin list: %s", err)
+		log.Printf("DEBUG: INIT: could not get bin list: %s", err)
 	} else {
 		aBinList := []string{}
 		err = json.Unmarshal([]byte(bbin.Bins["BINLIST"].(string)), &aBinList)
 		if err != nil {
-			logger.Debug("INIT: could not unmarshal bin list: %s", err)
+			log.Printf("DEBUG: INIT: could not unmarshal bin list: %s", err)
 		} else {
 			i.binList.BinNames = aBinList
-			logger.Debug("INIT: Existing bin list loaded")
+			log.Printf("DEBUG: INIT: Existing bin list loaded")
 		}
 	}
 	if config.CPUProfilingOutputFile != "" {
-		logger.Debug("INIT: Enabling CPU profiling")
+		log.Printf("DEBUG: INIT: Enabling CPU profiling")
 		var err error
 		i.cpuProfile, err = os.Create(config.CPUProfilingOutputFile)
 		if err != nil {
@@ -173,7 +172,7 @@ func Init(config *Config) (*Ingest, error) {
 	if err != nil {
 		return nil, err
 	}
-	logger.Debug("INIT: Update DB labels")
+	log.Printf("DEBUG: INIT: Update DB labels")
 	sources := ""
 	if i.config.Downloader.S3Source.Enabled {
 		sources = "s3 " + i.config.Downloader.S3Source.BucketName + ":/" + i.config.Downloader.S3Source.PathPrefix + i.config.Downloader.S3Source.SearchRegex
@@ -199,7 +198,7 @@ func Init(config *Config) (*Ingest, error) {
 	}
 	aerr := i.db.Put(i.wp, key, bin)
 	if aerr != nil {
-		logger.Error("Could not insert sources label: %s", err)
+		log.Printf("ERROR: Could not insert sources label: %s", err)
 	}
 	if i.config.IngestTimeRanges.Enabled {
 		key, _ = aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "timerange")
@@ -211,7 +210,7 @@ func Init(config *Config) (*Ingest, error) {
 		}
 		aerr := i.db.Put(i.wp, key, bin)
 		if aerr != nil {
-			logger.Error("Could not insert timerange label: %s", err)
+			log.Printf("ERROR: Could not insert timerange label: %s", err)
 		}
 	}
 	i.endLock = new(sync.Mutex)
@@ -221,24 +220,24 @@ func Init(config *Config) (*Ingest, error) {
 }
 
 func (i *Ingest) Close() {
-	logger.Debug("CLOSE: Saving progress")
+	log.Printf("DEBUG: CLOSE: Saving progress")
 	i.endLock.Lock()
 	i.end = true
 	i.endLock.Unlock()
 	err := i.saveProgress()
 	if err != nil {
-		logger.Error("Could not save progress: %s", err)
+		log.Printf("ERROR: Could not save progress: %s", err)
 	}
 	err = i.printProgress()
 	if err != nil {
-		logger.Error("Could not print progress: %s", err)
+		log.Printf("ERROR: Could not print progress: %s", err)
 	}
 	if i.pprofRunning {
-		logger.Debug("CLOSE: Stopping CPU profiling")
+		log.Printf("DEBUG: CLOSE: Stopping CPU profiling")
 		pprof.StopCPUProfile()
 	}
 	if i.cpuProfile != nil {
-		logger.Debug("CLOSE: Closing CPU profiling file")
+		log.Printf("DEBUG: CLOSE: Closing CPU profiling file")
 		i.cpuProfile.Close()
 	}
 }
@@ -246,7 +245,7 @@ func (i *Ingest) Close() {
 func (p *patterns) compile() error {
 	for j := range p.Timestamps {
 		for i := range p.Timestamps[j].Defs {
-			logger.Detail("REGEX: compiling timestamps:%s", p.Timestamps[j].Defs[i].Regex)
+			log.Printf("DETAIL: REGEX: compiling timestamps:%s", p.Timestamps[j].Defs[i].Regex)
 			regex, err := regexp.Compile(p.Timestamps[j].Defs[i].Regex)
 			if err != nil {
 				return fmt.Errorf("failed to compile %s: %s", p.Timestamps[j].Defs[i].Regex, err)
@@ -255,14 +254,14 @@ func (p *patterns) compile() error {
 		}
 	}
 	for i := range p.Multiline {
-		logger.Detail("REGEX: compiling multiline:%s", p.Multiline[i].ReMatchLines)
+		log.Printf("DETAIL: REGEX: compiling multiline:%s", p.Multiline[i].ReMatchLines)
 		regex, err := regexp.Compile(p.Multiline[i].ReMatchLines)
 		if err != nil {
 			return fmt.Errorf("failed to compile %s: %s", p.Multiline[i].ReMatchLines, err)
 		}
 		p.Multiline[i].reMatchLines = regex
 		for j := range p.Multiline[i].ReMatchJoin {
-			logger.Detail("REGEX: compiling multiline-join:%s", p.Multiline[i].ReMatchJoin[j].Re)
+			log.Printf("DETAIL: REGEX: compiling multiline-join:%s", p.Multiline[i].ReMatchJoin[j].Re)
 			regex, err := regexp.Compile(p.Multiline[i].ReMatchJoin[j].Re)
 			if err != nil {
 				return fmt.Errorf("failed to compile %s: %s", p.Multiline[i].ReMatchJoin[j].Re, err)
@@ -273,7 +272,7 @@ func (p *patterns) compile() error {
 	for k := range p.Defs {
 		for i := range p.Defs[k].Patterns {
 			for j := range p.Defs[k].Patterns[i].Regex {
-				logger.Detail("REGEX: compiling pattern:%s", p.Defs[k].Patterns[i].Regex[j])
+				log.Printf("DETAIL: REGEX: compiling pattern:%s", p.Defs[k].Patterns[i].Regex[j])
 				regex, err := regexp.Compile(p.Defs[k].Patterns[i].Regex[j])
 				if err != nil {
 					return fmt.Errorf("failed to compile %s: %s", p.Defs[k].Patterns[i].Regex[j], err)
@@ -281,7 +280,7 @@ func (p *patterns) compile() error {
 				p.Defs[k].Patterns[i].regex = append(p.Defs[k].Patterns[i].regex, regex)
 			}
 			for j := range p.Defs[k].Patterns[i].RegexAdvanced {
-				logger.Detail("REGEX: compiling pattern:%s", p.Defs[k].Patterns[i].RegexAdvanced[j].Regex)
+				log.Printf("DETAIL: REGEX: compiling pattern:%s", p.Defs[k].Patterns[i].RegexAdvanced[j].Regex)
 				regex, err := regexp.Compile(p.Defs[k].Patterns[i].RegexAdvanced[j].Regex)
 				if err != nil {
 					return fmt.Errorf("failed to compile %s: %s", p.Defs[k].Patterns[i].RegexAdvanced[j].Regex, err)
@@ -289,7 +288,7 @@ func (p *patterns) compile() error {
 				p.Defs[k].Patterns[i].RegexAdvanced[j].regex = regex
 			}
 			for j := range p.Defs[k].Patterns[i].Replace {
-				logger.Detail("REGEX: compiling pattern-replace:%s", p.Defs[k].Patterns[i].Replace[j].Regex)
+				log.Printf("DETAIL: REGEX: compiling pattern-replace:%s", p.Defs[k].Patterns[i].Replace[j].Regex)
 				regex, err := regexp.Compile(p.Defs[k].Patterns[i].Replace[j].Regex)
 				if err != nil {
 					return fmt.Errorf("failed to compile %s: %s", p.Defs[k].Patterns[i].Replace[j].Regex, err)

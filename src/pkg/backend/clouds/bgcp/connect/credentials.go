@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike/aerolab/pkg/utils/openbrowser"
 	"github.com/google/uuid"
 	"github.com/rglonek/logger"
 	"golang.org/x/oauth2"
@@ -105,7 +106,9 @@ func getOAuth2Credentials(log *logger.Logger, tokenCacheFilePath string, browser
 	} else {
 		fmt.Println("Your browser will be opened to visit the Google sign-in page. If it doesn't open automatically, please navigate to:")
 		fmt.Println(authURL)
-		openBrowser(authURL)
+		if err := openbrowser.Open(authURL); err != nil {
+			fmt.Printf("Error opening browser: %v\n", err)
+		}
 	}
 
 	// Channel to receive the token.

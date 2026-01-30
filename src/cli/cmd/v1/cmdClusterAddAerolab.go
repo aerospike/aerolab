@@ -109,7 +109,7 @@ func (c *ClusterAddAerolabCmd) AddAerolabCluster(system *System, inventory *back
 	if !c.Prerelease {
 		pre = &c.Prerelease
 	}
-	installScript, err := aerolab.GetLinuxInstallScript(alVer, pre)
+	installScript, err := aerolab.GetLinuxInstallScript("", alVer, pre)
 	if err != nil {
 		return nil, err
 	}

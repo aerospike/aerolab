@@ -1,5 +1,8 @@
 bob/
 aerolab
+aerolab-linux-amd64
+aerolab-linux-arm64
 test-results/
 CA/
 aerospike-server-*.tgz
+logs

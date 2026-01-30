@@ -198,7 +198,7 @@ func Initialize(i *Init, command []string, params interface{}, args ...string) (
 	}
 
 	// hide switches for backends that are not currently enabled
-	if s.Opts.Config.Backend.Type != "" && !i.AllBackendsHelp {
+	if s.Opts.Config.Backend.Type != "" && s.Opts.Config.Backend.Type != "none" && !i.AllBackendsHelp {
 		ShowHideBackend(s.Parser, []string{s.Opts.Config.Backend.Type})
 	}
 
@@ -318,7 +318,7 @@ func (i *Init) backend(s *System, pollInventoryHourly bool) error {
 			GCPClientSecret:     s.Opts.Config.Backend.GCPClientSecret,
 		}
 	}
-	if s.Opts.Config.Backend.Type == "" {
+	if s.Opts.Config.Backend.Type == "" || s.Opts.Config.Backend.Type == "none" {
 		return errNoBackendConfigured
 	}
 	backendList := []backends.BackendType{backends.BackendType(s.Opts.Config.Backend.Type)}

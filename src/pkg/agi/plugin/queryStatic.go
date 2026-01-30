@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/rglonek/logger"
+	"log"
 )
 
 type staticResponse tableResponse
 
 func (p *Plugin) handleQueryStatic(req *queryRequest, i int, remote string) (*staticResponse, error) {
-	logger.Debug("Query start (type:static) (target:%d:%s) (refId:%s) (remote:%s)", i, req.Targets[i].Target, req.Targets[i].RefId, remote)
-	defer logger.Debug("Query end (type:static) (target:%d:%s) (refId:%s) (remote:%s)", i, req.Targets[i].Target, req.Targets[i].RefId, remote)
+	log.Printf("DEBUG: Query start (type:static) (target:%d:%s) (refId:%s) (remote:%s)", i, req.Targets[i].Target, req.Targets[i].RefId, remote)
+	defer log.Printf("DEBUG: Query end (type:static) (target:%d:%s) (refId:%s) (remote:%s)", i, req.Targets[i].Target, req.Targets[i].RefId, remote)
 	f, err := os.Open(req.Targets[i].Payload.Static.File)
 	if err != nil {
 		return nil, err

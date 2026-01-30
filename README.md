@@ -4,7 +4,7 @@ AeroLab is a tool for deploying and managing Aerospike clusters across multiple 
 
 ## Documentation
 
-- [Getting Started](docs/getting-started/)
+- [Getting Started](docs/getting-started/README.md)
 - [Commands Reference](docs/commands/)
 - [Cloud Configuration](docs/cloud/)
 - [Migration Guide](docs/migration-guide.md) - Upgrading from AeroLab 7.x to 8.x

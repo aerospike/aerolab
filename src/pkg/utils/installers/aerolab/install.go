@@ -45,38 +45,68 @@ func GetLatestVersion(stable bool) (*github.Release, error) {
 	return release, nil
 }
 
-// specify a specific version or get latest
-// if version ends with '*', it will match with prefix of version, and if multiple found, it will use the latest that matches that prefix
-// prerelease will only look through prereleases, otherwise only stable releases. nil means all releases
-func GetLinuxInstallScript(version *string, prerelease *bool) ([]byte, error) {
+// GetLinuxInstallScript returns a shell script that installs aerolab on Linux.
+//
+// Parameters:
+//   - currentVersion: the version string from GetAerolabVersion() (e.g., "v8.0.0-abc1234" or "v8.0.0-abc1234-unofficial").
+//     If provided, this exact version will be installed. The "-unofficial" suffix is stripped when matching.
+//     If nil or empty, the latest release matching the version/prerelease filters will be used.
+//   - version: if currentVersion is nil, specify a version to install. If it ends with '*', it will match
+//     with prefix of version, and if multiple found, it will use the latest that matches that prefix.
+//   - prerelease: if currentVersion is nil, filter by prerelease status. nil means all releases.
+func GetLinuxInstallScript(currentVersion string, version *string, prerelease *bool) ([]byte, error) {
 	releases, err := github.GetReleases(30*time.Second, "aerospike", "aerolab")
 	if err != nil {
 		return nil, err
 	}
-	if prerelease != nil {
-		releases = releases.WithPrerelease(*prerelease)
-	}
-	if len(releases) == 0 {
-		return nil, errors.New("no release found (1)")
-	}
-	if version != nil {
-		if strings.HasSuffix(*version, "*") {
-			releases = releases.WithTagPrefix(strings.TrimSuffix(*version, "*"))
-		} else {
-			releases = github.Releases{*releases.WithTag(*version)}
+
+	var release *github.Release
+
+	// If currentVersion is specified, find the exact matching release
+	if currentVersion != "" {
+		// Strip -unofficial suffix if present
+		targetVersion := strings.TrimSuffix(currentVersion, "-unofficial")
+
+		// Try to find exact match first
+		release = releases.WithTag(targetVersion)
+		if release == nil {
+			// Try matching by tag prefix (handles v8.0.0-abc1234 format)
+			matchedReleases := releases.WithTagPrefix(targetVersion)
+			if len(matchedReleases) > 0 {
+				release = matchedReleases.Latest()
+			}
+		}
+		if release == nil {
+			return nil, errors.New("no release found matching current version: " + targetVersion)
+		}
+	} else {
+		// Original behavior: filter by prerelease and version
+		if prerelease != nil {
+			releases = releases.WithPrerelease(*prerelease)
+		}
+		if len(releases) == 0 {
+			return nil, errors.New("no release found (1)")
+		}
+		if version != nil {
+			if strings.HasSuffix(*version, "*") {
+				releases = releases.WithTagPrefix(strings.TrimSuffix(*version, "*"))
+			} else {
+				releases = github.Releases{*releases.WithTag(*version)}
+			}
+		}
+		if len(releases) == 0 {
+			return nil, errors.New("no release found (2)")
+		}
+		release = releases.Latest()
+		if release == nil {
+			return nil, errors.New("no release found (3)")
 		}
 	}
-	if len(releases) == 0 {
-		return nil, errors.New("no release found (2)")
-	}
-	release := releases.Latest()
-	if release == nil {
-		return nil, errors.New("no release found (3)")
-	}
+
 	downloadURLARM64 := release.Assets.WithNamePrefix("aerolab-linux-arm64-").WithNameSuffix(".zip").First()
 	downloadURLAMD64 := release.Assets.WithNamePrefix("aerolab-linux-amd64-").WithNameSuffix(".zip").First()
 	if downloadURLARM64 == nil || downloadURLAMD64 == nil {
-		return nil, errors.New("no download URL found")
+		return nil, errors.New("no download URL found for release: " + release.TagName)
 	}
 	s := installers.Software{
 		Debug: true,

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
-	"github.com/rglonek/logger"
+	"log"
 	"github.com/rglonek/sbs"
 )
 
@@ -47,7 +47,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	if v, ok := req.selectedVars["DisableDataSizeSafety"]; ok && v[0] == "true" {
 		disableDPSafety = true
 	}
-	logger.Detail("DisableSeriesSafety:%t DisableDataSizeSafety:%t (type:timeseries) (remote:%s)", disableSeriesSafety, disableDPSafety, remote)
+	log.Printf("DETAIL: DisableSeriesSafety:%t DisableDataSizeSafety:%t (type:timeseries) (remote:%s)", disableSeriesSafety, disableDPSafety, remote)
 	ntime := time.Now()
 	// fill bin list for the statement
 	binListA := []string{req.Targets[i].Payload.TimestampBinName}
@@ -61,7 +61,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	for _, filter := range target.Payload.FilterVariables {
 		if val, ok := req.selectedVars[filter.Name]; ok && len(val) == 1 && val[0] == "NONE" {
 			emptyResponse := []*timeseriesResponse{}
-			logger.Detail("Build query abort - NONE selected in filter (type:timeseries) (remote:%s)", remote)
+			log.Printf("DETAIL: Build query abort - NONE selected in filter (type:timeseries) (remote:%s)", remote)
 			return emptyResponse, nil
 		}
 		if slices.Contains(binListA, filter.Name) {
@@ -96,7 +96,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		p.cache.lock.RLock()
 		for _, v := range req.selectedVars[filter.Name] {
 			if n, ok := p.cache.metadata[filter.Name]; !ok || n == nil {
-				logger.Detail("Grafana requsted a filter which results in nil dereference, skipping (ok:%t filter.Name:%s v:%s)", ok, filter.Name, v)
+				log.Printf("DETAIL: Grafana requsted a filter which results in nil dereference, skipping (ok:%t filter.Name:%s v:%s)", ok, filter.Name, v)
 				continue
 			}
 			idxval := slices.Index(p.cache.metadata[filter.Name].Entries, v)
@@ -157,7 +157,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	} else {
 		qp.FilterExpression = aerospike.ExpAnd(exp...)
 	}
-	logger.Detail("Query start (type:timeseries) (remote:%s) (buildTime:%s)", remote, time.Since(ntime).String())
+	log.Printf("DETAIL: Query start (type:timeseries) (remote:%s) (buildTime:%s)", remote, time.Since(ntime).String())
 	ntime = time.Now()
 	recset, aerr := p.db.Query(qp, stmt)
 	if aerr != nil {
@@ -170,7 +170,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	}()
 	go p.timedCheckSocketTimeout(r.Context(), recset, timedIsCancelled, timedIsEnd)
 	resp := []*timeseriesResponse{}
-	logger.Detail("Enum results (type:timeseries) (remote:%s) (runQueryTime:%s)", remote, time.Since(ntime).String())
+	log.Printf("DETAIL: Enum results (type:timeseries) (remote:%s) (runQueryTime:%s)", remote, time.Since(ntime).String())
 	ntime = time.Now()
 	datapointCount := 0
 	p.cache.lock.RLock()
@@ -333,7 +333,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 	}
 	p.cache.lock.RUnlock()
 
-	logger.Detail("Sort by time (type:timeseries) (remote:%s) (datapoints:%d) (enumTime:%s) (binListTime:%s) (dpSortTime:%s) (dp2respTime:%s) (waitOnAerospikeTime:%s)", remote, datapointCount, time.Since(ntime).String(), ptime1.String(), ptime2.String(), ptime3.String(), time.Duration(time.Since(ntime)-ptime1-ptime2-ptime3).String())
+	log.Printf("DETAIL: Sort by time (type:timeseries) (remote:%s) (datapoints:%d) (enumTime:%s) (binListTime:%s) (dpSortTime:%s) (dp2respTime:%s) (waitOnAerospikeTime:%s)", remote, datapointCount, time.Since(ntime).String(), ptime1.String(), ptime2.String(), ptime3.String(), time.Duration(time.Since(ntime)-ptime1-ptime2-ptime3).String())
 	ntime = time.Now()
 	for ri := range resp {
 		sort.Slice(resp[ri].Datapoints, func(i, j int) bool {
@@ -344,7 +344,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		return nil, errors.New("socket closed by client after data sort")
 	}
 
-	logger.Detail("Sort legend (type:timeseries) (remote:%s) (datapoints:%d) (timeSortTime:%s)", remote, datapointCount, time.Since(ntime).String())
+	log.Printf("DETAIL: Sort legend (type:timeseries) (remote:%s) (datapoints:%d) (timeSortTime:%s)", remote, datapointCount, time.Since(ntime).String())
 	ntime = time.Now()
 	sort.Slice(resp, func(i, j int) bool {
 		return resp[i].Target < resp[j].Target
@@ -353,7 +353,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		return nil, errors.New("socket closed by client after legend sort")
 	}
 
-	logger.Detail("Post-processing (type:timeseries) (remote:%s) (datapoints:%d) (legendSortTime:%s)", remote, datapointCount, time.Since(ntime).String())
+	log.Printf("DETAIL: Post-processing (type:timeseries) (remote:%s) (datapoints:%d) (legendSortTime:%s)", remote, datapointCount, time.Since(ntime).String())
 	ntime = time.Now()
 	reduceIntervalWindow := req.Range.To.Sub(req.Range.From).Milliseconds() / int64(req.MaxDataPoints)
 	if reduceIntervalWindow > int64(req.IntervalMs) {
@@ -384,7 +384,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 			prevPointTime := lastPointTime
 			lastPointTime = float64(point.point[1])
 			if prevPointTime == lastPointTime {
-				logger.Detail("(type:timeseries) (remote:%s) duplicate datapoint detected, skipping: PointTime=%0.1f", remote, lastPointTime)
+				log.Printf("DETAIL: (type:timeseries) (remote:%s) duplicate datapoint detected, skipping: PointTime=%0.1f", remote, lastPointTime)
 				continue
 			}
 			val := float64(point.point[0])
@@ -465,7 +465,7 @@ func (p *Plugin) handleQueryTimeseries(req *queryRequest, i int, remote string, 
 		// save
 		resp[ri].Datapoints = datapoints
 	}
-	logger.Detail("Return values (type:timeseries) (remote:%s) (reduceWindowMs:%d) (datapoints:%d) (nullpoints:%d) (postProcessTime:%s)", remote, reduceIntervalWindow, datapointCount, nullDatapoints, time.Since(ntime).String())
+	log.Printf("DETAIL: Return values (type:timeseries) (remote:%s) (reduceWindowMs:%d) (datapoints:%d) (nullpoints:%d) (postProcessTime:%s)", remote, reduceIntervalWindow, datapointCount, nullDatapoints, time.Since(ntime).String())
 	return resp, nil
 }
 

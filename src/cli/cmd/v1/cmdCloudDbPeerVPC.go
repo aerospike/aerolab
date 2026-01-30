@@ -75,13 +75,18 @@ func (c *CloudClustersPeerVPCCmd) PeerVPC(system *System, inventory *backends.In
 		logger = system.Logger
 	}
 
-	logger.Info("Setting up VPC peering for cluster: %s", c.ClusterID)
+	// Determine if this is a programmatic call from create (pre-resolved values provided)
+	calledFromCreate := c.PreResolvedVPCCIDR != "" && c.PreResolvedAccountID != "" && c.PreResolvedVPCRegion != ""
+
+	if !calledFromCreate {
+		logger.Info("Setting up VPC peering for cluster: %s", c.ClusterID)
+	}
 
 	// Determine if we should run all stages or only specific ones
 	runAllStages := !c.StageInitiate && !c.StageAccept && !c.StageRoute && !c.StageAssociateDNS
-	if runAllStages {
+	if runAllStages && !calledFromCreate {
 		logger.Info("No specific stages specified, will attempt all stages (skipping already completed stages)")
-	} else {
+	} else if !runAllStages {
 		var stages []string
 		if c.StageInitiate {
 			stages = append(stages, "initiate")
@@ -122,12 +127,12 @@ func (c *CloudClustersPeerVPCCmd) PeerVPC(system *System, inventory *backends.In
 	var vpcRegion string
 	var err error
 
-	if c.PreResolvedVPCCIDR != "" && c.PreResolvedAccountID != "" && c.PreResolvedVPCRegion != "" {
+	if calledFromCreate {
 		// Use pre-resolved values from caller (e.g., db create)
 		cidr = c.PreResolvedVPCCIDR
 		accountId = c.PreResolvedAccountID
 		vpcRegion = c.PreResolvedVPCRegion
-		logger.Info("Using pre-resolved VPC details: cidr=%s, accountId=%s, region=%s", cidr, accountId, vpcRegion)
+		logger.Debug("Using pre-resolved VPC details: cidr=%s, accountId=%s, region=%s", cidr, accountId, vpcRegion)
 	} else {
 		// Fetch VPC details from inventory
 		logger.Info("Getting VPC details for VPC-ID: %s", c.VPCID)
@@ -165,6 +170,14 @@ func (c *CloudClustersPeerVPCCmd) PeerVPC(system *System, inventory *backends.In
 			c.callCleanup()
 			return fmt.Errorf("account ID not found")
 		}
+	}
+
+	// Wait for cluster to be ready before proceeding with VPC peering
+	// The cluster needs to be provisioned before we can initiate VPC peering
+	err = c.waitForClusterReady(c.ClusterID, logger)
+	if err != nil {
+		c.callCleanup()
+		return fmt.Errorf("failed waiting for cluster to be ready: %w", err)
 	}
 
 	// Check existing VPC peerings to determine current state
@@ -292,6 +305,68 @@ func (c *CloudClustersPeerVPCCmd) PeerVPC(system *System, inventory *backends.In
 	}
 
 	return nil
+}
+
+// waitForClusterReady waits for the cluster to finish provisioning
+// VPC peering can only be initiated after the cluster is ready
+func (c *CloudClustersPeerVPCCmd) waitForClusterReady(clusterID string, log *logger.Logger) error {
+	client, err := cloud.NewClient(cloudVersion)
+	if err != nil {
+		return err
+	}
+
+	timeout := time.Hour * 2
+	interval := 1 * time.Minute
+	startTime := time.Now()
+	loggedWaiting := false
+	firstLoop := true
+
+	for {
+		// Sleep at the beginning to avoid immediate API calls right after cluster creation
+		if !firstLoop {
+			time.Sleep(interval)
+		}
+		firstLoop = false
+
+		if time.Since(startTime) > timeout {
+			return fmt.Errorf("timeout waiting for cluster to be ready after %v", timeout)
+		}
+
+		var result map[string]interface{}
+		path := fmt.Sprintf("%s/%s", cloudDbPath, clusterID)
+		err := client.Get(path, &result)
+		if err != nil {
+			log.Debug("Failed to get cluster status: %s, retrying...", err)
+			continue
+		}
+
+		// Check health.status
+		health, ok := result["health"].(map[string]interface{})
+		if !ok {
+			log.Debug("Health field not found in cluster response, retrying...")
+			continue
+		}
+
+		status, ok := health["status"].(string)
+		if !ok {
+			log.Debug("Health status field not found, retrying...")
+			continue
+		}
+
+		log.Debug("Cluster status: %s", status)
+
+		if status != "provisioning" {
+			if loggedWaiting {
+				log.Info("Cluster is now ready (status: %s)", status)
+			}
+			return nil
+		}
+
+		if !loggedWaiting {
+			log.Info("Cluster is still provisioning, waiting...")
+			loggedWaiting = true
+		}
+	}
 }
 
 func (c *CloudClustersPeerVPCCmd) getExistingPeerings(clusterID string) ([]map[string]interface{}, error) {

@@ -81,6 +81,13 @@ func (b *backend) ListEnabledRegions(backendType BackendType) (name []string, er
 	return cloudList[backendType].ListEnabledZones()
 }
 
+func (b *backend) ListAvailableZones(backendType BackendType) (zones []string, err error) {
+	if _, ok := cloudList[backendType]; !ok {
+		return nil, fmt.Errorf("backend type %s not found", backendType)
+	}
+	return cloudList[backendType].ListAvailableZones()
+}
+
 func (b *backend) pollTimer() {
 	log := b.log.WithPrefix("pollTimer")
 	for {

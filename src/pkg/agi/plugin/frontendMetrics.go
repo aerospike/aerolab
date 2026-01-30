@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/rglonek/logger"
+	"log"
 	"github.com/rglonek/sbs"
 )
 
@@ -22,15 +22,15 @@ type metricResponse struct {
 }
 
 func (p *Plugin) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	logger.Info("QUERY START (type:metrics) (remote:%s)", r.RemoteAddr)
-	defer logger.Info("QUERY END (type:metrics) (remote:%s)", r.RemoteAddr)
+	log.Printf("INFO: QUERY START (type:metrics) (remote:%s)", r.RemoteAddr)
+	defer log.Printf("INFO: QUERY END (type:metrics) (remote:%s)", r.RemoteAddr)
 	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		responseError(w, http.StatusBadRequest, "Failed to read body (remote:%s) (error:%s)", r.RemoteAddr, err)
 		return
 	}
-	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
+	log.Printf("DETAIL: (remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
 	query := new(metricQuery)
 	err = json.Unmarshal(body, query)
 	if err != nil {
@@ -52,7 +52,7 @@ func (p *Plugin) handleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func responseError(w http.ResponseWriter, httpStatus int, message string, tail ...interface{}) {
-	logger.Warn(message, tail...)
+	log.Printf("WARN: "+message, tail...)
 	w.WriteHeader(httpStatus)
 	w.Write(sbs.StringToByteSlice(fmt.Sprintf(message, tail...)))
 }

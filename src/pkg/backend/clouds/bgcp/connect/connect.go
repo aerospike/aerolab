@@ -8,10 +8,9 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
-	"runtime"
 
 	"github.com/aerospike/aerolab/pkg/backend/clouds"
+	"github.com/aerospike/aerolab/pkg/utils/openbrowser"
 	"github.com/google/uuid"
 	"github.com/rglonek/logger"
 	"golang.org/x/oauth2"
@@ -108,7 +107,9 @@ func getOAuth2Client(log *logger.Logger, tokenCacheFilePath string, browser bool
 	} else {
 		fmt.Println("Your browser will be opened to visit the Google sign-in page. If it doesn't open automatically, please navigate to:")
 		fmt.Println(authURL)
-		openBrowser(authURL)
+		if err := openbrowser.Open(authURL); err != nil {
+			fmt.Printf("Error opening browser: %v\n", err)
+		}
 	}
 
 	// Channel to receive the token.
@@ -190,22 +191,4 @@ func saveToken(file string, token *oauth2.Token) error {
 	}
 	defer f.Close()
 	return json.NewEncoder(f).Encode(token)
-}
-
-// openBrowser attempts to open the URL in the default browser.
-func openBrowser(url string) {
-	var err error
-	switch runtime.GOOS {
-	case "linux":
-		err = exec.Command("xdg-open", url).Start()
-	case "windows":
-		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
-	case "darwin":
-		err = exec.Command("open", url).Start()
-	default:
-		err = fmt.Errorf("unsupported platform")
-	}
-	if err != nil {
-		fmt.Printf("Error opening browser: %v\n", err)
-	}
 }

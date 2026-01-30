@@ -11,7 +11,7 @@ import (
 
 	//"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/aerospike/aerospike-client-go/v8"
-	"github.com/rglonek/logger"
+	"log"
 	"github.com/rglonek/sbs"
 )
 
@@ -29,21 +29,21 @@ type HistogramRequest struct {
 }
 
 func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
-	logger.Info("QUERY INCOMING (type:histogram) (remote:%s)", r.RemoteAddr)
+	log.Printf("INFO: QUERY INCOMING (type:histogram) (remote:%s)", r.RemoteAddr)
 	qtime := time.Now()
 	p.requests <- true
 	defer func() {
 		<-p.requests
-		logger.Info("QUERY END (type:histogram) (runningRequests:%d) (runningJobs:%d) (remote:%s) (totalTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
+		log.Printf("INFO: QUERY END (type:histogram) (runningRequests:%d) (runningJobs:%d) (remote:%s) (totalTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
 	}()
-	logger.Info("QUERY START (type:histogram) (runningRequests:%d) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
+	log.Printf("INFO: QUERY START (type:histogram) (runningRequests:%d) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
 	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		responseError(w, http.StatusBadRequest, "Failed to read body (remote:%s) (error:%s)", r.RemoteAddr, err)
 		return
 	}
-	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
+	log.Printf("DETAIL: (remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
 	req := new(HistogramRequest)
 	err = json.Unmarshal(body, req)
 	if err != nil {
@@ -54,7 +54,7 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 	p.cache.lock.RLock()
 	defer p.cache.lock.RUnlock()
 	if _, ok := p.cache.metadata[req.Metric.Target]; !ok {
-		logger.Warn("Query target %s does not exist (remote:%s)", req.Metric.Target, r.RemoteAddr)
+		log.Printf("WARN: Query target %s does not exist (remote:%s)", req.Metric.Target, r.RemoteAddr)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("[]"))
 		return
@@ -101,7 +101,7 @@ func (p *Plugin) handleHistogram(w http.ResponseWriter, r *http.Request) {
 	// TODO: group by node identifier
 	for rec := range recset.Results() {
 		if rec.Err != nil {
-			logger.Error("Aerospike record error: %s", rec.Err)
+			log.Printf("ERROR: Aerospike record error: %s", rec.Err)
 			continue
 		}
 		key := int64(0)

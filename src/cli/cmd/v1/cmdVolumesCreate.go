@@ -60,7 +60,7 @@ func (c *VolumesCreateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.CreateVolumes(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -111,9 +111,13 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 	var expire time.Time
 	switch system.Opts.Config.Backend.Type {
 	case "aws":
-		expire = time.Now().Add(c.AWS.Expire)
+		if c.AWS.Expire > 0 {
+			expire = time.Now().Add(c.AWS.Expire)
+		}
 	case "gcp":
-		expire = time.Now().Add(c.GCP.Expire)
+		if c.GCP.Expire > 0 {
+			expire = time.Now().Add(c.GCP.Expire)
+		}
 	}
 	backendSpecificParams := map[backends.BackendType]interface{}{
 		"aws": &baws.CreateVolumeParams{
@@ -158,19 +162,24 @@ func (c *VolumesCreateCmd) CreateVolumes(system *System, inventory *backends.Inv
 		if err != nil {
 			return nil, err
 		}
+		// Update the placement in backend params with the resolved region/zone
+		if awsParams, ok := create.BackendSpecificParams[backends.BackendTypeAWS].(*baws.CreateVolumeParams); ok {
+			awsParams.Placement = awsRegion
+		}
 	}
 	if system.Opts.Config.Backend.Type != "docker" {
 		costDB, err := system.Backend.CreateVolumeGetPrice(create)
 		if err != nil {
-			return nil, err
+			system.Logger.Warn("Could not get volume price: %s", err)
+		} else {
+			switch system.Opts.Config.Backend.Type {
+			case "aws":
+				costDB = costDB * float64(c.AWS.SizeGiB)
+			case "gcp":
+				costDB = costDB * float64(c.GCP.SizeGiB)
+			}
+			system.Logger.Info("Volume GB cost: hour: $%.2f, day: $%.2f, month: $%.2f", math.Ceil(costDB*100)/100, math.Ceil(costDB*24*100)/100, math.Ceil(costDB*24*30*100)/100)
 		}
-		switch system.Opts.Config.Backend.Type {
-		case "aws":
-			costDB = costDB * float64(c.AWS.SizeGiB)
-		case "gcp":
-			costDB = costDB * float64(c.GCP.SizeGiB)
-		}
-		system.Logger.Info("Volume GB cost: hour: $%.2f, day: $%.2f, month: $%.2f", math.Ceil(costDB*100)/100, math.Ceil(costDB*24*100)/100, math.Ceil(costDB*24*30*100)/100)
 	}
 	if c.DryRun {
 		system.Logger.Info("Create Volumes Configuration:")

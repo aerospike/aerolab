@@ -525,6 +525,8 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 	instanceIds := make(map[string][]string)
 	clis := make(map[string]*ec2.Client)
 	zoneDNS := []*backends.InstanceDNS{}
+	// Collect AGI DNS names from tags for cleanup (AGI uses tags instead of CustomDNS)
+	agiDNSToCleanup := make(map[string]string) // map[dnsName]zoneID
 	for _, instance := range instances {
 		if _, ok := instanceIds[instance.ZoneID]; !ok {
 			instanceIds[instance.ZoneID] = []string{}
@@ -538,6 +540,12 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 		if instance.CustomDNS != nil {
 			zoneDNS = append(zoneDNS, instance.CustomDNS)
 		}
+		// Check for AGI DNS in tags (AGI stores DNS info in tags, not CustomDNS)
+		if dnsName, ok := instance.Tags["agiDNSName"]; ok && dnsName != "" {
+			if zoneID, ok := instance.Tags["agiZoneID"]; ok && zoneID != "" {
+				agiDNSToCleanup[dnsName] = zoneID
+			}
+		}
 	}
 
 	// cleanup dns records in the background
@@ -545,55 +553,126 @@ func (s *b) InstancesTerminate(instances backends.InstanceList, waitDur time.Dur
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if len(zoneDNS) == 0 {
+		if len(zoneDNS) == 0 && len(agiDNSToCleanup) == 0 {
 			return
 		}
 		log.Detail("Cleaning up DNS records")
-		dnsPerDomainID := make(map[string][]*backends.InstanceDNS)
-		for _, dns := range zoneDNS {
-			if _, ok := dnsPerDomainID[dns.DomainID]; !ok {
-				dnsPerDomainID[dns.DomainID] = []*backends.InstanceDNS{}
-			}
-			dnsPerDomainID[dns.DomainID] = append(dnsPerDomainID[dns.DomainID], dns)
-		}
-		for domainID, dnsList := range dnsPerDomainID {
-			cli, err := getRoute53Client(s.credentials, &dnsList[0].Region)
-			if err != nil {
-				log.Warn("Failed to get route53 client, DNS will not be cleaned up: %s", err)
-				return
-			}
-			changes := []rtypes.Change{}
-			for _, dns := range dnsList {
-				out, err := cli.ListResourceRecordSets(context.TODO(), &route53.ListResourceRecordSetsInput{
-					HostedZoneId: aws.String(dns.DomainID),
-				})
-				if err != nil {
-					log.Warn("Failed to list DNS records, DNS will not be cleaned up: %s", err)
-					return
+
+		// Cleanup CustomDNS records (standard instance DNS)
+		if len(zoneDNS) > 0 {
+			dnsPerDomainID := make(map[string][]*backends.InstanceDNS)
+			for _, dns := range zoneDNS {
+				if _, ok := dnsPerDomainID[dns.DomainID]; !ok {
+					dnsPerDomainID[dns.DomainID] = []*backends.InstanceDNS{}
 				}
-				for _, record := range out.ResourceRecordSets {
-					if aws.ToString(record.Name) == dns.GetFQDN()+"." {
-						changes = append(changes, rtypes.Change{
-							Action: rtypes.ChangeActionDelete,
-							ResourceRecordSet: &rtypes.ResourceRecordSet{
-								Name:            record.Name,
-								Type:            record.Type,
-								ResourceRecords: record.ResourceRecords,
-								TTL:             record.TTL,
-							},
-						})
+				dnsPerDomainID[dns.DomainID] = append(dnsPerDomainID[dns.DomainID], dns)
+			}
+			for domainID, dnsList := range dnsPerDomainID {
+				cli, err := getRoute53Client(s.credentials, &dnsList[0].Region)
+				if err != nil {
+					log.Warn("Failed to get route53 client, DNS will not be cleaned up: %s", err)
+					continue
+				}
+				changes := []rtypes.Change{}
+				for _, dns := range dnsList {
+					out, err := cli.ListResourceRecordSets(context.TODO(), &route53.ListResourceRecordSetsInput{
+						HostedZoneId: aws.String(dns.DomainID),
+					})
+					if err != nil {
+						log.Warn("Failed to list DNS records, DNS will not be cleaned up: %s", err)
+						continue
+					}
+					for _, record := range out.ResourceRecordSets {
+						if aws.ToString(record.Name) == dns.GetFQDN()+"." {
+							changes = append(changes, rtypes.Change{
+								Action: rtypes.ChangeActionDelete,
+								ResourceRecordSet: &rtypes.ResourceRecordSet{
+									Name:            record.Name,
+									Type:            record.Type,
+									ResourceRecords: record.ResourceRecords,
+									TTL:             record.TTL,
+								},
+							})
+						}
+					}
+				}
+				if len(changes) > 0 {
+					_, err = cli.ChangeResourceRecordSets(context.TODO(), &route53.ChangeResourceRecordSetsInput{
+						HostedZoneId: aws.String(domainID),
+						ChangeBatch: &rtypes.ChangeBatch{
+							Changes: changes,
+						},
+					})
+					if err != nil {
+						log.Warn("Failed to delete DNS records for domain %s, DNS will not be cleaned up: %s", domainID, err)
 					}
 				}
 			}
-			if len(changes) > 0 {
-				_, err = cli.ChangeResourceRecordSets(context.TODO(), &route53.ChangeResourceRecordSetsInput{
-					HostedZoneId: aws.String(domainID),
-					ChangeBatch: &rtypes.ChangeBatch{
-						Changes: changes,
-					},
+		}
+
+		// Cleanup AGI DNS records (stored in instance tags, not CustomDNS)
+		if len(agiDNSToCleanup) > 0 {
+			log.Detail("Cleaning up AGI DNS records")
+			// Group by zone ID
+			dnsPerZone := make(map[string][]string) // zoneID -> []dnsNames
+			for dnsName, zoneID := range agiDNSToCleanup {
+				dnsPerZone[zoneID] = append(dnsPerZone[zoneID], dnsName)
+			}
+			// Route53 is global, but SDK needs a valid region - use first instance's zone
+			r53Region := instances[0].ZoneID
+			for zoneID, dnsNames := range dnsPerZone {
+				cli, err := getRoute53Client(s.credentials, &r53Region)
+				if err != nil {
+					log.Warn("Failed to get route53 client for AGI DNS cleanup: %s", err)
+					continue
+				}
+				// List records in this zone
+				out, err := cli.ListResourceRecordSets(context.TODO(), &route53.ListResourceRecordSetsInput{
+					HostedZoneId: aws.String(zoneID),
 				})
 				if err != nil {
-					log.Warn("Failed to delete DNS records for domain %s, DNS will not be cleaned up: %s", domainID, err)
+					log.Warn("Failed to list DNS records for zone %s: %s", zoneID, err)
+					continue
+				}
+				changes := []rtypes.Change{}
+				for _, record := range out.ResourceRecordSets {
+					if record.Type != rtypes.RRTypeA {
+						continue
+					}
+					recordName := aws.ToString(record.Name)
+					// Check if this record matches any of our AGI DNS names
+					for _, dnsName := range dnsNames {
+						// Normalize: ensure both have trailing dots for comparison
+						normalizedDNS := dnsName
+						if !strings.HasSuffix(normalizedDNS, ".") {
+							normalizedDNS += "."
+						}
+						if recordName == normalizedDNS {
+							changes = append(changes, rtypes.Change{
+								Action: rtypes.ChangeActionDelete,
+								ResourceRecordSet: &rtypes.ResourceRecordSet{
+									Name:            record.Name,
+									Type:            record.Type,
+									ResourceRecords: record.ResourceRecords,
+									TTL:             record.TTL,
+								},
+							})
+							break
+						}
+					}
+				}
+				if len(changes) > 0 {
+					_, err = cli.ChangeResourceRecordSets(context.TODO(), &route53.ChangeResourceRecordSetsInput{
+						HostedZoneId: aws.String(zoneID),
+						ChangeBatch: &rtypes.ChangeBatch{
+							Changes: changes,
+						},
+					})
+					if err != nil {
+						log.Warn("Failed to delete AGI DNS records for zone %s: %s", zoneID, err)
+					} else {
+						log.Detail("Deleted %d AGI DNS record(s) from zone %s", len(changes), zoneID)
+					}
 				}
 			}
 		}
@@ -1524,10 +1603,6 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			Value: aws.String(input.Description),
 		},
 		{
-			Key:   aws.String(TAG_EXPIRES),
-			Value: aws.String(input.Expires.Format(time.RFC3339)),
-		},
-		{
 			Key:   aws.String(TAG_AEROLAB_PROJECT),
 			Value: aws.String(s.project),
 		},
@@ -1563,6 +1638,13 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 			Key:   aws.String(TAG_CLUSTER_UUID),
 			Value: aws.String(clusterUUID),
 		},
+	}
+	// Only add expiry tag if a non-zero expiry time is set
+	if !input.Expires.IsZero() {
+		awsTags = append(awsTags, types.Tag{
+			Key:   aws.String(TAG_EXPIRES),
+			Value: aws.String(input.Expires.Format(time.RFC3339)),
+		})
 	}
 	if backendSpecificParams.CustomDNS != nil {
 		awsTags = append(awsTags, types.Tag{
@@ -1962,11 +2044,24 @@ func (s *b) CleanupDNS() error {
 		s.log.Detail("AWS DNS CLEANUP: No regions enabled, skipping DNS cleanup")
 		return nil
 	}
-	// connect to route53
-	cli, err := getRoute53Client(s.credentials, &s.project)
+	// connect to route53 (Route53 is global, but SDK needs a valid region)
+	cli, err := getRoute53Client(s.credentials, &regions[0])
 	if err != nil {
 		return fmt.Errorf("failed to get route53 client: %v", err)
 	}
+
+	// Build a set of valid AGI DNS names from existing instances
+	agiDNSNames := make(map[string]bool)
+	for _, inst := range s.instances.WithNotState(backends.LifeCycleStateTerminated).Describe() {
+		if dnsName, ok := inst.Tags["agiDNSName"]; ok && dnsName != "" {
+			// Normalize: add trailing dot if not present
+			if !strings.HasSuffix(dnsName, ".") {
+				dnsName += "."
+			}
+			agiDNSNames[dnsName] = true
+		}
+	}
+
 	// list all hosted zones
 	paginator := route53.NewListHostedZonesPaginator(cli, &route53.ListHostedZonesInput{})
 	for paginator.HasMorePages() {
@@ -2005,33 +2100,84 @@ func (s *b) CleanupDNS() error {
 				if record.Name == nil {
 					continue
 				}
-				if strings.HasPrefix(*record.Name, "i-") {
-					split := strings.Split(*record.Name, ".")
-					if len(split) < 2 {
-						continue
+				recordName := *record.Name
+
+				// Check if this record should be cleaned up based on prefix
+				shouldDelete := false
+
+				if strings.HasPrefix(recordName, "i-") {
+					// Instance-based DNS record: i-{instanceId}.zone.name
+					split := strings.Split(recordName, ".")
+					if len(split) >= 2 {
+						tail := strings.Join(split[1:], ".")
+						if tail == *zone.Name {
+							instanceId := split[0]
+							// if the instance does not exist, delete the record
+							inst := s.instances.WithNotState(backends.LifeCycleStateTerminated).WithInstanceID(instanceId).Describe()
+							if len(inst) == 0 {
+								shouldDelete = true
+							}
+						}
 					}
-					tail := strings.Join(split[1:], ".")
-					if tail == "" {
-						continue
+				} else if strings.HasPrefix(recordName, "fs-") {
+					// EFS-based DNS record: fs-{efsId}.region.agi.zone.name
+					// Extract the EFS ID (first 8 chars after fs-)
+					split := strings.Split(recordName, ".")
+					if len(split) >= 2 {
+						efsPrefix := split[0] // fs-XXXXXXXX
+						if len(efsPrefix) > 3 {
+							efsIdPart := efsPrefix[3:] // XXXXXXXX (first 8 chars of EFS ID)
+							// Check if any EFS volume exists with this prefix
+							found := false
+							for _, vol := range s.volumes.WithType(backends.VolumeTypeSharedDisk).Describe() {
+								if strings.HasPrefix(vol.FileSystemId, efsIdPart) {
+									found = true
+									break
+								}
+							}
+							if !found {
+								shouldDelete = true
+							}
+						}
 					}
-					if tail != *zone.Name {
-						continue
+				} else if strings.HasPrefix(recordName, "vol-") {
+					// Volume-based DNS record (typically GCP, but check for any volumes)
+					split := strings.Split(recordName, ".")
+					if len(split) >= 2 {
+						volPrefix := split[0] // vol-XXXXXXXX
+						if len(volPrefix) > 4 {
+							volIdPart := volPrefix[4:] // XXXXXXXX (first 8 chars of volume ID)
+							// Check if any volume exists with this prefix
+							found := false
+							for _, vol := range s.volumes.Describe() {
+								if strings.HasPrefix(vol.FileSystemId, volIdPart) {
+									found = true
+									break
+								}
+							}
+							if !found {
+								shouldDelete = true
+							}
+						}
 					}
-					instanceId := split[0]
-					// if the instance does not exist, delete the record
-					inst := s.instances.WithNotState(backends.LifeCycleStateTerminated).WithInstanceID(instanceId).Describe()
-					if len(inst) == 0 {
-						// delete the record
-						changes = append(changes, rtypes.Change{
-							Action: rtypes.ChangeActionDelete,
-							ResourceRecordSet: &rtypes.ResourceRecordSet{
-								TTL:             record.TTL,
-								Name:            record.Name,
-								Type:            record.Type,
-								ResourceRecords: record.ResourceRecords,
-							},
-						})
+				} else if strings.HasPrefix(recordName, "agi-") {
+					// AGI shortuuid-based DNS record: agi-{uuid}.region.agi.zone.name
+					// Check if any AGI instance references this DNS name
+					if !agiDNSNames[recordName] {
+						shouldDelete = true
 					}
+				}
+
+				if shouldDelete {
+					changes = append(changes, rtypes.Change{
+						Action: rtypes.ChangeActionDelete,
+						ResourceRecordSet: &rtypes.ResourceRecordSet{
+							TTL:             record.TTL,
+							Name:            record.Name,
+							Type:            record.Type,
+							ResourceRecords: record.ResourceRecords,
+						},
+					})
 				}
 			}
 			if len(changes) > 0 {

@@ -28,7 +28,7 @@ func (c *InventoryMigrateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.InventoryMigrate(system, cmd, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -555,6 +555,38 @@ func (c *InventoryMigrateCmd) InventoryMigrate(system *System, cmd []string, arg
 		return nil
 	}
 
+	// Check for old AGI instances and inform user
+	agiInstanceCount, agiMonitorCount, agiMonitorNames := c.checkForOldAGIInstances(system, discovery)
+	if agiInstanceCount > 0 {
+		system.Logger.Info("")
+		system.Logger.Info("=== AGI INSTANCES DETECTED ===")
+		system.Logger.Info("Found %d AGI instance(s) that will be migrated.", agiInstanceCount)
+		system.Logger.Info("")
+		system.Logger.Info("AGI instances will be migrated with preserved tags for v8 compatibility.")
+		system.Logger.Info("After migration:")
+		system.Logger.Info("  - Use 'aerolab agi list' to see migrated AGI instances")
+		system.Logger.Info("  - Use 'aerolab agi status -n NAME' to check AGI status")
+		system.Logger.Info("  - Use 'aerolab agi stop/start' to manage instances")
+		system.Logger.Info("  - AGI volumes (EFS/GCP Persistent Disk) will be recognized by v8")
+		system.Logger.Info("")
+		system.Logger.Info("Note: Some AGI features may require recreation for full v8 compatibility.")
+		system.Logger.Info("")
+	}
+	if agiMonitorCount > 0 {
+		system.Logger.Info("")
+		system.Logger.Warn("=== AGI MONITOR INSTANCES REQUIRE RECREATION ===")
+		system.Logger.Warn("Found %d AGI Monitor instance(s): %s", agiMonitorCount, strings.Join(agiMonitorNames, ", "))
+		system.Logger.Info("")
+		system.Logger.Warn("AGI Monitor instances run the aerolab binary internally and MUST be recreated.")
+		system.Logger.Warn("The v7 binary on these instances is NOT compatible with v8 AGI instances.")
+		system.Logger.Info("")
+		system.Logger.Info("After migration, for each AGI Monitor listed above:")
+		system.Logger.Info("  1. Note the monitor configuration (check cloud console or v7 aerolab)")
+		system.Logger.Info("  2. Destroy: aerolab client destroy -n <monitor-name>")
+		system.Logger.Info("  3. Recreate: aerolab agi monitor create -n <monitor-name> ...")
+		system.Logger.Info("")
+	}
+
 	// Check for collisions with existing v8 resources
 	collisions := c.checkForCollisions(system, discovery, inventory, backendType)
 	if len(collisions) > 0 {
@@ -679,6 +711,10 @@ func (c *InventoryMigrateCmd) resolveSSHKeyPath() (*backends.SSHKeyPathInfo, err
 
 // checkForCollisions checks if any v7 resources would collide with existing v8 resources.
 // Returns a list of collision descriptions, or empty slice if no collisions found.
+//
+// Note: When --force is used, already-migrated resources will appear in both the v7 discovery
+// results AND the v8 inventory. This is expected - we detect these "self-collisions" by
+// comparing resource IDs and skip them, allowing re-migration to proceed.
 func (c *InventoryMigrateCmd) checkForCollisions(system *System, discovery *backends.MigrationResult, inventory *backends.Inventory, backendType backends.BackendType) []string {
 	var collisions []string
 
@@ -689,6 +725,8 @@ func (c *InventoryMigrateCmd) checkForCollisions(system *System, discovery *back
 	// Build lookup maps for existing v8 resources
 	// Key for instances: "clusterName:nodeNo:zone" (zone normalized to region for comparison)
 	existingInstances := make(map[string]*backends.Instance)
+	// Also build a set of existing instance IDs to detect self-collisions (same resource already migrated)
+	existingInstanceIDs := make(map[string]bool)
 	for _, inst := range inventory.Instances.Describe() {
 		// Only check instances of the same backend type
 		if inst.BackendType != backendType {
@@ -698,19 +736,25 @@ func (c *InventoryMigrateCmd) checkForCollisions(system *System, discovery *back
 		zone := c.zoneToRegion(inst.ZoneName, backendType)
 		key := fmt.Sprintf("%s:%d:%s", inst.ClusterName, inst.NodeNo, zone)
 		existingInstances[key] = inst
+		existingInstanceIDs[inst.InstanceID] = true
 	}
 
 	// Key for images: "imageName" (parsed from v7 name pattern)
 	existingImages := make(map[string]*backends.Image)
+	// Also build a set of existing image IDs to detect self-collisions
+	existingImageIDs := make(map[string]bool)
 	for _, img := range inventory.Images.Describe() {
 		if img.BackendType != backendType {
 			continue
 		}
 		existingImages[img.Name] = img
+		existingImageIDs[img.ImageId] = true
 	}
 
 	// Key for volumes: "volumeName:zone"
 	existingVolumes := make(map[string]*backends.Volume)
+	// Also build a set of existing volume IDs to detect self-collisions
+	existingVolumeIDs := make(map[string]bool)
 	for _, vol := range inventory.Volumes.Describe() {
 		if vol.BackendType != backendType {
 			continue
@@ -718,6 +762,7 @@ func (c *InventoryMigrateCmd) checkForCollisions(system *System, discovery *back
 		zone := c.zoneToRegion(vol.ZoneName, backendType)
 		key := fmt.Sprintf("%s:%s", vol.Name, zone)
 		existingVolumes[key] = vol
+		existingVolumeIDs[vol.FileSystemId] = true
 	}
 
 	// Check instance collisions
@@ -725,6 +770,11 @@ func (c *InventoryMigrateCmd) checkForCollisions(system *System, discovery *back
 		zone := c.zoneToRegion(v7Inst.Zone, backendType)
 		key := fmt.Sprintf("%s:%d:%s", v7Inst.ClusterName, v7Inst.NodeNo, zone)
 		if existing, ok := existingInstances[key]; ok {
+			// Check if this is a self-collision (same resource already migrated, being re-migrated with --force)
+			// If the instance IDs match, it's the same resource and not a real collision
+			if existingInstanceIDs[v7Inst.InstanceID] {
+				continue // Same resource, skip - this allows --force to work on already-migrated resources
+			}
 			instType := "server"
 			if v7Inst.IsClient {
 				instType = "client"
@@ -742,6 +792,10 @@ func (c *InventoryMigrateCmd) checkForCollisions(system *System, discovery *back
 	for _, v7Img := range discovery.DryRunImages {
 		// Check if an image with the same name exists
 		if existing, ok := existingImages[v7Img.Name]; ok {
+			// Check if this is a self-collision (same image already migrated)
+			if existingImageIDs[v7Img.ImageID] {
+				continue // Same resource, skip
+			}
 			collisions = append(collisions, fmt.Sprintf(
 				"IMAGE: v7 image '%s' collides with existing v8 image '%s' (ID=%s)",
 				v7Img.Name, existing.Name, existing.ImageId,
@@ -758,6 +812,10 @@ func (c *InventoryMigrateCmd) checkForCollisions(system *System, discovery *back
 		zone := c.zoneToRegion(v7Vol.Zone, backendType)
 		key := fmt.Sprintf("%s:%s", v7Vol.Name, zone)
 		if existing, ok := existingVolumes[key]; ok {
+			// Check if this is a self-collision (same volume already migrated)
+			if existingVolumeIDs[v7Vol.VolumeID] {
+				continue // Same resource, skip
+			}
 			collisions = append(collisions, fmt.Sprintf(
 				"VOLUME: v7 volume '%s' (zone=%s) collides with existing v8 volume '%s' (ID=%s)",
 				v7Vol.Name, v7Vol.Zone, existing.Name, existing.FileSystemId,
@@ -1168,6 +1226,70 @@ func (c *InventoryMigrateCmd) installExpiryIfNeeded(system *System, backendType 
 		}
 	}()
 	wg.Wait()
+}
+
+// checkForOldAGIInstances checks the discovery results for old AGI instances
+// and returns the count of AGI instances and AGI Monitor instances found,
+// along with the list of AGI Monitor instance names (for user notification).
+// AGI instances are detected by:
+// - aerolab.type = "agi" in TagsToAdd (set during translation for v7 AGI instances)
+// - Presence of preserved AGI-specific tags (agiLabel, agiinstance, etc.)
+// AGI Monitor instances are detected by:
+// - aerolab.client.type = "agimonitor" in TagsToAdd
+// - Presence of agimUrl/agimZone tags
+func (c *InventoryMigrateCmd) checkForOldAGIInstances(system *System, result *backends.MigrationResult) (agiCount int, agiMonitorCount int, agiMonitorNames []string) {
+	for _, inst := range result.DryRunInstances {
+		// Check for AGI instance (detected by aerolab.type = "agi" or preserved AGI tags)
+		isAGI := false
+		if inst.TagsToAdd["aerolab.type"] == "agi" {
+			isAGI = true
+		} else {
+			// Also check for preserved AGI-specific tags (both AWS tags and GCP labels)
+			agiTags := []string{
+				"aerolab7agiav", "agiLabel", "agilabel0", "aginodim", "agiinstance",
+				"agiSrcLocal", "agiSrcSftp", "agiSrcS3", "agiDomain",
+				// GCP lowercase variants
+				"agisrclocal", "agisrcsftp", "agisrcs3", "agidomain",
+			}
+			for _, tag := range agiTags {
+				if _, ok := inst.TagsToAdd[tag]; ok {
+					isAGI = true
+					break
+				}
+			}
+		}
+
+		// Check for AGI Monitor (client type "agimonitor" or agimUrl/agimZone tags)
+		isAGIMonitor := false
+		if inst.TagsToAdd["aerolab.client.type"] == "agimonitor" ||
+			inst.TagsToAdd["aerolab-client-type"] == "agimonitor" {
+			isAGIMonitor = true
+		} else {
+			// Check for monitor-specific tags
+			monitorTags := []string{"agimUrl", "agimZone", "agimurl", "agimzone"}
+			for _, tag := range monitorTags {
+				if _, ok := inst.TagsToAdd[tag]; ok {
+					isAGIMonitor = true
+					break
+				}
+			}
+		}
+
+		if isAGI {
+			agiCount++
+			if c.Verbose {
+				system.Logger.Info("  AGI instance: %s (%s) in %s", inst.Name, inst.InstanceID, inst.Zone)
+			}
+		}
+		if isAGIMonitor {
+			agiMonitorCount++
+			agiMonitorNames = append(agiMonitorNames, inst.ClusterName)
+			if c.Verbose {
+				system.Logger.Info("  AGI Monitor instance: %s (%s) in %s", inst.Name, inst.InstanceID, inst.Zone)
+			}
+		}
+	}
+	return agiCount, agiMonitorCount, agiMonitorNames
 }
 
 // zoneToRegion converts a zone to a region based on the backend type

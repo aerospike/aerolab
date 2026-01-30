@@ -576,8 +576,8 @@ paths:
     parameters:
       - $ref: '#/components/parameters/ClusterId'
     post:
-      summary: Create a single VPC Peering connection for the database
-      description: Create a single VPC Peering connection for the database.
+      summary: Create a single VPC Peering connection for the cluster
+      description: Create a single VPC Peering connection for the cluster.
       security:
         - publicOauth2:
             - update:database
@@ -622,13 +622,13 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-  /database/clusters/{clusterId}/vpc-peerings/{vpcId}:
+  /database/clusters/{clusterId}/vpc-peerings/{peeringId}:
     parameters:
       - $ref: '#/components/parameters/ClusterId'
-      - $ref: '#/components/parameters/VpcId'
+      - $ref: '#/components/parameters/PeeringId'
     delete:
       summary: Delete a VPC peering connection
-      description: DDelete a VPC peering connection.
+      description: Delete a VPC peering connection.
       security:
         - publicOauth2:
             - delete:database
@@ -638,6 +638,42 @@ paths:
       responses:
         '204':
           description: Successfully deleted a VPC peering connection
+        '400':
+          $ref: '#/components/responses/InvalidInputError'
+        '401':
+          $ref: '#/components/responses/UnauthenticatedError'
+        '403':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /pricing/rates/{region_id}:
+    get:
+      summary: Get pricing rates
+      description: |
+        Returns pricing rates for all machine types organized by machine type for a specific region.
+      operationId: getPricingRates
+      tags:
+        - pricing
+      security:
+        - publicOauth2:
+            - read:database
+      parameters:
+        - name: region_id
+          in: path
+          required: true
+          description: AWS region identifier (e.g., "us-east-1")
+          schema:
+            type: string
+          example: us-east-1
+      responses:
+        '200':
+          description: Pricing rates organized by machine type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingRatesJSONResponse'
         '400':
           $ref: '#/components/responses/InvalidInputError'
         '401':
@@ -698,16 +734,15 @@ components:
       schema:
         type: string
         format: uuid
-    VpcId:
-      name: vpcId
+    PeeringId:
+      name: peeringId
       in: path
-      description: The ID of the VPC to create the peering connection with
+      description: The internal ID of the VPC peering connection resource.
       required: true
       schema:
         type: string
-        description: The ID of the VPC to delete the peering connection with
-        example: vpc-0123456789abcdef0
-        pattern: ^vpc-([0-9a-f]{8}|[0-9a-f]{17})$
+        description: The internal UUID or VPC ID of the VPC peering connection
+        format: uuid
     UserId:
       name: userId
       in: path
@@ -930,76 +965,129 @@ components:
         X-Request-Id:
           $ref: '#/components/headers/X-Request-Id'
       content:
-        application/json:
+        application/problem+json:
           schema:
             $ref: '#/components/schemas/APIError'
           example:
-            code: invalid_token
-            message: The access token expired.
+            type: urn:aerospike:errors:auth:token-expired
+            title: Token Expired
+            status: 401
+            detail: Your session has expired. Please log in again.
+            message: Your session has expired. Please log in again.
     UnauthorizedError:
       description: Permission denied
       headers:
         X-Request-Id:
           $ref: '#/components/headers/X-Request-Id'
       content:
-        application/json:
+        application/problem+json:
           schema:
             $ref: '#/components/schemas/APIError'
+          example:
+            type: urn:aerospike:errors:auth:unauthorized
+            title: Unauthorized
+            status: 403
+            detail: You don't have permission to access this resource.
+            message: You don't have permission to access this resource.
     ConflictError:
       description: Conflict error
       headers:
         X-Request-Id:
           $ref: '#/components/headers/X-Request-Id'
       content:
-        application/json:
+        application/problem+json:
           schema:
             $ref: '#/components/schemas/APIError'
+          example:
+            type: urn:aerospike:errors:resource:already-exists
+            title: Resource Already Exists
+            status: 409
+            detail: A resource with this name already exists.
+            message: A resource with this name already exists.
+            context:
+              resource: cluster
+              id: my-cluster
     InvalidInputError:
       description: Invalid input
       headers:
         X-Request-Id:
           $ref: '#/components/headers/X-Request-Id'
       content:
-        application/json:
+        application/problem+json:
           schema:
             $ref: '#/components/schemas/APIError'
+          example:
+            type: urn:aerospike:errors:validation:failed
+            title: Validation Error
+            status: 400
+            detail: The provided information is not in the correct format.
+            message: The provided information is not in the correct format.
+            context:
+              invalid:
+                - field: /name
+                  type: urn:aerospike:errors:validation:too-long
+                - field: /region
+                  type: urn:aerospike:errors:validation:too-short
     NotFound:
       description: Resource not found
       headers:
         X-Request-Id:
           $ref: '#/components/headers/X-Request-Id'
       content:
-        application/json:
+        application/problem+json:
           schema:
             $ref: '#/components/schemas/APIError'
+          example:
+            type: urn:aerospike:errors:resource:not-found
+            title: Resource Not Found
+            status: 404
+            detail: The requested resource could not be found.
+            message: The requested resource could not be found.
+            context:
+              resource: cluster
+              id: abc-123
     NotImplementedError:
       description: The endpoint has not been implemented yet.
       content:
-        application/json:
+        application/problem+json:
           schema:
-            type: object
-            properties:
-              message:
-                type: string
-                example: This endpoint has not been implemented yet.
+            $ref: '#/components/schemas/APIError'
+          example:
+            type: urn:aerospike:errors:system:unavailable
+            title: Not Implemented
+            status: 501
+            detail: This endpoint has not been implemented yet.
+            message: This endpoint has not been implemented yet.
     InternalError:
       description: Internal Server Error
       headers:
         X-Request-Id:
           $ref: '#/components/headers/X-Request-Id'
       content:
-        application/json:
+        application/problem+json:
           schema:
             $ref: '#/components/schemas/APIError'
+          example:
+            type: urn:aerospike:errors:system:internal
+            title: Internal Server Error
+            status: 500
+            detail: An unexpected error occurred. Please try again later.
+            message: An unexpected error occurred. Please try again later.
     TooManyRequestsError:
       description: Too many requests
       headers:
         X-Request-Id:
           $ref: '#/components/headers/X-Request-Id'
       content:
-        application/json:
+        application/problem+json:
           schema:
             $ref: '#/components/schemas/APIError'
+          example:
+            type: urn:aerospike:errors:ratelimit:exceeded
+            title: Rate Limit Exceeded
+            status: 429
+            detail: Too many requests. Please wait a moment before trying again.
+            message: Too many requests. Please wait a moment before trying again.
     VPCPeering:
       description: A VPC Peering connection
       headers:
@@ -1308,6 +1396,14 @@ components:
           type: string
           description: |
             PEM encoded TLS certificate for the cluster.
+    PrivateAccessConsumer:
+      allOf:
+        - type: object
+        - $ref: '#/components/schemas/ResourceIdentifier'
+        - properties:
+            endpointId:
+              type: string
+              example: vpce-075f0461d3f5277e01
     ClusterExisting:
       allOf:
         - $ref: '#/components/schemas/ResourceIdentifier'
@@ -1651,11 +1747,19 @@ components:
             readCount:
               type: object
               properties:
+                minutely:
+                  $ref: '#/components/schemas/MetricRangeResult'
+                hourly:
+                  $ref: '#/components/schemas/MetricRangeResult'
                 daily:
                   $ref: '#/components/schemas/MetricRangeResult'
             writeCount:
               type: object
               properties:
+                minutely:
+                  $ref: '#/components/schemas/MetricRangeResult'
+                hourly:
+                  $ref: '#/components/schemas/MetricRangeResult'
                 daily:
                   $ref: '#/components/schemas/MetricRangeResult'
             errors:
@@ -1719,18 +1823,126 @@ components:
         - '1678128445.119'
         - '0.033200143'
     APIError:
-      description: Generic API error
+      description: |
+        RFC 9457 Problem Details for HTTP APIs.
+        Provides a standardized format for conveying error details in HTTP responses.
       type: object
-      additionalProperties: true
       required:
-        - message
+        - type
+        - title
+        - status
       properties:
-        code:
-          description: Unique (system-wide) error code for an error happened
+        type:
+          $ref: '#/components/schemas/ErrorType'
+        title:
           type: string
+          description: A short, human-readable summary of the problem type
+          example: Resource Not Found
+        status:
+          type: integer
+          description: The HTTP status code
+          example: 404
+        detail:
+          type: string
+          description: A human-readable explanation specific to this occurrence
+          example: The requested cluster could not be found.
+        instance:
+          type: string
+          format: uri
+          description: A URI reference that identifies the specific occurrence
+        context:
+          description: |
+            Additional context-specific information about the error.
+            Structure depends on error type (inferred from the 'type' URN):
+            - urn:aerospike:errors:resource:* → ResourceErrorContext
+            - urn:aerospike:errors:validation:* → ValidationErrorContext
+            - other error types → generic object
+          anyOf:
+            - $ref: '#/components/schemas/ResourceErrorContext'
+            - $ref: '#/components/schemas/ValidationErrorContext'
+            - type: object
+              additionalProperties: true
         message:
-          description: Developer-friendly message explaining error
           type: string
+          deprecated: true
+          description: |
+            Developer-friendly message explaining the error.
+            Deprecated: Use 'detail' field instead.
+          example: The requested cluster could not be found.
+    ErrorType:
+      type: string
+      description: |
+        URN-based error type identifiers following the pattern:
+        urn:aerospike:errors:{category}:{specific}
+
+        Resource information (cluster, database, organization, etc.) is provided
+        in the ProblemDetails context field, not in the URN.
+      enum:
+        - urn:aerospike:errors:auth:unauthorized
+        - urn:aerospike:errors:auth:token-expired
+        - urn:aerospike:errors:resource:not-found
+        - urn:aerospike:errors:resource:already-exists
+        - urn:aerospike:errors:validation:failed
+        - urn:aerospike:errors:system:internal
+        - urn:aerospike:errors:system:unavailable
+        - urn:aerospike:errors:ratelimit:exceeded
+    ResourceErrorContext:
+      type: object
+      description: Context for resource-related errors (not-found, already-exists)
+      properties:
+        resource:
+          type: string
+          description: Type of resource (e.g., cluster, database, organization)
+          example: cluster
+        id:
+          type: string
+          description: Identifier of the resource
+          example: abc-123
+    ValidationErrorContext:
+      type: object
+      description: Structured context for validation errors
+      properties:
+        missing:
+          type: array
+          description: JSON Pointer paths to missing required fields
+          items:
+            type: string
+          example:
+            - /user/email
+            - /user/password
+            - /user/firstName
+        invalid:
+          type: array
+          description: Details about invalid field values
+          items:
+            $ref: '#/components/schemas/InvalidFieldError'
+    InvalidFieldError:
+      type: object
+      required:
+        - field
+        - type
+      properties:
+        field:
+          type: string
+          description: JSON Pointer path to the invalid field
+          example: /user/phoneNumber
+        type:
+          type: string
+          format: uri
+          description: URN identifying the specific validation error type
+          enum:
+            - urn:aerospike:errors:validation:failed
+            - urn:aerospike:errors:validation:invalid-phone-format
+            - urn:aerospike:errors:validation:invalid-email-format
+            - urn:aerospike:errors:validation:invalid-date-format
+            - urn:aerospike:errors:validation:invalid-url-format
+            - urn:aerospike:errors:validation:out-of-range
+            - urn:aerospike:errors:validation:too-long
+            - urn:aerospike:errors:validation:too-short
+          example: urn:aerospike:errors:validation:failed
+        description:
+          type: string
+          description: An optional human-readable description of the validation error
     UserSchema:
       description: A user schema
       allOf:
@@ -1804,49 +2016,52 @@ components:
       maxLength: 100
       pattern: \S+
     VPCPeeringCreateSchema:
-      type: object
-      description: Schema for creating a VPC peering connection
-      properties:
-        vpcId:
-          $ref: '#/components/schemas/VpcId'
-        cidrBlock:
-          $ref: '#/components/schemas/CidrBlock'
-        accountId:
-          $ref: '#/components/schemas/AccountId'
-        region:
-          $ref: '#/components/schemas/Region'
-        isSecureConnection:
-          $ref: '#/components/schemas/IsSecureConnection'
-      required:
-        - vpcId
-        - cidrBlock
-        - accountId
-        - region
-        - isSecureConnection
+      allOf:
+        - type: object
+        - description: Schema for creating a VPC peering connection
+        - properties:
+            vpcId:
+              $ref: '#/components/schemas/VpcId'
+            cidrBlock:
+              $ref: '#/components/schemas/CidrBlock'
+            accountId:
+              $ref: '#/components/schemas/AccountId'
+            region:
+              $ref: '#/components/schemas/Region'
+            isSecureConnection:
+              $ref: '#/components/schemas/IsSecureConnection'
+        - required:
+            - vpcId
+            - cidrBlock
+            - accountId
+            - region
+            - isSecureConnection
     VPCPeeringSchema:
-      type: object
-      description: Response with information about a VPC peering connection
-      properties:
-        accountId:
-          $ref: '#/components/schemas/AccountId'
-        vpcId:
-          $ref: '#/components/schemas/VpcId'
-        region:
-          $ref: '#/components/schemas/Region'
-        status:
-          $ref: '#/components/schemas/VPCPeeringStatus'
-        peeringId:
-          type: string
-          description: The ID of the peering connection
-          example: pcx-1410263943e464f4a
-        cidrBlock:
-          $ref: '#/components/schemas/CidrBlock'
-        privateHostedZoneId:
-          type: string
-          description: The ID of the private hosted zone that the VPC should associate with
-          example: Z04089311NGVVH0FO3QGG
-        isSecureConnection:
-          $ref: '#/components/schemas/IsSecureConnection'
+      allOf:
+        - $ref: '#/components/schemas/ResourceIdentifier'
+        - type: object
+        - description: Response with information about a VPC peering connection
+        - properties:
+            accountId:
+              $ref: '#/components/schemas/AccountId'
+            vpcId:
+              $ref: '#/components/schemas/VpcId'
+            region:
+              $ref: '#/components/schemas/Region'
+            status:
+              $ref: '#/components/schemas/VPCPeeringStatus'
+            peeringId:
+              type: string
+              description: The AWS-generated ID of the peering connection (PCX ID)
+              example: pcx-1410263943e464f4a
+            cidrBlock:
+              $ref: '#/components/schemas/CidrBlock'
+            privateHostedZoneId:
+              type: string
+              description: The ID of the private hosted zone that the VPC should associate with
+              example: Z04089311NGVVH0FO3QGG
+            isSecureConnection:
+              $ref: '#/components/schemas/IsSecureConnection'
     VpcPeeringCollectionSchema:
       description: Collection of VPC peering connections
       allOf:
@@ -1865,24 +2080,24 @@ components:
       default: true
     Region:
       type: string
-      description: Region where the VPC is deployed
+      description: Region where the client VPC is deployed
       example: us-east-1
       pattern: ^[a-z]{2}-[a-z]+-\d+$
       default: us-east-1
     VpcId:
       x-go-name: VPCId
       type: string
-      description: The ID of the VPC to create a peering connection with
+      description: The ID of the client VPC to peer with
       example: vpc-0123456789abcdef0
       pattern: ^vpc-([0-9a-f]{8}|[0-9a-f]{17})$
     AccountId:
       type: string
-      description: The ID of the account where the VPC is deployed
+      description: The ID of the account where the client VPC is deployed
       example: '123456789012'
       pattern: ^\d{12}$
     CidrBlock:
       type: string
-      description: The VPC CIDR block where routing will take place
+      description: The client VPC's CIDR block where routing will take place
       example: 192.168.0.0/16
       pattern: ^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$
     VPCPeeringStatus:
@@ -1981,6 +2196,51 @@ components:
         minMemoryGiB:
           type: integer
           minimum: 0
+    PricingRatesJSONResponse:
+      type: object
+      description: Pricing rates organized by machine type
+      additionalProperties:
+        $ref: '#/components/schemas/PricingRateJSONResponse'
+      example:
+        m5.large:
+          aws_price_per_hour: 0.096
+          aerospike_capacity_units: 1
+          aerospike_capacity_unit_fee: 0.05
+          total_solution_price_per_hour: 0.146
+        r6g.xlarge:
+          aws_price_per_hour: 0.252
+          aerospike_capacity_units: 2
+          aerospike_capacity_unit_fee: 0.06
+          total_solution_price_per_hour: 0.372
+    PricingRateJSONResponse:
+      type: object
+      description: Pricing rate information for a machine type
+      properties:
+        aws_price_per_hour:
+          type: number
+          format: double
+          description: AWS price per hour for the machine type
+          example: 0.096
+        aerospike_capacity_units:
+          type: integer
+          format: int32
+          description: Number of Aerospike capacity units
+          example: 1
+        aerospike_capacity_unit_fee:
+          type: number
+          format: double
+          description: Fee per Aerospike capacity unit
+          example: 0.05
+        total_solution_price_per_hour:
+          type: number
+          format: double
+          description: Total solution price per hour (AWS + Aerospike)
+          example: 0.146
+      required:
+        - aws_price_per_hour
+        - aerospike_capacity_units
+        - aerospike_capacity_unit_fee
+        - total_solution_price_per_hour
     Logging:
       type: object
       properties:
@@ -1991,10 +2251,10 @@ components:
           readOnly: true
         authorizedRoles:
           type: array
-          description: A list of AWS principal ARNs authorized to read the log bucket. Supports IAM roles, IAM users, assumed roles, federated users, root accounts, and AWS account IDs. Does not support wildcards (*) or service principals.
+          description: A list of role ARNs authorized to read the log bucket
           items:
             type: string
-            pattern: ^(arn:aws:(iam|sts)::[0-9]{12}:(root|role\/[^\/]+(\/[^\/]+)*|user\/[^\/]+(\/[^\/]+)*|assumed-role\/[^\/]+\/[^\/]+|federated-user\/[^\/]+)|[0-9]{12})$
+            pattern: ^(arn:aws:(iam|sts)::[0-9]{12}:(root|role/[^/]+(/[^/]+)*|user/[^/]+(/[^/]+)*|assumed-role/[^/]+/[^/]+|federated-user/[^/]+)|[0-9]{12})$
           example:
             - arn:aws:iam::123456789012:role/ASLogReader
     NetworkStorage:
@@ -2778,6 +3038,20 @@ components:
                       - detail
                     description: ''
                     default: CRITICAL
+                  deprecation:
+                    enum:
+                      - CRITICAL
+                      - critical
+                      - WARNING
+                      - warning
+                      - INFO
+                      - info
+                      - DEBUG
+                      - debug
+                      - DETAIL
+                      - detail
+                    description: ''
+                    default: CRITICAL
                   drv-mem:
                     enum:
                       - CRITICAL
@@ -2961,20 +3235,6 @@ components:
                     description: ''
                     default: CRITICAL
                   info-command:
-                    enum:
-                      - CRITICAL
-                      - critical
-                      - WARNING
-                      - warning
-                      - INFO
-                      - info
-                      - DEBUG
-                      - debug
-                      - DETAIL
-                      - detail
-                    description: ''
-                    default: CRITICAL
-                  info-port:
                     enum:
                       - CRITICAL
                       - critical
@@ -3434,10 +3694,6 @@ components:
             network:
               type: object
               additionalProperties: false
-              required:
-                - service
-                - heartbeat
-                - fabric
               properties:
                 service:
                   type: object
@@ -3557,6 +3813,67 @@ components:
                       minimum: 1024
                       maximum: 65535
                       description: ''
+                  readOnly: true
+                admin:
+                  type: object
+                  additionalProperties: false
+                  anyOf:
+                    - required:
+                        - port
+                    - required:
+                        - tls-name
+                        - tls-port
+                  properties:
+                    addresses:
+                      type: array
+                      items:
+                        type: string
+                        anyOf:
+                          - format: ipv4
+                          - format: hostname
+                      description: ''
+                      default: []
+                    disable-localhost:
+                      type: boolean
+                      default: false
+                      description: ''
+                    port:
+                      type: integer
+                      minimum: 1024
+                      maximum: 65535
+                      description: ''
+                    tls-addresses:
+                      type: array
+                      items:
+                        type: string
+                      description: ''
+                      default: []
+                    tls-authenticate-client:
+                      oneOf:
+                        - type: string
+                          description: ''
+                          default: any
+                          enum:
+                            - any
+                            - 'false'
+                        - type: array
+                          items:
+                            type: string
+                            format: hostname
+                            not:
+                              enum:
+                                - any
+                                - 'false'
+                    tls-name:
+                      type: string
+                      default: ''
+                      description: ''
+                    tls-port:
+                      type: integer
+                      minimum: 1024
+                      maximum: 65535
+                      description: ''
+                  readOnly: true
                 heartbeat:
                   type: object
                   additionalProperties: false
@@ -3679,6 +3996,7 @@ components:
                       minimum: 1024
                       maximum: 65535
                       description: ''
+                  readOnly: true
                 fabric:
                   type: object
                   additionalProperties: false
@@ -3816,24 +4134,7 @@ components:
                       minimum: 1024
                       maximum: 65535
                       description: ''
-                info:
-                  type: object
-                  additionalProperties: false
-                  properties:
-                    addresses:
-                      type: array
-                      items:
-                        type: string
-                        anyOf:
-                          - format: ipv4
-                          - format: hostname
-                      description: ''
-                      default: []
-                    port:
-                      type: integer
-                      minimum: 1024
-                      maximum: 65535
-                      description: ''
+                  readOnly: true
                 tls:
                   type: array
                   items:
@@ -3842,51 +4143,46 @@ components:
                     properties:
                       name:
                         type: string
-                        default: 'null'
                         description: ''
                         format: hostname
                         minLength: 1
                       ca-file:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       ca-path:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       cert-blacklist:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       cert-file:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       cipher-suite:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9- ]*$
                       key-file:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       key-file-password:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9- ]*$
+                      pki-user-append-ou:
+                        type: boolean
+                        default: false
+                        description: ''
                       protocols:
                         type: string
                         default: TLSv1.2
                         description: ''
                         pattern: '[a-zA-Z0-9-+]+'
-              readOnly: true
             namespaces:
               type: array
               minItems: 1
@@ -3913,6 +4209,9 @@ components:
                     type: boolean
                     description: ''
                     readOnly: true
+                  apply-ttl-reductions:
+                    type: boolean
+                    description: ''
                   auto-revive:
                     type: boolean
                     description: ''
@@ -4417,7 +4716,7 @@ components:
                             description: ''
                           data-size:
                             type: integer
-                            minimum: 268435456
+                            minimum: 536870912
                             maximum: 281474976710656
                             description: ''
                           defrag-lwm-pct:
@@ -4897,6 +5196,11 @@ components:
                         minimum: 5
                         maximum: 1000
                         description: ''
+                      recovery-threads:
+                        type: integer
+                        minimum: 1
+                        maximum: 32
+                        description: ''
                       tls-name:
                         type: string
                         description: ''
@@ -5040,7 +5344,7 @@ components:
             - namespaces
       x-source: |-
         Sources (SHA, version):
-        - aerospike-schemas: 2441e73 (version 8.0.0)
+        - aerospike-schemas: 2441e73 (version 8.1.1)
     definitions-NetworkStorage:
       oneOf:
         - title: gp2
@@ -5799,6 +6103,20 @@ components:
                       - detail
                     description: ''
                     default: CRITICAL
+                  deprecation:
+                    enum:
+                      - CRITICAL
+                      - critical
+                      - WARNING
+                      - warning
+                      - INFO
+                      - info
+                      - DEBUG
+                      - debug
+                      - DETAIL
+                      - detail
+                    description: ''
+                    default: CRITICAL
                   drv-mem:
                     enum:
                       - CRITICAL
@@ -5982,20 +6300,6 @@ components:
                     description: ''
                     default: CRITICAL
                   info-command:
-                    enum:
-                      - CRITICAL
-                      - critical
-                      - WARNING
-                      - warning
-                      - INFO
-                      - info
-                      - DEBUG
-                      - debug
-                      - DETAIL
-                      - detail
-                    description: ''
-                    default: CRITICAL
-                  info-port:
                     enum:
                       - CRITICAL
                       - critical
@@ -6571,6 +6875,64 @@ components:
                       minimum: 1024
                       maximum: 65535
                       description: ''
+                  readOnly: true
+                admin:
+                  type: object
+                  additionalProperties: false
+                  anyOf:
+                    - {}
+                    - {}
+                  properties:
+                    addresses:
+                      type: array
+                      items:
+                        type: string
+                        anyOf:
+                          - format: ipv4
+                          - format: hostname
+                      description: ''
+                      default: []
+                    disable-localhost:
+                      type: boolean
+                      default: false
+                      description: ''
+                    port:
+                      type: integer
+                      minimum: 1024
+                      maximum: 65535
+                      description: ''
+                    tls-addresses:
+                      type: array
+                      items:
+                        type: string
+                      description: ''
+                      default: []
+                    tls-authenticate-client:
+                      oneOf:
+                        - type: string
+                          description: ''
+                          default: any
+                          enum:
+                            - any
+                            - 'false'
+                        - type: array
+                          items:
+                            type: string
+                            format: hostname
+                            not:
+                              enum:
+                                - any
+                                - 'false'
+                    tls-name:
+                      type: string
+                      default: ''
+                      description: ''
+                    tls-port:
+                      type: integer
+                      minimum: 1024
+                      maximum: 65535
+                      description: ''
+                  readOnly: true
                 heartbeat:
                   type: object
                   additionalProperties: false
@@ -6688,6 +7050,7 @@ components:
                       minimum: 1024
                       maximum: 65535
                       description: ''
+                  readOnly: true
                 fabric:
                   type: object
                   additionalProperties: false
@@ -6822,24 +7185,7 @@ components:
                       minimum: 1024
                       maximum: 65535
                       description: ''
-                info:
-                  type: object
-                  additionalProperties: false
-                  properties:
-                    addresses:
-                      type: array
-                      items:
-                        type: string
-                        anyOf:
-                          - format: ipv4
-                          - format: hostname
-                      description: ''
-                      default: []
-                    port:
-                      type: integer
-                      minimum: 1024
-                      maximum: 65535
-                      description: ''
+                  readOnly: true
                 tls:
                   type: array
                   items:
@@ -6848,51 +7194,46 @@ components:
                     properties:
                       name:
                         type: string
-                        default: 'null'
                         description: ''
                         format: hostname
                         minLength: 1
                       ca-file:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       ca-path:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       cert-blacklist:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       cert-file:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       cipher-suite:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9- ]*$
                       key-file:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9./_-]*$
                       key-file-password:
                         type: string
-                        default: ''
                         description: ''
                         pattern: ^[a-zA-Z0-9- ]*$
+                      pki-user-append-ou:
+                        type: boolean
+                        default: false
+                        description: ''
                       protocols:
                         type: string
                         default: TLSv1.2
                         description: ''
                         pattern: '[a-zA-Z0-9-+]+'
-              readOnly: true
             namespaces:
               type: array
               minItems: 1
@@ -6919,6 +7260,9 @@ components:
                     type: boolean
                     description: ''
                     readOnly: true
+                  apply-ttl-reductions:
+                    type: boolean
+                    description: ''
                   auto-revive:
                     type: boolean
                     description: ''
@@ -7423,7 +7767,7 @@ components:
                             description: ''
                           data-size:
                             type: integer
-                            minimum: 268435456
+                            minimum: 536870912
                             maximum: 281474976710656
                             description: ''
                           defrag-lwm-pct:
@@ -7903,6 +8247,11 @@ components:
                         minimum: 5
                         maximum: 1000
                         description: ''
+                      recovery-threads:
+                        type: integer
+                        minimum: 1
+                        maximum: 32
+                        description: ''
                       tls-name:
                         type: string
                         description: ''
@@ -8044,7 +8393,7 @@ components:
                       - namespaces
       x-source: |-
         Sources (SHA, version):
-        - aerospike-schemas: 2441e73 (version 8.0.0)
+        - aerospike-schemas: 2441e73 (version 8.1.1)
   securitySchemes:
     publicOauth2:
       type: oauth2
@@ -8094,3 +8443,4 @@ x-tagGroups:
       - cluster-credential
       - cluster-private-access
       - cluster-vpc-peering
+      - pricing

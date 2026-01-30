@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
-	"github.com/rglonek/logger"
+	"log"
 	"github.com/rglonek/sbs"
 )
 
@@ -44,21 +44,21 @@ func (p *Plugin) timedCheckSocketTimeout(ctx context.Context, resultSet *aerospi
 }
 
 func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
-	logger.Info("QUERY INCOMING (type:query) (remote:%s)", r.RemoteAddr)
+	log.Printf("INFO: QUERY INCOMING (type:query) (remote:%s)", r.RemoteAddr)
 	qtime := time.Now()
 	p.requests <- true
 	defer func() {
 		<-p.requests
-		logger.Info("QUERY END (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s) (totalTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
+		log.Printf("INFO: QUERY END (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s) (totalTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
 	}()
-	logger.Info("QUERY START (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
+	log.Printf("INFO: QUERY START (type:query) (runningRequests:%d) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.requests), len(p.jobs), r.RemoteAddr, time.Since(qtime).String())
 	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		responseError(w, http.StatusBadRequest, "Failed to read body (remote:%s) (error:%s)", r.RemoteAddr, err)
 		return
 	}
-	logger.Detail("(remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
+	log.Printf("DETAIL: (remote:%s) (payload:%s)", r.RemoteAddr, sbs.ByteSliceToString(body))
 	req := new(queryRequest)
 	err = json.Unmarshal(body, req)
 	if err != nil {
@@ -106,15 +106,15 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 			responseError(w, http.StatusBadRequest, "Failed to marshal body json of scoped vars for detail logging (remote:%s) (error:%s)", r.RemoteAddr, err)
 			return
 		}
-		logger.Detail("(remote:%s) (parsed-payload:%s) (selected-vars:%s)", r.RemoteAddr, sbs.ByteSliceToString(body), sbs.ByteSliceToString(bodyx))
+		log.Printf("DETAIL: (remote:%s) (parsed-payload:%s) (selected-vars:%s)", r.RemoteAddr, sbs.ByteSliceToString(body), sbs.ByteSliceToString(bodyx))
 	}
-	logger.Info("QUERY ALLOCATE_JOB (type:query) (runningJobs:%d) (remote:%s)", len(p.jobs), r.RemoteAddr)
+	log.Printf("INFO: QUERY ALLOCATE_JOB (type:query) (runningJobs:%d) (remote:%s)", len(p.jobs), r.RemoteAddr)
 	jtime := time.Now()
 	p.jobs <- true
 	defer func() {
 		<-p.jobs
 	}()
-	logger.Info("QUERY DO_JOB (type:query) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.jobs), r.RemoteAddr, time.Since(jtime).String())
+	log.Printf("INFO: QUERY DO_JOB (type:query) (runningJobs:%d) (remote:%s) (waitTime:%s)", len(p.jobs), r.RemoteAddr, time.Since(jtime).String())
 	dtime := time.Now()
 	responses := []interface{}{}
 	for i := range req.Targets {
@@ -124,7 +124,7 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				errString = err.Error()
 			}
-			logger.Warn("QUERY GRAFANA SOCKET TIMEOUT (type:query) (remote:%s): client terminated connection: %s", r.RemoteAddr, errString)
+			log.Printf("WARN: QUERY GRAFANA SOCKET TIMEOUT (type:query) (remote:%s): client terminated connection: %s", r.RemoteAddr, errString)
 			return
 		}
 		switch req.Targets[i].Payload.Type {
@@ -158,9 +158,9 @@ func (p *Plugin) handleQuery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	logger.Info("QUERY SEND_DATA (type:query) (remote:%s) (db.Get.Time:%s)", r.RemoteAddr, time.Since(dtime).String())
+	log.Printf("INFO: QUERY SEND_DATA (type:query) (remote:%s) (db.Get.Time:%s)", r.RemoteAddr, time.Since(dtime).String())
 	stime := time.Now()
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(responses)
-	logger.Info("QUERY SENT (type:query) (remote:%s) (sendTime:%s)", r.RemoteAddr, time.Since(stime).String())
+	log.Printf("INFO: QUERY SENT (type:query) (remote:%s) (sendTime:%s)", r.RemoteAddr, time.Since(stime).String())
 }

@@ -752,12 +752,15 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		TAG_OWNER:           input.Owner,
 		TAG_CLUSTER_NAME:    input.ClusterName,
 		TAG_DESCRIPTION:     input.Description,
-		TAG_EXPIRES:         input.Expires.Format(time.RFC3339),
 		TAG_AEROLAB_PROJECT: s.project,
 		TAG_AEROLAB_VERSION: s.aerolabVersion,
 		TAG_OS_NAME:         backendSpecificParams.Image.OSName,
 		TAG_OS_VERSION:      backendSpecificParams.Image.OSVersion,
 		TAG_CLUSTER_UUID:    clusterUUID,
+	}
+	// Only add expiry tag if a non-zero expiry time is set
+	if !input.Expires.IsZero() {
+		labels[TAG_EXPIRES] = input.Expires.Format(time.RFC3339)
 	}
 	for k, v := range input.Tags {
 		labels[k] = v
@@ -1052,18 +1055,31 @@ func (s *b) CreateInstances(input *backends.CreateInstanceInput, waitDur time.Du
 		mounts := []mount.Mount{}
 		for _, volume := range backendSpecificParams.Disks {
 			vsplit := strings.Split(volume, ":")
-			if len(vsplit) != 2 {
-				return nil, fmt.Errorf("invalid disk format: %s", volume)
+			// Format: source:target or source:target:ro/rw
+			if len(vsplit) < 2 || len(vsplit) > 3 {
+				return nil, fmt.Errorf("invalid disk format: %s (expected source:target or source:target:ro)", volume)
 			}
 			// Determine mount type: use bind mount for absolute paths, volume for named volumes
 			mountType := mount.TypeVolume
 			if strings.HasPrefix(vsplit[0], "/") {
 				mountType = mount.TypeBind
 			}
+			readOnly := false
+			if len(vsplit) == 3 {
+				switch vsplit[2] {
+				case "ro":
+					readOnly = true
+				case "rw":
+					readOnly = false
+				default:
+					return nil, fmt.Errorf("invalid disk format: %s (third part must be 'ro' or 'rw')", volume)
+				}
+			}
 			mounts = append(mounts, mount.Mount{
-				Type:   mountType,
-				Source: vsplit[0],
-				Target: vsplit[1],
+				Type:     mountType,
+				Source:   vsplit[0],
+				Target:   vsplit[1],
+				ReadOnly: readOnly,
 			})
 		}
 

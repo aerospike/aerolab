@@ -2,9 +2,47 @@
 
 This guide explains how to migrate from AeroLab 7.x to AeroLab 8.x. Please note the migration does not remove AeroLab 7.x configuration, ssh keys or support for the instances. Once the migration is complete, both v7 and v8 can be used side by side for the existing migrated resources.
 
-## Current Caveats
+## AGI (Aerospike Grafana Integration) Migration
 
-- Aerolab 8 does not support AGI yet and will report those instances as Aerospike Cluster instead. As such, AGI instances will be migrated improperly. Once AGI support is added, migration may be rerun by the user with `--force` option to correct the issue. Aerolab v7 will continue to work with these AGI instances even after migration.
+### AGI Instances
+
+AGI instances from AeroLab 7.x **are migrated** and can be managed by v8 AGI commands.
+
+**What happens during migration:**
+- `inventory migrate` detects AGI instances
+- AGI-specific tags are preserved (without `v7-` prefix) so v8 commands can read them
+- AGI volumes (EFS for AWS, Persistent Disks for GCP) are recognized and preserved
+- The migration marker is added alongside existing tags
+
+**After migration:**
+- Use `aerolab agi list` to see migrated AGI instances
+- Use `aerolab agi status -n NAME` to check AGI status
+- Use `aerolab agi stop/start -n NAME` to manage instances
+- AGI volumes are recognized by v8 and can be reused
+
+**Note:** Some advanced AGI features may require recreation of the AGI instance for full v8 compatibility. Basic operations (start, stop, status, list) work immediately after migration.
+
+### AGI Monitor Instances - Require Recreation
+
+**AGI Monitor instances MUST be recreated after migration.** The migration will detect these instances and warn you, but they cannot be automatically upgraded because they run the aerolab binary internally.
+
+**Why AGI Monitor requires recreation:**
+- AGI Monitor instances run `aerolab agi monitor listen` as a systemd service
+- The v7 aerolab binary on the instance is NOT compatible with v8 AGI instances
+- The configuration format and systemd service may have changed
+
+**Migration steps for AGI Monitor:**
+1. Note your current monitor configuration (check cloud console tags or use v7 aerolab)
+2. After running `inventory migrate`, destroy the old monitor:
+   ```bash
+   aerolab client destroy -n <monitor-name>
+   ```
+3. Recreate using v8:
+   ```bash
+   aerolab agi monitor create -n <monitor-name> [options]
+   ```
+
+The migration will list all AGI Monitor instances that need recreation.
 
 ## V7 Expiry System Removal
 

@@ -70,6 +70,7 @@ type Cloud interface {
 	SetConfig(configDir string, credentials *clouds.Credentials, project string, sshKeyDir string, log *logger.Logger, aerolabVersion string, workDir string, invalidateCacheFunc func(names ...string) error, listAllProjects bool) error
 	SetInventory(networks NetworkList, firewalls FirewallList, instances InstanceList, volumes VolumeList, images ImageList)
 	ListEnabledZones() ([]string, error)
+	ListAvailableZones() ([]string, error)
 	EnableZones(names ...string) error
 	DisableZones(names ...string) error
 	// expiry
@@ -166,6 +167,7 @@ type Backend interface {
 	AddRegion(backendType BackendType, names ...string) error
 	RemoveRegion(backendType BackendType, names ...string) error
 	ListEnabledRegions(backendType BackendType) (name []string, err error)
+	ListAvailableZones(backendType BackendType) (zones []string, err error)
 	// create actions
 	CreateFirewall(input *CreateFirewallInput, waitDur time.Duration) (*CreateFirewallOutput, error)
 	CreateVolume(input *CreateVolumeInput) (*CreateVolumeOutput, error)

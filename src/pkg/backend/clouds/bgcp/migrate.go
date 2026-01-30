@@ -556,8 +556,40 @@ func (s *b) discoverOldImages(force bool) ([]backends.OldImage, error) {
 	return images, errs
 }
 
+// isGCPAGIInstance checks if a v7 GCP instance is an AGI instance by looking for AGI-specific labels.
+// GCP labels are lowercase and use underscores/dashes.
+func isGCPAGIInstance(labels map[string]string) bool {
+	// Check for direct AGI labels
+	agiIndicators := []string{
+		V7_LABEL_AGI_INSTANCE, // agiinstance
+		V7_LABEL_AGI_NODIM,    // aginodim
+	}
+	for _, label := range agiIndicators {
+		if labels[label] != "" {
+			return true
+		}
+	}
+
+	// Check for chunked AGI labels (agilabel0, agilabel1, etc.)
+	for key := range labels {
+		if strings.HasPrefix(key, "agilabel") {
+			return true
+		}
+	}
+
+	// Check for v7 AGI version label (may have been stored differently in GCP)
+	if labels["aerolab7agiav"] != "" {
+		return true
+	}
+
+	return false
+}
+
 // translateServerLabels converts v7 server instance labels to v8 format
 func (s *b) translateServerLabels(inst backends.OldInstance, project, clusterUUID, aerolabVersion string) map[string]string {
+	// Check if this is an AGI instance
+	isAGI := isGCPAGIInstance(inst.Tags)
+
 	// Build the metadata map that will be encoded
 	// Note: v7 GCP labels were sanitized (dots->dashes, colons->underscores), so we unsanitize them
 	metadata := map[string]string{
@@ -573,7 +605,14 @@ func (s *b) translateServerLabels(inst backends.OldInstance, project, clusterUUI
 		TAG_AEROLAB_PROJECT: project,
 		TAG_AEROLAB_VERSION: aerolabVersion,
 		TAG_CLUSTER_UUID:    clusterUUID,
-		TAG_SOFT_TYPE:       "aerospike", // Server type is always "aerospike"
+	}
+
+	if isAGI {
+		// For AGI instances, set type to "agi" so v8 AGI commands can find them
+		metadata[TAG_SOFT_TYPE] = "agi"
+	} else {
+		// Regular server type is "aerospike"
+		metadata[TAG_SOFT_TYPE] = "aerospike"
 	}
 
 	// Add software version if present (with edition suffix for aerospike)
@@ -601,11 +640,67 @@ func (s *b) translateServerLabels(inst backends.OldInstance, project, clusterUUI
 		labels["v7-isspot"] = sanitize(v, false)
 	}
 
+	// For AGI instances, preserve AGI-specific labels WITHOUT v7- prefix
+	if isAGI {
+		s.preserveGCPAGILabels(inst.Tags, labels)
+	}
+
 	return labels
+}
+
+// preserveGCPAGILabels preserves AGI-specific labels WITHOUT prefix so v8 AGI commands can read them.
+func (s *b) preserveGCPAGILabels(oldLabels, newLabels map[string]string) {
+	// AGI-specific labels to preserve with their ORIGINAL names (no prefix)
+	agiLabelsToPreserve := []string{
+		V7_LABEL_AGI_INSTANCE, // agiinstance
+		V7_LABEL_AGI_NODIM,    // aginodim
+		V7_LABEL_TERM_ON_POW,  // termonpow
+		V7_LABEL_IS_SPOT,      // isspot
+		"aerolab7agiav",       // Aerospike version for AGI (if present)
+		"aerolab4features",    // feature flags (if present)
+		"aerolab4ssl",         // SSL enabled (if present)
+	}
+
+	for _, label := range agiLabelsToPreserve {
+		if v := oldLabels[label]; v != "" {
+			newLabels[label] = sanitize(v, false)
+		}
+	}
+
+	// Preserve chunked AGI labels (agilabel0, agilabel1, etc.) without prefix
+	for key, value := range oldLabels {
+		if strings.HasPrefix(key, "agilabel") {
+			newLabels[key] = sanitize(value, false)
+		}
+	}
+
+	// Preserve source labels if present
+	sourceLabels := []string{"agisrclocal", "agisrcsftp", "agisrcs3", "agidomain"}
+	for _, label := range sourceLabels {
+		if v := oldLabels[label]; v != "" {
+			newLabels[label] = sanitize(v, false)
+		}
+	}
+}
+
+// isGCPAGIMonitor checks if a v7 GCP client instance is an AGI Monitor by looking for monitor-specific labels.
+func isGCPAGIMonitor(labels map[string]string) bool {
+	// Check for AGI Monitor labels (GCP uses lowercase)
+	if labels["agimurl"] != "" || labels["agimzone"] != "" {
+		return true
+	}
+	// Also check for client type "agimonitor"
+	if labels[V7_LABEL_CLIENT_TYPE] == "agimonitor" {
+		return true
+	}
+	return false
 }
 
 // translateClientLabels converts v7 client instance labels to v8 format
 func (s *b) translateClientLabels(inst backends.OldInstance, project, clusterUUID, aerolabVersion string) map[string]string {
+	// Check if this is an AGI Monitor instance
+	isMonitor := isGCPAGIMonitor(inst.Tags)
+
 	// Build the metadata map that will be encoded
 	// Note: v7 GCP labels were sanitized (dots->dashes, colons->underscores), so we unsanitize them
 	metadata := map[string]string{
@@ -657,11 +752,57 @@ func (s *b) translateClientLabels(inst backends.OldInstance, project, clusterUUI
 		labels["v7-isspot"] = sanitize(v, false)
 	}
 
+	// For AGI Monitor, preserve monitor-specific labels without prefix
+	if isMonitor {
+		s.preserveGCPAGIMonitorLabels(inst.Tags, labels)
+	}
+
 	return labels
+}
+
+// preserveGCPAGIMonitorLabels preserves AGI Monitor-specific labels WITHOUT prefix.
+func (s *b) preserveGCPAGIMonitorLabels(oldLabels, newLabels map[string]string) {
+	// AGI Monitor-specific labels to preserve (GCP uses lowercase)
+	monitorLabelsToPreserve := []string{
+		"agimurl",  // Route53/DNS domain URL
+		"agimzone", // Route53/DNS zone ID
+	}
+
+	for _, label := range monitorLabelsToPreserve {
+		if v := oldLabels[label]; v != "" {
+			newLabels[label] = sanitize(v, false)
+		}
+	}
+}
+
+// isGCPAGIVolume checks if a v7 GCP volume is associated with AGI by looking for AGI-specific labels.
+func isGCPAGIVolume(labels map[string]string) bool {
+	// Check for direct AGI labels
+	agiIndicators := []string{
+		V7_LABEL_AGI_INSTANCE, // agiinstance
+		V7_LABEL_AGI_NODIM,    // aginodim
+	}
+	for _, label := range agiIndicators {
+		if labels[label] != "" {
+			return true
+		}
+	}
+
+	// Check for chunked AGI labels (agilabel0, agilabel1, etc.)
+	for key := range labels {
+		if strings.HasPrefix(key, "agilabel") {
+			return true
+		}
+	}
+
+	return false
 }
 
 // translateVolumeLabels converts v7 volume labels to v8 format
 func (s *b) translateVolumeLabels(vol backends.OldVolume, project, aerolabVersion string) map[string]string {
+	// Check if this is an AGI-associated volume
+	isAGI := isGCPAGIVolume(vol.Tags)
+
 	// Build the metadata map
 	metadata := map[string]string{
 		TAG_START_TIME:      vol.Tags[V7_LABEL_VOLUME_LAST_USED],
@@ -680,28 +821,59 @@ func (s *b) translateVolumeLabels(vol backends.OldVolume, project, aerolabVersio
 		labels["v7-expireduration"] = sanitize(v, false)
 	}
 
-	// Preserve AGI-related labels with v7- prefix
-	if v := vol.Tags[V7_LABEL_AGI_INSTANCE]; v != "" {
-		labels["v7-agiinstance"] = sanitize(v, false)
-	}
-	if v := vol.Tags[V7_LABEL_AGI_NODIM]; v != "" {
-		labels["v7-aginodim"] = sanitize(v, false)
-	}
-	if v := vol.Tags[V7_LABEL_TERM_ON_POW]; v != "" {
-		labels["v7-termonpow"] = sanitize(v, false)
-	}
-	if v := vol.Tags[V7_LABEL_IS_SPOT]; v != "" {
-		labels["v7-isspot"] = sanitize(v, false)
-	}
+	if isAGI {
+		// For AGI volumes, preserve AGI-specific labels WITHOUT prefix
+		// so v8 AGI can recognize and use these volumes
+		s.preserveGCPAGIVolumeLabels(vol.Tags, labels)
+	} else {
+		// For non-AGI volumes, preserve AGI-related labels with v7- prefix
+		if v := vol.Tags[V7_LABEL_AGI_INSTANCE]; v != "" {
+			labels["v7-agiinstance"] = sanitize(v, false)
+		}
+		if v := vol.Tags[V7_LABEL_AGI_NODIM]; v != "" {
+			labels["v7-aginodim"] = sanitize(v, false)
+		}
+		if v := vol.Tags[V7_LABEL_TERM_ON_POW]; v != "" {
+			labels["v7-termonpow"] = sanitize(v, false)
+		}
+		if v := vol.Tags[V7_LABEL_IS_SPOT]; v != "" {
+			labels["v7-isspot"] = sanitize(v, false)
+		}
 
-	// Handle chunked AGI labels (agilabel0, agilabel1, etc.)
-	for key, value := range vol.Tags {
-		if strings.HasPrefix(key, "agilabel") {
-			labels["v7-"+key] = sanitize(value, false)
+		// Handle chunked AGI labels (agilabel0, agilabel1, etc.) with v7- prefix for non-AGI volumes
+		for key, value := range vol.Tags {
+			if strings.HasPrefix(key, "agilabel") {
+				labels["v7-"+key] = sanitize(value, false)
+			}
 		}
 	}
 
 	return labels
+}
+
+// preserveGCPAGIVolumeLabels preserves AGI-specific volume labels WITHOUT prefix.
+// This allows v8 AGI to recognize and reuse volumes from migrated AGI instances.
+func (s *b) preserveGCPAGIVolumeLabels(oldLabels, newLabels map[string]string) {
+	// AGI volume labels to preserve with their ORIGINAL names
+	agiVolumeLabels := []string{
+		V7_LABEL_AGI_INSTANCE, // agiinstance
+		V7_LABEL_AGI_NODIM,    // aginodim
+		V7_LABEL_TERM_ON_POW,  // termonpow
+		V7_LABEL_IS_SPOT,      // isspot
+	}
+
+	for _, label := range agiVolumeLabels {
+		if v := oldLabels[label]; v != "" {
+			newLabels[label] = sanitize(v, false)
+		}
+	}
+
+	// Preserve chunked AGI labels (agilabel0, agilabel1, etc.) without prefix
+	for key, value := range oldLabels {
+		if strings.HasPrefix(key, "agilabel") {
+			newLabels[key] = sanitize(value, false)
+		}
+	}
 }
 
 // translateImageLabels converts v7 image to v8 format

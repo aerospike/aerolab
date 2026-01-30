@@ -17,7 +17,7 @@ import (
 
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/aerospike/aerospike-client-go/v8/types"
-	"github.com/rglonek/logger"
+	"log"
 	"github.com/rglonek/sbs"
 )
 
@@ -37,7 +37,7 @@ func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[stri
 	i.progress.LogProcessor.StartTime = time.Now()
 	i.progress.Unlock()
 	// find node prefix->nodeID from log files
-	logger.Debug("Process Logs: enumerating log files")
+	log.Printf("DEBUG: Process Logs: enumerating log files")
 	foundLogs = make(map[string]*LogFile) //cluster,nodeid,prefix
 	err = filepath.Walk(i.config.Directories.Logs, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -65,7 +65,7 @@ func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[stri
 		return nil, nil, fmt.Errorf("listing logs: %s", err)
 	}
 	// merge list
-	logger.Debug("ProcessLogs: merging lists")
+	log.Printf("DEBUG: ProcessLogs: merging lists")
 	i.progress.Lock()
 	for n, f := range i.progress.LogProcessor.Files {
 		foundLogs[n] = f
@@ -78,17 +78,17 @@ func (i *Ingest) ProcessLogsPrep() (foundLogs map[string]*LogFile, meta map[stri
 	meta = make(map[string]*metaEntries)
 	recset, err := i.db.ScanAll(nil, i.config.Aerospike.Namespace, i.patterns.LabelsSetName)
 	if err != nil {
-		logger.Warn("Could not read existing labels: %s", err)
+		log.Printf("WARN: Could not read existing labels: %s", err)
 	} else {
 		for rec := range recset.Results() {
 			if err := rec.Err; err != nil {
-				logger.Warn("Error iterating through existing labels: %s", err)
+				log.Printf("WARN: Error iterating through existing labels: %s", err)
 			}
 			for k, v := range rec.Record.Bins {
 				metaItem := &metaEntries{}
 				err = json.Unmarshal(sbs.StringToByteSlice(v.(string)), &metaItem)
 				if err != nil {
-					logger.Warn("Failed to unmarshal existing label data: %s", err)
+					log.Printf("WARN: Failed to unmarshal existing label data: %s", err)
 				}
 				meta[k] = metaItem
 			}
@@ -125,7 +125,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 	threads := make(chan bool, i.config.Aerospike.MaxPutThreads)
 	for data := range resultsChan {
 		if data.Error != nil {
-			logger.Error("Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
+			log.Printf("ERROR: Log Processor: error encountered processing %s: %s", data.FileName, data.Error)
 		}
 		if data.Data != nil && data.SetName != "" && data.LogLine != "" {
 			wg.Add(1)
@@ -156,7 +156,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 						metajson, err := json.Marshal(meta[k])
 						if err != nil {
 							metaLock.Unlock()
-							logger.Error("Log Processor: could not jsonify for metadata for %s: %s", fn, err)
+							log.Printf("ERROR: Log Processor: could not jsonify for metadata for %s: %s", fn, err)
 							wg.Done()
 							<-threads
 							return
@@ -165,7 +165,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 						key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, k)
 						if aerr != nil {
 							metaLock.Unlock()
-							logger.Error("Log Processor: could not create key for metadata for %s: %s", fn, aerr)
+							log.Printf("ERROR: Log Processor: could not create key for metadata for %s: %s", fn, aerr)
 							wg.Done()
 							<-threads
 							return
@@ -180,7 +180,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 						aerr = i.db.PutBins(i.wp, key, bin)
 						if aerr != nil {
 							metaLock.Unlock()
-							logger.Error("Log Processor: could not store metadata for %s: %s", fn, aerr)
+							log.Printf("ERROR: Log Processor: could not store metadata for %s: %s", fn, aerr)
 							wg.Done()
 							<-threads
 							return
@@ -191,7 +191,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 				metaLock.Unlock()
 				key, err := aerospike.NewKey(i.config.Aerospike.Namespace, setName, nodeIdentifier+"::/::"+logLine)
 				if err != nil {
-					logger.Error("Log Processor: could not create key for %s: %s", fn, err)
+					log.Printf("ERROR: Log Processor: could not create key for %s: %s", fn, err)
 					wg.Done()
 					<-threads
 					return
@@ -208,10 +208,10 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 					err = i.db.Put(i.wp, key, data)
 					if err != nil {
 						if err.Matches(types.ResultCode(types.DEVICE_OVERLOAD)) {
-							logger.Error("Log Processor: DEVICE_OVERLOAD, backoff and try again...")
+							log.Printf("ERROR: Log Processor: DEVICE_OVERLOAD, backoff and try again...")
 							time.Sleep(time.Duration(10+rand.IntN(1000-10)) * time.Millisecond)
 						} else {
-							logger.Error("Log Processor: could not insert data for %s: %s", fn, err)
+							log.Printf("ERROR: Log Processor: could not insert data for %s: %s", fn, err)
 							break
 						}
 					} else {
@@ -220,7 +220,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 				}
 				serr := i.storeBinList()
 				if serr != nil {
-					logger.Error("Log Processor: could not store bin list: %s", serr)
+					log.Printf("ERROR: Log Processor: could not store bin list: %s", serr)
 				}
 				wg.Done()
 				<-threads
@@ -235,7 +235,7 @@ func (i *Ingest) ProcessLogs(foundLogs map[string]*LogFile, meta map[string]*met
 		time.Sleep(time.Second * 5)
 		serr = i.storeBinList()
 		if serr != nil {
-			logger.Error("Log Processor: could not store bin list: %s", serr)
+			log.Printf("ERROR: Log Processor: could not store bin list: %s", serr)
 		}
 	}
 
@@ -347,7 +347,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 		line := s.Text()
 		out, err := stream.Process(line, nodePrefix)
 		if err != nil && err != errNotMatched && err != errNoTimestamp && !strings.HasPrefix(err.Error(), "TIME PARSE:") {
-			logger.Error("Stream Processor for line: %s", err)
+			log.Printf("ERROR: Stream Processor for line: %s", err)
 			i.progress.LogProcessor.LineErrors.add(nodePrefix, err.Error())
 			continue
 		}
@@ -356,7 +356,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 				os.MkdirAll(path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string)), 0755)
 				unmatched, err = os.Create(path.Join(i.config.Directories.NoStatLogs, labels["ClusterName"].(string), fn))
 				if err != nil {
-					logger.Error("Could not create file for non-stat: %s", err)
+					log.Printf("ERROR: Could not create file for non-stat: %s", err)
 				} else {
 					defer unmatched.Close()
 				}
@@ -364,7 +364,7 @@ func (i *Ingest) processLogFile(fileName string, r *os.File, resultsChan chan *p
 			if unmatched != nil {
 				_, err = unmatched.WriteString(line + "\n")
 				if err != nil {
-					logger.Error("Could not write no-stat: %s", err)
+					log.Printf("ERROR: Could not write no-stat: %s", err)
 				}
 			}
 			continue

@@ -5,13 +5,14 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 
-	"github.com/rglonek/logger"
+	"log"
 )
 
 type safeBool struct {
@@ -73,7 +74,7 @@ func (b *safeStringMap) Get() map[string]string {
 }
 
 func (i *Ingest) Unpack() error {
-	logger.Debug("Unpack running")
+	log.Printf("DEBUG: Unpack running")
 	i.progress.Lock()
 	i.progress.Unpacker.running = true
 	i.progress.Unpacker.wasRunning = true
@@ -84,36 +85,61 @@ func (i *Ingest) Unpack() error {
 		i.progress.Unpacker.running = false
 		i.progress.Unlock()
 	}()
+
+	readOnlyInput := i.config.Directories.ReadOnlyInput
+	stagingDir := ""
+	if readOnlyInput {
+		// In read-only mode, we need a staging area for archives since we can't extract in place
+		stagingDir = filepath.Join(filepath.Dir(i.config.Directories.DirtyTmp), "staging")
+		if err := os.MkdirAll(stagingDir, 0755); err != nil {
+			return fmt.Errorf("failed to create staging directory: %w", err)
+		}
+		log.Printf("DEBUG: Unpack: using staging directory %s for read-only input mode", stagingDir)
+	}
+
 	var files map[string]*EnumFile
 	var err error
 	ignoreFailedUnpacks := new(safeStringSlice)
 	ignoreFailedErrors := new(safeStringMap)
 	for {
-		logger.Detail("unpack: enumerate")
+		log.Printf("DETAIL: unpack: enumerate")
 		files, err = i.enum()
 		if err != nil {
 			return fmt.Errorf("failed to enumerate files: %s", err)
 		}
+
+		// In read-only mode, also enumerate the staging directory
+		if readOnlyInput && stagingDir != "" {
+			stagingFiles, err := i.enumDir(stagingDir)
+			if err != nil {
+				log.Printf("WARN: Failed to enumerate staging directory: %s", err)
+			} else {
+				for fn, file := range stagingFiles {
+					files[fn] = file
+				}
+			}
+		}
+
 		foundArchives := new(safeBool)
 		wg := new(sync.WaitGroup)
 		threads := make(chan bool, i.config.PreProcess.UnpackerFileThreads)
-		logger.Detail("unpack: unpacking")
+		log.Printf("DETAIL: unpack: unpacking")
 		for fn, file := range files {
 			if !file.IsArchive || slices.Contains(ignoreFailedUnpacks.Get(), fn) {
 				failedUnpack := false
 				if file.IsArchive {
 					failedUnpack = true
 				}
-				logger.Detail("unpack %s no-unpack isArchive:%t unpackFailed:%t", fn, file.IsArchive, failedUnpack)
+				log.Printf("DETAIL: unpack %s no-unpack isArchive:%t unpackFailed:%t", fn, file.IsArchive, failedUnpack)
 				continue
 			}
 			wg.Add(1)
 			threads <- true
-			logger.Detail("unpack %s starting, threads:%d", fn, len(threads))
+			log.Printf("DETAIL: unpack %s starting, threads:%d", fn, len(threads))
 			go func(fn string, file *EnumFile) {
 				err = i.unpackFile(fn, file)
 				if err != nil {
-					logger.Warn("Unpack of %s failed with %s", fn, err)
+					log.Printf("WARN: Unpack of %s failed with %s", fn, err)
 					ignoreFailedUnpacks.Append(fn)
 					ignoreFailedErrors.Set(fn, err.Error())
 				} else {
@@ -121,17 +147,17 @@ func (i *Ingest) Unpack() error {
 				}
 				<-threads
 				wg.Done()
-				logger.Detail("unpack %s end", fn)
+				log.Printf("DETAIL: unpack %s end", fn)
 			}(fn, file)
 		}
 		wg.Wait()
 		if !foundArchives.Get() {
-			logger.Detail("unpack: finished unpacking")
+			log.Printf("DETAIL: unpack: finished unpacking")
 			break
 		}
-		logger.Detail("unpack: had archives, looping to start")
+		log.Printf("DETAIL: unpack: had archives, looping to start")
 	}
-	logger.Detail("unpack: last enumerate, merge and store progress")
+	log.Printf("DETAIL: unpack: last enumerate, merge and store progress")
 	for fn, errs := range ignoreFailedErrors.Get() {
 		if _, ok := files[fn]; ok {
 			files[fn].UnpackFailed = true
@@ -143,23 +169,62 @@ func (i *Ingest) Unpack() error {
 	i.progress.Unpacker.Files = files
 	i.progress.Unpacker.Finished = true
 	i.progress.Unlock()
-	logger.Debug("Unpack finished")
+	log.Printf("DEBUG: Unpack finished")
 	return nil
 }
 
 func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
+	readOnlyInput := i.config.Directories.ReadOnlyInput
+	workFileName := fileName
+
+	// In read-only mode, copy archive to staging area first
+	if readOnlyInput && strings.HasPrefix(fileName, i.config.Directories.DirtyTmp) {
+		stagingDir := filepath.Join(filepath.Dir(i.config.Directories.DirtyTmp), "staging")
+		relPath, err := filepath.Rel(i.config.Directories.DirtyTmp, fileName)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+		workFileName = filepath.Join(stagingDir, relPath)
+
+		// Create parent directory in staging
+		if err := os.MkdirAll(filepath.Dir(workFileName), 0755); err != nil {
+			return fmt.Errorf("failed to create staging subdirectory: %w", err)
+		}
+
+		// Copy file to staging
+		srcFile, err := os.Open(fileName)
+		if err != nil {
+			return fmt.Errorf("failed to open source archive: %w", err)
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.Create(workFileName)
+		if err != nil {
+			return fmt.Errorf("failed to create staging archive: %w", err)
+		}
+		defer dstFile.Close()
+
+		if _, err := io.Copy(dstFile, srcFile); err != nil {
+			return fmt.Errorf("failed to copy archive to staging: %w", err)
+		}
+		dstFile.Close()
+		srcFile.Close()
+
+		log.Printf("DETAIL: unpack: copied %s to staging %s for extraction", fileName, workFileName)
+	}
+
 	contentType := fileInfo.mimeType
 	var err error
 	if fileInfo.IsTarGz {
 		// handle optimisation to auto-unpack tar-gz in one swoop
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
 		var fd *os.File
 		var fdgzip *gzip.Reader
-		fd, err = os.Open(fileName)
+		fd, err = os.Open(workFileName)
 		if err != nil {
 			return err
 		}
@@ -173,16 +238,19 @@ func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		// Only remove the archive if not in read-only mode, or if it's in staging
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else if fileInfo.IsTarBz {
 		// handle optimisation to auto-unpack tar-bz in one swoop
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
 		var fd *os.File
-		fd, err = os.Open(fileName)
+		fd, err = os.Open(workFileName)
 		if err != nil {
 			return err
 		}
@@ -192,9 +260,11 @@ func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else if contentType.Is("application/gzip") {
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
@@ -205,13 +275,15 @@ func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
 			nNewFile = fmt.Sprintf("%s.tar", nNewFile[:len(nNewFile)-4])
 		}
 		nNewFile = filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile), nNewFile)
-		err = ungz(fileName, nNewFile)
+		err = ungz(workFileName, nNewFile)
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else if contentType.Is("application/x-xz") {
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
@@ -219,30 +291,34 @@ func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
 		nNewFile := nfile
 		nNewFile = strings.TrimSuffix(nNewFile, ".xz")
 		nNewFile = filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile), nNewFile)
-		err = unxz(fileName, nNewFile)
+		err = unxz(workFileName, nNewFile)
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else if contentType.Is("application/zip") {
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
-		_, err = unzip(fileName, filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
+		_, err = unzip(workFileName, filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else if contentType.Is("application/x-tar") {
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
 		var fd *os.File
-		fd, err = os.Open(fileName)
+		fd, err = os.Open(workFileName)
 		if err != nil {
 			return err
 		}
@@ -251,9 +327,11 @@ func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else if contentType.Is("application/x-bzip2") {
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
@@ -272,33 +350,39 @@ func (i *Ingest) unpackFile(fileName string, fileInfo *EnumFile) error {
 			nNewFile = nNewFile[:len(nNewFile)-5]
 		}
 		destFile := filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile), nNewFile)
-		err = unbz2(fileName, destFile)
+		err = unbz2(workFileName, destFile)
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else if contentType.Is("application/x-rar-compressed") {
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
-		err = unrar(fileName, filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
+		err = unrar(workFileName, filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else if contentType.Is("application/x-7z-compressed") {
-		ndir, nfile := filepath.Split(fileName)
+		ndir, nfile := filepath.Split(workFileName)
 		err = i.createDir(filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
-		err = un7z(fileName, filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
+		err = un7z(workFileName, filepath.Join(ndir, fmt.Sprintf("%s.dir", nfile)))
 		if err != nil {
 			return err
 		}
-		err = os.Remove(fileName)
+		if !readOnlyInput || workFileName != fileName {
+			err = os.Remove(workFileName)
+		}
 	} else {
 		err = errors.New("we never should have reached this part of code, wtf?")
 	}

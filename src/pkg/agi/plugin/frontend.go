@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/rglonek/logger"
+	"log"
 )
 
 func (p *Plugin) Listen() error {
-	logger.Debug("Listener: setup")
+	log.Printf("DEBUG: Listener: setup")
 	p.srv = &http.Server{Addr: p.config.Service.ListenAddress + ":" + strconv.Itoa(p.config.Service.ListenPort)}
 	http.HandleFunc("/shutdown", p.handleShutdown)
 	http.HandleFunc("/metrics", p.handleMetrics)
@@ -21,7 +21,7 @@ func (p *Plugin) Listen() error {
 	http.HandleFunc("/tag-values", p.handleTagValues)
 	http.HandleFunc("/histogram", p.handleHistogram)
 	http.HandleFunc("/", p.handlePing)
-	logger.Info("Listener: start")
+	log.Printf("INFO: Listener: start")
 	if err := p.srv.ListenAndServe(); err != http.ErrServerClosed {
 		return err
 	}
@@ -29,13 +29,13 @@ func (p *Plugin) Listen() error {
 }
 
 func (p *Plugin) handlePing(w http.ResponseWriter, r *http.Request) {
-	logger.Info("Listener: received ping from %s", r.RemoteAddr)
+	log.Printf("INFO: Listener: received ping from %s", r.RemoteAddr)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("OK"))
 }
 
 func (p *Plugin) handleShutdown(w http.ResponseWriter, r *http.Request) {
-	logger.Info("Listener: shutdown request from %s", r.RemoteAddr)
+	log.Printf("INFO: Listener: shutdown request from %s", r.RemoteAddr)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Shutting down..."))
 	go func() {
@@ -46,7 +46,7 @@ func (p *Plugin) handleShutdown(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		if err := p.srv.Shutdown(ctx); err != nil {
-			logger.Debug("Graceful Server Shutdown Failed, Forcing shutdown: %s", err)
+			log.Printf("DEBUG: Graceful Server Shutdown Failed, Forcing shutdown: %s", err)
 			p.srv.Close()
 		}
 	}()

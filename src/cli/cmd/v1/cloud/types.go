@@ -1,5 +1,7 @@
 package cloud
 
+import "encoding/json"
+
 // Cloud Provider Types
 type CloudProviderInfo struct {
 	ID   string `json:"id"`
@@ -207,6 +209,17 @@ type AerospikeNetwork struct {
 	// Define based on the actual schema
 }
 
+// Logging represents the logging configuration for a cluster
+// This is used to access data plane logs stored in S3
+type Logging struct {
+	// LogBucket is the ARN of the S3 bucket where logs reside (read-only)
+	LogBucket string `json:"logBucket,omitempty"`
+	// AuthorizedRoles is a list of AWS principal ARNs authorized to read the log bucket
+	// Supports IAM roles, IAM users, assumed roles, federated users, root accounts, and AWS account IDs
+	// Does not support wildcards (*) or service principals
+	AuthorizedRoles []string `json:"authorizedRoles,omitempty"`
+}
+
 type AerospikeLogging struct {
 	// Define based on the actual schema
 }
@@ -217,20 +230,26 @@ type AerospikeXDR struct {
 
 // CreateClusterRequest is the request body for creating a cluster
 type CreateClusterRequest struct {
-	Name             string           `json:"name"`
-	DataPlaneVersion string           `json:"dataPlaneVersion,omitempty"`
-	Infrastructure   Infrastructure   `json:"infrastructure"`
-	AerospikeCloud   interface{}      `json:"aerospikeCloud"` // Can be AerospikeCloudMemory, AerospikeCloudLocalDisk, or AerospikeCloudNetworkStorage
-	AerospikeServer  *AerospikeServer `json:"aerospikeServer,omitempty"`
+	Name             string          `json:"name"`
+	DataPlaneVersion string          `json:"dataPlaneVersion,omitempty"`
+	Infrastructure   Infrastructure  `json:"infrastructure"`
+	AerospikeCloud   interface{}     `json:"aerospikeCloud"` // Can be AerospikeCloudMemory, AerospikeCloudLocalDisk, or AerospikeCloudNetworkStorage
+	// AerospikeServer uses json.RawMessage to preserve all fields from custom configs
+	// since the API supports many more fields than are defined in the typed struct
+	AerospikeServer json.RawMessage `json:"aerospikeServer,omitempty"`
+	Logging         *Logging        `json:"logging,omitempty"`
 }
 
 // UpdateClusterRequest is the request body for updating a cluster
 type UpdateClusterRequest struct {
-	Name             string           `json:"name,omitempty"`
-	DataPlaneVersion string           `json:"dataPlaneVersion,omitempty"`
-	Infrastructure   *Infrastructure  `json:"infrastructure,omitempty"`
-	AerospikeCloud   interface{}      `json:"aerospikeCloud,omitempty"`
-	AerospikeServer  *AerospikeServer `json:"aerospikeServer,omitempty"`
+	Name             string          `json:"name,omitempty"`
+	DataPlaneVersion string          `json:"dataPlaneVersion,omitempty"`
+	Infrastructure   *Infrastructure `json:"infrastructure,omitempty"`
+	AerospikeCloud   interface{}     `json:"aerospikeCloud,omitempty"`
+	// AerospikeServer uses json.RawMessage to preserve all fields from custom configs
+	// since the API supports many more fields than are defined in the typed struct
+	AerospikeServer json.RawMessage `json:"aerospikeServer,omitempty"`
+	Logging         *Logging        `json:"logging,omitempty"`
 }
 
 // Cluster Credentials Types

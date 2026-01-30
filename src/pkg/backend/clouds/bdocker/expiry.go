@@ -155,16 +155,22 @@ func (s *b) InstancesChangeExpiry(instances backends.InstanceList, expiry time.T
 	log := s.log.WithPrefix("InstancesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	// TODO: implement
-	return nil
+	// If expiry is zero, remove the tag to indicate no expiry
+	if expiry.IsZero() {
+		return instances.RemoveTags([]string{TAG_EXPIRES})
+	}
+	return instances.AddTags(map[string]string{TAG_EXPIRES: expiry.Format(time.RFC3339)})
 }
 
 func (s *b) VolumesChangeExpiry(volumes backends.VolumeList, expiry time.Time) error {
 	log := s.log.WithPrefix("VolumesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
-	// TODO: implement
-	return nil
+	// If expiry is zero, remove the tag to indicate no expiry
+	if expiry.IsZero() {
+		return volumes.RemoveTags([]string{TAG_EXPIRES}, 0)
+	}
+	return volumes.AddTags(map[string]string{TAG_EXPIRES: expiry.Format(time.RFC3339)}, 0)
 }
 
 // ExpiryV7Check always returns false for Docker as there was no v7 expiry system for Docker.

@@ -48,7 +48,7 @@ func (c *ClusterApplyCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	instances, err := c.ApplyCluster(system, system.Backend.GetInventory(), system.Logger, args, "apply")
 	if err != nil {
 		return Error(err, system, cmd, c, args)

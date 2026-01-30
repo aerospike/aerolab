@@ -42,6 +42,7 @@ type Cluster struct {
 	ConnectionDetails ConnectionDetails `json:"connectionDetails"`
 	Health            Health            `json:"health"`
 	Infrastructure    Infrastructure    `json:"infrastructure"`
+	Logging           ClusterLogging    `json:"logging"`
 	CreatedAt         string            `json:"createdAt"`
 	UpdatedAt         string            `json:"updatedAt"`
 }
@@ -72,6 +73,12 @@ type ConnectionDetails struct {
 type Health struct {
 	State  string `json:"state"`
 	Status string `json:"status"`
+}
+
+// ClusterLogging represents the logging configuration for a cluster
+type ClusterLogging struct {
+	LogBucket       string   `json:"logBucket"`
+	AuthorizedRoles []string `json:"authorizedRoles"`
 }
 
 type Infrastructure struct {
@@ -247,18 +254,22 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 					vpcStatus = ", VPCPeering: " + GetVPCPeeringStatusSummary(status)
 				}
 			}
-			fmt.Fprintf(out, "ID: %s, Name: %s, AZCount: %d, ClusterSize: %d, State: %s, Status: %s, DataStorage: %s, NamespaceNames: %s, InstanceType: %s, Region: %s, Host: %s, CreateTime: %s, UpdateTime: %s%s\n",
+			logBucket := db.Logging.LogBucket
+			if logBucket == "" {
+				logBucket = "-"
+			}
+			fmt.Fprintf(out, "ID: %s, Name: %s, AZCount: %d, ClusterSize: %d, State: %s, Status: %s, DataStorage: %s, NamespaceNames: %s, InstanceType: %s, Region: %s, Host: %s, LogBucket: %s, CreateTime: %s, UpdateTime: %s%s\n",
 				db.ID, db.Name, db.Infrastructure.AvailabilityZoneCount, db.AerospikeCloud.ClusterSize,
 				db.Health.State, db.Health.Status, db.AerospikeCloud.DataStorage, namespaceNames,
 				db.Infrastructure.InstanceType, db.Infrastructure.Region, db.ConnectionDetails.Host,
-				createTime, updateTime, vpcStatus)
+				logBucket, createTime, updateTime, vpcStatus)
 		}
 		fmt.Fprintln(out, "")
 	default:
 		if len(c.SortBy) == 0 {
 			c.SortBy = []string{"Name:asc", "Region:asc", "State:asc"}
 		}
-		header := table.Row{"ID", "Name", "AZCount", "ClusterSize", "State", "Status", "DataStorage", "NamespaceNames", "InstanceType", "Region", "Host", "CreateTime", "UpdateTime"}
+		header := table.Row{"ID", "Name", "AZCount", "ClusterSize", "State", "Status", "DataStorage", "NamespaceNames", "InstanceType", "Region", "Host", "LogBucket", "CreateTime", "UpdateTime"}
 		if vpcStatuses != nil {
 			header = append(header, "VPCPeering")
 		}
@@ -267,6 +278,10 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 			namespaceNames := c.getNamespaceNames(db.AerospikeServer.Namespaces)
 			createTime := c.formatTime(db.CreatedAt)
 			updateTime := c.formatTime(db.UpdatedAt)
+			logBucket := db.Logging.LogBucket
+			if logBucket == "" {
+				logBucket = "-"
+			}
 			row := table.Row{
 				db.ID,
 				db.Name,
@@ -279,6 +294,7 @@ func (c *CloudClustersListCmd) formatOutput(clusters []Cluster, rawResult map[st
 				db.Infrastructure.InstanceType,
 				db.Infrastructure.Region,
 				db.ConnectionDetails.Host,
+				logBucket,
 				createTime,
 				updateTime,
 			}

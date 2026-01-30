@@ -7,11 +7,13 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/choice"
 	"github.com/aerospike/aerolab/pkg/utils/parallelize"
+	"github.com/aerospike/aerolab/pkg/utils/progress"
 	"github.com/rglonek/go-flags"
 )
 
@@ -19,6 +21,7 @@ type FilesDownloadCmd struct {
 	ClusterName     TypeClusterName      `short:"n" long:"name" description:"Cluster name" default:"mydc"`
 	Nodes           TypeNodes            `short:"l" long:"nodes" description:"Node number(s), comma-separated. Default=ALL" default:""`
 	ParallelThreads int                  `short:"t" long:"threads" description:"Run on this many nodes in parallel" default:"10"`
+	Progress        bool                 `short:"p" long:"progress" description:"Show download progress with TUI display"`
 	Files           FilesRestDownloadCmd `positional-args:"true"`
 	Help            HelpCmd              `command:"help" subcommands-optional:"true" description:"Print help"`
 }
@@ -99,13 +102,9 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 		return err
 	}
 
-	type download struct {
-		conf     *sshexec.ClientConf
-		instance *backends.Instance
-	}
-	downloads := make([]download, len(confs))
+	downloads := make([]downloadItem, len(confs))
 	for i, conf := range confs {
-		downloads[i] = download{
+		downloads[i] = downloadItem{
 			conf:     conf,
 			instance: instances.Describe()[i],
 		}
@@ -143,8 +142,13 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 		}
 	}
 
+	// Use progress TUI if requested
+	if c.Progress {
+		return c.downloadWithProgress(system, downloads)
+	}
+
 	var hasErr error
-	parallelize.ForEachLimit(downloads, c.ParallelThreads, func(download download) {
+	parallelize.ForEachLimit(downloads, c.ParallelThreads, func(download downloadItem) {
 		conf := download.conf
 		instance := download.instance
 		sftp, err := sshexec.NewSftp(conf)
@@ -172,4 +176,62 @@ func (c *FilesDownloadCmd) Download(system *System, inventory *backends.Inventor
 		}
 	})
 	return hasErr
+}
+
+type downloadItem struct {
+	conf     *sshexec.ClientConf
+	instance *backends.Instance
+}
+
+func (c *FilesDownloadCmd) downloadWithProgress(system *System, downloads []downloadItem) error {
+	// Create progress tracker
+	tracker := progress.NewTracker()
+
+	title := fmt.Sprintf("Downloading from cluster %s (%d nodes)", c.ClusterName.String(), len(downloads))
+
+	// For download, we calculate the total size from remote during the transfer
+	// We don't show aggregate progress for downloads (per user request: just per file)
+	// Run with progress TUI
+	return progress.RunWithProgress(tracker, title, false, func() {
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, c.ParallelThreads)
+
+		for _, d := range downloads {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(download downloadItem) {
+				defer wg.Done()
+				defer func() { <-sem }()
+
+				// Check for cancellation
+				if tracker.IsCancelled() {
+					return
+				}
+
+				sftp, err := sshexec.NewSftp(download.conf)
+				if err != nil {
+					tracker.SetError(download.instance.NodeNo, fmt.Errorf("node %d: failed to create sftp client: %v", download.instance.NodeNo, err))
+					return
+				}
+				defer sftp.Close()
+
+				dest := string(c.Files.Destination)
+				if len(downloads) > 1 {
+					dest = path.Join(dest, strconv.Itoa(download.instance.NodeNo))
+					err = os.MkdirAll(dest, 0755)
+					if err != nil {
+						tracker.SetError(download.instance.NodeNo, fmt.Errorf("node %d: failed to create local directory: %v", download.instance.NodeNo, err))
+						return
+					}
+				}
+
+				err = sftp.DownloadWithProgress(c.Files.Source, dest, tracker, download.instance.NodeNo)
+				if err != nil && !tracker.IsCancelled() {
+					tracker.SetError(download.instance.NodeNo, fmt.Errorf("node %d: %v", download.instance.NodeNo, err))
+				}
+			}(d)
+		}
+
+		wg.Wait()
+	})
 }

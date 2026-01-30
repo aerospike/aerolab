@@ -1,13 +1,14 @@
 #!/bin/bash
 
 ## adds a filesystem to fstab and mounts it (if 'mount -a' fails it sleeps 10 seconds and retries, up to a maximum specified ATTEMPTS)
-## usage: ./efs_mount.sh ATTEMPTS IP FSID REGION DEST_PATH [on [PROFILENAME]]
+## usage: ./efs_mount.sh ATTEMPTS IP FSID REGION DEST_PATH [fips] [on [PROFILENAME]]
 ## params:
 ##  ATTEMPTS - integer specifying how many time to attempt `mount -a` before giving up if it doesn't succeed; 0 means do not run the command
 ##  IP - mount target IP address
 ##  FSID - filesystem ID
 ##  REGION - AWS region (e.g., us-east-1)
 ##  DEST_PATH - mount path
+##  fips - if specified, enables FIPS mode in EFS utils configuration before mounting
 ##  on - if specified, 'iam' mount parameter will be enabled
 ##  PROFILENAME - if specified, the 'awsprofile=...' parameter will be enabled; required 'on' to be specified
 
@@ -16,12 +17,33 @@ ip=$2
 fsid=$3
 region=$4
 dest=$5
+
+# Handle optional fips parameter
+fips=""
 iam=""
 iamprofile=""
-if [ "$6" = "on" ]; then
+shift 5  # Remove first 5 positional parameters
+
+if [ "$1" = "fips" ]; then
+    fips="yes"
+    shift
+fi
+
+if [ "$1" = "on" ]; then
     iam=",iam"
-    if [ "$7" != "" ]; then
-        iamprofile=",awsprofile=$7"
+    shift
+    if [ "$1" != "" ]; then
+        iamprofile=",awsprofile=$1"
+    fi
+fi
+
+# Enable FIPS mode if requested
+if [ "$fips" = "yes" ]; then
+    if [ -f /etc/amazon/efs/efs-utils.conf ]; then
+        sed -i "s/fips_mode_enabled = false/fips_mode_enabled = true/" /etc/amazon/efs/efs-utils.conf
+        echo "FIPS mode enabled in EFS utils configuration"
+    else
+        echo "Warning: EFS utils config not found at /etc/amazon/efs/efs-utils.conf, cannot enable FIPS"
     fi
 fi
 

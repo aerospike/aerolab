@@ -11,18 +11,22 @@ import (
 	"strings"
 
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/rglonek/logger"
+	"log"
 )
 
 func (i *Ingest) enum() (map[string]*EnumFile, error) {
+	return i.enumDir(i.config.Directories.DirtyTmp)
+}
+
+func (i *Ingest) enumDir(dirPath string) (map[string]*EnumFile, error) {
 	files := make(map[string]*EnumFile)
-	err := filepath.Walk(i.config.Directories.DirtyTmp, func(filePath string, info os.FileInfo, err error) error {
+	err := filepath.Walk(dirPath, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
-			logger.Detail("enum: got error on walk: %s", err)
+			log.Printf("DETAIL: enum: got error on walk: %s", err)
 			return err
 		}
 		if info.IsDir() {
-			logger.Detail("enum: isDir: %s", filePath)
+			log.Printf("DETAIL: enum: isDir: %s", filePath)
 			return nil
 		}
 		file := &EnumFile{
@@ -30,25 +34,25 @@ func (i *Ingest) enum() (map[string]*EnumFile, error) {
 		}
 		if file.Size == 0 {
 			files[filePath] = file
-			logger.Detail("enum: empty: %s", filePath)
+			log.Printf("DETAIL: enum: empty: %s", filePath)
 			return nil
 		}
 		if strings.Contains(filePath, "collect_info_") && strings.HasSuffix(filePath, ".tgz") && info.Size() < 10485760 {
 			file.IsCollectInfo = true
 			files[filePath] = file
-			logger.Detail("enum: collectinfo-early: %s", filePath)
+			log.Printf("DETAIL: enum: collectinfo-early: %s", filePath)
 			return nil
 		}
 		fd, err := os.Open(filePath)
 		if err != nil {
-			logger.Warn("Could not open file, skipping: %s", filePath)
+			log.Printf("WARN: Could not open file, skipping: %s", filePath)
 			return nil
 		}
 		defer fd.Close()
 		buffer := make([]byte, 4096)
 		rdCnt, err := fd.Read(buffer)
 		if err != nil && err != io.EOF {
-			logger.Warn("Could not read file, skipping: %s", filePath)
+			log.Printf("WARN: Could not read file, skipping: %s", filePath)
 			return nil
 		}
 		contentType := mimetype.Detect(buffer[0:rdCnt])
@@ -59,7 +63,7 @@ func (i *Ingest) enum() (map[string]*EnumFile, error) {
 			for bytes.Equal(buffer, emptyBuffer) {
 				rdCnt, err = fd.Read(buffer)
 				if err != nil && err != io.EOF {
-					logger.Warn("Could not read file, skipping: %s", filePath)
+					log.Printf("WARN: Could not read file, skipping: %s", filePath)
 					return nil
 				}
 				if err != nil && err == io.EOF {
@@ -69,7 +73,7 @@ func (i *Ingest) enum() (map[string]*EnumFile, error) {
 			file.StartAt, _ = fd.Seek(0, 1)
 			_, err = fd.Read(buffer)
 			if err != nil && err != io.EOF {
-				logger.Warn("Could not read file, skipping: %s", filePath)
+				log.Printf("WARN: Could not read file, skipping: %s", filePath)
 				return nil
 			}
 			contentType = mimetype.Detect(buffer[0:rdCnt])
@@ -82,11 +86,11 @@ func (i *Ingest) enum() (map[string]*EnumFile, error) {
 		if contentType.Is("application/gzip") && info.Size() < i.config.CollectInfoMaxSize {
 			isCollect, err := i.enumCollectDeepCheck(fd)
 			if err != nil {
-				logger.Warn("Could not do deep-discovery to determine if file is collectinfo, will treat as normal: %s: %s", filePath, err)
+				log.Printf("WARN: Could not do deep-discovery to determine if file is collectinfo, will treat as normal: %s: %s", filePath, err)
 			} else if isCollect {
 				file.IsCollectInfo = true
 				files[filePath] = file
-				logger.Detail("enum: collectinfo: %s", filePath)
+				log.Printf("DETAIL: enum: collectinfo: %s", filePath)
 				return nil
 			}
 		}
@@ -106,7 +110,7 @@ func (i *Ingest) enum() (map[string]*EnumFile, error) {
 			file.IsTarBz = isTarBz(filePath)
 		}
 		files[filePath] = file
-		logger.Detail("enum: file:%s isArchive:%t isText:%t isTagGz:%t isTagBz:%t contentType:%s", filePath, file.IsArchive, file.IsText, file.IsTarGz, file.IsTarBz, file.ContentType)
+		log.Printf("DETAIL: enum: file:%s isArchive:%t isText:%t isTagGz:%t isTagBz:%t contentType:%s", filePath, file.IsArchive, file.IsText, file.IsTarGz, file.IsTarBz, file.ContentType)
 		return nil
 	})
 	return files, err

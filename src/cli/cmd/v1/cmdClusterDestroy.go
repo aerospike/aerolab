@@ -27,7 +27,7 @@ func (c *ClusterDestroyCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	instances, err := c.DestroyCluster(system, system.Backend.GetInventory(), system.Logger, args, "destroy")
 	if err != nil {
 		return Error(err, system, cmd, c, args)

@@ -24,7 +24,7 @@ func (c *ClusterStopCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	instances, err := c.StopCluster(system, system.Backend.GetInventory(), system.Logger, args, "stop")
 	if err != nil {
 		return Error(err, system, cmd, c, args)

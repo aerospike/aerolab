@@ -28,7 +28,7 @@ func (c *ClusterStartCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	instances, err := c.StartCluster(system, system.Backend.GetInventory(), system.Logger, args, "start")
 	if err != nil {
 		return Error(err, system, cmd, c, args)

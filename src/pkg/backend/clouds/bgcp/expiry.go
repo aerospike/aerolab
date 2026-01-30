@@ -207,6 +207,10 @@ func (s *b) InstancesChangeExpiry(instances backends.InstanceList, expiry time.T
 	log := s.log.WithPrefix("InstancesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
+	// If expiry is zero, remove the tag to indicate no expiry
+	if expiry.IsZero() {
+		return instances.RemoveTags([]string{TAG_AEROLAB_EXPIRES})
+	}
 	return instances.AddTags(map[string]string{TAG_AEROLAB_EXPIRES: expiry.Format(time.RFC3339)})
 }
 
@@ -214,6 +218,10 @@ func (s *b) VolumesChangeExpiry(volumes backends.VolumeList, expiry time.Time) e
 	log := s.log.WithPrefix("VolumesChangeExpiry: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
 	defer log.Detail("End")
+	// If expiry is zero, remove the tag to indicate no expiry
+	if expiry.IsZero() {
+		return volumes.RemoveTags([]string{TAG_AEROLAB_EXPIRES}, 2*time.Minute)
+	}
 	return volumes.AddTags(map[string]string{TAG_AEROLAB_EXPIRES: expiry.Format(time.RFC3339)}, 2*time.Minute)
 }
 

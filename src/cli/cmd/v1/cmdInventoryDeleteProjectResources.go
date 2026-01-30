@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/aerospike/aerolab/pkg/backend/backends"
-	"github.com/mattn/go-isatty"
 )
 
 type InventoryDeleteProjectResourcesCmd struct {
@@ -24,7 +23,7 @@ func (c *InventoryDeleteProjectResourcesCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 	system.Logger.Info("Backend: %s, Project: %s", system.Opts.Config.Backend.Type, os.Getenv("AEROLAB_PROJECT"))
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.DeleteProjectResources(system, system.Backend.GetInventory(), args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -132,7 +131,7 @@ func (c *InventoryDeleteProjectResourcesCmd) DeleteProjectResources(system *Syst
 
 	system.Logger.Warn("WARNING: This action cannot be undone!")
 
-	if !c.Force && (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())) {
+	if !c.Force && IsInteractive() {
 		var input string
 		fmt.Printf("Enter project name '%s' to confirm deletion: ", projectName)
 		_, err := fmt.Scanln(&input)

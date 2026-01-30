@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/aerospike/aerospike-client-go/v8"
-	"github.com/rglonek/logger"
+	"log"
 )
 
 func (i *Ingest) dbConnect() error {
@@ -63,7 +63,7 @@ func (i *Ingest) dbConnect() error {
 
 		i.db, connerr = aerospike.NewClientWithPolicy(connectPolicy, i.config.Aerospike.Host, i.config.Aerospike.Port)
 		if connerr != nil {
-			logger.Debug("Failed to connect: %s", connerr)
+			log.Printf("DEBUG: Failed to connect: %s", connerr)
 			retries++
 			nerr = nerr + "\n" + connerr.Error()
 			if i.config.Aerospike.Retries.Connect > -1 && retries > i.config.Aerospike.Retries.Connect {
@@ -77,9 +77,9 @@ func (i *Ingest) dbConnect() error {
 	i.wp.SocketTimeout = i.config.Aerospike.Timeouts.Socket
 	i.wp.TotalTimeout = i.config.Aerospike.Timeouts.Total
 	i.wp.MaxRetries = i.config.Aerospike.Retries.Write
-	logger.Debug("DB: WarmUp")
+	log.Printf("DEBUG: DB: WarmUp")
 	i.db.WarmUp(i.config.Aerospike.MaxPutThreads)
-	logger.Debug("DB: Create indexes")
+	log.Printf("DEBUG: DB: Create indexes")
 	return i.dbSindex(i.config.Aerospike.WaitForSindexes)
 }
 
@@ -102,15 +102,15 @@ func (i *Ingest) dbSindex(wait bool) error {
 }
 
 func (i *Ingest) createSindex(setName string, indexName string, wait bool) {
-	logger.Detail("Creating sindex (set:%s) (idxName:%s)", setName, indexName)
+	log.Printf("DETAIL: Creating sindex (set:%s) (idxName:%s)", setName, indexName)
 	indexCreateTask, err := i.db.CreateIndex(nil, i.config.Aerospike.Namespace, setName, indexName, i.config.Aerospike.TimestampBinName, aerospike.NUMERIC)
 	if err != nil {
-		logger.Warn("index create error: %s", err)
+		log.Printf("WARN: index create error: %s", err)
 	} else if wait {
 		for {
 			res, err := indexCreateTask.IsDone()
 			if err != nil {
-				logger.Warn("index create error: %s", err)
+				log.Printf("WARN: index create error: %s", err)
 			}
 			if res {
 				break

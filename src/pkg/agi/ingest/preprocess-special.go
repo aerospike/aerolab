@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/rglonek/logger"
+	"log"
 	"github.com/rglonek/sbs"
 )
 
@@ -38,7 +38,7 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 	line := strings.Split(sbs.ByteSliceToString(b), "\n")[0]
 	tabsplit := strings.Split(line, "\t")
 	if len(tabsplit) == 4 {
-		logger.Debug("PreProcess-special: %s is tab-4", fn)
+		log.Printf("DEBUG: PreProcess-special: %s is tab-4", fn)
 		s := bufio.NewScanner(fh)
 		tracker := make(map[string]*os.File)
 		for s.Scan() {
@@ -47,11 +47,11 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 			}
 			line := strings.Split(s.Text(), "\t")
 			if len(line) < 4 {
-				logger.Detail("PreProcess-Special: %s is tab-4 format but found line without 4 tabs: %s", fn, line)
+				log.Printf("DETAIL: PreProcess-Special: %s is tab-4 format but found line without 4 tabs: %s", fn, line)
 				continue
 			}
 			if line[1] == "pod_name" && strings.TrimSuffix(line[3], "\n") == "text_payload" { // timestamp       pod_name        text_payload
-				logger.Detail("PreProcess-Special: %s tab-4 header found, ignoring", fn)
+				log.Printf("DETAIL: PreProcess-Special: %s tab-4 header found, ignoring", fn)
 				continue
 			}
 			ident := strings.Trim(line[2], "\r\n\t ") + "-" + strings.Trim(line[1], "\r\t\n ")
@@ -70,11 +70,11 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 				return fnlist, err
 			}
 		}
-		logger.Debug("PreProcess-special: %s split into %v", fn, fnlist)
+		log.Printf("DEBUG: PreProcess-special: %s split into %v", fn, fnlist)
 		return fnlist, nil
 	}
 	if len(tabsplit) == 3 {
-		logger.Debug("PreProcess-special: %s is tab-3", fn)
+		log.Printf("DEBUG: PreProcess-special: %s is tab-3", fn)
 		s := bufio.NewScanner(fh)
 		tracker := make(map[string]*os.File)
 		for s.Scan() {
@@ -83,11 +83,11 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 			}
 			line := strings.Split(s.Text(), "\t")
 			if len(line) < 3 {
-				logger.Detail("PreProcess-Special: %s is tab-3 format but found line without 3 tabs: %s", fn, line)
+				log.Printf("DETAIL: PreProcess-Special: %s is tab-3 format but found line without 3 tabs: %s", fn, line)
 				continue
 			}
 			if line[1] == "pod_name" && strings.TrimSuffix(line[2], "\n") == "text_payload" { // timestamp       pod_name        text_payload
-				logger.Detail("PreProcess-Special: %s tab-3 header found, ignoring", fn)
+				log.Printf("DETAIL: PreProcess-Special: %s tab-3 header found, ignoring", fn)
 				continue
 			}
 			ident := strings.Trim(line[1], "\r\n\t ")
@@ -106,7 +106,7 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 				return fnlist, err
 			}
 		}
-		logger.Debug("PreProcess-special: %s split into %v", fn, fnlist)
+		log.Printf("DEBUG: PreProcess-special: %s split into %v", fn, fnlist)
 		return fnlist, nil
 	}
 	// test for json
@@ -115,7 +115,7 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 	}
 
 	// try one-line decoder
-	logger.Debug("PreProcess-special: %s is json", fn)
+	log.Printf("DEBUG: PreProcess-special: %s is json", fn)
 	dec := json.NewDecoder(fh)
 	v := new(jsonPayload)
 	tracker := make(map[string]*os.File)
@@ -125,7 +125,7 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 		if err != nil && err == io.EOF {
 			break
 		} else if err != nil {
-			logger.Detail("PreProcess-Special: json error in %s: %s", fn, err)
+			log.Printf("DETAIL: PreProcess-Special: json error in %s: %s", fn, err)
 			errCount++
 			if errCount > 1000 {
 				return fnlist, fmt.Errorf("encountered >1000 errors processing json; last error: %s", err)
@@ -146,7 +146,7 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 		} else {
 			ts, err := time.Parse("2006-01-02T15:04:05Z", v.Timestamp)
 			if err != nil {
-				logger.Detail("PreProcess-special: found json, but did not match 3 simple formats, and didn't find timestamp in complex format in %s: %s", fn, err)
+				log.Printf("DETAIL: PreProcess-special: found json, but did not match 3 simple formats, and didn't find timestamp in complex format in %s: %s", fn, err)
 				continue
 			}
 			line = fmt.Sprintf("%s: %s (%s): (%s) %s", ts.Format("Jan 02 2006 15:04:05 MST"), v.JsonPayload.Level, v.JsonPayload.Module, v.JsonPayload.ModuleDetail, v.JsonPayload.Message)
@@ -168,6 +168,6 @@ func (i *Ingest) preProcessSpecial(fn string, mimeType *mimetype.MIME) (fnlist [
 			return fnlist, err
 		}
 	}
-	logger.Debug("PreProcess-special: %s split into %v", fn, fnlist)
+	log.Printf("DEBUG: PreProcess-special: %s split into %v", fn, fnlist)
 	return fnlist, nil
 }

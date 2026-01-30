@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/rglonek/logger"
+	"log"
 )
 
 func (p *Plugin) stats() {
@@ -31,8 +31,8 @@ func (p *Plugin) stats() {
 func (p *Plugin) printStats() {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	logger.Debug("STAT: HEAP: Alloc=%s TotalAlloc=%s Sys=%s NumGC=%d HeapObjects=%d InUse=%s Idle=%s", convSize(m.Alloc), convSize(m.TotalAlloc), convSize(m.Sys), m.NumGC, m.HeapObjects, convSize(m.HeapInuse), convSize(m.HeapIdle))
-	logger.Debug("STAT: REQUESTS=%d JOBS=%d", len(p.requests), len(p.jobs))
+	log.Printf("DEBUG: STAT: HEAP: Alloc=%s TotalAlloc=%s Sys=%s NumGC=%d HeapObjects=%d InUse=%s Idle=%s", convSize(m.Alloc), convSize(m.TotalAlloc), convSize(m.Sys), m.NumGC, m.HeapObjects, convSize(m.HeapInuse), convSize(m.HeapIdle))
+	log.Printf("DEBUG: STAT: REQUESTS=%d JOBS=%d", len(p.requests), len(p.jobs))
 }
 
 func convSize(size uint64) string {

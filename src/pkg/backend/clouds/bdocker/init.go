@@ -128,6 +128,10 @@ func (s *b) ListEnabledZones() ([]string, error) {
 	return s.regions, nil
 }
 
+func (s *b) ListAvailableZones() ([]string, error) {
+	return s.regions, nil
+}
+
 func (s *b) EnableZones(names ...string) error {
 	regions, err := s.ListEnabledZones()
 	if err != nil {

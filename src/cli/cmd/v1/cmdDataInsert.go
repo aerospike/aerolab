@@ -183,7 +183,7 @@ func (c *DataInsertCmd) unpack(system *System, inventory *backends.Inventory, lo
 			pre = &c.Prerelease
 		}
 
-		installScript, err := aerolab.GetLinuxInstallScript(alVer, pre)
+		installScript, err := aerolab.GetLinuxInstallScript("", alVer, pre)
 		if err != nil {
 			return fmt.Errorf("failed to get aerolab install script: %w", err)
 		}

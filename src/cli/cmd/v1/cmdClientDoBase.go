@@ -33,7 +33,7 @@ func (c *ClientCreateBaseCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.createBaseClient(system, system.Backend.GetInventory(), system.Logger, args, isGrow)
 	if err != nil {
 		return Error(err, system, cmd, c, args)

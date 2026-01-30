@@ -352,19 +352,28 @@ func (s *b) getInstanceTypesFromGCP() (backends.InstanceTypeList, error) {
 					errs = errors.Join(errs, err)
 					return
 				}
+				// Skip instance types that don't have standard on-demand pricing
+				// TPU instances (ct3, ct5, ct6, ct7, tpu), X4 (commitment-only), A4 (DWS GPU only)
+				name := *machineType.Name
+				if strings.HasPrefix(name, "ct3") || strings.HasPrefix(name, "ct5") ||
+					strings.HasPrefix(name, "ct6") || strings.HasPrefix(name, "ct7") ||
+					strings.HasPrefix(name, "tpu") || strings.HasPrefix(name, "x4-") ||
+					strings.HasPrefix(name, "a4-") {
+					continue
+				}
 				arch := backends.ArchitectureX8664
-				if strings.HasPrefix(*machineType.Name, "t2") {
+				if strings.HasPrefix(name, "t2") {
 					arch = backends.ArchitectureARM64
 				}
 				ssds := 0
 				for k, v := range ssdCount {
-					if strings.HasPrefix(*machineType.Name, k) {
+					if strings.HasPrefix(name, k) {
 						ssds = v
 						break
 					}
 				}
 				ssdGiB := ssds * 375
-				if strings.HasPrefix(*machineType.Name, "z3") {
+				if strings.HasPrefix(name, "z3") {
 					ssdGiB = ssds * 3 * 1024
 				}
 				accels := 0
@@ -373,7 +382,7 @@ func (s *b) getInstanceTypesFromGCP() (backends.InstanceTypeList, error) {
 				}
 				outLock.Lock()
 				out = append(out, &backends.InstanceType{
-					Name:             *machineType.Name,
+					Name:             name,
 					Region:           zone,
 					CPUs:             int(*machineType.GuestCpus),
 					GPUs:             accels,
@@ -461,6 +470,29 @@ func getGcpInstancePricing(t *backends.InstanceType) *gcpInstancePricing {
 	// If conversion failed or it's something else, create a new gcpInstancePricing
 	t.BackendSpecific = &gcpInstancePricing{}
 	return t.BackendSpecific.(*gcpInstancePricing)
+}
+
+// skuGroupToInstancePrefix maps SKU description group names to instance type prefixes
+// This handles cases where SKU descriptions don't match instance type naming
+var skuGroupToInstancePrefix = map[string][]string{
+	"memory-optimized": {"m1", "m2"},
+	"compute":          {"c2"},
+}
+
+// instanceMatchesGroup checks if an instance type name matches a SKU group
+// It first checks the mapping, then falls back to prefix matching
+func instanceMatchesGroup(instanceName, group string) bool {
+	// Check mapping first
+	if prefixes, ok := skuGroupToInstancePrefix[group]; ok {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(instanceName, prefix) {
+				return true
+			}
+		}
+		return false
+	}
+	// Fall back to direct prefix matching
+	return strings.HasPrefix(instanceName, group)
 }
 
 // map[instanceTypePrefix]gcpInstancePricing
@@ -558,7 +590,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							if onDemand {
 								pricePerUnitHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 								for _, t := range out {
-									if strings.HasPrefix(t.Name, grp) {
+									if instanceMatchesGroup(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
 										pricing := getGcpInstancePricing(t)
 										pricing.OnDemandPerGPUHour = pricePerUnitHour
@@ -567,7 +599,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							} else {
 								pricePerUnitHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 								for _, t := range out {
-									if strings.HasPrefix(t.Name, grp) {
+									if instanceMatchesGroup(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
 										pricing := getGcpInstancePricing(t)
 										pricing.SpotPerGPUHour = pricePerUnitHour
@@ -594,7 +626,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							if onDemand {
 								pricePerUnitHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 								for _, t := range out {
-									if strings.HasPrefix(t.Name, grp) {
+									if instanceMatchesGroup(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
 										pricing := getGcpInstancePricing(t)
 										pricing.OnDemandPerCPUHour = pricePerUnitHour
@@ -603,7 +635,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							} else {
 								pricePerUnitHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 								for _, t := range out {
-									if strings.HasPrefix(t.Name, grp) {
+									if instanceMatchesGroup(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
 										pricing := getGcpInstancePricing(t)
 										pricing.SpotPerCPUHour = pricePerUnitHour
@@ -630,7 +662,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							if onDemand {
 								pricePerUnitHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 								for _, t := range out {
-									if strings.HasPrefix(t.Name, grp) {
+									if instanceMatchesGroup(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
 										pricing := getGcpInstancePricing(t)
 										pricing.OnDemandPerGPUHour = pricePerUnitHour
@@ -639,7 +671,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							} else {
 								pricePerUnitHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 								for _, t := range out {
-									if strings.HasPrefix(t.Name, grp) {
+									if instanceMatchesGroup(t.Name, grp) {
 										t.PricePerHour.Currency = "USD"
 										pricing := getGcpInstancePricing(t)
 										pricing.SpotPerGPUHour = pricePerUnitHour
@@ -674,7 +706,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							pricePerCoreHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 							pricePerRamGBHour := 0.0000000000001
 							for _, t := range out {
-								if strings.HasPrefix(t.Name, grp) {
+								if instanceMatchesGroup(t.Name, grp) {
 									t.PricePerHour.Currency = "USD"
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
@@ -688,7 +720,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							pricePerCoreHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 							pricePerRamGBHour := 0.0000000000001
 							for _, t := range out {
-								if strings.HasPrefix(t.Name, grp) {
+								if instanceMatchesGroup(t.Name, grp) {
 									t.PricePerHour.Currency = "USD"
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
@@ -722,7 +754,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							pricePerCoreHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 							pricePerRamGBHour := 0.0000000000001
 							for _, t := range out {
-								if strings.HasPrefix(t.Name, grp) {
+								if instanceMatchesGroup(t.Name, grp) {
 									t.PricePerHour.Currency = "USD"
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
@@ -736,7 +768,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 							pricePerCoreHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 							pricePerRamGBHour := 0.0000000000001
 							for _, t := range out {
-								if strings.HasPrefix(t.Name, grp) {
+								if instanceMatchesGroup(t.Name, grp) {
 									t.PricePerHour.Currency = "USD"
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
@@ -750,10 +782,38 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 					}
 				}
 				continue
-			} else if (iGroup[1] != "Instance" || (iGroup[2] != "Core" && iGroup[2] != "Ram") || iGroup[3] != "running" || iGroup[4] != "in") && ((iGroup[1] != "Predefined" && iGroup[1] != "AMD" && iGroup[1] != "Arm" && iGroup[1] != "Memory-optimized") || iGroup[2] != "Instance" || (iGroup[3] != "Core" && iGroup[3] != "Ram") || iGroup[4] != "running" || iGroup[5] != "in") {
+		} else {
+			// Check for valid pricing patterns:
+			// Pattern 1: "{Family} Instance Core/Ram running in..."
+			// Pattern 2: "{Family} {Modifier} Instance Core/Ram running in..." where Modifier is Predefined/AMD/Arm/Memory-optimized
+			// Pattern 3: "Compute optimized Core/Ram running in..." (for C2 instances)
+			// Pattern 4: "Compute optimized Instance Core/Ram running in..." (for C2 instances)
+			// Pattern 5: "Memory-optimized Instance Core/Ram running in..." (for M1/M2 instances)
+			isValidPattern := false
+
+			// Pattern 1: {Family} Instance Core/Ram running in...
+			if iGroup[1] == "Instance" && (iGroup[2] == "Core" || iGroup[2] == "Ram") && iGroup[3] == "running" && iGroup[4] == "in" {
+				isValidPattern = true
+			}
+			// Pattern 2: {Family} {Modifier} Instance Core/Ram running in...
+			if (iGroup[1] == "Predefined" || iGroup[1] == "AMD" || iGroup[1] == "Arm" || iGroup[1] == "Memory-optimized") &&
+				iGroup[2] == "Instance" && (iGroup[3] == "Core" || iGroup[3] == "Ram") && iGroup[4] == "running" && iGroup[5] == "in" {
+				isValidPattern = true
+			}
+			// Pattern 3: Compute optimized Core/Ram running in...
+			if iGroup[1] == "optimized" && (iGroup[2] == "Core" || iGroup[2] == "Ram") && iGroup[3] == "running" && iGroup[4] == "in" {
+				isValidPattern = true
+			}
+			// Pattern 4: Compute optimized Instance Core/Ram running in...
+			if iGroup[1] == "optimized" && iGroup[2] == "Instance" && (iGroup[3] == "Core" || iGroup[3] == "Ram") && iGroup[4] == "running" && iGroup[5] == "in" {
+				isValidPattern = true
+			}
+
+			if !isValidPattern {
 				continue
 			}
-			grp := strings.ToLower(iGroup[0])
+		}
+		grp := strings.ToLower(iGroup[0])
 			if i.Category.ResourceGroup != "CPU" && i.Category.ResourceGroup != "RAM" && iGroup[1] == "Predefined" {
 				if iGroup[3] == "Core" {
 					i.Category.ResourceGroup = "CPU"
@@ -780,7 +840,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 						if onDemand {
 							pricePerCoreHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 							for _, t := range out {
-								if strings.HasPrefix(t.Name, grp) {
+								if instanceMatchesGroup(t.Name, grp) {
 									t.PricePerHour.Currency = "USD"
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
@@ -792,7 +852,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 						} else {
 							pricePerCoreHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 							for _, t := range out {
-								if strings.HasPrefix(t.Name, grp) {
+								if instanceMatchesGroup(t.Name, grp) {
 									t.PricePerHour.Currency = "USD"
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
@@ -822,7 +882,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 						if onDemand {
 							pricePerRamGBHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 							for _, t := range out {
-								if strings.HasPrefix(t.Name, grp) {
+								if instanceMatchesGroup(t.Name, grp) {
 									t.PricePerHour.Currency = "USD"
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}
@@ -834,7 +894,7 @@ func (s *b) getInstancePrices(out backends.InstanceTypeList) (backends.InstanceT
 						} else {
 							pricePerRamGBHour := float64(x.UnitPrice.Units) + float64(x.UnitPrice.Nanos)/1000000000
 							for _, t := range out {
-								if strings.HasPrefix(t.Name, grp) {
+								if instanceMatchesGroup(t.Name, grp) {
 									t.PricePerHour.Currency = "USD"
 									if t.BackendSpecific == nil {
 										t.BackendSpecific = &gcpInstancePricing{}

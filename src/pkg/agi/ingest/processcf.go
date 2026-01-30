@@ -22,7 +22,7 @@ import (
 
 	"github.com/aerospike/aerospike-client-go/v8"
 	"github.com/gabriel-vasile/mimetype"
-	"github.com/rglonek/logger"
+	"log"
 )
 
 func (i *Ingest) ProcessCollectInfo() error {
@@ -37,7 +37,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 		i.progress.Unlock()
 	}()
 	// find node prefix->nodeID from log files
-	logger.Debug("ProcessCollectInfo: enumerating log files for node prefixes")
+	log.Printf("DEBUG: ProcessCollectInfo: enumerating log files for node prefixes")
 	foundLogs := make(map[string]map[string]string) //cluster,nodeid,prefix
 	err := filepath.Walk(i.config.Directories.Logs, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -62,7 +62,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 		return fmt.Errorf("listing collectinfos: %s", err)
 	}
 	// find files
-	logger.Debug("ProcessCollectInfo: enumerating files")
+	log.Printf("DEBUG: ProcessCollectInfo: enumerating files")
 	foundFiles := map[string]*CfFile{}
 	err = filepath.Walk(i.config.Directories.CollectInfo, func(filePath string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -81,7 +81,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 	}
 
 	// merge list
-	logger.Debug("ProcessCollectInfo: merging lists")
+	log.Printf("DEBUG: ProcessCollectInfo: merging lists")
 	i.progress.Lock()
 	for n, f := range i.progress.CollectinfoProcessor.Files {
 		foundFiles[n] = f
@@ -94,35 +94,35 @@ func (i *Ingest) ProcessCollectInfo() error {
 	i.progress.Unlock()
 
 	// preload meta entries for collectinfo files
-	logger.Debug("ProcessCollectInfo: db.Get existing CF filename metadata")
+	log.Printf("DEBUG: ProcessCollectInfo: db.Get existing CF filename metadata")
 	cfNames := []string{}
 	key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "cfName")
 	if aerr != nil {
-		logger.Error("CF Processor: could not create key for metadata fetch: %s", aerr)
+		log.Printf("ERROR: CF Processor: could not create key for metadata fetch: %s", aerr)
 	} else {
 		rec, err := i.db.Get(nil, key)
 		if err != nil {
-			logger.Error("CF Processor: could not get CF filename metadata: %s", err)
+			log.Printf("ERROR: CF Processor: could not get CF filename metadata: %s", err)
 		} else {
 			metaItem := &metaEntries{}
 			err := json.Unmarshal([]byte(rec.Bins["cfName"].(string)), &metaItem)
 			if err != nil {
-				logger.Warn("CF Processor: failed to unmarshal existing cf filename data: %s", err)
+				log.Printf("WARN: CF Processor: failed to unmarshal existing cf filename data: %s", err)
 			}
 			cfNames = append(cfNames, metaItem.Entries...)
 		}
 	}
 	// process
-	logger.Debug("ProcessCollectInfo: processing new files")
+	log.Printf("DEBUG: ProcessCollectInfo: processing new files")
 	for filePath, cf := range foundFiles {
 		if cf.ProcessingAttempted && cf.RenameAttempted {
-			logger.Detail("ProcessCollectInfo: already attempted, skipping: %s", filePath)
+			log.Printf("DETAIL: ProcessCollectInfo: already attempted, skipping: %s", filePath)
 			continue
 		}
-		logger.Detail("ProcessCollectInfo: processing %s", filePath)
+		log.Printf("DETAIL: ProcessCollectInfo: processing %s", filePath)
 		newName, err := i.processCollectInfoFile(filePath, cf, foundLogs)
 		if err != nil {
-			logger.Error("ProcessCollectInfo: Could not process %s: %s", filePath, err)
+			log.Printf("ERROR: ProcessCollectInfo: Could not process %s: %s", filePath, err)
 			i.progress.Lock()
 			cf.Errors = append(cf.Errors, err.Error())
 			i.progress.Unlock()
@@ -142,23 +142,23 @@ func (i *Ingest) ProcessCollectInfo() error {
 			delete(foundFiles, filePath)
 			i.progress.Unlock()
 		}
-		logger.Detail("ProcessCollectInfo: result (nodeId:%s) (processAttempt:%t processed:%t renameAttempt:%t renamed:%t) (originalName:%s) (name:%s)", cf.NodeID, cf.ProcessingAttempted, cf.Processed, cf.RenameAttempted, cf.Renamed, cf.OriginalName, newName)
+		log.Printf("DETAIL: ProcessCollectInfo: result (nodeId:%s) (processAttempt:%t processed:%t renameAttempt:%t renamed:%t) (originalName:%s) (name:%s)", cf.NodeID, cf.ProcessingAttempted, cf.Processed, cf.RenameAttempted, cf.Renamed, cf.OriginalName, newName)
 	}
 	meta := &metaEntries{}
 	meta.Entries = append(meta.Entries, cfNames...)
 	// store meta entries
 	metajson, err := json.Marshal(meta)
 	if err != nil {
-		logger.Error("CF Processor: could not jsonify for metadata: %s", err)
+		log.Printf("ERROR: CF Processor: could not jsonify for metadata: %s", err)
 	} else {
 		key, aerr := aerospike.NewKey(i.config.Aerospike.Namespace, i.patterns.LabelsSetName, "cfName")
 		if aerr != nil {
-			logger.Error("CF Processor: could not create key for metadata: %s", aerr)
+			log.Printf("ERROR: CF Processor: could not create key for metadata: %s", aerr)
 		} else {
 			bin := aerospike.NewBin("cfName", string(metajson))
 			aerr = i.db.PutBins(i.wp, key, bin)
 			if aerr != nil {
-				logger.Error("CF Processor: could not store metadata: %s", aerr)
+				log.Printf("ERROR: CF Processor: could not store metadata: %s", aerr)
 			}
 		}
 	}
@@ -166,7 +166,7 @@ func (i *Ingest) ProcessCollectInfo() error {
 	i.progress.CollectinfoProcessor.changed = true
 	i.progress.CollectinfoProcessor.Finished = true
 	i.progress.Unlock()
-	logger.Debug("ProcessCollectInfo: done")
+	log.Printf("DEBUG: ProcessCollectInfo: done")
 	return nil
 }
 
@@ -199,20 +199,20 @@ func (i *Ingest) sendClusterInfo(ct *cfContents) {
 	}
 	json, err := json.Marshal(ci)
 	if err != nil {
-		logger.Error("failed to marshal cluster info: %s", err)
+		log.Printf("ERROR: failed to marshal cluster info: %s", err)
 		return
 	}
 	resp, err := http.Post(i.config.SendClusterInfo, "application/json", bytes.NewReader(json))
 	if err != nil {
-		logger.Error("failed to send cluster info: %s", err)
+		log.Printf("ERROR: failed to send cluster info: %s", err)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		logger.Error("failed to send cluster info: %s", resp.Status)
+		log.Printf("ERROR: failed to send cluster info: %s", resp.Status)
 		return
 	}
-	logger.Detail("sent cluster info to %s", i.config.SendClusterInfo)
+	log.Printf("DETAIL: sent cluster info to %s", i.config.SendClusterInfo)
 }
 
 func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[string]map[string]string) (string, error) {
@@ -230,7 +230,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 	ct := &cfContents{
 		ipToNode: make(map[string][]string),
 	}
-	logger.Detail("processCollectInfoFile: Reading tgz contents of %s", filePath)
+	log.Printf("DETAIL: processCollectInfoFile: Reading tgz contents of %s", filePath)
 	err := i.processCollectInfoFileRead(filePath, cf, ct)
 	if err != nil {
 		i.progress.Lock()
@@ -241,10 +241,10 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		return "", err
 	}
 	if i.config.SendClusterInfo != "" {
-		logger.Detail("processCollectInfoFile: sending cluster info to %s", i.config.SendClusterInfo)
+		log.Printf("DETAIL: processCollectInfoFile: sending cluster info to %s", i.config.SendClusterInfo)
 		i.sendClusterInfo(ct)
 	}
-	logger.Detail("processCollectInfoFile: processing sysinfo of %s", filePath)
+	log.Printf("DETAIL: processCollectInfoFile: processing sysinfo of %s", filePath)
 	s := bufio.NewScanner(bytes.NewReader(ct.sysinfo))
 	s1 := false
 	s2 := false
@@ -265,7 +265,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 			s1 = false
 		}
 	}
-	logger.Detail("processCollectInfoFile: found sysinfo IPs:%v of %s", ips, filePath)
+	log.Printf("DETAIL: processCollectInfoFile: found sysinfo IPs:%v of %s", ips, filePath)
 	found := false
 	newName := ""
 	nodeid := ""
@@ -297,7 +297,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 			break
 		}
 	}
-	logger.Detail("processCollectInfoFile: handling rename for %s", filePath)
+	log.Printf("DETAIL: processCollectInfoFile: handling rename for %s", filePath)
 	i.progress.Lock()
 	new := filePath
 	cf.RenameAttempted = true
@@ -306,17 +306,17 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 	if found {
 		err = os.Rename(filePath, newName)
 		if err != nil {
-			logger.Error("ProcessCollectInfo: failed to rename %s to %s", filePath, newName)
+			log.Printf("ERROR: ProcessCollectInfo: failed to rename %s to %s", filePath, newName)
 		} else {
 			new = newName
 			cf.Renamed = true
 			cf.OriginalName = filePath
 		}
 	} else {
-		logger.Detail("ProcessCollectInfo: nodeID for collectinfo source not found for %s", filePath)
+		log.Printf("DETAIL: ProcessCollectInfo: nodeID for collectinfo source not found for %s", filePath)
 	}
 	i.progress.Unlock()
-	logger.Detail("processCollectInfoFile: starting asadm for %s", new)
+	log.Printf("DETAIL: processCollectInfoFile: starting asadm for %s", new)
 	err = i.processCollectInfoFileAsadm(new, ct, logs)
 	if err != nil {
 		i.progress.Lock()
@@ -326,7 +326,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 		return newName, err
 	}
 
-	logger.Detail("processCollectInfoFile: creating DB entry for %s", new)
+	log.Printf("DETAIL: processCollectInfoFile: creating DB entry for %s", new)
 	_, fname := path.Split(new)
 	key, err := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, new)
 	if err != nil {
@@ -347,7 +347,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 	binFname := aerospike.NewBin("cfName", fname)
 	err = i.db.PutBins(i.wp, key, binSysinfo, binConfFile, binHealth, binSummary, binFname)
 	if err != nil {
-		logger.Detail("ProcessCollectInfo: could not insert record for %s: %s", new, err)
+		log.Printf("DETAIL: ProcessCollectInfo: could not insert record for %s: %s", new, err)
 		return newName, fmt.Errorf("aerospike.PutBins: %s", err)
 	}
 	if ct.infoNetJson != nil && len(ct.infoNetJson.Groups) > 0 {
@@ -368,11 +368,11 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 			pk, _ := aerospike.NewKey(i.config.Aerospike.Namespace, i.config.CollectInfoSetName, fmt.Sprintf("%s::%s::%s", new, record.IP.Converted, record.NodeID.Converted))
 			aerr := i.db.Put(i.wp, pk, bins)
 			if aerr != nil {
-				logger.Warn("Failed to store item in aerospike: %s", aerr.Error())
+				log.Printf("WARN: Failed to store item in aerospike: %s", aerr.Error())
 			}
 		}
 	}
-	logger.Detail("processCollectInfoFile: done %s", new)
+	log.Printf("DETAIL: processCollectInfoFile: done %s", new)
 	i.progress.Lock()
 	i.progress.CollectinfoProcessor.changed = true
 	cf.Processed = true
@@ -382,7 +382,7 @@ func (i *Ingest) processCollectInfoFile(filePath string, cf *CfFile, logs map[st
 
 func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents, logs map[string]map[string]string) error {
 	for _, comm := range []string{"health", "summary"} {
-		logger.Detail("processCollectInfoFileAsadm: run file:%s comm:%s", filePath, comm)
+		log.Printf("DETAIL: processCollectInfoFileAsadm: run file:%s comm:%s", filePath, comm)
 		ctx, cancelFunc := context.WithTimeout(context.Background(), i.config.CollectInfoAsadmTimeout)
 		out, err := exec.CommandContext(ctx, "asadm", "-cf", filePath, "-e", comm).CombinedOutput()
 		nstr := string(out)
@@ -396,13 +396,13 @@ func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents, lo
 			ct.summary = nstr
 		}
 		cancelFunc()
-		logger.Detail("processCollectInfoFileAsadm: finish file:%s comm:%s", filePath, comm)
+		log.Printf("DETAIL: processCollectInfoFileAsadm: finish file:%s comm:%s", filePath, comm)
 	}
 	// process info network as a json
 	infoNet, err := i.processCollectInfoInfoNetwork(filePath, logs)
 	ct.infoNetJson = infoNet
 	if err != nil {
-		logger.Warn("Failed to get 'info network' for %s: %s", filePath, err)
+		log.Printf("WARN: Failed to get 'info network' for %s: %s", filePath, err)
 		return nil
 	}
 	return nil
@@ -410,7 +410,7 @@ func (i *Ingest) processCollectInfoFileAsadm(filePath string, ct *cfContents, lo
 
 func (i *Ingest) processCollectInfoInfoNetwork(path string, logs map[string]map[string]string) (infoNet *cfInfoNetwork, err error) {
 	infoNet = new(cfInfoNetwork)
-	logger.Detail("processCollectInfoFileAsadm: get info network from %s", path)
+	log.Printf("DETAIL: processCollectInfoFileAsadm: get info network from %s", path)
 	ctx, ctxCancel := context.WithTimeout(context.Background(), i.config.CollectInfoAsadmTimeout)
 	defer ctxCancel()
 	out, err := exec.CommandContext(ctx, "asadm", "-cf", path, "-e", "info network", "-j").CombinedOutput()
@@ -437,7 +437,7 @@ func (i *Ingest) processCollectInfoInfoNetwork(path string, logs map[string]map[
 	if err != nil {
 		return infoNet, fmt.Errorf("failed decompressing %s: %s", path, err)
 	}
-	logger.Detail("processCollectInfoFileAsadm: get info cluster-name from %s", path)
+	log.Printf("DETAIL: processCollectInfoFileAsadm: get info cluster-name from %s", path)
 	cname, ccname, err := i.processCollectInfoClusterName(path, logs)
 	if err != nil {
 		return infoNet, fmt.Errorf("get cluster name %s: %s", path, err)

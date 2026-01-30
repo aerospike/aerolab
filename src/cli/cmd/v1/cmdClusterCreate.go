@@ -46,11 +46,6 @@ type ClusterCreateCmd struct {
 	Aws                   ClusterCreateCmdAws    `group:"AWS" description:"backend-aws"`
 	Gcp                   ClusterCreateCmdGcp    `group:"GCP" description:"backend-gcp"`
 	Docker                ClusterCreateCmdDocker `group:"Docker" description:"backend-docker"`
-	gcpMeta               map[string]string      // TODO: extra tags to apply to the instance being created in gcp
-	useAgiFirewall        bool                   // TODO: use special firewall dedicated to AGI (allow ports 443 and 80 from anywhere)
-	volExtraTags          map[string]string      // TODO: extra tags to apply to the volume being created
-	spotFallback          bool                   // TODO: if doing a spot instance and it fails, try again with on-demand
-	efsDelOnError         bool                   // if creating an extra volume, and if instance creation fails, delete the new volume
 	Help                  HelpCmd                `command:"help" subcommands-optional:"true" description:"Print help"`
 }
 
@@ -66,6 +61,7 @@ type ClusterCreateCmdAws struct {
 	EFSMount            string          `long:"aws-efs-mount" description:"mount EFS volume; format: NAME:MountPath to mount the EFS root" simplemode:"false"`
 	EFSCreate           bool            `long:"aws-efs-create" description:"set to create the EFS volume if it doesn't exist" simplemode:"false"`
 	EFSOneZone          bool            `long:"aws-efs-onezone" description:"set to force the volume to be in one AZ only; half the price for reduced flexibility with multi-AZ deployments" simplemode:"false"`
+	EFSFips             bool            `long:"aws-efs-fips" description:"enable FIPS mode for the EFS mount" simplemode:"false"`
 	TerminateOnPoweroff bool            `long:"aws-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated" simplemode:"false"`
 	SpotInstance        bool            `long:"aws-spot-instance" description:"set to request a spot instance in place of on-demand"`
 	Expires             time.Duration   `long:"aws-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
@@ -87,30 +83,30 @@ type ClusterCreateCmdGcp struct {
 	Expires             time.Duration   `long:"gcp-expire" description:"length of life of nodes prior to expiry; smh - seconds, minutes, hours, ex 20h 30m; 0: no expiry; grow default: match existing cluster" default:"30h"`
 	VolMount            string          `long:"gcp-vol-mount" description:"mount an extra volume; format: NAME:MountPath" simplemode:"false"`
 	VolCreate           bool            `long:"gcp-vol-create" description:"set to create the volume if it doesn't exist" simplemode:"false"`
+	VolFips             bool            `long:"gcp-vol-fips" description:"enable FIPS mode for the volume mount" simplemode:"false"`
 	VolExpires          time.Duration   `long:"gcp-vol-expire" description:"if the volume is not remounted using aerolab for this amount of time, it will be expired" simplemode:"false"`
 	VolDescription      string          `long:"gcp-vol-desc" description:"set volume description field value" simplemode:"false"`
 	VolLabels           []string        `long:"gcp-vol-label" description:"apply custom labels to volume; format: key=value; this parameter can be specified multiple times" simplemode:"false"`
 	VolSize             int             `long:"gcp-vol-size" description:"set volume size in GB" simplemode:"false"`
 	TerminateOnPoweroff bool            `long:"gcp-terminate-on-poweroff" description:"if set, when shutdown or poweroff is executed from the instance itself, it will be stopped AND terminated" simplemode:"false"`
-	OnHostMaintenance   string          `long:"on-host-maintenance-policy" description:"optionally specify a custom policy onHostMaintenance"` // TODO: implement this one
+	OnHostMaintenance   string          `long:"on-host-maintenance-policy" description:"on-host maintenance policy: MIGRATE or TERMINATE; defaults to MIGRATE (or TERMINATE for spot)" simplemode:"false"`
 	MinCPUPlatform      string          `long:"gcp-min-cpu-platform" description:"set the minimum CPU platform; see https://cloud.google.com/compute/docs/instances/specify-min-cpu-platform"`
 	IAMInstanceProfile  string          `long:"gcp-instance-profile" description:"IAM instance profile to use for the instances"`
 	InstanceDNS         InstanceDNS     `group:"Automated GCP DNS" namespace:"gcp" description:"backend-gcp"`
 }
 
 type ClusterCreateCmdDocker struct {
-	ExposePortsToHost       string   `short:"e" long:"expose-ports" description:"If a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
-	NoAutoExpose            bool     `long:"no-autoexpose" description:"The easiest way to create multi-node clusters on docker desktop is to expose custom ports; this switch disables the functionality and leaves the listen/advertised IP:PORT in aerospike.conf untouched"`
-	CpuLimit                string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:"" simplemode:"false"`
-	RamLimit                string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:"" simplemode:"false"`
-	SwapLimit               string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:"" simplemode:"false"`
-	NoFILELimit             int      `long:"nofile-limit" description:"for clusters, default will attempt to set to proto-fd-max+5000; you can set this manually or set to -1 to disable the parameter" default:"0" simplemode:"false"`
-	NoPatchV7Config         bool     `long:"nopatch-v7-config" description:"for clusters, if a custom aerospike.conf is not provided, by default the config file will be patched to remove bar namespace and set test to file backing; set to disable this" simplemode:"false"`
-	Privileged              bool     `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
-	NetworkName             string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:"" simplemode:"false"`
-	ClientType              string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
-	Labels                  []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
-	clientCustomDockerImage string   // TODO: what is this?
+	ExposePortsToHost string   `short:"e" long:"expose-ports" description:"If a single machine is being deployed, port forward. Format: HOST_PORT:NODE_PORT,HOST_PORT:NODE_PORT" default:""`
+	NoAutoExpose      bool     `long:"no-autoexpose" description:"The easiest way to create multi-node clusters on docker desktop is to expose custom ports; this switch disables the functionality and leaves the listen/advertised IP:PORT in aerospike.conf untouched"`
+	CpuLimit          string   `short:"l" long:"cpu-limit" description:"Impose CPU speed limit. Values acceptable could be '1' or '2' or '0.5' etc." default:"" simplemode:"false"`
+	RamLimit          string   `short:"t" long:"ram-limit" description:"Limit RAM available to each node, e.g. 500m, or 1g." default:"" simplemode:"false"`
+	SwapLimit         string   `short:"w" long:"swap-limit" description:"Limit the amount of total memory (ram+swap) each node can use, e.g. 600m. If ram-limit==swap-limit, no swap is available." default:"" simplemode:"false"`
+	NoFILELimit       int      `long:"nofile-limit" description:"for clusters, default will attempt to set to proto-fd-max+5000; you can set this manually or set to -1 to disable the parameter" default:"0" simplemode:"false"`
+	NoPatchV7Config   bool     `long:"nopatch-v7-config" description:"for clusters, if a custom aerospike.conf is not provided, by default the config file will be patched to remove bar namespace and set test to file backing; set to disable this" simplemode:"false"`
+	Privileged        bool     `short:"B" long:"privileged" description:"Docker only: run container in privileged mode"`
+	NetworkName       string   `long:"network" description:"specify a network name to use for non-default docker network; for more info see: aerolab config docker help" default:"" simplemode:"false"`
+	ClientType        string   `hidden:"true" description:"specify client type on a cluster, valid for AGI" default:""`
+	Labels            []string `long:"docker-label" description:"apply custom labels to instances; format: key=value; this parameter can be specified multiple times"`
 }
 
 type ClusterGrowCmd struct {
@@ -123,10 +119,9 @@ func (g guiZone) String() string {
 	return string(g)
 }
 
-// TODO: list, default, error
-/*
+// List returns a list of available zones for the web UI zone picker
 func (g guiZone) List(system *System) ([][]string, string, error) {
-	zones, err := system.Backend.ListZones(system.Opts.Config.Backend.Type, system.Opts.Config.Backend.Region)
+	zones, err := system.Backend.ListAvailableZones(backends.BackendType(system.Opts.Config.Backend.Type))
 	if err != nil {
 		return nil, "", err
 	}
@@ -134,9 +129,14 @@ func (g guiZone) List(system *System) ([][]string, string, error) {
 	for _, zone := range zones {
 		z = append(z, []string{zone, zone})
 	}
-	return z, "us-central1-a", nil
+	def := ""
+	if string(g) != "" {
+		def = string(g)
+	} else if len(zones) > 0 {
+		def = zones[0]
+	}
+	return z, def, nil
 }
-*/
 
 type guiInstanceType string
 
@@ -207,7 +207,7 @@ func (c *ClusterCreateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	instances, err := c.CreateCluster(system, system.Backend.GetInventory(), system.Logger, args, "create")
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -228,7 +228,7 @@ func (c *ClusterGrowCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	instances, err := c.CreateCluster(system, system.Backend.GetInventory(), system.Logger, args, "grow")
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -433,6 +433,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			SpotInstance:       c.Gcp.SpotInstance,
 			IAMInstanceProfile: c.Gcp.IAMInstanceProfile,
 			MinCPUPlatform:     c.Gcp.MinCPUPlatform,
+			OnHostMaintenance:  c.Gcp.OnHostMaintenance,
 			CustomDNS:          c.Gcp.InstanceDNS,
 		},
 		Docker: InstancesCreateCmdDocker{
@@ -445,6 +446,9 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			RestartPolicy:      "",
 			MaxRestartRetries:  0,
 			ShmSize:            0,
+			CpuLimit:           c.Docker.CpuLimit,
+			RamLimit:           c.Docker.RamLimit,
+			SwapLimit:          c.Docker.SwapLimit,
 			AdvancedConfigPath: "",
 		},
 		NoInstallExpiry: false,
@@ -459,13 +463,14 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	}
 
 	// create extra volume if requested
-	deleteVolumeOnFail := false
 	var volName string
 	var volMountPath string
+	var volFips bool
 	if !c.PriceOnly {
 		switch system.Opts.Config.Backend.Type {
 		case "aws":
 			if c.Aws.EFSMount != "" {
+				volFips = c.Aws.EFSFips
 				efsDetail := strings.Split(c.Aws.EFSMount, ":")
 				if len(efsDetail) != 2 {
 					return nil, fmt.Errorf("invalid efs mount: %s", c.Aws.EFSMount)
@@ -475,9 +480,6 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				if inventory.Volumes.WithType(backends.VolumeTypeSharedDisk).WithName(volName).Count() == 0 {
 					if !c.Aws.EFSCreate {
 						return nil, fmt.Errorf("efs volume %s does not exist", volName)
-					}
-					if c.efsDelOnError {
-						deleteVolumeOnFail = true
 					}
 					// create efs volume
 					volume := &VolumesCreateCmd{
@@ -511,6 +513,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			}
 		case "gcp":
 			if c.Gcp.VolMount != "" {
+				volFips = c.Gcp.VolFips
 				volDetail := strings.Split(c.Gcp.VolMount, ":")
 				if len(volDetail) != 2 {
 					return nil, fmt.Errorf("invalid gcp volume mount: %s", c.Gcp.VolMount)
@@ -520,9 +523,6 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 				if inventory.Volumes.WithType(backends.VolumeTypeAttachedDisk).WithName(volName).Count() == 0 {
 					if !c.Gcp.VolCreate {
 						return nil, fmt.Errorf("gcp volume %s does not exist", volName)
-					}
-					if c.efsDelOnError {
-						deleteVolumeOnFail = true
 					}
 					volume := &VolumesCreateCmd{
 						Name:            volName,
@@ -553,16 +553,6 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 			}
 		}
 	}
-
-	defer func() {
-		if deleteVolumeOnFail {
-			system.Logger.Info("Deleting volume %s on error", volName)
-			err := inventory.Volumes.WithName(volName).DeleteVolumes(inventory.Firewalls.Describe(), 10*time.Minute)
-			if err != nil {
-				system.Logger.Error("Error deleting volume %s on error: %s", volName, err)
-			}
-		}
-	}()
 
 	// create instances
 	newInst, err := inst.CreateInstances(system, inventory, args, action)
@@ -607,7 +597,7 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 		for _, i := range newInst.Describe() {
 			err := inventory.Volumes.WithName(volName).Attach(i, &backends.VolumeAttachShared{
 				MountTargetDirectory: volMountPath,
-				FIPS:                 false, // TODO: add FIPS support option
+				FIPS:                 volFips,
 			}, 10*time.Minute)
 			if err != nil {
 				return nil, err
@@ -850,7 +840,6 @@ func (c *ClusterCreateCmd) CreateCluster(system *System, inventory *backends.Inv
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
-	deleteVolumeOnFail = false
 	return newInst, nil
 }
 

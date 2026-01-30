@@ -17,7 +17,7 @@ func TestAerolabLatestUbuntu24(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript(nil, nil)
+	script, err := aerolab.GetLinuxInstallScript("", nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -37,7 +37,7 @@ func TestAerolabLatestCentos8(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript(nil, nil)
+	script, err := aerolab.GetLinuxInstallScript("", nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -57,7 +57,7 @@ func TestAerolabLatestStable(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript(nil, installers.Bool(false))
+	script, err := aerolab.GetLinuxInstallScript("", nil, installers.Bool(false))
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -77,7 +77,7 @@ func TestAerolabLatestPrelease(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript(nil, installers.Bool(true))
+	script, err := aerolab.GetLinuxInstallScript("", nil, installers.Bool(true))
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -97,7 +97,7 @@ func TestAerolabVersioned(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript(installers.String("7.7.0"), installers.Bool(false))
+	script, err := aerolab.GetLinuxInstallScript("", installers.String("7.7.0"), installers.Bool(false))
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)
@@ -118,7 +118,7 @@ func TestAerolabVersionPrefixed(t *testing.T) {
 	defer os.RemoveAll("dockertest")
 	os.MkdirAll("dockertest", 0755)
 
-	script, err := aerolab.GetLinuxInstallScript(installers.String("7.7.*"), installers.Bool(false))
+	script, err := aerolab.GetLinuxInstallScript("", installers.String("7.7.*"), installers.Bool(false))
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.NotEmpty(t, script)

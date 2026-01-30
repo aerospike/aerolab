@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -201,7 +202,7 @@ func (s *b) getVolumePricesFromAWS() ([]*volumePrice, error) {
 		for _, price := range out.PriceList {
 			p := &volumePrice{}
 			json.Unmarshal([]byte(price), p)
-			if p.Product.Attributes.StorageClass == "OneZone-General Purpose" {
+			if p.Product.Attributes.StorageClass == "One Zone-General Purpose" {
 				p.Product.Attributes.VolumeApiName = "SharedDisk_OneZone"
 			} else if p.Product.Attributes.StorageClass == "General Purpose" {
 				p.Product.Attributes.VolumeApiName = "SharedDisk_GeneralPurpose"
@@ -397,6 +398,10 @@ func (s *b) getInstanceTypesFromAWS() ([]*instanceType, error) {
 						return err
 					}
 					for _, itype := range out.InstanceTypes {
+						// Skip Mac instances - aerolab only supports Linux
+						if strings.HasPrefix(string(itype.InstanceType), "mac") {
+							continue
+						}
 						archs := []backends.Architecture{}
 						for _, arch := range itype.ProcessorInfo.SupportedArchitectures {
 							if arch == etypes.ArchitectureTypeX8664 {
@@ -473,11 +478,8 @@ func (s *b) getInstanceTypesFromAWS() ([]*instanceType, error) {
 						Type:  types.FilterTypeTermMatch,
 						Value: aws.String(region),
 					},
-					{
-						Type:  types.FilterTypeTermMatch,
-						Field: aws.String("productFamily"),
-						Value: aws.String("Compute Instance"),
-					},
+					// NOTE: productFamily filter removed - it excludes bare metal instances
+					// which have "Compute Instance (bare metal)" instead of "Compute Instance"
 					{
 						Type:  types.FilterTypeTermMatch,
 						Field: aws.String("marketoption"),

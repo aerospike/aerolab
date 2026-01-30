@@ -38,7 +38,7 @@ func (c *ReauthenticateCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = c.Reauthenticate(system, cmd, args)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -153,7 +153,7 @@ func (c *CreateFirewallCmd) Execute(args []string) error {
 	if c.IP == "discover-caller-ip" {
 		c.IP = getip2()
 	}
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = CreateSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, c.VPC, "gcp", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -171,7 +171,7 @@ func (c *DestroyFirewallCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = DeleteSecurityGroups(system, c.NamePrefix, c.All, "gcp", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -189,7 +189,7 @@ func (c *LockFirewallCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = LockSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, "gcp", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)

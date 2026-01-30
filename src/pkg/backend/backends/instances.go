@@ -350,7 +350,8 @@ func (v InstanceList) WithType(types ...string) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
-		if !slices.Contains(types, instance.InstanceType) {
+		instanceType := instance.Tags["aerolab.type"]
+		if !slices.Contains(types, instanceType) {
 			continue
 		}
 		ret = append(ret, instance)
@@ -455,6 +456,10 @@ func (v InstanceList) WithExpired(expired bool) Instances {
 	ret := InstanceList{}
 	for _, instance := range v {
 		instance := instance
+		// Zero time means no expiry - skip when looking for expired instances
+		if expired && instance.Expires.IsZero() {
+			continue
+		}
 		if !expired && instance.Expires.Before(time.Now()) {
 			continue
 		}

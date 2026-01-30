@@ -17,6 +17,7 @@ Aerolab supports several environment variables for configuration and behavior co
 | `AEROSPIKE_CLOUD_ENV` | dev | Set to `dev` to use development environment for Aerospike Cloud API endpoints |
 | `AEROSPIKE_CLOUD_KEY` | API_KEY | Set the API key for Aerospike Cloud API |
 | `AEROSPIKE_CLOUD_SECRET` | API_SECRET | Set the API secret for Aerospike Cloud API |
+| `AEROLAB_DEBUG` | 1 | If set to 1, aerolab will print more detailed output and not terminate instances on certain errors |
 
 ## AEROLAB_HOME
 

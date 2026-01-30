@@ -44,7 +44,7 @@ func (c *ClientCreateNoneCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	_, err = c.createNoneClient(system, system.Backend.GetInventory(), system.Logger, args, isGrow)
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -65,8 +65,8 @@ func (c *ClientCreateNoneCmd) createNoneClient(system *System, inventory *backen
 	if inventory == nil {
 		inventory = system.Backend.GetInventory()
 	}
-	// Check if client already exists
-	existing := inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(c.ClientName.String())
+	// Check if client already exists (excluding terminated/terminating instances)
+	existing := inventory.Instances.WithTags(map[string]string{"aerolab.old.type": "client"}).WithClusterName(c.ClientName.String()).WithNotState(backends.LifeCycleStateTerminated, backends.LifeCycleStateTerminating)
 	if existing != nil && existing.Count() > 0 && !isGrow {
 		return nil, fmt.Errorf("client %s already exists, did you mean 'grow'?", c.ClientName.String())
 	}

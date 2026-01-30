@@ -14,6 +14,7 @@ import (
 	"cloud.google.com/go/compute/apiv1/computepb"
 	"github.com/aerospike/aerolab/pkg/backend/backends"
 	"github.com/aerospike/aerolab/pkg/backend/clouds/bgcp/connect"
+	"github.com/aerospike/aerolab/pkg/sshexec"
 	"github.com/aerospike/aerolab/pkg/utils/structtags"
 	"github.com/lithammer/shortuuid"
 	"google.golang.org/api/iterator"
@@ -465,7 +466,8 @@ func (s *b) ResizeVolumes(volumes backends.VolumeList, newSizeGiB backends.Stora
 	return reterr
 }
 
-// for Attached volume type, this will just attach the volumes to the instance using AWS API, no mounting will be performed
+// for Attached volume type, this will attach the volumes to the instance using GCP API
+// if sharedMountData.MountTargetDirectory is set, it will also format (if needed) and mount the disk
 func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instance, sharedMountData *backends.VolumeAttachShared, waitDur time.Duration) error {
 	log := s.log.WithPrefix("AttachVolumes: job=" + shortuuid.New() + " ")
 	log.Detail("Start")
@@ -490,6 +492,13 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 	defer cli.CloseIdleConnections()
 	wg := new(sync.WaitGroup)
 	var reterr error
+	// Track device names for mounting later
+	type attachedDevice struct {
+		deviceName string
+		volumeID   string
+	}
+	var attachedDevices []attachedDevice
+	var attachedDevicesLock sync.Mutex
 	for zone, ids := range attached {
 		wg.Add(1)
 		go func(zone string, ids backends.VolumeList) {
@@ -503,7 +512,12 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 				return
 			}
 			defer client.Close()
-			var ops []*compute.Operation
+			type opWithDev struct {
+				op         *compute.Operation
+				deviceName string
+				volumeID   string
+			}
+			var ops []opWithDev
 			for _, id := range ids {
 				nextDev := shortuuid.New()
 				diskLink := fmt.Sprintf("projects/%s/zones/%s/disks/%s", s.credentials.Project, zone, id.FileSystemId)
@@ -525,24 +539,104 @@ func (s *b) AttachVolumes(volumes backends.VolumeList, instance *backends.Instan
 					reterr = errors.Join(reterr, err)
 					return
 				}
-				ops = append(ops, op)
+				ops = append(ops, opWithDev{op: op, deviceName: nextDev, volumeID: id.FileSystemId})
 			}
 			log.Detail("zone=%s wait for volumes to be in in-use state", zone)
 			if waitDur > 0 {
 				ctx, cancel := context.WithTimeout(ctx, waitDur)
 				defer cancel()
-				for _, op := range ops {
-					err = op.Wait(ctx)
+				for _, opd := range ops {
+					err = opd.op.Wait(ctx)
 					if err != nil {
 						reterr = errors.Join(reterr, err)
 						return
 					}
+					// Track successfully attached devices
+					attachedDevicesLock.Lock()
+					attachedDevices = append(attachedDevices, attachedDevice{deviceName: opd.deviceName, volumeID: opd.volumeID})
+					attachedDevicesLock.Unlock()
 				}
 			}
 		}(zone, ids)
 	}
 	wg.Wait()
-	return reterr
+	if reterr != nil {
+		return reterr
+	}
+
+	// If MountTargetDirectory is specified, format (if needed) and mount the disk
+	if sharedMountData != nil && sharedMountData.MountTargetDirectory != "" && len(attachedDevices) > 0 {
+		// For simplicity, we only support mounting a single volume to a single directory
+		// If multiple volumes are attached, only the first one will be mounted
+		dev := attachedDevices[0]
+		devicePath := fmt.Sprintf("/dev/disk/by-id/google-%s", dev.deviceName)
+		mountPath := sharedMountData.MountTargetDirectory
+
+		log.Detail("Preparing to mount %s to %s", devicePath, mountPath)
+
+		// Build the mount script:
+		// 1. Wait for device to appear (up to 60 seconds)
+		// 2. Check if device has a filesystem
+		// 3. If no filesystem, format with ext4
+		// 4. Create mount point and mount
+		mountScript := fmt.Sprintf(`#!/bin/bash
+set -e
+
+DEVICE="%s"
+MOUNT_PATH="%s"
+
+# Wait for device to appear (up to 60 seconds)
+echo "Waiting for device $DEVICE to appear..."
+for i in $(seq 1 60); do
+    if [ -e "$DEVICE" ]; then
+        echo "Device $DEVICE found"
+        break
+    fi
+    if [ $i -eq 60 ]; then
+        echo "ERROR: Device $DEVICE did not appear after 60 seconds"
+        exit 1
+    fi
+    sleep 1
+done
+
+# Check if device has a filesystem
+echo "Checking filesystem on $DEVICE..."
+if ! blkid "$DEVICE" > /dev/null 2>&1; then
+    echo "No filesystem found on $DEVICE, formatting with ext4..."
+    mkfs.ext4 -F "$DEVICE"
+    echo "Formatting complete"
+else
+    echo "Filesystem already exists on $DEVICE"
+fi
+
+# Create mount point if it doesn't exist
+mkdir -p "$MOUNT_PATH"
+
+# Mount the device
+echo "Mounting $DEVICE to $MOUNT_PATH..."
+mount "$DEVICE" "$MOUNT_PATH"
+echo "Mount successful"
+`, devicePath, mountPath)
+
+		log.Detail("Executing mount script on instance %s", instance.Name)
+		execOut := instance.Exec(&backends.ExecInput{
+			ExecDetail: sshexec.ExecDetail{
+				Command:        []string{"/bin/bash", "-c", mountScript},
+				SessionTimeout: 2 * time.Minute,
+				Terminal:       true,
+			},
+			Username:       "root",
+			ConnectTimeout: 30 * time.Second,
+		})
+		if execOut.Output.Err != nil {
+			return fmt.Errorf("failed to mount volume %s to %s: %w\nstdout: %s\nstderr: %s",
+				dev.volumeID, mountPath, execOut.Output.Err,
+				string(execOut.Output.Stdout), string(execOut.Output.Stderr))
+		}
+		log.Detail("Successfully mounted %s to %s", devicePath, mountPath)
+	}
+
+	return nil
 }
 
 // for Shared volume type, this will umount and remove the volume from fstab
@@ -756,7 +850,10 @@ func (s *b) CreateVolume(input *backends.CreateVolumeInput) (output *backends.Cr
 		tagsIn[TAG_NAME] = input.Name
 		tagsIn[TAG_AEROLAB_OWNER] = input.Owner
 		tagsIn[TAG_AEROLAB_DESCRIPTION] = input.Description
-		tagsIn[TAG_AEROLAB_EXPIRES] = input.Expires.Format(time.RFC3339)
+		// Only add expiry tag if a non-zero expiry time is set
+		if !input.Expires.IsZero() {
+			tagsIn[TAG_AEROLAB_EXPIRES] = input.Expires.Format(time.RFC3339)
+		}
 		tagsIn[TAG_AEROLAB_PROJECT] = s.project
 		tagsIn[TAG_AEROLAB_VERSION] = s.aerolabVersion
 		tagsIn[TAG_COST_PER_GB] = fmt.Sprintf("%f", ppgb)

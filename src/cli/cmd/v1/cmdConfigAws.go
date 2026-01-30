@@ -113,7 +113,7 @@ func (c *CreateSecGroupsCmd) Execute(args []string) error {
 	if !strings.Contains(c.IP, "/") {
 		c.IP = c.IP + "/32"
 	}
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = CreateSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, c.VPC, "aws", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -131,7 +131,7 @@ func (c *DestroySecGroupsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = DeleteSecurityGroups(system, c.NamePrefix, c.All, "aws", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
@@ -149,7 +149,7 @@ func (c *LockSecGroupsCmd) Execute(args []string) error {
 	}
 	system.Logger.Info("Running %s", strings.Join(cmd, "."))
 
-	defer UpdateDiskCache(system)
+	defer UpdateDiskCache(system)()
 	err = LockSecurityGroups(system, c.NamePrefix, c.IP, c.Ports, "aws", cmd, c, args, system.Backend.GetInventory())
 	if err != nil {
 		return Error(err, system, cmd, c, args)
