@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# some logging
+echo "INFO: Starting website build..."
+
 # cleanup
 rm -rf prod
 
@@ -68,3 +71,6 @@ cd ..
 cd agiproxy
 tar -zcf ../../src/pkg/agi/agiproxy.tgz *
 cd ..
+
+# some logging
+echo "INFO: Website build completed successfully"

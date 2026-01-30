@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 )
 
+//go:generate bash -c "cd ../../../web && ./build.sh"
+
 //go:embed www.tgz
 var Website []byte
 
