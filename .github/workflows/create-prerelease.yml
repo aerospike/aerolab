@@ -95,7 +95,7 @@ jobs:
                   fi
                 done
             - name: "Export artifacts"
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
               with:
                 name: linux
                 path: ~/work/aerolab/aerolab/bin/packages
@@ -134,7 +134,7 @@ jobs:
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH
                 cd ~/work/aerolab/aerolab/src && make pkg-windows-zip
             - name: "Export artifacts"
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
               with:
                 name: windows
                 path: ~/work/aerolab/aerolab/bin/packages
@@ -200,7 +200,7 @@ jobs:
                 export aerolab_teamid="${xaerolab_teamid}"
                 export PATH=/usr/local/go/bin:/usr/local/bin:$PATH && cd ~/work/aerolab/aerolab/src && make macos-build-all && make macos-notarize-all
             - name: "Export artifacts"
-              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+              uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
               with:
                 name: darwin
                 path: ~/work/aerolab/aerolab/bin/packages
