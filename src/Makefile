@@ -9,6 +9,8 @@ INSTALLSIGNER := "$(aerolab_installsigner)"
 APPLEID := "$(aerolab_appleid)"
 APPLEPW := "$(aerolab_applepw)"
 TEAMID := "$(aerolab_teamid)"
+export GOFLAGS := -mod=vendor
+export GOWORK := off
 
 ## available make commands
 .PHONY: help
